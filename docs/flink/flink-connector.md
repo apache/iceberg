@@ -36,6 +36,12 @@ To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WIT
     * `custom`: The customized catalog, see [custom catalog](../custom-catalog) for more details.
 * `catalog-database`: The iceberg database name in the backend catalog, use the current flink database name by default.
 * `catalog-table`: The iceberg table name in the backend catalog. Default to use the table name in the flink `CREATE TABLE` sentence.
+* `lookup.max-retries`: The max retry times if lookup iceberg failed. By default maximum number of retries is `3` times. See the following [Lookup Join](#Lookup Join) section for more details.
+* `lookup.base-retry-backoff-mills`: The min retry-backoff times if lookup iceberg failed. By default value is `100`.
+* `lookup.max-retry-backoff-mills`: The maximum retry-backoff times if  lookup iceberg failed. By default value is `10000`.
+* `lookup.cache.max-rows`: The max number of rows of lookup cache, over this value, the oldest rows will be expired. Lookup cache is disabled by default. See the following [Lookup Cache](#Lookup Cache) section for more details.
+* `lookup.cache.ttl`: The max time to live for each rows in lookup cache, over this time, the oldest rows will be expired.By default value is `10s`.
+* `lookup.cache.ignore-empty`: Ignore empty rows of lookup cache. By default value is `true`.
 
 ## Table managed in Hive catalog.
 
@@ -141,5 +147,16 @@ SELECT * FROM flink_table;
 +----+------+
 3 rows in set
 ```
+## Lookup Join
+
+Iceberg connector can be used in temporal join as a [lookup source](https://ci.apache.org/projects/flink/flink-docs-release-1.13/docs/dev/table/sql/queries/joins/#lookup-join) (aka. dimension table). Currently, only sync lookup mode is supported.
+
+### Lookup Cache
+
+The lookup cache is used to improve performance of temporal join the Iceberg connector. By default, lookup cache is not enabled, so all the read from iceberg. You can enable it by setting both lookup.cache.max-rows and lookup.cache.ttl.
+
+When lookup cache is enabled, each process (i.e. TaskManager) will hold a cache. Flink will lookup the cache first, and only read from iceberg when cache missing, and update cache with the rows returned.
+The oldest rows in cache will be expired when the cache hit to the max cached rows lookup.cache.max-rows or when the row exceeds the max time to live lookup.cache.ttl.
+The cached rows might not be the latest, users can tune lookup.cache.ttl to a smaller value to have a better fresh data, but this may increase the number of read from iceberg. So this is a balance between throughput and correctness.
 
 For more details, please refer to the Iceberg [Flink document](../flink).
