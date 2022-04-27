@@ -76,11 +76,6 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
     }
 
     @Override
-    public OrcValueReader<?> union(Type expected, TypeDescription union, List<OrcValueReader<?>> options) {
-      return SparkOrcValueReaders.union(options);
-    }
-
-    @Override
     public OrcValueReader<?> list(Types.ListType iList, TypeDescription array, OrcValueReader<?> elementReader) {
       return SparkOrcValueReaders.array(elementReader);
     }

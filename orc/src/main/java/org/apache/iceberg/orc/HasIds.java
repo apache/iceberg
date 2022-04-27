@@ -31,11 +31,6 @@ class HasIds extends OrcSchemaVisitor<Boolean> {
   }
 
   @Override
-  public Boolean union(TypeDescription union, List<Boolean> options) {
-    return ORCSchemaUtil.icebergID(union).isPresent() || options.stream().anyMatch(Predicate.isEqual(true));
-  }
-
-  @Override
   public Boolean list(TypeDescription array, Boolean element) {
     return ORCSchemaUtil.icebergID(array).isPresent() || element;
   }

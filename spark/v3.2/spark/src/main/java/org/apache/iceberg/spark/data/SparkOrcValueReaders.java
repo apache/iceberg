@@ -33,7 +33,6 @@ import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
-import org.apache.orc.storage.ql.exec.vector.UnionColumnVector;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -69,10 +68,6 @@ public class SparkOrcValueReaders {
   static OrcValueReader<?> struct(
       List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
     return new StructReader(readers, struct, idToConstant);
-  }
-
-  static OrcValueReader<?> union(List<OrcValueReader<?>> readers) {
-    return new UnionReader(readers);
   }
 
   static OrcValueReader<?> array(OrcValueReader<?> elementReader) {
@@ -161,34 +156,6 @@ public class SparkOrcValueReaders {
       } else {
         struct.setNullAt(pos);
       }
-    }
-  }
-
-  static class UnionReader implements OrcValueReader<InternalRow> {
-    private final OrcValueReader[] readers;
-
-    private UnionReader(List<OrcValueReader<?>> readers) {
-      this.readers = new OrcValueReader[readers.size()];
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
-      }
-    }
-
-    @Override
-    public InternalRow nonNullRead(ColumnVector vector, int row) {
-      InternalRow struct = new GenericInternalRow(readers.length + 1);
-      UnionColumnVector unionColumnVector = (UnionColumnVector) vector;
-
-      int fieldIndex = unionColumnVector.tags[row];
-      Object value = this.readers[fieldIndex].read(unionColumnVector.fields[fieldIndex], row);
-
-      for (int i = 0; i < readers.length; i += 1) {
-        struct.setNullAt(i + 1);
-      }
-      struct.update(0, fieldIndex);
-      struct.update(fieldIndex + 1, value);
-
-      return struct;
     }
   }
 
