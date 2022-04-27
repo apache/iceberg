@@ -287,6 +287,11 @@ public class BaseDeleteOrphanFilesSparkAction
     };
   }
 
+  /**
+   * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be marked
+   * as hidden by {@link HiddenPathFilter} due to a partition field that starts with one of the characters that
+   * indicate a hidden path.
+   */
   @VisibleForTesting
   static class PartitionAwareHiddenPathFilter implements PathFilter, Serializable {
 
@@ -301,12 +306,7 @@ public class BaseDeleteOrphanFilesSparkAction
       boolean isHiddenPartitionPath = hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
       return isHiddenPartitionPath || HiddenPathFilter.get().accept(path);
     }
-
-    /**
-     * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be marked
-     * as hidden by {@link HiddenPathFilter} due to a partition field that starts with one of the characters that
-     * indicate a hidden path.
-     */
+    
     static PathFilter forSpecs(Map<Integer, PartitionSpec> specs) {
       if (specs == null) {
         return HiddenPathFilter.get();
