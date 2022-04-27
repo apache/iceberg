@@ -557,8 +557,8 @@ public class TestMetadataTableScans extends TableTestBase {
 
     // Change spec and add two data files
     table.updateSpec()
-            .addField("id")
-            .commit();
+        .addField("id")
+        .commit();
     PartitionSpec newSpec = table.spec();
 
     // Add two data files with new spec
@@ -566,28 +566,28 @@ public class TestMetadataTableScans extends TableTestBase {
     data10Key.set(0, 0); // data=0
     data10Key.set(1, 10); // id=10
     DataFile data10 = DataFiles.builder(newSpec)
-            .withPath("/path/to/data-10.parquet")
-            .withRecordCount(10)
-            .withFileSizeInBytes(10)
-            .withPartition(data10Key)
-            .build();
+        .withPath("/path/to/data-10.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartition(data10Key)
+        .build();
     PartitionKey data11Key = new PartitionKey(newSpec, table.schema());
     data11Key.set(0, 1); // data=0
     data10Key.set(1, 11); // id=11
     DataFile data11 = DataFiles.builder(newSpec)
-            .withPath("/path/to/data-11.parquet")
-            .withRecordCount(10)
-            .withFileSizeInBytes(10)
-            .withPartition(data11Key)
-            .build();
+        .withPath("/path/to/data-11.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartition(data11Key)
+        .build();
 
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
 
     Table metadataTable = new PartitionsTable(table.ops(), table);
     Expression filter = Expressions.and(
-            Expressions.equal("partition.id", 10),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.equal("partition.id", 10),
+        Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = PartitionsTable.planFiles((StaticTableScan) scan);
 
@@ -595,8 +595,8 @@ public class TestMetadataTableScans extends TableTestBase {
     Assert.assertEquals(5, Iterables.size(tasks));
 
     filter = Expressions.and(
-            Expressions.equal("partition.data_bucket", 0),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
     tasks = PartitionsTable.planFiles((StaticTableScan) scan);
 
@@ -611,51 +611,49 @@ public class TestMetadataTableScans extends TableTestBase {
 
     // Change spec and add two data and delete files each
     table.updateSpec()
-            .addField("id")
-            .commit();
+        .addField("id")
+        .commit();
     PartitionSpec newSpec = table.spec();
 
     // Add two data files and two delete files with new spec
     DataFile data10 = DataFiles.builder(newSpec)
-            .withPath("/path/to/data-10.parquet")
-            .withRecordCount(10)
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data_bucket=0/id=10")
-            .build();
+        .withPath("/path/to/data-10.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0/id=10")
+        .build();
     DataFile data11 = DataFiles.builder(newSpec)
-            .withPath("/path/to/data-11.parquet")
-            .withRecordCount(10)
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data_bucket=1/id=11")
-            .build();
+        .withPath("/path/to/data-11.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=1/id=11")
+        .build();
 
     DeleteFile delete10 = FileMetadata.deleteFileBuilder(newSpec)
-            .ofPositionDeletes()
-            .withPath("/path/to/data-10-deletes.parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data_bucket=0/id=10")
-            .withRecordCount(1)
-            .build();
+        .ofPositionDeletes()
+        .withPath("/path/to/data-10-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=0/id=10")
+        .withRecordCount(1)
+        .build();
     DeleteFile delete11 = FileMetadata.deleteFileBuilder(newSpec)
-            .ofPositionDeletes()
-            .withPath("/path/to/data-11-deletes.parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data_bucket=1/id=11")
-            .withRecordCount(1)
-            .build();
+        .ofPositionDeletes()
+        .withPath("/path/to/data-11-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data_bucket=1/id=11")
+        .withRecordCount(1)
+        .build();
 
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
 
-    if (formatVersion == 2) {
-      table.newRowDelta().addDeletes(delete10).commit();
-      table.newRowDelta().addDeletes(delete11).commit();
-    }
+    table.newRowDelta().addDeletes(delete10).commit();
+    table.newRowDelta().addDeletes(delete11).commit();
 
     Table metadataTable = new PartitionsTable(table.ops(), table);
     Expression filter = Expressions.and(
-            Expressions.equal("partition.id", 10),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.equal("partition.id", 10),
+        Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<FileScanTask> tasks = PartitionsTable.planFiles((StaticTableScan) scan);
 
@@ -663,8 +661,8 @@ public class TestMetadataTableScans extends TableTestBase {
     Assert.assertEquals(5, Iterables.size(tasks));
 
     filter = Expressions.and(
-            Expressions.equal("partition.data_bucket", 0),
-            Expressions.greaterThan("record_count", 0));
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
     tasks = PartitionsTable.planFiles((StaticTableScan) scan);
 
