@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -35,8 +36,10 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
+import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
+import org.apache.orc.storage.ql.exec.vector.UnionColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -91,6 +94,11 @@ public class VectorizedSparkOrcReaders {
     public Converter record(Types.StructType iStruct, TypeDescription record, List<String> names,
                             List<Converter> fields) {
       return new StructConverter(iStruct, fields, idToConstant);
+    }
+
+    @Override
+    public Converter union(Type iType, TypeDescription union, List<Converter> options) {
+      return new UnionConverter(iType, options);
     }
 
     @Override
@@ -414,6 +422,40 @@ public class VectorizedSparkOrcReaders {
               .convert(structVector.fields[vectorIndex], batchSize, batchOffsetInFile));
           vectorIndex++;
         }
+      }
+
+      return new BaseOrcColumnVector(structType, batchSize, vector) {
+        @Override
+        public ColumnVector getChild(int ordinal) {
+          return fieldVectors.get(ordinal);
+        }
+      };
+    }
+  }
+
+  private static class UnionConverter implements Converter {
+    private final Types.StructType structType;
+    private final List<Converter> optionConverters;
+
+    private UnionConverter(Type type, List<Converter> optionConverters) {
+      this.structType = type.asStructType();
+      this.optionConverters = optionConverters;
+    }
+
+    @Override
+    public ColumnVector convert(org.apache.orc.storage.ql.exec.vector.ColumnVector vector, int batchSize,
+                                long batchOffsetInFile) {
+      UnionColumnVector unionColumnVector = (UnionColumnVector) vector;
+      List<Types.NestedField> fields = structType.fields();
+      List<ColumnVector> fieldVectors = Lists.newArrayListWithExpectedSize(fields.size());
+
+      LongColumnVector longColumnVector = new LongColumnVector();
+      longColumnVector.vector = Arrays.stream(unionColumnVector.tags).asLongStream().toArray();
+
+      fieldVectors.add(new PrimitiveOrcColumnVector(Types.IntegerType.get(), batchSize, longColumnVector,
+              OrcValueReaders.ints(), batchOffsetInFile));
+      for (int i = 0; i < fields.size() - 1; i += 1) {
+        fieldVectors.add(optionConverters.get(i).convert(unionColumnVector.fields[i], batchSize, batchOffsetInFile));
       }
 
       return new BaseOrcColumnVector(structType, batchSize, vector) {
