@@ -157,14 +157,14 @@ public class AvroSchemaUtil {
   /**
    * This method decides whether a schema is of type union and is complex union and is optional
    *
-   * Complex union: the number of options in union not equals to 2
+   * Complex union: the number of options in union > 2
    * Optional: null is present in union
    *
    * @param schema input schema
    * @return true if schema is complex union and it is optional
    */
   public static boolean isOptionalComplexUnion(Schema schema) {
-    if (schema.getType() == UNION && schema.getTypes().size() != 2) {
+    if (schema.getType() == UNION && schema.getTypes().size() > 2) {
       for (Schema type : schema.getTypes()) {
         if (type.getType() == Schema.Type.NULL) {
           return true;
