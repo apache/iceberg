@@ -30,6 +30,9 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
+import org.apache.iceberg.expressions.Evaluator;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroReader;
@@ -55,13 +58,21 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final boolean applyResidual;
 
   public RowDataFileScanTaskReader(Schema tableSchema, Schema projectedSchema,
                                    String nameMapping, boolean caseSensitive) {
+    this(tableSchema, projectedSchema, nameMapping, caseSensitive, false);
+  }
+
+  public RowDataFileScanTaskReader(Schema tableSchema, Schema projectedSchema,
+      String nameMapping, boolean caseSensitive,
+      boolean applyResidual) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
+    this.applyResidual = applyResidual;
   }
 
   @Override
@@ -76,6 +87,10 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
         newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor)
     );
 
+    if (applyResidual) {
+      iterable = applyResidual(iterable, deletes.requiredSchema(), task.residual());
+    }
+
     // Project the RowData to remove the extra meta columns.
     if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
       RowDataProjection rowDataProjection = RowDataProjection.create(
@@ -84,6 +99,17 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     }
 
     return iterable.iterator();
+  }
+
+  private CloseableIterable<RowData> applyResidual(
+      CloseableIterable<RowData> rows, Schema rowSchema, Expression residual) {
+    if (residual != null && residual != Expressions.alwaysTrue()) {
+      RowType rowType = FlinkSchemaUtil.convert(rowSchema);
+      RowDataWrapper wrapper = new RowDataWrapper(rowType, rowSchema.asStruct());
+      Evaluator filter = new Evaluator(rowSchema.asStruct(), residual, caseSensitive);
+      return CloseableIterable.filter(rows, row -> filter.eval(wrapper.wrap(row)));
+    }
+    return rows;
   }
 
   private CloseableIterable<RowData> newIterable(

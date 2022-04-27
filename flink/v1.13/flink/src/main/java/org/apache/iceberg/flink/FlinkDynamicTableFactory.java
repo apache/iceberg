@@ -41,6 +41,7 @@ import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.flink.source.FlinkLookupOptions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
@@ -142,6 +143,12 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     Set<ConfigOption<?>> options = Sets.newHashSet();
     options.add(CATALOG_DATABASE);
     options.add(CATALOG_TABLE);
+    options.add(FlinkLookupOptions.LOOKUP_CACHE_MAX_ROWS);
+    options.add(FlinkLookupOptions.LOOKUP_CACHE_TTL);
+    options.add(FlinkLookupOptions.LOOKUP_CACHE_IGNORE_EMPTY);
+    options.add(FlinkLookupOptions.LOOKUP_MAX_RETRIES);
+    options.add(FlinkLookupOptions.LOOKUP_BASE_RETRY_BACKOFF_MILLS);
+    options.add(FlinkLookupOptions.LOOKUP_MAX_RETRY_BACKOFF_MILLS);
     return options;
   }
 

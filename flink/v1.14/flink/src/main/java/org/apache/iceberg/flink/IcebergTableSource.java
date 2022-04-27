@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -30,14 +31,21 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.LookupTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.TableFunctionProvider;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.table.types.DataType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.source.FlinkLookupFunction;
+import org.apache.iceberg.flink.source.FlinkLookupOptions;
 import org.apache.iceberg.flink.source.FlinkSource;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -47,7 +55,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * Flink Iceberg table source.
  */
 public class IcebergTableSource
-    implements ScanTableSource, SupportsProjectionPushDown, SupportsFilterPushDown, SupportsLimitPushDown {
+    implements ScanTableSource, LookupTableSource, SupportsProjectionPushDown, SupportsFilterPushDown,
+    SupportsLimitPushDown {
 
   private int[] projectedFields;
   private long limit;
@@ -168,6 +177,32 @@ public class IcebergTableSource
         return FlinkSource.isBounded(properties);
       }
     };
+  }
+
+  @Override
+  public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
+    String[] keyNames = new String[context.getKeys().length];
+    for (int i = 0; i < keyNames.length; i++) {
+      int[] innerKeyArr = context.getKeys()[i];
+      Preconditions.checkArgument((innerKeyArr.length == 1), "Iceberg only support non-nested look up keys");
+
+      keyNames[i] = this.schema.getFieldName(innerKeyArr[0]).get();
+    }
+
+    Table lookupTable;
+    try {
+      this.loader.open();
+      lookupTable = this.loader.loadTable();
+      this.loader.close();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
+    Schema projectedSchema = FlinkSchemaUtil.convert(lookupTable.schema(), this.getProjectedSchema());
+    TableFunction<RowData> lookupFunction = new FlinkLookupFunction(
+        this.loader, FlinkLookupOptions.valueOf(this.properties),
+        projectedSchema, this.schema.getFieldNames(), keyNames);
+    return TableFunctionProvider.of(lookupFunction);
   }
 
   @Override
