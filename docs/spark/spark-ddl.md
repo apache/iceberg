@@ -171,6 +171,14 @@ Iceberg uses table properties to control table behavior. For a list of available
 ALTER TABLE prod.db.sample UNSET TBLPROPERTIES ('read.split.target-size')
 ```
 
+`SET TABLE COMMENT` Using SET TBLPROPERTIES
+
+```sql
+ALTER TABLE prod.db.sample SET TBLPROPERTIES (
+    'comment' = 'A table comment.'
+)
+```
+
 ### `ALTER TABLE ... ADD COLUMN`
 
 To add a column to Iceberg, use the `ADD COLUMNS` clause with `ALTER TABLE`:
