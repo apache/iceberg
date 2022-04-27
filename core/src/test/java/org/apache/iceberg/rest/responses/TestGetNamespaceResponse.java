@@ -88,7 +88,8 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
         "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
     AssertHelpers.assertThrows(
         "A JSON response with the keys spelled incorrectly should fail to deserialize",
-        JsonProcessingException.class,
+        IllegalArgumentException.class,
+        "Invalid namespace: null",
         () -> deserialize(jsonWithKeysSpelledIncorrectly)
     );
 

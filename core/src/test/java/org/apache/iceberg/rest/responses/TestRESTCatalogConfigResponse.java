@@ -156,14 +156,6 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<Confi
         () -> deserialize(jsonOverridesHasWrongType)
     );
 
-    String jsonMisspelledKeys =
-        "{\"defaultzzzzzzz\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrrrrrrrides\":{\"clients\":\"5\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON response with the keys spelled incorrectly should fail to deserialize and validate",
-        JsonProcessingException.class,
-        () -> deserialize(jsonMisspelledKeys)
-    );
-
     AssertHelpers.assertThrows(
         "A null JSON response body should fail to deserialize",
         IllegalArgumentException.class,

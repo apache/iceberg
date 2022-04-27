@@ -19,28 +19,14 @@
 
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.assertj.core.api.Assertions;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public abstract class RequestResponseTestBase<T extends RESTMessage> {
 
-  private static final JsonFactory FACTORY = new JsonFactory();
-  private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
-
-  @BeforeClass
-  public static void beforeClass() {
-    RESTSerializers.registerAll(MAPPER);
-    // This is a workaround for Jackson since Iceberg doesn't use the standard get/set bean notation.
-    // This allows Jackson to work with the fields directly (both public and private) and not require
-    // custom serializers for all the request/response objects.
-    MAPPER.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
-  }
+  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
   public static ObjectMapper mapper() {
     return MAPPER;

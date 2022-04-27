@@ -67,7 +67,8 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
         "{\"namepsacezz\":[\"accounting\",\"tax\"]}";
     AssertHelpers.assertThrows(
         "A JSON response with the keys spelled incorrectly should fail to deserialize",
-        JsonProcessingException.class,
+        IllegalArgumentException.class,
+        "Invalid namespace: null",
         () -> deserialize(jsonWithKeysSpelledIncorrectly)
     );
 
