@@ -35,8 +35,21 @@ pip install -e .
 Testing is done using tox. The config can be found in `tox.ini` within the python directory of the iceberg project.
 
 ```
-# simply run tox within the python dir
 tox
+```
+
+## Solution for `InterpreterNotFound` Errors
+
+Currently, tests run against python `3.7.12`, `3.8.12`, and `3.9.10`. It's recommended to install and manage multiple interpreters using [pyenv](https://github.com/pyenv/pyenv).
+```
+pyenv install 3.7.12
+pyenv install 3.8.12
+pyenv install 3.9.10
+```
+
+Once all three versions are installed, you can set an application-specific pyenv environment by running the following in the python directory.
+```
+pyenv local 3.7.12 3.8.12 3.9.10
 ```
 
 ## Get in Touch
