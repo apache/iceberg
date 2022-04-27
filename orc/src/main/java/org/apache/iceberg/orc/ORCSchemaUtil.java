@@ -346,6 +346,13 @@ public final class ORCSchemaUtil {
           icebergToOrc.putAll(icebergToOrcMapping(childrenNames.get(i), children.get(i)));
         }
         break;
+      case UNION:
+        // This is part of building orc read schema in file level. orcType has union type inside it.
+        List<TypeDescription> options = orcType.getChildren();
+        for (int i = 0; i < options.size(); i++) {
+          icebergToOrc.putAll(icebergToOrcMapping("option" + i, options.get(i)));
+        }
+        break;
       case LIST:
         icebergToOrc.putAll(icebergToOrcMapping("element", orcType.getChildren().get(0)));
         break;
