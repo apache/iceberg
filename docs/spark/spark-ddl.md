@@ -171,7 +171,7 @@ Iceberg uses table properties to control table behavior. For a list of available
 ALTER TABLE prod.db.sample UNSET TBLPROPERTIES ('read.split.target-size')
 ```
 
-Set table comment using SET TBLPROPERTIES:
+Set table comment using SET PROPERTIES:
 
 ```sql
 ALTER TABLE prod.db.sample SET TBLPROPERTIES (
