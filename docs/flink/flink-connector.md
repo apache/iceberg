@@ -149,7 +149,7 @@ SELECT * FROM flink_table;
 ```
 ## Lookup Join
 
-Iceberg connector can be used in temporal join as a [lookup source](https://ci.apache.org/projects/flink/flink-docs-release-1.13/docs/dev/table/sql/queries/joins/#lookup-join) (aka. dimension table). Currently, only sync lookup mode is supported.
+Iceberg connector can be used in temporal join as a [lookup source](https://ci.apache.org/projects/flink/flink-docs-release-1.14/docs/dev/table/sql/queries/joins/#lookup-join) (aka. dimension table). Currently, only sync lookup mode is supported.
 
 ### Lookup Cache
 
