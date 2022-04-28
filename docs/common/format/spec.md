@@ -901,7 +901,7 @@ Iceberg would build the desired reader schema with their schema evolution rules 
 |`struct<a (1): int, b (2): string>`|`struct<a: int, b: string>`|`struct<a (2): string, c (3): date>`|`struct<b: string, c: date>`|
 |`struct<a (1): struct<b (2): string, c (3): date>>`|`struct<a: struct<b:string, c:date>>`|`struct<aa (1): struct<cc (3): date, bb (2): string>>`|`struct<a: struct<c:date, b:string>>`|
 
-2. Complex union type (`union` type which has more than one schemas) is read as 'struct' in Iceberg type. For example, `union<type1, type2>` in ORC is read as `required struct<1: tag: required int, 2: field0: optional type1, 3: field1: optional type2>` in Iceberg. `type1` and `type2` can be any allowed schemas in ORC `union`. Single union type (`union` type which has only one schema) is read as corresponding schema type in Iceberg type. For example, `[type]` in ORC is read as `type` in Iceberg. `type` can be any allowed schema in ORC `union`.
+2. Complex union type (`union` type which has more than one schemas) is read as 'struct' in Iceberg type. For example, `union<type1, type2>` in ORC is read as `required struct<1: tag: required int, 2: field0: optional type1, 3: field1: optional type2>` in Iceberg. `type1` and `type2` can be any allowed schemas in ORC `union`. Single union type (`union` type which has only one schema) is read as corresponding schema type in Iceberg type. For example, `union<type>` in ORC is read as `type` in Iceberg. `type` can be any allowed schema in ORC `union`.
 
 ## Appendix B: 32-bit Hash Requirements
 
