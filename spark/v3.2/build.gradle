@@ -65,10 +65,14 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'org.roaringbitmap'
     }
+
+    implementation("org.apache.parquet:parquet-column")
+    implementation("org.apache.parquet:parquet-hadoop")
 
     implementation("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'
@@ -141,6 +145,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'org.roaringbitmap'
