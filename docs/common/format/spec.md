@@ -809,13 +809,12 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`uuid`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": 16,`<br />&nbsp;&nbsp;`"logicalType": "uuid" }`||
 |**`fixed(L)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": L }`||
 |**`binary`**|`bytes`||
-|**`struct`**|`record`, or complex `union`||
+|**`struct`**|`record`, or `union`||
 |**`list`**|`array`||
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 
 Notes:
-1. Complex union type (`union` type which has more than one non-null schemas) is read as 'struct' in Iceberg type. For example, `[type1, type2]` in Avro is read as `required struct<1: tag: required int, 2: field0: optional type1, 3: field1: optional type2>` in Iceberg. `type1` and `type2` can be any allowed schemas in Avro `union`.
-2. Single union type (`union` type which has only one schema) is read as corresponding schema type in Iceberg type. For example, `[type]` in Avro is read as `type` in Iceberg. `type` can be any allowed schema in Avro `union`.
+1. Complex union type (`union` type which has more than one non-null schemas) is read as 'struct' in Iceberg type. For example, `[type1, type2]` in Avro is read as `required struct<1: tag: required int, 2: field0: optional type1, 3: field1: optional type2>` in Iceberg. `type1` and `type2` can be any allowed schemas in Avro `union`. Single union type (`union` type which has only one schema) is read as corresponding schema type in Iceberg type. For example, `[type]` in Avro is read as `type` in Iceberg. `type` can be any allowed schema in Avro `union`.
 
 **Field IDs**
 
@@ -883,7 +882,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`uuid`**         | `binary`            | `iceberg.binary-type`=`UUID`                         |                                                                                         |
 | **`fixed(L)`**     | `binary`            | `iceberg.binary-type`=`FIXED` & `iceberg.length`=`L` | The length would not be checked by the ORC reader and should be checked by the adapter. |
 | **`binary`**       | `binary`            |                                                      |                                                                                         |
-| **`struct`**       | `struct`            |                                                      |                                                                                         |
+| **`struct`**       | `struct` or `union` |                                                      |                                                                                         |
 | **`list`**         | `array`             |                                                      |                                                                                         |
 | **`map`**          | `map`               |                                                      |                                                                                         |
 
@@ -901,6 +900,8 @@ Iceberg would build the desired reader schema with their schema evolution rules 
 |--- |--- |--- |--- |
 |`struct<a (1): int, b (2): string>`|`struct<a: int, b: string>`|`struct<a (2): string, c (3): date>`|`struct<b: string, c: date>`|
 |`struct<a (1): struct<b (2): string, c (3): date>>`|`struct<a: struct<b:string, c:date>>`|`struct<aa (1): struct<cc (3): date, bb (2): string>>`|`struct<a: struct<c:date, b:string>>`|
+
+2. Complex union type (`union` type which has more than one schemas) is read as 'struct' in Iceberg type. For example, `union<type1, type2>` in ORC is read as `required struct<1: tag: required int, 2: field0: optional type1, 3: field1: optional type2>` in Iceberg. `type1` and `type2` can be any allowed schemas in ORC `union`. Single union type (`union` type which has only one schema) is read as corresponding schema type in Iceberg type. For example, `[type]` in ORC is read as `type` in Iceberg. `type` can be any allowed schema in ORC `union`.
 
 ## Appendix B: 32-bit Hash Requirements
 
