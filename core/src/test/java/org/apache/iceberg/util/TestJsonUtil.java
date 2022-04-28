@@ -16,177 +16,82 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.util;
 
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.UncheckedIOException;
+import java.io.Writer;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TestJsonUtil {
 
-  @Test
-  public void get() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.get("x", JsonUtil.mapper().readTree("{}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing field: x");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.get("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing field: x");
-
-    Assertions.assertThat(JsonUtil.get("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")).asText())
-        .isEqualTo("23");
+  @FunctionalInterface
+  public interface JsonStringWriter<T> {
+    String write(T object);
   }
 
-  @Test
-  public void getInt() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing int: x");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to an integer value: x: null");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to an integer value: x: \"23\"");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to an integer value: x: 23.0");
-
-    Assertions.assertThat(JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isEqualTo(23);
+  public static <T> JsonStringWriter<T> jsonStringWriter(JsonUtil.JsonWriter<T> writer) {
+    return entry -> {
+      Writer jsonWriter = new StringWriter();
+      try {
+        JsonGenerator generator = JsonUtil.factory().createGenerator(jsonWriter);
+        writer.write(entry, generator);
+        generator.flush();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+      return jsonWriter.toString();
+    };
   }
 
-  @Test
-  public void getIntOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
-    Assertions.assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isEqualTo(23);
-    Assertions.assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isNull();
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to an integer value: x: \"23\"");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to an integer value: x: 23.0");
+  public static <T> String toJsonString(T entry, JsonUtil.JsonWriter<T> writer) {
+    return jsonStringWriter(writer).write(entry);
   }
 
-  @Test
-  public void getLong() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing long: x");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a long value: x: null");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a long value: x: \"23\"");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a long value: x: 23.0");
-
-    Assertions.assertThat(JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isEqualTo(23);
+  public static JsonNode fromJsonString(String json) {
+    try {
+      return JsonUtil.mapper().readValue(json, JsonNode.class);
+    } catch (JsonProcessingException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
-  @Test
-  public void getLongOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
-    Assertions.assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isEqualTo(23);
-    Assertions.assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isNull();
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a long value: x: \"23\"");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a long value: x: 23.0");
+  @FunctionalInterface
+  public interface JsonStringReader<T> {
+    T read(String json);
   }
 
-  @Test
-  public void getString() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: x");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a string value: x: null");
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a string value: x: 23");
-
-    Assertions.assertThat(JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
-        .isEqualTo("23");
+  public static <T> JsonStringReader<T> jsonStringReader(JsonUtil.JsonReader<T> reader) {
+    return json -> reader.read(fromJsonString(json));
   }
 
-  @Test
-  public void getStringOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
-    Assertions.assertThat(
-            JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
-        .isEqualTo("23");
-    Assertions.assertThat(
-            JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isNull();
-
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a string value: x: 23");
+  public static <T> T fromJsonString(String json, JsonUtil.JsonReader<T> reader) {
+    return jsonStringReader(reader).read(json);
   }
 
-  @Test
-  public void getBool() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing boolean: x");
+  public static Collector<CharSequence, ?, String> joiningJsonArray() {
+    return Collectors.joining(",", "[", "]");
+  }
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a boolean value: x: null");
+  public static Collector<CharSequence, ?, String> joiningJsonObject() {
+    return Collectors.joining(",", "{", "}");
+  }
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a boolean value: x: \"23\"");
+  public static String arrayString(String... strings) {
+    return Stream.of(strings).collect(joiningJsonArray());
+  }
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": \"true\"}")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse to a boolean value: x: \"true\"");
+  public static String objectString(String... strings) {
+    return Stream.of(strings).collect(joiningJsonObject());
+  }
 
-    Assertions.assertThat(JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": true}")))
-        .isTrue();
-    Assertions.assertThat(JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": false}")))
-        .isFalse();
+  private TestJsonUtil() {
   }
 }

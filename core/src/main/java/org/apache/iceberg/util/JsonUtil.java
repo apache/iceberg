@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -272,6 +273,62 @@ public class JsonUtil {
     }
   }
 
+  @FunctionalInterface
+  public interface JsonWriter<T> {
+    void write(T object, JsonGenerator generator) throws IOException;
+  }
+
+  public static <T> void writeObjectList(
+      String property,
+      Iterable<T> objectList,
+      JsonWriter<T> writer,
+      JsonGenerator generator)
+      throws IOException {
+    generator.writeArrayFieldStart(property);
+    for (T object : objectList) {
+      writer.write(object, generator);
+    }
+    generator.writeEndArray();
+  }
+
+  public static void writeStringList(String property, List<String> stringList, JsonGenerator generator)
+      throws IOException {
+    generator.writeArrayFieldStart(property);
+    for (String s : stringList) {
+      generator.writeString(s);
+    }
+    generator.writeEndArray();
+  }
+
+  public static void writeStringMap(String property, Map<String, String> map, JsonGenerator generator)
+      throws IOException {
+    generator.writeObjectFieldStart(property);
+    for (Map.Entry<String, String> entry : map.entrySet()) {
+      generator.writeStringField(entry.getKey(), entry.getValue());
+    }
+    generator.writeEndObject();
+  }
+
+  @FunctionalInterface
+  public interface JsonReader<T> {
+    T read(JsonNode node);
+  }
+
+  public static <T> T getObject(String property, JsonNode node, JsonReader<T> reader) {
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing object %s", property);
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode.isObject(),
+        "Cannot parse %s from non-object value: %s", property, pNode);
+    return reader.read(pNode);
+  }
+
+  public static <T> List<T> getObjectList(String property, JsonNode node, Function<JsonNode, T> reader) {
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing list %s", property);
+    return ImmutableList.<T>builder()
+        .addAll(objectArrayIterator(property, node, reader))
+        .build();
+  }
+
   abstract static class JsonArrayIterator<T> implements Iterator<T> {
 
     private final Iterator<JsonNode> elements;
@@ -357,5 +414,19 @@ public class JsonUtil {
           "Cannot parse long from non-long value: %s",
           element);
     }
+  }
+
+  static <T> Iterator<T> objectArrayIterator(String property, JsonNode node, Function<JsonNode, T> reader) {
+    return new JsonArrayIterator<T>(property, node) {
+      protected T convert(JsonNode element) {
+        return reader.apply(element);
+      }
+
+      protected void validate(JsonNode element) {
+        Preconditions.checkArgument(
+            element.isObject(),
+            "Cannot parse %s from non-object value: %s", property, element);
+      }
+    };
   }
 }
