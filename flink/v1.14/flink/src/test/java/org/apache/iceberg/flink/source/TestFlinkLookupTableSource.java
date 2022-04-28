@@ -185,7 +185,7 @@ public class TestFlinkLookupTableSource extends FlinkTestBase {
     lookupFunction.setCollector(new ListCollector(Lists.newArrayList()));
     lookupFunction.open(null);
     lookupFunction.eval(1001);
-    Assert.assertEquals(lookupFunction.getCache().size(), 0);
+    Assert.assertEquals(lookupFunction.getCache().asMap().size(), 0);
     lookupFunction.close();
 
     options = FlinkLookupOptions.valueOf(
@@ -197,7 +197,7 @@ public class TestFlinkLookupTableSource extends FlinkTestBase {
     List<RowData> collector = Lists.newArrayList();
     lookupFunction.setCollector(new ListCollector(collector));
     lookupFunction.eval(1001);
-    Assert.assertEquals(lookupFunction.getCache().size(), 1);
+    Assert.assertEquals(lookupFunction.getCache().asMap().size(), 1);
     lookupFunction.close();
   }
   @Test
@@ -267,7 +267,8 @@ public class TestFlinkLookupTableSource extends FlinkTestBase {
         Lists.newArrayList(rowData1002, rowData1003));
 
     lookupFunction.eval(1004);
-    Assert.assertEquals(lookupFunction.getCache().size(), 2);
+    lookupFunction.getCache().cleanUp();
+    Assert.assertEquals(lookupFunction.getCache().asMap().size(), 2);
     Assertions.assertThat(lookupFunction.getCache().asMap())
         .containsEntry(GenericRowData.of(1004),
             Lists.newArrayList(GenericRowData.of(1004, BinaryStringData.fromString("tag_z"))));

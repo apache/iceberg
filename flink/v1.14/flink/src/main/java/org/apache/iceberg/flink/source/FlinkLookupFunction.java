@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.flink.source;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
@@ -38,8 +40,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.cache.Cache;
-import org.apache.iceberg.relocated.com.google.common.cache.CacheBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +70,7 @@ public class FlinkLookupFunction extends TableFunction<RowData> {
 
     this.rowDataSerializer = new RowDataSerializer(FlinkSchemaUtil.convert(projectedSchema));
     this.cache = lookupOptions.getCacheMaxSize() <= 0 ? null :
-        CacheBuilder.newBuilder()
+        Caffeine.newBuilder()
             .expireAfterWrite(lookupOptions.getCacheExpireMs(), TimeUnit.MILLISECONDS)
             .maximumSize(lookupOptions.getCacheMaxSize())
             .build();
