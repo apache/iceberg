@@ -382,8 +382,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
   }
   @Test
   public void testPartitionsTableAddRemoveFields() throws ParseException {
-    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
-        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg ", tableName);
     initTable();
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
@@ -447,8 +446,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testPartitionsTableRenameFields() throws ParseException {
-    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
-        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
     initTable();
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -549,8 +547,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
   @Test
   public void testPartitionTableFilterAddRemoveFields() throws ParseException {
     // Create un-partitioned table
-    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
-        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
     initTable();
 
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
@@ -668,8 +665,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testPartitionsTableFilterRenameFields() throws ParseException {
-    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg " +
-        "TBLPROPERTIES ('commit.manifest-merge.enabled' 'false')", tableName);
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
     initTable();
 
     Table table = validationCatalog.loadTable(tableIdent);
