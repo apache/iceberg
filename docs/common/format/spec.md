@@ -787,7 +787,7 @@ Manifests hold the same statistics for delete files and data files. For delete f
 
 Values should be stored in Avro using the Avro types and logical type annotations in the table below.
 
-Optional fields, array elements, and map values must be wrapped in an Avro `union` with `null`. This is the only union type allowed in Iceberg data files.
+Optional fields, array elements, and map values must be wrapped in an Avro `union` with `null`.
 
 Optional fields must always set the Avro field default value to null.
 
@@ -809,10 +809,13 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`uuid`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": 16,`<br />&nbsp;&nbsp;`"logicalType": "uuid" }`||
 |**`fixed(L)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": L }`||
 |**`binary`**|`bytes`||
-|**`struct`**|`record`||
+|**`struct`**|`record`, or complex `union`||
 |**`list`**|`array`||
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 
+Notes:
+1. Complex union type (`union` type which has more than one non-null schemas) is read as 'struct' in Iceberg type. For example, `[type1, type2]` in Avro is read as `required struct<1: tag: required int, 2: field0: optional type1, 3: field1: optional type2>` in Iceberg. `type1` and `type2` can be any allowed schemas in Avro `union`.
+2. Single union type (`union` type which has only one schema) is read as corresponding schema type in Iceberg type. For example, `[type]` in Avro is read as `type` in Iceberg. `type` can be any allowed schema in Avro `union`.
 
 **Field IDs**
 
