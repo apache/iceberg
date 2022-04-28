@@ -229,6 +229,20 @@ public class FlinkCatalog extends AbstractCatalog {
       throws DatabaseNotExistException, DatabaseNotEmptyException, CatalogException {
     if (asNamespaceCatalog != null) {
       try {
+        if (cascade) {
+          List<ObjectPath> deleteTablePaths = icebergCatalog.listTables(toNamespace(name)).stream()
+                  .map(s -> ObjectPath.fromString(s.toString()))
+                  .collect(Collectors.toList());
+          deleteTablePaths.forEach(
+                  objectPath -> {
+                    try {
+                      dropTable(objectPath, true);
+                    } catch (TableNotExistException ex) {
+                      // ignore
+                    }
+                  }
+          );
+        }
         boolean success = asNamespaceCatalog.dropNamespace(toNamespace(name));
         if (!success && !ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name);

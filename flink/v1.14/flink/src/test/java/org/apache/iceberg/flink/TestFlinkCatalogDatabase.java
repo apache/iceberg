@@ -273,4 +273,40 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
         String.format("Cannot create namespace %s: metadata is not supported", icebergNamespace),
         () -> sql("CREATE DATABASE %s WITH ('prop'='value')", flinkDatabase));
   }
+
+  @Test
+  public void testDropNonEmptyNamespaceOnCascade() {
+    Assume.assumeFalse("Hadoop catalog throws IOException: Directory is not empty.", isHadoopCatalog);
+
+    Assert.assertFalse(
+            "Namespace should not already exist",
+            validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    sql("CREATE DATABASE %s ", flinkDatabase);
+
+    validationCatalog.createTable(
+            TableIdentifier.of(icebergNamespace, "tl"),
+            new Schema(Types.NestedField.optional(0, "id", Types.LongType.get())));
+
+    Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assert.assertTrue("Table should exist", validationCatalog.tableExists(TableIdentifier.of(icebergNamespace, "tl")));
+
+    AssertHelpers.assertThrowsCause(
+            "Should fail if trying to delete a non-empty database without CASCADE",
+            DatabaseNotEmptyException.class,
+            String.format("Database %s in catalog %s is not empty.", DATABASE, catalogName),
+            () -> sql("DROP DATABASE %s", flinkDatabase));
+
+    Assert.assertTrue("Namespace should still exist after a failed drop",
+            validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assert.assertTrue("Table should still exist after a failed drop",
+            validationCatalog.tableExists(TableIdentifier.of(icebergNamespace, "tl")));
+
+    sql("DROP DATABASE %s CASCADE", flinkDatabase);
+
+    Assert.assertFalse("Namespace should not exist after deleting with CASCADE",
+            validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assert.assertFalse("Namespace should not exist after deleting its parent namespace with CASCADE",
+            validationNamespaceCatalog.namespaceExists(icebergNamespace));
+  }
 }
