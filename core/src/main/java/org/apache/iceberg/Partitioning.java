@@ -228,9 +228,14 @@ public class Partitioning {
         PartitionField existingField = fieldMap.get(fieldId);
 
         if (existingField == null) {
+          String fieldName = structField.name();
+          if (nameMap.containsValue(fieldName)) {
+            fieldName += "_" + fieldId;
+          }
+
           fieldMap.put(fieldId, field);
           typeMap.put(fieldId, structField.type());
-          nameMap.put(fieldId, structField.name());
+          nameMap.put(fieldId, fieldName);
 
         } else {
           // verify the fields are compatible as they may conflict in v1 tables

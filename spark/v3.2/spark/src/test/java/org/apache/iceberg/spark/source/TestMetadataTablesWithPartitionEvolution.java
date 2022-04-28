@@ -45,7 +45,6 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -482,11 +481,6 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
   @Test
   public void testPartitionsTableSwitchFields() throws Exception {
-    // Re-added partition fields currently not re-associated: https://github.com/apache/iceberg/issues/4292
-    // In V1, dropped partition fields show separately when field is re-added
-    // In V2, re-added field currently conflicts with its deleted form
-    Assume.assumeTrue(formatVersion == 1);
-
     sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
     initTable();
     Table table = validationCatalog.loadTable(tableIdent);
