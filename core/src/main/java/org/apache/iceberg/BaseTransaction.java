@@ -634,6 +634,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public SnapshotRef snapshotRef(String snapshotRefName) {
+      return current.ref(snapshotRefName);
+    }
+
+    @Override
     public UpdateSchema updateSchema() {
       return BaseTransaction.this.updateSchema();
     }

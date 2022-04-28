@@ -54,6 +54,11 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
   }
 
   @Override
+  public TableScan useSnapshotRef(String snapshotRefName) {
+    throw new UnsupportedOperationException("Cannot select snapshotRef in table: " + tableType());
+  }
+
+  @Override
   public CloseableIterable<FileScanTask> planFiles() {
     LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
     Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));

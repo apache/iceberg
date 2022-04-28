@@ -143,6 +143,18 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @Override
+  public TableScan useSnapshotRef(String snapshotRefName) {
+    Preconditions.checkArgument(snapshotId() == null,
+        "Cannot override snapshot, already set to id=%s", snapshotId());
+
+    SnapshotRef snapshotRef = table().snapshotRef(snapshotRefName);
+    Preconditions.checkArgument(snapshotRef != null,
+        "Cannot find snapshot corresponding to %s", snapshotRefName);
+
+    return useSnapshot(snapshotRef.snapshotId());
+  }
+
+  @Override
   public TableScan option(String property, String value) {
     return newRefinedScan(ops, table, schema, context.withOption(property, value));
   }

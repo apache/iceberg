@@ -60,6 +60,16 @@ public interface TableScan {
   TableScan asOfTime(long timestampMillis);
 
   /**
+   * Create a new {@link TableScan} from this scan's configuration that will use the snapshot corresponding
+   * to the given snapshotRef name.
+   *
+   * @param snapshotRefName name of snapshotRef.
+   * @return a new scan based on this with the snapshot corresponding to the given snapshotRefName.
+   * @throws IllegalArgumentException if the snapshot cannot be found
+   */
+  TableScan useSnapshotRef(String snapshotRefName);
+
+  /**
    * Create a new {@link TableScan} from this scan's configuration that will override the {@link Table}'s behavior based
    * on the incoming pair. Unknown properties will be ignored.
    *

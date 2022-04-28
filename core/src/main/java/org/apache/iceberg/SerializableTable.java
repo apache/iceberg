@@ -263,6 +263,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public SnapshotRef snapshotRef(String snapshotRefName) {
+    return lazyTable().snapshotRef(snapshotRefName);
+  }
+
+  @Override
   public UpdateSchema updateSchema() {
     throw new UnsupportedOperationException(errorMsg("updateSchema"));
   }

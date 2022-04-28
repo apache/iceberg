@@ -125,6 +125,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public SnapshotRef snapshotRef(String snapshotRefName) {
+    return ops.current().ref(snapshotRefName);
+  }
+
+  @Override
   public UpdateSchema updateSchema() {
     return new SchemaUpdate(ops);
   }

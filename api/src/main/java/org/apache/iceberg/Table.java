@@ -139,6 +139,13 @@ public interface Table {
   List<HistoryEntry> history();
 
   /**
+   * Get the snapshotRef corresponding to the snapshotRefName.
+   *
+   * @return the {@link Snapshot} with the given {@link SnapshotRef} name.
+   */
+  SnapshotRef snapshotRef(String snapshotRefName);
+
+  /**
    * Create a new {@link UpdateSchema} to alter the columns of this table and commit the change.
    *
    * @return a new {@link UpdateSchema}
