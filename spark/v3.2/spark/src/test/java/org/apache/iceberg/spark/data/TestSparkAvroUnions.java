@@ -269,4 +269,43 @@ public class TestSparkAvroUnions {
             Assert.assertEquals(1, rows.get(0).getArray(0).getStruct(0, 3).getStruct(1, 1).getInt(0));
         }
     }
+
+    @Test
+    public void writeAndValidateColumnProjectionInComplexUnion() throws IOException {
+        org.apache.avro.Schema avroSchema = SchemaBuilder.record("root")
+            .fields()
+            .name("unionCol")
+            .type()
+            .unionOf()
+            .intType()
+            .and()
+            .stringType()
+            .endUnion()
+            .noDefault()
+            .endRecord();
+
+        GenericData.Record unionRecord1 = new GenericData.Record(avroSchema);
+        unionRecord1.put("unionCol", "foo");
+        GenericData.Record unionRecord2 = new GenericData.Record(avroSchema);
+        unionRecord2.put("unionCol", 1);
+
+        File testFile = temp.newFile();
+        try (DataFileWriter<GenericData.Record> writer = new DataFileWriter<>(new GenericDatumWriter<>())) {
+            writer.create(avroSchema, testFile);
+            writer.append(unionRecord1);
+            writer.append(unionRecord2);
+        }
+
+        Schema expectedSchema = AvroSchemaUtil.toIceberg(avroSchema).select("unionCol.field0");
+
+        List<InternalRow> rows;
+        try (AvroIterable<InternalRow> reader = Avro.read(Files.localInput(testFile))
+            .createReaderFunc(SparkAvroReader::new)
+            .project(expectedSchema)
+            .build()) {
+            rows = Lists.newArrayList(reader);
+        } catch (IllegalStateException e) {
+            Assert.assertTrue(e.getMessage().contains("Column projection"));
+        }
+    }
 }

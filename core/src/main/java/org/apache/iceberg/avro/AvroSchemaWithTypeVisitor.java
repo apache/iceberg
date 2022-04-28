@@ -91,13 +91,16 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
       }
     } else { // complex union case
       Preconditions.checkArgument(type instanceof Types.StructType,
-          "Cannot visit invalid Iceberg type: %s for Avro complex union type: %", type, union);
+          "Cannot visit invalid Iceberg type: %s for Avro complex union type: %s", type, union);
+
 
       int index = 1;
       for (Schema branch : types) {
         if (branch.getType() == Schema.Type.NULL) {
           options.add(visit((Type) null, branch, visitor));
         } else {
+          Preconditions.checkState(type.asStructType().fields().size() > index,
+              "Column projection on struct converted from Avro complex union type: %s is not supported", union);
           options.add(visit(type.asStructType().fields().get(index).type(), branch, visitor));
           index += 1;
         }
