@@ -207,9 +207,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = table.currentSnapshot();
     if (mode(table) == COPY_ON_WRITE) {
-      validateCopyOnWrite(currentSnapshot, "0", null, null);
+      validateCopyOnWrite(currentSnapshot, "0", "0", "0");
     } else {
-      validateMergeOnRead(currentSnapshot, "0", null, null);
+      validateMergeOnRead(currentSnapshot, "0", "0", "0");
     }
 
     assertEquals("Should have expected rows",

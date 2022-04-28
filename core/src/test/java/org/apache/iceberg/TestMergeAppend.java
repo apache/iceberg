@@ -1247,7 +1247,10 @@ public class TestMergeAppend extends TableTestBase {
     String partitionSummary = table.currentSnapshot().summary()
         .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0");
     Assert.assertEquals("Summary should include 1 file with 1 record that is 10 bytes",
-        "added-data-files=1,added-records=1,added-files-size=10", partitionSummary);
+        "added-data-files=1,deleted-data-files=0,added-eq-delete-files=0,removed-eq-delete-files=0," +
+            "added-pos-delete-files=0,removed-pos-delete-files=0,added-delete-files=0,removed-delete-files=0," +
+            "added-records=1,deleted-records=0,added-files-size=10,removed-files-size=0,added-position-deletes=0," +
+            "removed-position-deletes=0,added-equality-deletes=0,removed-equality-deletes=0", partitionSummary);
   }
 
   @Test

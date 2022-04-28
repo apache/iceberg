@@ -199,17 +199,17 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   }
 
   protected void validateDelete(Snapshot snapshot, String changedPartitionCount, String deletedDataFiles) {
-    validateSnapshot(snapshot, DELETE, changedPartitionCount, deletedDataFiles, null, null);
+    validateSnapshot(snapshot, DELETE, changedPartitionCount, deletedDataFiles, "0", "0");
   }
 
   protected void validateCopyOnWrite(Snapshot snapshot, String changedPartitionCount,
                                      String deletedDataFiles, String addedDataFiles) {
-    validateSnapshot(snapshot, OVERWRITE, changedPartitionCount, deletedDataFiles, null, addedDataFiles);
+    validateSnapshot(snapshot, OVERWRITE, changedPartitionCount, deletedDataFiles, "0", addedDataFiles);
   }
 
   protected void validateMergeOnRead(Snapshot snapshot, String changedPartitionCount,
                                      String addedDeleteFiles, String addedDataFiles) {
-    validateSnapshot(snapshot, OVERWRITE, changedPartitionCount, null, addedDeleteFiles, addedDataFiles);
+    validateSnapshot(snapshot, OVERWRITE, changedPartitionCount, "0", addedDeleteFiles, addedDataFiles);
   }
 
   protected void validateSnapshot(Snapshot snapshot, String operation, String changedPartitionCount,
