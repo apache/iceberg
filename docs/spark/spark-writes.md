@@ -348,7 +348,7 @@ SELECT id, data, category, ts FROM another_table
 SORT BY ts, category
 ```
 
-`SORT BY` clauses can also be used with partition transforms. The [date-and-timestamp-functions](https://spark.apache.org/docs/latest/sql-ref-functions-builtin.html#date-and-timestamp-functions) will be used when partition transforms is time related; truncate related functions such as `substr` will be used when partition transform is `truncate[W]`; [define and register UDFs](https://spark.apache.org/docs/latest/sql-ref-functions-udf-scalar.html) can also take effect.
+`SORT BY` clauses can also be used with partition transforms. The [date-and-timestamp-functions](https://spark.apache.org/docs/latest/sql-ref-functions-builtin.html#date-and-timestamp-functions) should be used when partition transforms are time related. Truncate related functions such as `substr` should be used when the partition transform is `truncate[W]`. It is required to [define and register UDFs](https://spark.apache.org/docs/latest/sql-ref-functions-udf-scalar.html) when the partition transform is [bucket transform](##Bucket Transform).
 
 ```sql
 INSERT INTO prod.db.sample
@@ -382,7 +382,7 @@ data.sortWithinPartitions("ts", "category")
 
 #### Bucket Transform
 
-It's easy to add the original column to the sort condition for the most partition transformations, except `bucket`.
+`Bucket` transforms require additional steps which are not necessary with other partition transforms.
 
 For `bucket` partition transformation, it is required to register the Iceberg transform function in Spark to specify it during sort.
 
