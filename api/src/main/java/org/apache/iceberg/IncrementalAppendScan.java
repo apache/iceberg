@@ -29,11 +29,16 @@ public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
    * Refine the incremental scan with the start snapshot inclusive.
    * <p>
    * If the start snapshot (inclusive or exclusive) is not provided,
-   * the oldest ancestor of the {@link IncrementalAppendScan#toSnapshot(long)}
-   * will be included as the start snapshot.
+   * the oldest snapshot will be used as the start snapshot.
+   * Oldest snapshot is a snapshot whose parent-snapshot-id is null.
+   * If there are multiple snapshots has parent-snapshot-id as null
+   * (e.g. due to disjointed lineage history), snapshot timestamp will
+   * be used as a tiebreaker.
    *
    * @param fromSnapshotId the start snapshot id inclusive
    * @return an incremental table scan from {@code fromSnapshotId} inclusive
+   * @throws IllegalArgumentException if the start snapshot is not an ancestor
+   * of the end snapshot
    */
   IncrementalAppendScan fromSnapshotInclusive(long fromSnapshotId);
 
@@ -41,11 +46,16 @@ public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
    * Refine the incremental scan with the start snapshot exclusive.
    * <p>
    * If the start snapshot (inclusive or exclusive) is not provided,
-   * the oldest ancestor of the {@link IncrementalAppendScan#toSnapshot(long)}
-   * will be included as the start snapshot.
+   * the oldest snapshot will be used as the start snapshot.
+   * Oldest snapshot is a snapshot whose parent-snapshot-id is null.
+   * If there are multiple snapshots has parent-snapshot-id as null
+   * (e.g. due to disjointed lineage history), snapshot timestamp will
+   * be used as a tiebreaker.
    *
    * @param fromSnapshotId the start snapshot id (exclusive)
    * @return an incremental table scan from {@code fromSnapshotId} exclusive
+   * @throws IllegalArgumentException if the start snapshot is not an ancestor
+   * of the end snapshot
    */
   IncrementalAppendScan fromSnapshotExclusive(long fromSnapshotId);
 
