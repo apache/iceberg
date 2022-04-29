@@ -29,7 +29,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<ConfigResponse> {
+public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> {
 
   private static final Map<String, String> DEFAULTS = ImmutableMap.of("warehouse", "s3://bucket/warehouse");
   private static final Map<String, String> OVERRIDES = ImmutableMap.of("clients", "5");
@@ -154,14 +154,6 @@ public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<Confi
         "A JSON response with the wrong type for the overrides field should fail to deserialize",
         JsonProcessingException.class,
         () -> deserialize(jsonOverridesHasWrongType)
-    );
-
-    String jsonMisspelledKeys =
-        "{\"defaultzzzzzzz\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrrrrrrrides\":{\"clients\":\"5\"}}";
-    AssertHelpers.assertThrows(
-        "A JSON response with the keys spelled incorrectly should fail to deserialize and validate",
-        JsonProcessingException.class,
-        () -> deserialize(jsonMisspelledKeys)
     );
 
     AssertHelpers.assertThrows(
