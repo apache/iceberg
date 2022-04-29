@@ -58,20 +58,32 @@ public class SparkValueConverter {
       case LIST:
         List<Object> convertedList = Lists.newArrayList();
         List<?> list = (List<?>) object;
-        for (Object element : list) {
-          convertedList.add(convert(type.asListType().elementType(), element));
+        try {
+          for (Object element : list) {
+            convertedList.add(convert(type.asListType().elementType(), element));
+          }
+          return convertedList;
+        } catch (NullPointerException npe) {
+          // Scala 2.11 fix: Catch NPE as internal value could be null and scala wrapper does not
+          // evaluate until iteration.
+          return null;
         }
-        return convertedList;
 
       case MAP:
         Map<Object, Object> convertedMap = Maps.newLinkedHashMap();
         Map<?, ?> map = (Map<?, ?>) object;
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-          convertedMap.put(
-              convert(type.asMapType().keyType(), entry.getKey()),
-              convert(type.asMapType().valueType(), entry.getValue()));
+        try {
+          for (Map.Entry<?, ?> entry : map.entrySet()) {
+            convertedMap.put(
+                convert(type.asMapType().keyType(), entry.getKey()),
+                convert(type.asMapType().valueType(), entry.getValue()));
+          }
+          return convertedMap;
+        } catch (NullPointerException npe) {
+          // Scala 2.11 fix: Catch NPE as internal value could be null and scala wrapper does not
+          // evaluate until iteration.
+          return null;
         }
-        return convertedMap;
 
       case DATE:
         return DateTimeUtils.fromJavaDate((Date) object);
@@ -95,6 +107,10 @@ public class SparkValueConverter {
   }
 
   private static Record convert(Types.StructType struct, Row row) {
+    if (row == null) {
+      return null;
+    }
+
     Record record = GenericRecord.create(struct);
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {

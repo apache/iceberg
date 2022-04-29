@@ -95,6 +95,10 @@ public class SparkValueConverter {
   }
 
   private static Record convert(Types.StructType struct, Row row) {
+    if (row == null) {
+      return null;
+    }
+
     Record record = GenericRecord.create(struct);
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
