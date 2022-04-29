@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -63,7 +64,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-        IllegalArgumentException.class, "Failed to cleanly delete data files",
+        ValidationException.class, "Cannot delete file where some, but not all, rows match filter",
         () -> sql("DELETE FROM %s WHERE id < 2", tableName));
 
     sql("DELETE FROM %s WHERE id < 4", tableName);
@@ -114,7 +115,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-        IllegalArgumentException.class, "Failed to cleanly delete data files",
+        ValidationException.class, "Cannot delete file where some, but not all, rows match filter",
         () -> sql("DELETE FROM %s WHERE id > 2", tableName));
 
     sql("DELETE FROM %s WHERE id < 2", tableName);
