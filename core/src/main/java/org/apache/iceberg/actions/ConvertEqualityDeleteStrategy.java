@@ -49,7 +49,7 @@ public interface ConvertEqualityDeleteStrategy {
   /**
    * Sets options to be used with this strategy
    */
-  RewritePositionDeleteStrategy options(Map<String, String> options);
+  ConvertEqualityDeleteStrategy options(Map<String, String> options);
 
   /**
    * Select the delete files to convert.
