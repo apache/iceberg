@@ -289,7 +289,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    assertSameElements(resultGTE, expectedGTE);
+    assertSameElements(expectedGTE, resultGTE);
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
