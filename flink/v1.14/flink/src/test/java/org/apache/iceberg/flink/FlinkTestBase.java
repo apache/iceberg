@@ -109,4 +109,11 @@ public abstract class FlinkTestBase extends TestBaseUtils {
         .isNotNull()
         .containsExactlyInAnyOrderElementsOf(expected);
   }
+
+  protected void assertSameElements(String message, Iterable<Row> expected, Iterable<Row> actual) {
+    Assertions.assertThat(actual)
+        .isNotNull()
+        .as(message)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
 }
