@@ -29,7 +29,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class TestRESTCatalogConfigResponse extends RequestResponseTestBase<ConfigResponse> {
+public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> {
 
   private static final Map<String, String> DEFAULTS = ImmutableMap.of("warehouse", "s3://bucket/warehouse");
   private static final Map<String, String> OVERRIDES = ImmutableMap.of("clients", "5");
