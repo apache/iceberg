@@ -26,9 +26,11 @@ package org.apache.iceberg;
 public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
 
   /**
-   * Optional. if from snapshot id (inclusive or exclusive) is not provided,
+   * Refine the incremental scan with the start snapshot inclusive.
+   * <p>
+   * If the start snapshot (inclusive or exclusive) is not provided,
    * the oldest ancestor of the {@link IncrementalAppendScan#toSnapshot(long)}
-   * will be included as the from snapshot.
+   * will be included as the start snapshot.
    *
    * @param fromSnapshotId the start snapshot id inclusive
    * @return an incremental table scan from {@code fromSnapshotId} inclusive
@@ -36,9 +38,11 @@ public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
   IncrementalAppendScan fromSnapshotInclusive(long fromSnapshotId);
 
   /**
-   * Optional. if from snapshot id (inclusive or exclusive) is not provided,
+   * Refine the incremental scan with the start snapshot exclusive.
+   * <p>
+   * If the start snapshot (inclusive or exclusive) is not provided,
    * the oldest ancestor of the {@link IncrementalAppendScan#toSnapshot(long)}
-   * will be included as the from snapshot.
+   * will be included as the start snapshot.
    *
    * @param fromSnapshotId the start snapshot id (exclusive)
    * @return an incremental table scan from {@code fromSnapshotId} exclusive
@@ -46,7 +50,9 @@ public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
   IncrementalAppendScan fromSnapshotExclusive(long fromSnapshotId);
 
   /**
-   * Required
+   * Refine the incremental scan with the end snapshot inclusive.
+   * <p>
+   * If the end snapshot is not provided, the current table snapshot will be used.
    *
    * @param toSnapshotId the end snapshot id (inclusive)
    * @return an incremental table scan up to {@code toSnapshotId} inclusive
