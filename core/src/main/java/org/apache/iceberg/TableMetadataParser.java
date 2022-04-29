@@ -155,7 +155,7 @@ public class TableMetadataParser {
     }
   }
 
-  private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
+  public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
@@ -299,6 +299,10 @@ public class TableMetadataParser {
 
   static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
     return fromJson(io, file.location(), node);
+  }
+
+  public static TableMetadata fromJson(JsonNode node) {
+    return fromJson(null, (String) null, node);
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})

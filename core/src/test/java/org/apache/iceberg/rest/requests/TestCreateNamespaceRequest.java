@@ -90,7 +90,8 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
     String jsonMisspelledKeys = "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
     AssertHelpers.assertThrows(
         "A JSON request with the keys spelled incorrectly should fail to deserialize and validate",
-        JsonProcessingException.class, "Unrecognized field \"namepsace\"",
+        IllegalArgumentException.class,
+        "Invalid namespace: null",
         () -> deserialize(jsonMisspelledKeys)
     );
 
