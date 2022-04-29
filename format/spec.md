@@ -228,7 +228,7 @@ Struct evolution requires the following rules for default values:
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
 * When an optional field is added, the defaults may be null and should be explicitly set
-* When a new field is added to a struct with a default value, the default should be updated to include the new field's default
+* When a new field is added to a struct with a default value, updating the struct's default is optional
 * If a field value is missing from a struct's `initial-default`, the field's `initial-default` must be used for the field
 * If a field value is missing from a struct's `write-default`, the field's `write-default` must be used for the field
 
