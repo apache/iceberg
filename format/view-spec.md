@@ -80,7 +80,7 @@ Field “version-log” is an array of structs that describe when each version w
 
 | Required/Optional | Field Name | Description |
 |-------------------|------------|-------------|
-| Required | timestamp-ms | Tthe timestamp hen the referenced version was made the current version |
+| Required | timestamp-ms | The timestamp when the referenced version was made the current version |
 | Required | version-id | Version id of the view  |
 
 #### Summary
@@ -147,12 +147,12 @@ The metadata directory contains View Version Metadata files. The text after '=>'
     "timestamp-ms" : 1573518431292,
     "summary" : {
       "operation" : "create", => View operation that caused this metadata to be created
-    	"engineVersion" : "presto-350",=> Version of the engine that performed the operation (create / replace)
+      "engineVersion" : "presto-350", => Version of the engine that performed the operation (create / replace)
     },
     "representations" : [ { => SQL metadata of the view
       "type" : "sql",
       "sql" : "SELECT *\nFROM\n  base_tab\n", => original view SQL
-      "dialect" : "spark",
+      "dialect" : "presto",
       "schema-id" : 1,
       "default-catalog" : "iceberg",
       "default-namespace" : [ "anorwood" ]
@@ -204,6 +204,7 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
     "representations" : [ {
       "type" : "sql",
       "sql" : "SELECT *\nFROM\n  base_tab\n",
+      "dialect" : "presto",
       "schema-id" : 1,
       "default-catalog" : "iceberg",
       "default-namespace" : [ "anorwood" ]
@@ -215,11 +216,12 @@ The Iceberg / view library creates a new metadata JSON file every time the view 
     "timestamp-ms" : 1573518440265,
     "summary" : {
       "operation" : "replace", => The ‘replace’ operation caused this latest version creation
-"engineVersion" : "spark-2.4.4",
+      "engineVersion" : "spark-2.4.4",
     },
     "representations" : [ {
       "type" : "sql",
       "sql" : "SELECT \"count\"(*) my_cnt\nFROM\n  base_tab\n", => Note the updated text from the ‘replace’ view statement
+      "dialect" : "spark",
       "schema-id" : 2,
       "default-catalog" : "iceberg",
       "default-namespace" : [ "anorwood" ]
