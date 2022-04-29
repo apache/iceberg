@@ -136,7 +136,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    assertSameElements(result, expectedRecords);
+    assertSameElements(expectedRecords, result);
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
   }
 
