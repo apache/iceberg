@@ -19,34 +19,35 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
-public class StructRecord {
-  private long id;
-  private InnerRecord struct;
+public class NestedRecord {
+  private long innerId;
+  private String innerName;
 
-  public StructRecord() {
+  public NestedRecord() {
   }
 
-  public StructRecord(long id, InnerRecord struct) {
-    this.id = id;
-    this.struct = struct;
+  public NestedRecord(long innerId, String innerName) {
+    this.innerId = innerId;
+    this.innerName = innerName;
   }
 
-  public long getId() {
-    return id;
+  public long getInnerId() {
+    return innerId;
   }
 
-  public void setId(long id) {
-    this.id = id;
+  public String getInnerName() {
+    return innerName;
   }
 
-  public InnerRecord getStruct() {
-    return struct;
+  public void setInnerId(long iId) {
+    innerId = iId;
   }
 
-  public void setStruct(InnerRecord struct) {
-    this.struct = struct;
+  public void setInnerName(String name) {
+    innerName = name;
   }
 
   @Override
@@ -59,12 +60,20 @@ public class StructRecord {
       return false;
     }
 
-    StructRecord record = (StructRecord) o;
-    return id == record.id && Objects.equal(struct, record.struct);
+    NestedRecord that = (NestedRecord) o;
+    return innerId == that.innerId && Objects.equal(innerName, that.innerName);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(id, struct);
+    return Objects.hashCode(innerId, innerName);
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("innerId", innerId)
+        .add("innerName", innerName)
+        .toString();
   }
 }

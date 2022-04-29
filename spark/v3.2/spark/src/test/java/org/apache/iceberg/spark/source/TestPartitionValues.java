@@ -473,8 +473,9 @@ public class TestPartitionValues {
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
     // write into iceberg
-    MapFunction<Long, StructRecord> func = value -> new StructRecord(value, new InnerRecord(value, "name_" + value));
-    spark.range(0, 10, 1, 1).map(func, Encoders.bean(StructRecord.class))
+    MapFunction<Long, ComplexRecord> func =
+        value -> new ComplexRecord(value, new NestedRecord(value, "name_" + value));
+    spark.range(0, 10, 1, 1).map(func, Encoders.bean(ComplexRecord.class))
             .write()
             .format("iceberg")
             .mode(SaveMode.Append)
