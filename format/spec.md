@@ -202,7 +202,7 @@ Default values can be tracked for struct fields (both nested structs and the top
 
 The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution. If either default is not set for an optional field, then the default value is null for compatibility with older spec versions.
 
-Together, the `initial-default` and `write-default` produce SQL default value behavior without rewriting data files. That is, default value changes may only affect future records and all known fields are written into data files. To produce this behavior, omitting a known field when writing a data file is not allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
+The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
@@ -1148,7 +1148,7 @@ This serialization scheme is for storing single values as individual binary valu
 
 Default values are added to struct fields in v3.
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
-* Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields that have an `initial-default` because the default is not supported, when reading data files that are missing the required fields.
+* Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 
 ### Version 2
 
