@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
@@ -46,6 +45,7 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
@@ -87,6 +87,8 @@ public class BaseExpireSnapshotsSparkAction
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = null;
   private Dataset<Row> expiredFiles = null;
+  private Dataset<Row> allManifestsBefore = null;
+  private Dataset<Row> allManifestsAfter = null;
 
   public BaseExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -147,7 +149,9 @@ public class BaseExpireSnapshotsSparkAction
   public Dataset<Row> expire() {
     if (expiredFiles == null) {
       // fetch metadata before expiration
-      Dataset<Row> originalFiles = buildValidFileDF(ops.current());
+      Table staticTableBefore = newStaticTable(ops.current(), table.io());
+      allManifestsBefore = loadMetadataTable(staticTableBefore, ALL_MANIFESTS).persist();
+      Dataset<Row> originalFiles = buildValidFileDF(staticTableBefore, allManifestsBefore);
 
       // perform expiration
       org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots().cleanExpiredFiles(false);
@@ -166,7 +170,9 @@ public class BaseExpireSnapshotsSparkAction
       expireSnapshots.commit();
 
       // fetch metadata after expiration
-      Dataset<Row> validFiles = buildValidFileDF(ops.refresh());
+      Table staticTableAfter = newStaticTable(ops.refresh(), table.io());
+      allManifestsAfter = loadMetadataTable(staticTableAfter, ALL_MANIFESTS).persist();
+      Dataset<Row> validFiles = buildValidFileDF(staticTableAfter, allManifestsAfter);
 
       // determine expired files
       this.expiredFiles = originalFiles.except(validFiles);
@@ -206,17 +212,20 @@ public class BaseExpireSnapshotsSparkAction
 
   private ExpireSnapshots.Result doExecute() {
     boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
+    BaseExpireSnapshotsActionResult result;
     if (streamResults) {
-      return deleteFiles(expire().toLocalIterator());
+      result = deleteFiles(expire().toLocalIterator());
     } else {
-      return deleteFiles(expire().collectAsList().iterator());
+      result = deleteFiles(expire().collectAsList().iterator());
     }
+    allManifestsBefore.unpersist();
+    allManifestsAfter.unpersist();
+    return result;
   }
 
-  private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
-    Table staticTable = newStaticTable(metadata, table.io());
-    return withFileType(buildValidContentFileDF(staticTable), CONTENT_FILE)
-        .union(withFileType(buildManifestFileDF(staticTable), MANIFEST))
+  private Dataset<Row> buildValidFileDF(Table staticTable, Dataset<Row> allManifests) {
+    return withFileType(buildValidContentFileDF(staticTable, allManifests), CONTENT_FILE)
+        .union(withFileType(buildManifestFileDF(allManifests), MANIFEST))
         .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
 

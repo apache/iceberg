@@ -49,7 +49,6 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 
@@ -123,11 +122,11 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   // builds a DF of delete and data file locations by reading all manifests
-  protected Dataset<Row> buildValidContentFileDF(Table table) {
+  protected Dataset<Row> buildValidContentFileDF(Table table, Dataset<Row> allManifestsDf) {
     JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
 
-    Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
+    Dataset<ManifestFileBean> allManifests = allManifestsDf
         .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
         .dropDuplicates("path")
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
@@ -136,8 +135,8 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF(FILE_PATH);
   }
 
-  protected Dataset<Row> buildManifestFileDF(Table table) {
-    return loadMetadataTable(table, ALL_MANIFESTS).select(col("path").as(FILE_PATH));
+  protected Dataset<Row> buildManifestFileDF(Dataset<Row> allManifestsDf) {
+    return allManifestsDf.select(col("path").as(FILE_PATH));
   }
 
   protected Dataset<Row> buildManifestListDF(Table table) {
@@ -160,8 +159,8 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF(FILE_PATH);
   }
 
-  protected Dataset<Row> buildValidMetadataFileDF(Table table) {
-    Dataset<Row> manifestDF = buildManifestFileDF(table);
+  protected Dataset<Row> buildValidMetadataFileDF(Table table, Dataset<Row> allManifests) {
+    Dataset<Row> manifestDF = buildManifestFileDF(allManifests);
     Dataset<Row> manifestListDF = buildManifestListDF(table);
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(table);
 

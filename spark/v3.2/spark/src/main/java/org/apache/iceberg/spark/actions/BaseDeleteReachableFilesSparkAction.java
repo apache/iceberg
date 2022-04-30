@@ -42,6 +42,7 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
@@ -69,6 +70,7 @@ public class BaseDeleteReachableFilesSparkAction
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = null;
   private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
+  private Dataset<Row> allManifests = null;
 
   public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataFileLocation) {
     super(spark);
@@ -116,17 +118,21 @@ public class BaseDeleteReachableFilesSparkAction
     Dataset<Row> reachableFileDF = buildReachableFileDF(metadata).distinct();
 
     boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
+    Result result;
     if (streamResults) {
-      return deleteFiles(reachableFileDF.toLocalIterator());
+      result = deleteFiles(reachableFileDF.toLocalIterator());
     } else {
-      return deleteFiles(reachableFileDF.collectAsList().iterator());
+      result = deleteFiles(reachableFileDF.collectAsList().iterator());
     }
+    allManifests.unpersist();
+    return result;
   }
 
   private Dataset<Row> buildReachableFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, io);
-    return withFileType(buildValidContentFileDF(staticTable), CONTENT_FILE)
-        .union(withFileType(buildManifestFileDF(staticTable), MANIFEST))
+    allManifests = loadMetadataTable(staticTable, ALL_MANIFESTS).persist();
+    return withFileType(buildValidContentFileDF(staticTable, allManifests), CONTENT_FILE)
+        .union(withFileType(buildManifestFileDF(allManifests), MANIFEST))
         .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST))
         .union(withFileType(buildAllReachableOtherMetadataFileDF(staticTable), OTHERS));
   }

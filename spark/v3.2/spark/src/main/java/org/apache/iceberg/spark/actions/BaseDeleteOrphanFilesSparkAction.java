@@ -68,6 +68,7 @@ import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
@@ -208,8 +209,9 @@ public class BaseDeleteOrphanFilesSparkAction
   }
 
   private DeleteOrphanFiles.Result doExecute() {
-    Dataset<Row> validContentFileDF = buildValidContentFileDF(table);
-    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
+    Dataset<Row> allManifests = loadMetadataTable(table, ALL_MANIFESTS).persist();
+    Dataset<Row> validContentFileDF = buildValidContentFileDF(table, allManifests);
+    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, allManifests);
     Dataset<Row> validFileDF = validContentFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = compareToFileList == null ? buildActualFileDF() : filteredCompareToFileList();
 
@@ -221,7 +223,7 @@ public class BaseDeleteOrphanFilesSparkAction
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
         .collectAsList();
-
+    allManifests.unpersist();
     Tasks.foreach(orphanFiles)
         .noRetry()
         .executeWith(deleteExecutorService)
