@@ -66,6 +66,16 @@ Table table = catalog.createTable(name, schema, spec);
 
 The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
 
+HiveCatalog supports registering the table using an existing metadata JSON file as below:
+
+```java
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
+
+TableIdentifier name = TableIdentifier.of("logging", "logs");
+// register an existing table to HiveCatalog using an existing metadata JSON file.
+Table table = catalog.registerTable(name, metadataFileLocation);
+```
 
 ### Using a Hadoop catalog
 
