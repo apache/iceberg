@@ -63,6 +63,14 @@ public class TestUpdateRequirementParser {
         expected, UpdateRequirementParser.toJson(actual));
   }
 
+  @Test
+  public void testAssertTableDoesNotExistToJson() {
+    String action = UpdateRequirementParser.ASSERT_TABLE_DOES_NOT_EXIST;
+    String json = "{\"type\":\"assert-create\"}";
+    UpdateRequirement.AssertTableDoesNotExist expected = new UpdateRequirement.AssertTableDoesNotExist();
+    assertEquals(action, expected, UpdateRequirementParser.fromJson(json));
+  }
+
   public void assertEquals(String requirementType, UpdateRequirement expected, UpdateRequirement actual) {
     switch (requirementType) {
       case UpdateRequirementParser.ASSERT_TABLE_UUID:
@@ -71,9 +79,7 @@ public class TestUpdateRequirementParser {
         break;
       case UpdateRequirementParser.ASSERT_TABLE_DOES_NOT_EXIST:
         // Don't cast here as the function tests that the types are correct, given that the generated JSON
-        // for ASSERT_TABLE_DOES_NOT_EXIST does not have any fields outside of requirementType.
-        //
-        // There's no Assert.pass() method.
+        // for ASSERT_TABLE_DOES_NOT_EXIST does not have any fields other than the requirement type.
         assertEqualsAssertTableDoesNotExist(expected, actual);
         break;
       case UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID:

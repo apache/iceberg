@@ -158,7 +158,7 @@ public class UpdateRequirementParser {
 
     switch (type) {
       case ASSERT_TABLE_DOES_NOT_EXIST:
-        throw new UnsupportedOperationException("Not implemented: AssignUUID");
+        return readAssertTableDoesNotExist(jsonNode);
       case ASSERT_TABLE_UUID:
         return readAssertTableUUID(jsonNode);
       case ASSERT_REF_SNAPSHOT_ID:
@@ -213,6 +213,11 @@ public class UpdateRequirementParser {
   private static void writeAssertDefaultSortOrderId(UpdateRequirement.AssertDefaultSortOrderID requirement,
       JsonGenerator gen) throws IOException {
     gen.writeNumberField(SORT_ORDER_ID, requirement.sortOrderId());
+  }
+
+  @SuppressWarnings("unused")  // Keep same signature in case this requirement class evolves and gets fields
+  private static UpdateRequirement readAssertTableDoesNotExist(JsonNode node) {
+    return new UpdateRequirement.AssertTableDoesNotExist();
   }
 
   private static UpdateRequirement readAssertTableUUID(JsonNode node) {

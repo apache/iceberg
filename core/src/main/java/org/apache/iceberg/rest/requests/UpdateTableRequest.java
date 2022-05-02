@@ -227,7 +227,7 @@ public class UpdateTableRequest implements RESTRequest {
     void validate(TableMetadata base);
 
     class AssertTableDoesNotExist implements UpdateRequirement {
-      private AssertTableDoesNotExist() {
+      AssertTableDoesNotExist() {
       }
 
       @Override
@@ -240,7 +240,6 @@ public class UpdateTableRequest implements RESTRequest {
 
     class AssertTableUUID implements UpdateRequirement {
       private final String uuid;
-
       AssertTableUUID(String uuid) {
         this.uuid = uuid;
       }
