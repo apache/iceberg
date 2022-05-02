@@ -158,77 +158,117 @@ public class TestUpdateRequirementParser {
         expected, UpdateRequirementParser.toJson(actual));
   }
 
+  @Test
+  public void testAssertDefaultSpecIdFromJson() {
+    String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SPEC_ID;
+    int specId = 5;
+    String json = String.format("{\"type\":\"%s\",\"default-spec-id\":%d}", requirementType, specId);
+    UpdateRequirement expected = new UpdateRequirement.AssertDefaultSpecID(specId);
+    assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
+  }
+
+  @Test
+  public void testAssertDefaultSpecIdToJson() {
+    String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SPEC_ID;
+    int specId = 5;
+    String expected = String.format("{\"type\":\"%s\",\"default-spec-id\":%d}", requirementType, specId);
+    UpdateRequirement actual = new UpdateRequirement.AssertDefaultSpecID(specId);
+    Assert.assertEquals("AssertDefaultSpecId should convert to the correct JSON value",
+        expected, UpdateRequirementParser.toJson(actual));
+  }
+
   public void assertEquals(String requirementType, UpdateRequirement expected, UpdateRequirement actual) {
     switch (requirementType) {
       case UpdateRequirementParser.ASSERT_TABLE_UUID:
-        assertEqualsAssertTableUUID((UpdateRequirement.AssertTableUUID) expected,
+        compareAssertTableUUID((UpdateRequirement.AssertTableUUID) expected,
             (UpdateRequirement.AssertTableUUID) actual);
         break;
       case UpdateRequirementParser.ASSERT_TABLE_DOES_NOT_EXIST:
         // Don't cast here as the function explicitly tests that the types are correct, given that the generated JSON
         // for ASSERT_TABLE_DOES_NOT_EXIST does not have any fields other than the requirement type.
-        assertEqualsAssertTableDoesNotExist(expected, actual);
+        compareAssertTableDoesNotExist(expected, actual);
         break;
       case UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID:
         Assert.fail(String.format("UpdateRequirementParser equality comparison for %s is not implemented yet",
             requirementType));
         break;
       case UpdateRequirementParser.ASSERT_LAST_ASSIGNED_FIELD_ID:
-        assertEqualsAssertLastAssignedFieldId((UpdateRequirement.AssertLastAssignedFieldId) expected,
+        compareAssertLastAssignedFieldId((UpdateRequirement.AssertLastAssignedFieldId) expected,
             (UpdateRequirement.AssertLastAssignedFieldId) actual);
         break;
       case UpdateRequirementParser.ASSERT_CURRENT_SCHEMA_ID:
-        assertEqualsAssertCurrentSchemaId((UpdateRequirement.AssertCurrentSchemaID) expected,
+        compareAssertCurrentSchemaId((UpdateRequirement.AssertCurrentSchemaID) expected,
             (UpdateRequirement.AssertCurrentSchemaID) actual);
         break;
       case UpdateRequirementParser.ASSERT_LAST_ASSIGNED_PARTITION_ID:
-        assertEqualsAssertLastAssignedPartitionId((UpdateRequirement.AssertLastAssignedPartitionId) expected,
+        compareAssertLastAssignedPartitionId((UpdateRequirement.AssertLastAssignedPartitionId) expected,
             (UpdateRequirement.AssertLastAssignedPartitionId) actual);
         break;
       case UpdateRequirementParser.ASSERT_DEFAULT_SPEC_ID:
+        compareAssertDefaultSpecId(
+            (UpdateRequirement.AssertDefaultSpecID) expected,
+            (UpdateRequirement.AssertDefaultSpecID) actual);
+        break;
       case UpdateRequirementParser.ASSERT_DEFAULT_SORT_ORDER_ID:
-        Assert.fail(String.format("UpdateRequirementParser equality comparison for %s is not implemented yet",
-            requirementType));
+        compareAssertDefaultSortOrderId(
+            (UpdateRequirement.AssertDefaultSortOrderID) expected,
+            (UpdateRequirement.AssertDefaultSortOrderID) actual);
         break;
       default:
         Assert.fail("Unrecognized update requirement type: " + requirementType);
     }
   }
 
-  private static void assertEqualsAssertTableUUID(
+  private static void compareAssertTableUUID(
       UpdateRequirement.AssertTableUUID expected, UpdateRequirement.AssertTableUUID actual) {
     Assertions.assertThat(actual.uuid())
         .as("UUID from JSON should not be null").isNotNull()
-        .as("UUID from JSON should parse correctly").isEqualTo(expected.uuid());
+        .as("UUID should parse correctly from JSON").isEqualTo(expected.uuid());
   }
 
   // AssertTableDoesNotExist does not have any fields beyond the requirement type, so just check that the classes
   // are the same and as expected.
-  private static void assertEqualsAssertTableDoesNotExist(UpdateRequirement expected, UpdateRequirement actual) {
+  private static void compareAssertTableDoesNotExist(UpdateRequirement expected, UpdateRequirement actual) {
     Assertions.assertThat(actual)
         .isOfAnyClassIn(UpdateRequirement.AssertTableDoesNotExist.class)
         .hasSameClassAs(expected);
   }
 
-  private static void assertEqualsAssertLastAssignedFieldId(UpdateRequirement.AssertLastAssignedFieldId expected,
+  private static void compareAssertLastAssignedFieldId(UpdateRequirement.AssertLastAssignedFieldId expected,
       UpdateRequirement.AssertLastAssignedFieldId actual) {
     Assertions.assertThat(actual.lastAssignedFieldId())
-        .as("Last assigned field id from JSON should parse correctly")
+        .as("Last assigned field id should parse correctly from JSON")
         .isEqualTo(expected.lastAssignedFieldId());
   }
 
-  private static void assertEqualsAssertCurrentSchemaId(UpdateRequirement.AssertCurrentSchemaID expected,
+  private static void compareAssertCurrentSchemaId(UpdateRequirement.AssertCurrentSchemaID expected,
       UpdateRequirement.AssertCurrentSchemaID actual) {
     Assertions.assertThat(actual.schemaId())
-        .as("Current schema id from JSON should parse correctly")
+        .as("Current schema id should parse correctly from JSON")
         .isEqualTo(expected.schemaId());
   }
 
-  private static void assertEqualsAssertLastAssignedPartitionId(
+  private static void compareAssertLastAssignedPartitionId(
       UpdateRequirement.AssertLastAssignedPartitionId expected,
       UpdateRequirement.AssertLastAssignedPartitionId actual) {
     Assertions.assertThat(actual.lastAssignedPartitionId())
         .as("Last assigned partition id should parse correctly from JSON")
         .isEqualTo(expected.lastAssignedPartitionId());
+  }
+
+  private static void compareAssertDefaultSpecId(
+      UpdateRequirement.AssertDefaultSpecID expected,
+      UpdateRequirement.AssertDefaultSpecID actual) {
+   Assertions.assertThat(actual.specId())
+       .as("Default spec id should parse correctly from JSON")
+       .isEqualTo(expected.specId());
+  }
+
+  private static void compareAssertDefaultSortOrderId(
+      UpdateRequirement.AssertDefaultSortOrderID expected,
+      UpdateRequirement.AssertDefaultSortOrderID actual) {
+   Assertions.assertThat(actual.sortOrderId())
+       .as("Default sort order id should parse correctly from JSON")
+       .isEqualTo(expected.sortOrderId());
   }
 }

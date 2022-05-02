@@ -57,13 +57,14 @@ public class UpdateRequirementParser {
   private static final String SCHEMA_ID = "current-schema-id";
 
   // AssertLastAssignedPartitionId
-  private static final String LAST_ASSIGNED_PARTITION_ID = "last-assigned-partition-id"; // int
+  private static final String LAST_ASSIGNED_PARTITION_ID = "last-assigned-partition-id";
 
-  // AssertDefaultSpecID  // field is default-spec-id in spec
-  private static final String SPEC_ID = "default-spec-id";  // int
+  // AssertDefaultSpecID
+  private static final String SPEC_ID = "default-spec-id";
 
-  // AssertDefaultSortOrderID  // field is default-write-order-id in spec
-  private static final String SORT_ORDER_ID = "sort-order-id";  // int - some of these should be long though?
+  // AssertDefaultSortOrderID
+  // TODO - Is currently referred to as sort-order-id. Need to update it in class or in spec
+  private static final String SORT_ORDER_ID = "default-write-order-id";
 
   private static final Map<Class<? extends UpdateTableRequest.UpdateRequirement>, String> TYPES = ImmutableMap
       .<Class<? extends UpdateTableRequest.UpdateRequirement>, String>builder()
