@@ -1362,6 +1362,7 @@ components:
           type: string
         snapshot-id:
           type: interger
+          format: int64
         last-assigned-field-id:
           type: integer
         current-schema-id:
