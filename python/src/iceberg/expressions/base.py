@@ -20,6 +20,7 @@ from functools import reduce
 from typing import Any, Generic, TypeVar
 
 from iceberg.files import StructProtocol
+from iceberg.schema import Schema
 from iceberg.types import NestedField, Singleton
 
 T = TypeVar("T")
@@ -328,3 +329,35 @@ class BoundReference:
             Any: The value at the referenced field's position in `struct`
         """
         return self._accessor.get(struct)
+
+
+class UnboundReference:
+    """A reference not yet bounded to a field in a schema
+
+    Args:
+        name (str): The name of the field
+    """
+
+    def __init__(self, name: str):
+        if not name:
+            raise ValueError(f"Name cannot be null: {name}")
+        self._name = name
+
+    def __str__(self):
+        return f"UnboundReference(name={repr(self.name)})"
+
+    def __repr__(self):
+        return f"UnboundReference(name={repr(self.name)})"
+
+    @property
+    def name(self):
+        return self._name
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
+        """ """
+        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
+
+        if not field:
+            raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
+
+        return BoundReference(field=field, accessor=schema.accessor_for_field(field.field_id))
