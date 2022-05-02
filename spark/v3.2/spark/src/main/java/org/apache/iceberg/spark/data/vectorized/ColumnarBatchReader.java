@@ -234,8 +234,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
      *
      * @return the number of undeleted rows in a batch after applying equality deletes
      */
-    int applyEqDelete(ColumnarBatch columnarBatch) {
-      Iterator<InternalRow> it = columnarBatch.rowIterator();
+    int applyEqDelete(ColumnarBatch newColumnarBatch) {
+      Iterator<InternalRow> it = newColumnarBatch.rowIterator();
       int rowId = 0;
       int currentRowId = 0;
       while (it.hasNext()) {
@@ -250,7 +250,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         rowId++;
       }
 
-      columnarBatch.setNumRows(currentRowId);
+      newColumnarBatch.setNumRows(currentRowId);
       return currentRowId;
     }
 
