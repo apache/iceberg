@@ -155,8 +155,8 @@ public class UpdateRequirementParser {
 
   public static UpdateRequirement fromJson(JsonNode jsonNode) {
     Preconditions.checkArgument(jsonNode != null && jsonNode.isObject(),
-        "Cannot parse metadata update from non-object value: %s", jsonNode);
-    Preconditions.checkArgument(jsonNode.hasNonNull(TYPE), "Cannot parse metadata update. Missing field: type");
+        "Cannot parse update requirement from non-object value: %s", jsonNode);
+    Preconditions.checkArgument(jsonNode.hasNonNull(TYPE), "Cannot parse update requirement. Missing field: type");
     String type = JsonUtil.getString(TYPE, jsonNode).toLowerCase(Locale.ROOT);
 
     switch (type) {
