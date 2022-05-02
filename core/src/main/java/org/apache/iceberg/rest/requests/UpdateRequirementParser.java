@@ -51,7 +51,7 @@ public class UpdateRequirementParser {
   private static final String SNAPSHOT_ID = "snapshot-id";
 
   // AssertLastAssignedFieldId
-  private static final String LAST_ASSIGNED_FIELD_ID = "last-assigned-field-id";  // int
+  private static final String LAST_ASSIGNED_FIELD_ID = "last-assigned-field-id";
 
   // AssertCurrentSchemaID  // field is current-schema-id in spec
   private static final String SCHEMA_ID = "schema-id";  // int
