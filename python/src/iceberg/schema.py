@@ -173,7 +173,7 @@ class Schema:
         Returns:
             Accessor: An accessor for the given field ID
         """
-        return self._lazy_id_to_accessor().get(column_id)  # type: ignore
+        return self._lazy_id_to_accessor().get(field_id)  # type: ignore
 
     def select(self, names: List[str], case_sensitive: bool = True) -> "Schema":
         """Return a new schema instance pruned to a subset of columns
