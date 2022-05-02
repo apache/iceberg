@@ -70,6 +70,12 @@ public class TestUpdateRequirementParser {
             (UpdateRequirement.AssertTableUUID) actual);
         break;
       case UpdateRequirementParser.ASSERT_TABLE_DOES_NOT_EXIST:
+        // Don't cast here as the function tests that the types are correct, given that the generated JSON
+        // for ASSERT_TABLE_DOES_NOT_EXIST does not have any fields outside of requirementType.
+        //
+        // There's no Assert.pass() method.
+        assertEqualsAssertTableDoesNotExist(expected, actual);
+        break;
       case UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID:
       case UpdateRequirementParser.ASSERT_LAST_ASSIGNED_FIELD_ID:
       case UpdateRequirementParser.ASSERT_CURRENT_SCHEMA_ID:
@@ -87,5 +93,13 @@ public class TestUpdateRequirementParser {
       UpdateRequirement.AssertTableUUID expected, UpdateRequirement.AssertTableUUID actual) {
     Assertions.assertThat(actual.uuid()).isNotNull()
         .as("UUID from JSON should be equal").isEqualTo(expected.uuid());
+  }
+
+  // AssertTableDoesNotExist does not have any fields beyond the requirement type, so just check that the classes
+  // are the same and as expected.
+  private static void assertEqualsAssertTableDoesNotExist(UpdateRequirement expected, UpdateRequirement actual) {
+    Assertions.assertThat(actual)
+        .isOfAnyClassIn(UpdateRequirement.AssertTableDoesNotExist.class)
+        .hasSameClassAs(expected);
   }
 }

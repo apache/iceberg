@@ -44,10 +44,7 @@ public class UpdateRequirementParser {
   static final String ASSERT_DEFAULT_SORT_ORDER_ID = "assert-default-write-order-id";
 
   // AssertTableUUID
-  private static final String UUID = "uuid";  // String
-
-  // AssertTableDoesNotExist - Doesn't have any fields - just checks for null of current TableMetadata.
-  //                           Maybe `base`
+  private static final String UUID = "uuid";
 
   // AssertRefSnapshotID  // field `name` is ref in the spec
   private static final String REF = "ref";  // renamed from `name` to match spec
