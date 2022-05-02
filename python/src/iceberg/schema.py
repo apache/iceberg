@@ -526,7 +526,7 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
         return self._index
 
 
-def build_position_accessors(schema_or_type) -> Dict[int, "Accessor"]:
+def build_position_accessors(schema_or_type: Schema | IcebergType) -> Dict[int, Accessor]:
     """Generate an index of field IDs to schema position accessors
 
     Args:
