@@ -57,7 +57,7 @@ class Schema:
         self._name_to_id_lower: Dict[str, int] = {}  # Should be accessed through self._lazy_name_to_id_lower()
         self._id_to_field: Dict[int, NestedField] = {}  # Should be accessed through self._lazy_id_to_field()
         self._id_to_name: Dict[int, str] = {}  # Should be accessed through self._lazy_id_to_name()
-        self._id_to_accessor: Dict[int, "Accessor"] = {}  # Should be accessed through self._lazy_id_to_accessor()
+        self._id_to_accessor: Dict[int, Accessor] = {}  # Should be accessed through self._lazy_id_to_accessor()
 
     def __str__(self):
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
@@ -108,7 +108,7 @@ class Schema:
             self._id_to_name = index_name_by_id(self)
         return self._id_to_name
 
-    def _lazy_id_to_accessor(self) -> Dict[int, "Accessor"]:
+    def _lazy_id_to_accessor(self) -> Dict[int, Accessor]:
         """Returns an index of field ID to accessor
 
         This is calculated once when called for the first time. Subsequent calls to this method will use a cached index.
@@ -164,7 +164,7 @@ class Schema:
         """
         return self._lazy_id_to_name().get(column_id)  # type: ignore
 
-    def accessor_for_field(self, field_id: int) -> "Accessor":
+    def accessor_for_field(self, field_id: int) -> Accessor:
         """Find a schema position accessor given a field ID
 
         Args:
@@ -501,28 +501,26 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
     """A schema visitor for generating a field ID to accessor index"""
 
     def __init__(self) -> None:
-        self._index: Dict[int, "Accessor"] = {}
+        self._index: Dict[int, Accessor] = {}
 
-    def schema(self, schema, result: Dict[int, "Accessor"]) -> Dict[int, "Accessor"]:
+    def schema(self, schema, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
         return self._index
 
-    def struct(self, struct, result: List[Dict[int, "Accessor"]]) -> Dict[int, "Accessor"]:
+    def struct(self, struct, result: List[Dict[int, Accessor]]) -> Dict[int, Accessor]:
         # TODO: Populate the `self._index` dictionary where the key is the field ID and the value is an accessor for that field.
         #   The equivalent java logic can be found here: https://github.com/apache/iceberg/blob/master/api/src/main/java/org/apache/iceberg/Accessors.java#L213-L230
         return self._index
 
-    def field(self, field: NestedField, result: Dict[int, "Accessor"]) -> Dict[int, "Accessor"]:
+    def field(self, field: NestedField, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
         return self._index
 
-    def list(self, list_type: ListType, result: Dict[int, "Accessor"]) -> Dict[int, "Accessor"]:
+    def list(self, list_type: ListType, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
         return self._index
 
-    def map(
-        self, map_type: MapType, key_result: Dict[int, "Accessor"], value_result: Dict[int, "Accessor"]
-    ) -> Dict[int, "Accessor"]:
+    def map(self, map_type: MapType, key_result: Dict[int, Accessor], value_result: Dict[int, Accessor]) -> Dict[int, Accessor]:
         return self._index
 
-    def primitive(self, primitive: PrimitiveType) -> Dict[int, "Accessor"]:
+    def primitive(self, primitive: PrimitiveType) -> Dict[int, Accessor]:
         return self._index
 
 
