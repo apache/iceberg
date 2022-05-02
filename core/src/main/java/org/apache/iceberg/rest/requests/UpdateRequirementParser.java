@@ -184,6 +184,8 @@ public class UpdateRequirementParser {
     gen.writeStringField(UUID, requirement.uuid());
   }
 
+  // TODO - Should we fail if both are null or if ref is non-null and snapshotId is null? validate will fail here.
+  // TODO - Also, looking at SnapshotRefParser it seems that `ref` is
   private static void writeAssertRefSnapshotId(UpdateRequirement.AssertRefSnapshotID requirement, JsonGenerator gen)
       throws IOException {
     gen.writeStringField(REF, requirement.refName());
@@ -225,6 +227,7 @@ public class UpdateRequirementParser {
     return new UpdateRequirement.AssertTableUUID(uuid);
   }
 
+  // TODO - Should we fail if both are null? The logic will eventually cause it to fail.
   private static UpdateRequirement readAssertRefSnapshotId(JsonNode node) {
     String ref = JsonUtil.getStringOrNull(REF, node);
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, node);

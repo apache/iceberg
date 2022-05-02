@@ -79,6 +79,25 @@ public class TestUpdateRequirementParser {
         expected, UpdateRequirementParser.toJson(actual));
   }
 
+  @Test
+  public void testAssertRefSnapshotIdToJson() {
+    String action = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
+    String ref = ""
+    String json = String.format("{\"type\":\"assert-table-uuid\",\"uuid\":\"%s\"}", uuid);
+    UpdateRequirement.AssertTableUUID expected = new UpdateRequirement.AssertTableUUID(uuid);
+    assertEquals(action, expected, UpdateRequirementParser.fromJson(json));
+  }
+
+  @Test
+  public void testAssertRefSnapshotIdFromJson() {
+    String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
+    String expected = String.format("{\"type\":\"assert-table-uuid\",\"uuid\":\"%s\"}", uuid);
+    UpdateRequirement.AssertTableUUID actual = new UpdateRequirement.AssertTableUUID(uuid);
+    Assert.assertEquals("AssertTableUUID should convert to the correct JSON value",
+        expected, UpdateRequirementParser.toJson(actual));
+  }
+
+
   public void assertEquals(String requirementType, UpdateRequirement expected, UpdateRequirement actual) {
     switch (requirementType) {
       case UpdateRequirementParser.ASSERT_TABLE_UUID:

@@ -258,6 +258,7 @@ public class UpdateTableRequest implements RESTRequest {
     }
 
     class AssertRefSnapshotID implements UpdateRequirement {
+      // This might be called name to not conflict with `ref` from TableMetadata (the enum of SnapshotRefType).
       private final String ref;
       private final Long snapshotId;
 
