@@ -241,7 +241,7 @@ public class UpdateTableRequest implements RESTRequest {
     class AssertTableUUID implements UpdateRequirement {
       private final String uuid;
 
-      private AssertTableUUID(String uuid) {
+      AssertTableUUID(String uuid) {
         this.uuid = uuid;
       }
 
@@ -259,16 +259,16 @@ public class UpdateTableRequest implements RESTRequest {
     }
 
     class AssertRefSnapshotID implements UpdateRequirement {
-      private final String name;
+      private final String ref;
       private final Long snapshotId;
 
-      private AssertRefSnapshotID(String name, Long snapshotId) {
-        this.name = name;
+      AssertRefSnapshotID(String ref, Long snapshotId) {
+        this.ref = ref;
         this.snapshotId = snapshotId;
       }
 
       public String refName() {
-        return name;
+        return ref;
       }
 
       public Long snapshotId() {
@@ -277,21 +277,21 @@ public class UpdateTableRequest implements RESTRequest {
 
       @Override
       public void validate(TableMetadata base) {
-        SnapshotRef ref = base.ref(name);
+        SnapshotRef ref = base.ref(this.ref);
         if (ref != null) {
           String type = ref.isBranch() ? "branch" : "tag";
           if (snapshotId == null) {
             // a null snapshot ID means the ref should not exist already
             throw new CommitFailedException(
-                "Requirement failed: %s %s was created concurrently", type, name);
+                "Requirement failed: %s %s was created concurrently", type, this.ref);
           } else if (snapshotId != ref.snapshotId()) {
             throw new CommitFailedException(
                 "Requirement failed: %s %s has changed: expected id %s != %s",
-                type, name, snapshotId, ref.snapshotId());
+                type, this.ref, snapshotId, ref.snapshotId());
           }
         } else if (snapshotId != null) {
           throw new CommitFailedException(
-              "Requirement failed: branch or tag %s is missing, expected %s", name, snapshotId);
+              "Requirement failed: branch or tag %s is missing, expected %s", this.ref, snapshotId);
         }
       }
     }
@@ -320,7 +320,7 @@ public class UpdateTableRequest implements RESTRequest {
     class AssertCurrentSchemaID implements UpdateRequirement {
       private final int schemaId;
 
-      private AssertCurrentSchemaID(int schemaId) {
+      AssertCurrentSchemaID(int schemaId) {
         this.schemaId = schemaId;
       }
 
@@ -362,7 +362,7 @@ public class UpdateTableRequest implements RESTRequest {
     class AssertDefaultSpecID implements UpdateRequirement {
       private final int specId;
 
-      private AssertDefaultSpecID(int specId) {
+      AssertDefaultSpecID(int specId) {
         this.specId = specId;
       }
 
@@ -383,7 +383,7 @@ public class UpdateTableRequest implements RESTRequest {
     class AssertDefaultSortOrderID implements UpdateRequirement {
       private final int sortOrderId;
 
-      private AssertDefaultSortOrderID(int sortOrderId) {
+      AssertDefaultSortOrderID(int sortOrderId) {
         this.sortOrderId = sortOrderId;
       }
 
