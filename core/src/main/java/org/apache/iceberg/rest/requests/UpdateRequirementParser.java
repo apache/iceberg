@@ -60,7 +60,7 @@ public class UpdateRequirementParser {
   private static final String LAST_ASSIGNED_PARTITION_ID = "last-assigned-partition-id"; // int
 
   // AssertDefaultSpecID  // field is default-spec-id in spec
-  private static final String SPEC_ID = "spec-id";  // int
+  private static final String SPEC_ID = "default-spec-id";  // int
 
   // AssertDefaultSortOrderID  // field is default-write-order-id in spec
   private static final String SORT_ORDER_ID = "sort-order-id";  // int - some of these should be long though?

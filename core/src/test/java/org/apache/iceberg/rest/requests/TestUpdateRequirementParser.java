@@ -137,6 +137,27 @@ public class TestUpdateRequirementParser {
         expected, UpdateRequirementParser.toJson(actual));
   }
 
+  @Test
+  public void testAssertLastAssignedPartitionIdFromJson() {
+    String requirementType = UpdateRequirementParser.ASSERT_LAST_ASSIGNED_PARTITION_ID;
+    int lastAssignedPartitionId = 1004;
+    String json = String.format("{\"type\":\"%s\",\"last-assigned-partition-id\":%d}",
+        requirementType, lastAssignedPartitionId);
+    UpdateRequirement expected = new UpdateRequirement.AssertLastAssignedPartitionId(lastAssignedPartitionId);
+    assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
+  }
+
+  @Test
+  public void testAssertLastAssignedPartitionIdToJson() {
+    String requirementType = UpdateRequirementParser.ASSERT_LAST_ASSIGNED_PARTITION_ID;
+    int lastAssignedPartitionId = 1004;
+    String expected = String.format("{\"type\":\"%s\",\"last-assigned-partition-id\":%d}",
+        requirementType, lastAssignedPartitionId);
+    UpdateRequirement actual = new UpdateRequirement.AssertLastAssignedPartitionId(lastAssignedPartitionId);
+    Assert.assertEquals("AssertLastAssignedPartitionId should convert to the correct JSON value",
+        expected, UpdateRequirementParser.toJson(actual));
+  }
+
   public void assertEquals(String requirementType, UpdateRequirement expected, UpdateRequirement actual) {
     switch (requirementType) {
       case UpdateRequirementParser.ASSERT_TABLE_UUID:
@@ -161,6 +182,9 @@ public class TestUpdateRequirementParser {
             (UpdateRequirement.AssertCurrentSchemaID) actual);
         break;
       case UpdateRequirementParser.ASSERT_LAST_ASSIGNED_PARTITION_ID:
+        assertEqualsAssertLastAssignedPartitionId((UpdateRequirement.AssertLastAssignedPartitionId) expected,
+            (UpdateRequirement.AssertLastAssignedPartitionId) actual);
+        break;
       case UpdateRequirementParser.ASSERT_DEFAULT_SPEC_ID:
       case UpdateRequirementParser.ASSERT_DEFAULT_SORT_ORDER_ID:
         Assert.fail(String.format("UpdateRequirementParser equality comparison for %s is not implemented yet",
@@ -198,5 +222,13 @@ public class TestUpdateRequirementParser {
     Assertions.assertThat(actual.schemaId())
         .as("Current schema id from JSON should parse correctly")
         .isEqualTo(expected.schemaId());
+  }
+
+  private static void assertEqualsAssertLastAssignedPartitionId(
+      UpdateRequirement.AssertLastAssignedPartitionId expected,
+      UpdateRequirement.AssertLastAssignedPartitionId actual) {
+    Assertions.assertThat(actual.lastAssignedPartitionId())
+        .as("Last assigned partition id should parse correctly from JSON")
+        .isEqualTo(expected.lastAssignedPartitionId());
   }
 }
