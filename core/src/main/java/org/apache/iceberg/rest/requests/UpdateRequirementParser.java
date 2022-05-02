@@ -46,9 +46,9 @@ public class UpdateRequirementParser {
   // AssertTableUUID
   private static final String UUID = "uuid";
 
-  // AssertRefSnapshotID  // field `name` is ref in the spec
-  private static final String REF = "ref";  // renamed from `name` to match spec
-  private static final String SNAPSHOT_ID = "snapshot-id";  // Long
+  // AssertRefSnapshotID
+  private static final String REF = "ref";
+  private static final String SNAPSHOT_ID = "snapshot-id";
 
   // AssertLastAssignedFieldId
   private static final String LAST_ASSIGNED_FIELD_ID = "last-assigned-field-id";  // int
