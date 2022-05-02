@@ -343,18 +343,29 @@ class UnboundReference:
             raise ValueError(f"Name cannot be null: {name}")
         self._name = name
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"UnboundReference(name={repr(self.name)})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"UnboundReference(name={repr(self.name)})"
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
-        """ """
+        """Bind the reference to an Iceberg schema
+
+        Args:
+            schema (Schema): An Iceberg schema
+            case_sensitive (bool): Whether to consider case when binding the reference to the field
+
+        Raises:
+            ValueError: If an empty name is provided
+
+        Returns:
+            BoundReference: A reference bound to the specific field in the Iceberg schema
+        """
         field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
 
         if not field:
