@@ -108,7 +108,8 @@ public class UpdateRequirementParser {
 
     switch (requirementType) {
       case ASSERT_TABLE_DOES_NOT_EXIST:
-        throw new UnsupportedOperationException("Not Implemented: UpdateRequirement::toJson for " + requirementType);
+        // No fields beyond the requirement itself
+        break;
       case ASSERT_TABLE_UUID:
         writeAssertTableUUID((UpdateRequirement.AssertTableUUID) updateRequirement, generator);
         break;
@@ -192,29 +193,29 @@ public class UpdateRequirementParser {
     gen.writeNumberField(SNAPSHOT_ID, requirement.snapshotId());
   }
 
-  private static void writeAssertLastAssignedFieldId(UpdateRequirement.AssertLastAssignedFieldId update,
+  private static void writeAssertLastAssignedFieldId(UpdateRequirement.AssertLastAssignedFieldId requirement,
       JsonGenerator gen) throws IOException {
-    // gen.writeNumberField(LAST_ASSIGNED_FIELD_ID, update.schemaId());
+    gen.writeNumberField(LAST_ASSIGNED_FIELD_ID, requirement.lastAssignedFieldId());
   }
 
-  private static void writeAssertLastAssignedPartitionId(UpdateRequirement.AssertLastAssignedPartitionId update,
+  private static void writeAssertLastAssignedPartitionId(UpdateRequirement.AssertLastAssignedPartitionId requirement,
       JsonGenerator gen) throws IOException {
-    // gen.writeNumberField(SPEC_ID, update.specId());
+    gen.writeNumberField(LAST_ASSIGNED_PARTITION_ID, requirement.lastAssignedPartitionId());
   }
 
-  private static void writeAssertCurrentSchemaId(UpdateRequirement.AssertCurrentSchemaID updateRequirement,
+  private static void writeAssertCurrentSchemaId(UpdateRequirement.AssertCurrentSchemaID requirement,
       JsonGenerator gen) throws IOException {
-
+    gen.writeNumberField(SCHEMA_ID, requirement.schemaId());
   }
 
-  private static void writeAssertDefaultSpecId(UpdateRequirement.AssertDefaultSpecID updateRequirement,
-      JsonGenerator gen) throws IOException {
-
+  private static void writeAssertDefaultSpecId(UpdateRequirement.AssertDefaultSpecID requirement, JsonGenerator gen)
+      throws IOException {
+    gen.writeNumberField(SPEC_ID, requirement.specId());
   }
 
-  private static void writeAssertDefaultSortOrderId(
-      UpdateRequirement.AssertDefaultSortOrderID updateRequirement, JsonGenerator gen) throws IOException {
-
+  private static void writeAssertDefaultSortOrderId(UpdateRequirement.AssertDefaultSortOrderID requirement,
+      JsonGenerator gen) throws IOException {
+    gen.writeNumberField(SORT_ORDER_ID, requirement.sortOrderId());
   }
 
   private static UpdateRequirement readAssertTableUUID(JsonNode node) {
