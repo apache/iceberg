@@ -103,4 +103,17 @@ public abstract class FlinkTestBase extends TestBaseUtils {
       throw new RuntimeException("Failed to collect table result", e);
     }
   }
+
+  protected void assertSameElements(Iterable<Row> expected, Iterable<Row> actual) {
+    Assertions.assertThat(actual)
+        .isNotNull()
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  protected void assertSameElements(String message, Iterable<Row> expected, Iterable<Row> actual) {
+    Assertions.assertThat(actual)
+        .isNotNull()
+        .as(message)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
 }
