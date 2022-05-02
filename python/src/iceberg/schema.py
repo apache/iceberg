@@ -164,14 +164,14 @@ class Schema:
         """
         return self._lazy_id_to_name().get(column_id)  # type: ignore
 
-    def accessor_for_field(self, column_id: int) -> "Accessor":
-        """Find a schema position accessor given a column ID
+    def accessor_for_field(self, field_id: int) -> "Accessor":
+        """Find a schema position accessor given a field ID
 
         Args:
-            column_id (int): The ID of the column
+            field_id (int): The ID of the field
 
         Returns:
-            Accessor: An accessor for the column
+            Accessor: An accessor for the given field ID
         """
         return self._lazy_id_to_accessor().get(column_id)  # type: ignore
 
