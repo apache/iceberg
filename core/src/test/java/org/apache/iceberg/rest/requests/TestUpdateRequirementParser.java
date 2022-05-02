@@ -220,7 +220,8 @@ public class TestUpdateRequirementParser {
   }
 
   private static void compareAssertTableUUID(
-      UpdateRequirement.AssertTableUUID expected, UpdateRequirement.AssertTableUUID actual) {
+      UpdateRequirement.AssertTableUUID expected,
+      UpdateRequirement.AssertTableUUID actual) {
     Assertions.assertThat(actual.uuid())
         .as("UUID from JSON should not be null").isNotNull()
         .as("UUID should parse correctly from JSON").isEqualTo(expected.uuid());
@@ -234,14 +235,16 @@ public class TestUpdateRequirementParser {
         .hasSameClassAs(expected);
   }
 
-  private static void compareAssertLastAssignedFieldId(UpdateRequirement.AssertLastAssignedFieldId expected,
+  private static void compareAssertLastAssignedFieldId(
+      UpdateRequirement.AssertLastAssignedFieldId expected,
       UpdateRequirement.AssertLastAssignedFieldId actual) {
     Assertions.assertThat(actual.lastAssignedFieldId())
         .as("Last assigned field id should parse correctly from JSON")
         .isEqualTo(expected.lastAssignedFieldId());
   }
 
-  private static void compareAssertCurrentSchemaId(UpdateRequirement.AssertCurrentSchemaID expected,
+  private static void compareAssertCurrentSchemaId(
+      UpdateRequirement.AssertCurrentSchemaID expected,
       UpdateRequirement.AssertCurrentSchemaID actual) {
     Assertions.assertThat(actual.schemaId())
         .as("Current schema id should parse correctly from JSON")
