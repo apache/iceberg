@@ -172,8 +172,27 @@ public class TestUpdateRequirementParser {
     String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SPEC_ID;
     int specId = 5;
     String expected = String.format("{\"type\":\"%s\",\"default-spec-id\":%d}", requirementType, specId);
-    UpdateRequirement actual = new UpdateRequirement.AssertDefaultSpecID(specId);
+    UpdateRequirement actual = new UpdateRequirement.AssertDefaultSortOrderID(specId);
     Assert.assertEquals("AssertDefaultSpecId should convert to the correct JSON value",
+        expected, UpdateRequirementParser.toJson(actual));
+  }
+
+  @Test
+  public void testAssertDefaultSortOrderIdFromJson() {
+    String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SORT_ORDER_ID;
+    int sortOrderId = 10;
+    String json = String.format("{\"type\":\"%s\",\"default-write-order-id\":%d}", requirementType, sortOrderId);
+    UpdateRequirement expected = new UpdateRequirement.AssertDefaultSortOrderID(sortOrderId);
+    assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
+  }
+
+  @Test
+  public void testAssertDefaultSortOrderIdToJson() {
+    String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SORT_ORDER_ID;
+    int specId = 10;
+    String expected = String.format("{\"type\":\"%s\",\"default-spec-id\":%d}", requirementType, specId);
+    UpdateRequirement actual = new UpdateRequirement.AssertDefaultSpecID(specId);
+    Assert.assertEquals("AssertDefaultSortOrderId should convert to the correct JSON value",
         expected, UpdateRequirementParser.toJson(actual));
   }
 

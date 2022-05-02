@@ -63,7 +63,8 @@ public class UpdateRequirementParser {
   private static final String SPEC_ID = "default-spec-id";
 
   // AssertDefaultSortOrderID
-  // TODO - Is currently referred to as sort-order-id. Need to update it in class or in spec
+  // TODO - Is currently referred to as default-write-order-id in spec but class and comments use sort-order. Need to
+  //  update it in class or in spec
   private static final String SORT_ORDER_ID = "default-write-order-id";
 
   private static final Map<Class<? extends UpdateTableRequest.UpdateRequirement>, String> TYPES = ImmutableMap
