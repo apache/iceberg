@@ -157,7 +157,7 @@ public class AvroSchemaUtil {
   /**
    * This method decides whether a schema is of type union and is complex union and is optional
    *
-   * Complex union: the number of options in union > 2
+   * Complex union: the number of options in union larger than 2
    * Optional: null is present in union
    *
    * @param schema input schema

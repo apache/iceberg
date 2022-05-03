@@ -116,7 +116,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       }
     } else {
       // Complex union
-      List<Types.NestedField> newFields = new ArrayList<>();
+      List<Types.NestedField> newFields = Lists.newArrayList();
       newFields.add(Types.NestedField.required(allocateId(), "tag", Types.IntegerType.get()));
 
       int tagIndex = 0;
