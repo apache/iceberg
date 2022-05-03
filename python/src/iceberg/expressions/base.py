@@ -278,6 +278,9 @@ class Accessor:
     def __repr__(self):
         return f"Accessor(position={self._position})"
 
+    def __eq__(self, other):
+        return other and self._position == other.position
+
     @property
     def position(self):
         """The position in the container to access"""

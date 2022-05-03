@@ -20,6 +20,8 @@ from textwrap import dedent
 import pytest
 
 from iceberg import schema
+from iceberg.expressions.base import Accessor
+from iceberg.schema import build_position_accessors
 from iceberg.types import (
     BooleanType,
     FloatType,
@@ -347,3 +349,22 @@ def test_schema_find_type(table_schema_simple):
         == table_schema_simple.find_type("BAZ", case_sensitive=False)
         == BooleanType()
     )
+
+
+def test_build_position_accessors(table_schema_nested):
+    assert build_position_accessors(table_schema_nested) == {
+        1: Accessor(position=1),
+        2: Accessor(position=2),
+        3: Accessor(position=3),
+        4: Accessor(position=4),
+        5: Accessor(position=5),
+        6: Accessor(position=6),
+        7: Accessor(position=7),
+        8: Accessor(position=8),
+        9: Accessor(position=9),
+        10: Accessor(position=10),
+        11: Accessor(position=11),
+        12: Accessor(position=12),
+        13: Accessor(position=13),
+        14: Accessor(position=14),
+    }

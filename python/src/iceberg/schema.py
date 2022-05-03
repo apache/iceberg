@@ -17,12 +17,12 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Dict, Generic, Iterable, List, TypeVar
+from typing import Dict, Generic, Iterable, List, TypeVar
 
-if TYPE_CHECKING:
-    from iceberg.expressions.base import Accessor
+from iceberg.expressions.base import Accessor
 
 if sys.version_info >= (3, 8):
     from functools import singledispatch  # pragma: no cover
@@ -39,6 +39,8 @@ from iceberg.types import (
 )
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class Schema:
@@ -290,6 +292,8 @@ def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
         visitor.before_field(field)
         try:
             result = visit(field.type, visitor)
+        except Exception:
+            logger.exception("Unable to visit the field in the schema")
         finally:
             visitor.after_field(field)
 
@@ -451,10 +455,10 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
             short_name = ".".join([".".join(self._short_field_names), name])
             self._short_name_to_id[short_name] = field_id
 
-    def primitive(self, primitive):
+    def primitive(self, primitive) -> Dict[str, int]:
         return self._index
 
-    def by_name(self):
+    def by_name(self) -> Dict[str, int]:
         """Returns an index of combined full and short names
 
         Note: Only short names that do not conflict with full names are included.
@@ -469,7 +473,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         return id_to_full_name
 
 
-def index_by_name(schema_or_type) -> Dict[str, int]:
+def index_by_name(schema_or_type: Schema | IcebergType) -> Dict[str, int]:
     """Generate an index of field names to field IDs
 
     Args:
@@ -483,7 +487,7 @@ def index_by_name(schema_or_type) -> Dict[str, int]:
     return indexer.by_name()
 
 
-def index_name_by_id(schema_or_type) -> Dict[int, str]:
+def index_name_by_id(schema_or_type: Schema | IcebergType) -> Dict[int, str]:
     """Generate an index of field IDs full field names
 
     Args:
@@ -503,21 +507,34 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
     def __init__(self) -> None:
         self._index: Dict[int, Accessor] = {}
 
-    def schema(self, schema, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
+    def schema(self, schema: Schema, field_results: Dict[int, Accessor]) -> Dict[int, Accessor]:
+        return field_results
+
+    def struct(self, struct: StructType, field_results: List[Dict[int, Accessor]]) -> Dict[int, Accessor]:
+        fields = struct.fields
+        for idx, field in enumerate(fields):
+            result = field_results[idx]
+            if result:
+                self._index.update(result)
+            else:
+                self._index[field.field_id] = Accessor(field.field_id)
+
         return self._index
 
-    def struct(self, struct, result: List[Dict[int, Accessor]]) -> Dict[int, Accessor]:
-        # TODO: Populate the `self._index` dictionary where the key is the field ID and the value is an accessor for that field.
-        #   The equivalent java logic can be found here: https://github.com/apache/iceberg/blob/master/api/src/main/java/org/apache/iceberg/Accessors.java#L213-L230
+    def field(self, field, result) -> Dict[int, Accessor]:
+        """Add the field ID to the index"""
+        self._index[field.field_id] = Accessor(field.field_id)
         return self._index
 
-    def field(self, field: NestedField, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
+    def list(self, list_type, result) -> Dict[int, Accessor]:
+        """Add the list element ID to the index"""
+        self._index[list_type.element.field_id] = Accessor(list_type.element.field_id)
         return self._index
 
-    def list(self, list_type: ListType, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
-        return self._index
-
-    def map(self, map_type: MapType, key_result: Dict[int, Accessor], value_result: Dict[int, Accessor]) -> Dict[int, Accessor]:
+    def map(self, map_type, key_result, value_result) -> Dict[int, Accessor]:
+        """Add the key ID and value ID as individual items in the index"""
+        self._index[map_type.key.field_id] = Accessor(map_type.key.field_id)
+        self._index[map_type.value.field_id] = Accessor(map_type.value.field_id)
         return self._index
 
     def primitive(self, primitive: PrimitiveType) -> Dict[int, Accessor]:
