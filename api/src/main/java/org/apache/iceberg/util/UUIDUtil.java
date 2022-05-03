@@ -37,9 +37,9 @@ public class UUIDUtil {
 
   public static UUID convert(byte[] buf, int offset) {
     Preconditions.checkArgument(offset >= 0 && offset < buf.length,
-        "Offset overflow, offset=%d, length=%d", offset, buf.length);
+        "Offset overflow, offset=%s, length=%s", offset, buf.length);
     Preconditions.checkArgument(offset + 16 <= buf.length,
-        "UUID require 16 bytes, offset=%d, length=%d", offset, buf.length);
+        "UUID require 16 bytes, offset=%s, length=%s", offset, buf.length);
 
     ByteBuffer bb = ByteBuffer.wrap(buf, offset, 16);
     bb.order(ByteOrder.BIG_ENDIAN);

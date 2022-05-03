@@ -68,4 +68,14 @@ public class SparkWriteOptions {
   // Controls whether to take into account the table distribution and sort order during a write operation
   public static final String USE_TABLE_DISTRIBUTION_AND_ORDERING = "use-table-distribution-and-ordering";
   public static final boolean USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT = true;
+
+  public static final String MERGE_SCHEMA = "merge-schema";
+  public static final String SPARK_MERGE_SCHEMA = "mergeSchema";
+  public static final boolean MERGE_SCHEMA_DEFAULT = false;
+
+  // Identifies snapshot from which to start validating conflicting changes
+  public static final String VALIDATE_FROM_SNAPSHOT_ID = "validate-from-snapshot-id";
+
+  // Isolation Level for DataFrame calls. Currently supported by overwritePartitions
+  public static final String ISOLATION_LEVEL = "isolation-level";
 }

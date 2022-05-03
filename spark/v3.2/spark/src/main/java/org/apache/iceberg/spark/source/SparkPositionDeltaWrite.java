@@ -361,8 +361,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
                           OutputFileFactory deleteFileFactory, Context context) {
 
       this.delegate = new ClusteredPositionDeleteWriter<>(
-          writerFactory, deleteFileFactory, table.io(),
-          context.deleteFileFormat(), context.targetDeleteFileSize());
+          writerFactory, deleteFileFactory, table.io(), context.targetDeleteFileSize());
       this.positionDelete = PositionDelete.create();
       this.io = table.io();
       this.specs = table.specs();
@@ -504,13 +503,12 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
                                                                              SparkFileWriterFactory writerFactory,
                                                                              OutputFileFactory fileFactory,
                                                                              Context context) {
-      FileFormat fileFormat = context.dataFileFormat();
       long targetFileSize = context.targetDataFileSize();
 
       if (table.spec().isPartitioned() && context.fanoutWriterEnabled()) {
-        return new FanoutDataWriter<>(writerFactory, fileFactory, table.io(), fileFormat, targetFileSize);
+        return new FanoutDataWriter<>(writerFactory, fileFactory, table.io(), targetFileSize);
       } else {
-        return new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), fileFormat, targetFileSize);
+        return new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), targetFileSize);
       }
     }
 
@@ -518,14 +516,13 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
                                                                              SparkFileWriterFactory writerFactory,
                                                                              OutputFileFactory fileFactory,
                                                                              Context context) {
-      FileFormat fileFormat = context.dataFileFormat();
       long targetFileSize = context.targetDataFileSize();
 
       if (table.spec().isPartitioned()) {
         // use a fanout writer for partitioned tables to write updates as they may be out of order
-        return new FanoutDataWriter<>(writerFactory, fileFactory, table.io(), fileFormat, targetFileSize);
+        return new FanoutDataWriter<>(writerFactory, fileFactory, table.io(), targetFileSize);
       } else {
-        return new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), fileFormat, targetFileSize);
+        return new ClusteredDataWriter<>(writerFactory, fileFactory, table.io(), targetFileSize);
       }
     }
 
@@ -533,9 +530,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
                                                                        SparkFileWriterFactory writerFactory,
                                                                        OutputFileFactory fileFactory,
                                                                        Context context) {
-      FileFormat fileFormat = context.deleteFileFormat();
       long targetFileSize = context.targetDeleteFileSize();
-      return new ClusteredPositionDeleteWriter<>(writerFactory, fileFactory, table.io(), fileFormat, targetFileSize);
+      return new ClusteredPositionDeleteWriter<>(writerFactory, fileFactory, table.io(), targetFileSize);
     }
   }
 

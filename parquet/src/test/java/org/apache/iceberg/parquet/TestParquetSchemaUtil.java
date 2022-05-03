@@ -303,6 +303,31 @@ public class TestParquetSchemaUtil {
     Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
   }
 
+  @Test
+  public void testLegacyTwoLevelListGenByParquetThrift1() {
+    String messageType =
+        "message root {" +
+            "  optional group my_list (LIST) {" +
+            "    repeated group my_list_tuple (LIST) {" +
+            "      repeated int32 my_list_tuple_tuple;" +
+            "    }" +
+            "  }" +
+            "}";
+
+    MessageType parquetScehma = MessageTypeParser.parseMessageType(messageType);
+    Schema expectedSchema = new Schema(
+        optional(1, "my_list", Types.ListType.ofRequired(
+            1001,
+            Types.ListType.ofRequired(
+                1000, Types.IntegerType.get()
+            )
+        ))
+    );
+
+    Schema actualSchema = ParquetSchemaUtil.convert(parquetScehma);
+    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+  }
+
   private Type primitive(Integer id, String name, PrimitiveTypeName typeName, Repetition repetition) {
     PrimitiveBuilder<PrimitiveType> builder = org.apache.parquet.schema.Types.primitive(typeName, repetition);
     if (id != null) {

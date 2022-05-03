@@ -23,6 +23,7 @@ import java.net.URI;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -31,6 +32,7 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -39,7 +41,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 public class AwsClientFactories {
 
-  private static final SdkHttpClient HTTP_CLIENT_DEFAULT = UrlConnectionHttpClient.create();
   private static final DefaultAwsClientFactory AWS_CLIENT_FACTORY_DEFAULT = new DefaultAwsClientFactory();
 
   private AwsClientFactories() {
@@ -82,6 +83,8 @@ public class AwsClientFactories {
     private String s3AccessKeyId;
     private String s3SecretAccessKey;
     private String s3SessionToken;
+    private Boolean s3UseArnRegionEnabled;
+    private String httpClientType;
 
     DefaultAwsClientFactory() {
     }
@@ -89,25 +92,26 @@ public class AwsClientFactories {
     @Override
     public S3Client s3() {
       return S3Client.builder()
-          .httpClient(HTTP_CLIENT_DEFAULT)
+          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
+          .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled).build())
           .credentialsProvider(credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
     }
 
     @Override
     public GlueClient glue() {
-      return GlueClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+      return GlueClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
     }
 
     @Override
     public KmsClient kms() {
-      return KmsClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+      return KmsClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
     }
 
     @Override
     public DynamoDbClient dynamo() {
-      return DynamoDbClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+      return DynamoDbClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
     }
 
     @Override
@@ -116,14 +120,33 @@ public class AwsClientFactories {
       this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
       this.s3SecretAccessKey = properties.get(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY);
       this.s3SessionToken = properties.get(AwsProperties.S3FILEIO_SESSION_TOKEN);
+      this.s3UseArnRegionEnabled = PropertyUtil.propertyAsBoolean(properties, AwsProperties.S3_USE_ARN_REGION_ENABLED,
+          AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
 
       ValidationException.check((s3AccessKeyId == null && s3SecretAccessKey == null) ||
           (s3AccessKeyId != null && s3SecretAccessKey != null),
           "S3 client access key ID and secret access key must be set at the same time");
+      this.httpClientType = PropertyUtil.propertyAsString(properties,
+          AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
     }
   }
 
-  static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
+  public static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
+    String clientType = httpClientType;
+    if (Strings.isNullOrEmpty(clientType)) {
+      clientType = AwsProperties.HTTP_CLIENT_TYPE_DEFAULT;
+    }
+    switch (clientType) {
+      case AwsProperties.HTTP_CLIENT_TYPE_URLCONNECTION:
+        return  UrlConnectionHttpClient.builder();
+      case AwsProperties.HTTP_CLIENT_TYPE_APACHE:
+        return ApacheHttpClient.builder();
+      default:
+        throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
+    }
+  }
+
+  public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }

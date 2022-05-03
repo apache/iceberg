@@ -137,8 +137,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
         .build();
 
     ClusteredDataWriter<InternalRow> writer = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        writerFactory, fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
 
     try (ClusteredDataWriter<InternalRow> closeableWriter = writer) {
       for (InternalRow row : rows) {
@@ -187,8 +186,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
         .build();
 
     ClusteredDataWriter<InternalRow> writer = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        writerFactory, fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType dataSparkType = SparkSchemaUtil.convert(table().schema());
@@ -243,8 +241,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
         .build();
 
     FanoutDataWriter<InternalRow> writer = new FanoutDataWriter<>(
-        writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        writerFactory, fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType dataSparkType = SparkSchemaUtil.convert(table().schema());
@@ -302,8 +299,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
         .build();
 
     ClusteredEqualityDeleteWriter<InternalRow> writer = new ClusteredEqualityDeleteWriter<>(
-        writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        writerFactory, fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType deleteSparkType = SparkSchemaUtil.convert(table().schema());
@@ -330,8 +326,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
         .build();
 
     ClusteredPositionDeleteWriter<InternalRow> writer = new ClusteredPositionDeleteWriter<>(
-        writerFactory, fileFactory, io,
-        fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+        writerFactory, fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
 
     PositionDelete<InternalRow> positionDelete = PositionDelete.create();
     try (ClusteredPositionDeleteWriter<InternalRow> closeableWriter = writer) {

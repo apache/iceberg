@@ -324,6 +324,19 @@ public class TestCachingCatalog extends HadoopTableTestBase {
         catalog.isCacheExpirationEnabled());
   }
 
+  @Test
+  public void testInvalidateTableForChainedCachingCatalogs() throws Exception {
+    TestableCachingCatalog wrappedCatalog = TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
+    TestableCachingCatalog catalog = TestableCachingCatalog.wrap(wrappedCatalog, EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+    Assertions.assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    catalog.invalidateTable(tableIdent);
+    Assertions.assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+    Assertions.assertThat(wrappedCatalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {
     return Arrays.stream(MetadataTableType.values())
         .map(type -> TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)))

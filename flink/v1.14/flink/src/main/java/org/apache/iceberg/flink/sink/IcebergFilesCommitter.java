@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.SortedMap;
+import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
@@ -55,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,6 +80,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final boolean replacePartitions;
+  private final Map<String, String> snapshotProperties;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -109,9 +112,15 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
 
-  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
+  private final Integer workerPoolSize;
+  private transient ExecutorService workerPool;
+
+  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions, Map<String, String> snapshotProperties,
+                        Integer workerPoolSize) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
+    this.snapshotProperties = snapshotProperties;
+    this.workerPoolSize = workerPoolSize;
   }
 
   @Override
@@ -247,7 +256,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkState(deleteFilesNum == 0, "Cannot overwrite partitions with delete files.");
 
     // Commit the overwrite transaction.
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
 
     int numFiles = 0;
     for (WriteResult result : pendingResults.values()) {
@@ -265,7 +274,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     if (deleteFilesNum == 0) {
       // To be compatible with iceberg format V1.
-      AppendFiles appendFiles = table.newAppend();
+      AppendFiles appendFiles = table.newAppend().scanManifestsWith(workerPool);
 
       int numFiles = 0;
       for (WriteResult result : pendingResults.values()) {
@@ -290,7 +299,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         // rows from data files that are being added in this commit. There is no way for data files added along with
         // the delete files to be concurrently removed, so there is no need to validate the files referenced by the
         // position delete files that are being committed.
-        RowDelta rowDelta = table.newRowDelta();
+        RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
 
         int numDataFiles = result.dataFiles().length;
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
@@ -307,6 +316,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
                                String newFlinkJobId, long checkpointId) {
     LOG.info("Committing {} with {} data files and {} delete files to table {}", description, numDataFiles,
         numDeleteFiles, table);
+    snapshotProperties.forEach(operation::set);
+    // custom snapshot metadata properties will be overridden if they conflict with internal ones used by the sink.
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
     operation.set(FLINK_JOB_ID, newFlinkJobId);
 
@@ -347,9 +358,21 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   @Override
+  public void open() throws Exception {
+    super.open();
+
+    final String operatorID = getRuntimeContext().getOperatorUniqueID();
+    this.workerPool = ThreadPools.newWorkerPool("iceberg-worker-pool-" + operatorID, workerPoolSize);
+  }
+
+  @Override
   public void close() throws Exception {
     if (tableLoader != null) {
       tableLoader.close();
+    }
+
+    if (workerPool != null) {
+      workerPool.shutdown();
     }
   }
 

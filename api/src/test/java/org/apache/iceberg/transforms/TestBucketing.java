@@ -39,7 +39,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestBucketing {
-  private static final HashFunction MURMUR3 = Hashing.murmur3_32();
+  private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
   private static Constructor<UUID> uuidBytesConstructor;
 
   @BeforeClass

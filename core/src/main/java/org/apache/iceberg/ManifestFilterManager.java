@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -46,7 +48,6 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,10 +87,14 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
       Maps.newConcurrentMap();
 
-  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById) {
+  private final Supplier<ExecutorService> workerPoolSupplier;
+
+  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById,
+                                  Supplier<ExecutorService> executorSupplier) {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
+    this.workerPoolSupplier = executorSupplier;
   }
 
   protected abstract void deleteFile(String location);
@@ -181,7 +186,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
         .stopOnFailure().throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(workerPoolSupplier.get())
         .run(index -> {
           ManifestFile manifest = filterManifest(tableSchema, manifests.get(index));
           filtered[index] = manifest;
@@ -348,26 +353,32 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   @SuppressWarnings("CollectionUndefinedEquality")
   private boolean manifestHasDeletedFiles(PartitionAndMetricsEvaluator evaluator, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
-    boolean hasDeletedFiles = false;
+
     for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
-      boolean fileDelete = deletePaths.contains(file.path()) ||
+      boolean markedForDelete = deletePaths.contains(file.path()) ||
           dropPartitions.contains(file.specId(), file.partition()) ||
           (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
-      if (fileDelete || evaluator.rowsMightMatch(file)) {
+
+      if (markedForDelete || evaluator.rowsMightMatch(file)) {
+        boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
         ValidationException.check(
-            fileDelete || evaluator.rowsMustMatch(file),
+            allRowsMatch || isDelete, // ignore delete files where some records may not match the expression
             "Cannot delete file where some, but not all, rows match filter %s: %s",
             this.deleteExpression, file.path());
 
-        hasDeletedFiles = true;
-        if (failAnyDelete) {
-          throw new DeleteException(reader.spec().partitionToPath(file.partition()));
+        if (allRowsMatch) {
+          if (failAnyDelete) {
+            throw new DeleteException(reader.spec().partitionToPath(file.partition()));
+          }
+
+          // as soon as a deleted file is detected, stop scanning
+          return true;
         }
-        break; // as soon as a deleted file is detected, stop scanning
       }
     }
-    return hasDeletedFiles;
+
+    return false;
   }
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
@@ -384,29 +395,33 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       try {
         reader.entries().forEach(entry -> {
           F file = entry.file();
-          boolean fileDelete = deletePaths.contains(file.path()) ||
+          boolean markedForDelete = deletePaths.contains(file.path()) ||
               dropPartitions.contains(file.specId(), file.partition()) ||
               (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
           if (entry.status() != ManifestEntry.Status.DELETED) {
-            if (fileDelete || evaluator.rowsMightMatch(file)) {
+            if (markedForDelete || evaluator.rowsMightMatch(file)) {
+              boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
               ValidationException.check(
-                  fileDelete || evaluator.rowsMustMatch(file),
+                  allRowsMatch || isDelete, // ignore delete files where some records may not match the expression
                   "Cannot delete file where some, but not all, rows match filter %s: %s",
                   this.deleteExpression, file.path());
 
-              writer.delete(entry);
+              if (allRowsMatch) {
+                writer.delete(entry);
 
-              CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
-              if (deletedPaths.contains(wrapper)) {
-                LOG.warn("Deleting a duplicate path from manifest {}: {}",
-                    manifest.path(), wrapper.get());
-                duplicateDeleteCount += 1;
+                CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
+                if (deletedPaths.contains(wrapper)) {
+                  LOG.warn("Deleting a duplicate path from manifest {}: {}", manifest.path(), wrapper.get());
+                  duplicateDeleteCount += 1;
+                } else {
+                  // only add the file to deletes if it is a new delete
+                  // this keeps the snapshot summary accurate for non-duplicate data
+                  deletedFiles.add(entry.file().copyWithoutStats());
+                }
+                deletedPaths.add(wrapper);
               } else {
-                // only add the file to deletes if it is a new delete
-                // this keeps the snapshot summary accurate for non-duplicate data
-                deletedFiles.add(entry.file().copyWithoutStats());
+                writer.existing(entry);
               }
-              deletedPaths.add(wrapper);
 
             } else {
               writer.existing(entry);

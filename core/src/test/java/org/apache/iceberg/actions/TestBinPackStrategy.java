@@ -139,18 +139,61 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   @Test
+  public void testGroupingMinInputFilesAsOne() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+            BinPackStrategy.MIN_INPUT_FILES, Integer.toString(1),
+            BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(3 * MB),
+            RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(2 * MB),
+            BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(MB),
+            BinPackStrategy.DELETE_FILE_THRESHOLD, Integer.toString(2)
+    ));
+
+    Iterable<FileScanTask> testFiles1 = filesOfSize(1);
+    Iterable<List<FileScanTask>> grouped1 = strategy.planFileGroups(testFiles1);
+
+    Assert.assertEquals("Should plan 0 groups, 1 file is too small but no deletes are present so rewriting is " +
+            "a NOOP",
+            0, Iterables.size(grouped1));
+
+    Iterable<FileScanTask> testFiles2 = filesOfSize(4);
+    Iterable<List<FileScanTask>> grouped2 = strategy.planFileGroups(testFiles2);
+
+    Assert.assertEquals("Should plan 1 group because the file present is larger than maxFileSize and can be " +
+        "split", 1, Iterables.size(grouped2));
+
+    List<FileScanTask> testFiles3 = Lists.newArrayList();
+    testFiles3.add(MockFileScanTask.mockTaskWithDeletes(MB, 2));
+    Iterable<List<FileScanTask>> grouped3 = strategy.planFileGroups(testFiles3);
+    Assert.assertEquals("Should plan 1 group, the data file has delete files and can be re-written without " +
+        "deleted row", 1, Iterables.size(grouped3));
+  }
+
+  @Test
   public void testGroupWithLargeFileMinInputFiles() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
         BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize(2000);
+    Iterable<FileScanTask> testFiles1 = filesOfSize(2000);
+    Iterable<List<FileScanTask>> grouped1 = strategy.planFileGroups(testFiles1);
 
-    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
-
-    Assert.assertEquals("Should plan 1 groups, not enough input files but the input file exceeds our max" +
+    Assert.assertEquals("Should plan 1 group, not enough input files but the input file exceeds our max" +
             "and can be written into at least one new target-file-size files",
-        ImmutableList.of(testFiles), grouped);
+        ImmutableList.of(testFiles1), grouped1);
+
+    Iterable<FileScanTask> testFiles2 = filesOfSize(500, 500, 500);
+    Iterable<List<FileScanTask>> grouped2 = strategy.planFileGroups(testFiles2);
+
+    Assert.assertEquals("Should plan 1 group, not enough input files but the sum of file sizes exceeds " +
+            "target-file-size and files within the group is greater than 1",
+        ImmutableList.of(testFiles2), grouped2);
+
+    Iterable<FileScanTask> testFiles3 = filesOfSize(10, 10, 10);
+    Iterable<List<FileScanTask>> grouped3 = strategy.planFileGroups(testFiles3);
+
+    Assert.assertEquals("Should plan 0 groups, not enough input files and the sum of file sizes does not " +
+            "exceeds target-file-size and files within the group is greater than 1",
+        ImmutableList.of(), grouped3);
   }
 
   @Test
@@ -247,5 +290,30 @@ public class TestBinPackStrategy extends TableTestBase {
           defaultBinPack().options(ImmutableMap.of(
               RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(-5)));
         });
+  }
+
+  @Test
+  public void testRewriteAllSelectFilesToRewrite() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+        BinPackStrategy.REWRITE_ALL, "true"
+    ));
+
+    Iterable<FileScanTask> testFiles = filesOfSize(500, 500, 480, 480, 560, 520);
+    Iterable<FileScanTask> expectedFiles = filesOfSize(500, 500, 480, 480, 560, 520);
+    Iterable<FileScanTask> filtered = ImmutableList.copyOf(strategy.selectFilesToRewrite(testFiles));
+    Assert.assertEquals("Should rewrite all files", expectedFiles, filtered);
+  }
+
+  @Test
+  public void testRewriteAllPlanFileGroups() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+        BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5),
+        BinPackStrategy.REWRITE_ALL, "true"
+    ));
+
+    Iterable<FileScanTask> testFiles = filesOfSize(1, 1, 1, 1);
+    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
+
+    Assert.assertEquals("Should plan 1 group to rewrite all files", 1, Iterables.size(grouped));
   }
 }

@@ -30,6 +30,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -39,6 +40,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.iceberg.util.Pair;
@@ -70,6 +73,9 @@ import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -244,12 +250,44 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean dropTable(Identifier ident) {
+    return dropTableWithoutPurging(ident);
+  }
+
+  @Override
+  public boolean purgeTable(Identifier ident) {
     try {
-      return isPathIdentifier(ident) ?
-          tables.dropTable(((PathIdentifier) ident).location()) :
-          icebergCatalog.dropTable(buildIdentifier(ident));
+      Table table = load(ident).first();
+      ValidationException.check(
+          PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+          "Cannot purge table: GC is disabled (deleting files may corrupt other tables)");
+      String metadataFileLocation = ((HasTableOperations) table).operations().current().metadataFileLocation();
+
+      boolean dropped = dropTableWithoutPurging(ident);
+
+      if (dropped) {
+        // We should check whether the metadata file exists. Because the HadoopCatalog/HadoopTables will drop the
+        // warehouse directly and ignore the `purge` argument.
+        boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
+
+        if (metadataFileExists) {
+          SparkActions.get()
+              .deleteReachableFiles(metadataFileLocation)
+              .io(table.io())
+              .execute();
+        }
+      }
+
+      return dropped;
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
+    }
+  }
+
+  private boolean dropTableWithoutPurging(Identifier ident) {
+    if (isPathIdentifier(ident)) {
+      return tables.dropTable(((PathIdentifier) ident).location(), false /* don't purge data */);
+    } else {
+      return icebergCatalog.dropTable(buildIdentifier(ident), false /* don't purge data */);
     }
   }
 

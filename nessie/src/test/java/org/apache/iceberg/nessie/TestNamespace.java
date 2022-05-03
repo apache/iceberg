@@ -21,10 +21,19 @@ package org.apache.iceberg.nessie;
 
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.ContentKey;
+import org.projectnessie.model.IcebergTable;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestNamespace extends BaseTestIceberg {
   private static final String BRANCH = "test-namespace";
@@ -62,10 +71,35 @@ public class TestNamespace extends BaseTestIceberg {
   }
 
   @Test
-  public void testDroppingNamespace() {
-    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.of("test")))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot drop namespace 'test': dropNamespace is not supported by the NessieCatalog");
+  public void testCreatingAndDroppingNamespace() {
+    Namespace namespace = Namespace.of("test");
+    catalog.createNamespace(namespace, ImmutableMap.of());
+    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
+    catalog.dropNamespace(namespace);
+    Assertions.assertThat(catalog.namespaceExists(namespace)).isFalse();
+  }
+
+  @Test
+  public void testCreatingAndDroppingNamespaceWithContent() throws NessieNotFoundException {
+    Namespace namespace = Namespace.of("test");
+    catalog.createNamespace(namespace, ImmutableMap.of());
+    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
+    TableIdentifier identifier = TableIdentifier.of(namespace, "tbl");
+
+    Schema schema = new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+    Assertions.assertThat(catalog.createTable(identifier, schema)).isNotNull();
+
+    ContentKey key = NessieUtil.toKey(identifier);
+    Assertions.assertThat(api.getContent().key(key).refName(BRANCH).get().get(key).unwrap(IcebergTable.class))
+        .isPresent();
+
+    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(namespace))
+            .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessage("Namespace 'test' is not empty. One or more tables exist.");
+
+    catalog.dropTable(identifier, true);
+    catalog.dropNamespace(namespace);
+    Assertions.assertThat(catalog.namespaceExists(namespace)).isFalse();
   }
 
   @Test

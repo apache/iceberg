@@ -307,6 +307,19 @@ public abstract class TestFlinkScan {
     TestHelpers.assertRecords(run(), records, typesSchema);
   }
 
+  @Test
+  public void testCustomizedFlinkDataTypes() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(
+            1, "map", Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.StringType.get())),
+        Types.NestedField.required(4, "arr", Types.ListType.ofRequired(5, Types.StringType.get())));
+    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, schema);
+    List<Record> records = RandomGenericData.generate(schema, 10, 0L);
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    helper.appendToTable(records);
+    TestHelpers.assertRecords(run(), records, schema);
+  }
+
   private static void assertRows(List<Row> results, Row... expected) {
     TestHelpers.assertRows(results, Arrays.asList(expected));
   }

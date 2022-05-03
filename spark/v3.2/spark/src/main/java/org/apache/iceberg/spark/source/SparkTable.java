@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -29,9 +30,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -47,6 +48,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
@@ -70,13 +72,17 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
+import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
+
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
   private static final Set<String> RESERVED_PROPERTIES =
-      ImmutableSet.of("provider", "format", "current-snapshot-id", "location", "sort-order");
+      ImmutableSet.of("provider", "format", CURRENT_SNAPSHOT_ID, "location", FORMAT_VERSION, "sort-order",
+          "identifier-fields");
   private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
       TableCapability.BATCH_READ,
       TableCapability.BATCH_WRITE,
@@ -84,10 +90,16 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       TableCapability.STREAMING_WRITE,
       TableCapability.OVERWRITE_BY_FILTER,
       TableCapability.OVERWRITE_DYNAMIC);
+  private static final Set<TableCapability> CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA =
+      ImmutableSet.<TableCapability>builder()
+          .addAll(CAPABILITIES)
+          .add(TableCapability.ACCEPT_ANY_SCHEMA)
+          .build();
 
   private final Table icebergTable;
   private final Long snapshotId;
   private final boolean refreshEagerly;
+  private final Set<TableCapability> capabilities;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
@@ -99,6 +111,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
+
+    boolean acceptAnySchema = PropertyUtil.propertyAsBoolean(icebergTable.properties(),
+        TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
+    this.capabilities = acceptAnySchema ? CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA : CAPABILITIES;
   }
 
   private SparkSession sparkSession() {
@@ -146,11 +162,21 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     propsBuilder.put("provider", "iceberg");
     String currentSnapshotId = icebergTable.currentSnapshot() != null ?
         String.valueOf(icebergTable.currentSnapshot().snapshotId()) : "none";
-    propsBuilder.put("current-snapshot-id", currentSnapshotId);
+    propsBuilder.put(CURRENT_SNAPSHOT_ID, currentSnapshotId);
     propsBuilder.put("location", icebergTable.location());
+
+    if (icebergTable instanceof BaseTable) {
+      TableOperations ops = ((BaseTable) icebergTable).operations();
+      propsBuilder.put(FORMAT_VERSION, String.valueOf(ops.current().formatVersion()));
+    }
 
     if (!icebergTable.sortOrder().isUnsorted()) {
       propsBuilder.put("sort-order", Spark3Util.describe(icebergTable.sortOrder()));
+    }
+
+    Set<String> identifierFields = icebergTable.schema().identifierFieldNames();
+    if (!identifierFields.isEmpty()) {
+      propsBuilder.put("identifier-fields", "[" + String.join(",", identifierFields) + "]");
     }
 
     icebergTable.properties().entrySet().stream()
@@ -162,7 +188,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public Set<TableCapability> capabilities() {
-    return CAPABILITIES;
+    return capabilities;
   }
 
   @Override
@@ -262,14 +288,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       return;
     }
 
-    try {
-      icebergTable.newDelete()
-          .set("spark.app.id", sparkSession().sparkContext().applicationId())
-          .deleteFromRowFilter(deleteExpr)
-          .commit();
-    } catch (ValidationException e) {
-      throw new IllegalArgumentException("Failed to cleanly delete data files matching: " + deleteExpr, e);
-    }
+    icebergTable.newDelete()
+        .set("spark.app.id", sparkSession().sparkContext().applicationId())
+        .deleteFromRowFilter(deleteExpr)
+        .commit();
   }
 
   @Override

@@ -20,6 +20,7 @@
 package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -31,15 +32,13 @@ abstract class BaseS3File {
   private final S3URI uri;
   private final AwsProperties awsProperties;
   private HeadObjectResponse metadata;
+  private final MetricsContext metrics;
 
-  BaseS3File(S3Client client, S3URI uri) {
-    this(client, uri, new AwsProperties());
-  }
-
-  BaseS3File(S3Client client, S3URI uri, AwsProperties awsProperties) {
+  BaseS3File(S3Client client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.awsProperties = awsProperties;
+    this.metrics = metrics;
   }
 
   public String location() {
@@ -56,6 +55,10 @@ abstract class BaseS3File {
 
   public AwsProperties awsProperties() {
     return awsProperties;
+  }
+
+  protected MetricsContext metrics() {
+    return metrics;
   }
 
   /**

@@ -123,7 +123,7 @@ public class BaseRewriteManifestsSparkAction
 
   @Override
   public RewriteManifests specId(int specId) {
-    Preconditions.checkArgument(table.specs().containsKey(specId), "Invalid spec id %d", specId);
+    Preconditions.checkArgument(table.specs().containsKey(specId), "Invalid spec id %s", specId);
     this.spec = table.specs().get(specId);
     return this;
   }

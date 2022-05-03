@@ -24,11 +24,21 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
 import org.junit.Assert;
@@ -50,8 +60,8 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
   @After
   public void removeTable() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS p", tableName);
+    sql("DROP TABLE IF EXISTS %s PURGE", tableName);
+    sql("DROP TABLE IF EXISTS p PURGE");
   }
 
   @Test
@@ -188,8 +198,11 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, GC_ENABLED);
 
     AssertHelpers.assertThrows("Should reject call",
-        ValidationException.class, "Cannot remove orphan files: GC is disabled",
+        ValidationException.class, "Cannot delete orphan files: GC is disabled",
         () -> sql("CALL %s.system.remove_orphan_files('%s')", catalogName, tableIdent));
+
+    // reset the property to enable the table purging in removeTable.
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, GC_ENABLED);
   }
 
   @Test
@@ -302,5 +315,89 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         () -> sql(
             "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
             catalogName, tableIdent, -1));
+
+    String tempViewName = "file_list_test";
+    spark.emptyDataFrame().createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows(
+        "Should throw an error if file_list_view is missing required columns",
+        IllegalArgumentException.class,
+        "does not exist. Available:",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
+
+    spark
+        .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.INT(), Encoders.TIMESTAMP()))
+        .toDF("file_path", "last_modified")
+        .createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows(
+        "Should throw an error if file_path has wrong type",
+        IllegalArgumentException.class,
+        "Invalid file_path column",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
+
+    spark
+        .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
+        .toDF("file_path", "last_modified")
+        .createOrReplaceTempView(tempViewName);
+
+    AssertHelpers.assertThrows(
+        "Should throw an error if last_modified has wrong type",
+        IllegalArgumentException.class,
+        "Invalid last_modified column",
+        () ->
+            sql(
+                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                catalogName, tableIdent, tempViewName));
+  }
+
+  @Test
+  public void testRemoveOrphanFilesWithDeleteFiles() throws Exception {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg TBLPROPERTIES" +
+        "('format-version'='2', 'write.delete.mode'='merge-on-read')", tableName);
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c"),
+        new SimpleRecord(4, "d")
+    );
+    spark.createDataset(records, Encoders.bean(SimpleRecord.class)).coalesce(1).writeTo(tableName).append();
+    sql("DELETE FROM %s WHERE id=1", tableName);
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Assert.assertEquals("Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
+    Assert.assertEquals("Should have 1 delete file", 1, TestHelpers.deleteFiles(table).size());
+    Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
+    Path deleteFilePath = new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+
+    // wait to ensure files are old enough
+    waitUntilAfter(System.currentTimeMillis());
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    // delete orphans
+    List<Object[]> output = sql(
+        "CALL %s.system.remove_orphan_files(" +
+            "table => '%s'," +
+            "older_than => TIMESTAMP '%s')",
+        catalogName, tableIdent, currentTimestamp);
+    Assert.assertEquals("Should be no orphan files", 0, output.size());
+
+    FileSystem localFs = FileSystem.getLocal(new Configuration());
+    Assert.assertTrue("Delete manifest should still exist", localFs.exists(deleteManifestPath));
+    Assert.assertTrue("Delete file should still exist", localFs.exists(deleteFilePath));
+
+    records.remove(new SimpleRecord(1, "a"));
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableName);
+    List<SimpleRecord> actualRecords = resultDF
+        .as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
+    Assert.assertEquals("Rows must match", records, actualRecords);
   }
 }

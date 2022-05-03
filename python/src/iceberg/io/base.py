@@ -26,9 +26,65 @@ its location.
 from abc import ABC, abstractmethod
 from typing import Union
 
+try:
+    from typing import Protocol, runtime_checkable
+except ImportError:  # pragma: no cover
+    from typing_extensions import Protocol  # type: ignore
+    from typing_extensions import runtime_checkable
+
+
+@runtime_checkable
+class InputStream(Protocol):  # pragma: no cover
+    """A protocol for the file-like object returned by InputFile.open(...)
+
+    This outlines the minimally required methods for a seekable input stream returned from an InputFile
+    implementation's `open(...)` method. These methods are a subset of IOBase/RawIOBase.
+    """
+
+    def read(self, size: int) -> bytes:
+        ...
+
+    def seek(self, offset: int, whence: int) -> None:
+        ...
+
+    def tell(self) -> int:
+        ...
+
+    def closed(self) -> bool:
+        ...
+
+    def close(self) -> None:
+        ...
+
+
+@runtime_checkable
+class OutputStream(Protocol):  # pragma: no cover
+    """A protocol for the file-like object returned by OutputFile.create(...)
+
+    This outlines the minimally required methods for a writable output stream returned from an OutputFile
+    implementation's `create(...)` method. These methods are a subset of IOBase/RawIOBase.
+    """
+
+    def write(self, b: bytes) -> None:
+        ...
+
+    def closed(self) -> bool:
+        ...
+
+    def close(self) -> None:
+        ...
+
 
 class InputFile(ABC):
-    """A base class for InputFile implementations"""
+    """A base class for InputFile implementations
+
+    Args:
+        location(str): A URI or a path to a local file
+
+    Attributes:
+        location(str): The URI or path to a local file for an InputFile instance
+        exists(bool): Whether the file exists or not
+    """
 
     def __init__(self, location: str):
         self._location = location
@@ -42,18 +98,38 @@ class InputFile(ABC):
         """The fully-qualified location of the input file"""
         return self._location
 
-    @property
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the file exists"""
+        """Checks whether the location exists
+
+
+        Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error
+        """
 
     @abstractmethod
-    def open(self):
-        """This method should return an instance of an seekable input stream."""
+    def open(self) -> InputStream:
+        """This method should return an object that matches the InputStream protocol
+
+        Returns:
+            InputStream: An object that matches the InputStream protocol
+
+        Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error
+            FileNotFoundError: If the file at self.location does not exist
+        """
 
 
 class OutputFile(ABC):
-    """A base class for OutputFile implementations"""
+    """A base class for OutputFile implementations
+
+    Args:
+        location(str): A URI or a path to a local file
+
+    Attributes:
+        location(str): The URI or path to a local file for an OutputFile instance
+        exists(bool): Whether the file exists or not
+    """
 
     def __init__(self, location: str):
         self._location = location
@@ -67,34 +143,64 @@ class OutputFile(ABC):
         """The fully-qualified location of the output file"""
         return self._location
 
-    @property
     @abstractmethod
     def exists(self) -> bool:
-        """Checks whether the file exists"""
+        """Checks whether the location exists
+
+
+        Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error
+        """
 
     @abstractmethod
     def to_input_file(self) -> InputFile:
         """Returns an InputFile for the location of this output file"""
 
     @abstractmethod
-    def create(self, overwrite: bool = False):
-        """This method should return a file-like object.
+    def create(self, overwrite: bool = False) -> OutputStream:
+        """This method should return an object that matches the OutputStream protocol.
 
         Args:
             overwrite(bool): If the file already exists at `self.location`
-            and `overwrite` is False a FileExistsError should be raised.
+            and `overwrite` is False a FileExistsError should be raised
+
+        Returns:
+            OutputStream: An object that matches the OutputStream protocol
+
+        Raises:
+            PermissionError: If the file at self.location cannot be accessed due to a permission error
+            FileExistsError: If the file at self.location already exists and `overwrite=False`
         """
 
 
 class FileIO(ABC):
+    """A base class for FileIO implementations"""
+
     @abstractmethod
     def new_input(self, location: str) -> InputFile:
-        """Get an InputFile instance to read bytes from the file at the given location"""
+        """Get an InputFile instance to read bytes from the file at the given location
+
+        Args:
+            location(str): A URI or a path to a local file
+        """
 
     @abstractmethod
     def new_output(self, location: str) -> OutputFile:
-        """Get an OutputFile instance to write bytes to the file at the given location"""
+        """Get an OutputFile instance to write bytes to the file at the given location
+
+        Args:
+            location(str): A URI or a path to a local file
+        """
 
     @abstractmethod
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
-        """Delete the file at the given path"""
+        """Delete the file at the given path
+
+        Args:
+            location(str, InputFile, OutputFile): A URI or a path to a local file--if an InputFile instance or
+            an OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
+
+        Raises:
+            PermissionError: If the file at location cannot be accessed due to a permission error
+            FileNotFoundError: When the file at the provided location does not exist
+        """

@@ -53,6 +53,18 @@ public class SnapshotUtil {
   }
 
   /**
+   * Returns whether ancestorSnapshotId is an ancestor of snapshotId using the given lookup function.
+   */
+  public static boolean isAncestorOf(long snapshotId, long ancestorSnapshotId, Function<Long, Snapshot> lookup) {
+    for (Snapshot snapshot : ancestorsOf(snapshotId, lookup)) {
+      if (snapshot.snapshotId() == ancestorSnapshotId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Returns whether ancestorSnapshotId is an ancestor of the table's current state.
    */
   public static boolean isAncestorOf(Table table, long ancestorSnapshotId) {

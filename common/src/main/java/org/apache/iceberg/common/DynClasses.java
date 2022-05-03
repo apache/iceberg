@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.common;
 
-import java.util.LinkedHashSet;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class DynClasses {
 
@@ -36,7 +36,10 @@ public class DynClasses {
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private Class<?> foundClass = null;
     private boolean nullOk = false;
-    private Set<String> classNames = new LinkedHashSet<>();
+    private Set<String> classNames = Sets.newLinkedHashSet();
+
+    private Builder() {
+    }
 
     /**
      * Set the {@link ClassLoader} used to lookup classes by name.

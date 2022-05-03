@@ -23,7 +23,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.io.FileIOMetricsContext;
+import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.MetricsContext.Counter;
+import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
@@ -33,7 +39,7 @@ import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
-class S3InputStream extends SeekableInputStream {
+class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
 
   private final StackTraceElement[] createStack;
@@ -46,18 +52,24 @@ class S3InputStream extends SeekableInputStream {
   private long next = 0;
   private boolean closed = false;
 
+  private final Counter<Long> readBytes;
+  private final Counter<Integer> readOperations;
+
   private int skipSize = 1024 * 1024;
 
   S3InputStream(S3Client s3, S3URI location) {
-    this(s3, location, new AwsProperties());
+    this(s3, location, new AwsProperties(), MetricsContext.nullMetrics());
   }
 
-  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties) {
+  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics) {
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
 
-    createStack = Thread.currentThread().getStackTrace();
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+
+    this.createStack = Thread.currentThread().getStackTrace();
   }
 
   @Override
@@ -81,6 +93,8 @@ class S3InputStream extends SeekableInputStream {
 
     pos += 1;
     next += 1;
+    readBytes.increment();
+    readOperations.increment();
 
     return stream.read();
   }
@@ -93,8 +107,39 @@ class S3InputStream extends SeekableInputStream {
     int bytesRead = stream.read(b, off, len);
     pos += bytesRead;
     next += bytesRead;
+    readBytes.increment((long) bytesRead);
+    readOperations.increment();
 
     return bytesRead;
+  }
+
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+
+    String range = String.format("bytes=%s-%s", position, position + length - 1);
+
+    IOUtil.readFully(readRange(range), buffer, offset, length);
+  }
+
+  @Override
+  public int readTail(byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+
+    String range = String.format("bytes=-%s", length);
+
+    return IOUtil.readRemaining(readRange(range), buffer, offset, length);
+  }
+
+  private InputStream readRange(String range) {
+    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
+        .bucket(location.bucket())
+        .key(location.key())
+        .range(range);
+
+    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+
+    return s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
   }
 
   @Override

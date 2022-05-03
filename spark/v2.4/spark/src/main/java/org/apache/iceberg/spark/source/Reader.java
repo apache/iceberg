@@ -345,7 +345,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        numRows += file.file().recordCount();
+        // TODO: if possible, take deletes also into consideration.
+        double fractionOfFileScanned = ((double) file.length()) / file.file().fileSizeInBytes();
+        numRows += (fractionOfFileScanned * file.file().recordCount());
       }
     }
 

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -30,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class BaseFileScanTask implements FileScanTask {
+public class BaseFileScanTask implements FileScanTask {
   private final DataFile file;
   private final DeleteFile[] deletes;
   private final String schemaString;
@@ -39,7 +38,7 @@ class BaseFileScanTask implements FileScanTask {
 
   private transient PartitionSpec spec = null;
 
-  BaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString, String specString,
+  public BaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString, String specString,
                    ResidualEvaluator residuals) {
     this.file = file;
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
@@ -138,8 +137,7 @@ class BaseFileScanTask implements FileScanTask {
       int offsetIdx = sizeIdx;
       long currentSize = splitSizes.get(sizeIdx);
       sizeIdx += 1; // Create 1 split per offset
-      FileScanTask combinedTask = new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
-      return combinedTask;
+      return new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
     }
 
   }
@@ -220,15 +218,15 @@ class BaseFileScanTask implements FileScanTask {
     }
 
     public boolean isAdjacent(SplitScanTask other) {
-      return (other != null) &&
-          (this.file().equals(other.file())) &&
-          (this.offset + this.len == other.offset);
+      return other != null &&
+          this.file().equals(other.file()) &&
+          this.offset + this.len == other.offset;
     }
   }
 
   static List<FileScanTask> combineAdjacentTasks(List<FileScanTask> tasks) {
     if (tasks.isEmpty()) {
-      return Collections.emptyList();
+      return tasks;
     }
 
     List<FileScanTask> combinedScans = Lists.newArrayList();

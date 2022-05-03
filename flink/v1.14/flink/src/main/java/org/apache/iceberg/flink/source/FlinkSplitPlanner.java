@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.Table;
@@ -29,21 +30,33 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Tasks;
 
 @Internal
 public class FlinkSplitPlanner {
   private FlinkSplitPlanner() {
   }
 
-  static FlinkInputSplit[] planInputSplits(Table table, ScanContext context) {
-    try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context)) {
+  static FlinkInputSplit[] planInputSplits(Table table, ScanContext context, ExecutorService workerPool) {
+    try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context, workerPool)) {
       List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
       FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
-      for (int i = 0; i < tasks.size(); i++) {
-        splits[i] = new FlinkInputSplit(i, tasks.get(i));
-      }
+      boolean exposeLocality = context.exposeLocality();
+
+      Tasks.range(tasks.size())
+          .stopOnFailure()
+          .executeWith(exposeLocality ? workerPool : null)
+          .run(index -> {
+            CombinedScanTask task = tasks.get(index);
+            String[] hostnames = null;
+            if (exposeLocality) {
+              hostnames = Util.blockLocations(table.io(), task);
+            }
+            splits[index] = new FlinkInputSplit(index, task, hostnames);
+          });
       return splits;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process tasks iterable", e);
@@ -53,20 +66,21 @@ public class FlinkSplitPlanner {
   /**
    * This returns splits for the FLIP-27 source
    */
-  public static List<IcebergSourceSplit> planIcebergSourceSplits(Table table, ScanContext context) {
-    try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context)) {
-      return Lists.newArrayList(CloseableIterable.transform(tasksIterable,
-          task -> IcebergSourceSplit.fromCombinedScanTask(task)));
+  public static List<IcebergSourceSplit> planIcebergSourceSplits(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context, workerPool)) {
+      return Lists.newArrayList(CloseableIterable.transform(tasksIterable, IcebergSourceSplit::fromCombinedScanTask));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process task iterable: ", e);
     }
   }
 
-  static CloseableIterable<CombinedScanTask> planTasks(Table table, ScanContext context) {
+  static CloseableIterable<CombinedScanTask> planTasks(Table table, ScanContext context, ExecutorService workerPool) {
     TableScan scan = table
         .newScan()
         .caseSensitive(context.caseSensitive())
-        .project(context.project());
+        .project(context.project())
+        .planWith(workerPool);
 
     if (context.includeColumnStats()) {
       scan = scan.includeColumnStats();

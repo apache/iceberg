@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -113,6 +114,14 @@ public class SparkWriteConf {
 
   public String wapId() {
     return sessionConf.get("spark.wap.id", null);
+  }
+
+  public boolean mergeSchema() {
+    return confParser.booleanConf()
+        .option(SparkWriteOptions.MERGE_SCHEMA)
+        .option(SparkWriteOptions.SPARK_MERGE_SCHEMA)
+        .defaultValue(SparkWriteOptions.MERGE_SCHEMA_DEFAULT)
+        .parse();
   }
 
   public FileFormat dataFileFormat() {
@@ -230,10 +239,31 @@ public class SparkWriteConf {
     }
   }
 
+  public DistributionMode positionDeltaMergeDistributionMode() {
+    String mergeModeName = confParser.stringConf()
+        .option(SparkWriteOptions.DISTRIBUTION_MODE)
+        .tableProperty(TableProperties.MERGE_DISTRIBUTION_MODE)
+        .parseOptional();
+    return mergeModeName != null ? DistributionMode.fromName(mergeModeName) : distributionMode();
+  }
+
   public boolean useTableDistributionAndOrdering() {
     return confParser.booleanConf()
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING)
         .defaultValue(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING_DEFAULT)
         .parse();
+  }
+
+  public Long validateFromSnapshotId() {
+    return confParser.longConf()
+        .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID)
+        .parseOptional();
+  }
+
+  public IsolationLevel isolationLevel() {
+    String isolationLevelName = confParser.stringConf()
+        .option(SparkWriteOptions.ISOLATION_LEVEL)
+        .parseOptional();
+    return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
   }
 }

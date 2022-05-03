@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class LocationProviders {
@@ -34,7 +35,8 @@ public class LocationProviders {
   private LocationProviders() {
   }
 
-  public static LocationProvider locationsFor(String location, Map<String, String> properties) {
+  public static LocationProvider locationsFor(String inputLocation, Map<String, String> properties) {
+    String location = LocationUtil.stripTrailingSlash(inputLocation);
     if (properties.containsKey(TableProperties.WRITE_LOCATION_PROVIDER_IMPL)) {
       String impl = properties.get(TableProperties.WRITE_LOCATION_PROVIDER_IMPL);
       DynConstructors.Ctor<LocationProvider> ctor;
@@ -70,7 +72,7 @@ public class LocationProviders {
     private final String dataLocation;
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.dataLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
+      this.dataLocation = LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -103,8 +105,13 @@ public class LocationProviders {
     private final String context;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.storageLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
-      this.context = pathContext(tableLocation);
+      this.storageLocation = LocationUtil.stripTrailingSlash(dataLocation(properties, tableLocation));
+      // if the storage location is within the table prefix, don't add table and database name context
+      if (storageLocation.startsWith(tableLocation)) {
+        this.context = null;
+      } else {
+        this.context = pathContext(tableLocation);
+      }
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -129,7 +136,11 @@ public class LocationProviders {
     @Override
     public String newDataLocation(String filename) {
       int hash = HASH_FUNC.apply(filename);
-      return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+      if (context != null) {
+        return String.format("%s/%08x/%s/%s", storageLocation, hash, context, filename);
+      } else {
+        return String.format("%s/%08x/%s", storageLocation, hash, filename);
+      }
     }
 
     private static String pathContext(String tableLocation) {
@@ -149,13 +160,5 @@ public class LocationProviders {
 
       return resolvedContext;
     }
-  }
-
-  private static String stripTrailingSlash(String path) {
-    String result = path;
-    while (result.endsWith("/")) {
-      result = result.substring(0, result.length() - 1);
-    }
-    return result;
   }
 }

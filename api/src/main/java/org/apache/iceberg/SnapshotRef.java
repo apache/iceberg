@@ -55,6 +55,14 @@ public class SnapshotRef implements Serializable {
     return type;
   }
 
+  public boolean isBranch() {
+    return type == SnapshotRefType.BRANCH;
+  }
+
+  public boolean isTag() {
+    return type == SnapshotRefType.TAG;
+  }
+
   public Integer minSnapshotsToKeep() {
     return minSnapshotsToKeep;
   }

@@ -164,6 +164,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
       greaterThanOrEqual("id", 5L),
       lessThanOrEqual("id", 9L));
 
+  private static final Expression EXPRESSION_DAY_2_ANOTHER_ID_RANGE = greaterThanOrEqual("id", 10L);
+
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
     return new Object[] { 1, 2 };
@@ -748,6 +750,60 @@ public class TestOverwriteWithValidation extends TableTestBase {
   }
 
   @Test
+  public void testConcurrentConflictingDataFileDeleteOverwriteByFilter() {
+    Assert.assertNull("Should be empty table", table.currentSnapshot());
+
+    table.newAppend()
+        .appendFile(FILE_DAY_1)
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    OverwriteFiles overwrite = table.newOverwrite()
+        .overwriteByRowFilter(EXPRESSION_DAY_2)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
+
+    table.newOverwrite()
+        .deleteFile(FILE_DAY_2)
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "Found conflicting deleted files",
+        overwrite::commit);
+  }
+
+  @Test
+  public void testConcurrentNonConflictingDataFileDeleteOverwriteByFilter() {
+    Assert.assertNull("Should be empty table", table.currentSnapshot());
+
+    table.newAppend()
+        .appendFile(FILE_DAY_1)
+        .appendFile(FILE_DAY_2)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    OverwriteFiles overwrite = table.newOverwrite()
+        .overwriteByRowFilter(EXPRESSION_DAY_2)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
+
+    table.newOverwrite()
+        .deleteFile(FILE_DAY_1)
+        .commit();
+
+    overwrite.commit();
+
+    validateTableFiles(table, FILE_DAY_2_MODIFIED);
+  }
+
+  @Test
   public void testConcurrentNonConflictingPositionDeletes() {
     Assume.assumeTrue(formatVersion == 2);
 
@@ -940,5 +996,30 @@ public class TestOverwriteWithValidation extends TableTestBase {
             .conflictDetectionFilter(rowFilter)
             .validateNoConflictingData()
             .commit());
+  }
+
+  @Test
+  public void testMetadataOnlyDeleteWithPositionDeletes() {
+    Assume.assumeTrue(formatVersion == 2);
+
+    Assert.assertNull("Should be empty table", table.currentSnapshot());
+
+    table.newAppend()
+        .appendFile(FILE_DAY_2)
+        .appendFile(FILE_DAY_2_ANOTHER_RANGE)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_DAY_2_POS_DELETES)
+        .addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES)
+        .commit();
+
+    table.newOverwrite()
+        .overwriteByRowFilter(EXPRESSION_DAY_2_ANOTHER_ID_RANGE)
+        .addFile(FILE_DAY_2_MODIFIED)
+        .commit();
+
+    validateTableFiles(table, FILE_DAY_2, FILE_DAY_2_MODIFIED);
+    validateTableDeleteFiles(table, FILE_DAY_2_POS_DELETES);
   }
 }

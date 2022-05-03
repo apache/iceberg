@@ -83,7 +83,7 @@ public class TestGlueCatalog {
   public void testConstructorEmptyWarehousePath() {
     AssertHelpers.assertThrows("warehouse path cannot be null",
         IllegalArgumentException.class,
-        "Cannot initialize GlueCatalog because warehousePath must not be null",
+        "Cannot initialize GlueCatalog because warehousePath must not be null or empty",
         () -> {
             GlueCatalog catalog = new GlueCatalog();
             catalog.initialize(CATALOG_NAME, null, new AwsProperties(), glue,
@@ -94,8 +94,8 @@ public class TestGlueCatalog {
   @Test
   public void testConstructorWarehousePathWithEndSlash() {
     GlueCatalog catalogWithSlash = new GlueCatalog();
-    catalogWithSlash.initialize(
-        CATALOG_NAME, WAREHOUSE_PATH + "/", new AwsProperties(), glue, LockManagers.defaultLockManager(), null);
+    catalogWithSlash.initialize(CATALOG_NAME, WAREHOUSE_PATH + "/", new AwsProperties(), glue,
+        LockManagers.defaultLockManager(), null);
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
