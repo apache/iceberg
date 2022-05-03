@@ -332,10 +332,13 @@ class BoundReference:
 
 
 class UnboundReference:
-    """A reference not yet bounded to a field in a schema
+    """A reference not yet bound to a field in a schema
 
     Args:
         name (str): The name of the field
+    
+    Note:
+        An unbound reference is sometimes referred to as a "named" reference
     """
 
     def __init__(self, name: str):
