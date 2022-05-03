@@ -58,11 +58,11 @@ public abstract class AvroSchemaVisitor<T> {
           }
         } else {
           // complex union case
-          int idx = 0;
+          int nonNullIdx = 0;
           for (Schema type : types) {
             if (type.getType() != Schema.Type.NULL) {
-              options.add(visitWithName("field" + idx, type, visitor));
-              idx += 1;
+              options.add(visitWithName("field" + nonNullIdx, type, visitor));
+              nonNullIdx += 1;
             } else {
               options.add(visit(type, visitor));
             }

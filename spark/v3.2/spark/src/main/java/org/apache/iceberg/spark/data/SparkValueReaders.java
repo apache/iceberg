@@ -83,8 +83,8 @@ public class SparkValueReaders {
     return new StructReader(readers, struct, idToConstant);
   }
 
-  static ValueReader<InternalRow> union(Schema schema, List<ValueReader<?>> readers) {
-    return new UnionReader(schema, readers);
+  static ValueReader<InternalRow> complexUnion(Schema schema, List<ValueReader<?>> readers) {
+    return new ComplexUnionReader(schema, readers);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -292,31 +292,31 @@ public class SparkValueReaders {
     }
   }
 
-  private static class UnionReader implements ValueReader<InternalRow> {
-    private final Schema schema;
+  private static class ComplexUnionReader implements ValueReader<InternalRow> {
+    private final List<Schema> branches;
     private final ValueReader[] readers;
+    private int nullIndex;
 
-    private UnionReader(Schema schema, List<ValueReader<?>> readers) {
-      this.schema = schema;
+    private ComplexUnionReader(Schema schema, List<ValueReader<?>> readers) {
+      this.branches = schema.getTypes();
       this.readers = new ValueReader[readers.size()];
       for (int i = 0; i < this.readers.length; i += 1) {
         this.readers[i] = readers.get(i);
+      }
+
+      // Calculate NULL branch if it exists in the union schema
+      this.nullIndex = -1;
+      for (int i = 0; i < branches.size(); i++) {
+        Schema branch = branches.get(i);
+        if (Objects.equals(branch.getType(), Schema.Type.NULL)) {
+          this.nullIndex = i;
+          break;
+        }
       }
     }
 
     @Override
     public InternalRow read(Decoder decoder, Object reuse) throws IOException {
-      // first we need to filter out NULL alternative if it exists in the union schema
-      int nullIndex = -1;
-      List<Schema> alts = schema.getTypes();
-      for (int i = 0; i < alts.size(); i++) {
-        Schema alt = alts.get(i);
-        if (Objects.equals(alt.getType(), Schema.Type.NULL)) {
-          nullIndex = i;
-          break;
-        }
-      }
-
       int index = decoder.readIndex();
       if (index == nullIndex) {
         // if it is a null data, directly return null as the whole union result
@@ -324,7 +324,7 @@ public class SparkValueReaders {
       }
 
       // otherwise, we need to return an InternalRow as a struct data
-      InternalRow struct = new GenericInternalRow(nullIndex >= 0 ? alts.size() : alts.size() + 1);
+      InternalRow struct = new GenericInternalRow(nullIndex >= 0 ? branches.size() : branches.size() + 1);
       for (int i = 0; i < struct.numFields(); i += 1) {
         struct.setNullAt(i);
       }

@@ -330,14 +330,14 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   // schema, while for nested types, we want to use the visitResult because they have content from the previous
   // recursive calls.
   private static Schema copyUnion(Schema record, List<Schema> visitResults) {
-    List<Schema> alts = Lists.newArrayListWithExpectedSize(visitResults.size());
+    List<Schema> branches = Lists.newArrayListWithExpectedSize(visitResults.size());
     for (int i = 0; i < visitResults.size(); i++) {
       if (visitResults.get(i) == null) {
-        alts.add(record.getTypes().get(i));
+        branches.add(record.getTypes().get(i));
       } else {
-        alts.add(visitResults.get(i));
+        branches.add(visitResults.get(i));
       }
     }
-    return Schema.createUnion(alts);
+    return Schema.createUnion(branches);
   }
 }
