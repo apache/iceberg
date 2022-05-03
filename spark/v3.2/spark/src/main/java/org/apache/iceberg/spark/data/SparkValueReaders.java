@@ -305,7 +305,7 @@ public class SparkValueReaders {
       }
 
       // Calculate NULL branch if it exists in the union schema
-      this.nullIndex = -1;
+      this.nullIndex = Integer.MAX_VALUE;
       for (int i = 0; i < branches.size(); i++) {
         Schema branch = branches.get(i);
         if (Objects.equals(branch.getType(), Schema.Type.NULL)) {
@@ -324,23 +324,16 @@ public class SparkValueReaders {
       }
 
       // otherwise, we need to return an InternalRow as a struct data
-      InternalRow struct = new GenericInternalRow(nullIndex >= 0 ? branches.size() : branches.size() + 1);
+      InternalRow struct = new GenericInternalRow(nullIndex < Integer.MAX_VALUE ? branches.size() : branches.size() + 1);
       for (int i = 0; i < struct.numFields(); i += 1) {
         struct.setNullAt(i);
       }
 
       Object value = readers[index].read(decoder, reuse);
 
-      if (nullIndex < 0) {
-        struct.update(index + 1, value);
-        struct.setInt(0, index);
-      } else if (index < nullIndex) {
-        struct.update(index + 1, value);
-        struct.setInt(0, index);
-      } else {
-        struct.update(index, value);
-        struct.setInt(0, index - 1);
-      }
+      int outputFieldIndex = nullIndex < index ? index - 1 : index;
+      struct.setInt(0, outputFieldIndex);
+      struct.update(outputFieldIndex + 1, value); // add 1 to offset `tag` field
 
       return struct;
     }
