@@ -365,6 +365,7 @@ project(':iceberg-aws') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
+    implementation "com.github.ben-manes.caffeine:caffeine"
 
     compileOnly 'software.amazon.awssdk:url-connection-client'
     compileOnly 'software.amazon.awssdk:apache-client'

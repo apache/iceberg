@@ -165,13 +165,13 @@ public class TestLakeFormationMetadataOperations
           schema, partitionSpec, tableLocation, null);
     } finally {
       grantTablePrivileges(testDbName, testTableName, Permission.DELETE, Permission.DROP);
-      glueCatalogPrivilegedRole.dropTable(TableIdentifier.of(testDbName, testTableName), false);
+      glueCatalogPrivilegedRole.dropTable(TableIdentifier.of(testDbName, testTableName), true);
       lfRegisterPathRoleDeleteDb(testDbName);
     }
   }
 
   @Test
-  public void testDropTableSuccessWhenPurgeIsFalse() {
+  public void tesDropTableSuccess() {
     String testDbName = getRandomDbName();
     String testTableName = getRandomTableName();
     lfRegisterPathRoleCreateDb(testDbName);
@@ -183,6 +183,19 @@ public class TestLakeFormationMetadataOperations
       lfRegisterPathRoleDeleteDb(testDbName);
     }
   }
+  @Test
+  public void testPurgeTableSuccess() {
+    String testDbName = getRandomDbName();
+    String testTableName = getRandomTableName();
+    lfRegisterPathRoleCreateDb(testDbName);
+    lfRegisterPathRoleCreateTable(testDbName, testTableName);
+    grantTablePrivileges(testDbName, testTableName, Permission.DROP, Permission.SELECT, Permission.DELETE);
+    try {
+      glueCatalogPrivilegedRole.dropTable(TableIdentifier.of(testDbName, testTableName), true);
+    } finally {
+      lfRegisterPathRoleDeleteDb(testDbName);
+    }
+  }
 
   @Test
   public void testDropTableNoDropPermission() {
@@ -190,12 +203,12 @@ public class TestLakeFormationMetadataOperations
     String testTableName = getRandomTableName();
     lfRegisterPathRoleCreateDb(testDbName);
     lfRegisterPathRoleCreateTable(testDbName, testTableName);
-    grantTablePrivileges(testDbName, testTableName, Permission.SELECT);
+    grantTablePrivileges(testDbName, testTableName, Permission.SELECT, Permission.DELETE);
     try {
       AssertHelpers.assertThrows("attempt to drop a table without DROP permission should fail",
           AccessDeniedException.class,
           "Insufficient Lake Formation permission(s)",
-          () -> glueCatalogPrivilegedRole.dropTable(TableIdentifier.of(testDbName, testTableName), false));
+          () -> glueCatalogPrivilegedRole.dropTable(TableIdentifier.of(testDbName, testTableName), true));
     } finally {
       lfRegisterPathRoleDeleteTable(testDbName, testTableName);
       lfRegisterPathRoleDeleteDb(testDbName);

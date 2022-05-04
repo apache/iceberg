@@ -410,6 +410,32 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
+  /**
+   * Used by {@link LakeFormationAwsClientFactory}. The maximum size of the lakeformation
+   * credentials cache, default to 100.
+   */
+  public static final String LAKE_FORMATION_CACHE_MAX_SIZE = "lakeformation.cache.max-size";
+
+  public static final int LAKE_FORMATION_CACHE_MAX_SIZE_DEFAULT = 100;
+
+  /**
+   * Used by {@link LakeFormationAwsClientFactory}. The expiry time of the cached lakeformation
+   * credentials in milliseconds, default to 30 minutes.
+   */
+  public static final String LAKE_FORMATION_CACHE_EXPIRATION_INTERVAL_MS =
+      "lakeformation.cache.expiration-interval-ms";
+
+  public static final long LAKE_FORMATION_CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = 30 * 60 * 1000;
+
+  /**
+   * Used by {@link LakeFormationAwsClientFactory}. The expiry lead time of the lakeformation
+   * credentials cache, default to 1 minute.
+   */
+  public static final String LAKE_FORMATION_CACHE_EXPIRY_LEAD_TIME_MS =
+      "lakeformation.cache.refresh-lead-time-ms";
+
+  public static final int LAKE_FORMATION_CACHE_EXPIRY_LEAD_TIME_MS_DEFAULT = 60 * 1000;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;

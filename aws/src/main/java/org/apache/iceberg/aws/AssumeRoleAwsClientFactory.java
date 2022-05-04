@@ -47,6 +47,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private boolean s3UseArnRegionEnabled;
   private String dynamoDbEndpoint;
   private String httpClientType;
+  private String sessionName;
 
   @Override
   public S3Client s3() {
@@ -126,8 +127,20 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return clientBuilder;
   }
 
+  protected String roleArn() {
+    return roleArn;
+  }
+
+  protected String externalId() {
+    return externalId;
+  }
+
   protected Set<Tag> tags() {
     return tags;
+  }
+
+  protected int timeout() {
+    return timeout;
   }
 
   protected String region() {
@@ -142,6 +155,10 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return httpClientType;
   }
 
+  protected String sessionName() {
+    return sessionName;
+  }
+
   protected boolean s3UseArnRegionEnabled() {
     return s3UseArnRegionEnabled;
   }
@@ -153,7 +170,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   }
 
   private String genSessionName() {
-    return String.format("iceberg-aws-%s", UUID.randomUUID());
+    this.sessionName = String.format("iceberg-aws-%s", UUID.randomUUID());
+    return sessionName;
   }
 
   private static Set<Tag> toTags(Map<String, String> properties) {

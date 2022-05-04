@@ -20,8 +20,10 @@ package org.apache.iceberg.aws;
 
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializationUtil;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -54,6 +56,17 @@ public class TestAwsClientFactories {
     properties.put(AwsProperties.CLIENT_FACTORY, CustomFactory.class.getName());
     Assert.assertTrue(
         "should load custom class", AwsClientFactories.from(properties) instanceof CustomFactory);
+  }
+
+  @Test
+  public void testLoadLakeFormationAwsClientFactory() {
+    AwsClientFactory awsClientFactory = new LakeFormationAwsClientFactory();
+
+    byte[] data = SerializationUtil.serializeToBytes(awsClientFactory);
+    AwsClientFactory expectedAwsClientFactory = SerializationUtil.deserializeFromBytes(data);
+    Assert.assertTrue(
+        "The deserialized expectedAwsClientFactory should be LakeFormationAwsClientFactory",
+        expectedAwsClientFactory instanceof LakeFormationAwsClientFactory);
   }
 
   @Test
