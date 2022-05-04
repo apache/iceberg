@@ -324,7 +324,8 @@ public class SparkValueReaders {
       }
 
       // otherwise, we need to return an InternalRow as a struct data
-      InternalRow struct = new GenericInternalRow(nullIndex < Integer.MAX_VALUE ? branches.size() : branches.size() + 1);
+      InternalRow struct = new GenericInternalRow(nullIndex < Integer.MAX_VALUE ?
+          branches.size() : branches.size() + 1);
       for (int i = 0; i < struct.numFields(); i += 1) {
         struct.setNullAt(i);
       }
