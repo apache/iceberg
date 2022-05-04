@@ -382,6 +382,22 @@ public class Schema implements Serializable {
   }
 
   /**
+   * Returns the index of the given field id.
+   *
+   * @param fieldId a column id in this schema
+   * @return the index of the field in the schema, or -1 if one wasn't found
+   */
+  public int idToIndex(Integer fieldId) {
+    for (int i = 0; i < struct.fields().size(); i++) {
+      if (struct.fields().get(i).fieldId() == fieldId) {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
+  /**
    * Returns an accessor for retrieving the data from {@link StructLike}.
    * <p>
    * Accessors do not retrieve data contained in lists or maps.

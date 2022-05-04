@@ -155,7 +155,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   static ColumnVector forHolder(VectorHolder holder, int numRows, boolean[] isDeleted) {
     if (holder.isDummy()) {
-      if (holder instanceof VectorHolder.DeletedVectorHolder) {
+      if (holder instanceof VectorHolder.IsDeletedVectorHolder) {
         return new DeletedMetaColumnVector(Types.BooleanType.get(), isDeleted);
       }
       return new ConstantColumnVector(Types.IntegerType.get(), numRows, ((ConstantVectorHolder) holder).getConstant());

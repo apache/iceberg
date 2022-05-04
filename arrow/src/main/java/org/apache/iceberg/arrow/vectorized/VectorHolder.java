@@ -104,8 +104,8 @@ public class VectorHolder {
     return new ConstantVectorHolder(numRows, constantValue);
   }
 
-  public static <T> VectorHolder deleteMetaColumnHolder(int numRows) {
-    return new DeletedVectorHolder(numRows);
+  public static <T> VectorHolder isDeletedHolder(int numRows) {
+    return new IsDeletedVectorHolder(numRows);
   }
 
   public static VectorHolder dummyHolder(int numRows) {
@@ -150,10 +150,10 @@ public class VectorHolder {
     }
   }
 
-  public static class DeletedVectorHolder extends VectorHolder {
+  public static class IsDeletedVectorHolder extends VectorHolder {
     private final int numRows;
 
-    public DeletedVectorHolder(int numRows) {
+    public IsDeletedVectorHolder(int numRows) {
       this.numRows = numRows;
     }
 

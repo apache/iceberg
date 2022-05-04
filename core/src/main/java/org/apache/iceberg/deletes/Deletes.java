@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -64,24 +65,24 @@ public class Deletes {
     return equalityFilter.filter(rows);
   }
 
-  public static <T> CloseableIterable<T> filter(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                                PositionDeleteIndex deleteSet) {
-    if (deleteSet.isEmpty()) {
-      return rows;
-    }
-
-    PositionSetDeleteFilter<T> filter = new PositionSetDeleteFilter<>(rowToPosition, deleteSet);
-    return filter.filter(rows);
-  }
-
-  public static <T> CloseableIterable<T> marker(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                                PositionDeleteIndex deleteSet, Consumer<T> markDeleted) {
+  public static <T> CloseableIterable<T> markDeleted(CloseableIterable<T> rows, Predicate<T> isDeleted,
+                                                     Consumer<T> markDeleted) {
     return CloseableIterable.transform(rows, row -> {
-      if (deleteSet.isDeleted(rowToPosition.apply(row))) {
+      if (isDeleted.test(row)) {
         markDeleted.accept(row);
       }
       return row;
     });
+  }
+
+  public static <T> CloseableIterable<T> filter(CloseableIterable<T> rows, Predicate<T> shouldKeep) {
+    Filter filter = new Filter<T>() {
+      @Override
+      protected boolean shouldKeep(T item) {
+        return shouldKeep.test(item);
+      }
+    };
+    return filter.filter(rows);
   }
 
   public static StructLikeSet toEqualitySet(CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
@@ -153,21 +154,6 @@ public class Deletes {
     @Override
     protected boolean shouldKeep(T row) {
       return !deletes.contains(extractEqStruct.apply(row));
-    }
-  }
-
-  private static class PositionSetDeleteFilter<T> extends Filter<T> {
-    private final Function<T, Long> rowToPosition;
-    private final PositionDeleteIndex deleteSet;
-
-    private PositionSetDeleteFilter(Function<T, Long> rowToPosition, PositionDeleteIndex deleteSet) {
-      this.rowToPosition = rowToPosition;
-      this.deleteSet = deleteSet;
-    }
-
-    @Override
-    protected boolean shouldKeep(T row) {
-      return !deleteSet.isDeleted(rowToPosition.apply(row));
     }
   }
 
@@ -277,6 +263,8 @@ public class Deletes {
         if (isDeleted) {
           markDeleted.accept(row);
         }
+
+        // always return true, since we don't want to remove the row
         return true;
       }
     }

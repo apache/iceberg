@@ -20,6 +20,7 @@
 package org.apache.iceberg.deletes;
 
 import java.util.List;
+import java.util.function.Predicate;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
@@ -217,8 +218,7 @@ public class TestPositionFilter {
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 3L, 4L, 7L, 9L));
 
     CloseableIterable<StructLike> actual = Deletes.filter(
-        rows, row -> row.get(0, Long.class),
-        Deletes.toPositionIndex(deletes));
+        rows, row -> !Deletes.toPositionIndex(deletes).isDeleted(row.get(0, Long.class)));
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
@@ -254,9 +254,11 @@ public class TestPositionFilter {
         Row.of(9L, "j")
     ));
 
-    CloseableIterable<StructLike> actual = Deletes.filter(
-        rows, row -> row.get(0, Long.class),
-        Deletes.toPositionIndex("file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2)));
+    Predicate<StructLike> isDeleted = row -> Deletes
+        .toPositionIndex("file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2))
+        .isDeleted(row.get(0, Long.class));
+
+    CloseableIterable<StructLike> actual = Deletes.filter(rows, isDeleted.negate());
 
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),

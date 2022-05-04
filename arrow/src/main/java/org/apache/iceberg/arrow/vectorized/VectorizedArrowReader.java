@@ -527,7 +527,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      return VectorHolder.deleteMetaColumnHolder(numValsToRead);
+      return VectorHolder.isDeletedHolder(numValsToRead);
     }
 
     @Override

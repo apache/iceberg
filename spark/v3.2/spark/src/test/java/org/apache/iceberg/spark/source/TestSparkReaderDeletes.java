@@ -87,11 +87,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   @Parameterized.Parameters(name = "vectorized = {0}")
-  public static Object[][] parameters() {
-    return new Object[][]{
-        new Object[]{false},
-        new Object[]{true}
-    };
+  public static Object[] parameters() {
+    return new Object[] {false, true};
   }
 
   @BeforeClass
