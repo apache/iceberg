@@ -87,7 +87,8 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public NessieIcebergClient withReference(String requestedRef, String hash) {
-    if (null == requestedRef) {
+    if (null == requestedRef ||
+        (getRef().getReference().getName().equals(requestedRef) && getRef().getHash().equals(hash))) {
       return this;
     }
     return new NessieIcebergClient(getApi(), requestedRef, hash, catalogOptions);
@@ -231,7 +232,7 @@ public class NessieIcebergClient implements AutoCloseable {
     }
   }
 
-  public void setProperties(Namespace namespace, Map<String, String> properties) {
+  public boolean setProperties(Namespace namespace, Map<String, String> properties) {
     try {
       getApi()
           .updateProperties()
@@ -240,6 +241,8 @@ public class NessieIcebergClient implements AutoCloseable {
           .updateProperties(properties)
           .update();
       refresh();
+      // always successful, otherwise an exception is thrown
+      return true;
     } catch (NessieNamespaceNotFoundException e) {
       throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
     } catch (NessieNotFoundException e) {
@@ -249,7 +252,7 @@ public class NessieIcebergClient implements AutoCloseable {
     }
   }
 
-  public void removeProperties(Namespace namespace, Set<String> properties) {
+  public boolean removeProperties(Namespace namespace, Set<String> properties) {
     try {
       getApi()
           .updateProperties()
@@ -258,6 +261,8 @@ public class NessieIcebergClient implements AutoCloseable {
           .removeProperties(properties)
           .update();
       refresh();
+      // always successful, otherwise an exception is thrown
+      return true;
     } catch (NessieNamespaceNotFoundException e) {
       throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
     } catch (NessieNotFoundException e) {

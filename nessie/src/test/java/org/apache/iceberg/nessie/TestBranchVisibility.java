@@ -24,11 +24,13 @@ import java.util.Map;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
@@ -47,6 +49,8 @@ import org.projectnessie.model.Branch;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.Reference;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestBranchVisibility extends BaseTestIceberg {
 
@@ -397,5 +401,46 @@ public class TestBranchVisibility extends BaseTestIceberg {
     } else  {
       assertion.isNotEqualTo(testTable2);
     }
+  }
+
+  @Test
+  public void testWithRefAndHash() throws NessieConflictException, NessieNotFoundException {
+    String testBranch = "testBranch";
+    createBranch(testBranch, null);
+    Schema schema = new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+
+    NessieCatalog nessieCatalog = initCatalog(testBranch);
+    String hashBeforeNamespaceCreation = api.getReference().refName(testBranch).get().getHash();
+    Namespace namespace = Namespace.of("a", "b");
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isEmpty();
+
+    nessieCatalog.createNamespace(namespace);
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isNotEmpty();
+    Assertions.assertThat(nessieCatalog.listTables(namespace)).isEmpty();
+
+    NessieCatalog catalogAtHash1 = initCatalog(testBranch, hashBeforeNamespaceCreation);
+    Assertions.assertThat(catalogAtHash1.listNamespaces(namespace)).isEmpty();
+    Assertions.assertThat(catalogAtHash1.listTables(namespace)).isEmpty();
+
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    String hashBeforeTableCreation = nessieCatalog.currentHash();
+    nessieCatalog.createTable(identifier, schema);
+    Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(1);
+
+    NessieCatalog catalogAtHash2 = initCatalog(testBranch, hashBeforeTableCreation);
+    Assertions.assertThat(catalogAtHash2.listNamespaces(namespace)).isNotEmpty();
+    Assertions.assertThat(catalogAtHash2.listTables(namespace)).isEmpty();
+
+    // updates should not be possible
+    Assertions.assertThatThrownBy(() -> catalogAtHash2.createTable(identifier, schema))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("You can only mutate tables when using a branch without a hash or timestamp.");
+    Assertions.assertThat(catalogAtHash2.listTables(namespace)).isEmpty();
+
+    // updates should be still possible here
+    nessieCatalog = initCatalog(testBranch);
+    TableIdentifier identifier2 = TableIdentifier.of(namespace, "table2");
+    nessieCatalog.createTable(identifier2, schema);
+    Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(2);
   }
 }
