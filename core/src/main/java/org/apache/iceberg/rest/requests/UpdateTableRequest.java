@@ -240,6 +240,7 @@ public class UpdateTableRequest implements RESTRequest {
 
     class AssertTableUUID implements UpdateRequirement {
       private final String uuid;
+
       AssertTableUUID(String uuid) {
         this.uuid = uuid;
       }
@@ -258,8 +259,6 @@ public class UpdateTableRequest implements RESTRequest {
     }
 
     class AssertRefSnapshotID implements UpdateRequirement {
-      // TODO - This is called `ref` in the spec.
-      // https://github.com/apache/iceberg/blob/master/open-api/rest-catalog-open-api.yaml#L1359-L1360
       private final String name;
       private final Long snapshotId;
 
@@ -278,21 +277,21 @@ public class UpdateTableRequest implements RESTRequest {
 
       @Override
       public void validate(TableMetadata base) {
-        SnapshotRef ref = base.ref(this.name);
+        SnapshotRef ref = base.ref(name);
         if (ref != null) {
           String type = ref.isBranch() ? "branch" : "tag";
           if (snapshotId == null) {
             // a null snapshot ID means the ref should not exist already
             throw new CommitFailedException(
-                "Requirement failed: %s %s was created concurrently", type, this.name);
+                "Requirement failed: %s %s was created concurrently", type, name);
           } else if (snapshotId != ref.snapshotId()) {
             throw new CommitFailedException(
                 "Requirement failed: %s %s has changed: expected id %s != %s",
-                type, this.name, snapshotId, ref.snapshotId());
+                type, name, snapshotId, ref.snapshotId());
           }
         } else if (snapshotId != null) {
           throw new CommitFailedException(
-              "Requirement failed: branch or tag %s is missing, expected %s", this.name, snapshotId);
+              "Requirement failed: branch or tag %s is missing, expected %s", name, snapshotId);
         }
       }
     }

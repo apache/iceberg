@@ -21,8 +21,8 @@ package org.apache.iceberg.rest.requests;
 
 import java.util.List;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -82,18 +82,23 @@ public class TestUpdateRequirementParser {
   @Test
   public void testAssertRefSnapshotIdToJson() {
     String requirementType = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
-    String name = "";
-    String json = String.format("{\"type\":\"assert-ref-snapshot-id\",\"ref\":\"%s\"}", name);
-    UpdateRequirement expected = new UpdateRequirement.AssertRefSnapshotID(name);
+    String name = "snapshot-name";
+    Long snapshotId = 1L;
+    String json = String.format("{\"type\":\"%s\",\"name\":\"%s\",\"snapshot-id\":%d}",
+        requirementType, name, snapshotId);
+    UpdateRequirement expected = new UpdateRequirement.AssertRefSnapshotID(name, snapshotId);
     assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
   }
 
   @Test
   public void testAssertRefSnapshotIdFromJson() {
-    String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
-    String expected = String.format("{\"type\":\"assert-table-uuid\",\"uuid\":\"%s\"}", uuid);
-    UpdateRequirement.AssertTableUUID actual = new UpdateRequirement.AssertTableUUID(uuid);
-    Assert.assertEquals("AssertTableUUID should convert to the correct JSON value",
+    String requirementType = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
+    String name = "snapshot-name";
+    Long snapshotId = 1L;
+    String expected = String.format("{\"type\":\"%s\",\"name\":\"%s\",\"snapshot-id\":%d}",
+        requirementType, name, snapshotId);
+    UpdateRequirement actual = new UpdateRequirement.AssertRefSnapshotID(name, snapshotId);
+    Assert.assertEquals("AssertRefSnapshotId should convert to the correct JSON value",
         expected, UpdateRequirementParser.toJson(actual));
   }
 
@@ -101,7 +106,8 @@ public class TestUpdateRequirementParser {
   public void testAssertLastAssignedFieldIdFromJson() {
     String requirementType = UpdateRequirementParser.ASSERT_LAST_ASSIGNED_FIELD_ID;
     int lastAssignedFieldId = 12;
-    String json = String.format("{\"type\":\"%s\",\"last-assigned-field-id\":%d}", requirementType, lastAssignedFieldId);
+    String json = String.format("{\"type\":\"%s\",\"last-assigned-field-id\":%d}",
+        requirementType, lastAssignedFieldId);
     UpdateRequirement expected = new UpdateRequirement.AssertLastAssignedFieldId(lastAssignedFieldId);
     assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
   }
@@ -110,7 +116,8 @@ public class TestUpdateRequirementParser {
   public void testAssertLastAssignedFieldIdToJson() {
     String requirementType = UpdateRequirementParser.ASSERT_LAST_ASSIGNED_FIELD_ID;
     int lastAssignedFieldId = 12;
-    String expected = String.format("{\"type\":\"%s\",\"last-assigned-field-id\":%d}", requirementType, lastAssignedFieldId);
+    String expected = String.format("{\"type\":\"%s\",\"last-assigned-field-id\":%d}",
+        requirementType, lastAssignedFieldId);
     UpdateRequirement actual = new UpdateRequirement.AssertLastAssignedFieldId(lastAssignedFieldId);
     Assert.assertEquals("AssertLastAssignedFieldId should convert to the correct JSON value",
         expected, UpdateRequirementParser.toJson(actual));
@@ -170,7 +177,7 @@ public class TestUpdateRequirementParser {
     String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SPEC_ID;
     int specId = 5;
     String expected = String.format("{\"type\":\"%s\",\"default-spec-id\":%d}", requirementType, specId);
-    UpdateRequirement actual = new UpdateRequirement.AssertDefaultSortOrderID(specId);
+    UpdateRequirement actual = new UpdateRequirement.AssertDefaultSpecID(specId);
     Assert.assertEquals("AssertDefaultSpecId should convert to the correct JSON value",
         expected, UpdateRequirementParser.toJson(actual));
   }
@@ -187,9 +194,9 @@ public class TestUpdateRequirementParser {
   @Test
   public void testAssertDefaultSortOrderIdToJson() {
     String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SORT_ORDER_ID;
-    int specId = 10;
-    String expected = String.format("{\"type\":\"%s\",\"default-spec-id\":%d}", requirementType, specId);
-    UpdateRequirement actual = new UpdateRequirement.AssertDefaultSpecID(specId);
+    int sortOrderId = 10;
+    String expected = String.format("{\"type\":\"%s\",\"default-write-order-id\":%d}", requirementType, sortOrderId);
+    UpdateRequirement actual = new UpdateRequirement.AssertDefaultSortOrderID(sortOrderId);
     Assert.assertEquals("AssertDefaultSortOrderId should convert to the correct JSON value",
         expected, UpdateRequirementParser.toJson(actual));
   }
@@ -206,8 +213,8 @@ public class TestUpdateRequirementParser {
         compareAssertTableDoesNotExist(expected, actual);
         break;
       case UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID:
-        Assert.fail(String.format("UpdateRequirementParser equality comparison for %s is not implemented yet",
-            requirementType));
+        compareAssertRefSnapshotId((UpdateRequirement.AssertRefSnapshotID) expected,
+            (UpdateRequirement.AssertRefSnapshotID) actual);
         break;
       case UpdateRequirementParser.ASSERT_LAST_ASSIGNED_FIELD_ID:
         compareAssertLastAssignedFieldId((UpdateRequirement.AssertLastAssignedFieldId) expected,
@@ -252,6 +259,17 @@ public class TestUpdateRequirementParser {
         .hasSameClassAs(expected);
   }
 
+  private static void compareAssertRefSnapshotId(
+      UpdateRequirement.AssertRefSnapshotID expected,
+      UpdateRequirement.AssertRefSnapshotID actual) {
+    Assertions.assertThat(actual.refName())
+        .as("Ref Name should parse correctly from JSON")
+        .isEqualTo(expected.refName());
+    Assertions.assertThat(actual.snapshotId())
+        .as("Snapshot ID should parse correctly from JSON")
+        .isEqualTo(expected.snapshotId());
+  }
+
   private static void compareAssertLastAssignedFieldId(
       UpdateRequirement.AssertLastAssignedFieldId expected,
       UpdateRequirement.AssertLastAssignedFieldId actual) {
@@ -279,16 +297,16 @@ public class TestUpdateRequirementParser {
   private static void compareAssertDefaultSpecId(
       UpdateRequirement.AssertDefaultSpecID expected,
       UpdateRequirement.AssertDefaultSpecID actual) {
-   Assertions.assertThat(actual.specId())
-       .as("Default spec id should parse correctly from JSON")
-       .isEqualTo(expected.specId());
+    Assertions.assertThat(actual.specId())
+        .as("Default spec id should parse correctly from JSON")
+        .isEqualTo(expected.specId());
   }
 
   private static void compareAssertDefaultSortOrderId(
       UpdateRequirement.AssertDefaultSortOrderID expected,
       UpdateRequirement.AssertDefaultSortOrderID actual) {
-   Assertions.assertThat(actual.sortOrderId())
-       .as("Default sort order id should parse correctly from JSON")
-       .isEqualTo(expected.sortOrderId());
+    Assertions.assertThat(actual.sortOrderId())
+        .as("Default sort order id should parse correctly from JSON")
+        .isEqualTo(expected.sortOrderId());
   }
 }

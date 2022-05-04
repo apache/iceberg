@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.rest.requests;
@@ -40,15 +45,13 @@ public class UpdateRequirementParser {
   static final String ASSERT_LAST_ASSIGNED_FIELD_ID = "assert-last-assigned-field-id";
   static final String ASSERT_CURRENT_SCHEMA_ID = "assert-current-schema-id";
   static final String ASSERT_LAST_ASSIGNED_PARTITION_ID = "assert-last-assigned-partition-id";
-  static final String ASSERT_DEFAULT_SPEC_ID = "assert-default-spec-id`";
+  static final String ASSERT_DEFAULT_SPEC_ID = "assert-default-spec-id";
   static final String ASSERT_DEFAULT_SORT_ORDER_ID = "assert-default-write-order-id";
 
   // AssertTableUUID
   private static final String UUID = "uuid";
 
   // AssertRefSnapshotID
-  // TODO - This is called `ref` in the spec.
-  //   https://github.com/apache/iceberg/blob/master/open-api/rest-catalog-open-api.yaml#L1359-L1360
   private static final String NAME = "name";
   private static final String SNAPSHOT_ID = "snapshot-id";
 
@@ -65,8 +68,6 @@ public class UpdateRequirementParser {
   private static final String SPEC_ID = "default-spec-id";
 
   // AssertDefaultSortOrderID
-  // TODO - Is currently referred to as default-write-order-id in spec but class and comments use sort-order. Need to
-  //  update it in class or in spec
   private static final String SORT_ORDER_ID = "default-write-order-id";
 
   private static final Map<Class<? extends UpdateTableRequest.UpdateRequirement>, String> TYPES = ImmutableMap
@@ -121,7 +122,8 @@ public class UpdateRequirementParser {
         writeAssertLastAssignedFieldId((UpdateRequirement.AssertLastAssignedFieldId) updateRequirement, generator);
         break;
       case ASSERT_LAST_ASSIGNED_PARTITION_ID:
-        writeAssertLastAssignedPartitionId((UpdateRequirement.AssertLastAssignedPartitionId) updateRequirement, generator);
+        writeAssertLastAssignedPartitionId(
+            (UpdateRequirement.AssertLastAssignedPartitionId) updateRequirement, generator);
         break;
       case ASSERT_CURRENT_SCHEMA_ID:
         writeAssertCurrentSchemaId((UpdateRequirement.AssertCurrentSchemaID) updateRequirement, generator);
@@ -188,8 +190,6 @@ public class UpdateRequirementParser {
     gen.writeStringField(UUID, requirement.uuid());
   }
 
-  // TODO - Should we fail if both are null or if ref is non-null and snapshotId is null? validate will fail here.
-  // TODO - Also, looking at SnapshotRefParser it seems that `ref` is
   private static void writeAssertRefSnapshotId(UpdateRequirement.AssertRefSnapshotID requirement, JsonGenerator gen)
       throws IOException {
     gen.writeStringField(NAME, requirement.refName());
