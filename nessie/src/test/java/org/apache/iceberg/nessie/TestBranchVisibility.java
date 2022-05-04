@@ -90,7 +90,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     testCatalogEquality(catalog, testCatalog, false, true,
         () -> updateSchema(catalog, tableIdentifier1));
 
-    testCatalogEquality(catalog, testCatalog, true, false,
+    testCatalogEquality(catalog, testCatalog, false, false,
         () -> updateSchema(catalog, tableIdentifier2));
   }
 
@@ -165,7 +165,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
     NessieCatalog catalogBranch2 = initCatalog(branch2);
     updateSchema(catalogBranch2, tableIdentifier1, Types.IntegerType.get());
-    verifyRefState(catalogBranch2, tableIdentifier1, snapshotIdOnTest, 2);
+    verifyRefState(catalogBranch2, tableIdentifier1, snapshotIdOnTest, 1);
     String metadataOn2 = addRow(catalogBranch2, tableIdentifier1, "testSchemaSnapshot-in-2",
         ImmutableMap.of("id0", 43L, "id2", 666));
     Assertions.assertThat(metadataOn2).isNotEqualTo(metadataOnTest).isNotEqualTo(metadataOnTest2);
@@ -191,10 +191,9 @@ public class TestBranchVisibility extends BaseTestIceberg {
     catalog = initCatalog(branch1);
     // load tableIdentifier1 on branch1
     BaseTable table = (BaseTable) catalog.loadTable(tableIdentifier1);
-    // branch1's tableIdentifier1's metadata location
-    // should be the latest global state (aka commit2 from branch2)
+    // branch1's tableIdentifier1's metadata location must not have changed
     Assertions.assertThat(table.operations().current().metadataFileLocation())
-        .isNotNull().isEqualTo(metadataLocationOfCommit2);
+        .isNotNull().isNotEqualTo(metadataLocationOfCommit2);
   }
 
   /**
@@ -249,10 +248,9 @@ public class TestBranchVisibility extends BaseTestIceberg {
     Assertions.assertThat(snapshotIdOnB).isEqualTo(snapshotIdOnTest);
     // branchB hasn't been modified yet, so it must be "equal" to branch "test"
     verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB, 0);
-    // updateSchema should use schema-id 2 because schema-id 1 has already been used by the above
-    // schema change in branch_a.
+    // updateSchema should use schema-id 1, because it's not tracked globally
     updateSchema(catalogBranchB, tableIdentifier1, Types.LongType.get());
-    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB, 2);
+    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB, 1);
     verifySchema(catalogBranchB, tableIdentifier1, Types.LongType.get(), Types.LongType.get());
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
 
@@ -263,7 +261,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     Assertions.assertThat(metadataOnB1)
         .isNotEqualTo(metadataOnA1)
         .isNotEqualTo(metadataOnTest);
-    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB1, 2);
+    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB1, 1);
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
 
     // repeat addRow() against branchA
@@ -288,7 +286,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
         .isNotEqualTo(metadataOnA1).isNotEqualTo(metadataOnA2)
         .isNotEqualTo(metadataOnB1)
         .isNotEqualTo(metadataOnTest);
-    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB2, 2);
+    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB2, 1);
 
     // sanity check, branch "test" must not have changed
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
@@ -316,7 +314,8 @@ public class TestBranchVisibility extends BaseTestIceberg {
       throws NessieNotFoundException {
     ContentKey key = NessieUtil.toKey(identifier);
     return api.getContent().refName(catalog.currentRefName()).key(key)
-        .get().get(key).unwrap(IcebergTable.class).get();
+        .get().get(key).unwrap(IcebergTable.class)
+        .orElseThrow(NullPointerException::new);
   }
 
   private String addRow(NessieCatalog catalog, TableIdentifier identifier, String fileName, Map<String, Object> data)

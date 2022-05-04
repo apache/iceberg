@@ -152,11 +152,4 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   public void testConcurrentCreateTransaction() {
     super.testConcurrentCreateTransaction();
   }
-
-  @Test
-  @Override
-  @Disabled("currently not validated within doCommit")
-  public void testUUIDValidation() {
-    super.testUUIDValidation();
-  }
 }
