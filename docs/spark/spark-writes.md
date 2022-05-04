@@ -313,7 +313,7 @@ distribution & sort order to Spark.
 {{< hint info >}}
 Both global sort (sorting all the data in the write) and local sort (sorting the data within a Spark task) can be used to write against a partitioned table.
 
-In SQL, the [`ORDER BY`](https://spark.apache.org/docs/latest/sql-ref-syntax-qry-select-orderby.html) will achieve global sorting and [`SORT BY`](https://spark.apache.org/docs/latest/sql-ref-syntax-qry-select-sortby.html) will achieve local sorting.
+In SQL, [`ORDER BY`](https://spark.apache.org/docs/latest/sql-ref-syntax-qry-select-orderby.html) will achieve global sorting and [`SORT BY`](https://spark.apache.org/docs/latest/sql-ref-syntax-qry-select-sortby.html) will achieve local sorting.
 
 In the Dataframe API, the `orderBy`/`sort` functions will achieve global sorting and `sortWithinPartitions` will achieve local sorting.
 {{< /hint >}}
