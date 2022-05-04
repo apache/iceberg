@@ -551,6 +551,126 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testPartitionSpecEvolutionAdditive() {
+    preparePartitionedTable();
+
+    // Change spec and add two data files
+    table.updateSpec()
+        .addField("id")
+        .commit();
+    PartitionSpec newSpec = table.spec();
+
+    // Add two data files with new spec
+    PartitionKey data10Key = new PartitionKey(newSpec, table.schema());
+    data10Key.set(0, 0); // data=0
+    data10Key.set(1, 10); // id=10
+    DataFile data10 = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-10.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartition(data10Key)
+        .build();
+    PartitionKey data11Key = new PartitionKey(newSpec, table.schema());
+    data11Key.set(0, 1); // data=0
+    data10Key.set(1, 11); // id=11
+    DataFile data11 = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-11.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartition(data11Key)
+        .build();
+
+    table.newFastAppend().appendFile(data10).commit();
+    table.newFastAppend().appendFile(data11).commit();
+
+    Table metadataTable = new PartitionsTable(table.ops(), table);
+    Expression filter = Expressions.and(
+        Expressions.equal("partition.id", 10),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scan = metadataTable.newScan().filter(filter);
+    CloseableIterable<FileScanTask> tasks = PartitionsTable.planFiles((StaticTableScan) scan);
+
+    // Four data files of old spec, one new data file of new spec
+    Assert.assertEquals(5, Iterables.size(tasks));
+
+    filter = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    scan = metadataTable.newScan().filter(filter);
+    tasks = PartitionsTable.planFiles((StaticTableScan) scan);
+
+    // 1 original data file written by old spec, plus 1 new data file written by new spec
+    Assert.assertEquals(2, Iterables.size(tasks));
+  }
+
+  @Test
+  public void testPartitionSpecEvolutionRemoval() {
+    preparePartitionedTable();
+
+    // Remove partition field
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField("id")
+        .commit();
+    PartitionSpec newSpec = table.spec();
+
+    // Add two data files with new spec
+    // Partition Fields are replaced in V1 with void and actually removed in V2
+    int partIndex = (formatVersion == 1) ? 1 : 0;
+    PartitionKey data10Key = new PartitionKey(newSpec, table.schema());
+    data10Key.set(partIndex, 10);
+    DataFile data10 = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-10.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartition(data10Key)
+        .build();
+    PartitionKey data11Key = new PartitionKey(newSpec, table.schema());
+    data11Key.set(partIndex, 11);
+    DataFile data11 = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-11.parquet")
+        .withRecordCount(10)
+        .withFileSizeInBytes(10)
+        .withPartition(data11Key)
+        .build();
+
+    table.newFastAppend().appendFile(data10).commit();
+    table.newFastAppend().appendFile(data11).commit();
+
+    Table metadataTable = new PartitionsTable(table.ops(), table);
+    Expression filter = Expressions.and(
+        Expressions.equal("partition.id", 10),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scan = metadataTable.newScan().filter(filter);
+    CloseableIterable<FileScanTask> tasks = PartitionsTable.planFiles((StaticTableScan) scan);
+
+    // Four original files of original spec, one data file written by new spec
+    Assert.assertEquals(5, Iterables.size(tasks));
+
+    // Filter for a dropped partition spec field.  Correct behavior is that only old partitions are returned.
+    filter = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    scan = metadataTable.newScan().filter(filter);
+    tasks = PartitionsTable.planFiles((StaticTableScan) scan);
+
+    if (formatVersion == 1) {
+      // 1 original data file written by old spec
+      Assert.assertEquals(1, Iterables.size(tasks));
+    } else {
+      // 1 original data/delete files written by old spec, plus both of new data file/delete file written by new spec
+      //
+      // Unlike in V1, V2 does not write (data=null) on newer files' partition data, so these cannot be filtered out
+      // early in scan planning here.
+      //
+      // However, these partition rows are filtered out later in Spark data filtering, as the newer partitions
+      // will have 'data=null' field added as part of normalization to the Partitions table final schema.
+      // The Partitions table final schema is a union of fields of all specs, including dropped fields.
+      Assert.assertEquals(3, Iterables.size(tasks));
+    }
+  }
+
+  @Test
   public void testPartitionColumnNamedPartition() throws Exception {
     TestTables.clearTables();
     this.tableDir = temp.newFolder();
