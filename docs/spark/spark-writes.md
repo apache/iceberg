@@ -330,7 +330,7 @@ USING iceberg
 PARTITIONED BY (days(ts), category)
 ```
 
-#### In Spark SQL
+#### Sort Order Using Spark SQL
 
 To globally sort data based on `ts` and `category`:
 
