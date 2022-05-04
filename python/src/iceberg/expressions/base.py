@@ -336,7 +336,7 @@ class UnboundReference:
 
     Args:
         name (str): The name of the field
-    
+
     Note:
         An unbound reference is sometimes referred to as a "named" reference
     """
