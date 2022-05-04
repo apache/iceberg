@@ -404,6 +404,26 @@ Those are the options that could be set in flink SQL hint options for streaming 
 * monitor-interval: time interval for consecutively monitoring newly committed data files (default value: '10s').
 * start-snapshot-id: the snapshot id that streaming job starts from.
 
+### Flink lookup join
+
+Iceberg supports [lookup join](https://ci.apache.org/projects/flink/flink-docs-release-1.14/docs/dev/table/sql/queries/joins/#lookup-join) dimension table in flink streaming jobs. Currently, only sync lookup mode is supported.
+
+#### Lookup Cache
+
+The lookup cache is used to improve performance of lookup join the Iceberg. By default, lookup cache is not enabled, so all the read from iceberg. You can enable it by setting both `lookup.cache.max-rows` and `lookup.cache.ttl`.
+
+When lookup cache is enabled, each process (i.e. TaskManager) will hold a cache. Flink will lookup the cache first, and only read from iceberg when cache missing, and update cache with the rows returned.
+The oldest rows in cache will be expired when the cache hit to the max cached rows `lookup.cache.max-rows` or when the row exceeds the max time to live `lookup.cache.ttl`.
+The cached rows might not be the latest, users can tune `lookup.cache.ttl` to a smaller value to have a better fresh data, but this may increase the number of read from iceberg. So this is a balance between throughput and correctness.
+
+```sql
+-- Inner join dimension table(sample_tags)
+SELECT * FROM sample_streaming INNER JOIN sample_tags FOR SYSTEM_TIME AS OF sample_streaming.proc_time AS t ON sample_streaming.tag_id = t.id
+
+-- Left join dimension table(sample_tags)
+SELECT * FROM sample_streaming LEFT JOIN sample_tags FOR SYSTEM_TIME AS OF sample_streaming.proc_time AS t ON sample_streaming.tag_id = t.id
+```
+
 ## Writing with SQL
 
 Iceberg support both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.11 now.
