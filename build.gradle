@@ -194,6 +194,12 @@ project(':iceberg-bundled-guava') {
 project(':iceberg-api') {
   apply plugin: 'com.palantir.revapi'
 
+  revapi {
+    oldGroup = 'org.apache.iceberg'
+    oldName = 'iceberg-api'
+    oldVersion = '0.13.1'
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
