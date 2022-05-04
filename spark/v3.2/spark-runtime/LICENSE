@@ -622,8 +622,8 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache HTTPComponents Client.
+This binary artifact contains Apache HttpComponents Client.
 
-Copyright: 1999-2021 The Apache Software Foundation.
+Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://hc.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
