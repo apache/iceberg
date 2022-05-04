@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.PartitionSpec;
@@ -35,9 +39,11 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
+import org.apache.spark.sql.connector.distributions.OrderedDistribution;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.read.Scan;
@@ -128,7 +134,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public Write build() {
     // Validate
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+    Preconditions.checkArgument(
+        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
@@ -153,6 +160,47 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       LOG.info("Skipping distribution/ordering: disabled per job configuration");
       distribution = Distributions.unspecified();
       ordering = NO_ORDERING;
+    }
+
+    // In case of RANGE distribution
+    // * skip order by partition, iff, all input data files are in same partition
+    // * skip order by table sort columns, iff, all sort columns value ranges don't overlap between input files
+    if (distribution instanceof OrderedDistribution) {
+      OrderedDistribution orderedDistribution = (OrderedDistribution) distribution;
+      if (copyOnWriteScan != null) {
+        boolean inputFilesInSamePartition =
+            copyOnWriteScan.files().stream().map(f -> f.spec()).collect(Collectors.toSet()).size() == 1;
+
+        if (inputFilesInSamePartition) {
+          SortOrder[] defaultPartitionSortOrders =
+              SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(
+                  table.schema(),
+                  table.spec(),
+                  org.apache.iceberg.SortOrder.unsorted()));
+          SortOrder[] sortOrders = orderedDistribution.ordering();
+          List<SortOrder> updatedSortOrders = new ArrayList<>();
+          int i = 0;
+          for (; i < sortOrders.length && i < defaultPartitionSortOrders.length; ++i) {
+            if (!sortOrders[i].equals(defaultPartitionSortOrders[i])) {
+              updatedSortOrders.add(sortOrders[i]);
+            }
+          }
+          for (; i < sortOrders.length; ++i) {
+            updatedSortOrders.add(sortOrders[i]);
+          }
+
+          // check input files are already sorted on updatedSortOrder
+          boolean remainingSortOrderIsTableSortOrder =
+              Arrays.equals(updatedSortOrders.toArray(), SparkDistributionAndOrderingUtil.convert(table.sortOrder()));
+          boolean inputFileNotMatchingTableSortOrderExists =
+              copyOnWriteScan.files().stream().anyMatch(
+                  x -> x.file().sortOrderId() == null || x.file().sortOrderId() != table.sortOrder().orderId());
+          if (remainingSortOrderIsTableSortOrder && !inputFileNotMatchingTableSortOrderExists) {
+            ordering = NO_ORDERING;
+            distribution = Distributions.unspecified();
+          }
+        }
+      }
     }
 
     return new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, distribution, ordering) {
