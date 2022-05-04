@@ -404,11 +404,11 @@ Those are the options that could be set in flink SQL hint options for streaming 
 * monitor-interval: time interval for consecutively monitoring newly committed data files (default value: '10s').
 * start-snapshot-id: the snapshot id that streaming job starts from.
 
-### Flink lookup join
+#### Flink lookup join
 
 Iceberg supports [lookup join](https://ci.apache.org/projects/flink/flink-docs-release-1.14/docs/dev/table/sql/queries/joins/#lookup-join) dimension table in flink streaming jobs. Currently, only sync lookup mode is supported.
 
-#### Lookup Cache
+##### Lookup Cache
 
 The lookup cache is used to improve performance of lookup join the Iceberg. By default, lookup cache is not enabled, so all the read from iceberg. You can enable it by setting both `lookup.cache.max-rows` and `lookup.cache.ttl`.
 
