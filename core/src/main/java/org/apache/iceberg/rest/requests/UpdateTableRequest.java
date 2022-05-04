@@ -258,17 +258,18 @@ public class UpdateTableRequest implements RESTRequest {
     }
 
     class AssertRefSnapshotID implements UpdateRequirement {
-      // This might be called name to not conflict with `ref` from TableMetadata (the enum of SnapshotRefType).
-      private final String ref;
+      // TODO - This is called `ref` in the spec.
+      // https://github.com/apache/iceberg/blob/master/open-api/rest-catalog-open-api.yaml#L1359-L1360
+      private final String name;
       private final Long snapshotId;
 
-      AssertRefSnapshotID(String ref, Long snapshotId) {
-        this.ref = ref;
+      AssertRefSnapshotID(String name, Long snapshotId) {
+        this.name = name;
         this.snapshotId = snapshotId;
       }
 
       public String refName() {
-        return ref;
+        return name;
       }
 
       public Long snapshotId() {
@@ -277,21 +278,21 @@ public class UpdateTableRequest implements RESTRequest {
 
       @Override
       public void validate(TableMetadata base) {
-        SnapshotRef ref = base.ref(this.ref);
+        SnapshotRef ref = base.ref(this.name);
         if (ref != null) {
           String type = ref.isBranch() ? "branch" : "tag";
           if (snapshotId == null) {
             // a null snapshot ID means the ref should not exist already
             throw new CommitFailedException(
-                "Requirement failed: %s %s was created concurrently", type, this.ref);
+                "Requirement failed: %s %s was created concurrently", type, this.name);
           } else if (snapshotId != ref.snapshotId()) {
             throw new CommitFailedException(
                 "Requirement failed: %s %s has changed: expected id %s != %s",
-                type, this.ref, snapshotId, ref.snapshotId());
+                type, this.name, snapshotId, ref.snapshotId());
           }
         } else if (snapshotId != null) {
           throw new CommitFailedException(
-              "Requirement failed: branch or tag %s is missing, expected %s", this.ref, snapshotId);
+              "Requirement failed: branch or tag %s is missing, expected %s", this.name, snapshotId);
         }
       }
     }

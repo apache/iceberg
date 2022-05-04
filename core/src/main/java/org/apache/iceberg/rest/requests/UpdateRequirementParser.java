@@ -47,7 +47,9 @@ public class UpdateRequirementParser {
   private static final String UUID = "uuid";
 
   // AssertRefSnapshotID
-  private static final String REF = "ref";
+  // TODO - This is called `ref` in the spec.
+  //   https://github.com/apache/iceberg/blob/master/open-api/rest-catalog-open-api.yaml#L1359-L1360
+  private static final String NAME = "name";
   private static final String SNAPSHOT_ID = "snapshot-id";
 
   // AssertLastAssignedFieldId
@@ -190,7 +192,7 @@ public class UpdateRequirementParser {
   // TODO - Also, looking at SnapshotRefParser it seems that `ref` is
   private static void writeAssertRefSnapshotId(UpdateRequirement.AssertRefSnapshotID requirement, JsonGenerator gen)
       throws IOException {
-    gen.writeStringField(REF, requirement.refName());
+    gen.writeStringField(NAME, requirement.refName());
     gen.writeNumberField(SNAPSHOT_ID, requirement.snapshotId());
   }
 
@@ -229,11 +231,10 @@ public class UpdateRequirementParser {
     return new UpdateRequirement.AssertTableUUID(uuid);
   }
 
-  // TODO - Should we fail if both are null? The logic will eventually cause it to fail.
   private static UpdateRequirement readAssertRefSnapshotId(JsonNode node) {
-    String ref = JsonUtil.getStringOrNull(REF, node);
+    String name = JsonUtil.getStringOrNull(NAME, node);
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, node);
-    return new UpdateRequirement.AssertRefSnapshotID(ref, snapshotId);
+    return new UpdateRequirement.AssertRefSnapshotID(name, snapshotId);
   }
 
   private static UpdateRequirement readAssertLastAssignedFieldId(JsonNode node) {

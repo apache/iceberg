@@ -79,25 +79,23 @@ public class TestUpdateRequirementParser {
         expected, UpdateRequirementParser.toJson(actual));
   }
 
-  // TODO - Come back to these after verifying the rename of field `name` to `ref`.
-  // TODO - Also verify what combinations of null / missing are we allowed to have.
-  // @Test
-  // public void testAssertRefSnapshotIdToJson() {
-  //   String action = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
-  //   String ref = "";
-  //   String json = String.format("{\"type\":\"assert-table-uuid\",\"uuid\":\"%s\"}", uuid);
-  //   UpdateRequirement.AssertTableUUID expected = new UpdateRequirement.AssertTableUUID(uuid);
-  //   assertEquals(action, expected, UpdateRequirementParser.fromJson(json));
-  // }
-  //
-  // @Test
-  // public void testAssertRefSnapshotIdFromJson() {
-  //   String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
-  //   String expected = String.format("{\"type\":\"assert-table-uuid\",\"uuid\":\"%s\"}", uuid);
-  //   UpdateRequirement.AssertTableUUID actual = new UpdateRequirement.AssertTableUUID(uuid);
-  //   Assert.assertEquals("AssertTableUUID should convert to the correct JSON value",
-  //       expected, UpdateRequirementParser.toJson(actual));
-  // }
+  @Test
+  public void testAssertRefSnapshotIdToJson() {
+    String requirementType = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
+    String name = "";
+    String json = String.format("{\"type\":\"assert-ref-snapshot-id\",\"ref\":\"%s\"}", name);
+    UpdateRequirement expected = new UpdateRequirement.AssertRefSnapshotID(name);
+    assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
+  }
+
+  @Test
+  public void testAssertRefSnapshotIdFromJson() {
+    String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
+    String expected = String.format("{\"type\":\"assert-table-uuid\",\"uuid\":\"%s\"}", uuid);
+    UpdateRequirement.AssertTableUUID actual = new UpdateRequirement.AssertTableUUID(uuid);
+    Assert.assertEquals("AssertTableUUID should convert to the correct JSON value",
+        expected, UpdateRequirementParser.toJson(actual));
+  }
 
   @Test
   public void testAssertLastAssignedFieldIdFromJson() {
