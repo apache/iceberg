@@ -66,6 +66,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
     return position;
   }
 
+  @Override
   public void seek(long newPosition) throws IOException {
     if (newPosition > length) {
       throw new EOFException(String.format("Cannot seek to position after end of file: %s", newPosition));
@@ -176,6 +177,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
     return slice;
   }
 
+  @Override
   public List<ByteBuffer> sliceBuffers(long len) throws EOFException {
     if (len <= 0) {
       return Collections.emptyList();
