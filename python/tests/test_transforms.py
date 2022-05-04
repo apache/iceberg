@@ -24,6 +24,7 @@ import pytest
 from iceberg import transforms
 from iceberg.types import (
     BinaryType,
+    BooleanType,
     DateType,
     DecimalType,
     FixedType,
@@ -125,3 +126,13 @@ def test_string_with_surrogate_pair():
     as_bytes = bytes(string_with_surrogate_pair, "UTF-8")
     bucket_transform = transforms.bucket(StringType(), 100)
     assert bucket_transform.hash(string_with_surrogate_pair) == mmh3.hash(as_bytes)
+
+
+def test_unknown_transform():
+    unknown_transform = transforms.UnknownTransform(FixedType(8), "unknown")
+    assert str(unknown_transform) == str(eval(repr(unknown_transform)))
+    with pytest.raises(AttributeError):
+        unknown_transform.apply("test")
+    assert unknown_transform.can_transform(FixedType(8))
+    assert not unknown_transform.can_transform(FixedType(5))
+    assert isinstance(unknown_transform.result_type(BooleanType()), StringType)
