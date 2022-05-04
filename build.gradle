@@ -197,7 +197,7 @@ project(':iceberg-api') {
   revapi {
     oldGroup = 'org.apache.iceberg'
     oldName = 'iceberg-api'
-    oldVersion = '0.13.0'
+    oldVersion = '0.13.1'
   }
 
   dependencies {
