@@ -356,7 +356,7 @@ SELECT id, data, category, ts FROM another_table
 SORT BY day(ts), category
 ```
 
-#### In the Dataframe API
+#### Sort Order Using the Dataframe API
 
 To globally sort data based on `ts` and `category`:
 
