@@ -647,6 +647,7 @@ public class TestMetadataTableScans extends TableTestBase {
     // Four original files of original spec, one data file written by new spec
     Assert.assertEquals(5, Iterables.size(tasks));
 
+    // Filter for an older partition spec field.  Correct behavior is that files of old partition specs are returned.
     filter = Expressions.and(
         Expressions.equal("partition.data_bucket", 0),
         Expressions.greaterThan("record_count", 0));
@@ -657,8 +658,13 @@ public class TestMetadataTableScans extends TableTestBase {
       // 1 original data file written by old spec
       Assert.assertEquals(1, Iterables.size(tasks));
     } else {
-      // V2 drops the partition field so it is not used the planning, though data is still filtered out later
       // 1 original data/delete files written by old spec, plus both of new data file/delete file written by new spec
+      // Unlike in V1, V2 does not write null for dropped partition field 'data' on newer files' partition data,
+      // so these cannot be filtered out early in scan planning here.
+      //
+      // However, these metadata rows are filtered out later in Spark data filtering, as the newer partition rows
+      // will have 'data' field added as null as part of normalization to the Partitions table final schema.
+      // The Partitions table final schema is a union of fields of all specs, including dropped fields.
       Assert.assertEquals(3, Iterables.size(tasks));
     }
   }
