@@ -413,7 +413,7 @@ Explicit registration of the function is necessary because Spark doesn't allow I
 which can be used in query.
 {{< /hint >}}
 
-Here the bucket function is registered as `iceberg_bucket16`, which can be used in sort clause.
+Here the bucket function is registered as `iceberg_bucket16`, which can be used in a sort clause.
 
 In Spark SQL, the function can be used as follows:
 
