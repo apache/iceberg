@@ -136,7 +136,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @Override
   protected boolean supportsNamespaceProperties() {
-    return false;
+    return true;
   }
 
   @Override

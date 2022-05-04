@@ -223,16 +223,16 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
-    throw new UnsupportedOperationException(
-        "Cannot set properties for namespace '" + namespace +
-            "': setProperties is not supported by the NessieCatalog");
+    client.setProperties(namespace, properties);
+    // always successful, otherwise an exception is thrown
+    return true;
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
-    throw new UnsupportedOperationException(
-        "Cannot remove properties for namespace '" + namespace +
-            "': removeProperties is not supported by the NessieCatalog");
+    client.removeProperties(namespace, properties);
+    // always successful, otherwise an exception is thrown
+    return true;
   }
 
   @Override

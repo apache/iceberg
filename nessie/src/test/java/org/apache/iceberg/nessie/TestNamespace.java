@@ -19,13 +19,17 @@
 
 package org.apache.iceberg.nessie;
 
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -104,16 +108,36 @@ public class TestNamespace extends BaseTestIceberg {
 
   @Test
   public void testSettingProperties() {
-    Assertions.assertThatThrownBy(() -> catalog.setProperties(Namespace.of("test"), Collections.emptyMap()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot set properties for namespace 'test': setProperties is not supported by the NessieCatalog");
+    Map<String, String> properties = ImmutableMap.of("prop", "val");
+    Namespace namespace = Namespace.of("withProperties");
+    catalog.createNamespace(namespace, properties);
+    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
+    Assertions.assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(properties);
+
+    ImmutableMap<String, String> updatedProperties = ImmutableMap.of("prop2", "val2", "prop", "new_val");
+    catalog.setProperties(namespace, updatedProperties);
+    Assertions.assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(updatedProperties);
+
+    Assertions.assertThatThrownBy(() -> catalog.setProperties(Namespace.of("unknown"), updatedProperties))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: unknown");
   }
 
   @Test
   public void testRemovingProperties() {
-    Assertions.assertThatThrownBy(() -> catalog.removeProperties(Namespace.of("test"), Collections.emptySet()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Cannot remove properties for namespace 'test': removeProperties is not supported by the NessieCatalog");
+    Map<String, String> properties = ImmutableMap.of("prop2", "val2", "prop", "val");
+    Namespace namespace = Namespace.of("withPropertyDeletes");
+    catalog.createNamespace(namespace, properties);
+    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
+    Assertions.assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(properties);
+
+    Set<String> toRemove = Sets.newHashSet(Arrays.asList("prop1", "prop2", "prop3"));
+    catalog.removeProperties(namespace, toRemove);
+    Assertions.assertThat(catalog.loadNamespaceMetadata(namespace))
+        .isEqualTo(ImmutableMap.of("prop", "val"));
+
+    Assertions.assertThatThrownBy(() -> catalog.removeProperties(Namespace.of("unknown"), toRemove))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: unknown");
   }
 }
