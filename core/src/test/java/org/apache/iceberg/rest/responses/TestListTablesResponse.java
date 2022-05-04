@@ -64,7 +64,8 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
         "{\"identifyrezzzz\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
     AssertHelpers.assertThrows(
         "A JSON response with the keys spelled incorrectly should fail to deserialize",
-        JsonProcessingException.class,
+        IllegalArgumentException.class,
+        "Invalid identifier list: null",
         () -> deserialize(jsonWithKeysSpelledIncorrectly));
 
     String jsonWithInvalidIdentifiersInList =

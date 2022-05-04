@@ -37,24 +37,40 @@ public class MetadataUpdateParser {
 
   private static final String ACTION = "action";
 
-  // action types
-  private static final String ASSIGN_UUID = "assign-uuid";
-  private static final String UPGRADE_FORMAT_VERSION = "upgrade-format-version";
-  private static final String ADD_SCHEMA = "add-schema";
-  private static final String SET_CURRENT_SCHEMA = "set-current-schema";
-  private static final String ADD_PARTITION_SPEC = "add-spec";
-  private static final String SET_DEFAULT_PARTITION_SPEC = "set-default-spec";
-  private static final String ADD_SORT_ORDER = "add-sort-order";
-  private static final String SET_DEFAULT_SORT_ORDER = "set-default-sort-order";
-  private static final String ADD_SNAPSHOT = "add-snapshot";
-  private static final String REMOVE_SNAPSHOTS = "remove-snapshots";
-  private static final String SET_SNAPSHOT_REF = "set-snapshot-ref";
-  private static final String SET_PROPERTIES = "set-properties";
-  private static final String REMOVE_PROPERTIES = "remove-properties";
-  private static final String SET_LOCATION = "set-location";
+  // action types - visible for testing
+  static final String ASSIGN_UUID = "assign-uuid";
+  static final String UPGRADE_FORMAT_VERSION = "upgrade-format-version";
+  static final String ADD_SCHEMA = "add-schema";
+  static final String SET_CURRENT_SCHEMA = "set-current-schema";
+  static final String ADD_PARTITION_SPEC = "add-spec";
+  static final String SET_DEFAULT_PARTITION_SPEC = "set-default-spec";
+  static final String ADD_SORT_ORDER = "add-sort-order";
+  static final String SET_DEFAULT_SORT_ORDER = "set-default-sort-order";
+  static final String ADD_SNAPSHOT = "add-snapshot";
+  static final String REMOVE_SNAPSHOTS = "remove-snapshots";
+  static final String SET_SNAPSHOT_REF = "set-snapshot-ref";
+  static final String SET_PROPERTIES = "set-properties";
+  static final String REMOVE_PROPERTIES = "remove-properties";
+  static final String SET_LOCATION = "set-location";
 
   // UpgradeFormatVersion
   private static final String FORMAT_VERSION = "format-version";
+
+  // AddSchema
+  private static final String SCHEMA = "schema";
+  private static final String LAST_COLUMN_ID = "last-column-id";
+
+  // SetCurrentSchema
+  private static final String SCHEMA_ID = "schema-id";
+
+  // AddPartitionSpec
+  private static final String SPEC = "spec";
+
+  // SetDefaultPartitionSpec
+  private static final String SPEC_ID = "spec-id";
+
+  // AddSortOrder
+  private static final String SORT_ORDER = "sort-order";
 
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS = ImmutableMap
       .<Class<? extends MetadataUpdate>, String>builder()
@@ -96,17 +112,38 @@ public class MetadataUpdateParser {
   public static void toJson(MetadataUpdate metadataUpdate, JsonGenerator generator) throws IOException {
     String updateAction = ACTIONS.get(metadataUpdate.getClass());
 
-    // Add shared `action` field used to differentiate between implementations of MetadataUpdate
     generator.writeStartObject();
     generator.writeStringField(ACTION, updateAction);
 
-    // Write subclass specific fields
     switch (updateAction) {
       case ASSIGN_UUID:
         throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for AssignUUID");
       case UPGRADE_FORMAT_VERSION:
         writeUpgradeFormatVersion((MetadataUpdate.UpgradeFormatVersion) metadataUpdate, generator);
         break;
+      case ADD_SCHEMA:
+        writeAddSchema((MetadataUpdate.AddSchema) metadataUpdate, generator);
+        break;
+      case SET_CURRENT_SCHEMA:
+        writeSetCurrentSchema((MetadataUpdate.SetCurrentSchema) metadataUpdate, generator);
+        break;
+      case ADD_PARTITION_SPEC:
+        writeAddPartitionSpec((MetadataUpdate.AddPartitionSpec) metadataUpdate, generator);
+        break;
+      case SET_DEFAULT_PARTITION_SPEC:
+        writeSetDefaultPartitionSpec((MetadataUpdate.SetDefaultPartitionSpec) metadataUpdate, generator);
+        break;
+      case ADD_SORT_ORDER:
+        writeAddSortOrder((MetadataUpdate.AddSortOrder) metadataUpdate, generator);
+        break;
+      case SET_DEFAULT_SORT_ORDER:
+      case ADD_SNAPSHOT:
+      case REMOVE_SNAPSHOTS:
+      case SET_SNAPSHOT_REF:
+      case SET_PROPERTIES:
+      case REMOVE_PROPERTIES:
+      case SET_LOCATION:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
       default:
         throw new IllegalArgumentException(
             String.format("Cannot convert metadata update to json. Unrecognized action: %s", updateAction));
@@ -139,22 +176,100 @@ public class MetadataUpdateParser {
       case ASSIGN_UUID:
         throw new UnsupportedOperationException("Not implemented: AssignUUID");
       case UPGRADE_FORMAT_VERSION:
-        return readAsUpgradeFormatVersion(jsonNode);
+        return readUpgradeFormatVersion(jsonNode);
+      case ADD_SCHEMA:
+        return readAddSchema(jsonNode);
+      case SET_CURRENT_SCHEMA:
+        return readSetCurrentSchema(jsonNode);
+      case ADD_PARTITION_SPEC:
+        return readAddPartitionSpec(jsonNode);
+      case SET_DEFAULT_PARTITION_SPEC:
+        return readSetDefaultPartitionSpec(jsonNode);
+      case ADD_SORT_ORDER:
+        return readAddSortOrder(jsonNode);
+      case SET_DEFAULT_SORT_ORDER:
+      case ADD_SNAPSHOT:
+      case REMOVE_SNAPSHOTS:
+      case SET_SNAPSHOT_REF:
+      case SET_PROPERTIES:
+      case REMOVE_PROPERTIES:
+      case SET_LOCATION:
+        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
     }
   }
 
-  // Write all fields specific to UpgradeFormatVersion
   private static void writeUpgradeFormatVersion(MetadataUpdate.UpgradeFormatVersion update, JsonGenerator gen)
       throws IOException {
     gen.writeNumberField(FORMAT_VERSION, update.formatVersion());
   }
 
-  private static MetadataUpdate readAsUpgradeFormatVersion(JsonNode node) {
+  private static void writeAddSchema(MetadataUpdate.AddSchema update, JsonGenerator gen) throws IOException {
+    gen.writeFieldName(SCHEMA);
+    SchemaParser.toJson(update.schema(), gen);
+    gen.writeNumberField(LAST_COLUMN_ID, update.lastColumnId());
+  }
+
+  private static void writeSetCurrentSchema(MetadataUpdate.SetCurrentSchema update, JsonGenerator gen)
+      throws IOException {
+    gen.writeNumberField(SCHEMA_ID, update.schemaId());
+  }
+
+  private static void writeAddPartitionSpec(MetadataUpdate.AddPartitionSpec update, JsonGenerator gen)
+      throws IOException {
+    gen.writeFieldName(SPEC);
+    PartitionSpecParser.toJson(update.spec(), gen);
+  }
+
+  private static void writeSetDefaultPartitionSpec(MetadataUpdate.SetDefaultPartitionSpec update, JsonGenerator gen)
+      throws IOException {
+    gen.writeNumberField(SPEC_ID, update.specId());
+  }
+
+  private static void writeAddSortOrder(MetadataUpdate.AddSortOrder update, JsonGenerator gen)
+      throws IOException {
+    gen.writeFieldName(SORT_ORDER);
+    SortOrderParser.toJson(update.sortOrder(), gen);
+  }
+
+  private static MetadataUpdate readUpgradeFormatVersion(JsonNode node) {
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, node);
     return new MetadataUpdate.UpgradeFormatVersion(formatVersion);
+  }
+
+  private static MetadataUpdate readAddSchema(JsonNode node) {
+    Preconditions.checkArgument(node.hasNonNull(SCHEMA),
+        "Cannot parse missing field: schema");
+    JsonNode schemaNode = node.get(SCHEMA);
+    Schema schema = SchemaParser.fromJson(schemaNode);
+    int lastColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
+    return new MetadataUpdate.AddSchema(schema, lastColumnId);
+  }
+
+  private static MetadataUpdate readSetCurrentSchema(JsonNode node) {
+    int schemaId = JsonUtil.getInt(SCHEMA_ID, node);
+    return new MetadataUpdate.SetCurrentSchema(schemaId);
+  }
+
+  private static MetadataUpdate readAddPartitionSpec(JsonNode node) {
+    Preconditions.checkArgument(node.hasNonNull(SPEC), "Missing required field: spec");
+    JsonNode specNode = node.get(SPEC);
+    UnboundPartitionSpec spec = PartitionSpecParser.fromJson(specNode);
+    return new MetadataUpdate.AddPartitionSpec(spec);
+  }
+
+  private static MetadataUpdate readSetDefaultPartitionSpec(JsonNode node) {
+    int specId = JsonUtil.getInt(SPEC_ID, node);
+    return new MetadataUpdate.SetDefaultPartitionSpec(specId);
+  }
+
+  private static MetadataUpdate readAddSortOrder(JsonNode node) {
+    Preconditions.checkArgument(node.hasNonNull(SORT_ORDER), "Cannot parse missing field: sort-order");
+    JsonNode sortOrderNode = node.get(SORT_ORDER);
+    UnboundSortOrder sortOrder = SortOrderParser.fromJson(sortOrderNode);
+    return new MetadataUpdate.AddSortOrder(sortOrder);
   }
 }
 
