@@ -99,8 +99,6 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
         if (branch.getType() == Schema.Type.NULL) {
           options.add(visit((Type) null, branch, visitor));
         } else {
-          Preconditions.checkState(type.asStructType().fields().size() > index,
-              "Column projection on struct converted from Avro complex union type: %s is not supported", union);
           options.add(visit(type.asStructType().fields().get(index).type(), branch, visitor));
           index += 1;
         }

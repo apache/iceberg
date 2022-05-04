@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.avro;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -161,9 +162,41 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       if (!Objects.equals(nonNullOriginal, nonNullResult)) {
         return AvroSchemaUtil.toOption(nonNullResult);
       }
-    }
 
-    return union;
+      return union;
+    } else { // Complex union
+      Preconditions.checkArgument(current instanceof Types.StructType,
+          "Incompatible projected type: %s for Avro complex union type: %s", current, union);
+
+      Types.StructType asStructType = current.asStructType();
+
+      long nonNullBranchesCount = union.getTypes().stream()
+          .filter(branch -> branch.getType() != Schema.Type.NULL).count();
+      Preconditions.checkState(asStructType.fields().size() > nonNullBranchesCount,
+          "Column projection on struct converted from Avro complex union type: %s is not supported", union);
+
+      Iterator<Schema> resultBranchIterator = options.iterator();
+
+      // we start index from 1 because 0 is the tag field which doesn't exist in the original Avro
+      int index = 1;
+      List<Schema> resultBranches = Lists.newArrayListWithExpectedSize(union.getTypes().size());
+
+      try {
+        for (Schema originalBranch : union.getTypes()) {
+          if (originalBranch.getType() == Schema.Type.NULL) {
+            resultBranches.add(resultBranchIterator.next());
+          } else {
+            this.current = asStructType.fields().get(index).type();
+            resultBranches.add(resultBranchIterator.next());
+            index += 1;
+          }
+        }
+
+        return Schema.createUnion(resultBranches);
+      } finally {
+        this.current = asStructType;
+      }
+    }
   }
 
   @Override
