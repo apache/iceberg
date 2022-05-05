@@ -19,14 +19,14 @@ from abc import ABC
 
 
 class Table(ABC):
-    """
-    Placeholder for Table managed by the Catalog that points to the current Table Metadata.
+    """Placeholder for Table managed by the Catalog that points to the current Table Metadata.
+
     To be implemented by https://github.com/apache/iceberg/issues/3227
     """
 
 
 class PartitionSpec:
-    """
-    Placeholder for PartitionSpec maintained by the Catalog that points to the current Table Metadata
+    """Placeholder for PartitionSpec maintained by the Catalog that points to the current Table Metadata
+
     To be implemented by https://github.com/apache/iceberg/issues/4631
     """
