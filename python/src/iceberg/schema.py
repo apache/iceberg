@@ -17,12 +17,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, Generic, Iterable, List, TypeVar, Optional, Any
+from dataclasses import dataclass
+from typing import Any, Dict, Generic, Iterable, List, Optional, TypeVar
 
 from iceberg.files import StructProtocol
 
@@ -38,9 +38,6 @@ from iceberg.types import (
     NestedField,
     PrimitiveType,
     StructType,
-    IntegerType,
-    StringType,
-    FloatType,
 )
 
 T = TypeVar("T")
@@ -56,7 +53,7 @@ class Schema:
         >>> from iceberg import types
     """
 
-    def __init__(self, *columns: Iterable[NestedField], schema_id: int, identifier_field_ids: List[int] = None):
+    def __init__(self, *columns: Iterable[NestedField], schema_id: int, identifier_field_ids: Optional[List[int]] = None):
         self._struct = StructType(*columns)  # type: ignore
         self._schema_id = schema_id
         self._identifier_field_ids = identifier_field_ids or []
@@ -551,6 +548,8 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
     """A schema visitor for generating a field ID to accessor index
 
     Example:
+        >>> from iceberg.schema import Schema
+        >>> from iceberg.types import *
         >>> schema = Schema(
         ...     NestedField(field_id=2, name="id", field_type=IntegerType(), is_optional=False),
         ...     NestedField(field_id=1, name="data", field_type=StringType(), is_optional=True),
