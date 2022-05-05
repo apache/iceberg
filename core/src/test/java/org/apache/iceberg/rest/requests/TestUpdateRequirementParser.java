@@ -91,10 +91,33 @@ public class TestUpdateRequirementParser {
   }
 
   @Test
+  public void testAssertRefSnapshotIdToJsonWithNullSnapshotId() {
+    String requirementType = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
+    String name = "snapshot-name";
+    Long snapshotId = null;
+    String json = String.format("{\"type\":\"%s\",\"name\":\"%s\",\"snapshot-id\":null}",
+        requirementType, name);
+    UpdateRequirement expected = new UpdateRequirement.AssertRefSnapshotID(name, snapshotId);
+    assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
+  }
+
+  @Test
   public void testAssertRefSnapshotIdFromJson() {
     String requirementType = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
     String name = "snapshot-name";
     Long snapshotId = 1L;
+    String expected = String.format("{\"type\":\"%s\",\"name\":\"%s\",\"snapshot-id\":%d}",
+        requirementType, name, snapshotId);
+    UpdateRequirement actual = new UpdateRequirement.AssertRefSnapshotID(name, snapshotId);
+    Assert.assertEquals("AssertRefSnapshotId should convert to the correct JSON value",
+        expected, UpdateRequirementParser.toJson(actual));
+  }
+
+  @Test
+  public void testAssertRefSnapshotIdFromJsonWithNullSnapshotId() {
+    String requirementType = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
+    String name = "snapshot-name";
+    Long snapshotId = null;
     String expected = String.format("{\"type\":\"%s\",\"name\":\"%s\",\"snapshot-id\":%d}",
         requirementType, name, snapshotId);
     UpdateRequirement actual = new UpdateRequirement.AssertRefSnapshotID(name, snapshotId);

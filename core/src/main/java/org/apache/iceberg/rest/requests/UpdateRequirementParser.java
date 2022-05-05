@@ -193,7 +193,11 @@ public class UpdateRequirementParser {
   private static void writeAssertRefSnapshotId(UpdateRequirement.AssertRefSnapshotID requirement, JsonGenerator gen)
       throws IOException {
     gen.writeStringField(NAME, requirement.refName());
-    gen.writeNumberField(SNAPSHOT_ID, requirement.snapshotId());
+    if (requirement.snapshotId() != null) {
+      gen.writeNumberField(SNAPSHOT_ID, requirement.snapshotId());
+    } else {
+      gen.writeNullField(SNAPSHOT_ID);
+    }
   }
 
   private static void writeAssertLastAssignedFieldId(UpdateRequirement.AssertLastAssignedFieldId requirement,
