@@ -23,8 +23,7 @@ from iceberg.table.base import PartitionSpec, Table
 
 
 class Catalog(ABC):
-    """
-    Base Catalog for table operations like - create, drop, load, list and others.
+    """Base Catalog for table operations like - create, drop, load, list and others.
 
     Attributes:
         name(str): Name of the catalog
@@ -45,10 +44,10 @@ class Catalog(ABC):
 
     @abstractmethod
     def list_tables(self) -> list:
-        """
-        List tables in the catalog.
+        """List tables in the catalog.
 
-        :return: list of table names in the catalog.
+        Returns:
+            list: list of table names in the catalog.
         """
 
     @abstractmethod
@@ -61,50 +60,61 @@ class Catalog(ABC):
         location: Optional[str] = None,
         properties: Optional[dict] = None
     ) -> Table:
-        """
-        Create a table
+        """Create a table
 
-        :param name: Table's name. Fully classified table name, if it is a namespaced catalog.
-        :param schema: Table's schema
-        :param partition_spec: A partition spec for the table
-        :param location: a location for the table; Optional Keyword Argument
-        :param properties: a string dictionary of table properties; Optional Keyword Argument
-        :return: the created table instance
-        :raises AlreadyExistsError: If a table with the name already exists
+        Args:
+            name: Table's name. Fully classified table name, if it is a namespaced catalog.
+            schema: Table's schema
+            partition_spec: A partition spec for the table
+            location: a location for the table; Optional Keyword Argument
+            properties: a string dictionary of table properties; Optional Keyword Argument
+
+        Returns:
+            Table: the created table instance
+
+        Raises:
+            AlreadyExistsError: If a table with the name already exists
         """
 
     @abstractmethod
     def table(self, name: str) -> Table:
-        """
-        Loads the table's metadata and returns the table instance. You can also use this method to
-        check for table existence using 'try catalog.table() except TableNotFoundError'
+        """Loads the table's metadata and returns the table instance.
+
+        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
         Note: This method does not load table's data in any form.
 
-        :param name: Table's name. Fully classified table name, if it is a namespaced catalog.
-        :return: the table instance with its metadata
-        :raises TableNotFoundError: If a table with the name does not exist
+        Args:
+            name: Table's name. Fully classified table name, if it is a namespaced catalog.
+
+        Returns:
+            Table: the table instance with its metadata
+
+        Raises:
+            TableNotFoundError: If a table with the name does not exist
         """
 
     @abstractmethod
     def drop_table(self, name: str, purge: bool = True) -> None:
-        """
-        Drop a table; Optionally purge all data and metadata files.
+        """Drop a table; Optionally purge all data and metadata files.
 
-        :param name: table name
-        :param purge: Defaults to true, which deletes all data and metadata files in the table; Optional Argument
-        :return: Nothing
-        :raises TableNotFoundError: If a table with the name does not exist
+        Args:
+            name: table name
+            purge: Defaults to true, which deletes all data and metadata files in the table; Optional Argument
+
+        Raises:
+            TableNotFoundError: If a table with the name does not exist
         """
 
     @abstractmethod
     def rename_table(self, from_name: str, to_name: str) -> None:
-        """
-        Drop a table; Optionally purge all data and metadata files.
+        """Rename a fully classified table name
 
-        :param from_name: Existing table's name. Fully classified table name, if it is a namespaced catalog.
-        :param to_name: New Table name to be assigned. Fully classified table name, if it is a namespaced catalog.
-        :return: Nothing
-        :raises TableNotFoundError: If a table with the name does not exist
+        Args:
+            from_name: Existing table's name. Fully classified table name, if it is a namespaced catalog.
+            to_name: New Table name to be assigned. Fully classified table name, if it is a namespaced catalog.
+
+        Raises:
+            TableNotFoundError: If a table with the name does not exist
         """
 
     @abstractmethod
@@ -117,82 +127,101 @@ class Catalog(ABC):
         location: Optional[str] = None,
         properties: Optional[dict] = None
     ) -> Table:
-        """
-        Starts a transaction and replaces the table with the provided spec.
+        """Starts a transaction and replaces the table with the provided spec.
 
-        :param name: Table's name. Fully classified table name, if it is a namespaced catalog.
-        :param schema: Table's schema
-        :param partition_spec: A partition spec for the table
-        :param location: a location for the table; Optional Keyword Argument
-        :param properties: a string dictionary of table properties; Optional Keyword Argument
-        :return: the replaced table instance
-        :raises TableNotFoundError: If a table with the name does not exist
+        Args:
+            name: Table's name. Fully classified table name, if it is a namespaced catalog.
+            schema: Table's schema
+            partition_spec: A partition spec for the table
+            location: a location for the table; Optional Keyword Argument
+            properties: a string dictionary of table properties; Optional Keyword Argument
+
+        Returns:
+            Table: the replaced table instance with the updated state
+
+        Raises:
+            TableNotFoundError: If a table with the name does not exist
         """
 
 
 class NamespacedCatalog(Catalog):
-    """
-    Base catalog for catalogs that support namespaces.
-    """
+    """Base catalog for catalogs that support namespaces."""
 
     @abstractmethod
     def create_namespace(self, namespace: str, properties: Optional[dict] = None) -> None:
-        """
-        Create a namespace in the catalog.
+        """Create a namespace in the catalog.
 
-        :param namespace: The namespace to be created.
-        :param properties: A string dict of properties for the given namespace
-        :return: Nothing
-        :raises AlreadyExistsError: If a namespace with the name already exists in the namespace
+        Args:
+            namespace: The namespace to be created.
+            properties: A string dictionary of properties for the given namespace
+
+        Raises:
+            AlreadyExistsError: If a namespace with the name already exists in the namespace
         """
 
     @abstractmethod
     def drop_namespace(self, namespace: str) -> None:
-        """
-        Drop a namespace.
+        """Drop a namespace.
 
-        :param namespace: The namespace to be dropped.
-        :return: Nothing
-        :raises NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
-        :raises NamespaceNotEmptyError: If the namespace is not empty
+        Args:
+            namespace: The namespace to be dropped.
+
+        Raises:
+            NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
+            NamespaceNotEmptyError: If the namespace is not empty
         """
 
     @abstractmethod
     def list_tables(self, namespace: Optional[str] = None) -> list:
-        """
-        List tables under the given namespace in the catalog. If namespace not provided, will list all tables in the
-        catalog.
+        """List tables under the given namespace in the catalog.
 
-        :param namespace: the namespace to search
-        :return: list of table names under this namespace.
-        :raises NamespaceNotFoundError: If no such namespace exist
+        If namespace not provided, will list all tables in the catalog.
+
+        Args:
+            namespace: the namespace to search
+
+        Returns:
+            list: list of table names under this namespace.
+
+        Raises:
+            NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
         """
 
     @abstractmethod
     def list_namespaces(self, namespace: Optional[str] = None) -> list:
-        """
-        List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
+        """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
-        :param namespace: given namespace
-        :return: a List of namespace names
+        Args:
+            namespace: given namespace
+
+        Returns:
+            list: a List of namespace string
         """
 
     @abstractmethod
     def get_namespace_metadata(self, namespace: str) -> dict:
-        """
-        Get metadata dictionary for a namespace.
+        """Get metadata dictionary for a namespace.
 
-        :param namespace: the namespace
-        :return: a string dict of properties for the given namespace
-        :raises NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
+        Args:
+            namespace: the namespace
+
+        Returns:
+            dict: a string dictionary of properties for the given namespace
+
+        Raises:
+            NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
         """
 
     @abstractmethod
     def set_namespace_metadata(self, namespace: str, metadata: dict) -> None:
-        """
-        Update or remove metadata for a namespace. Note: Existing metadata is overridden, use get, mutate, and then set.
+        """Update or remove metadata for a namespace.
 
-        :param namespace:
-        :param metadata:
-        :raises NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
+        Note: Existing metadata is overridden, use get, mutate, and then set.
+
+        Args:
+            namespace: the namespace
+            metadata: a string dictionary of properties for the given namespace
+
+        Raises:
+            NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
         """
