@@ -1233,7 +1233,7 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
           required:
-            - order-id
+            - sort-order-id
           properties:
             order-id:
               type: integer
@@ -1355,7 +1355,7 @@ components:
             - assert-current-schema-id
             - assert-last-assigned-partition-id
             - assert-default-spec-id
-            - assert-default-write-order-id
+            - assert-default-sort-order-id
         ref:
           type: string
         uuid:
@@ -1371,7 +1371,7 @@ components:
           type: integer
         default-spec-id:
           type: integer
-        default-write-order-id:
+        default-sort-order-id:
           type: integer
 
     LoadTableResult:
