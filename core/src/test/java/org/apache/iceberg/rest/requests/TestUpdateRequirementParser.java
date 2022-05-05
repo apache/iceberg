@@ -209,7 +209,7 @@ public class TestUpdateRequirementParser {
   public void testAssertDefaultSortOrderIdFromJson() {
     String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SORT_ORDER_ID;
     int sortOrderId = 10;
-    String json = String.format("{\"type\":\"%s\",\"default-write-order-id\":%d}", requirementType, sortOrderId);
+    String json = String.format("{\"type\":\"%s\",\"default-sort-order-id\":%d}", requirementType, sortOrderId);
     UpdateRequirement expected = new UpdateRequirement.AssertDefaultSortOrderID(sortOrderId);
     assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
   }
@@ -218,7 +218,7 @@ public class TestUpdateRequirementParser {
   public void testAssertDefaultSortOrderIdToJson() {
     String requirementType = UpdateRequirementParser.ASSERT_DEFAULT_SORT_ORDER_ID;
     int sortOrderId = 10;
-    String expected = String.format("{\"type\":\"%s\",\"default-write-order-id\":%d}", requirementType, sortOrderId);
+    String expected = String.format("{\"type\":\"%s\",\"default-sort-order-id\":%d}", requirementType, sortOrderId);
     UpdateRequirement actual = new UpdateRequirement.AssertDefaultSortOrderID(sortOrderId);
     Assert.assertEquals("AssertDefaultSortOrderId should convert to the correct JSON value",
         expected, UpdateRequirementParser.toJson(actual));

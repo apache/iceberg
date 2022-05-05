@@ -46,7 +46,7 @@ public class UpdateRequirementParser {
   static final String ASSERT_CURRENT_SCHEMA_ID = "assert-current-schema-id";
   static final String ASSERT_LAST_ASSIGNED_PARTITION_ID = "assert-last-assigned-partition-id";
   static final String ASSERT_DEFAULT_SPEC_ID = "assert-default-spec-id";
-  static final String ASSERT_DEFAULT_SORT_ORDER_ID = "assert-default-write-order-id";
+  static final String ASSERT_DEFAULT_SORT_ORDER_ID = "assert-default-sort-order-id";
 
   // AssertTableUUID
   private static final String UUID = "uuid";
@@ -68,7 +68,7 @@ public class UpdateRequirementParser {
   private static final String SPEC_ID = "default-spec-id";
 
   // AssertDefaultSortOrderID
-  private static final String SORT_ORDER_ID = "default-write-order-id";
+  private static final String SORT_ORDER_ID = "default-sort-order-id";
 
   private static final Map<Class<? extends UpdateTableRequest.UpdateRequirement>, String> TYPES = ImmutableMap
       .<Class<? extends UpdateTableRequest.UpdateRequirement>, String>builder()
