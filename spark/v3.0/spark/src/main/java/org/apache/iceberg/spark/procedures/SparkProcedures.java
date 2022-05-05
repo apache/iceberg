@@ -53,6 +53,7 @@ public class SparkProcedures {
     mapBuilder.put("snapshot", SnapshotTableProcedure::builder);
     mapBuilder.put("add_files", AddFilesProcedure::builder);
     mapBuilder.put("ancestors_of", AncestorsOfProcedure::builder);
+    mapBuilder.put("publish_changes", PublishChangesProcedure::builder);
     return mapBuilder.build();
   }
 
