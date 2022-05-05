@@ -232,7 +232,7 @@ public class UpdateRequirementParser {
   }
 
   private static UpdateRequirement readAssertRefSnapshotId(JsonNode node) {
-    String name = JsonUtil.getStringOrNull(NAME, node);
+    String name = JsonUtil.getString(NAME, node);
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, node);
     return new UpdateRequirement.AssertRefSnapshotID(name, snapshotId);
   }
