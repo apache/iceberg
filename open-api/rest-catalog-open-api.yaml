@@ -1244,7 +1244,6 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
           required:
-          required:
             - snapshot
           properties:
             snapshot:
