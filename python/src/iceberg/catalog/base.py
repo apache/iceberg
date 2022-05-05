@@ -64,18 +64,13 @@ class Catalog(ABC):
         """
         Create a table
 
-        Args:
-            name(str): Table's name. Fully classified table name, if it is a namespaced catalog.
-            schema(Schema): Table's schema
-            partition_spec: A partition spec for the table
-            location(str): a location for the table; Optional Keyword Argument
-            properties(dict): a string dictionary of table properties; Optional Keyword Argument
-
-        Returns:
-            table(Table): the created table instance
-
-        Raises:
-            AlreadyExistsError: If a table with the name already exists
+        :param name: Table's name. Fully classified table name, if it is a namespaced catalog.
+        :param schema: Table's schema
+        :param partition_spec: A partition spec for the table
+        :param location: a location for the table; Optional Keyword Argument
+        :param properties: a string dictionary of table properties; Optional Keyword Argument
+        :return: the created table instance
+        :raises AlreadyExistsError: If a table with the name already exists
         """
 
     @abstractmethod
@@ -125,18 +120,13 @@ class Catalog(ABC):
         """
         Starts a transaction and replaces the table with the provided spec.
 
-        Args:
-            name(str): Table's name. Fully classified table name, if it is a namespaced catalog.
-            schema(Schema): Table's schema
-            partition_spec: A partition spec for the table
-            location(str): a location for the table; Optional Keyword Argument
-            properties(dict): a string dictionary of table properties; Optional Keyword Argument
-
-        Returns:
-            table(Table): the created table instance
-
-        Raises:
-            TableNotFoundError: If a table with the name does not exist
+        :param name: Table's name. Fully classified table name, if it is a namespaced catalog.
+        :param schema: Table's schema
+        :param partition_spec: A partition spec for the table
+        :param location: a location for the table; Optional Keyword Argument
+        :param properties: a string dictionary of table properties; Optional Keyword Argument
+        :return: the replaced table instance
+        :raises TableNotFoundError: If a table with the name does not exist
         """
 
 
