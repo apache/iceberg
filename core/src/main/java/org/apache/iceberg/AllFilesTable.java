@@ -22,7 +22,7 @@ package org.apache.iceberg;
 import org.apache.iceberg.io.CloseableIterable;
 
 /**
- * A {@link Table} implementation that exposes a table's valid files as rows.
+ * A {@link Table} implementation that exposes its valid files as rows.
  * <p>
  * A valid file is one that is readable from any snapshot currently tracked by the table.
  * <p>
@@ -40,7 +40,7 @@ public class AllFilesTable extends BaseFilesTable {
 
   @Override
   public TableScan newScan() {
-    return new AllDataFilesTableScan(operations(), table(), schema());
+    return new AllFilesTableScan(operations(), table(), schema());
   }
 
   @Override
@@ -48,20 +48,20 @@ public class AllFilesTable extends BaseFilesTable {
     return MetadataTableType.ALL_FILES;
   }
 
-  public static class AllDataFilesTableScan extends BaseAllFilesTableScan {
+  public static class AllFilesTableScan extends BaseAllFilesTableScan {
 
-    AllDataFilesTableScan(TableOperations ops, Table table, Schema schema) {
+    AllFilesTableScan(TableOperations ops, Table table, Schema schema) {
       super(ops, table, schema, MetadataTableType.ALL_FILES);
     }
 
-    private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema,
-                                  TableScanContext context) {
+    private AllFilesTableScan(TableOperations ops, Table table, Schema schema,
+                              TableScanContext context) {
       super(ops, table, schema, MetadataTableType.ALL_FILES, context);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllDataFilesTableScan(ops, table, schema, context);
+      return new AllFilesTableScan(ops, table, schema, context);
     }
 
     @Override

@@ -22,7 +22,7 @@ package org.apache.iceberg;
 import org.apache.iceberg.io.CloseableIterable;
 
 /**
- * A {@link Table} implementation that exposes a table's valid delete files as rows.
+ * A {@link Table} implementation that exposes its valid delete files as rows.
  * <p>
  * A valid delete file is one that is readable from any snapshot currently tracked by the table.
  * <p>
@@ -40,7 +40,7 @@ public class AllDeleteFilesTable extends BaseFilesTable {
 
   @Override
   public TableScan newScan() {
-    return new AllDataFilesTableScan(operations(), table(), schema());
+    return new AllDeleteFilesTableScan(operations(), table(), schema());
   }
 
   @Override
@@ -48,20 +48,20 @@ public class AllDeleteFilesTable extends BaseFilesTable {
     return MetadataTableType.ALL_DELETE_FILES;
   }
 
-  public static class AllDataFilesTableScan extends BaseAllFilesTableScan {
+  public static class AllDeleteFilesTableScan extends BaseAllFilesTableScan {
 
-    AllDataFilesTableScan(TableOperations ops, Table table, Schema schema) {
+    AllDeleteFilesTableScan(TableOperations ops, Table table, Schema schema) {
       super(ops, table, schema, MetadataTableType.ALL_DELETE_FILES);
     }
 
-    private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema,
-                                  TableScanContext context) {
+    private AllDeleteFilesTableScan(TableOperations ops, Table table, Schema schema,
+                                    TableScanContext context) {
       super(ops, table, schema, MetadataTableType.ALL_DELETE_FILES, context);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllDataFilesTableScan(ops, table, schema, context);
+      return new AllDeleteFilesTableScan(ops, table, schema, context);
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Set;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.BaseFilesTable.ManifestReadTask;
 import org.apache.iceberg.expressions.Expression;
@@ -40,6 +41,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestMetadataTableFilters extends TableTestBase {
+
+  private static final Set<MetadataTableType> aggFileTables = Sets.newHashSet(MetadataTableType.ALL_DATA_FILES,
+      MetadataTableType.ALL_DATA_FILES,
+      MetadataTableType.ALL_FILES);
 
   private final MetadataTableType type;
 
@@ -99,7 +104,7 @@ public class TestMetadataTableFilters extends TableTestBase {
           .commit();
     }
 
-    if (allFileTableTest(type)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
@@ -152,11 +157,8 @@ public class TestMetadataTableFilters extends TableTestBase {
     }
   }
 
-  private boolean allFileTableTest(MetadataTableType tableType) {
-    return Sets.newHashSet(MetadataTableType.ALL_DATA_FILES,
-            MetadataTableType.ALL_DATA_FILES,
-            MetadataTableType.ALL_FILES)
-        .contains(tableType);
+  private boolean isAggFileTable(MetadataTableType tableType) {
+    return aggFileTables.contains(tableType);
   }
 
   @Test
@@ -310,7 +312,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
 
-    if (allFileTableTest(type)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
@@ -385,7 +387,7 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newRowDelta().addDeletes(delete11).commit();
     }
 
-    if (allFileTableTest(type)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
@@ -446,7 +448,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
 
-    if (allFileTableTest(type)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
@@ -521,7 +523,7 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newRowDelta().addDeletes(delete11).commit();
     }
 
-    if (allFileTableTest(type)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
