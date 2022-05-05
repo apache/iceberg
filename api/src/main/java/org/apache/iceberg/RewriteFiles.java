@@ -84,4 +84,16 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * @return this for method chaining
    */
   RewriteFiles validateFromSnapshot(long snapshotId);
+
+  /**
+   * Set the snapshot ID used in any reads for this operation.
+   * <p>
+   * Validations will check changes after this snapshot ID. If this is not called, all ancestor snapshots through the
+   * table's initial snapshot are validated.
+   *
+   * @param snapshotId a snapshot ID
+   * @param ignorePosDeletes whether to ignore position delete in validation
+   * @return this for method chaining
+   */
+  RewriteFiles validateFromSnapshot(long snapshotId, boolean ignorePosDeletes);
 }

@@ -1273,6 +1273,52 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @Test
+  public void testConcurrentCommitRowDeltaAndRewriteFilesWithSequenceNumber() {
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = newDataFile("data=a");
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // add a position delete file
+    DeleteFile deleteFile1 = newDeleteFile(table.spec().specId(), "data=a");
+
+    // add an equality delete file
+    DeleteFile deleteFile2 = newEqualityDeleteFile(table.spec().specId(), "data=a",
+        table.schema().asStruct().fields().get(0).fieldId());
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile1)
+        .addDeletes(deleteFile2)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    // mock a REWRITE operation with serializable isolation
+    DataFile dataFile2 = newDataFile("data=a");
+
+    RewriteFiles rewriteFiles = table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
+        .validateFromSnapshot(baseSnapshot.snapshotId(), true);
+
+    rowDelta.commit();
+    rewriteFiles.commit();
+
+    validateTableDeleteFiles(table, deleteFile1, deleteFile2);
+    validateTableFiles(table, dataFile2);
+  }
+
+  @Test
   public void testRowDeltaCaseSensitivity() {
     table.newAppend()
         .appendFile(FILE_A)

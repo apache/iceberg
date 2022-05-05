@@ -361,10 +361,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
    * @param dataFiles data files to validate have no new row deletes
+   * @param ignorePosDeletes whether position deletes should be ignored in validation
    */
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
-                                                  Iterable<DataFile> dataFiles) {
-    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, newFilesSequenceNumber != null);
+                                                  Iterable<DataFile> dataFiles, boolean ignorePosDeletes) {
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, newFilesSequenceNumber != null,
+        ignorePosDeletes);
   }
 
   /**
@@ -378,29 +380,36 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                   Expression dataFilter, Iterable<DataFile> dataFiles) {
-    validateNoNewDeletesForDataFiles(base, startingSnapshotId, dataFilter, dataFiles, false);
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, dataFilter, dataFiles, false, false);
   }
 
   /**
    * Validates that no new delete files that must be applied to the given data files have been added to the table since
-   * a starting snapshot, with the option to ignore equality deletes during the validation.
+   * a starting snapshot, with options to ignore deletes during the validation.
    * <p>
    * For example, in the case of rewriting data files, if the added data files have the same sequence number as the
    * replaced data files, equality deletes added at a higher sequence number are still effective against the added
    * data files, so there is no risk of commit conflict between RewriteFiles and RowDelta. In cases like this,
-   * validation against equality delete files can be omitted.
+   * validation against equality delete files can be omitted. Furthermore, if another writing job is flink upsert,
+   * which only generates position deletes in the ongoing transaction, there is no possibility that position
+   * deletes can target rewriting data files and thus not necessary to validate them.
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
    * @param dataFilter a data filter
    * @param dataFiles data files to validate have no new row deletes
    * @param ignoreEqualityDeletes whether equality deletes should be ignored in validation
+   * @param ignorePosDeletes whether position deletes should be ignored in validation
    */
   private void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                 Expression dataFilter, Iterable<DataFile> dataFiles,
-                                                boolean ignoreEqualityDeletes) {
+                                                boolean ignoreEqualityDeletes, boolean ignorePosDeletes) {
     // if there is no current table state, no files have been added
     if (base.currentSnapshot() == null || base.formatVersion() < 2) {
+      return;
+    }
+
+    if (ignoreEqualityDeletes && ignorePosDeletes) {
       return;
     }
 
@@ -414,6 +423,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         ValidationException.check(
             Arrays.stream(deleteFiles).noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
             "Cannot commit, found new position delete for replaced data file: %s", dataFile);
+      }  else if (ignorePosDeletes) {
+        ValidationException.check(
+            Arrays.stream(deleteFiles).noneMatch(deleteFile -> deleteFile.content() == FileContent.EQUALITY_DELETES),
+            "Cannot commit, found new equality delete for replaced data file: %s", dataFile);
       } else {
         ValidationException.check(deleteFiles.length == 0,
             "Cannot commit, found new delete for replaced data file: %s", dataFile);
