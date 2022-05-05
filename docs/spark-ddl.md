@@ -102,6 +102,9 @@ CREATE TABLE prod.db.sample
 USING iceberg
 AS SELECT ...
 ```
+
+The newly created table won't inherit the partition spec and table properties from the source table in SELECT, you can use PARTITIONED BY and TBLPROPERTIES in CTAS to declare partition spec and table properties for the new table.
+
 ```sql
 CREATE TABLE prod.db.sample
 USING iceberg
@@ -109,8 +112,6 @@ PARTITIONED BY (part)
 TBLPROPERTIES ('key'='value')
 AS SELECT ...
 ```
-
-The newly created table won't inherit the partition spec and table properties from the source table in SELECT, you can use PARTITIONED BY and TBLPROPERTIES in CTAS to declare partition spec and table properties for the new table.
 
 ## `REPLACE TABLE ... AS SELECT`
 
