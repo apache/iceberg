@@ -17,13 +17,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, Generic, Iterable, List, TypeVar
+from typing import Dict, Generic, Iterable, List, TypeVar, Optional, Any
 
-from iceberg.expressions.base import Accessor
+from iceberg.files import StructProtocol
 
 if sys.version_info >= (3, 8):
     from functools import singledispatch  # pragma: no cover
@@ -55,7 +56,7 @@ class Schema:
         >>> from iceberg import types
     """
 
-    def __init__(self, *columns: Iterable[NestedField], schema_id: int, identifier_field_ids: List[int] = []):
+    def __init__(self, *columns: Iterable[NestedField], schema_id: int, identifier_field_ids: List[int] = None):
         self._struct = StructType(*columns)  # type: ignore
         self._schema_id = schema_id
         self._identifier_field_ids = identifier_field_ids or []
@@ -268,11 +269,36 @@ class SchemaVisitor(Generic[T], ABC):
         ...  # pragma: no cover
 
 
+@dataclass(init=True, eq=True, frozen=True)
+class Accessor:
+    """An accessor for a specific position in a container that implements the StructProtocol"""
+
+    position: int
+    inner: Optional["Accessor"] = None
+
+    def __str__(self):
+        return f"Accessor(position={self.position},inner={self.inner})"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def get(self, container: StructProtocol) -> Any:
+        """Returns the value at self.position in `container`
+
+        Args:
+            container(StructProtocol): A container to access at position `self.position`
+
+        Returns:
+            Any: The value at position `self.position` in the container
+        """
+        return container.get(self.position)
+
+
 @singledispatch
 def visit(obj, visitor: SchemaVisitor[T]) -> T:
     """A generic function for applying a schema visitor to any point within a schema
 
-    The function traverses the schema in pre-order search
+    The function traverses the schema in pre-order fashion
 
     Args:
         obj(Schema | IcebergType): An instance of a Schema or an IcebergType
