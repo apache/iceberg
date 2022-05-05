@@ -266,4 +266,12 @@ public class SparkWriteConf {
         .parseOptional();
     return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
   }
+
+  public boolean deleteFilesParallelWhenAbort() {
+    return confParser.booleanConf()
+        .option(SparkWriteOptions.DELETE_FILES_PARALLEL_WHEN_ABORT)
+        .option(SparkSQLProperties.DELETE_FILES_PARALLEL_WHEN_ABORT)
+        .defaultValue(SparkSQLProperties.DELETE_FILES_PARALLEL_WHEN_ABORT_DEFAULT)
+        .parse();
+  }
 }
