@@ -394,3 +394,14 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 // Hadoop path table
 spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
 ```
+
+You can also inspect Iceberg metadata tables with the time travel feature:
+
+```scala
+// get table's all data files and each data file's metadata at snapshot-id 7277403863961056344
+spark.read
+        .format("iceberg")
+        .option("snapshot-id", 7277403863961056344L)
+        .load("db.table.files")
+        .show()
+```
