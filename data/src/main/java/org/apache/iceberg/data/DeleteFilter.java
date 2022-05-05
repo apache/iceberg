@@ -67,7 +67,7 @@ public abstract class DeleteFilter<T> {
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
   private final boolean hasColumnIsDeleted;
-  private final int columnIsDeletedIndex;
+  private final int columnIsDeletedPosition;
 
   private PositionDeleteIndex deleteRowPositions = null;
   private Predicate<T> eqDeleteRows = null;
@@ -96,11 +96,11 @@ public abstract class DeleteFilter<T> {
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasColumnIsDeleted = requestedSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
-    this.columnIsDeletedIndex = requestedSchema.idToIndex(MetadataColumns.IS_DELETED.fieldId());
+    this.columnIsDeletedPosition = requestedSchema.idToPosition(MetadataColumns.IS_DELETED.fieldId());
   }
 
-  protected int columnIsDeletedIndex() {
-    return columnIsDeletedIndex;
+  protected int columnIsDeletedPosition() {
+    return columnIsDeletedPosition;
   }
 
   public Schema requiredSchema() {

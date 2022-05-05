@@ -387,7 +387,7 @@ public class Schema implements Serializable {
    * @param fieldId a column id in this schema
    * @return the index of the field in the schema, or -1 if one wasn't found
    */
-  public int idToIndex(Integer fieldId) {
+  public int idToPosition(int fieldId) {
     for (int i = 0; i < struct.fields().size(); i++) {
       if (struct.fields().get(i).fieldId() == fieldId) {
         return i;

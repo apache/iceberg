@@ -198,7 +198,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
     @Override
     protected void markRowDeleted(InternalRow row) {
-      row.setBoolean(columnIsDeletedIndex(), true);
+      row.setBoolean(columnIsDeletedPosition(), true);
     }
   }
 }
