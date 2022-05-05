@@ -62,7 +62,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
   @Override
   public void close() throws IOException {
-    writer.close();
+    if (writer != null) {
+      writer.close();
+    }
   }
 
   @Override

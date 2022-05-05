@@ -178,8 +178,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   @Override
   public void close() throws IOException {
-    this.closed = true;
-    writer.close();
+    if (writer != null) {
+      writer.close();
+      this.closed = true;
+    }
   }
 
   static class V2Writer extends ManifestWriter<DataFile> {

@@ -55,6 +55,8 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
 
   @Override
   public void close() throws IOException {
-    writer.close();
+    if (writer != null) {
+      writer.close();
+    }
   }
 }
