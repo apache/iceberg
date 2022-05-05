@@ -116,7 +116,19 @@ ignored. Do not use `table` when attempting to time-travel or use other options.
 in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 {{< /hint >}}
 
-Time travel is not yet supported by Spark's SQL syntax.
+Time travel is not yet fully supported by Spark's SQL syntax. (ref : [Spark 3.3 - SPARK-37219](https://issues.apache.org/jira/browse/SPARK-37219)
+for `AS OF` syntax support)
+
+As an alternative we can use `at_timestamp_`, `snapshot_id_` as prefix of timestamp, snapshot_id respectively along with
+the table name to time travel.
+
+```sql
+--  time travel to October 26, 1986 at 01:21:00
+SELECT * FROM prod.db.table.at_timestamp_499162860000;
+
+-- time travel to snapshot with ID 10963874102873L
+SELECT * FROM prod.db.table.snapshot_id_10963874102873;
+```
 
 ### Incremental read
 
