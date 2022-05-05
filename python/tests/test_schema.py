@@ -352,19 +352,14 @@ def test_schema_find_type(table_schema_simple):
 
 
 def test_build_position_accessors(table_schema_nested):
-    assert build_position_accessors(table_schema_nested) == {
-        1: Accessor(position=1),
-        2: Accessor(position=2),
-        3: Accessor(position=3),
-        4: Accessor(position=4),
-        5: Accessor(position=5),
-        6: Accessor(position=6),
-        7: Accessor(position=7),
-        8: Accessor(position=8),
-        9: Accessor(position=9),
-        10: Accessor(position=10),
-        11: Accessor(position=11),
-        12: Accessor(position=12),
-        13: Accessor(position=13),
-        14: Accessor(position=14),
+    accessors = build_position_accessors(table_schema_nested)
+    assert accessors == {
+        1: Accessor(position=0, inner=None),
+        2: Accessor(position=1, inner=None),
+        3: Accessor(position=2, inner=None),
+        4: Accessor(position=3, inner=None),
+        6: Accessor(position=4, inner=None),
+        11: Accessor(position=5, inner=None),
+        13: Accessor(position=6, inner=None),
+        14: Accessor(position=7, inner=None),
     }

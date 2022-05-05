@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import sys
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import Dict, Generic, Iterable, List, TypeVar
 
 from iceberg.expressions.base import Accessor
@@ -36,6 +37,9 @@ from iceberg.types import (
     NestedField,
     PrimitiveType,
     StructType,
+    IntegerType,
+    StringType,
+    FloatType,
 )
 
 T = TypeVar("T")
@@ -54,7 +58,7 @@ class Schema:
     def __init__(self, *columns: Iterable[NestedField], schema_id: int, identifier_field_ids: List[int] = []):
         self._struct = StructType(*columns)  # type: ignore
         self._schema_id = schema_id
-        self._identifier_field_ids = identifier_field_ids
+        self._identifier_field_ids = identifier_field_ids or []
         self._name_to_id: Dict[str, int] = index_by_name(self)
         self._name_to_id_lower: Dict[str, int] = {}  # Should be accessed through self._lazy_name_to_id_lower()
         self._id_to_field: Dict[int, NestedField] = {}  # Should be accessed through self._lazy_id_to_field()
@@ -128,7 +132,7 @@ class Schema:
 
         Args:
             name_or_id (str | int): Either a field name or a field ID
-            case_sensitive (bool, optional): Whether to peform a case-sensitive lookup using a field name. Defaults to True.
+            case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
         Returns:
             NestedField: The matched NestedField
@@ -147,7 +151,7 @@ class Schema:
 
         Args:
             name_or_id (str | int): Either a field name or a field ID
-            case_sensitive (bool, optional): Whether to peform a case-sensitive lookup using a field name. Defaults to True.
+            case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
         Returns:
             NestedField: The type of the matched NestedField
@@ -182,7 +186,7 @@ class Schema:
 
         Args:
             names (List[str]): A list of column names
-            case_sensitive (bool, optional): Whether to peform a case-sensitive lookup for each column name. Defaults to True.
+            case_sensitive (bool, optional): Whether to perform a case-sensitive lookup for each column name. Defaults to True.
 
         Returns:
             Schema: A new schema with pruned columns
@@ -234,27 +238,27 @@ class SchemaVisitor(Generic[T], ABC):
         self.after_field(value)
 
     @abstractmethod
-    def schema(self, schema: Schema, struct_result: T) -> T:
+    def schema(self, schema: Schema) -> T:
         """Visit a Schema"""
         ...  # pragma: no cover
 
     @abstractmethod
-    def struct(self, struct: StructType, field_results: List[T]) -> T:
+    def struct(self, struct: StructType) -> T:
         """Visit a StructType"""
         ...  # pragma: no cover
 
     @abstractmethod
-    def field(self, field: NestedField, field_result: T) -> T:
+    def field(self, field: NestedField) -> T:
         """Visit a NestedField"""
         ...  # pragma: no cover
 
     @abstractmethod
-    def list(self, list_type: ListType, element_result: T) -> T:
+    def list(self, list_type: ListType) -> T:
         """Visit a ListType"""
         ...  # pragma: no cover
 
     @abstractmethod
-    def map(self, map_type: MapType, key_result: T, value_result: T) -> T:
+    def map(self, map_type: MapType) -> T:
         """Visit a MapType"""
         ...  # pragma: no cover
 
@@ -267,6 +271,8 @@ class SchemaVisitor(Generic[T], ABC):
 @singledispatch
 def visit(obj, visitor: SchemaVisitor[T]) -> T:
     """A generic function for applying a schema visitor to any point within a schema
+
+    The function traverses the schema in pre-order search
 
     Args:
         obj(Schema | IcebergType): An instance of a Schema or an IcebergType
@@ -281,55 +287,66 @@ def visit(obj, visitor: SchemaVisitor[T]) -> T:
 @visit.register(Schema)
 def _(obj: Schema, visitor: SchemaVisitor[T]) -> T:
     """Visit a Schema with a concrete SchemaVisitor"""
-    return visitor.schema(obj, visit(obj.as_struct(), visitor))
+    return visit(obj.as_struct(), visitor)
 
 
 @visit.register(StructType)
 def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
     """Visit a StructType with a concrete SchemaVisitor"""
-    results = []
+
+    result = visitor.struct(obj)
+
     for field in obj.fields:
+        visitor.field(field)
         visitor.before_field(field)
         try:
-            result = visit(field.type, visitor)
+            visit(field.type, visitor)
         except Exception:
-            logger.exception("Unable to visit the field in the schema")
+            logger.exception(f"Unable to visit the field: {field}")
         finally:
             visitor.after_field(field)
 
-        results.append(visitor.field(field, result))
-
-    return visitor.struct(obj, results)
+    return result
 
 
 @visit.register(ListType)
 def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
     """Visit a ListType with a concrete SchemaVisitor"""
+    result = visitor.list(obj)
+
     visitor.before_list_element(obj.element)
     try:
-        result = visit(obj.element.type, visitor)
+        visit(obj.element.type, visitor)
+    except Exception:
+        logger.exception(f"Unable to visit the type: {obj}")
     finally:
         visitor.after_list_element(obj.element)
 
-    return visitor.list(obj, result)
+    return result
 
 
 @visit.register(MapType)
 def _(obj: MapType, visitor: SchemaVisitor[T]) -> T:
     """Visit a MapType with a concrete SchemaVisitor"""
+    result = visitor.map(obj)
+
     visitor.before_map_key(obj.key)
     try:
-        key_result = visit(obj.key.type, visitor)
+        visit(obj.key.type, visitor)
+    except Exception:
+        logger.exception(f"Unable to visit the map ket type: {obj.key}")
     finally:
         visitor.after_map_key(obj.key)
 
     visitor.before_map_value(obj.value)
     try:
-        value_result = visit(obj.value.type, visitor)
+        visit(obj.value.type, visitor)
+    except Exception:
+        logger.exception(f"Unable to visit the map value type: {obj.value}")
     finally:
         visitor.after_list_element(obj.value)
 
-    return visitor.map(obj, key_result, value_result)
+    return result
 
 
 @visit.register(PrimitiveType)
@@ -344,29 +361,29 @@ class _IndexById(SchemaVisitor[Dict[int, NestedField]]):
     def __init__(self) -> None:
         self._index: Dict[int, NestedField] = {}
 
-    def schema(self, schema, result):
+    def schema(self, schema: Schema) -> Dict[int, NestedField]:
         return self._index
 
-    def struct(self, struct, results):
+    def struct(self, struct: StructType) -> Dict[int, NestedField]:
         return self._index
 
-    def field(self, field, result):
+    def field(self, field: NestedField) -> Dict[int, NestedField]:
         """Add the field ID to the index"""
         self._index[field.field_id] = field
         return self._index
 
-    def list(self, list_type, result):
+    def list(self, list_type: ListType) -> Dict[int, NestedField]:
         """Add the list element ID to the index"""
         self._index[list_type.element.field_id] = list_type.element
         return self._index
 
-    def map(self, map_type, key_result, value_result):
+    def map(self, map_type: MapType) -> Dict[int, NestedField]:
         """Add the key ID and value ID as individual items in the index"""
         self._index[map_type.key.field_id] = map_type.key
         self._index[map_type.value.field_id] = map_type.value
         return self._index
 
-    def primitive(self, primitive):
+    def primitive(self, primitive) -> Dict[int, NestedField]:
         return self._index
 
 
@@ -413,24 +430,27 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         self._field_names.pop()
         self._short_field_names.pop()
 
-    def schema(self, schema, struct_result):
+    def schema(self, schema: Schema) -> Dict[str, int]:
         return self._index
 
-    def struct(self, struct, field_results):
+    def struct(self, struct: StructType) -> Dict[str, int]:
         return self._index
 
-    def field(self, field, field_result):
+    def field(self, field: NestedField) -> Dict[str, int]:
         """Add the field name to the index"""
         self._add_field(field.name, field.field_id)
+        return self._index
 
-    def list(self, list_type, result):
+    def list(self, list_type: ListType) -> Dict[str, int]:
         """Add the list element name to the index"""
         self._add_field(list_type.element.name, list_type.element.field_id)
+        return self._index
 
-    def map(self, map_type, key_result, value_result):
+    def map(self, map_type: MapType) -> Dict[str, int]:
         """Add the key name and value name as individual items in the index"""
         self._add_field(map_type.key.name, map_type.key.field_id)
         self._add_field(map_type.value.name, map_type.value.field_id)
+        return self._index
 
     def _add_field(self, name: str, field_id: int):
         """Add a field name to the index, mapping its full name to its field ID
@@ -467,7 +487,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         combined_index.update(self._index)
         return combined_index
 
-    def by_id(self):
+    def by_id(self) -> Dict[int, str]:
         """Returns an index of ID to full names"""
         id_to_full_name = dict([(value, key) for key, value in self._index.items()])
         return id_to_full_name
@@ -502,39 +522,70 @@ def index_name_by_id(schema_or_type: Schema | IcebergType) -> Dict[int, str]:
 
 
 class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
-    """A schema visitor for generating a field ID to accessor index"""
+    """A schema visitor for generating a field ID to accessor index
+
+    Example:
+        >>> schema = Schema(
+        ...     NestedField(field_id=2, name="id", field_type=IntegerType(), is_optional=False),
+        ...     NestedField(field_id=1, name="data", field_type=StringType(), is_optional=True),
+        ...     NestedField(
+        ...         field_id=3,
+        ...         name="location",
+        ...         field_type=StructType(
+        ...             NestedField(field_id=5, name="latitude", field_type=FloatType(), is_optional=False),
+        ...             NestedField(field_id=6, name="longitude", field_type=FloatType(), is_optional=False),
+        ...         ),
+        ...         is_optional=True,
+        ...     ),
+        ...     schema_id=1,
+        ...     identifier_field_ids=[1],
+        ... )
+        >>> result = build_position_accessors(schema)
+        >>> expected = {
+        ...      2: Accessor(position=0, inner=None),
+        ...      1: Accessor(position=1, inner=None),
+        ...      3: Accessor(position=2, inner=None),
+        ...      5: Accessor(position=2, inner=Accessor(position=0, inner=None)),
+        ...      6: Accessor(position=2, inner=Accessor(position=1, inner=None)),
+        ... }
+        >>> result == expected
+        True
+    """
 
     def __init__(self) -> None:
         self._index: Dict[int, Accessor] = {}
+        self._parents: Dict[int, int] = {}
+        self._pos: Dict[int, int] = defaultdict(lambda: 0)
 
-    def schema(self, schema: Schema, field_results: Dict[int, Accessor]) -> Dict[int, Accessor]:
-        return field_results
+    def schema(self, schema: Schema) -> Dict[int, Accessor]:
+        return self._index
 
-    def struct(self, struct: StructType, field_results: List[Dict[int, Accessor]]) -> Dict[int, Accessor]:
-        fields = struct.fields
-        for idx, field in enumerate(fields):
-            result = field_results[idx]
-            if result:
-                self._index.update(result)
-            else:
-                self._index[field.field_id] = Accessor(field.field_id)
+    def struct(self, struct: StructType) -> Dict[int, Accessor]:
+        return self._index
+
+    def field(self, field: NestedField) -> Dict[int, Accessor]:
+        field_type = field.type
+        if isinstance(field_type, StructType):
+            # In the case of a struct, we want to map which one the parent is
+            for inner_field in field_type.fields:
+                self._parents[inner_field.field_id] = field.field_id
+
+        parent = 0
+        if field.field_id in self._parents:
+            parent = self._parents[field.field_id]
+            parent_accessor = self._index[parent]
+            self._index[field.field_id] = Accessor(position=parent_accessor.position, inner=Accessor(position=self._pos[parent]))
+        else:
+            self._index[field.field_id] = Accessor(position=self._pos[parent])
+
+        self._pos[parent] = self._pos[parent] + 1
 
         return self._index
 
-    def field(self, field, result) -> Dict[int, Accessor]:
-        """Add the field ID to the index"""
-        self._index[field.field_id] = Accessor(field.field_id)
+    def list(self, list_type: ListType) -> Dict[int, Accessor]:
         return self._index
 
-    def list(self, list_type, result) -> Dict[int, Accessor]:
-        """Add the list element ID to the index"""
-        self._index[list_type.element.field_id] = Accessor(list_type.element.field_id)
-        return self._index
-
-    def map(self, map_type, key_result, value_result) -> Dict[int, Accessor]:
-        """Add the key ID and value ID as individual items in the index"""
-        self._index[map_type.key.field_id] = Accessor(map_type.key.field_id)
-        self._index[map_type.value.field_id] = Accessor(map_type.value.field_id)
+    def map(self, map_type: MapType) -> Dict[int, Accessor]:
         return self._index
 
     def primitive(self, primitive: PrimitiveType) -> Dict[int, Accessor]:
