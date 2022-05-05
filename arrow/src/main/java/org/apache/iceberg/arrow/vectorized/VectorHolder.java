@@ -38,24 +38,9 @@ public class VectorHolder {
   private final Type logicalType;
 
   public VectorHolder(
-      ColumnDescriptor columnDescriptor,
-      FieldVector vector,
-      boolean isDictionaryEncoded,
-      Dictionary dictionary,
-      NullabilityHolder holder,
-      Type type) {
-    // All the fields except dictionary are not nullable unless it is a dummy holder
-    Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
-    Preconditions.checkNotNull(vector, "Vector cannot be null");
-    Preconditions.checkNotNull(holder, "NullabilityHolder cannot be null");
-    Preconditions.checkNotNull(type, "IcebergType cannot be null");
-    this.columnDescriptor = columnDescriptor;
-    this.vector = vector;
-    this.isDictionaryEncoded = isDictionaryEncoded;
-    this.dictionary = dictionary;
-    this.nullabilityHolder = holder;
-    this.physicalType = type;
-    this.logicalType = type;
+      ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded,
+      Dictionary dictionary, NullabilityHolder holder, Type type) {
+    this(columnDescriptor, vector, isDictionaryEncoded, dictionary, holder, type, type);
   }
 
   public VectorHolder(

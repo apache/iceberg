@@ -86,11 +86,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       Types.NestedField icebergField,
       BufferAllocator ra,
       boolean setArrowValidityVector) {
-    this.icebergField = icebergField;
-    this.logicalTypeField = icebergField;
-    this.columnDescriptor = desc;
-    this.rootAlloc = ra;
-    this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", setArrowValidityVector);
+    this(desc, icebergField, icebergField, ra, setArrowValidityVector);
   }
 
   public VectorizedArrowReader(
