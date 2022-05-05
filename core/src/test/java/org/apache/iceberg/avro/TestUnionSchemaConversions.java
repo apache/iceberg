@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -41,11 +42,15 @@ public class TestUnionSchemaConversions {
         .endRecord();
 
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-    String expectedIcebergSchema = "table {\n" +
-        "  0: unionCol: required struct<1: tag: required int, 2: field0: optional int, 3: field1: optional string>\n" +
-        "}";
+    org.apache.iceberg.Schema expectedIcebergSchema = new org.apache.iceberg.Schema(
+        Types.NestedField.required(0, "unionCol", Types.StructType.of(
+            Types.NestedField.required(1, "tag", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "field0", Types.IntegerType.get()),
+            Types.NestedField.optional(3, "field1", Types.StringType.get())
+        ))
+    );
 
-    Assert.assertEquals(expectedIcebergSchema, icebergSchema.toString());
+    Assert.assertEquals(expectedIcebergSchema.toString(), icebergSchema.toString());
   }
 
   @Test
@@ -65,11 +70,15 @@ public class TestUnionSchemaConversions {
         .endRecord();
 
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-    String expectedIcebergSchema = "table {\n" +
-        "  0: unionCol: optional struct<1: tag: required int, 2: field0: optional int, 3: field1: optional string>\n" +
-        "}";
+    org.apache.iceberg.Schema expectedIcebergSchema = new org.apache.iceberg.Schema(
+        Types.NestedField.optional(0, "unionCol", Types.StructType.of(
+            Types.NestedField.required(1, "tag", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "field0", Types.IntegerType.get()),
+            Types.NestedField.optional(3, "field1", Types.StringType.get())
+        ))
+    );
 
-    Assert.assertEquals(expectedIcebergSchema, icebergSchema.toString());
+    Assert.assertEquals(expectedIcebergSchema.toString(), icebergSchema.toString());
   }
 
   @Test
@@ -87,9 +96,11 @@ public class TestUnionSchemaConversions {
         .endRecord();
 
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-    String expectedIcebergSchema = "table {\n" + "  0: optionCol: optional int\n" + "}";
+    org.apache.iceberg.Schema expectedIcebergSchema = new org.apache.iceberg.Schema(
+        Types.NestedField.optional(0, "optionCol", Types.IntegerType.get())
+    );
 
-    Assert.assertEquals(expectedIcebergSchema, icebergSchema.toString());
+    Assert.assertEquals(expectedIcebergSchema.toString(), icebergSchema.toString());
   }
 }
 
