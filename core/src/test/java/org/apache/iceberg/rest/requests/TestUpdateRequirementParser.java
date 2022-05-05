@@ -95,8 +95,8 @@ public class TestUpdateRequirementParser {
     String requirementType = UpdateRequirementParser.ASSERT_REF_SNAPSHOT_ID;
     String name = "snapshot-name";
     Long snapshotId = null;
-    String json = String.format("{\"type\":\"%s\",\"name\":\"%s\",\"snapshot-id\":null}",
-        requirementType, name);
+    String json = String.format("{\"type\":\"%s\",\"name\":\"%s\",\"snapshot-id\":%d}",
+        requirementType, name, snapshotId);
     UpdateRequirement expected = new UpdateRequirement.AssertRefSnapshotID(name, snapshotId);
     assertEquals(requirementType, expected, UpdateRequirementParser.fromJson(json));
   }
