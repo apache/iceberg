@@ -52,7 +52,7 @@ public class UpdateRequirementParser {
   private static final String UUID = "uuid";
 
   // AssertRefSnapshotID
-  private static final String NAME = "name";
+  private static final String NAME = "ref";
   private static final String SNAPSHOT_ID = "snapshot-id";
 
   // AssertLastAssignedFieldId
