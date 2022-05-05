@@ -1235,7 +1235,7 @@ components:
           required:
             - sort-order-id
           properties:
-            order-id:
+            sort-order-id:
               type: integer
               description: Sort order ID to set as the default, or -1 to set last added sort order
 
@@ -1243,6 +1243,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
+          required:
           required:
             - snapshot
           properties:
@@ -1340,7 +1341,7 @@ components:
         
         - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
         
-        - `assert-default-write-order-id` - the table's default sort order id must match the requirement's `default-write-order-id`
+        - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
       type: object
       required:
         - requirement
