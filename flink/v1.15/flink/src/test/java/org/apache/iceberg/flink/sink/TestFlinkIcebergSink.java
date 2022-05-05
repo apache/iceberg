@@ -70,7 +70,6 @@ public class TestFlinkIcebergSink {
   private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
       SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
-  private String tablePath;
   private Table table;
   private StreamExecutionEnvironment env;
   private TableLoader tableLoader;
@@ -108,7 +107,7 @@ public class TestFlinkIcebergSink {
     File folder = TEMPORARY_FOLDER.newFolder();
     String warehouse = folder.getAbsolutePath();
 
-    tablePath = warehouse.concat("/test");
+    String tablePath = warehouse.concat("/test");
     Assert.assertTrue("Should create the table path correctly.", new File(tablePath).mkdir());
 
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
@@ -150,7 +149,7 @@ public class TestFlinkIcebergSink {
     env.execute("Test Iceberg DataStream");
 
     // Assert the iceberg table's records.
-    SimpleDataUtil.assertTableRows(tablePath, convertToRowData(rows));
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
   }
 
   private List<Row> createRows(String prefix) {
@@ -182,7 +181,7 @@ public class TestFlinkIcebergSink {
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
 
-    SimpleDataUtil.assertTableRows(tablePath, convertToRowData(rows));
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
   }
 
   private int partitionFiles(String partition) throws IOException {
