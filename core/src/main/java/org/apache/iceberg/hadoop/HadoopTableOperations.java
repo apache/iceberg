@@ -157,6 +157,8 @@ public class HadoopTableOperations implements TableOperations {
     // this rename operation is the atomic commit operation
     renameToFinal(fs, tempMetadataFile, finalMetadataFile, nextVersion);
 
+    LOG.info("Committed a new metadata file {}", finalMetadataFile);
+
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
 

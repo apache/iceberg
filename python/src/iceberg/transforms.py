@@ -222,6 +222,33 @@ class BucketUUIDTransform(BaseBucketTransform):
         )
 
 
+class UnknownTransform(Transform):
+    """A transform that represents when an unknown transform is provided
+    Args:
+      source_type (Type): An Iceberg `Type`
+      transform (str): A string name of a transform
+    Raises:
+      AttributeError: If the apply method is called.
+    """
+
+    def __init__(self, source_type: IcebergType, transform: str):
+        super().__init__(
+            transform,
+            f"transforms.UnknownTransform(source_type={repr(source_type)}, transform={repr(transform)})",
+        )
+        self._type = source_type
+        self._transform = transform
+
+    def apply(self, value):
+        raise AttributeError(f"Cannot apply unsupported transform: {self}")
+
+    def can_transform(self, target: IcebergType) -> bool:
+        return self._type == target
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return StringType()
+
+
 def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
     if type(source_type) in {IntegerType, LongType, DateType, TimeType, TimestampType, TimestamptzType}:
         return BucketNumberTransform(source_type, num_buckets)
