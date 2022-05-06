@@ -162,7 +162,6 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Assert.assertEquals("Should have a pos-delete file", 1, result.deleteFiles().length);
     DeleteFile posDeleteFile = result.deleteFiles()[0];
     Assert.assertEquals("Should be a pos-delete file", FileContent.POSITION_DELETES, posDeleteFile.content());
-    Assert.assertEquals(1, result.referencedDataFiles().length);
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
         createRecord(4, "eee"),
         createRecord(3, "fff"),
@@ -249,7 +248,6 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Assert.assertEquals("Should have a data file", 1, result.dataFiles().length);
     Assert.assertEquals("Should have a pos-delete file for deduplication purpose", 1, result.deleteFiles().length);
     Assert.assertEquals("Should be pos-delete file", FileContent.POSITION_DELETES, result.deleteFiles()[0].content());
-    Assert.assertEquals(1, result.referencedDataFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
@@ -332,7 +330,6 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Assert.assertEquals("Should have a data file", 1, result.dataFiles().length);
     Assert.assertEquals("Should have a pos-delete file for deduplication purpose", 1, result.deleteFiles().length);
     Assert.assertEquals("Should be pos-delete file", FileContent.POSITION_DELETES, result.deleteFiles()[0].content());
-    Assert.assertEquals(1, result.referencedDataFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
@@ -363,7 +360,6 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     result = deltaWriter.complete();
     Assert.assertEquals(1, result.dataFiles().length);
     Assert.assertEquals(2, result.deleteFiles().length);
-    Assert.assertEquals(1, result.referencedDataFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(

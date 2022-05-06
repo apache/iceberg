@@ -36,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
@@ -44,7 +43,6 @@ import org.apache.iceberg.util.Tasks;
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
   private final List<DeleteFile> completedDeleteFiles = Lists.newArrayList();
-  private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
 
   private final PartitionSpec spec;
   private final FileFormat format;
@@ -85,7 +83,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     return WriteResult.builder()
         .addDataFiles(completedDataFiles)
         .addDeleteFiles(completedDeleteFiles)
-        .addReferencedDataFiles(referencedDataFiles)
         .build();
   }
 
@@ -199,7 +196,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       // Add the completed pos-delete files.
       if (posDeleteWriter != null) {
         completedDeleteFiles.addAll(posDeleteWriter.complete());
-        referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
         posDeleteWriter = null;
       }
     }
