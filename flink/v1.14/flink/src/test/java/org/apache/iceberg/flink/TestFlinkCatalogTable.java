@@ -445,9 +445,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "watermark for t2 as t2 - INTERVAL '5' SECOND )");
 
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("flink.computed-columns.id2", "`id` * 2");
-    properties.put("flink.computed-columns.f1", "TO_TIMESTAMP(FROM_UNIXTIME(`id` * 3))");
-    properties.put("flink.computed-columns.t2", "CAST(`t1` AS TIMESTAMP(3))");
+    properties.put("flink.computed-column.id2", "`id` * 2");
+    properties.put("flink.computed-column.f1", "TO_TIMESTAMP(FROM_UNIXTIME(`id` * 3))");
+    properties.put("flink.computed-column.t2", "CAST(`t1` AS TIMESTAMP(3))");
     properties.put("flink.watermark.t2", "`t2` - INTERVAL '5' SECOND");
     Assert.assertEquals(properties, table("tl").properties());
 
@@ -466,9 +466,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "watermark for t2 as t2 - INTERVAL '5' SECOND )");
 
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("flink.computed-columns.id2", "`id` * 2");
-    properties.put("flink.computed-columns.f1", "TO_TIMESTAMP(FROM_UNIXTIME(`id` * 3))");
-    properties.put("flink.computed-columns.t2", "CAST(`t1` AS TIMESTAMP(2))");
+    properties.put("flink.computed-column.id2", "`id` * 2");
+    properties.put("flink.computed-column.f1", "TO_TIMESTAMP(FROM_UNIXTIME(`id` * 3))");
+    properties.put("flink.computed-column.t2", "CAST(`t1` AS TIMESTAMP(2))");
     properties.put("flink.watermark.t2", "`t2` - INTERVAL '5' SECOND");
     Assert.assertEquals(properties, table("tl").properties());
 
@@ -553,7 +553,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     // reset computed column t2, error because watermark t2 depend on computed column t2
     AssertHelpers.assertThrows("should throw TableException.",
         TableException.class,
-        () -> sql("ALTER TABLE tl RESET ('flink.computed-columns.t2')"));
+        () -> sql("ALTER TABLE tl RESET ('flink.computed-column.t2')"));
   }
 
   @Test

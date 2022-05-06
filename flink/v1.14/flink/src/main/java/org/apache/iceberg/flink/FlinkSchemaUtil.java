@@ -22,10 +22,10 @@ package org.apache.iceberg.flink;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.api.internal.TableEnvironmentImpl;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.catalog.CatalogTable;
@@ -65,7 +65,7 @@ public class FlinkSchemaUtil {
 
   public static final String FLINK_PREFIX = "flink.";
 
-  public static final String COMPUTED_COLUMNS = "computed-columns.";
+  public static final String COMPUTED_COLUMNS = "computed-column.";
   public static final String COMPUTED_COLUMNS_PREFIX = FLINK_PREFIX + COMPUTED_COLUMNS;
 
   public static final String WATERMARK = "watermark.";
@@ -271,9 +271,9 @@ public class FlinkSchemaUtil {
    * @return Flink ResolvedSchema.
    */
   public static ResolvedSchema convertToResolvedSchema(CatalogTable table) {
-    StreamExecutionEnvironment env =  StreamExecutionEnvironment.getExecutionEnvironment(new Configuration());
-    StreamTableEnvironment streamTableEnvironment = StreamTableEnvironment.create(env);
-    CatalogManager catalogManager = ((TableEnvironmentImpl) streamTableEnvironment).getCatalogManager();
+    Configuration configuration = ExecutionEnvironment.getExecutionEnvironment().getConfiguration();
+    TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
+    CatalogManager catalogManager = ((TableEnvironmentImpl) tableEnvironment).getCatalogManager();
     SchemaResolver schemaResolver = catalogManager.getSchemaResolver();
     return table.getUnresolvedSchema().resolve(schemaResolver);
   }
