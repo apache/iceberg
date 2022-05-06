@@ -198,8 +198,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       operation.stageOnly();
     }
 
-    long start = System.currentTimeMillis();
     try {
+      long start = System.currentTimeMillis();
       operation.commit(); // abort is automatically called if this fails
       long duration = System.currentTimeMillis() - start;
       LOG.info("Committed in {} ms", duration);
@@ -224,7 +224,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
             table.io().deleteFile(file.path().toString());
           });
     } else {
-      LOG.error("Skipping cleaning up of data files because Iceberg was unable to determine the final commit state");
+      LOG.warn("Skipping cleaning up of data files because Iceberg was unable to determine the final commit state");
     }
   }
 
