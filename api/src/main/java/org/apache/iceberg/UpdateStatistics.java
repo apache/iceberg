@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
+
 /** API for updating statistics files in a table. */
-public interface UpdateStatistics extends PendingUpdate<Snapshot> {
+public interface UpdateStatistics extends PendingUpdate<List<StatisticsFile>> {
   /**
    * Set the table's statistics file for given snapshot, replacing the previous statistics file for
    * the snapshot if any exists.

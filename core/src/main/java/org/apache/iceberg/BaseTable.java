@@ -210,6 +210,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public UpdateStatistics updateStatistics() {
+    return new SetStatistics(ops);
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     return new RemoveSnapshots(ops);
   }
