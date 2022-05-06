@@ -69,6 +69,10 @@ public class MetadataTableUtils {
         return new PartitionsTable(ops, baseTable, metadataTableName);
       case ALL_DATA_FILES:
         return new AllDataFilesTable(ops, baseTable, metadataTableName);
+      case ALL_DELETE_FILES:
+        return new AllDeleteFilesTable(ops, baseTable, metadataTableName);
+      case ALL_FILES:
+        return new AllFilesTable(ops, baseTable, metadataTableName);
       case ALL_MANIFESTS:
         return new AllManifestsTable(ops, baseTable, metadataTableName);
       case ALL_ENTRIES:

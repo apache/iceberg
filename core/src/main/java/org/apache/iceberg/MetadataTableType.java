@@ -31,6 +31,8 @@ public enum MetadataTableType {
   MANIFESTS,
   PARTITIONS,
   ALL_DATA_FILES,
+  ALL_DELETE_FILES,
+  ALL_FILES,
   ALL_MANIFESTS,
   ALL_ENTRIES;
 
