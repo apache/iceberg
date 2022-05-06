@@ -18,8 +18,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
-from iceberg.schema import Schema
-from iceberg.table.base import PartitionSpec, Table
+from iceberg.table.base import Table, TableSpec
 
 
 class Catalog(ABC):
@@ -43,23 +42,11 @@ class Catalog(ABC):
         return self._properties
 
     @abstractmethod
-    def create_table(
-        self,
-        name: str,
-        schema: Schema,
-        partition_spec: PartitionSpec,
-        *,
-        location: Optional[str] = None,
-        properties: Optional[Dict[str, str]] = None
-    ) -> Table:
+    def create_table(self, table_spec: TableSpec) -> Table:
         """Create a table
 
         Args:
-            name: Table's name. Fully classified table name, if it is a namespaced catalog.
-            schema: Table's schema
-            partition_spec: A partition spec for the table
-            location: a location for the table; Optional Keyword Argument
-            properties: a string dictionary of table properties; Optional Keyword Argument
+            table_spec: A specification to create a table
 
         Returns:
             Table: the created table instance
@@ -110,23 +97,11 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def replace_table(
-        self,
-        name: str,
-        schema: Schema,
-        partition_spec: PartitionSpec,
-        *,
-        location: Optional[str] = None,
-        properties: Optional[Dict[str, str]] = None
-    ) -> Table:
+    def replace_table(self, table_spec: TableSpec) -> Table:
         """Starts a transaction and replaces the table with the provided spec.
 
         Args:
-            name: Table's name. Fully classified table name, if it is a namespaced catalog.
-            schema: Table's schema
-            partition_spec: A partition spec for the table
-            location: a location for the table; Optional Keyword Argument
-            properties: a string dictionary of table properties; Optional Keyword Argument
+            table_spec: A specification to replace a table
 
         Returns:
             Table: the replaced table instance with the updated state
@@ -176,11 +151,8 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_namespaces(self, namespace: Optional[str] = None) -> List[str]:
+    def list_namespaces(self) -> List[str]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
-
-        Args:
-            namespace: given namespace
 
         Returns:
             List[str]: a List of namespace string
