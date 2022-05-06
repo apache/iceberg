@@ -224,7 +224,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
             table.io().deleteFile(file.path().toString());
           });
     } else {
-      LOG.error("Skipping cleaning up of data files, CommitStateUnknown");
+      LOG.error("Skipping cleaning up of data files because Iceberg was unable to determine the final commit state");
     }
   }
 
