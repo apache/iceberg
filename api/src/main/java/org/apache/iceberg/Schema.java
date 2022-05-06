@@ -484,4 +484,21 @@ public class Schema implements Serializable {
             .map(this::identifierFieldToString)
             .collect(Collectors.toList())));
   }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    return sameSchema((Schema) o);
+  }
+
+  @Override
+  public int hashCode() {
+    return 31 *  struct.hashCode() + Arrays.hashCode(identifierFieldIds);
+  }
 }
