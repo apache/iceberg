@@ -117,6 +117,10 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("notStartsWith expression is not supported by the visitor");
     }
 
+    public <T> R endsWith(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException("endsWith expression is not supported by the visitor");
+    }
+
     /**
      * Handle a non-reference value in this visitor.
      * <p>
@@ -157,6 +161,8 @@ public class ExpressionVisitors {
             return startsWith((BoundReference<T>) pred.term(),  literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith((BoundReference<T>) pred.term(),  literalPred.literal());
+          case ENDS_WITH:
+            return endsWith((BoundReference<T>) pred.term(),  literalPred.literal());
           default:
             throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
         }
@@ -252,6 +258,10 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    public <T> R endsWith(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       if (pred.isLiteralPredicate()) {
@@ -273,6 +283,8 @@ public class ExpressionVisitors {
             return startsWith(pred.term(),  literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
+          case ENDS_WITH:
+            return endsWith(pred.term(),  literalPred.literal());
           default:
             throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
         }

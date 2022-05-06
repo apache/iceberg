@@ -44,7 +44,8 @@ public interface Expression extends Serializable {
     AND,
     OR,
     STARTS_WITH,
-    NOT_STARTS_WITH;
+    NOT_STARTS_WITH,
+    ENDS_WITH;
 
     /**
      * Returns the operation used when this is negated.

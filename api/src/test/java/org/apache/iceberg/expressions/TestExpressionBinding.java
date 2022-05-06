@@ -31,6 +31,7 @@ import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
@@ -158,6 +159,18 @@ public class TestExpressionBinding {
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
     Assert.assertEquals("Should be right operation", Expression.Operation.NOT_STARTS_WITH, pred.op());
     Assert.assertEquals("Should bind term to correct field id", 21, pred.term().ref().fieldId());
+  }
+
+  @Test
+  public void testEndsWith() {
+    StructType struct = StructType.of(required(0, "s", Types.StringType.get()));
+    Expression expr = endsWith("s", "abc");
+    Expression boundExpr = Binder.bind(struct, expr);
+    TestHelpers.assertAllReferencesBound("EndsWith", boundExpr);
+    // make sure the expression is a EndsWith
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
+    Assert.assertEquals("Should be right operation", Expression.Operation.ENDS_WITH, pred.op());
+    Assert.assertEquals("Should bind s correctly", 0, pred.term().ref().fieldId());
   }
 
   @Test
