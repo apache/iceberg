@@ -19,11 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -162,44 +161,15 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       ordering = NO_ORDERING;
     }
 
-    // In case of RANGE distribution
-    // * skip order by partition, iff, all input data files are in same partition
-    // * skip order by table sort columns, iff, all sort columns value ranges don't overlap between input files
-    if (distribution instanceof OrderedDistribution) {
-      OrderedDistribution orderedDistribution = (OrderedDistribution) distribution;
-      if (copyOnWriteScan != null) {
-        boolean inputFilesInSamePartition =
-            copyOnWriteScan.files().stream().map(f -> f.spec()).collect(Collectors.toSet()).size() == 1;
-
-        if (inputFilesInSamePartition) {
-          SortOrder[] defaultPartitionSortOrders =
-              SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(
-                  table.schema(),
-                  table.spec(),
-                  org.apache.iceberg.SortOrder.unsorted()));
-          SortOrder[] sortOrders = orderedDistribution.ordering();
-          List<SortOrder> updatedSortOrders = new ArrayList<>();
-          int i = 0;
-          for (; i < sortOrders.length && i < defaultPartitionSortOrders.length; ++i) {
-            if (!sortOrders[i].equals(defaultPartitionSortOrders[i])) {
-              updatedSortOrders.add(sortOrders[i]);
-            }
-          }
-          for (; i < sortOrders.length; ++i) {
-            updatedSortOrders.add(sortOrders[i]);
-          }
-
-          // check input files are already sorted on updatedSortOrder
-          boolean remainingSortOrderIsTableSortOrder =
-              Arrays.equals(updatedSortOrders.toArray(), SparkDistributionAndOrderingUtil.convert(table.sortOrder()));
-          boolean inputFileNotMatchingTableSortOrderExists =
-              copyOnWriteScan.files().stream().anyMatch(
-                  x -> x.file().sortOrderId() == null || x.file().sortOrderId() != table.sortOrder().orderId());
-          if (remainingSortOrderIsTableSortOrder && !inputFileNotMatchingTableSortOrderExists) {
-            ordering = NO_ORDERING;
-            distribution = Distributions.unspecified();
-          }
-        }
+    // In case of CopyOnWrite operation with scan using file as split and OrderedDistribution
+    // * skip ordering by partition, iff, all input data files are in same partition and has same spec as current
+    //   table spec
+    // * skip ordering by table sort order, iff, all input files are already sorted by table's current sort order
+    if (copyOnWriteScan != null && copyOnWriteScan.fileAsSplit() && distribution instanceof OrderedDistribution) {
+      if (skipOrderingAndDistribution((OrderedDistribution) distribution)) {
+        LOG.info("Skipping distribution/ordering: input files are already in required distribution/ordering");
+        ordering = NO_ORDERING;
+        distribution = Distributions.unspecified();
       }
     }
 
@@ -236,6 +206,31 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         }
       }
     };
+  }
+
+  private boolean skipOrderingAndDistribution(OrderedDistribution distribution) {
+    // check if all input files have same partitioning as current table partitioning
+    boolean allInputFilesMatchTablePartitioning =
+        copyOnWriteScan.files().stream().allMatch(x -> x.file().specId() == table.spec().specId());
+
+    // check if the copy on write operation is happening within one partition
+    boolean allInputFilesInSamePartition =
+        copyOnWriteScan.files().stream().map(FileScanTask::spec).collect(Collectors.toSet()).size() == 1;
+
+    // check if all input files are sorted on table's current sort order
+    boolean allInputFilesMatchTableSortOrder = copyOnWriteScan.files().stream().allMatch(
+        x -> x.file().sortOrderId() != null && x.file().sortOrderId() == table.sortOrder().orderId());
+
+    // check if required ordering is same as table's default ordering
+    boolean requiredOrderingIsDefaultTableOrder = Arrays.equals(
+        distribution.ordering(),
+        SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(table)));
+
+    boolean test = allInputFilesMatchTablePartitioning &&
+        allInputFilesInSamePartition &&
+        allInputFilesMatchTableSortOrder &&
+        requiredOrderingIsDefaultTableOrder;
+    return test;
   }
 
   private Distribution buildRequiredDistribution() {

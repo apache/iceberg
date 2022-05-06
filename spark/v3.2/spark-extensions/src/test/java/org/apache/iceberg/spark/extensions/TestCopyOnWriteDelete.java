@@ -42,7 +42,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
   @Override
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write",
-        TableProperties.DELETE_DISTRIBUTION_MODE, "range");
+        TableProperties.DELETE_DISTRIBUTION_MODE, "range",
+        TableProperties.FILE_AS_SPLIT, "true");
   }
 
   @Test
@@ -51,7 +52,6 @@ public class TestCopyOnWriteDelete extends TestDelete {
 
     createAndInitPartitionedTable();
     sql("ALTER TABLE %s WRITE ORDERED BY %s", tableName, "id");
-
 
     append(
         new Employee(1, "hr"),
