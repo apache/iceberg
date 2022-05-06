@@ -16,7 +16,7 @@
 #  under the License.
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Dict, List, Optional
 
 from iceberg.schema import Schema
 from iceberg.table.base import PartitionSpec, Table
@@ -27,10 +27,10 @@ class Catalog(ABC):
 
     Attributes:
         name(str): Name of the catalog
-        properties(dict): Catalog properties
+        properties(Dict[str, str]): Catalog properties
     """
 
-    def __init__(self, name: str, properties: dict):
+    def __init__(self, name: str, properties: Dict[str, str]):
         self._name = name
         self._properties = properties
 
@@ -39,16 +39,8 @@ class Catalog(ABC):
         return self._name
 
     @property
-    def properties(self) -> dict:
+    def properties(self) -> Dict[str, str]:
         return self._properties
-
-    @abstractmethod
-    def list_tables(self) -> list:
-        """List tables in the catalog.
-
-        Returns:
-            list: list of table names in the catalog.
-        """
 
     @abstractmethod
     def create_table(
@@ -58,7 +50,7 @@ class Catalog(ABC):
         partition_spec: PartitionSpec,
         *,
         location: Optional[str] = None,
-        properties: Optional[dict] = None
+        properties: Optional[Dict[str, str]] = None
     ) -> Table:
         """Create a table
 
@@ -125,7 +117,7 @@ class Catalog(ABC):
         partition_spec: PartitionSpec,
         *,
         location: Optional[str] = None,
-        properties: Optional[dict] = None
+        properties: Optional[Dict[str, str]] = None
     ) -> Table:
         """Starts a transaction and replaces the table with the provided spec.
 
@@ -143,12 +135,8 @@ class Catalog(ABC):
             TableNotFoundError: If a table with the name does not exist
         """
 
-
-class NamespacedCatalog(Catalog):
-    """Base catalog for catalogs that support namespaces."""
-
     @abstractmethod
-    def create_namespace(self, namespace: str, properties: Optional[dict] = None) -> None:
+    def create_namespace(self, namespace: str, properties: Optional[Dict[str, str]] = None) -> None:
         """Create a namespace in the catalog.
 
         Args:
@@ -172,7 +160,7 @@ class NamespacedCatalog(Catalog):
         """
 
     @abstractmethod
-    def list_tables(self, namespace: Optional[str] = None) -> list:
+    def list_tables(self, namespace: Optional[str] = None) -> List[Table]:
         """List tables under the given namespace in the catalog.
 
         If namespace not provided, will list all tables in the catalog.
@@ -181,39 +169,39 @@ class NamespacedCatalog(Catalog):
             namespace: the namespace to search
 
         Returns:
-            list: list of table names under this namespace.
+            List[Table]: list of table names under this namespace.
 
         Raises:
             NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
         """
 
     @abstractmethod
-    def list_namespaces(self, namespace: Optional[str] = None) -> list:
+    def list_namespaces(self, namespace: Optional[str] = None) -> List[str]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
         Args:
             namespace: given namespace
 
         Returns:
-            list: a List of namespace string
+            List[str]: a List of namespace string
         """
 
     @abstractmethod
-    def get_namespace_metadata(self, namespace: str) -> dict:
+    def get_namespace_metadata(self, namespace: str) -> Dict[str, str]:
         """Get metadata dictionary for a namespace.
 
         Args:
             namespace: the namespace
 
         Returns:
-            dict: a string dictionary of properties for the given namespace
+            Dict[str, str]: a string dictionary of properties for the given namespace
 
         Raises:
             NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
         """
 
     @abstractmethod
-    def set_namespace_metadata(self, namespace: str, metadata: dict) -> None:
+    def set_namespace_metadata(self, namespace: str, metadata: Dict[str, str]) -> None:
         """Update or remove metadata for a namespace.
 
         Note: Existing metadata is overridden, use get, mutate, and then set.
