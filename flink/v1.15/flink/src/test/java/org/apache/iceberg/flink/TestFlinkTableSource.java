@@ -122,8 +122,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     List<Row> result = sql(querySql);
     Assert.assertEquals("Should have 1 record", 1, result.size());
     Assertions.assertThat(result)
-        .containsAnyElementsOf(expectedList)
-        .size().isEqualTo(1);
+        .containsAnyElementsOf(expectedList);
 
     String sqlMixed = String.format("SELECT * FROM %s WHERE id = 1 LIMIT 2", TABLE_NAME);
     List<Row> mixedResult = sql(sqlMixed);
