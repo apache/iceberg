@@ -275,7 +275,7 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void testDropNonEmptyNamespaceOnCascade() {
+  public void testDropNonEmptyNamespaceWithCascade() {
     Assume.assumeFalse("Hadoop catalog throws IOException: Directory is not empty.", isHadoopCatalog);
 
     Assert.assertFalse(
@@ -306,7 +306,7 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
 
     Assert.assertFalse("Namespace should not exist after deleting with CASCADE",
             validationNamespaceCatalog.namespaceExists(icebergNamespace));
-    Assert.assertFalse("Namespace should not exist after deleting its parent namespace with CASCADE",
-            validationNamespaceCatalog.namespaceExists(icebergNamespace));
+    Assert.assertFalse("Tables should not exist after deleting its parent namespace with CASCADE",
+            validationCatalog.tableExists(TableIdentifier.of(icebergNamespace, "tl")));
   }
 }

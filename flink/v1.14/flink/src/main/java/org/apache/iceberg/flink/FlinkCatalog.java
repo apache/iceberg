@@ -229,7 +229,9 @@ public class FlinkCatalog extends AbstractCatalog {
       throws DatabaseNotExistException, DatabaseNotEmptyException, CatalogException {
     if (asNamespaceCatalog != null) {
       try {
+        // If the query used CASCADE, delete all tables in this database and then delete the database.
         if (cascade) {
+          // Read paths of all tables under this database.
           List<ObjectPath> deleteTablePaths = icebergCatalog.listTables(toNamespace(name)).stream()
                   .map(s -> ObjectPath.fromString(s.toString()))
                   .collect(Collectors.toList());
@@ -238,7 +240,8 @@ public class FlinkCatalog extends AbstractCatalog {
                     try {
                       dropTable(objectPath, true);
                     } catch (TableNotExistException ex) {
-                      // ignore
+                      // It's possible this table was dropped concurrently.
+                      // Ignore it and continue to drop other tables.
                     }
                   }
           );
