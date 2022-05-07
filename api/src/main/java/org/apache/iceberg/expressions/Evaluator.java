@@ -163,5 +163,10 @@ public class Evaluator implements Serializable {
       T evalRes = valueExpr.eval(struct);
       return evalRes != null && ((String) evalRes).endsWith((String) lit.value());
     }
+
+    @Override
+    public <T> Boolean notEndsWith(Bound<T> valueExpr, Literal<T> lit) {
+      return !endsWith(valueExpr, lit);
+    }
   }
 }

@@ -45,7 +45,8 @@ public interface Expression extends Serializable {
     OR,
     STARTS_WITH,
     NOT_STARTS_WITH,
-    ENDS_WITH;
+    ENDS_WITH,
+    NOT_ENDS_WITH;
 
     /**
      * Returns the operation used when this is negated.
@@ -80,6 +81,10 @@ public interface Expression extends Serializable {
           return Operation.NOT_STARTS_WITH;
         case NOT_STARTS_WITH:
           return Operation.STARTS_WITH;
+        case ENDS_WITH:
+          return Operation.NOT_ENDS_WITH;
+        case NOT_ENDS_WITH:
+          return Operation.ENDS_WITH;
         default:
           throw new IllegalArgumentException("No negation for operation: " + this);
       }

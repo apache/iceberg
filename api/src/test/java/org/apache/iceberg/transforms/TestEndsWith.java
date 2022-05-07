@@ -68,8 +68,8 @@ public class TestEndsWith {
     UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
 
-    Assert.assertTrue("endsWith(abcdeab, truncate(abcdg,2))  => true",
-        evaluator.eval(TestHelpers.Row.of("deab")));
+    Assert.assertTrue("endsWith(abcde, truncate(sdseab,2))  => true",
+        evaluator.eval(TestHelpers.Row.of("sdseab")));
   }
 
   private void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,

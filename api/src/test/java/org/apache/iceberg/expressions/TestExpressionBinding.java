@@ -36,6 +36,7 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
@@ -171,6 +172,18 @@ public class TestExpressionBinding {
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
     Assert.assertEquals("Should be right operation", Expression.Operation.ENDS_WITH, pred.op());
     Assert.assertEquals("Should bind s correctly", 0, pred.term().ref().fieldId());
+  }
+
+  @Test
+  public void testNotEndsWith() {
+    StructType struct = StructType.of(required(21, "s", Types.StringType.get()));
+    Expression expr = notEndsWith("s", "abc");
+    Expression boundExpr = Binder.bind(struct, expr);
+    TestHelpers.assertAllReferencesBound("NotEndsWith", boundExpr);
+    // Make sure the expression is a NotEndsWith
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
+    Assert.assertEquals("Should be right operation", Expression.Operation.NOT_ENDS_WITH, pred.op());
+    Assert.assertEquals("Should bind term to correct field id", 21, pred.term().ref().fieldId());
   }
 
   @Test

@@ -73,6 +73,8 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return !String.valueOf(value).startsWith((String) literal.value());
       case ENDS_WITH:
         return String.valueOf(value).endsWith((String) literal.value());
+      case NOT_ENDS_WITH:
+        return !String.valueOf(value).endsWith((String) literal.value());
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
     }
@@ -103,6 +105,8 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return term() + " not in { " + literal + " }";
       case ENDS_WITH:
         return term() + " endsWith \"" + literal + "\"";
+      case NOT_ENDS_WITH:
+        return term() + " notEndsWith \"" + literal + "\"";
       default:
         return "Invalid literal predicate: operation = " + op();
     }

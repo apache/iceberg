@@ -207,6 +207,10 @@ public class Expressions {
     return new UnboundPredicate<>(Operation.ENDS_WITH, ref(name), value);
   }
 
+  public static UnboundPredicate<String> notEndsWith(String name, String value) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_ENDS_WITH, ref(name), value);
+  }
+
   public static <T> UnboundPredicate<T> in(String name, T... values) {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }
