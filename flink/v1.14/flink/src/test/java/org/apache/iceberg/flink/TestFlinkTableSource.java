@@ -32,6 +32,7 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -98,13 +99,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testLimitPushDown() {
-    String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
-    String explain = getTableEnv().explainSql(querySql);
-    String expectedExplain = "limit=[1]";
-    Assert.assertTrue("Explain should contain LimitPushDown", explain.contains(expectedExplain));
-    List<Row> result = sql(querySql);
-    Assert.assertEquals("Should have 1 record", 1, result.size());
-    Assert.assertEquals("Should produce the expected records", Row.of(1, "iceberg", 10.0), result.get(0));
 
     AssertHelpers.assertThrows("Invalid limit number: -1 ", SqlParserException.class,
         () -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME));
@@ -120,6 +114,15 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(3, null, 30.0)
     );
     assertSameElements(expectedList, resultExceed);
+
+    String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
+    String explain = getTableEnv().explainSql(querySql);
+    String expectedExplain = "limit=[1]";
+    Assert.assertTrue("Explain should contain LimitPushDown", explain.contains(expectedExplain));
+    List<Row> result = sql(querySql);
+    Assert.assertEquals("Should have 1 record", 1, result.size());
+    Assertions.assertThat(result)
+        .containsAnyElementsOf(expectedList);
 
     String sqlMixed = String.format("SELECT * FROM %s WHERE id = 1 LIMIT 2", TABLE_NAME);
     List<Row> mixedResult = sql(sqlMixed);
