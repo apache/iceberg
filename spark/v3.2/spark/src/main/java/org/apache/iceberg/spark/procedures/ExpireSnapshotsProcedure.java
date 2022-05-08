@@ -47,7 +47,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
       ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-      ProcedureParameter.optional("stream_results", DataTypes.BooleanType)
+      ProcedureParameter.optional("stream_results", DataTypes.BooleanType),
+      ProcedureParameter.optional("use_caching", DataTypes.BooleanType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -86,6 +87,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
+    Boolean useCaching = args.isNullAt(5) ? null : args.getBoolean(5);
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
         "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
@@ -101,12 +103,16 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         action.retainLast(retainLastNum);
       }
 
-      if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+      if (maxConcurrentDeletes != null) {
         action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
       }
 
       if (streamResult != null) {
         action.option(BaseExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
+      }
+
+      if (useCaching != null) {
+        action.option("use_caching", useCaching.toString());
       }
 
       ExpireSnapshots.Result result = action.execute();

@@ -89,6 +89,10 @@ public class BaseExpireSnapshotsSparkAction
   private Dataset<Row> expiredFiles = null;
   private Dataset<Row> allManifestsBefore = null;
   private Dataset<Row> allManifestsAfter = null;
+  private boolean useCaching = true;
+
+  private static final String USE_CACHING = "use-caching";
+  private static final boolean USE_CACHING_DEFAULT = true;
 
   public BaseExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -150,7 +154,11 @@ public class BaseExpireSnapshotsSparkAction
     if (expiredFiles == null) {
       // fetch metadata before expiration
       Table staticTableBefore = newStaticTable(ops.current(), table.io());
-      allManifestsBefore = loadMetadataTable(staticTableBefore, ALL_MANIFESTS).persist();
+      allManifestsBefore = loadMetadataTable(staticTableBefore, ALL_MANIFESTS);
+      useCaching = PropertyUtil.propertyAsBoolean(options(), USE_CACHING, USE_CACHING_DEFAULT);
+      if (useCaching) {
+        allManifestsBefore.persist();
+      }
       Dataset<Row> originalFiles = buildValidFileDF(staticTableBefore, allManifestsBefore);
 
       // perform expiration
@@ -171,7 +179,10 @@ public class BaseExpireSnapshotsSparkAction
 
       // fetch metadata after expiration
       Table staticTableAfter = newStaticTable(ops.refresh(), table.io());
-      allManifestsAfter = loadMetadataTable(staticTableAfter, ALL_MANIFESTS).persist();
+      allManifestsAfter = loadMetadataTable(staticTableAfter, ALL_MANIFESTS);
+      if (useCaching) {
+        allManifestsAfter.persist();
+      }
       Dataset<Row> validFiles = buildValidFileDF(staticTableAfter, allManifestsAfter);
 
       // determine expired files
@@ -218,8 +229,10 @@ public class BaseExpireSnapshotsSparkAction
     } else {
       result = deleteFiles(expire().collectAsList().iterator());
     }
-    allManifestsBefore.unpersist();
-    allManifestsAfter.unpersist();
+    if (useCaching) {
+      allManifestsBefore.unpersist();
+      allManifestsAfter.unpersist();
+    }
     return result;
   }
 

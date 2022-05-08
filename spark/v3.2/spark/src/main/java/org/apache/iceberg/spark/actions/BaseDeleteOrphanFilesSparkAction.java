@@ -120,6 +120,9 @@ public class BaseDeleteOrphanFilesSparkAction
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = null;
 
+  private static final String USE_CACHING = "use-caching";
+  private static final boolean USE_CACHING_DEFAULT = true;
+
   public BaseDeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
 
@@ -209,7 +212,11 @@ public class BaseDeleteOrphanFilesSparkAction
   }
 
   private DeleteOrphanFiles.Result doExecute() {
-    Dataset<Row> allManifests = loadMetadataTable(table, ALL_MANIFESTS).persist();
+    Dataset<Row> allManifests = loadMetadataTable(table, ALL_MANIFESTS);
+    boolean useCaching = PropertyUtil.propertyAsBoolean(options(), USE_CACHING, USE_CACHING_DEFAULT);
+    if (useCaching) {
+      allManifests.persist();
+    }
     Dataset<Row> validContentFileDF = buildValidContentFileDF(table, allManifests);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, allManifests);
     Dataset<Row> validFileDF = validContentFileDF.union(validMetadataFileDF);
@@ -223,7 +230,9 @@ public class BaseDeleteOrphanFilesSparkAction
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
         .collectAsList();
-    allManifests.unpersist();
+    if (useCaching) {
+      allManifests.unpersist();
+    }
     Tasks.foreach(orphanFiles)
         .noRetry()
         .executeWith(deleteExecutorService)

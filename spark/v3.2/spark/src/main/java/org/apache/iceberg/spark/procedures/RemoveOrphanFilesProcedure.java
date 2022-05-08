@@ -51,7 +51,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("location", DataTypes.StringType),
       ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
       ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-      ProcedureParameter.optional("file_list_view", DataTypes.StringType)
+      ProcedureParameter.optional("file_list_view", DataTypes.StringType),
+      ProcedureParameter.optional("use_caching", DataTypes.BooleanType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -90,6 +91,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
     Integer maxConcurrentDeletes = args.isNullAt(4) ? null : args.getInt(4);
     String fileListView = args.isNullAt(5) ? null : args.getString(5);
+    Boolean useCaching = args.isNullAt(6) ? null : args.getBoolean(6);
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
             "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
@@ -113,12 +115,16 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         action.deleteWith(file -> { });
       }
 
-      if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+      if (maxConcurrentDeletes != null) {
         action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
       }
 
       if (fileListView != null) {
         ((BaseDeleteOrphanFilesSparkAction) action).compareToFileList(spark().table(fileListView));
+      }
+
+      if (useCaching != null) {
+        action.option("use_caching", useCaching.toString());
       }
 
       DeleteOrphanFiles.Result result = action.execute();

@@ -71,6 +71,10 @@ public class BaseDeleteReachableFilesSparkAction
   private ExecutorService deleteExecutorService = null;
   private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
   private Dataset<Row> allManifests = null;
+  private boolean useCaching = true;
+
+  private static final String USE_CACHING = "use-caching";
+  private static final boolean USE_CACHING_DEFAULT = true;
 
   public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataFileLocation) {
     super(spark);
@@ -124,13 +128,19 @@ public class BaseDeleteReachableFilesSparkAction
     } else {
       result = deleteFiles(reachableFileDF.collectAsList().iterator());
     }
-    allManifests.unpersist();
+    if (useCaching) {
+      allManifests.unpersist();
+    }
     return result;
   }
 
   private Dataset<Row> buildReachableFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, io);
-    allManifests = loadMetadataTable(staticTable, ALL_MANIFESTS).persist();
+    allManifests = loadMetadataTable(staticTable, ALL_MANIFESTS);
+    useCaching = PropertyUtil.propertyAsBoolean(options(), USE_CACHING, USE_CACHING_DEFAULT);
+    if (useCaching) {
+      allManifests.persist();
+    }
     return withFileType(buildValidContentFileDF(staticTable, allManifests), CONTENT_FILE)
         .union(withFileType(buildManifestFileDF(allManifests), MANIFEST))
         .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST))
