@@ -96,7 +96,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
-        1, firstSnapshot.allManifests().size());
+        1, firstSnapshot.allManifests(table.io()).size());
 
     waitUntilAfter(table.currentSnapshot().timestampMillis());
 
@@ -106,7 +106,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Snapshot secondSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create replace manifest with a rewritten manifest",
-        1, secondSnapshot.allManifests().size());
+        1, secondSnapshot.allManifests(table.io()).size());
 
     table.newAppend()
         .appendFile(FILE_B)
@@ -132,9 +132,9 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertEquals("Should remove expired manifest lists and deleted data file",
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(), // snapshot expired
-            firstSnapshot.allManifests().get(0).path(), // manifest was rewritten for delete
+            firstSnapshot.allManifests(table.io()).get(0).path(), // manifest was rewritten for delete
             secondSnapshot.manifestListLocation(), // snapshot expired
-            secondSnapshot.allManifests().get(0).path(), // manifest contained only deletes, was dropped
+            secondSnapshot.allManifests(table.io()).get(0).path(), // manifest contained only deletes, was dropped
             FILE_A.path()), // deleted
         deletedFiles);
   }
@@ -153,7 +153,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
-        1, firstSnapshot.allManifests().size());
+        1, firstSnapshot.allManifests(table.io()).size());
 
     waitUntilAfter(table.currentSnapshot().timestampMillis());
 
@@ -163,7 +163,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Snapshot secondSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should replace manifest with a rewritten manifest",
-        1, secondSnapshot.allManifests().size());
+        1, secondSnapshot.allManifests(table.io()).size());
 
     table.newFastAppend() // do not merge to keep the last snapshot's manifest valid
         .appendFile(FILE_C)
@@ -189,7 +189,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertEquals("Should remove expired manifest lists and deleted data file",
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(), // snapshot expired
-            firstSnapshot.allManifests().get(0).path(), // manifest was rewritten for delete
+            firstSnapshot.allManifests(table.io()).get(0).path(), // manifest was rewritten for delete
             secondSnapshot.manifestListLocation(), // snapshot expired
             FILE_A.path()), // deleted
         deletedFiles);
@@ -209,7 +209,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
-        1, firstSnapshot.allManifests().size());
+        1, firstSnapshot.allManifests(table.io()).size());
 
     waitUntilAfter(table.currentSnapshot().timestampMillis());
 
@@ -218,8 +218,8 @@ public class TestRemoveSnapshots extends TableTestBase {
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests());
-    secondSnapshotManifests.removeAll(firstSnapshot.allManifests());
+    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests(table.io()));
+    secondSnapshotManifests.removeAll(firstSnapshot.allManifests(table.io()));
     Assert.assertEquals("Should add one new manifest for append", 1, secondSnapshotManifests.size());
 
     table.manageSnapshots()
@@ -256,7 +256,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
-        1, firstSnapshot.allManifests().size());
+        1, firstSnapshot.allManifests(table.io()).size());
 
     waitUntilAfter(table.currentSnapshot().timestampMillis());
 
@@ -265,8 +265,8 @@ public class TestRemoveSnapshots extends TableTestBase {
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests());
-    secondSnapshotManifests.removeAll(firstSnapshot.allManifests());
+    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests(table.io()));
+    secondSnapshotManifests.removeAll(firstSnapshot.allManifests(table.io()));
     Assert.assertEquals("Should add one new manifest for append", 1, secondSnapshotManifests.size());
 
     table.manageSnapshots()
@@ -740,7 +740,7 @@ public class TestRemoveSnapshots extends TableTestBase {
       t4 = System.currentTimeMillis();
     }
 
-    List<ManifestFile> manifests = table.currentSnapshot().dataManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
 
     ManifestFile newManifest = writeManifest(
         "manifest-file-1.avro",
@@ -788,7 +788,7 @@ public class TestRemoveSnapshots extends TableTestBase {
       t4 = System.currentTimeMillis();
     }
 
-    List<ManifestFile> manifests = table.currentSnapshot().dataManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
 
     ManifestFile newManifest = writeManifest(
         "manifest-file-1.avro",
@@ -907,13 +907,13 @@ public class TestRemoveSnapshots extends TableTestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB.addedFiles().forEach(i -> {
+    snapshotB.addedFiles(table.io()).forEach(i -> {
       expectedDeletes.add(i.path().toString());
     });
 
     // ManifestList should be deleted too
     expectedDeletes.add(snapshotB.manifestListLocation());
-    snapshotB.dataManifests().forEach(file -> {
+    snapshotB.dataManifests(table.io()).forEach(file -> {
       // Only the manifest of B should be deleted.
       if (file.snapshotId() == snapshotB.snapshotId()) {
         expectedDeletes.add(file.path());
@@ -982,7 +982,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the B, C, D snapshot
     Lists.newArrayList(snapshotB, snapshotC, snapshotD).forEach(i -> {
-      i.addedFiles().forEach(item -> {
+      i.addedFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1035,7 +1035,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the staged snapshot
     Lists.newArrayList(snapshotB).forEach(i -> {
-      i.addedFiles().forEach(item -> {
+      i.addedFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1048,7 +1048,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the staged and cherry-pick
     Lists.newArrayList(snapshotB, snapshotD).forEach(i -> {
-      i.addedFiles().forEach(item -> {
+      i.addedFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1162,8 +1162,8 @@ public class TestRemoveSnapshots extends TableTestBase {
         .addDeletes(FILE_A_DELETES)
         .commit();
     Snapshot secondSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 data manifest", 1, secondSnapshot.dataManifests().size());
-    Assert.assertEquals("Should have 1 delete manifest", 1, secondSnapshot.deleteManifests().size());
+    Assert.assertEquals("Should have 1 data manifest", 1, secondSnapshot.dataManifests(table.io()).size());
+    Assert.assertEquals("Should have 1 delete manifest", 1, secondSnapshot.deleteManifests(table.io()).size());
 
     // FILE_A and FILE_A_DELETES move into "DELETED" state
     table.newRewrite()
@@ -1173,7 +1173,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         .validateFromSnapshot(secondSnapshot.snapshotId())
         .commit();
     Snapshot thirdSnapshot = table.currentSnapshot();
-    Set<ManifestFile> manifestOfDeletedFiles = thirdSnapshot.allManifests().stream().filter(
+    Set<ManifestFile> manifestOfDeletedFiles = thirdSnapshot.allManifests(table.io()).stream().filter(
         ManifestFile::hasDeletedFiles).collect(Collectors.toSet());
     Assert.assertEquals("Should have two manifests of deleted files", 2,
         manifestOfDeletedFiles.size());
@@ -1199,7 +1199,7 @@ public class TestRemoveSnapshots extends TableTestBase {
             .add(firstSnapshot.manifestListLocation())
             .add(secondSnapshot.manifestListLocation())
             .add(thirdSnapshot.manifestListLocation())
-            .addAll(secondSnapshot.allManifests().stream().map(ManifestFile::path).collect(Collectors.toList()))
+            .addAll(secondSnapshot.allManifests(FILE_IO).stream().map(ManifestFile::path).collect(Collectors.toList()))
             .addAll(manifestOfDeletedFiles.stream().map(ManifestFile::path).collect(Collectors.toList()))
             .build(),
         deletedFiles);

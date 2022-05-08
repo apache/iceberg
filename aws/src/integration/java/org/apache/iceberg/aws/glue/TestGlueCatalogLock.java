@@ -97,7 +97,8 @@ public class TestGlueCatalogLock extends GlueTestBase {
 
     table.refresh();
     Assert.assertEquals("Commits should all succeed sequentially", nThreads, table.history().size());
-    Assert.assertEquals("Should have all manifests", nThreads, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Should have all manifests", nThreads,
+        table.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test
@@ -138,7 +139,7 @@ public class TestGlueCatalogLock extends GlueTestBase {
 
     table.refresh();
     Assert.assertEquals("Commits should all succeed sequentially", 20, table.history().size());
-    Assert.assertEquals("should have 20 manifests", 20, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("should have 20 manifests", 20, table.currentSnapshot().allManifests(table.io()).size());
   }
 
 }

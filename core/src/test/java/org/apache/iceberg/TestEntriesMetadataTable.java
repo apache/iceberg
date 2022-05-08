@@ -75,7 +75,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
 
     FileScanTask file = Iterables.getOnlyElement(scan.planFiles());
     Assert.assertEquals("Data file should be the table's manifest",
-        Iterables.getOnlyElement(table.currentSnapshot().allManifests()).path(), file.file().path());
+        Iterables.getOnlyElement(table.currentSnapshot().allManifests(table.io())).path(), file.file().path());
     Assert.assertEquals("Should contain 2 data file records", 2, file.file().recordCount());
   }
 
@@ -124,10 +124,10 @@ public class TestEntriesMetadataTable extends TableTestBase {
     int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // default split size is 32 MB
 
     Table entriesTable = new ManifestEntriesTable(table.ops(), table);
-    Assert.assertEquals(1, entriesTable.currentSnapshot().allManifests().size());
+    Assert.assertEquals(1, entriesTable.currentSnapshot().allManifests(table.io()).size());
 
     int expectedSplits =
-        ((int) entriesTable.currentSnapshot().allManifests().get(0).length() + splitSize - 1) / splitSize;
+        ((int) entriesTable.currentSnapshot().allManifests(table.io()).get(0).length() + splitSize - 1) / splitSize;
 
     TableScan scan = entriesTable.newScan();
 
@@ -157,10 +157,11 @@ public class TestEntriesMetadataTable extends TableTestBase {
 
     List<FileScanTask> files = ImmutableList.copyOf(scan.planFiles());
     Assert.assertEquals("Data file should be the table's manifest",
-        Iterables.getOnlyElement(table.currentSnapshot().dataManifests()).path(), files.get(0).file().path());
+        Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io())).path(), files.get(0).file().path());
     Assert.assertEquals("Should contain 2 data file records", 2, files.get(0).file().recordCount());
     Assert.assertEquals("Delete file should be in the table manifest",
-        Iterables.getOnlyElement(table.currentSnapshot().deleteManifests()).path(), files.get(1).file().path());
+        Iterables.getOnlyElement(table.currentSnapshot().deleteManifests(table.io())).path(),
+        files.get(1).file().path());
     Assert.assertEquals("Should contain 1 delete file record", 1, files.get(1).file().recordCount());
   }
 

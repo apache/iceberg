@@ -76,7 +76,7 @@ class IncrementalDataTableScan extends DataTableScan {
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
         .from(snapshots)
-        .transformAndConcat(Snapshot::dataManifests)
+        .transformAndConcat(snapshot -> snapshot.dataManifests(tableOps().io()))
         .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
         .toSet();
 
