@@ -24,6 +24,7 @@ import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 
 public class FlinkConfigOptions {
+  public static final Boolean SINK_TABLE_WRITE_UPSERT_ENABLED_DEFAULT = false;
 
   private FlinkConfigOptions() {
   }
@@ -46,4 +47,10 @@ public class FlinkConfigOptions {
           .booleanType()
           .noDefaultValue()
           .withDescription("Expose split host information to use Flink's locality aware split assigner.");
+
+  public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_WRITE_UPSERT_ENABLED =
+      ConfigOptions.key("table.exec.iceberg.write-upsert-enabled")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription("Whether to transform all INSERT/UPDATE_AFTER events to UPSERT.");
 }

@@ -38,16 +38,23 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   private final TableSchema tableSchema;
 
   private boolean overwrite = false;
+  private boolean upsertEnabled = false;
 
   private IcebergTableSink(IcebergTableSink toCopy) {
     this.tableLoader = toCopy.tableLoader;
     this.tableSchema = toCopy.tableSchema;
     this.overwrite = toCopy.overwrite;
+    this.upsertEnabled = toCopy.upsertEnabled;
   }
 
   public IcebergTableSink(TableLoader tableLoader, TableSchema tableSchema) {
+    this(tableLoader, tableSchema, false);
+  }
+
+  public IcebergTableSink(TableLoader tableLoader, TableSchema tableSchema, boolean upsertEnabled) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
+    this.upsertEnabled = upsertEnabled;
   }
 
   @Override
@@ -64,6 +71,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         .tableSchema(tableSchema)
         .equalityFieldColumns(equalityColumns)
         .overwrite(overwrite)
+        .upsert(upsertEnabled)
         .append();
   }
 
