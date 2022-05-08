@@ -85,7 +85,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
       RewriteManifests action = actions().rewriteManifests(table);
 
       if (useCaching != null) {
-        action.option("use-caching", "true");
+        action.option("use-caching", useCaching.toString());
       }
 
       RewriteManifests.Result result = action.execute();
