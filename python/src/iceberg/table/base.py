@@ -45,12 +45,12 @@ class TableSpec:
     TODO: Validators to be added
     """
 
-    _namespace: str
-    _name: str
-    _schema: Schema
-    _location: str = field()
-    _partition_spec: PartitionSpec = field()
-    _properties: Dict[str, str] = Factory(Dict[str, str])
+    namespace: str
+    name: str
+    schema: Schema
+    location: str = field()
+    partition_spec: PartitionSpec = field()
+    properties: Dict[str, str] = Factory(Dict[str, str])
 
 
 class Table(ABC):
@@ -58,6 +58,15 @@ class Table(ABC):
 
     To be implemented by https://github.com/apache/iceberg/issues/3227
     """
+
+    _spec: TableSpec
+
+    def __init__(self, spec: TableSpec):
+        self._spec = spec
+
+    @property
+    def spec(self) -> TableSpec:
+        return self._spec
 
 
 class PartitionSpec:

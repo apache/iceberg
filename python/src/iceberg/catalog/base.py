@@ -56,14 +56,15 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def table(self, name: str) -> Table:
+    def table(self, namespace: str, name: str) -> Table:
         """Loads the table's metadata and returns the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
         Note: This method does not load table's data in any form.
 
         Args:
-            name: Table's name. Fully classified table name, if it is a namespaced catalog.
+            namespace: Table's namespace
+            name: Table's name.
 
         Returns:
             Table: the table instance with its metadata
@@ -73,10 +74,11 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def drop_table(self, name: str, purge: bool = True) -> None:
+    def drop_table(self, namespace: str, name: str, purge: bool = True) -> None:
         """Drop a table; Optionally purge all data and metadata files.
 
         Args:
+            namespace: table namespace
             name: table name
             purge: Defaults to true, which deletes all data and metadata files in the table; Optional Argument
 
@@ -85,12 +87,17 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def rename_table(self, from_name: str, to_name: str) -> None:
+    def rename_table(self, from_namespace: str, from_name: str, to_namespace: str, to_name: str) -> Table:
         """Rename a fully classified table name
 
         Args:
-            from_name: Existing table's name. Fully classified table name, if it is a namespaced catalog.
-            to_name: New Table name to be assigned. Fully classified table name, if it is a namespaced catalog.
+            from_namespace: Existing table's namespace.
+            from_name: Existing table's name.
+            to_namespace: New Table namespace to be assigned.
+            to_name: New Table name to be assigned.
+
+        Returns:
+            Table: the updated table instance with its metadata
 
         Raises:
             TableNotFoundError: If a table with the name does not exist
@@ -185,3 +192,17 @@ class Catalog(ABC):
         Raises:
             NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
         """
+
+
+class TableNotFoundError(Exception):
+    """Exception when a table is not found in the catalog"""
+
+    def __init__(self, name: str):
+        super().__init__(self, f"Table {name} not found in the catalog")
+
+
+class AlreadyExistsError(Exception):
+    """Exception when an entity like table or namespace already exists in the catalog"""
+
+    def __init__(self, name: str):
+        super().__init__(self, f"Table or namespace {name} already exists")
