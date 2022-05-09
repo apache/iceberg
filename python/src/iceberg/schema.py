@@ -338,13 +338,8 @@ def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
     for field in obj.fields:
         visitor.field(field)
         visitor.before_field(field)
-        try:
-            visit(field.type, visitor)
-        except Exception as e:
-            logger.exception(f"Unable to visit the field: {field}")
-            raise e
-        finally:
-            visitor.after_field(field)
+        visit(field.type, visitor)
+        visitor.after_field(field)
 
     return result
 
@@ -357,13 +352,8 @@ def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
     visitor.field(obj.element)
 
     visitor.before_list_element(obj.element)
-    try:
-        visit(obj.element.type, visitor)
-    except Exception as e:
-        logger.exception(f"Unable to visit the type: {obj}")
-        raise e
-    finally:
-        visitor.after_list_element(obj.element)
+    visit(obj.element.type, visitor)
+    visitor.after_list_element(obj.element)
 
     return result
 
@@ -375,23 +365,13 @@ def _(obj: MapType, visitor: SchemaVisitor[T]) -> T:
 
     visitor.field(obj.key)
     visitor.before_map_key(obj.key)
-    try:
-        visit(obj.key.type, visitor)
-    except Exception as e:
-        logger.exception(f"Unable to visit the map ket type: {obj.key}")
-        raise e
-    finally:
-        visitor.after_map_key(obj.key)
+    visit(obj.key.type, visitor)
+    visitor.after_map_key(obj.key)
 
     visitor.field(obj.value)
     visitor.before_map_value(obj.value)
-    try:
-        visit(obj.value.type, visitor)
-    except Exception as e:
-        logger.exception(f"Unable to visit the map value type: {obj.value}")
-        raise e
-    finally:
-        visitor.after_list_element(obj.value)
+    visit(obj.value.type, visitor)
+    visitor.after_list_element(obj.value)
 
     return result
 
