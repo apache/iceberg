@@ -79,13 +79,13 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
   public void testPositionDeltaInsertOnly() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
-    ClusteredDataWriter<T> dataWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> insertWriter = new ClusteredDataWriter<>(
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> updateWriter = new ClusteredDataWriter<>(
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
     ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
 
     deltaWriter.insert(toRow(1, "aaa"), table.spec(), null);
     deltaWriter.close();
@@ -144,13 +144,13 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec partitionedSpec = table.specs().get(1);
 
-    ClusteredDataWriter<T> dataWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> insertWriter = new ClusteredDataWriter<>(
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> updateWriter = new ClusteredDataWriter<>(
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
     ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
 
     deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);
     deltaWriter.delete(dataFile2.path(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));
@@ -213,13 +213,13 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     PartitionSpec unpartitionedSpec = table.specs().get(0);
     PartitionSpec partitionedSpec = table.specs().get(1);
 
-    ClusteredDataWriter<T> dataWriter = new ClusteredDataWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> insertWriter = new ClusteredDataWriter<>(
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    ClusteredDataWriter<T> updateWriter = new ClusteredDataWriter<>(
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
     ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
-        writerFactory, fileFactory, table.io(),
-        fileFormat, TARGET_FILE_SIZE);
-    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
+        writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
 
     deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);
     deltaWriter.delete(dataFile2.path(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));

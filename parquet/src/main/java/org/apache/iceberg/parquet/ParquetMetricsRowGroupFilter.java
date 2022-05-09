@@ -132,7 +132,7 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean isNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no null values, the expression cannot match
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -153,7 +153,7 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean notNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no non-null values, the expression cannot match
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
@@ -203,7 +203,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -233,7 +233,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -263,7 +263,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -293,7 +293,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -323,7 +323,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
@@ -373,7 +373,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
@@ -563,20 +563,5 @@ public class ParquetMetricsRowGroupFilter {
 
   private static boolean mayContainNull(Statistics statistics) {
     return !statistics.isNumNullsSet() || statistics.getNumNulls() > 0;
-  }
-
-  private static Function<Object, Object> converterFor(PrimitiveType parquetType, Type icebergType) {
-    Function<Object, Object> fromParquet = ParquetConversions.converterFromParquet(parquetType);
-    if (icebergType != null) {
-      if (icebergType.typeId() == Type.TypeID.LONG &&
-          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
-        return value -> ((Integer) fromParquet.apply(value)).longValue();
-      } else if (icebergType.typeId() == Type.TypeID.DOUBLE &&
-          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
-        return value -> ((Float) fromParquet.apply(value)).doubleValue();
-      }
-    }
-
-    return fromParquet;
   }
 }

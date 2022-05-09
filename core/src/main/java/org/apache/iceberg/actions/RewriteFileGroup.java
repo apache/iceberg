@@ -77,4 +77,12 @@ public class RewriteFileGroup {
         .add("numAddedFiles", addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
         .toString();
   }
+
+  public long sizeInBytes() {
+    return fileScanTasks.stream().mapToLong(FileScanTask::length).sum();
+  }
+
+  public int numFiles() {
+    return fileScanTasks.size();
+  }
 }

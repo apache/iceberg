@@ -21,9 +21,11 @@ package org.apache.iceberg.nessie;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -46,6 +48,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentKey;
@@ -79,8 +82,8 @@ public class TestNessieTable extends BaseTestIceberg {
 
   @Override
   @BeforeEach
-  public void beforeEach() throws IOException {
-    super.beforeEach();
+  public void beforeEach(@NessieUri URI uri) throws IOException {
+    super.beforeEach(uri);
     this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
   }
 
@@ -90,7 +93,6 @@ public class TestNessieTable extends BaseTestIceberg {
     // drop the table data
     if (tableLocation != null) {
       tableLocation.getFileSystem(hadoopConfig).delete(tableLocation, true);
-      catalog.refresh();
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
@@ -111,7 +113,7 @@ public class TestNessieTable extends BaseTestIceberg {
    * Verify that Nessie always returns the globally-current global-content w/ only DMLs.
    */
   @Test
-  public void verifyGlobalStateMovesForDML() throws Exception {
+  public void verifyStateMovesForDML() throws Exception {
     //  1. initialize table
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     icebergTable.updateSchema().addColumn("initial_column", Types.LongType.get()).commit();
@@ -120,65 +122,66 @@ public class TestNessieTable extends BaseTestIceberg {
     String testCaseBranch = "verify-global-moving";
     api.createReference().sourceRefName(BRANCH)
         .reference(Branch.of(testCaseBranch, catalog.currentHash())).create();
-    NessieCatalog branchCatalog = initCatalog(testCaseBranch);
+    try (NessieCatalog ignore = initCatalog(testCaseBranch)) {
 
-    IcebergTable contentInitialMain = getTable(BRANCH, KEY);
-    IcebergTable contentInitialBranch = getTable(testCaseBranch, KEY);
-    Table tableInitialMain = catalog.loadTable(TABLE_IDENTIFIER);
+      IcebergTable contentInitialMain = getTable(BRANCH, KEY);
+      IcebergTable contentInitialBranch = getTable(testCaseBranch, KEY);
+      Table tableInitialMain = catalog.loadTable(TABLE_IDENTIFIER);
 
-    // verify table-metadata-location + snapshot-id
-    Assertions.assertThat(contentInitialMain)
-        .as("global-contents + snapshot-id equal on both branches in Nessie")
-        .isEqualTo(contentInitialBranch);
-    Assertions.assertThat(tableInitialMain.currentSnapshot()).isNull();
+      // verify table-metadata-location + snapshot-id
+      Assertions.assertThat(contentInitialMain)
+          .as("global-contents + snapshot-id equal on both branches in Nessie")
+          .isEqualTo(contentInitialBranch);
+      Assertions.assertThat(tableInitialMain.currentSnapshot()).isNull();
 
-    //  3. modify table in "main" branch (add some data)
+      //  3. modify table in "main" branch (add some data)
 
-    DataFile file1 = makeDataFile(icebergTable, addRecordsToFile(icebergTable, "file1"));
-    icebergTable.newAppend().appendFile(file1).commit();
+      DataFile file1 = makeDataFile(icebergTable, addRecordsToFile(icebergTable, "file1"));
+      icebergTable.newAppend().appendFile(file1).commit();
 
-    IcebergTable contentsAfter1Main = getTable(KEY);
-    IcebergTable contentsAfter1Branch = getTable(testCaseBranch, KEY);
-    Table tableAfter1Main = catalog.loadTable(TABLE_IDENTIFIER);
+      IcebergTable contentsAfter1Main = getTable(KEY);
+      IcebergTable contentsAfter1Branch = getTable(testCaseBranch, KEY);
+      Table tableAfter1Main = catalog.loadTable(TABLE_IDENTIFIER);
 
-    //  --> assert getValue() against both branches returns the updated metadata-location
-    // verify table-metadata-location
-    Assertions.assertThat(contentInitialMain.getMetadataLocation())
-        .describedAs("metadata-location must change on %s", BRANCH)
-        .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
-    Assertions.assertThat(contentInitialBranch.getMetadataLocation())
-        .describedAs("metadata-location must change on %s", testCaseBranch)
-        .isNotEqualTo(contentsAfter1Branch.getMetadataLocation());
-    Assertions.assertThat(contentsAfter1Main)
-        .extracting(IcebergTable::getSchemaId)
-        .describedAs("on-reference-state must not be equal on both branches")
-        .isEqualTo(contentsAfter1Branch.getSchemaId());
-    // verify manifests
-    Assertions.assertThat(tableAfter1Main.currentSnapshot().allManifests())
-        .describedAs("verify number of manifests on 'main'")
-        .hasSize(1);
+      //  --> assert getValue() against both branches returns the updated metadata-location
+      // verify table-metadata-location
+      Assertions.assertThat(contentInitialMain.getMetadataLocation())
+          .describedAs("metadata-location must change on %s", BRANCH)
+          .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
+      Assertions.assertThat(contentInitialBranch.getMetadataLocation())
+          .describedAs("metadata-location must not change on %s", testCaseBranch)
+          .isEqualTo(contentsAfter1Branch.getMetadataLocation());
+      Assertions.assertThat(contentsAfter1Main)
+          .extracting(IcebergTable::getSchemaId)
+          .describedAs("on-reference-state must not be equal on both branches")
+          .isEqualTo(contentsAfter1Branch.getSchemaId());
+      // verify manifests
+      Assertions.assertThat(tableAfter1Main.currentSnapshot().allManifests())
+          .describedAs("verify number of manifests on 'main'")
+          .hasSize(1);
 
-    //  4. modify table in "main" branch (add some data) again
+      //  4. modify table in "main" branch (add some data) again
 
-    DataFile file2 = makeDataFile(icebergTable, addRecordsToFile(icebergTable, "file2"));
-    icebergTable.newAppend().appendFile(file2).commit();
+      DataFile file2 = makeDataFile(icebergTable, addRecordsToFile(icebergTable, "file2"));
+      icebergTable.newAppend().appendFile(file2).commit();
 
-    IcebergTable contentsAfter2Main = getTable(KEY);
-    IcebergTable contentsAfter2Branch = getTable(testCaseBranch, KEY);
-    Table tableAfter2Main = catalog.loadTable(TABLE_IDENTIFIER);
+      IcebergTable contentsAfter2Main = getTable(KEY);
+      IcebergTable contentsAfter2Branch = getTable(testCaseBranch, KEY);
+      Table tableAfter2Main = catalog.loadTable(TABLE_IDENTIFIER);
 
-    //  --> assert getValue() against both branches returns the updated metadata-location
-    // verify table-metadata-location
-    Assertions.assertThat(contentsAfter2Main.getMetadataLocation())
-        .describedAs("metadata-location must change on %s", BRANCH)
-        .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
-    Assertions.assertThat(contentsAfter2Branch.getMetadataLocation())
-        .describedAs("on-reference-state must change on %s", testCaseBranch)
-        .isNotEqualTo(contentsAfter1Branch.getMetadataLocation());
-    // verify manifests
-    Assertions.assertThat(tableAfter2Main.currentSnapshot().allManifests())
-        .describedAs("verify number of manifests on 'main'")
-        .hasSize(2);
+      //  --> assert getValue() against both branches returns the updated metadata-location
+      // verify table-metadata-location
+      Assertions.assertThat(contentsAfter2Main.getMetadataLocation())
+          .describedAs("metadata-location must change on %s", BRANCH)
+          .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
+      Assertions.assertThat(contentsAfter2Branch.getMetadataLocation())
+          .describedAs("on-reference-state must not change on %s", testCaseBranch)
+          .isEqualTo(contentsAfter1Branch.getMetadataLocation());
+      // verify manifests
+      Assertions.assertThat(tableAfter2Main.currentSnapshot().allManifests())
+          .describedAs("verify number of manifests on 'main'")
+          .hasSize(2);
+    }
   }
 
   @Test
@@ -189,7 +192,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     // add a column
     icebergTable.updateSchema().addColumn("mother", Types.LongType.get()).commit();
-    IcebergTable table = getTable(KEY);
+    getTable(KEY); // sanity, check table exists
     // check parameters are in expected state
     String expected = (temp.toUri() + DB_NAME + "/" + tableName).replace("///", "/");
     Assertions.assertThat(getTableLocation(tableName)).isEqualTo(expected);
@@ -336,7 +339,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThatThrownBy(() -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(
-            "Commit failed: Reference hash is out of date. Update the reference iceberg-table-test and try again");
+            "Cannot commit: Reference hash is out of date. Update the reference 'iceberg-table-test' and try again");
   }
 
   @Test
@@ -370,8 +373,9 @@ public class TestNessieTable extends BaseTestIceberg {
     return Paths.get(getTableBasePath(tableName), "metadata").toString();
   }
 
+  @SuppressWarnings("RegexpSinglelineJava") // respecting this rule requires a lot more lines of code
   private List<String> metadataFiles(String tableName) {
-    return Arrays.stream(new File(metadataLocation(tableName)).listFiles())
+    return Arrays.stream(Objects.requireNonNull(new File(metadataLocation(tableName)).listFiles()))
         .map(File::getAbsolutePath)
         .collect(Collectors.toList());
   }

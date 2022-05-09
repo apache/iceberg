@@ -25,6 +25,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -79,6 +81,37 @@ public class TestRewriteManifests extends TableTestBase {
                             ids(appendId),
                             files(FILE_A),
                             statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @Test
+  public void testRewriteManifestsWithScanExecutor() throws IOException {
+    Table table = load();
+
+    table.updateProperties().set(SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
+
+    ManifestFile newManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(ManifestEntry.Status.ADDED, null, FILE_A));
+
+    table.newFastAppend()
+        .appendManifest(newManifest)
+        .commit();
+
+    Assert.assertEquals(1, table.currentSnapshot().allManifests().size());
+    AtomicInteger scanThreadsIndex = new AtomicInteger(0);
+    table.rewriteManifests()
+        .clusterBy(file -> "")
+        .scanManifestsWith(Executors.newFixedThreadPool(1, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("scan-" + scanThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }))
+        .commit();
+
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    Assert.assertEquals(1, manifests.size());
+    Assert.assertTrue("Thread should be created in provided pool", scanThreadsIndex.get() > 0);
   }
 
   @Test

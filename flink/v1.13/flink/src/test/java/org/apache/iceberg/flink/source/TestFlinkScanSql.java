@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.PipelineOptions;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
@@ -33,6 +34,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -42,6 +44,7 @@ import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -176,6 +179,64 @@ public class TestFlinkScanSql extends TestFlinkSource {
         .flinkConf(configuration)
         .inferParallelism(flinkInputFormat, ScanContext.builder().limit(3).build());
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
+  }
+
+  @Test
+  public void testInferParallelismWithGlobalSetting() throws IOException {
+    Configuration cfg = tEnv.getConfig().getConfiguration();
+    cfg.set(PipelineOptions.MAX_PARALLELISM, 1);
+
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), TestFixtures.SCHEMA, null);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    List<Record> expectedRecords = Lists.newArrayList();
+    long maxFileLen = 0;
+    for (int i = 0; i < 5; i++) {
+      List<Record> records = RandomGenericData.generate(TestFixtures.SCHEMA, 2, i);
+      DataFile dataFile = helper.writeFile(null, records);
+      helper.appendToTable(dataFile);
+      expectedRecords.addAll(records);
+      maxFileLen = Math.max(dataFile.fileSizeInBytes(), maxFileLen);
+    }
+
+    // Make sure to generate multiple CombinedScanTasks
+    sql("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen);
+
+    List<Row> results = run(null, Maps.newHashMap(), "", "*");
+    org.apache.iceberg.flink.TestHelpers.assertRecords(results, expectedRecords, TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testExposeLocality() throws Exception {
+    Table table =
+        catalog.createTable(TableIdentifier.of("default", "t"), TestFixtures.SCHEMA, TestFixtures.SPEC);
+
+    TableLoader tableLoader = TableLoader.fromHadoopTable(table.location());
+    List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 10, 0L);
+    expectedRecords.forEach(expectedRecord -> expectedRecord.set(2, "2020-03-20"));
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+    DataFile dataFile = helper.writeFile(TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
+    helper.appendToTable(dataFile);
+
+    // test sql api
+    Configuration tableConf = getTableEnv().getConfig().getConfiguration();
+    tableConf.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO.key(), false);
+
+    List<Row> results = sql("select * from t");
+    org.apache.iceberg.flink.TestHelpers.assertRecords(results, expectedRecords, TestFixtures.SCHEMA);
+
+    // test table api
+    tableConf.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO.key(), true);
+    FlinkSource.Builder builder = FlinkSource.forRowData().tableLoader(tableLoader).table(table);
+
+    Boolean localityEnabled =
+        DynMethods.builder("localityEnabled").hiddenImpl(builder.getClass()).build().invoke(builder);
+    // When running with CI or local, `localityEnabled` will be false even if this configuration is enabled
+    Assert.assertFalse("Expose split locality info should be false.", localityEnabled);
+
+    results = run(builder, Maps.newHashMap(), "where dt='2020-03-20'", "*");
+    org.apache.iceberg.flink.TestHelpers.assertRecords(results, expectedRecords, TestFixtures.SCHEMA);
   }
 
   private List<Row> sql(String query, Object... args) {

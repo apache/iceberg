@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -81,6 +81,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private int minNumSnapshots;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -117,7 +118,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   @Override
   public ExpireSnapshots expireOlderThan(long timestampMillis) {
-    LOG.info("Expiring snapshots older than: {} ({})", new Date(timestampMillis), timestampMillis);
+    LOG.info("Expiring snapshots older than: {} ({})",
+        DateTimeUtil.formatTimestampMillis(timestampMillis), timestampMillis);
     this.expireOlderThan = timestampMillis;
     return this;
   }
@@ -139,6 +141,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots planWith(ExecutorService executorService) {
+    this.planExecutorService = executorService;
     return this;
   }
 
@@ -395,7 +403,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3).suppressFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(planExecutorService)
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
@@ -415,7 +423,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     Tasks.foreach(manifestsToRevert)
         .retry(3).suppressFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
+        .executeWith(planExecutorService)
         .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete

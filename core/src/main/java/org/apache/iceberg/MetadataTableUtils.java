@@ -54,7 +54,11 @@ public class MetadataTableUtils {
       case ENTRIES:
         return new ManifestEntriesTable(ops, baseTable, metadataTableName);
       case FILES:
+        return new FilesTable(ops, baseTable, metadataTableName);
+      case DATA_FILES:
         return new DataFilesTable(ops, baseTable, metadataTableName);
+      case DELETE_FILES:
+        return new DeleteFilesTable(ops, baseTable, metadataTableName);
       case HISTORY:
         return new HistoryTable(ops, baseTable, metadataTableName);
       case SNAPSHOTS:
@@ -65,6 +69,10 @@ public class MetadataTableUtils {
         return new PartitionsTable(ops, baseTable, metadataTableName);
       case ALL_DATA_FILES:
         return new AllDataFilesTable(ops, baseTable, metadataTableName);
+      case ALL_DELETE_FILES:
+        return new AllDeleteFilesTable(ops, baseTable, metadataTableName);
+      case ALL_FILES:
+        return new AllFilesTable(ops, baseTable, metadataTableName);
       case ALL_MANIFESTS:
         return new AllManifestsTable(ops, baseTable, metadataTableName);
       case ALL_ENTRIES:

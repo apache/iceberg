@@ -32,6 +32,7 @@ import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering
 import org.apache.spark.sql.connector.write.Write
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.internal.SQLConf
+import scala.collection.compat.immutable.ArraySeq
 
 /**
  * A rule that is inspired by DistributionAndOrderingUtils in Spark but supports Iceberg transforms.
@@ -59,7 +60,7 @@ object ExtendedDistributionAndOrderingUtils {
         // the conversion to catalyst expressions above produces SortOrder expressions
         // for OrderedDistribution and generic expressions for ClusteredDistribution
         // this allows RepartitionByExpression to pick either range or hash partitioning
-        RepartitionByExpression(distribution, query, finalNumPartitions)
+        RepartitionByExpression(ArraySeq.unsafeWrapArray(distribution), query, finalNumPartitions)
       } else if (numPartitions > 0) {
         throw QueryCompilationErrors.numberOfPartitionsNotAllowedWithUnspecifiedDistributionError()
       } else {

@@ -31,6 +31,10 @@ public class SnapshotSummary {
   public static final String DELETED_FILES_PROP = "deleted-data-files";
   public static final String TOTAL_DATA_FILES_PROP = "total-data-files";
   public static final String ADDED_DELETE_FILES_PROP = "added-delete-files";
+  public static final String ADD_EQ_DELETE_FILES_PROP = "added-eq-delete-files";
+  public static final String REMOVED_EQ_DELETE_FILES_PROP = "removed-eq-delete-files";
+  public static final String ADD_POS_DELETE_FILES_PROP = "added-pos-delete-files";
+  public static final String REMOVED_POS_DELETE_FILES_PROP = "removed-pos-delete-files";
   public static final String REMOVED_DELETE_FILES_PROP = "removed-delete-files";
   public static final String TOTAL_DELETE_FILES_PROP = "total-delete-files";
   public static final String ADDED_RECORDS_PROP = "added-records";
@@ -72,6 +76,9 @@ public class SnapshotSummary {
     private int maxChangedPartitionsForSummaries = 0;
     private long deletedDuplicateFiles = 0L;
     private boolean trustPartitionMetrics = true;
+
+    private Builder() {
+    }
 
     public void clear() {
       partitionMetrics.clear();
@@ -204,6 +211,10 @@ public class SnapshotSummary {
     private long removedSize = 0L;
     private int addedFiles = 0;
     private int removedFiles = 0;
+    private int addedEqDeleteFiles = 0;
+    private int removedEqDeleteFiles = 0;
+    private int addedPosDeleteFiles = 0;
+    private int removedPosDeleteFiles = 0;
     private int addedDeleteFiles = 0;
     private int removedDeleteFiles = 0;
     private long addedRecords = 0L;
@@ -219,6 +230,10 @@ public class SnapshotSummary {
       this.removedSize = 0L;
       this.addedFiles = 0;
       this.removedFiles = 0;
+      this.addedEqDeleteFiles = 0;
+      this.removedEqDeleteFiles = 0;
+      this.addedPosDeleteFiles = 0;
+      this.removedPosDeleteFiles = 0;
       this.addedDeleteFiles = 0;
       this.removedDeleteFiles = 0;
       this.addedRecords = 0L;
@@ -233,6 +248,10 @@ public class SnapshotSummary {
     void addTo(ImmutableMap.Builder<String, String> builder) {
       setIf(addedFiles > 0, builder, ADDED_FILES_PROP, addedFiles);
       setIf(removedFiles > 0, builder, DELETED_FILES_PROP, removedFiles);
+      setIf(addedEqDeleteFiles > 0, builder, ADD_EQ_DELETE_FILES_PROP, addedEqDeleteFiles);
+      setIf(removedEqDeleteFiles > 0, builder, REMOVED_EQ_DELETE_FILES_PROP, removedEqDeleteFiles);
+      setIf(addedPosDeleteFiles > 0, builder, ADD_POS_DELETE_FILES_PROP, addedPosDeleteFiles);
+      setIf(removedPosDeleteFiles > 0, builder, REMOVED_POS_DELETE_FILES_PROP, removedPosDeleteFiles);
       setIf(addedDeleteFiles > 0, builder, ADDED_DELETE_FILES_PROP, addedDeleteFiles);
       setIf(removedDeleteFiles > 0, builder, REMOVED_DELETE_FILES_PROP, removedDeleteFiles);
       setIf(addedRecords > 0, builder, ADDED_RECORDS_PROP, addedRecords);
@@ -257,10 +276,12 @@ public class SnapshotSummary {
           break;
         case POSITION_DELETES:
           this.addedDeleteFiles += 1;
+          this.addedPosDeleteFiles += 1;
           this.addedPosDeletes += file.recordCount();
           break;
         case EQUALITY_DELETES:
           this.addedDeleteFiles += 1;
+          this.addedEqDeleteFiles += 1;
           this.addedEqDeletes += file.recordCount();
           break;
         default:
@@ -277,10 +298,12 @@ public class SnapshotSummary {
           break;
         case POSITION_DELETES:
           this.removedDeleteFiles += 1;
+          this.removedPosDeleteFiles += 1;
           this.removedPosDeletes += file.recordCount();
           break;
         case EQUALITY_DELETES:
           this.removedDeleteFiles += 1;
+          this.removedEqDeleteFiles += 1;
           this.removedEqDeletes += file.recordCount();
           break;
         default:
@@ -307,6 +330,10 @@ public class SnapshotSummary {
     void merge(UpdateMetrics other) {
       this.addedFiles += other.addedFiles;
       this.removedFiles += other.removedFiles;
+      this.addedEqDeleteFiles += other.addedEqDeleteFiles;
+      this.removedEqDeleteFiles += other.removedEqDeleteFiles;
+      this.addedPosDeleteFiles += other.addedPosDeleteFiles;
+      this.removedPosDeleteFiles += other.removedPosDeleteFiles;
       this.addedDeleteFiles += other.addedDeleteFiles;
       this.removedDeleteFiles += other.removedDeleteFiles;
       this.addedSize += other.addedSize;

@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
@@ -32,11 +34,13 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -54,6 +58,9 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 @RunWith(Parameterized.class)
 public class TestSparkDataWrite {
@@ -76,6 +83,11 @@ public class TestSparkDataWrite {
   @BeforeClass
   public static void startSpark() {
     TestSparkDataWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
+  }
+
+  @Parameterized.AfterParam
+  public static void clearSourceCache() {
+    ManualSource.clearTables();
   }
 
   @AfterClass
@@ -365,11 +377,9 @@ public class TestSparkDataWrite {
         files.add(file);
       }
     }
-    // TODO: ORC file now not support target file size
-    if (!format.equals(FileFormat.ORC)) {
-      Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
-      Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
-    }
+
+    Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
+    Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
   }
 
   @Test
@@ -585,11 +595,58 @@ public class TestSparkDataWrite {
         files.add(file);
       }
     }
-    // TODO: ORC file now not support target file size
-    if (!format.equals(FileFormat.ORC)) {
-      Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
-      Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
-    }
+
+    Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
+    Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
+  }
+
+  @Test
+  public void testCommitUnknownException() throws IOException {
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "commitunknown");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    AppendFiles append = table.newFastAppend();
+    AppendFiles spyAppend = spy(append);
+    doAnswer(invocation -> {
+      append.commit();
+      throw new CommitStateUnknownException(new RuntimeException("Datacenter on Fire"));
+    }).when(spyAppend).commit();
+
+    Table spyTable = spy(table);
+    when(spyTable.newAppend()).thenReturn(spyAppend);
+
+    String manualTableName = "unknown_exception";
+    ManualSource.setTable(manualTableName, spyTable);
+
+    // Although an exception is thrown here, write and commit have succeeded
+    AssertHelpers.assertThrowsWithCause("Should throw a Commit State Unknown Exception",
+        SparkException.class,
+        "Writing job aborted",
+        CommitStateUnknownException.class,
+        "Datacenter on Fire",
+        () -> df.select("id", "data").sort("data").write()
+            .format("org.apache.iceberg.spark.source.ManualSource")
+            .option(ManualSource.TABLE_NAME, manualTableName)
+            .mode(SaveMode.Append)
+            .save(location.toString()));
+
+    // Since write and commit succeeded, the rows should be readable
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", records.size(), actual.size());
+    Assert.assertEquals("Result rows should match", records, actual);
   }
 
   public enum IcebergOptionsType {

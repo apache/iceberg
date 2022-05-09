@@ -24,11 +24,15 @@ import java.util.Locale;
 public enum MetadataTableType {
   ENTRIES,
   FILES,
+  DATA_FILES,
+  DELETE_FILES,
   HISTORY,
   SNAPSHOTS,
   MANIFESTS,
   PARTITIONS,
   ALL_DATA_FILES,
+  ALL_DELETE_FILES,
+  ALL_FILES,
   ALL_MANIFESTS,
   ALL_ENTRIES;
 

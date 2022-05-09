@@ -54,7 +54,7 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
-import scala.collection.JavaConverters.seqAsJavaListConverter
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
@@ -176,7 +176,15 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   }
 
   private def isIcebergCommand(sqlText: String): Boolean = {
-    val normalized = sqlText.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ")
+    val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
+      // Strip simple SQL comments that terminate a line, e.g. comments starting with `--` .
+      .replaceAll("--.*?\\n", " ")
+      // Strip newlines.
+      .replaceAll("\\s+", " ")
+      // Strip comments of the form  /* ... */. This must come after stripping newlines so that
+      // comments that span multiple lines are caught.
+      .replaceAll("/\\*.*?\\*/", " ")
+      .trim()
     normalized.startsWith("call") || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||

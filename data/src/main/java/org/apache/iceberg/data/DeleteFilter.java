@@ -25,10 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -64,7 +62,7 @@ public abstract class DeleteFilter<T> {
       MetadataColumns.DELETE_FILE_POS);
 
   private final long setFilterThreshold;
-  private final DataFile dataFile;
+  private final String filePath;
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
@@ -73,13 +71,13 @@ public abstract class DeleteFilter<T> {
   private PositionDeleteIndex deleteRowPositions = null;
   private Predicate<T> eqDeleteRows = null;
 
-  protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+  protected DeleteFilter(String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
-    this.dataFile = task.file();
+    this.filePath = filePath;
 
     ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> eqDeleteBuilder = ImmutableList.builder();
-    for (DeleteFile delete : task.deletes()) {
+    for (DeleteFile delete : deletes) {
       switch (delete.content()) {
         case POSITION_DELETES:
           posDeleteBuilder.add(delete);
@@ -214,7 +212,7 @@ public abstract class DeleteFilter<T> {
 
     if (deleteRowPositions == null) {
       List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
-      deleteRowPositions = Deletes.toPositionIndex(dataFile.path(), deletes);
+      deleteRowPositions = Deletes.toPositionIndex(filePath, deletes);
     }
     return deleteRowPositions;
   }
@@ -228,10 +226,10 @@ public abstract class DeleteFilter<T> {
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      return Deletes.filter(records, this::pos, Deletes.toPositionIndex(dataFile.path(), deletes));
+      return Deletes.filter(records, this::pos, Deletes.toPositionIndex(filePath, deletes));
     }
 
-    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
+    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
   }
 
   private CloseableIterable<Record> openPosDeletes(DeleteFile file) {
@@ -255,7 +253,7 @@ public abstract class DeleteFilter<T> {
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema));
 
         if (deleteFile.content() == FileContent.POSITION_DELETES) {
-          builder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), dataFile.path()));
+          builder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), filePath));
         }
 
         return builder.build();
@@ -267,7 +265,7 @@ public abstract class DeleteFilter<T> {
             .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema));
 
         if (deleteFile.content() == FileContent.POSITION_DELETES) {
-          orcBuilder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), dataFile.path()));
+          orcBuilder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), filePath));
         }
 
         return orcBuilder.build();

@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -45,6 +44,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -356,7 +356,7 @@ public class TestPartitionPruning {
   public static class CountOpenLocalFileSystem extends RawLocalFileSystem {
     public static String scheme = String.format("TestIdentityPartitionData%dfs",
         new Random().nextInt());
-    public static ConcurrentHashMap<String, Long> pathToNumOpenCalled = new ConcurrentHashMap<>();
+    public static Map<String, Long> pathToNumOpenCalled = Maps.newConcurrentMap();
 
     public static String convertPath(String absPath) {
       return scheme + "://" + absPath;

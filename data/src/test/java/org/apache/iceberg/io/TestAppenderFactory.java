@@ -155,7 +155,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     DataWriter<T> writer = appenderFactory.newDataWriter(createEncryptedOutputFile(), format, partition);
     try (DataWriter<T> closeableWriter = writer) {
       for (T row : rowSet) {
-        closeableWriter.add(row);
+        closeableWriter.write(row);
       }
     }
 

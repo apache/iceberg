@@ -53,8 +53,6 @@ public class ParquetWithFlinkSchemaVisitor<T> {
       if (annotation != null) {
         switch (annotation) {
           case LIST:
-            Preconditions.checkArgument(!group.isRepetition(Type.Repetition.REPEATED),
-                "Invalid list: top-level group is repeated: %s", group);
             Preconditions.checkArgument(group.getFieldCount() == 1,
                 "Invalid list: does not contain single repeated field: %s", group);
 

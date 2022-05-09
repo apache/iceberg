@@ -39,7 +39,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestBucketing {
-  private static final HashFunction MURMUR3 = Hashing.murmur3_32();
+  private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
   private static Constructor<UUID> uuidBytesConstructor;
 
   @BeforeClass
@@ -225,13 +225,6 @@ public class TestBucketing {
 
     Assert.assertEquals("String hash should match hash of UTF-8 bytes",
         hashBytes(asBytes), bucketFunc.hash(string));
-
-    Assert.assertNotEquals(
-        "It looks like Guava has been updated and now contains a fix for " +
-            "https://github.com/google/guava/issues/5648. Please resolve the TODO in BucketString.hash " +
-            "and remove this assertion",
-        hashBytes(asBytes),
-        MURMUR3.hashString(string, StandardCharsets.UTF_8).asInt());
   }
 
   @Test

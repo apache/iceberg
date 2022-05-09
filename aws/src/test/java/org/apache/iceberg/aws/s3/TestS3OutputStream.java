@@ -30,6 +30,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,9 +55,11 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
+import static org.apache.iceberg.metrics.MetricsContext.nullMetrics;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -87,7 +90,10 @@ public class TestS3OutputStream {
 
   private final AwsProperties properties = new AwsProperties(ImmutableMap.of(
       AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
-      AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString()));
+      AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString(),
+      "s3.write.tags.abc", "123",
+      "s3.write.tags.def", "789",
+      "s3.delete.tags.xyz", "456"));
 
   public TestS3OutputStream() throws IOException {
   }
@@ -115,7 +121,7 @@ public class TestS3OutputStream {
   public void testAbortAfterFailedPartUpload() {
     doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties)) {
+    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
       stream.write(randomData(10 * 1024 * 1024));
     } catch (Exception e) {
       verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
@@ -126,7 +132,7 @@ public class TestS3OutputStream {
   public void testAbortMultipart() {
     doThrow(new RuntimeException()).when(s3mock).completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties)) {
+    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
       stream.write(randomData(10 * 1024 * 1024));
     } catch (Exception e) {
       verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
@@ -135,7 +141,7 @@ public class TestS3OutputStream {
 
   @Test
   public void testMultipleClose() throws IOException {
-    S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties);
+    S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties, nullMetrics());
     stream.close();
     stream.close();
   }
@@ -144,7 +150,7 @@ public class TestS3OutputStream {
   public void testStagingDirectoryCreation() throws IOException {
     AwsProperties newStagingDirectoryAwsProperties = new AwsProperties(ImmutableMap.of(
         AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
-    S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties);
+    S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics());
     stream.close();
   }
 
@@ -165,6 +171,7 @@ public class TestS3OutputStream {
       verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
+      checkTags(putObjectRequestArgumentCaptor);
       reset(s3mock);
 
       // Test file larger than part size but less than multipart threshold
@@ -174,6 +181,7 @@ public class TestS3OutputStream {
       verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
+      checkTags(putObjectRequestArgumentCaptor);
       reset(s3mock);
 
       // Test file large enough to trigger multipart upload
@@ -223,6 +231,20 @@ public class TestS3OutputStream {
     }
   }
 
+  private void checkTags(ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor) {
+    if (properties.isS3ChecksumEnabled()) {
+      List<PutObjectRequest> putObjectRequests = putObjectRequestArgumentCaptor.getAllValues();
+      String tagging = putObjectRequests.get(0).tagging();
+      assertEquals(getTags(properties.s3WriteTags()), tagging);
+    }
+  }
+
+  private String getTags(Set<Tag> objectTags) {
+    return objectTags.stream()
+        .map(e -> e.key() + "=" + e.value())
+        .collect(Collectors.joining("&"));
+  }
+
   private String getDigest(byte[] data, int offset, int length) {
     try {
       MessageDigest md5 = MessageDigest.getInstance("MD5");
@@ -235,7 +257,7 @@ public class TestS3OutputStream {
   }
 
   private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {
-    try (S3OutputStream stream = new S3OutputStream(client, uri, properties)) {
+    try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertEquals(data.length, stream.getPos());

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -53,11 +54,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -551,6 +556,139 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
+  @Test
+  public void testHiddenPartitionPaths() throws InterruptedException {
+    Schema schema = new Schema(
+        optional(1, "c1", Types.IntegerType.get()),
+        optional(2, "_c2", Types.StringType.get()),
+        optional(3, "c3", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .truncate("_c2", 2)
+        .identity("c3")
+        .build();
+    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
+
+    StructType structType = new StructType()
+        .add("c1", DataTypes.IntegerType)
+        .add("_c2", DataTypes.StringType)
+        .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(
+        RowFactory.create(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
+
+    df.select("c1", "_c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    SparkActions actions = SparkActions.get();
+
+    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
+  }
+
+  @Test
+  public void testHiddenPartitionPathsWithPartitionEvolution() throws InterruptedException {
+    Schema schema = new Schema(
+        optional(1, "_c1", Types.IntegerType.get()),
+        optional(2, "_c2", Types.StringType.get()),
+        optional(3, "c3", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .truncate("_c2", 2)
+        .build();
+    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
+
+    StructType structType = new StructType()
+        .add("_c1", DataTypes.IntegerType)
+        .add("_c2", DataTypes.StringType)
+        .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(
+        RowFactory.create(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
+
+    df.select("_c1", "_c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA");
+
+    table.updateSpec()
+        .addField("_c1")
+        .commit();
+
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/_c1=1");
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    SparkActions actions = SparkActions.get();
+
+    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
+  }
+
+  @Test
+  public void testHiddenPathsStartingWithPartitionNamesAreIgnored() throws InterruptedException, IOException {
+    Schema schema = new Schema(
+        optional(1, "c1", Types.IntegerType.get()),
+        optional(2, "_c2", Types.StringType.get()),
+        optional(3, "c3", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .truncate("_c2", 2)
+        .identity("c3")
+        .build();
+    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
+
+    StructType structType = new StructType()
+        .add("c1", DataTypes.IntegerType)
+        .add("_c2", DataTypes.StringType)
+        .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(
+        RowFactory.create(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
+
+    df.select("c1", "_c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    Path dataPath = new Path(tableLocation + "/data");
+    FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
+    Path pathToFileInHiddenFolder = new Path(dataPath, "_c2_trunc/file.txt");
+    fs.createNewFile(pathToFileInHiddenFolder);
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    SparkActions actions = SparkActions.get();
+
+    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertEquals("Should delete 0 files", 0, Iterables.size(result.orphanFileLocations()));
+    Assert.assertTrue(fs.exists(pathToFileInHiddenFolder));
+  }
+
   private List<String> snapshotFiles(long snapshotId) {
     return spark.read().format("iceberg")
         .option("snapshot-id", snapshotId)
@@ -700,7 +838,131 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .commit();
 
     AssertHelpers.assertThrows("Should complain about removing orphan files",
-        ValidationException.class, "Cannot remove orphan files: GC is disabled",
+        ValidationException.class, "Cannot delete orphan files: GC is disabled",
         () -> SparkActions.get().deleteOrphanFiles(table).execute());
+  }
+
+  @Test
+  public void testCompareToFileList() throws IOException, InterruptedException {
+    Table table =
+        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    Path dataPath = new Path(tableLocation + "/data");
+    FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
+    List<FilePathLastModifiedRecord> validFiles =
+        Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+            .filter(FileStatus::isFile)
+            .map(
+                file ->
+                    new FilePathLastModifiedRecord(
+                        file.getPath().toString(), new Timestamp(file.getModificationTime())))
+            .collect(Collectors.toList());
+
+    Assert.assertEquals("Should be 2 valid files", 2, validFiles.size());
+
+    df.write().mode("append").parquet(tableLocation + "/data");
+
+    List<FilePathLastModifiedRecord> allFiles =
+        Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+            .filter(FileStatus::isFile)
+            .map(
+                file ->
+                    new FilePathLastModifiedRecord(
+                        file.getPath().toString(), new Timestamp(file.getModificationTime())))
+            .collect(Collectors.toList());
+
+    Assert.assertEquals("Should be 3 files", 3, allFiles.size());
+
+    List<FilePathLastModifiedRecord> invalidFiles = Lists.newArrayList(allFiles);
+    invalidFiles.removeAll(validFiles);
+    List<String> invalidFilePaths =
+        invalidFiles.stream()
+            .map(FilePathLastModifiedRecord::getFilePath)
+            .collect(Collectors.toList());
+    Assert.assertEquals("Should be 1 invalid file", 1, invalidFiles.size());
+
+    // sleep for 1 second to ensure files will be old enough
+    Thread.sleep(1000);
+
+    SparkActions actions = SparkActions.get();
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    DeleteOrphanFiles.Result result1 =
+        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+            .compareToFileList(compareToFileList)
+            .deleteWith(s -> { })
+            .execute();
+    Assert.assertTrue(
+        "Default olderThan interval should be safe",
+        Iterables.isEmpty(result1.orphanFileLocations()));
+
+    DeleteOrphanFiles.Result result2 =
+        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+            .compareToFileList(compareToFileList)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> { })
+            .execute();
+    Assert.assertEquals(
+        "Action should find 1 file", invalidFilePaths, result2.orphanFileLocations());
+    Assert.assertTrue(
+        "Invalid file should be present", fs.exists(new Path(invalidFilePaths.get(0))));
+
+    DeleteOrphanFiles.Result result3 =
+        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+            .compareToFileList(compareToFileList)
+            .olderThan(System.currentTimeMillis())
+            .execute();
+    Assert.assertEquals(
+        "Action should delete 1 file", invalidFilePaths, result3.orphanFileLocations());
+    Assert.assertFalse(
+        "Invalid file should not be present", fs.exists(new Path(invalidFilePaths.get(0))));
+
+    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(records);
+    expectedRecords.addAll(records);
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+
+    List<FilePathLastModifiedRecord> outsideLocationMockFiles =
+        Lists.newArrayList(new FilePathLastModifiedRecord("/tmp/mock1", new Timestamp(0L)));
+
+    Dataset<Row> compareToFileListWithOutsideLocation =
+        spark
+            .createDataFrame(outsideLocationMockFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+
+    DeleteOrphanFiles.Result result4 =
+        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+            .compareToFileList(compareToFileListWithOutsideLocation)
+            .deleteWith(s -> { })
+            .execute();
+    Assert.assertEquals(
+        "Action should find nothing", Lists.newArrayList(), result4.orphanFileLocations());
+  }
+
+  protected long waitUntilAfter(long timestampMillis) {
+    long current = System.currentTimeMillis();
+    while (current <= timestampMillis) {
+      current = System.currentTimeMillis();
+    }
+    return current;
   }
 }

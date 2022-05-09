@@ -30,11 +30,15 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -53,9 +57,16 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.apache.iceberg.DataOperations.OVERWRITE;
+import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
+import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 import static org.apache.spark.sql.functions.lit;
 
 public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
@@ -171,7 +182,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      validateMergeOnRead(currentSnapshot, "1", "1", "1");
+    }
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
@@ -191,7 +206,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateCopyOnWrite(currentSnapshot, "0", null, null);
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "0", null, null);
+    } else {
+      validateMergeOnRead(currentSnapshot, "0", null, null);
+    }
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
@@ -219,7 +238,16 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateCopyOnWrite(currentSnapshot, "2", "3", "3");
+
+    Assert.assertEquals("Operation must match", OVERWRITE, currentSnapshot.operation());
+    if (mode(table) == COPY_ON_WRITE) {
+      Assert.assertEquals("Operation must match", OVERWRITE, currentSnapshot.operation());
+      validateProperty(currentSnapshot, CHANGED_PARTITION_COUNT_PROP, "2");
+      validateProperty(currentSnapshot, DELETED_FILES_PROP, "3");
+      validateProperty(currentSnapshot, ADDED_FILES_PROP, ImmutableSet.of("2", "3"));
+    } else {
+      validateMergeOnRead(currentSnapshot, "2", "2", "2");
+    }
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(-1, "hr")),
@@ -515,7 +543,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateCopyOnWrite(currentSnapshot,  "2", "2", "2");
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "2", "2", "2");
+    } else {
+      validateMergeOnRead(currentSnapshot, "2", "2", "2");
+    }
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(2, "hardware"), row(3, "hr")),
@@ -587,7 +619,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    if (mode(table) == COPY_ON_WRITE) {
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      validateMergeOnRead(currentSnapshot, "1", "1", "1");
+    }
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
@@ -817,6 +853,68 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testUpdateModifyPartitionSourceField() throws NoSuchTableException {
+    createAndInitTable("id INT, dep STRING, country STRING");
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD bucket(4, id)", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    List<Integer> ids = Lists.newArrayListWithCapacity(100);
+    for (int id = 1; id <= 100; id++) {
+      ids.add(id);
+    }
+
+    Dataset<Row> df1 = spark.createDataset(ids, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("hr"))
+        .withColumn("country", lit("usa"));
+    df1.coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> df2 = spark.createDataset(ids, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("software"))
+        .withColumn("country", lit("usa"));
+    df2.coalesce(1).writeTo(tableName).append();
+
+    Dataset<Row> df3 = spark.createDataset(ids, Encoders.INT())
+        .withColumnRenamed("value", "id")
+        .withColumn("dep", lit("hardware"))
+        .withColumn("country", lit("usa"));
+    df3.coalesce(1).writeTo(tableName).append();
+
+    sql("UPDATE %s SET id = -1 WHERE id IN (10, 11, 12, 13, 14, 15, 16, 17, 18, 19)", tableName);
+    Assert.assertEquals(30L, scalarSql("SELECT count(*) FROM %s WHERE id = -1", tableName));
+  }
+
+  @Test
+  public void testUpdateWithStaticPredicatePushdown() {
+    createAndInitTable("id INT, dep STRING");
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    // add a data file to the 'software' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"software\" }");
+
+    // add a data file to the 'hr' partition
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snapshot = table.currentSnapshot();
+    String dataFilesCount = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
+    Assert.assertEquals("Must have 2 files before UPDATE", "2", dataFilesCount);
+
+    // remove the data file from the 'hr' partition to ensure it is not scanned
+    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedFiles());
+    table.io().deleteFile(dataFile.path().toString());
+
+    // disable dynamic pruning and rely only on static predicate pushdown
+    withSQLConf(ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"), () -> {
+      sql("UPDATE %s SET id = -1 WHERE dep IN ('software') AND id == 1", tableName);
+    });
+  }
+
+  @Test
   public void testUpdateWithInvalidUpdates() {
     createAndInitTable("id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>");
 
@@ -894,5 +992,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     AssertHelpers.assertThrows("UPDATE is not supported for non iceberg table",
         UnsupportedOperationException.class, "not supported temporarily",
         () -> sql("UPDATE %s SET c1 = -1 WHERE c2 = 1", "testtable"));
+  }
+
+  private RowLevelOperationMode mode(Table table) {
+    String modeName = table.properties().getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
+    return RowLevelOperationMode.fromName(modeName);
   }
 }

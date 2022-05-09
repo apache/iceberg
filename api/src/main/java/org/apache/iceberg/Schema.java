@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Type;
@@ -55,6 +57,7 @@ public class Schema implements Serializable {
   private final StructType struct;
   private final int schemaId;
   private final int[] identifierFieldIds;
+  private final int highestFieldId;
 
   private transient BiMap<String, Integer> aliasToId = null;
   private transient Map<Integer, NestedField> idToField = null;
@@ -102,12 +105,14 @@ public class Schema implements Serializable {
 
     this.identifierFieldIds = identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
-    lazyIdToName();
+    this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
   }
 
   static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
                                               Map<Integer, Integer> idToParent) {
     Types.NestedField field = idToField.get(fieldId);
+    Preconditions.checkArgument(field != null,
+        "Cannot add fieldId %s as an identifier field: field does not exist", fieldId);
     Preconditions.checkArgument(field.type().isPrimitiveType(),
         "Cannot add field %s as an identifier field: not a primitive type field", field.name());
     Preconditions.checkArgument(field.isRequired(),
@@ -116,13 +121,22 @@ public class Schema implements Serializable {
             !Types.FloatType.get().equals(field.type()),
         "Cannot add field %s as an identifier field: must not be float or double field", field.name());
 
-    // check whether the nested field is in a chain of struct fields
+    // check whether the nested field is in a chain of required struct fields
+    // exploring from root for better error message for list and map types
     Integer parentId = idToParent.get(field.fieldId());
+    Deque<Integer> deque = Lists.newLinkedList();
     while (parentId != null) {
-      Types.NestedField parent = idToField.get(parentId);
+      deque.push(parentId);
+      parentId = idToParent.get(parentId);
+    }
+
+    while (!deque.isEmpty()) {
+      Types.NestedField parent = idToField.get(deque.pop());
       Preconditions.checkArgument(parent.type().isStructType(),
           "Cannot add field %s as an identifier field: must not be nested in %s", field.name(), parent);
-      parentId = idToParent.get(parent.fieldId());
+      Preconditions.checkArgument(parent.isRequired(),
+          "Cannot add field %s as an identifier field: must not be nested in an optional field %s",
+          field.name(), parent);
     }
   }
 
@@ -184,6 +198,13 @@ public class Schema implements Serializable {
    */
   public int schemaId() {
     return this.schemaId;
+  }
+
+  /**
+   * Returns the highest field ID in this schema, including nested fields.
+   */
+  public int highestFieldId() {
+    return highestFieldId;
   }
 
   /**

@@ -23,12 +23,39 @@ import org.apache.iceberg.util.PropertyUtil;
 
 abstract class BaseMetadataTableScan extends BaseTableScan {
 
-  protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema) {
+  private final MetadataTableType tableType;
+
+  protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema, MetadataTableType tableType) {
     super(ops, table, schema);
+    this.tableType = tableType;
   }
 
-  protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+  protected BaseMetadataTableScan(TableOperations ops, Table table, Schema schema, MetadataTableType tableType,
+                                  TableScanContext context) {
     super(ops, table, schema, context);
+    this.tableType = tableType;
+  }
+
+  /**
+   * Type of scan being performed, such as {@link MetadataTableType#ALL_DATA_FILES} when scanning
+   * a table's {@link org.apache.iceberg.AllDataFilesTable}.
+   * <p>
+   * Used for logging and error messages.
+   */
+  protected MetadataTableType tableType() {
+    return tableType;
+  }
+
+  @Override
+  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot incrementally scan table of type %s", tableType()));
+  }
+
+  @Override
+  public TableScan appendsAfter(long fromSnapshotId) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot incrementally scan table of type %s", tableType()));
   }
 
   @Override

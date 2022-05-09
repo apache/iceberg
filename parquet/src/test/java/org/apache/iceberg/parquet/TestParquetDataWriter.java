@@ -94,7 +94,7 @@ public class TestParquetDataWriter {
 
     try {
       for (Record record : records) {
-        dataWriter.add(record);
+        dataWriter.write(record);
       }
     } finally {
       dataWriter.close();
@@ -152,7 +152,7 @@ public class TestParquetDataWriter {
 
     try {
       for (Record record : overflowRecords) {
-        dataWriter.add(record);
+        dataWriter.write(record);
       }
     } finally {
       dataWriter.close();
@@ -214,7 +214,7 @@ public class TestParquetDataWriter {
 
     try {
       for (Record record : overflowRecords) {
-        dataWriter.add(record);
+        dataWriter.write(record);
       }
     } finally {
       dataWriter.close();

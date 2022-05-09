@@ -209,7 +209,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
 
     WriteResult result = deltaWriter.complete();
     Assert.assertEquals("Should have a data file.", 1, result.dataFiles().length);
-    Assert.assertEquals("Should have a pos-delete file and an eq-delete file", 2, result.deleteFiles().length);
+    Assert.assertEquals("Should have a pos-delete file.", 1, result.deleteFiles().length);
     commitTransaction(result);
     Assert.assertEquals("Should have an expected record", expectedRowSet(ImmutableList.of(record)), actualRowSet("*"));
 
@@ -217,12 +217,8 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     DataFile dataFile = result.dataFiles()[0];
     Assert.assertEquals(ImmutableList.of(record, record), readRecordsAsList(table.schema(), dataFile.path()));
 
-    // Check records in the eq-delete file.
-    DeleteFile eqDeleteFile = result.deleteFiles()[0];
-    Assert.assertEquals(ImmutableList.of(record), readRecordsAsList(eqDeleteRowSchema, eqDeleteFile.path()));
-
     // Check records in the pos-delete file.
-    DeleteFile posDeleteFile = result.deleteFiles()[1];
+    DeleteFile posDeleteFile = result.deleteFiles()[0];
     Assert.assertEquals(ImmutableList.of(
         posRecord.copy("file_path", dataFile.path(), "pos", 0L)
     ), readRecordsAsList(DeleteSchemaUtil.pathPosSchema(), posDeleteFile.path()));
@@ -306,7 +302,6 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Assert.assertEquals(FileContent.EQUALITY_DELETES, eqDeleteFile.content());
     Assert.assertEquals(ImmutableList.of(
         keyFunc.apply("aaa"),
-        keyFunc.apply("aaa"),
         keyFunc.apply("ccc"),
         keyFunc.apply("bbb")
     ), readRecordsAsList(eqDeleteRowSchema, eqDeleteFile.path()));
@@ -389,7 +384,6 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Assert.assertEquals(FileContent.EQUALITY_DELETES, eqDeleteFile.content());
     Assert.assertEquals(ImmutableList.of(
         createRecord(3, "aaa"),
-        createRecord(5, "aaa"),
         createRecord(4, "ccc"),
         createRecord(2, "bbb")
     ), readRecordsAsList(eqDeleteRowSchema, eqDeleteFile.path()));
@@ -467,6 +461,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       deltaWriter.delete(row);
     }
 
+    // The caller of this function is responsible for passing in a record with only the key fields
     public void deleteKey(Record key) throws IOException {
       deltaWriter.deleteKey(key);
     }
@@ -484,6 +479,11 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       @Override
       protected StructLike asStructLike(Record row) {
         return row;
+      }
+
+      @Override
+      protected StructLike asStructLikeKey(Record data) {
+        return data;
       }
     }
   }

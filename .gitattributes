@@ -30,6 +30,6 @@
 jitpack.yml    export-ignore
 /python        export-ignore
 /python/**     export-ignore
-/site          export-ignore
-/site/**       export-ignore
+/docs          export-ignore
+/docs/**       export-ignore
 

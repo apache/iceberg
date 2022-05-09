@@ -20,21 +20,24 @@
 package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.encryption.NativeFileCryptoParameters;
+import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.services.s3.S3Client;
 
-public class S3InputFile extends BaseS3File implements InputFile {
-  public static S3InputFile fromLocation(String location, S3Client client) {
-    return new S3InputFile(client, new S3URI(location), new AwsProperties());
+public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryptedFile {
+  private NativeFileCryptoParameters nativeDecryptionParameters;
+
+  public static S3InputFile fromLocation(String location, S3Client client, AwsProperties awsProperties,
+      MetricsContext metrics) {
+    return new S3InputFile(client, new S3URI(location, awsProperties.s3BucketToAccessPointMapping()),
+        awsProperties, metrics);
   }
 
-  public static S3InputFile fromLocation(String location, S3Client client, AwsProperties awsProperties) {
-    return new S3InputFile(client, new S3URI(location), awsProperties);
-  }
-
-  S3InputFile(S3Client client, S3URI uri, AwsProperties awsProperties) {
-    super(client, uri, awsProperties);
+  S3InputFile(S3Client client, S3URI uri, AwsProperties awsProperties, MetricsContext metrics) {
+    super(client, uri, awsProperties, metrics);
   }
 
   /**
@@ -49,7 +52,16 @@ public class S3InputFile extends BaseS3File implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new S3InputStream(client(), uri(), awsProperties());
+    return new S3InputStream(client(), uri(), awsProperties(), metrics());
   }
 
+  @Override
+  public NativeFileCryptoParameters nativeCryptoParameters() {
+    return nativeDecryptionParameters;
+  }
+
+  @Override
+  public void setNativeCryptoParameters(NativeFileCryptoParameters nativeCryptoParameters) {
+    this.nativeDecryptionParameters = nativeCryptoParameters;
+  }
 }

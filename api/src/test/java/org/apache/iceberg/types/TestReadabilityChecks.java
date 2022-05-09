@@ -362,7 +362,6 @@ public class TestReadabilityChecks {
     List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write);
     Assert.assertEquals("Should produce 1 error message", 1, errors.size());
 
-    System.err.println(errors);
     Assert.assertTrue("Should complain about field_b before field_a",
         errors.get(0).contains("field_b is out of order, before field_a"));
   }

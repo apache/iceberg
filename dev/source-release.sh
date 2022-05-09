@@ -113,8 +113,8 @@ git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$t
 
 echo "Signing the tarball..."
 [[ -z "$keyid" ]] && keyopt="-u $keyid"
-gpg --detach-sig $keyopt --armor --output ${projectdir}/${tarball}.asc ${projectdir}/$tarball
-shasum -a 512 ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
+gpg $keyopt --armor --output ${projectdir}/${tarball}.asc --detach-sig ${projectdir}/$tarball
+shasum -a 512 $tarball > ${projectdir}/${tarball}.sha512
 
 
 echo "Checking out Iceberg RC subversion repo..."
@@ -164,7 +164,7 @@ echo ""
 echo "Commit SHA1: $release_hash"
 echo ""
 echo "We have generated a release announcement email for you here:"
-echo "$projectdir/release_announcement_email.txt"
+echo "$projectdir/release-announcement-email.txt"
 echo ""
 echo "Please note that you must update the Nexus repository URL"
 echo "contained in the mail before sending it out."

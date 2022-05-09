@@ -30,7 +30,6 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -39,8 +38,6 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
-  // TODO: add ORC once we support ORC rolling file writers
-
   @Parameterized.Parameters(name = "FileFormat={0}, Partitioned={1}")
   public static Object[] parameters() {
     return new Object[][] {
@@ -48,6 +45,8 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
         new Object[]{FileFormat.AVRO, true},
         new Object[]{FileFormat.PARQUET, false},
         new Object[]{FileFormat.PARQUET, true},
+        new Object[]{FileFormat.ORC, false},
+        new Object[]{FileFormat.ORC, true}
     };
   }
 
@@ -129,8 +128,6 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
   @Test
   public void testRollingEqualityDeleteWriterNoRecords() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);

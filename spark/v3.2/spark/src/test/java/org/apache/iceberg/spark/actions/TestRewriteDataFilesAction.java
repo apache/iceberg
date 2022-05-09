@@ -41,6 +41,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -61,10 +62,12 @@ import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -75,6 +78,7 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.RewriteExecutionContext;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -92,6 +96,10 @@ import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.current_date;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
@@ -193,6 +201,34 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testBinPackAfterPartitionChange() {
+    Table table = createTable();
+
+    writeRecords(20, SCALE, 20);
+    shouldHaveFiles(table, 20);
+    table.updateSpec().addField(Expressions.ref("c1")).commit();
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .option(SortStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) + 1000))
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) + 1001))
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroup because all files were not correctly partitioned",
+        1, result.rewriteResults().size());
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    shouldHaveFiles(table, 20);
   }
 
   @Test
@@ -778,6 +814,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         () -> basicRewrite(table)
             .option("foobarity", "-5")
             .execute());
+
+    AssertHelpers.assertThrows("Cannot set rewrite-job-order to foo",
+        IllegalArgumentException.class,
+        () -> basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo")
+            .execute());
   }
 
   @Test
@@ -901,8 +943,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   @Test
   public void testSortCustomSortOrderRequiresRepartition() {
+    int partitions = 4;
     Table table = createTable();
-    writeRecords(20, SCALE, 20);
+    writeRecords(20, SCALE, partitions);
     shouldHaveLastCommitUnsorted(table, "c3");
 
     // Add a partition column so this requires repartitioning
@@ -917,7 +960,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         basicRewrite(table)
             .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
             .option(SortStrategy.REWRITE_ALL, "true")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / partitions))
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", result.rewriteResults().size(), 1);
@@ -995,6 +1038,85 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testZOrderSort() {
+    int originalFiles = 20;
+    Table table = createTable(originalFiles);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveFiles(table, originalFiles);
+
+    List<Object[]> originalData = currentData();
+    double originalFilesC2 = percentFilesRequired(table, "c2", "foo23");
+    double originalFilesC3 = percentFilesRequired(table, "c3", "bar21");
+    double originalFilesC2C3 = percentFilesRequired(table, new String[]{"c2", "c3"}, new String[]{"foo23", "bar23"});
+
+    Assert.assertTrue("Should require all files to scan c2", originalFilesC2 > 0.99);
+    Assert.assertTrue("Should require all files to scan c3", originalFilesC3 > 0.99);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .zOrder("c2", "c3")
+            .option(SortStrategy.MAX_FILE_SIZE_BYTES, Integer.toString((averageFileSize(table) / 2) + 2))
+            // Divide files in 2
+            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table) / 2))
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
+    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedFiles());
+    Assert.assertTrue("Should have written 40+ files", zOrderedFilesTotal >= 40);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+
+    double filesScannedC2 = percentFilesRequired(table, "c2", "foo23");
+    double filesScannedC3 = percentFilesRequired(table, "c3", "bar21");
+    double filesScannedC2C3 = percentFilesRequired(table, new String[]{"c2", "c3"}, new String[]{"foo23", "bar23"});
+
+    Assert.assertTrue("Should have reduced the number of files required for c2",
+        filesScannedC2 < originalFilesC2);
+    Assert.assertTrue("Should have reduced the number of files required for c3",
+        filesScannedC3 < originalFilesC3);
+    Assert.assertTrue("Should have reduced the number of files required for a c2,c3 predicate",
+        filesScannedC2C3 < originalFilesC2C3);
+  }
+
+  @Test
+  public void testZOrderAllTypesSort() {
+    Table table = createTypeTestTable();
+    shouldHaveFiles(table, 10);
+
+    List<Row> originalRaw = spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+    List<Object[]> originalData = rowsToJava(originalRaw);
+
+    // TODO add in UUID when it is supported in Spark
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .zOrder("longCol", "intCol", "floatCol", "doubleCol", "dateCol", "timestampCol", "stringCol", "binaryCol",
+                "booleanCol")
+            .option(SortStrategy.MIN_INPUT_FILES, "1")
+            .option(SortStrategy.REWRITE_ALL, "true")
+            .execute();
+
+    Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
+    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedFiles());
+    Assert.assertEquals("Should have written 1 file", 1, zOrderedFilesTotal);
+
+    table.refresh();
+
+    List<Row> postRaw = spark.read().format("iceberg").load(tableLocation).sort("longCol").collectAsList();
+    List<Object[]> postRewriteData = rowsToJava(postRaw);
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+  }
+
+  @Test
   public void testInvalidAPIUsage() {
     Table table = createTable(1);
 
@@ -1006,6 +1128,144 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     AssertHelpers.assertThrows("Should be unable to set Strategy more than once", IllegalArgumentException.class,
         "Cannot set strategy", () -> actions().rewriteDataFiles(table).sort(SortOrder.unsorted()).binPack());
+  }
+
+  @Test
+  public void testRewriteJobOrderBytesAsc() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    BaseRewriteDataFilesSparkAction basicRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .binPack();
+    List<Long> expected = toGroupStream(table, basicRewrite)
+        .mapToLong(RewriteFileGroup::sizeInBytes)
+        .boxed()
+        .collect(Collectors.toList());
+
+    BaseRewriteDataFilesSparkAction jobOrderRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.BYTES_ASC.orderName())
+            .binPack();
+    List<Long> actual = toGroupStream(table, jobOrderRewrite)
+        .mapToLong(RewriteFileGroup::sizeInBytes)
+        .boxed()
+        .collect(Collectors.toList());
+
+    expected.sort(Comparator.naturalOrder());
+    Assert.assertEquals("Size in bytes order should be ascending", actual, expected);
+    Collections.reverse(expected);
+    Assert.assertNotEquals("Size in bytes order should not be descending", actual, expected);
+  }
+
+  @Test
+  public void testRewriteJobOrderBytesDesc() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    BaseRewriteDataFilesSparkAction basicRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .binPack();
+    List<Long> expected = toGroupStream(table, basicRewrite)
+        .mapToLong(RewriteFileGroup::sizeInBytes)
+        .boxed()
+        .collect(Collectors.toList());
+
+    BaseRewriteDataFilesSparkAction jobOrderRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.BYTES_DESC.orderName())
+            .binPack();
+    List<Long> actual = toGroupStream(table, jobOrderRewrite)
+        .mapToLong(RewriteFileGroup::sizeInBytes)
+        .boxed()
+        .collect(Collectors.toList());
+
+    expected.sort(Comparator.reverseOrder());
+    Assert.assertEquals("Size in bytes order should be descending", actual, expected);
+    Collections.reverse(expected);
+    Assert.assertNotEquals("Size in bytes order should not be ascending", actual, expected);
+  }
+
+  @Test
+  public void testRewriteJobOrderFilesAsc() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    BaseRewriteDataFilesSparkAction basicRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .binPack();
+    List<Long> expected = toGroupStream(table, basicRewrite)
+        .mapToLong(RewriteFileGroup::numFiles)
+        .boxed()
+        .collect(Collectors.toList());
+
+    BaseRewriteDataFilesSparkAction jobOrderRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.FILES_ASC.orderName())
+            .binPack();
+    List<Long> actual = toGroupStream(table, jobOrderRewrite)
+        .mapToLong(RewriteFileGroup::numFiles)
+        .boxed()
+        .collect(Collectors.toList());
+
+    expected.sort(Comparator.naturalOrder());
+    Assert.assertEquals("Number of files order should be ascending", actual, expected);
+    Collections.reverse(expected);
+    Assert.assertNotEquals("Number of files order should not be descending", actual, expected);
+  }
+
+  @Test
+  public void testRewriteJobOrderFilesDesc() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(1, SCALE, 1);
+    writeRecords(2, SCALE, 2);
+    writeRecords(3, SCALE, 3);
+    writeRecords(4, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    BaseRewriteDataFilesSparkAction basicRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .binPack();
+    List<Long> expected = toGroupStream(table, basicRewrite)
+        .mapToLong(RewriteFileGroup::numFiles)
+        .boxed()
+        .collect(Collectors.toList());
+
+    BaseRewriteDataFilesSparkAction jobOrderRewrite =
+        (BaseRewriteDataFilesSparkAction) basicRewrite(table)
+            .option(RewriteDataFiles.REWRITE_JOB_ORDER, RewriteJobOrder.FILES_DESC.orderName())
+            .binPack();
+    List<Long> actual = toGroupStream(table, jobOrderRewrite)
+        .mapToLong(RewriteFileGroup::numFiles)
+        .boxed()
+        .collect(Collectors.toList());
+
+    expected.sort(Comparator.reverseOrder());
+    Assert.assertEquals("Number of files order should be descending", actual, expected);
+    Collections.reverse(expected);
+    Assert.assertNotEquals("Number of files order should not be ascending", actual, expected);
+  }
+
+  private Stream<RewriteFileGroup> toGroupStream(Table table,
+      BaseRewriteDataFilesSparkAction rewrite) {
+    rewrite.validateAndInitOptions();
+    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition =
+        rewrite.planFileGroups(table.currentSnapshot().snapshotId());
+
+    return rewrite.toGroupStream(
+        new RewriteExecutionContext(fileGroupsByPartition), fileGroupsByPartition);
   }
 
   protected List<Object[]> currentData() {
@@ -1052,39 +1312,48 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   protected <T> void shouldHaveLastCommitSorted(Table table, String column) {
     List<Pair<Pair<T, T>, Pair<T, T>>>
-        overlappingFiles = getOverlappingFiles(table, column);
+        overlappingFiles = checkForOverlappingFiles(table, column);
 
     Assert.assertEquals("Found overlapping files", Collections.emptyList(), overlappingFiles);
   }
 
   protected <T> void shouldHaveLastCommitUnsorted(Table table, String column) {
     List<Pair<Pair<T, T>, Pair<T, T>>>
-        overlappingFiles = getOverlappingFiles(table, column);
+        overlappingFiles = checkForOverlappingFiles(table, column);
 
     Assert.assertNotEquals("Found no overlapping files", Collections.emptyList(), overlappingFiles);
   }
 
-  private <T> List<Pair<Pair<T, T>, Pair<T, T>>> getOverlappingFiles(Table table, String column) {
+  private <T> Pair<T, T> boundsOf(DataFile file, NestedField field, Class<T> javaClass) {
+    int columnId = field.fieldId();
+    return Pair.of(javaClass.cast(Conversions.fromByteBuffer(field.type(), file.lowerBounds().get(columnId))),
+        javaClass.cast(Conversions.fromByteBuffer(field.type(), file.upperBounds().get(columnId))));
+  }
+
+
+  private <T> List<Pair<Pair<T, T>, Pair<T, T>>> checkForOverlappingFiles(Table table, String column) {
     table.refresh();
     NestedField field = table.schema().caseInsensitiveFindField(column);
-    int columnId = field.fieldId();
     Class<T> javaClass = (Class<T>) field.type().typeId().javaClass();
+
     Map<StructLike, List<DataFile>> filesByPartition = Streams.stream(table.currentSnapshot().addedFiles())
         .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =
         filesByPartition.entrySet().stream().flatMap(entry -> {
-          List<Pair<T, T>> columnBounds =
-              entry.getValue().stream()
-                  .map(file -> Pair.of(
-                      javaClass.cast(Conversions.fromByteBuffer(field.type(), file.lowerBounds().get(columnId))),
-                      javaClass.cast(Conversions.fromByteBuffer(field.type(), file.upperBounds().get(columnId)))))
-                  .collect(Collectors.toList());
+          List<DataFile> datafiles = entry.getValue();
+          Preconditions.checkArgument(datafiles.size() > 1,
+              "This test is checking for overlaps in a situation where no overlaps can actually occur because the " +
+                  "partition %s does not contain multiple datafiles", entry.getKey());
+
+          List<Pair<Pair<T, T>, Pair<T, T>>> boundComparisons = Lists.cartesianProduct(datafiles, datafiles).stream()
+              .filter(tuple -> tuple.get(0) != tuple.get(1))
+              .map(tuple -> Pair.of(boundsOf(tuple.get(0), field, javaClass), boundsOf(tuple.get(1), field, javaClass)))
+              .collect(Collectors.toList());
 
           Comparator<T> comparator = Comparators.forType(field.type().asPrimitiveType());
 
-          List<Pair<Pair<T, T>, Pair<T, T>>> overlappingFiles = columnBounds.stream()
-              .flatMap(left -> columnBounds.stream().map(right -> Pair.of(left, right)))
+          List<Pair<Pair<T, T>, Pair<T, T>>> overlappingFiles = boundComparisons.stream()
               .filter(filePair -> {
                 Pair<T, T> left = filePair.first();
                 T lMin = left.first();
@@ -1097,9 +1366,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
                     (comparator.compare(rMax, lMax) >= 0 && comparator.compare(rMin, lMax) >= 0) ||
                         (comparator.compare(lMax, rMax) >= 0 && comparator.compare(lMin, rMax) >= 0);
 
-                return (left != right) && !boundsDoNotOverlap;
-              })
-              .collect(Collectors.toList());
+                return !boundsDoNotOverlap;
+              }).collect(Collectors.toList());
           return overlappingFiles.stream();
         });
 
@@ -1141,6 +1409,39 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   protected Table createTablePartitioned(int partitions, int files) {
     return createTablePartitioned(partitions, files, SCALE, Maps.newHashMap());
+  }
+
+  private Table createTypeTestTable() {
+    Schema schema = new Schema(
+        required(1, "longCol", Types.LongType.get()),
+        required(2, "intCol", Types.IntegerType.get()),
+        required(3, "floatCol", Types.FloatType.get()),
+        optional(4, "doubleCol", Types.DoubleType.get()),
+        optional(5, "dateCol", Types.DateType.get()),
+        optional(6, "timestampCol", Types.TimestampType.withZone()),
+        optional(7, "stringCol", Types.StringType.get()),
+        optional(8, "booleanCol", Types.BooleanType.get()),
+        optional(9, "binaryCol", Types.BinaryType.get()));
+
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), options, tableLocation);
+
+    spark.range(0, 10, 1, 10)
+        .withColumnRenamed("id", "longCol")
+        .withColumn("intCol", expr("CAST(longCol AS INT)"))
+        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        .withColumn("dateCol", date_add(current_date(), 1))
+        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        .withColumn("booleanCol", expr("longCol > 5"))
+        .withColumn("binaryCol", expr("CAST(longCol AS BINARY)"))
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    return table;
   }
 
   protected int averageFileSize(Table table) {
@@ -1226,6 +1527,21 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .addAll(manager.fetchSetIDs(table))
         .addAll(coordinator.fetchSetIDs(table))
         .build();
+  }
+
+  private double percentFilesRequired(Table table, String col, String value) {
+    return percentFilesRequired(table, new String[]{col}, new String[]{value});
+  }
+
+  private double percentFilesRequired(Table table, String[] cols, String[] values) {
+    Preconditions.checkArgument(cols.length == values.length);
+    Expression restriction = Expressions.alwaysTrue();
+    for (int i = 0; i < cols.length; i++) {
+      restriction = Expressions.and(restriction, Expressions.equal(cols[i], values[i]));
+    }
+    int totalFiles = Iterables.size(table.newScan().planFiles());
+    int filteredFiles = Iterables.size(table.newScan().filter(restriction).planFiles());
+    return (double) filteredFiles / (double) totalFiles;
   }
 
   class GroupInfoMatcher implements ArgumentMatcher<RewriteFileGroup> {

@@ -224,4 +224,65 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             catalogName, tableIdent, -1));
 
   }
+
+  @Test
+  public void testExpireSnapshotWithStreamResultsEnabled() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals("Should be 2 snapshots", 2, Iterables.size(table.snapshots()));
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    List<Object[]> output = sql(
+        "CALL %s.system.expire_snapshots(" +
+            "older_than => TIMESTAMP '%s'," +
+            "table => '%s'," +
+            "retain_last => 1, " +
+            "stream_results => true)",
+        catalogName, currentTimestamp, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 1L)), output);
+  }
+
+  @Test
+  public void testExpireSnapshotsProcedureWorksWithSqlComments() {
+    // Ensure that systems such as dbt, that inject comments into the generated SQL files, will
+    // work with Iceberg-specific DDL
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals("Should be 2 snapshots", 2, Iterables.size(table.snapshots()));
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    String callStatement =
+        "/* CALL statement is used to expire snapshots */\n" +
+        "-- And we have single line comments as well \n" +
+        "/* And comments that span *multiple* \n" +
+        " lines */ CALL /* this is the actual CALL */ %s.system.expire_snapshots(" +
+        "   older_than => TIMESTAMP '%s'," +
+        "   table => '%s'," +
+        "   retain_last => 1)";
+    List<Object[]> output = sql(
+        callStatement, catalogName, currentTimestamp, tableIdent);
+    assertEquals("Procedure output must match",
+        ImmutableList.of(row(0L, 0L, 1L)),
+        output);
+
+    table.refresh();
+
+    Assert.assertEquals("Should be 1 snapshot remaining", 1, Iterables.size(table.snapshots()));
+  }
 }

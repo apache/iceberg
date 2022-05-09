@@ -21,8 +21,11 @@ package org.apache.iceberg.aws;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.DeleteDatabaseRequest;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -31,6 +34,9 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3control.S3ControlClient;
+import software.amazon.awssdk.services.s3control.model.CreateAccessPointRequest;
+import software.amazon.awssdk.services.s3control.model.DeleteAccessPointRequest;
 
 public class AwsIntegTestUtil {
 
@@ -40,11 +46,38 @@ public class AwsIntegTestUtil {
   }
 
   /**
+   * Get the environment variable AWS_REGION to use for testing
+   * @return region
+   */
+  public static String testRegion() {
+    return System.getenv("AWS_REGION");
+  }
+
+  /**
+   * Get the environment variable AWS_CROSS_REGION to use for testing
+   * @return region
+   */
+  public static String testCrossRegion() {
+    String crossRegion = System.getenv("AWS_CROSS_REGION");
+    Preconditions.checkArgument(!testRegion().equals(crossRegion), "AWS_REGION should not be equal to " +
+        "AWS_CROSS_REGION");
+    return crossRegion;
+  }
+
+  /**
    * Set the environment variable AWS_TEST_BUCKET for a default bucket to use for testing
    * @return bucket name
    */
   public static String testBucketName() {
     return System.getenv("AWS_TEST_BUCKET");
+  }
+
+  /**
+   * Set the environment variable AWS_TEST_CROSS_REGION_BUCKET for a default bucket to use for testing
+   * @return bucket name
+   */
+  public static String testCrossRegionBucketName() {
+    return System.getenv("AWS_TEST_CROSS_REGION_BUCKET");
   }
 
   /**
@@ -79,6 +112,40 @@ public class AwsIntegTestUtil {
       } catch (Exception e) {
         LOG.error("Cannot delete namespace {}", namespace, e);
       }
+    }
+  }
+
+  public static S3ControlClient createS3ControlClient(String region) {
+    return S3ControlClient.builder()
+        .httpClientBuilder(UrlConnectionHttpClient.builder())
+        .region(Region.of(region))
+        .build();
+  }
+
+  public static void createAccessPoint(S3ControlClient s3ControlClient, String accessPointName, String bucketName) {
+    try {
+      s3ControlClient.createAccessPoint(CreateAccessPointRequest
+          .builder()
+          .name(accessPointName)
+          .bucket(bucketName)
+          .accountId(testAccountId())
+          .build()
+      );
+    } catch (Exception e) {
+      LOG.error("Cannot create access point {}", accessPointName, e);
+    }
+  }
+
+  public static void deleteAccessPoint(S3ControlClient s3ControlClient, String accessPointName) {
+    try {
+      s3ControlClient.deleteAccessPoint(DeleteAccessPointRequest
+          .builder()
+          .name(accessPointName)
+          .accountId(testAccountId())
+          .build()
+      );
+    } catch (Exception e) {
+      LOG.error("Cannot delete access point {}", accessPointName, e);
     }
   }
 }

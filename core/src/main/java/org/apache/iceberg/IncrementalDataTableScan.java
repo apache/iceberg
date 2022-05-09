@@ -30,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.util.ThreadPools;
 
 class IncrementalDataTableScan extends DataTableScan {
 
@@ -70,8 +69,10 @@ class IncrementalDataTableScan extends DataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    List<Snapshot> snapshots = snapshotsWithin(table(),
-        context().fromSnapshotId(), context().toSnapshotId());
+    Long fromSnapshotId = context().fromSnapshotId();
+    Long toSnapshotId = context().toSnapshotId();
+
+    List<Snapshot> snapshots = snapshotsWithin(table(), fromSnapshotId, toSnapshotId);
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
         .from(snapshots)
@@ -79,7 +80,7 @@ class IncrementalDataTableScan extends DataTableScan {
         .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
         .toSet();
 
-    ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), manifests)
+    ManifestGroup manifestGroup = new ManifestGroup(table().io(), manifests)
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())
@@ -87,18 +88,17 @@ class IncrementalDataTableScan extends DataTableScan {
             manifestEntry ->
                 snapshotIds.contains(manifestEntry.snapshotId()) &&
                 manifestEntry.status() == ManifestEntry.Status.ADDED)
-        .specsById(tableOps().current().specsById())
+        .specsById(table().specs())
         .ignoreDeleted();
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    Listeners.notifyAll(new IncrementalScanEvent(table().name(), context().fromSnapshotId(),
-        context().toSnapshotId(), context().rowFilter(), schema()));
+    Listeners.notifyAll(new IncrementalScanEvent(table().name(), fromSnapshotId, toSnapshotId, filter(), schema()));
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && manifests.size() > 1) {
-      manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
+    if (manifests.size() > 1 && (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
+      manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
     return manifestGroup.planFiles();

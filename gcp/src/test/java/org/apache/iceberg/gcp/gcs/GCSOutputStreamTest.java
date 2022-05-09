@@ -28,6 +28,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.gcp.GCPProperties;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,14 +58,16 @@ public class GCSOutputStreamTest {
 
   @Test
   public void testMultipleClose() throws IOException {
-    GCSOutputStream stream = new GCSOutputStream(storage, randomBlobId(), properties);
+    GCSOutputStream stream =
+        new GCSOutputStream(storage, randomBlobId(), properties, MetricsContext.nullMetrics());
     stream.close();
     stream.close();
   }
 
 
   private void writeAndVerify(Storage client, BlobId uri, byte [] data, boolean arrayWrite) {
-    try (GCSOutputStream stream = new GCSOutputStream(client, uri, properties)) {
+    try (GCSOutputStream stream = new GCSOutputStream(client, uri, properties,
+        MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertEquals(data.length, stream.getPos());

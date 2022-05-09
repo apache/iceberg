@@ -82,13 +82,13 @@ public class PropertyUtil {
    * @param prefix prefix to choose keys from input map
    * @return subset of input map with keys starting with provided prefix and prefix trimmed out
    */
-  public static Map<String, String> propertiesWithPrefix(Map<String, String> properties,
-                                                         String prefix) {
+  public static Map<String, String> propertiesWithPrefix(
+      Map<String, String> properties, String prefix) {
     if (properties == null || properties.isEmpty()) {
       return ImmutableMap.of();
     }
 
-    Preconditions.checkState(prefix != null, "prefix can't be null.");
+    Preconditions.checkArgument(prefix != null, "prefix can't be null.");
 
     return properties.entrySet().stream()
         .filter(e -> e.getKey().startsWith(prefix))

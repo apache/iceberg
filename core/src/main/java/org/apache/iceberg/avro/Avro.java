@@ -62,31 +62,24 @@ import org.apache.iceberg.util.ArrayUtil;
 
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_AVRO_COMPRESSION_LEVEL;
 
 public class Avro {
   private Avro() {
   }
 
-  private enum CodecName {
-    UNCOMPRESSED(CodecFactory.nullCodec()),
-    SNAPPY(CodecFactory.snappyCodec()),
-    GZIP(CodecFactory.deflateCodec(9)),
-    LZ4(null),
-    BROTLI(null),
-    ZSTD(null);
-
-    private final CodecFactory avroCodec;
-
-    CodecName(CodecFactory avroCodec) {
-      this.avroCodec = avroCodec;
-    }
-
-    public CodecFactory get() {
-      Preconditions.checkArgument(avroCodec != null, "Missing implementation for codec %s", this);
-      return avroCodec;
-    }
+  private enum Codec {
+    UNCOMPRESSED,
+    SNAPPY,
+    GZIP,
+    ZSTD
   }
+
+  private static final int ZSTD_COMPRESSION_LEVEL_DEFAULT = 1;
+  private static final int GZIP_COMPRESSION_LEVEL_DEFAULT = 9;
 
   private static final GenericData DEFAULT_MODEL = new SpecificData();
 
@@ -207,7 +200,8 @@ public class Avro {
 
       static Context dataContext(Map<String, String> config) {
         String codecAsString = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
-        CodecFactory codec = toCodec(codecAsString);
+        String compressionLevel = config.getOrDefault(AVRO_COMPRESSION_LEVEL, AVRO_COMPRESSION_LEVEL_DEFAULT);
+        CodecFactory codec = toCodec(codecAsString, compressionLevel);
 
         return new Context(codec);
       }
@@ -217,17 +211,41 @@ public class Avro {
         Context dataContext = dataContext(config);
 
         String codecAsString = config.get(DELETE_AVRO_COMPRESSION);
-        CodecFactory codec = codecAsString != null ? toCodec(codecAsString) : dataContext.codec();
+        String compressionLevel = config.getOrDefault(DELETE_AVRO_COMPRESSION_LEVEL, AVRO_COMPRESSION_LEVEL_DEFAULT);
+        CodecFactory codec = codecAsString != null ? toCodec(codecAsString, compressionLevel) : dataContext.codec();
 
         return new Context(codec);
       }
 
-      private static CodecFactory toCodec(String codecAsString) {
+      private static CodecFactory toCodec(String codecAsString, String compressionLevel) {
+        CodecFactory codecFactory;
         try {
-          return CodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH)).get();
+          switch (Codec.valueOf(codecAsString.toUpperCase(Locale.ENGLISH))) {
+            case UNCOMPRESSED:
+              codecFactory = CodecFactory.nullCodec();
+              break;
+            case SNAPPY:
+              codecFactory = CodecFactory.snappyCodec();
+              break;
+            case ZSTD:
+              codecFactory = CodecFactory.zstandardCodec(
+                  compressionLevelAsInt(compressionLevel, ZSTD_COMPRESSION_LEVEL_DEFAULT));
+              break;
+            case GZIP:
+              codecFactory = CodecFactory.deflateCodec(
+                  compressionLevelAsInt(compressionLevel, GZIP_COMPRESSION_LEVEL_DEFAULT));
+              break;
+            default:
+              throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+          }
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
         }
+        return codecFactory;
+      }
+
+      private static int compressionLevelAsInt(String tableCompressionLevel, int defaultCompressionLevel) {
+        return tableCompressionLevel != null ? Integer.parseInt(tableCompressionLevel) : defaultCompressionLevel;
       }
 
       CodecFactory codec() {

@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.actions;
 import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -79,7 +81,9 @@ abstract class BaseRewriteDataFilesSparkAction
       MAX_FILE_GROUP_SIZE_BYTES,
       PARTIAL_PROGRESS_ENABLED,
       PARTIAL_PROGRESS_MAX_COMMITS,
-      TARGET_FILE_SIZE_BYTES
+      TARGET_FILE_SIZE_BYTES,
+      USE_STARTING_SEQUENCE_NUMBER,
+      REWRITE_JOB_ORDER
   );
 
   private final Table table;
@@ -88,6 +92,8 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private boolean useStartingSequenceNumber;
+  private RewriteJobOrder rewriteJobOrder;
   private RewriteStrategy strategy = null;
 
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
@@ -153,7 +159,6 @@ abstract class BaseRewriteDataFilesSparkAction
     }
 
     validateAndInitOptions();
-    strategy = strategy.options(options());
 
     Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups(startingSnapshotId);
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
@@ -173,7 +178,7 @@ abstract class BaseRewriteDataFilesSparkAction
     }
   }
 
-  private Map<StructLike, List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
+  Map<StructLike, List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
     CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
         .useSnapshot(startingSnapshotId)
         .filter(filter)
@@ -245,7 +250,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @VisibleForTesting
   RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
-    return new RewriteDataFilesCommitManager(table, startingSnapshotId);
+    return new RewriteDataFilesCommitManager(table, startingSnapshotId, useStartingSequenceNumber);
   }
 
   private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,
@@ -335,11 +340,10 @@ abstract class BaseRewriteDataFilesSparkAction
     return new BaseRewriteDataFilesResult(rewriteResults);
   }
 
-  private Stream<RewriteFileGroup> toGroupStream(RewriteExecutionContext ctx,
-                                                 Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition) {
+  Stream<RewriteFileGroup> toGroupStream(RewriteExecutionContext ctx,
+      Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition) {
 
-    // Todo Add intelligence to the order in which we do rewrites instead of just using partition order
-    return fileGroupsByPartition.entrySet().stream()
+    Stream<RewriteFileGroup> rewriteFileGroupStream = fileGroupsByPartition.entrySet().stream()
         .flatMap(e -> {
           StructLike partition = e.getKey();
           List<List<FileScanTask>> fileGroups = e.getValue();
@@ -350,9 +354,26 @@ abstract class BaseRewriteDataFilesSparkAction
             return new RewriteFileGroup(info, tasks);
           });
         });
+
+    return rewriteFileGroupStream.sorted(rewriteGroupComparator());
   }
 
-  private void validateAndInitOptions() {
+  private Comparator<RewriteFileGroup> rewriteGroupComparator() {
+    switch (rewriteJobOrder) {
+      case BYTES_ASC:
+        return Comparator.comparing(RewriteFileGroup::sizeInBytes);
+      case BYTES_DESC:
+        return Comparator.comparing(RewriteFileGroup::sizeInBytes, Comparator.reverseOrder());
+      case FILES_ASC:
+        return Comparator.comparing(RewriteFileGroup::numFiles);
+      case FILES_DESC:
+        return Comparator.comparing(RewriteFileGroup::numFiles, Comparator.reverseOrder());
+      default:
+        return (fileGroupOne, fileGroupTwo) -> 0;
+    }
+  }
+
+  void validateAndInitOptions() {
     Set<String> validOptions = Sets.newHashSet(strategy.validOptions());
     validOptions.addAll(VALID_OPTIONS);
 
@@ -362,6 +383,8 @@ abstract class BaseRewriteDataFilesSparkAction
     Preconditions.checkArgument(invalidKeys.isEmpty(),
         "Cannot use options %s, they are not supported by the action or the strategy %s",
         invalidKeys, strategy.name());
+
+    strategy = strategy.options(options());
 
     maxConcurrentFileGroupRewrites = PropertyUtil.propertyAsInt(options(),
         MAX_CONCURRENT_FILE_GROUP_REWRITES,
@@ -375,11 +398,19 @@ abstract class BaseRewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED,
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
 
+    useStartingSequenceNumber = PropertyUtil.propertyAsBoolean(options(),
+        USE_STARTING_SEQUENCE_NUMBER,
+        USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
+
+    rewriteJobOrder = RewriteJobOrder.fromName(PropertyUtil.propertyAsString(options(),
+        REWRITE_JOB_ORDER,
+        REWRITE_JOB_ORDER_DEFAULT));
+
     Preconditions.checkArgument(maxConcurrentFileGroupRewrites >= 1,
         "Cannot set %s to %s, the value must be positive.",
         MAX_CONCURRENT_FILE_GROUP_REWRITES, maxConcurrentFileGroupRewrites);
 
-    Preconditions.checkArgument(!partialProgressEnabled || partialProgressEnabled && maxCommits > 0,
+    Preconditions.checkArgument(!partialProgressEnabled || maxCommits > 0,
         "Cannot set %s to %s, the value must be positive when %s is true",
         PARTIAL_PROGRESS_MAX_COMMITS, maxCommits, PARTIAL_PROGRESS_ENABLED);
   }

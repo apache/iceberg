@@ -737,6 +737,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(0), actual.get(0));
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(1), actual.get(1));
     TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(2), actual.get(2));
+    TestHelpers.assertEqualsSafe(historyTable.schema().asStruct(), expected.get(3), actual.get(3));
   }
 
   @Test
@@ -1111,11 +1112,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set("partition", partitionBuilder.set("id", 1).build())
         .set("record_count", 1L)
         .set("file_count", 1)
+        .set("spec_id", 0)
         .build());
     expected.add(builder
         .set("partition", partitionBuilder.set("id", 2).build())
         .set("record_count", 1L)
         .set("file_count", 1)
+        .set("spec_id", 0)
         .build());
 
     Assert.assertEquals("Partitions table should have two rows", 2, expected.size());

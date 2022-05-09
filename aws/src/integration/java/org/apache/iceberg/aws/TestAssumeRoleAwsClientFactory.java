@@ -58,7 +58,7 @@ public class TestAssumeRoleAwsClientFactory {
     roleName = UUID.randomUUID().toString();
     iam = IamClient.builder()
         .region(Region.AWS_GLOBAL)
-        .httpClient(UrlConnectionHttpClient.create())
+        .httpClientBuilder(UrlConnectionHttpClient.builder())
         .build();
     CreateRoleResponse response = iam.createRole(CreateRoleRequest.builder()
         .roleName(roleName)
@@ -68,13 +68,17 @@ public class TestAssumeRoleAwsClientFactory {
             "\"Effect\":\"Allow\"," +
             "\"Principal\":{" +
             "\"AWS\":\"arn:aws:iam::" + AwsIntegTestUtil.testAccountId() + ":root\"}," +
-            "\"Action\": \"sts:AssumeRole\"}]}")
+            "\"Action\": [\"sts:AssumeRole\"," +
+            "\"sts:TagSession\"]}]}")
         .maxSessionDuration(3600)
         .build());
     assumeRoleProperties = Maps.newHashMap();
     assumeRoleProperties.put(AwsProperties.CLIENT_FACTORY, AssumeRoleAwsClientFactory.class.getName());
+    assumeRoleProperties.put(AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_APACHE);
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, response.role().arn());
+    assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX + "key1", "value1");
+    assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX + "key2", "value2");
     policyName = UUID.randomUUID().toString();
   }
 

@@ -19,13 +19,11 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.util.ThreadPools;
 
 public class DataTableScan extends BaseTableScan {
   static final ImmutableList<String> SCAN_COLUMNS = ImmutableList.of(
@@ -49,9 +47,8 @@ public class DataTableScan extends BaseTableScan {
 
   @Override
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
-    Long scanSnapshotId = snapshotId();
-    Preconditions.checkState(scanSnapshotId == null,
-        "Cannot enable incremental scan, scan-snapshot set to id=%s", scanSnapshotId);
+    Preconditions.checkState(snapshotId() == null,
+        "Cannot enable incremental scan, scan-snapshot set to id=%s", snapshotId());
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
         context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
@@ -79,22 +76,23 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
-  public CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot,
-                                                   Expression rowFilter, boolean ignoreResiduals,
-                                                   boolean caseSensitive, boolean colStats) {
-    ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.dataManifests(), snapshot.deleteManifests())
-        .caseSensitive(caseSensitive)
-        .select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
-        .filterData(rowFilter)
-        .specsById(ops.current().specsById())
+  public CloseableIterable<FileScanTask> doPlanFiles() {
+    Snapshot snapshot = snapshot();
+
+    ManifestGroup manifestGroup = new ManifestGroup(table().io(), snapshot.dataManifests(), snapshot.deleteManifests())
+        .caseSensitive(isCaseSensitive())
+        .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
+        .filterData(filter())
+        .specsById(table().specs())
         .ignoreDeleted();
 
-    if (ignoreResiduals) {
+    if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.dataManifests().size() > 1) {
-      manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
+    if (snapshot.dataManifests().size() > 1 &&
+        (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
+      manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
     return manifestGroup.planFiles();

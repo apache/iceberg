@@ -58,17 +58,14 @@ public class TypeWithSchemaVisitor<T> {
       if (annotation != null) {
         switch (annotation) {
           case LIST:
-            Preconditions.checkArgument(!group.isRepetition(Type.Repetition.REPEATED),
-                "Invalid list: top-level group is repeated: %s", group);
             Preconditions.checkArgument(group.getFieldCount() == 1,
                 "Invalid list: does not contain single repeated field: %s", group);
 
-            GroupType repeatedElement = group.getFields().get(0).asGroupType();
+            Type repeatedElement = group.getFields().get(0);
             Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
-            Preconditions.checkArgument(repeatedElement.getFieldCount() <= 1,
-                "Invalid list: repeated group is not a single field: %s", group);
 
+            Type listElement = ParquetSchemaUtil.determineListElementType(group);
             Types.ListType list = null;
             Types.NestedField element = null;
             if (iType != null) {
@@ -76,16 +73,10 @@ public class TypeWithSchemaVisitor<T> {
               element = list.fields().get(0);
             }
 
-            visitor.fieldNames.push(repeatedElement.getName());
-            try {
-              T elementResult = null;
-              if (repeatedElement.getFieldCount() > 0) {
-                elementResult = visitField(element, repeatedElement.getType(0), visitor);
-              }
-
-              return visitor.list(list, group, elementResult);
-            } finally {
-              visitor.fieldNames.pop();
+            if (listElement.isRepetition(Type.Repetition.REPEATED)) {
+              return visitTwoLevelList(list, element, group, listElement, visitor);
+            } else {
+              return visitThreeLevelList(list, element, group, listElement, visitor);
             }
 
           case MAP:
@@ -146,6 +137,27 @@ public class TypeWithSchemaVisitor<T> {
 
       Types.StructType struct = iType != null ? iType.asStructType() : null;
       return visitor.struct(struct, group, visitFields(struct, group, visitor));
+    }
+  }
+
+  private static <T> T visitTwoLevelList(
+      Types.ListType iListType, Types.NestedField iListElement, GroupType pListType, Type pListElement,
+      TypeWithSchemaVisitor<T> visitor) {
+    T elementResult = visitField(iListElement, pListElement, visitor);
+    return visitor.list(iListType, pListType, elementResult);
+  }
+
+  private static <T> T visitThreeLevelList(
+      Types.ListType iListType, Types.NestedField iListElement, GroupType pListType, Type pListElement,
+      TypeWithSchemaVisitor<T> visitor) {
+    visitor.fieldNames.push(pListType.getFieldName(0));
+
+    try {
+      T elementResult = visitField(iListElement, pListElement, visitor);
+
+      return visitor.list(iListType, pListType, elementResult);
+    } finally {
+      visitor.fieldNames.pop();
     }
   }
 
