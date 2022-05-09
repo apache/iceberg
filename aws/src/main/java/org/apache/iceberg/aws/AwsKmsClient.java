@@ -38,6 +38,7 @@ public class AwsKmsClient implements KmsClient {
    * please set this property to "false" to disable key generation by AWS KMS server.
    */
   public static final String ENABLE_KEY_GENERATION = "kms.client.aws.key.generation.enabled";
+
   // property for specifying data key generation key spec: AES_256 or AES_128
   public static final String DATA_KEY_SPEC = "kms.client.aws.generation.data_key_spec";
 
