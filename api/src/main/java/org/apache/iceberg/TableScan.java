@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -74,13 +73,6 @@ public interface TableScan extends Scan<TableScan> {
   Expression filter();
 
   /**
-   * Create a new {@link TableScan} from this that applies data filtering to files but not to rows in those files.
-   *
-   * @return a new scan based on this that does not filter rows in files.
-   */
-  TableScan ignoreResiduals();
-
-  /**
    * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to {@code toSnapshotId}
    * inclusive.
    *
@@ -106,18 +98,6 @@ public interface TableScan extends Scan<TableScan> {
   }
 
   /**
-   * Returns this scan's projection {@link Schema}.
-   * <p>
-   * If the projection schema was set directly using {@link #project(Schema)}, returns that schema.
-   * <p>
-   * If the projection schema was set by calling {@link #select(Collection)}, returns a projection
-   * schema that includes the selected data fields and any fields used in the filter expression.
-   *
-   * @return this scan's projection schema
-   */
-  Schema schema();
-
-  /**
    * Returns the {@link Snapshot} that will be used by this scan.
    * <p>
    * If the snapshot was not configured using {@link #asOfTime(long)} or {@link #useSnapshot(long)}, the current table
@@ -128,7 +108,7 @@ public interface TableScan extends Scan<TableScan> {
   Snapshot snapshot();
 
   /**
-   * Returns whether this scan should apply column name case sensitiveness as per {@link #caseSensitive(boolean)}.
+   * Returns whether this scan should apply column name case sensitiveness as per {@link Scan#caseSensitive(boolean)}.
    * @return true if case sensitive, false otherwise.
    */
   boolean isCaseSensitive();

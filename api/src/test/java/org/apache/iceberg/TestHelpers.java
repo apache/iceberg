@@ -42,6 +42,17 @@ public class TestHelpers {
   private TestHelpers() {
   }
 
+  /**
+   * Wait in a tight check loop until system clock is past {@code timestampMillis}
+   */
+  public static long waitUntilAfter(long timestampMillis) {
+    long current = System.currentTimeMillis();
+    while (current <= timestampMillis) {
+      current = System.currentTimeMillis();
+    }
+    return current;
+  }
+
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
     Assert.assertTrue("Expression should have expected type: " + expected,
         expected.isInstance(expr));

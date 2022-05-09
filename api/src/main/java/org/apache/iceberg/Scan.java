@@ -85,6 +85,13 @@ interface Scan<T extends Scan<T>> {
   T filter(Expression expr);
 
   /**
+   * Create a new scan from this that applies data filtering to files but not to rows in those files.
+   *
+   * @return a new scan based on this that does not filter rows in files.
+   */
+  T ignoreResiduals();
+
+  /**
    * Create a new scan to use a particular executor to plan. The default worker pool will be
    * used by default.
    *
@@ -92,6 +99,18 @@ interface Scan<T extends Scan<T>> {
    * @return a table scan that uses the provided executor to access manifests
    */
   T planWith(ExecutorService executorService);
+
+  /**
+   * Returns this scan's projection {@link Schema}.
+   * <p>
+   * If the projection schema was set directly using {@link #project(Schema)}, returns that schema.
+   * <p>
+   * If the projection schema was set by calling {@link #select(Collection)}, returns a projection
+   * schema that includes the selected data fields and any fields used in the filter expression.
+   *
+   * @return this scan's projection schema
+   */
+  Schema schema();
 
   /**
    * Plan the {@link FileScanTask files} that will be read by this scan.

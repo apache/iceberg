@@ -107,6 +107,19 @@ public class SnapshotUtil {
     return lastSnapshot;
   }
 
+  /**
+   * Traverses the history and finds the oldest ancestor of snapshotId.
+   * @return null if there is no current snapshot in the table, else the oldest Snapshot.
+   */
+  public static Snapshot oldestAncestor(long snapshotId, Function<Long, Snapshot> lookup) {
+    Snapshot lastSnapshot = null;
+    for (Snapshot snapshot : ancestorsOf(snapshotId, lookup)) {
+      lastSnapshot = snapshot;
+    }
+
+    return lastSnapshot;
+  }
+
   public static Iterable<Snapshot> ancestorsOf(long snapshotId, Function<Long, Snapshot> lookup) {
     Snapshot start = lookup.apply(snapshotId);
     Preconditions.checkArgument(start != null, "Cannot find snapshot: %s", snapshotId);
