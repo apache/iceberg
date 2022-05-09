@@ -139,17 +139,12 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
             "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
             numRowsToRead);
 
-        arrowColumnVectors[i] = getColumnVector(i, numRowsInVector);
+        arrowColumnVectors[i] = new ColumnVectorBuilder(vectorHolders[i], numRowsInVector)
+            .withIsDeletedColumn(isDeleted)
+            .filterDeletedRows(rowIdMapping)
+            .build();
       }
       return arrowColumnVectors;
-    }
-
-    ColumnVector getColumnVector(int index, int numRowsInVector) {
-      if (hasDeletes() && !hasColumnIsDeleted) {
-        return ColumnVectorWithFilter.forHolder(vectorHolders[index], rowIdMapping, numRowsToRead);
-      } else {
-        return IcebergArrowColumnVector.forHolder(vectorHolders[index], numRowsInVector, isDeleted);
-      }
     }
 
     boolean hasDeletes() {
