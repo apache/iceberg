@@ -244,6 +244,32 @@ class UnknownTransform(Transform):
         return StringType()
 
 
+class VoidTransform(Transform):
+    """A transform that always returns None"""
+
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(VoidTransform, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        super().__init__("void", "transforms.always_null()")
+
+    def apply(self, value):
+        return None
+
+    def can_transform(self, target: IcebergType) -> bool:
+        return True
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return source
+
+    def to_human_string(self, value) -> str:
+        return "null"
+
+
 def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
     if type(source_type) in {IntegerType, LongType, DateType, TimeType, TimestampType, TimestamptzType}:
         return BucketNumberTransform(source_type, num_buckets)
@@ -259,3 +285,7 @@ def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
         return BucketUUIDTransform(num_buckets)
     else:
         raise ValueError(f"Cannot bucket by type: {source_type}")
+
+
+def always_null() -> Transform:
+    return VoidTransform()
