@@ -133,8 +133,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public Write build() {
     // Validate
-    Preconditions.checkArgument(
-        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
@@ -208,31 +207,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     };
   }
 
-  private boolean skipOrderingAndDistribution(OrderedDistribution distribution) {
-    // check if all input files have same partitioning as current table partitioning
-    boolean allInputFilesMatchTablePartitioning =
-        copyOnWriteScan.files().stream().allMatch(x -> x.file().specId() == table.spec().specId());
-
-    // check if the copy on write operation is happening within one partition
-    boolean allInputFilesInSamePartition =
-        copyOnWriteScan.files().stream().map(FileScanTask::spec).collect(Collectors.toSet()).size() == 1;
-
-    // check if all input files are sorted on table's current sort order
-    boolean allInputFilesMatchTableSortOrder = copyOnWriteScan.files().stream().allMatch(
-        x -> x.file().sortOrderId() != null && x.file().sortOrderId() == table.sortOrder().orderId());
-
-    // check if required ordering is same as table's default ordering
-    boolean requiredOrderingIsDefaultTableOrder = Arrays.equals(
-        distribution.ordering(),
-        SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(table)));
-
-    boolean test = allInputFilesMatchTablePartitioning &&
-        allInputFilesInSamePartition &&
-        allInputFilesMatchTableSortOrder &&
-        requiredOrderingIsDefaultTableOrder;
-    return test;
-  }
-
   private Distribution buildRequiredDistribution() {
     if (overwriteFiles) {
       DistributionMode distributionMode = copyOnWriteDistributionMode();
@@ -293,5 +267,30 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     }
 
     return writeSchema;
+  }
+
+  private boolean skipOrderingAndDistribution(OrderedDistribution distribution) {
+    // check if all input files have same partitioning as current table partitioning
+    boolean allInputFilesMatchTablePartitioning =
+        copyOnWriteScan.files().stream().allMatch(x -> x.file().specId() == table.spec().specId());
+
+    // check if the copy on write operation is happening within one partition
+    boolean allInputFilesInSamePartition =
+        copyOnWriteScan.files().stream().map(FileScanTask::spec).collect(Collectors.toSet()).size() == 1;
+
+    // check if all input files are sorted on table's current sort order
+    boolean allInputFilesMatchTableSortOrder = copyOnWriteScan.files().stream().allMatch(
+        x -> x.file().sortOrderId() != null && x.file().sortOrderId() == table.sortOrder().orderId());
+
+    // check if required ordering is same as table's default ordering
+    boolean requiredOrderingIsDefaultTableOrder = Arrays.equals(
+        distribution.ordering(),
+        SparkDistributionAndOrderingUtil.convert(SortOrderUtil.buildSortOrder(table)));
+
+    boolean test = allInputFilesMatchTablePartitioning &&
+        allInputFilesInSamePartition &&
+        allInputFilesMatchTableSortOrder &&
+        requiredOrderingIsDefaultTableOrder;
+    return test;
   }
 }

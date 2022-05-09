@@ -581,13 +581,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
 
-    protected WriterFactory(
-        Broadcast<Table> tableBroadcast,
-        FileFormat format,
-        long targetFileSize,
-        Schema writeSchema,
-        StructType dsSchema,
-        boolean partitionedFanoutEnabled) {
+    protected WriterFactory(Broadcast<Table> tableBroadcast, FileFormat format, long targetFileSize,
+                            Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.targetFileSize = targetFileSize;
