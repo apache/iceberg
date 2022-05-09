@@ -152,7 +152,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
     LoadingCache<Integer, ManifestEvaluator> evalCache = Caffeine.newBuilder().build(specId -> {
       PartitionSpec spec = table.specs().get(specId);
-      PartitionSpec transformedSpec = transformSpec(scan.schema(), spec);
+      PartitionSpec transformedSpec = transformSpec(scan.tableSchema(), spec);
       return ManifestEvaluator.forRowFilter(scan.filter(), transformedSpec, caseSensitive);
     });
 

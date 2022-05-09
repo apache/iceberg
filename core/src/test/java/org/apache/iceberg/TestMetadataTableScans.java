@@ -378,6 +378,26 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testPartitionsTableScanWithProjection() {
+    preparePartitionedTable();
+
+    Table partitionsTable = new PartitionsTable(table.ops(), table);
+    Types.StructType expected = new Schema(
+        required(3, "file_count", Types.IntegerType.get())
+       ).asStruct();
+
+    TableScan scanWithProjection = partitionsTable.newScan().select("file_count");
+    Assert.assertEquals(expected, scanWithProjection.schema().asStruct());
+    CloseableIterable<FileScanTask> tasksWithProjection =
+        PartitionsTable.planFiles((StaticTableScan) scanWithProjection);
+    Assert.assertEquals(4, Iterators.size(tasksWithProjection.iterator()));
+    validateIncludesPartitionScan(tasksWithProjection, 0);
+    validateIncludesPartitionScan(tasksWithProjection, 1);
+    validateIncludesPartitionScan(tasksWithProjection, 2);
+    validateIncludesPartitionScan(tasksWithProjection, 3);
+  }
+
+  @Test
   public void testPartitionsTableScanNoStats() {
     table.newFastAppend()
             .appendFile(FILE_WITH_STATS)

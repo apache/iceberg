@@ -171,6 +171,13 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
     TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedDataFiles.get(0), actualDataFiles.get(0));
 
+    List<Row> actualPartitionsWithProjection =
+        spark.sql("SELECT file_count FROM " + tableName + ".partitions ").collectAsList();
+    Assert.assertEquals("Metadata table should return two partitions record", 2, actualPartitionsWithProjection.size());
+    for (int i = 0; i < 2; ++i) {
+      Assert.assertEquals(1, actualPartitionsWithProjection.get(i).get(0));
+    }
+
     // Check files table
     List<Record> expectedFiles = Stream.concat(expectedDataFiles.stream(), expectedDeleteFiles.stream())
         .collect(Collectors.toList());
