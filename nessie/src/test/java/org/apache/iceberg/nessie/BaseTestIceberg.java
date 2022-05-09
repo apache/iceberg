@@ -122,13 +122,21 @@ public abstract class BaseTestIceberg {
   }
 
   NessieCatalog initCatalog(String ref) {
+    return initCatalog(ref, null);
+  }
+
+  NessieCatalog initCatalog(String ref, String hash) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    newCatalog.initialize("nessie", ImmutableMap.of("ref", ref,
-        CatalogProperties.URI, uri,
-        "auth-type", "NONE",
-        CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString()
-    ));
+    ImmutableMap.Builder<String, String> options = ImmutableMap.<String, String>builder()
+        .put("ref", ref)
+        .put(CatalogProperties.URI, uri)
+        .put("auth-type", "NONE")
+        .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+    if (null != hash) {
+      options.put("ref.hash", hash);
+    }
+    newCatalog.initialize("nessie", options.build());
     return newCatalog;
   }
 
