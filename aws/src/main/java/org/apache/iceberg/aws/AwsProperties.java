@@ -223,6 +223,11 @@ public class AwsProperties implements Serializable {
   public static final int S3FILEIO_DELETE_BATCH_SIZE_MAX = 1000;
 
   /**
+   * Configure an alternative endpoint of the DynamoDB service to access.
+   */
+  public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
+
+  /**
    * DynamoDB table name for {@link DynamoDbCatalog}
    */
   public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
