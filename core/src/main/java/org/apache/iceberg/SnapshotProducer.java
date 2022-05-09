@@ -166,7 +166,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public Snapshot apply() {
-    this.base = refresh();
+    refresh();
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
     long sequenceNumber = base.nextSequenceNumber();
