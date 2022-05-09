@@ -1340,7 +1340,7 @@ components:
         
         - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
         
-        - `assert-default-write-order-id` - the table's default sort order id must match the requirement's `default-write-order-id`
+        - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
       type: object
       required:
         - requirement
@@ -1355,13 +1355,14 @@ components:
             - assert-current-schema-id
             - assert-last-assigned-partition-id
             - assert-default-spec-id
-            - assert-default-write-order-id
+            - assert-default-sort-order-id
         ref:
           type: string
         uuid:
           type: string
         snapshot-id:
-          type: integer
+          type: interger
+          format: int64
         last-assigned-field-id:
           type: integer
         current-schema-id:
@@ -1370,7 +1371,7 @@ components:
           type: integer
         default-spec-id:
           type: integer
-        default-write-order-id:
+        default-sort-order-id:
           type: integer
 
     LoadTableResult:
