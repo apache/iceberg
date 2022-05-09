@@ -31,7 +31,7 @@ import org.apache.iceberg.io.CloseableIterable;
  */
 interface Scan<T extends Scan<T>> {
   /**
-   * Create a new {@link TableScan} from this scan's configuration that will override the {@link Table}'s behavior based
+   * Create a new scan from this scan's configuration that will override the {@link Table}'s behavior based
    * on the incoming pair. Unknown properties will be ignored.
    *
    * @param property name of the table property to be overridden
@@ -41,7 +41,7 @@ interface Scan<T extends Scan<T>> {
   T option(String property, String value);
 
   /**
-   * Create a new {@link TableScan} from this with the schema as its projection.
+   * Create a new scan from this with the schema as its projection.
    *
    * @param schema a projection schema
    * @return a new scan based on this with the given projection
@@ -49,7 +49,7 @@ interface Scan<T extends Scan<T>> {
   T project(Schema schema);
 
   /**
-   * Create a new {@link TableScan} from this that, if data columns where selected
+   * Create a new scan from this that, if data columns where selected
    * via {@link #select(java.util.Collection)}, controls whether the match to the schema will be done
    * with case sensitivity. Default is true.
    *
@@ -58,7 +58,7 @@ interface Scan<T extends Scan<T>> {
   T caseSensitive(boolean caseSensitive);
 
   /**
-   * Create a new {@link TableScan} from this that loads the column stats with each data file.
+   * Create a new scan from this that loads the column stats with each data file.
    * <p>
    * Column stats include: value count, null value count, lower bounds, and upper bounds.
    *
@@ -67,7 +67,7 @@ interface Scan<T extends Scan<T>> {
   T includeColumnStats();
 
   /**
-   * Create a new {@link TableScan} from this that will read the given data columns. This produces
+   * Create a new scan from this that will read the given data columns. This produces
    * an expected schema that includes all fields that are either selected or used by this scan's
    * filter expression.
    *
@@ -77,7 +77,7 @@ interface Scan<T extends Scan<T>> {
   T select(Collection<String> columns);
 
   /**
-   * Create a new {@link TableScan} from the results of this filtered by the {@link Expression}.
+   * Create a new scan from the results of this filtered by the {@link Expression}.
    *
    * @param expr a filter expression
    * @return a new scan based on this with results filtered by the expression
@@ -85,7 +85,7 @@ interface Scan<T extends Scan<T>> {
   T filter(Expression expr);
 
   /**
-   * Create a new {@link TableScan} to use a particular executor to plan. The default worker pool will be
+   * Create a new scan to use a particular executor to plan. The default worker pool will be
    * used by default.
    *
    * @param executorService the provided executor
