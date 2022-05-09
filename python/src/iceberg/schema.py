@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import sys
 from abc import ABC, abstractmethod
@@ -266,7 +267,7 @@ class SchemaVisitor(Generic[T], ABC):
         ...  # pragma: no cover
 
 
-@dataclass(init=True, eq=True, frozen=True)
+@dataclass(init=True, eq=True)
 class Accessor:
     """An accessor for a specific position in a container that implements the StructProtocol"""
 
@@ -278,6 +279,14 @@ class Accessor:
 
     def __repr__(self):
         return self.__str__()
+
+    def with_inner(self, accessor: "Accessor") -> "Accessor":
+        parent = copy.deepcopy(self)
+        acc = parent
+        while acc.inner:
+            acc = acc.inner
+        acc.inner = accessor
+        return parent
 
     def get(self, container: StructProtocol) -> Any:
         """Returns the value at self.position in `container`
@@ -324,8 +333,9 @@ def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
         visitor.before_field(field)
         try:
             visit(field.type, visitor)
-        except Exception:
+        except Exception as e:
             logger.exception(f"Unable to visit the field: {field}")
+            raise e
         finally:
             visitor.after_field(field)
 
@@ -337,11 +347,14 @@ def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
     """Visit a ListType with a concrete SchemaVisitor"""
     result = visitor.list(obj)
 
+    visitor.field(obj.element)
+
     visitor.before_list_element(obj.element)
     try:
         visit(obj.element.type, visitor)
-    except Exception:
+    except Exception as e:
         logger.exception(f"Unable to visit the type: {obj}")
+        raise e
     finally:
         visitor.after_list_element(obj.element)
 
@@ -353,19 +366,23 @@ def _(obj: MapType, visitor: SchemaVisitor[T]) -> T:
     """Visit a MapType with a concrete SchemaVisitor"""
     result = visitor.map(obj)
 
+    visitor.field(obj.key)
     visitor.before_map_key(obj.key)
     try:
         visit(obj.key.type, visitor)
-    except Exception:
+    except Exception as e:
         logger.exception(f"Unable to visit the map ket type: {obj.key}")
+        raise e
     finally:
         visitor.after_map_key(obj.key)
 
+    visitor.field(obj.value)
     visitor.before_map_value(obj.value)
     try:
         visit(obj.value.type, visitor)
-    except Exception:
+    except Exception as e:
         logger.exception(f"Unable to visit the map value type: {obj.value}")
+        raise e
     finally:
         visitor.after_list_element(obj.value)
 
@@ -443,6 +460,22 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
             self._short_field_names.pop()
         self._field_names.pop()
 
+    def before_map_key(self, element: NestedField) -> None:
+        self._short_field_names.append(element.name)
+        self._field_names.append(element.name)
+
+    def after_map_key(self, element: NestedField) -> None:
+        self._short_field_names.pop()
+        self._field_names.pop()
+
+    def before_map_value(self, element: NestedField) -> None:
+        self._short_field_names.append(element.name)
+        self._field_names.append(element.name)
+
+    def after_map_value(self, element: NestedField) -> None:
+        self._short_field_names.pop()
+        self._field_names.pop()
+
     def before_field(self, field: NestedField) -> None:
         """Store the field name"""
         self._field_names.append(field.name)
@@ -490,7 +523,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
         if self._field_names:
             full_name = ".".join([".".join(self._field_names), name])
 
-        if full_name in self._index:
+        if full_name in self._index and self._index[full_name] != field_id:
             raise ValueError(f"Invalid schema, multiple fields for name {full_name}: {self._index[full_name]} and {field_id}")
         self._index[full_name] = field_id
 
@@ -594,12 +627,16 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
             # In the case of a struct, we want to map which one the parent is
             for inner_field in field_type.fields:
                 self._parents[inner_field.field_id] = field.field_id
+        elif isinstance(field_type, MapType):
+            self._parents[field_type.key.field_id] = field.field_id
+            self._parents[field_type.value.field_id] = field.field_id
+        elif isinstance(field_type, ListType):
+            self._parents[field_type.element.field_id] = field.field_id
 
         parent = 0
         if field.field_id in self._parents:
             parent = self._parents[field.field_id]
-            parent_accessor = self._index[parent]
-            self._index[field.field_id] = Accessor(position=parent_accessor.position, inner=Accessor(position=self._pos[parent]))
+            self._index[field.field_id] = self._index[parent].with_inner(Accessor(position=self._pos[parent]))
         else:
             self._index[field.field_id] = Accessor(position=self._pos[parent])
 
