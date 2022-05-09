@@ -54,7 +54,7 @@ class PyArrowFile(InputFile, OutputFile):
     """
 
     def __init__(self, location: str):
-        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+        parsed_location = urlparse(location)  # Create a ParseResult from the URI
         if not parsed_location.scheme:  # If no scheme, assume the path is to a local file
             self._filesystem, self._path = FileSystem.from_uri(os.path.abspath(location))
         else:

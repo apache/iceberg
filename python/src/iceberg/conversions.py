@@ -147,7 +147,7 @@ def to_bytes(primitive_type: PrimitiveType, value: Union[bool, bytes, Decimal, f
     Args:
         primitive_type(PrimitiveType): An implementation of the PrimitiveType base class
         value: The value to convert to bytes (The type of this value depends on which dispatched function is
-            used--check dispatchable functions for typehints)
+            used--check dispatchable functions for type hints)
     """
     raise TypeError(f"scale does not match {primitive_type}")
 
