@@ -405,8 +405,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   private static final Schema PROJECTION_SCHEMA = new Schema(
-      required(100, "id", Types.LongType.get()),
-      required(101, "data", Types.StringType.get()),
+      required(1, "id", Types.LongType.get()),
+      required(2, "data", Types.StringType.get()),
       MetadataColumns.IS_DELETED
   );
 
@@ -417,34 +417,32 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     }
   }
 
-  protected static StructLikeSet expectedRowSet(int... idsToRemove) {
+  private static StructLikeSet expectedRowSet(int... idsToRemove) {
     return expectedRowSet(false, false, idsToRemove);
   }
 
-  protected static StructLikeSet expectedRowSet(boolean removeDeleted, boolean removeUndeleted, int... idsToRemove) {
-    List<Record> records = getRecordsWithDeletedColumn();
+  private static StructLikeSet expectedRowSet(boolean removeDeleted, boolean removeUndeleted, int... idsToRemove) {
+    List<Record> records = recordsWithDeletedColumn();
 
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
-    StructLikeSet set = StructLikeSet.create(PROJECTION_SCHEMA.asStruct());
-    for (Record record : records) {
-      if (deletedIds.contains(record.getField("id"))) {
-        if (removeDeleted) {
-          continue;
-        } else {
-          record.setField(MetadataColumns.IS_DELETED.name(), true);
-        }
-      } else if (removeUndeleted) {
-        continue;
-      }
 
-      StructLike structLike = new InternalRecordWrapper(PROJECTION_SCHEMA.asStruct()).wrap(record);
-      set.add(structLike);
-    }
+    records.forEach(record -> {
+      if (deletedIds.contains(record.getField("id"))) {
+        record.setField(MetadataColumns.IS_DELETED.name(), true);
+      }
+    });
+
+    records.removeIf(record -> deletedIds.contains(record.getField("id")) && removeDeleted);
+    records.removeIf(record -> !deletedIds.contains(record.getField("id")) && removeUndeleted);
+
+    StructLikeSet set = StructLikeSet.create(PROJECTION_SCHEMA.asStruct());
+    records.forEach(record -> set.add(new InternalRecordWrapper(PROJECTION_SCHEMA.asStruct()).wrap(record)));
+
     return set;
   }
 
   @NotNull
-  private static List getRecordsWithDeletedColumn() {
+  private static List recordsWithDeletedColumn() {
     List records = Lists.newArrayList();
 
     // records all use IDs that are in bucket id_bucket=0

@@ -66,10 +66,10 @@ public class Deletes {
   }
 
   public static <T> CloseableIterable<T> markDeleted(CloseableIterable<T> rows, Predicate<T> isDeleted,
-                                                     Consumer<T> markDeleted) {
+                                                     Consumer<T> deleteMarker) {
     return CloseableIterable.transform(rows, row -> {
       if (isDeleted.test(row)) {
-        markDeleted.accept(row);
+        deleteMarker.accept(row);
       }
       return row;
     });

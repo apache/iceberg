@@ -85,13 +85,13 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
   private class ColumnBatchLoader {
     private ColumnarBatch columnarBatch;
-    private final int batchSize;
+    private final int numRowsToRead;
     private int[] rowIdMapping; // the rowId mapping to skip deleted rows for all column vectors inside a batch
     private boolean[] isDeleted; // the array to indicate if a row is deleted or not
 
-    ColumnBatchLoader(int batchSize) {
-      Preconditions.checkArgument(batchSize > 0, "Invalid number of rows to read: %s", batchSize);
-      this.batchSize = batchSize;
+    ColumnBatchLoader(int numRowsToRead) {
+      Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
+      this.numRowsToRead = numRowsToRead;
       this.columnarBatch = loadDataToColumnBatch();
     }
 
@@ -115,14 +115,14 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       }
 
       if (hasColumnIsDeleted) {
-        newColumnarBatch.setNumRows(batchSize);
+        newColumnarBatch.setNumRows(numRowsToRead);
       }
 
       return newColumnarBatch;
     }
 
     private void initIsDeletedArray(int numRowsUndeleted) {
-      isDeleted = new boolean[batchSize];
+      isDeleted = new boolean[numRowsToRead];
       if (hasDeletes()) {
         rowIdMappingToIsDeleted(numRowsUndeleted);
       }
@@ -132,12 +132,12 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
 
       for (int i = 0; i < readers.length; i += 1) {
-        vectorHolders[i] = readers[i].read(vectorHolders[i], batchSize);
+        vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
         int numRowsInVector = vectorHolders[i].numValues();
         Preconditions.checkState(
-            numRowsInVector == batchSize,
+            numRowsInVector == numRowsToRead,
             "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
-            batchSize);
+            numRowsToRead);
 
         arrowColumnVectors[i] = getColumnVector(i, numRowsInVector);
       }
@@ -146,7 +146,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
     ColumnVector getColumnVector(int index, int numRowsInVector) {
       if (hasDeletes() && !hasColumnIsDeleted) {
-        return ColumnVectorWithFilter.forHolder(vectorHolders[index], rowIdMapping, batchSize);
+        return ColumnVectorWithFilter.forHolder(vectorHolders[index], rowIdMapping, numRowsToRead);
       } else {
         return IcebergArrowColumnVector.forHolder(vectorHolders[index], numRowsInVector, isDeleted);
       }
@@ -167,7 +167,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         return posDeleteRowIdMapping.second();
       } else {
         rowIdMapping = initEqDeleteRowIdMapping();
-        return batchSize;
+        return numRowsToRead;
       }
     }
 
@@ -194,10 +194,10 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         return null;
       }
 
-      int[] posDelRowIdMapping = new int[batchSize];
+      int[] posDelRowIdMapping = new int[numRowsToRead];
       int originalRowId = 0;
       int currentRowId = 0;
-      while (originalRowId < batchSize) {
+      while (originalRowId < numRowsToRead) {
         if (!deletedRowPositions.isDeleted(originalRowId + rowStartPosInBatch)) {
           posDelRowIdMapping[currentRowId] = originalRowId;
           currentRowId++;
@@ -205,7 +205,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         originalRowId++;
       }
 
-      if (currentRowId == batchSize) {
+      if (currentRowId == numRowsToRead) {
         // there is no delete in this batch
         return null;
       } else {
@@ -216,8 +216,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     int[] initEqDeleteRowIdMapping() {
       int[] eqDeleteRowIdMapping = null;
       if (hasEqDeletes()) {
-        eqDeleteRowIdMapping = new int[batchSize];
-        for (int i = 0; i < batchSize; i++) {
+        eqDeleteRowIdMapping = new int[numRowsToRead];
+        for (int i = 0; i < numRowsToRead; i++) {
           eqDeleteRowIdMapping[i] = i;
         }
       }
@@ -260,7 +260,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
      * @param numRowsInRowIdMapping the num of rows in the row id mapping array
      */
     void rowIdMappingToIsDeleted(int numRowsInRowIdMapping) {
-      for (int i = 0; i < batchSize; i++) {
+      for (int i = 0; i < numRowsToRead; i++) {
         isDeleted[i] = true;
       }
 
