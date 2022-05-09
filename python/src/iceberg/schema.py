@@ -297,7 +297,14 @@ class Accessor:
         Returns:
             Any: The value at position `self.position` in the container
         """
-        return container.get(self.position)
+        pos = self.position
+        val = container.get(pos)
+        inner = self
+        while inner.inner:
+            inner = inner.inner
+            val = val.get(inner.position)
+
+        return val
 
 
 @singledispatch

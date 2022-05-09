@@ -16,11 +16,13 @@
 # under the License.
 
 from textwrap import dedent
+from typing import Any, Dict
 
 import pytest
 
 from iceberg import schema
 from iceberg.expressions.base import Accessor
+from iceberg.files import StructProtocol
 from iceberg.schema import build_position_accessors
 from iceberg.types import (
     BooleanType,
@@ -369,3 +371,20 @@ def test_build_position_accessors(table_schema_nested):
         13: Accessor(position=5, inner=Accessor(position=0, inner=Accessor(position=0, inner=None))),
         14: Accessor(position=5, inner=Accessor(position=0, inner=Accessor(position=1, inner=None))),
     }
+
+
+class TestStructProtocol(StructProtocol):
+    def __init__(self, pos: Dict[int, Any] = None):
+        self._pos: Dict[int, Any] = pos or {}
+
+    def set(self, pos: int, value) -> None:
+        pass
+
+    def get(self, pos: int) -> Any:
+        return self._pos[pos]
+
+
+def test_build_position_accessors_with_struct(table_schema_nested):
+    accessors = build_position_accessors(table_schema_nested)
+    container = TestStructProtocol({5: TestStructProtocol({0: TestStructProtocol({1: "longitude"})})})
+    assert accessors.get(14).get(container) == "longitude"
