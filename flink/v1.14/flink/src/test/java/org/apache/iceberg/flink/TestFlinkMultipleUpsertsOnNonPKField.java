@@ -55,7 +55,10 @@ public class TestFlinkMultipleUpsertsOnNonPKField extends FlinkCatalogTestBase {
   private final Map<String, String> tableUpsertProps = Maps.newHashMap();
   private TableEnvironment tEnv;
 
-  public TestFlinkMultipleUpsertsOnNonPKField(String catalogName, Namespace baseNamespace, FileFormat format, Boolean isStreamingJob) {
+  public TestFlinkMultipleUpsertsOnNonPKField(String catalogName,
+                                              Namespace baseNamespace,
+                                              FileFormat format,
+                                              Boolean isStreamingJob) {
     super(catalogName, baseNamespace);
     this.isStreamingJob = isStreamingJob;
     tableUpsertProps.put(TableProperties.FORMAT_VERSION, "2");
