@@ -147,6 +147,11 @@ class ManifestGroup {
     return this;
   }
 
+  ManifestGroup posDeleteHasSameSeqWithRefs() {
+    deleteIndexBuilder.posDeleteHasSameSeqWithRefs();
+    return this;
+  }
+
   /**
    * Returns a iterable of scan tasks. It is safe to add entries of this iterable
    * to a collection as {@link DataFile} in each {@link FileScanTask} is defensively

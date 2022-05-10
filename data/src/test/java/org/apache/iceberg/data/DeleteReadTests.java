@@ -23,13 +23,17 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -433,6 +437,51 @@ public abstract class DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
+  public void testPlanningWhenPosDeleteHasSameSeqWithRefs() throws IOException {
+    // make data files with specific names so that pos deletes can match all data files
+    String prefix = UUID.randomUUID().toString();
+    DataFile dataFile1 = FileHelpers.writeDataFile(table,
+        Files.localOutput(temp.newFile(prefix + "-1")), Row.of(0), records);
+    DataFile dataFile3 = FileHelpers.writeDataFile(table,
+        Files.localOutput(temp.newFile(prefix + "-3")), Row.of(0), records);
+
+    // cleanup the table firstly.
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .appendFile(dataFile3)
+        .commit();
+
+    DataFile dataFile2 = FileHelpers.writeDataFile(table,
+        Files.localOutput(temp.newFile(prefix + "-2")), Row.of(0), records);
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile2.path(), 0L), // id = 29
+        Pair.of(dataFile2.path(), 3L) // id = 89
+    );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addRows(dataFile2)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
+    Assert.assertEquals("should have 3 files with pos deletes", 3,
+        tasks.stream().filter(scan -> scan.deletes().size() > 0).count());
+
+    table.updateProperties().set(TableProperties.POS_DELETE_HAS_SAME_SEQ_WITH_REFS_ENABLED, "true").commit();
+
+    tasks = Lists.newArrayList(table.newScan().planFiles());
+    Assert.assertEquals("should have 1 file with pos deletes", 1,
+        tasks.stream().filter(scan -> scan.deletes().size() > 0).count());
   }
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {

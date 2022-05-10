@@ -86,6 +86,12 @@ public class DataTableScan extends BaseTableScan {
         .specsById(table().specs())
         .ignoreDeleted();
 
+    if (PropertyUtil.propertyAsBoolean(table().properties(),
+        TableProperties.POS_DELETE_HAS_SAME_SEQ_WITH_REFS_ENABLED,
+        TableProperties.POS_DELETE_HAS_SAME_SEQ_WITH_REFS_ENABLED_DEFAULT)) {
+      manifestGroup.posDeleteHasSameSeqWithRefs();
+    }
+
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }

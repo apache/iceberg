@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 class IncrementalDataTableScan extends DataTableScan {
@@ -90,6 +91,12 @@ class IncrementalDataTableScan extends DataTableScan {
                 manifestEntry.status() == ManifestEntry.Status.ADDED)
         .specsById(table().specs())
         .ignoreDeleted();
+
+    if (PropertyUtil.propertyAsBoolean(table().properties(),
+        TableProperties.POS_DELETE_HAS_SAME_SEQ_WITH_REFS_ENABLED,
+        TableProperties.POS_DELETE_HAS_SAME_SEQ_WITH_REFS_ENABLED_DEFAULT)) {
+      manifestGroup.posDeleteHasSameSeqWithRefs();
+    }
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();

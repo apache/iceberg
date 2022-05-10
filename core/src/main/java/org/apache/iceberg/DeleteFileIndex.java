@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -71,9 +72,16 @@ class DeleteFileIndex {
   private final long[] globalSeqs;
   private final DeleteFile[] globalDeletes;
   private final Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition;
+  private final boolean posDeleteHasSameSeqWithRefs;
 
   DeleteFileIndex(Map<Integer, PartitionSpec> specsById, long[] globalSeqs, DeleteFile[] globalDeletes,
                   Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition) {
+    this(specsById, globalSeqs, globalDeletes, sortedDeletesByPartition, false);
+  }
+
+  DeleteFileIndex(Map<Integer, PartitionSpec> specsById, long[] globalSeqs, DeleteFile[] globalDeletes,
+                  Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition,
+                  boolean posDeleteHasSameSeqWithRefs) {
     this.specsById = specsById;
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
     specsById.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
@@ -82,6 +90,7 @@ class DeleteFileIndex {
     this.globalSeqs = globalSeqs;
     this.globalDeletes = globalDeletes;
     this.sortedDeletesByPartition = sortedDeletesByPartition;
+    this.posDeleteHasSameSeqWithRefs = posDeleteHasSameSeqWithRefs;
   }
 
   public boolean isEmpty() {
@@ -120,7 +129,7 @@ class DeleteFileIndex {
     Pair<Integer, StructLikeWrapper> partition = partition(file.specId(), file.partition());
     Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
 
-    Stream<DeleteFile> matchingDeletes;
+    Stream<Pair<Long, DeleteFile>> matchingDeletes;
     if (partitionDeletes == null) {
       matchingDeletes = limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
     } else if (globalDeletes == null) {
@@ -132,14 +141,17 @@ class DeleteFileIndex {
     }
 
     return matchingDeletes
-        .filter(deleteFile -> canContainDeletesForFile(file, deleteFile, specsById.get(file.specId()).schema()))
+        .filter(deleteFile -> canContainDeletesForFile(posDeleteHasSameSeqWithRefs, file, sequenceNumber,
+            deleteFile.second(), deleteFile.first(), specsById.get(file.specId()).schema()))
+        .map(Pair::second)
         .toArray(DeleteFile[]::new);
   }
 
-  private static boolean canContainDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {
+  private static boolean canContainDeletesForFile(boolean posDeleteHasSameSeqWithRefs, DataFile dataFile, long dataSeq,
+                                                  DeleteFile deleteFile, long deleteSeq, Schema schema) {
     switch (deleteFile.content()) {
       case POSITION_DELETES:
-        return canContainPosDeletesForFile(dataFile, deleteFile);
+        return canContainPosDeletesForFile(posDeleteHasSameSeqWithRefs, dataFile, dataSeq, deleteFile, deleteSeq);
 
       case EQUALITY_DELETES:
         return canContainEqDeletesForFile(dataFile, deleteFile, schema);
@@ -148,7 +160,12 @@ class DeleteFileIndex {
     return true;
   }
 
-  private static boolean canContainPosDeletesForFile(DataFile dataFile, DeleteFile deleteFile) {
+  private static boolean canContainPosDeletesForFile(boolean posDeleteHasSomeSeqWithRefs, DataFile dataFile,
+                                                     long dataSeq, DeleteFile deleteFile, long deleteSeq) {
+    if (posDeleteHasSomeSeqWithRefs && dataSeq != deleteSeq) {
+      return false;
+    }
+
     // check that the delete file can contain the data file's file_path
     Map<Integer, ByteBuffer> lowers = deleteFile.lowerBounds();
     Map<Integer, ByteBuffer> uppers = deleteFile.upperBounds();
@@ -299,7 +316,8 @@ class DeleteFileIndex {
     return nullValueCount > 0;
   }
 
-  private static Stream<DeleteFile> limitBySequenceNumber(long sequenceNumber, long[] seqs, DeleteFile[] files) {
+  private static Stream<Pair<Long, DeleteFile>> limitBySequenceNumber(long sequenceNumber, long[] seqs,
+                                                                      DeleteFile[] files) {
     if (files == null) {
       return Stream.empty();
     }
@@ -318,7 +336,11 @@ class DeleteFileIndex {
       }
     }
 
-    return Arrays.stream(files, start, files.length);
+    List<Pair<Long, DeleteFile>> deletes = IntStream.range(0, seqs.length)
+        .mapToObj(i -> Pair.of(seqs[i], files[i]))
+        .collect(Collectors.toList());
+
+    return deletes.stream().skip(start);
   }
 
   static Builder builderFor(FileIO io, Iterable<ManifestFile> deleteManifests) {
@@ -335,6 +357,7 @@ class DeleteFileIndex {
     private PartitionSet partitionSet = null;
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
+    private boolean posDeleteHasSameSeqWithRefs = false;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -373,6 +396,11 @@ class DeleteFileIndex {
 
     Builder planWith(ExecutorService newExecutorService) {
       this.executorService = newExecutorService;
+      return this;
+    }
+
+    Builder posDeleteHasSameSeqWithRefs() {
+      this.posDeleteHasSameSeqWithRefs = true;
       return this;
     }
 
@@ -454,7 +482,8 @@ class DeleteFileIndex {
         }
       }
 
-      return new DeleteFileIndex(specsById, globalApplySeqs, globalDeletes, sortedDeletesByPartition);
+      return new DeleteFileIndex(specsById, globalApplySeqs, globalDeletes, sortedDeletesByPartition,
+          posDeleteHasSameSeqWithRefs);
     }
 
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {

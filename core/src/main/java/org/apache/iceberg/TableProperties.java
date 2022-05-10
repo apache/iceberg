@@ -340,4 +340,8 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  public static final String POS_DELETE_HAS_SAME_SEQ_WITH_REFS_ENABLED =
+      "write.pos-delete-has-same-seq-with-refs.enabled";
+  public static final boolean POS_DELETE_HAS_SAME_SEQ_WITH_REFS_ENABLED_DEFAULT = false;
 }
