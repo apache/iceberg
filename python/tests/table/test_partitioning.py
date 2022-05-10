@@ -53,7 +53,7 @@ def test_partition_spec_init(table_schema_simple: Schema):
     partition_spec2 = PartitionSpec(table_schema_simple, 0, (id_field2,), 1001)
     assert hash(partition_spec1) != hash(partition_spec2)
     assert partition_spec1.compatible_with(partition_spec2)
-    assert partition_spec1.get_fields_by_source_id(3) == [id_field1]
+    assert partition_spec1.fields_by_source_id(3) == [id_field1]
 
 
 def test_unpartitioned(table_schema_simple: Schema):
