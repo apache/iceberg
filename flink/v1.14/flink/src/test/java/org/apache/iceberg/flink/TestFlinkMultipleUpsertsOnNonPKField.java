@@ -128,9 +128,9 @@ public class TestFlinkMultipleUpsertsOnNonPKField extends FlinkCatalogTestBase {
           tableName, toWithClause(tableUpsertProps));
 
       sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 1, false)," +
-          "('aaa', TO_DATE('2022-03-01'), 2, false)," +
-          "('bbb', TO_DATE('2022-03-01'), 3, false)",
+          "('aaa', DATE '2022-03-01', 1, false)," +
+          "('aaa', DATE '2022-03-01', 2, false)," +
+          "('bbb', DATE '2022-03-01', 3, false)",
           tableName);
 
       TestHelpers.assertRows(
@@ -175,9 +175,9 @@ public class TestFlinkMultipleUpsertsOnNonPKField extends FlinkCatalogTestBase {
           tableName, toWithClause(tableUpsertProps));
 
       sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 1, false)," +
-          "('aaa', TO_DATE('2022-03-01'), 2, false)," +
-          "('bbb', TO_DATE('2022-03-01'), 3, false)",
+          "('aaa', DATE '2022-03-01', 1, false)," +
+          "('aaa', DATE '2022-03-01', 2, false)," +
+          "('bbb', DATE '2022-03-01', 3, false)",
           tableName);
 
       TestHelpers.assertRows(
@@ -191,10 +191,10 @@ public class TestFlinkMultipleUpsertsOnNonPKField extends FlinkCatalogTestBase {
       // Indicating possibly an issue with insertedRowMap checking and/or the positional delete
       // writer.
       sql("INSERT INTO %s VALUES " +
-          "('aaa', TO_DATE('2022-03-01'), 1, false)," +
-          "('aaa', TO_DATE('2022-03-01'), 2, false)," +
-          "('aaa', TO_DATE('2022-03-01'), 3, false)," +
-          "('aaa', TO_DATE('2022-03-01'), 6, false)",
+          "('aaa', DATE '2022-03-01', 1, false)," +
+          "('aaa', DATE '2022-03-01', 2, false)," +
+          "('aaa', DATE '2022-03-01', 3, false)," +
+          "('aaa', DATE '2022-03-01', 6, false)",
           tableName);
       TestHelpers.assertRows(
           sql("SELECT * FROM %s", tableName),
