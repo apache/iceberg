@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -243,6 +244,10 @@ public class CatalogHandlers {
     return LoadTableResponse.builder()
         .withTableMetadata(finalMetadata)
         .build();
+  }
+
+  public static void renameTable(Catalog catalog, RenameTableRequest request) {
+    catalog.renameTable(request.source(), request.destination());
   }
 
   private static boolean isCreate(UpdateTableRequest request) {

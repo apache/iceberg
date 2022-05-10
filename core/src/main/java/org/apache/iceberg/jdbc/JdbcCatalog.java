@@ -194,7 +194,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     int updatedRecords = execute(
         err -> {
-          if (err instanceof SQLIntegrityConstraintViolationException) {
+          // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
+          if (err instanceof SQLIntegrityConstraintViolationException ||
+              err.getMessage() != null && err.getMessage().contains("constraint failed")) {
             throw new AlreadyExistsException("Table already exists: %s", to);
           }
         },
