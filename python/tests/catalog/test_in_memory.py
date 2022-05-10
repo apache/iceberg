@@ -16,7 +16,12 @@
 #  under the License.
 import pytest
 
-from iceberg.catalog.base import AlreadyExistsError, TableNotFoundError
+from iceberg.catalog.base import (
+    AlreadyExistsError,
+    NamespaceNotEmptyError,
+    NamespaceNotFoundError,
+    TableNotFoundError,
+)
 from iceberg.catalog.in_memory import InMemoryCatalog
 from iceberg.schema import Schema
 from iceberg.table.base import PartitionSpec, TableSpec
@@ -104,6 +109,9 @@ def test_rename_table(catalog: InMemoryCatalog, table_spec: TableSpec):
     assert table.spec.name is new_table
 
     # And
+    assert new_namespace in catalog.list_namespaces()
+
+    # And
     with pytest.raises(TableNotFoundError):
         catalog.table(table_spec.namespace, table_spec.name)
 
@@ -119,13 +127,14 @@ def test_replace_table_that_exists(catalog: InMemoryCatalog, table_spec: TableSp
         schema=Schema(schema_id=2),
         location="protocol://some/location",
         partition_spec=PartitionSpec(),
-        properties={"key1": "value1", "key2": "value2"},
+        properties={"key2": "value21", "key3": "value3"},
     )
     table = catalog.replace_table(new_table_spec)
 
     # Then
     assert table
-    assert table.spec.schema is new_table_spec.schema
+    assert table.spec.schema == new_table_spec.schema
+    assert table.spec.properties == {**table_spec.properties, **new_table_spec.properties}
 
     # And
     table = catalog.table(new_table_spec.namespace, new_table_spec.name)
@@ -136,3 +145,98 @@ def test_replace_table_that_exists(catalog: InMemoryCatalog, table_spec: TableSp
 def test_replace_table_that_does_not_exist_raises_error(catalog: InMemoryCatalog, table_spec: TableSpec):
     with pytest.raises(TableNotFoundError):
         catalog.replace_table(table_spec)
+
+
+def test_create_namespace(catalog: InMemoryCatalog, table_spec: TableSpec):
+    # When
+    catalog.create_namespace(table_spec.namespace, table_spec.properties)
+
+    # Then
+    assert table_spec.namespace in catalog.list_namespaces()
+    assert table_spec.properties == catalog.get_namespace_metadata(table_spec.namespace)
+
+
+def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCatalog, table_spec: TableSpec):
+    # Given
+    catalog.create_namespace(table_spec.namespace, table_spec.properties)
+    # When
+    with pytest.raises(AlreadyExistsError):
+        catalog.create_namespace(table_spec.namespace, table_spec.properties)
+
+
+def test_get_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog, table_spec: TableSpec):
+    with pytest.raises(NamespaceNotFoundError):
+        catalog.get_namespace_metadata(table_spec.namespace)
+
+
+def test_list_namespaces(catalog: InMemoryCatalog, table_spec: TableSpec):
+    # Given
+    catalog.create_namespace(table_spec.namespace, table_spec.properties)
+    # When
+    namespaces = catalog.list_namespaces()
+    # Then
+    assert table_spec.namespace in namespaces
+
+
+def test_drop_namespace(catalog: InMemoryCatalog, table_spec: TableSpec):
+    # Given
+    catalog.create_namespace(table_spec.namespace, table_spec.properties)
+    # When
+    catalog.drop_namespace(table_spec.namespace)
+    # Then
+    assert table_spec.namespace not in catalog.list_namespaces()
+
+
+def test_drop_namespace_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog, table_spec: TableSpec):
+    with pytest.raises(NamespaceNotFoundError):
+        catalog.drop_namespace(table_spec.namespace)
+
+
+def test_drop_namespace_raises_error_when_namespace_not_empty(catalog: InMemoryCatalog, table_spec: TableSpec):
+    # Given
+    catalog.create_table(table_spec)
+    # When
+    with pytest.raises(NamespaceNotEmptyError):
+        catalog.drop_namespace(table_spec.namespace)
+
+
+def test_list_tables(catalog: InMemoryCatalog, table_spec: TableSpec):
+    # Given
+    catalog.create_table(table_spec)
+    # When
+    tables = catalog.list_tables()
+    # Then
+    assert tables
+    assert (table_spec.namespace, table_spec.name) in tables
+
+
+def test_list_tables_under_a_namespace(catalog: InMemoryCatalog, table_spec: TableSpec):
+    # Given
+    catalog.create_table(table_spec)
+    new_namespace = "new.namespace"
+    catalog.create_namespace(new_namespace)
+    # When
+    all_tables = catalog.list_tables()
+    new_namespace_tables = catalog.list_tables(new_namespace)
+    # Then
+    assert all_tables
+    assert (table_spec.namespace, table_spec.name) in all_tables
+    assert new_namespace_tables == []
+
+
+def test_set_namespace_metadata(catalog: InMemoryCatalog, table_spec: TableSpec):
+    # Given
+    catalog.create_namespace(table_spec.namespace, table_spec.properties)
+
+    # When
+    new_metadata = {"key3": "value3", "key4": "value4"}
+    catalog.set_namespace_metadata(table_spec.namespace, new_metadata)
+
+    # Then
+    assert table_spec.namespace in catalog.list_namespaces()
+    assert catalog.get_namespace_metadata(table_spec.namespace) == new_metadata
+
+
+def test_set_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog, table_spec: TableSpec):
+    with pytest.raises(NamespaceNotFoundError):
+        catalog.set_namespace_metadata(table_spec.namespace, table_spec.properties)

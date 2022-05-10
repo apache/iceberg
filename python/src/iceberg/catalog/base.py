@@ -16,7 +16,7 @@
 #  under the License.
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from iceberg.table.base import Table, TableSpec
 
@@ -142,7 +142,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_tables(self, namespace: Optional[str] = None) -> List[Table]:
+    def list_tables(self, namespace: Optional[str] = None) -> List[Tuple[str, str]]:
         """List tables under the given namespace in the catalog.
 
         If namespace not provided, will list all tables in the catalog.
@@ -151,7 +151,7 @@ class Catalog(ABC):
             namespace: the namespace to search
 
         Returns:
-            List[Table]: list of table names under this namespace.
+            List[Tuple[str, str]]: list of tuple of table namespace and their names.
 
         Raises:
             NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
@@ -199,6 +199,20 @@ class TableNotFoundError(Exception):
 
     def __init__(self, name: str):
         super().__init__(self, f"Table {name} not found in the catalog")
+
+
+class NamespaceNotFoundError(Exception):
+    """Exception when a Namespace is not found in the catalog"""
+
+    def __init__(self, namespace: str):
+        super().__init__(self, f"Namespace {namespace} not found in the catalog")
+
+
+class NamespaceNotEmptyError(Exception):
+    """Exception when a Namespace is not empty"""
+
+    def __init__(self, namespace: str):
+        super().__init__(self, f"Namespace {namespace} not empty")
 
 
 class AlreadyExistsError(Exception):
