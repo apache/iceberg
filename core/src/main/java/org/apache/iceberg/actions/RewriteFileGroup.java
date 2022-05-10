@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -58,6 +59,18 @@ public class RewriteFileGroup {
 
   public Set<DataFile> rewrittenFiles() {
     return fileScans().stream().map(FileScanTask::file).collect(Collectors.toSet());
+  }
+
+  public int rewrittenEqDeletes() {
+    return (int) fileScans().stream().flatMap(f -> f.deletes().stream())
+        .filter(d -> d.content().equals(FileContent.EQUALITY_DELETES))
+        .count();
+  }
+
+  public int rewrittenPosDeletes() {
+    return (int) fileScans().stream().flatMap(f -> f.deletes().stream())
+        .filter(d -> d.content().equals(FileContent.POSITION_DELETES))
+        .count();
   }
 
   public Set<DataFile> addedFiles() {
