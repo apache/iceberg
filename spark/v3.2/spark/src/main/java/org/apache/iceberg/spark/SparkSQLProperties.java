@@ -43,8 +43,4 @@ public class SparkSQLProperties {
   // Controls whether to check the order of fields during writes
   public static final String CHECK_ORDERING = "spark.sql.iceberg.check-ordering";
   public static final boolean CHECK_ORDERING_DEFAULT = true;
-
-  // Control whether to parallel delete files when abort
-  public static final String DELETE_FILES_PARALLEL_WHEN_ABORT = "spark.sql.iceberg.delete-files-parallel-when-abort";
-  public static final boolean DELETE_FILES_PARALLEL_WHEN_ABORT_DEFAULT = true;
 }

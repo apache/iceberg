@@ -214,7 +214,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     if (cleanupOnAbort) {
       Map<String, String> props = table.properties();
       Tasks.foreach(files(messages))
-          .executeWith(writeConf.deleteFilesParallelWhenAbort() ? ThreadPools.getWorkerPool() : null)
+          .executeWith(ThreadPools.getWorkerPool())
           .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
           .exponentialBackoff(
               PropertyUtil.propertyAsInt(props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),

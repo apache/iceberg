@@ -78,6 +78,4 @@ public class SparkWriteOptions {
 
   // Isolation Level for DataFrame calls. Currently supported by overwritePartitions
   public static final String ISOLATION_LEVEL = "isolation-level";
-
-  public static final String DELETE_FILES_PARALLEL_WHEN_ABORT = "delete-files-parallel-when-abort";
 }
