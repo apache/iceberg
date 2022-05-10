@@ -62,22 +62,8 @@ public class RowDataConverter {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
-
       Type fieldType = field.type();
-
-      switch (fieldType.typeId()) {
-        case STRUCT:
-          rowData.setField(i, convert(fieldType.asStructType(), record.get(i)));
-          break;
-        case LIST:
-          rowData.setField(i, convert(fieldType.asListType(), record.get(i)));
-          break;
-        case MAP:
-          rowData.setField(i, convert(fieldType.asMapType(), record.get(i)));
-          break;
-        default:
-          rowData.setField(i, convert(fieldType, record.get(i)));
-      }
+      rowData.setField(i, convert(fieldType, record.get(i)));
     }
     return rowData;
   }
