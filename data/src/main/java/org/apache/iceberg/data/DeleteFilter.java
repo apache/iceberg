@@ -191,7 +191,9 @@ public abstract class DeleteFilter<T> {
     }
   }
 
-  protected abstract void markRowDeleted(T item);
+  protected void markRowDeleted(T item) {
+    throw new UnsupportedOperationException("GenericDeleteFilter.markRowDeleted() is not supported");
+  }
 
   public Predicate<T> eqDeletedRowFilter() {
     if (eqDeleteRows == null) {

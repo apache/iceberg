@@ -41,11 +41,6 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   }
 
   @Override
-  protected void markRowDeleted(Record item) {
-    throw new UnsupportedOperationException("GenericDeleteFilter.markRowDeleted() is not supported");
-  }
-
-  @Override
   protected StructLike asStructLike(Record record) {
     return asStructLike.wrap(record);
   }

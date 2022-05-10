@@ -422,10 +422,9 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   private static StructLikeSet expectedRowSet(boolean removeDeleted, boolean removeUndeleted, int... idsToRemove) {
-    List<Record> records = recordsWithDeletedColumn();
-
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
-
+    List<Record> records = recordsWithDeletedColumn();
+    // mark rows deleted
     records.forEach(record -> {
       if (deletedIds.contains(record.getField("id"))) {
         record.setField(MetadataColumns.IS_DELETED.name(), true);
