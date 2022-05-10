@@ -50,7 +50,7 @@ class TableSpec:
     schema: Schema
     location: str = field()
     partition_spec: PartitionSpec = field()
-    properties: Dict[str, str] = Factory(Dict[str, str])
+    properties: Dict[str, str] = Factory(dict)
 
 
 class Table(ABC):
