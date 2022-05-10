@@ -62,6 +62,17 @@ class Schema:
             f"Schema(fields={repr(self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
         )
 
+    def __eq__(self, other) -> bool:
+        if not other:
+            return False
+
+        columns = list(self.columns)
+
+        if len(columns) != len(other.columns):
+            return False
+
+        return all([lhs == rhs for lhs, rhs in zip(columns, other.columns)])
+
     @property
     def columns(self) -> Iterable[NestedField]:
         """A list of the top-level fields in the underlying struct"""
