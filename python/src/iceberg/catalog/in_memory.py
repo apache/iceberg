@@ -126,7 +126,7 @@ class InMemoryCatalog(Catalog):
     def list_namespaces(self) -> List[str]:
         return list(self.__namespaces.keys())
 
-    def get_namespace_metadata(self, namespace: str) -> Dict[str, str]:
+    def load_namespace_metadata(self, namespace: str) -> Dict[str, str]:
         try:
             return self.__namespaces[namespace]
         except KeyError:

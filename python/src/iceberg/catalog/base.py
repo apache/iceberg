@@ -166,7 +166,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def get_namespace_metadata(self, namespace: str) -> Dict[str, str]:
+    def load_namespace_metadata(self, namespace: str) -> Dict[str, str]:
         """Get metadata dictionary for a namespace.
 
         Args:
