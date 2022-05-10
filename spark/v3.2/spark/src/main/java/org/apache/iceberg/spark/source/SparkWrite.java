@@ -60,6 +60,7 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -213,6 +214,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     if (cleanupOnAbort) {
       Map<String, String> props = table.properties();
       Tasks.foreach(files(messages))
+          .executeWith(ThreadPools.getWorkerPool())
           .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
           .exponentialBackoff(
               PropertyUtil.propertyAsInt(props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
