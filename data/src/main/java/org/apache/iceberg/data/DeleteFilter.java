@@ -96,7 +96,7 @@ public abstract class DeleteFilter<T> {
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasColumnIsDeleted = requestedSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
-    this.columnIsDeletedPosition = requestedSchema.idToPosition(MetadataColumns.IS_DELETED.fieldId());
+    this.columnIsDeletedPosition = requestedSchema.columns().indexOf(MetadataColumns.IS_DELETED);
   }
 
   protected int columnIsDeletedPosition() {
