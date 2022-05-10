@@ -27,7 +27,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   private final Set<DataFile> replacedDataFiles = Sets.newHashSet();
   private Long startingSnapshotId = null;
-  private boolean ignorePosDeletes = false;
+  private boolean ignorePosDeletesInValidation = false;
+  private boolean ignoreEqDeletesInValidation = false;
 
   BaseRewriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -68,6 +69,7 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   @Override
   public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber) {
     setNewFilesSequenceNumber(sequenceNumber);
+    ignoreEqDeletesInValidation = true;
     return rewriteFiles(filesToDelete, ImmutableSet.of(), filesToAdd, ImmutableSet.of());
   }
 
@@ -103,9 +105,8 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
-  public RewriteFiles validateFromSnapshot(long snapshotId, boolean ignorePositionDeletes) {
-    this.startingSnapshotId = snapshotId;
-    this.ignorePosDeletes = ignorePositionDeletes;
+  public RewriteFiles ignorePosDeletesInValidation() {
+    this.ignorePosDeletesInValidation = true;
     return this;
   }
 
@@ -113,7 +114,8 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   protected void validate(TableMetadata base) {
     if (replacedDataFiles.size() > 0) {
       // if there are replaced data files, there cannot be any new row-level deletes for those data files
-      validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles, ignorePosDeletes);
+      validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles,
+          ignoreEqDeletesInValidation, ignorePosDeletesInValidation);
     }
   }
 }

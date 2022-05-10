@@ -53,6 +53,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final FileIO io;
   private final long targetFileSize;
 
+  private boolean ignorePosDeletesReferences = false;
+
   protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                            OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     this.spec = spec;
@@ -82,11 +84,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   public WriteResult complete() throws IOException {
     close();
 
-    return WriteResult.builder()
+    WriteResult.Builder builder = WriteResult.builder()
         .addDataFiles(completedDataFiles)
-        .addDeleteFiles(completedDeleteFiles)
-        .addReferencedDataFiles(referencedDataFiles)
-        .build();
+        .addDeleteFiles(completedDeleteFiles);
+
+    if (!ignorePosDeletesReferences) {
+      builder.addReferencedDataFiles(referencedDataFiles);
+    }
+
+    return builder.build();
   }
 
   /**
@@ -119,6 +125,14 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * Wrap the passed in key of a row as a {@link StructLike}
      */
     protected abstract StructLike asStructLikeKey(T key);
+
+    /**
+     * Whether to ignore position deletes references. Flink engine doesn't validate the referred data files of
+     * position deletes, so the references can be ignored.
+     */
+    protected void ignorePosDeletesReferences() {
+      ignorePosDeletesReferences = true;
+    }
 
     public void write(T row) throws IOException {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
@@ -199,7 +213,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       // Add the completed pos-delete files.
       if (posDeleteWriter != null) {
         completedDeleteFiles.addAll(posDeleteWriter.complete());
-        referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
+        if (!ignorePosDeletesReferences) {
+          referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
+        }
         posDeleteWriter = null;
       }
     }

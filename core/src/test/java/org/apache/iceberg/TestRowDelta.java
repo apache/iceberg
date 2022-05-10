@@ -1309,7 +1309,8 @@ public class TestRowDelta extends V2TableTestBase {
 
     RewriteFiles rewriteFiles = table.newRewrite()
         .rewriteFiles(ImmutableSet.of(dataFile1), ImmutableSet.of(dataFile2), baseSnapshot.sequenceNumber())
-        .validateFromSnapshot(baseSnapshot.snapshotId(), true);
+        .ignorePosDeletesInValidation()
+        .validateFromSnapshot(baseSnapshot.snapshotId());
 
     rowDelta.commit();
     rewriteFiles.commit();

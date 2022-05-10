@@ -103,6 +103,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
     RowDataDeltaWriter(PartitionKey partition) {
       super(partition, schema, deleteSchema);
+      ignorePosDeletesReferences();
     }
 
     @Override

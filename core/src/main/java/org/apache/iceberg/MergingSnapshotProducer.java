@@ -361,11 +361,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
    * @param dataFiles data files to validate have no new row deletes
+   * @param ignoreEqDeletes whether equality deletes should be ignored in validation
    * @param ignorePosDeletes whether position deletes should be ignored in validation
    */
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
-                                                  Iterable<DataFile> dataFiles, boolean ignorePosDeletes) {
-    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, newFilesSequenceNumber != null,
+                                                  Iterable<DataFile> dataFiles, boolean ignoreEqDeletes,
+                                                  boolean ignorePosDeletes) {
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, ignoreEqDeletes,
         ignorePosDeletes);
   }
 
@@ -417,19 +419,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
     for (DataFile dataFile : dataFiles) {
-      // if any delete is found that applies to files written in or before the starting snapshot, fail
       DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
+      if (!ignoreEqualityDeletes && !ignorePosDeletes) {
+        ValidationException.check(deleteFiles.length == 0,
+            "Cannot commit, found new delete for replaced data file: %s", dataFile);
+        continue;
+      }
+
+      // if any delete is found that applies to files written in or before the starting snapshot, fail
       if (ignoreEqualityDeletes) {
         ValidationException.check(
             Arrays.stream(deleteFiles).noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
             "Cannot commit, found new position delete for replaced data file: %s", dataFile);
-      }  else if (ignorePosDeletes) {
+      } else {
         ValidationException.check(
             Arrays.stream(deleteFiles).noneMatch(deleteFile -> deleteFile.content() == FileContent.EQUALITY_DELETES),
             "Cannot commit, found new equality delete for replaced data file: %s", dataFile);
-      } else {
-        ValidationException.check(deleteFiles.length == 0,
-            "Cannot commit, found new delete for replaced data file: %s", dataFile);
       }
     }
   }

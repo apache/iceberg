@@ -86,14 +86,10 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   RewriteFiles validateFromSnapshot(long snapshotId);
 
   /**
-   * Set the snapshot ID used in any reads for this operation.
-   * <p>
-   * Validations will check changes after this snapshot ID. If this is not called, all ancestor snapshots through the
-   * table's initial snapshot are validated.
+   * Ignore the position deletes in rewrite validation. Flink upsert job only generates position deletes in the
+   * ongoing transaction, so it is not necessary to validate position deletes when rewriting.
    *
-   * @param snapshotId a snapshot ID
-   * @param ignorePosDeletes whether to ignore position delete in validation
    * @return this for method chaining
    */
-  RewriteFiles validateFromSnapshot(long snapshotId, boolean ignorePosDeletes);
+  RewriteFiles ignorePosDeletesInValidation();
 }
