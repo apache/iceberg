@@ -153,7 +153,7 @@ def test_create_namespace(catalog: InMemoryCatalog, table_spec: TableSpec):
 
     # Then
     assert table_spec.namespace in catalog.list_namespaces()
-    assert table_spec.properties == catalog.get_namespace_metadata(table_spec.namespace)
+    assert table_spec.properties == catalog.load_namespace_metadata(table_spec.namespace)
 
 
 def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCatalog, table_spec: TableSpec):
@@ -166,7 +166,7 @@ def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCa
 
 def test_get_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog, table_spec: TableSpec):
     with pytest.raises(NamespaceNotFoundError):
-        catalog.get_namespace_metadata(table_spec.namespace)
+        catalog.load_namespace_metadata(table_spec.namespace)
 
 
 def test_list_namespaces(catalog: InMemoryCatalog, table_spec: TableSpec):
@@ -234,7 +234,7 @@ def test_set_namespace_metadata(catalog: InMemoryCatalog, table_spec: TableSpec)
 
     # Then
     assert table_spec.namespace in catalog.list_namespaces()
-    assert catalog.get_namespace_metadata(table_spec.namespace) == new_metadata
+    assert catalog.load_namespace_metadata(table_spec.namespace) == new_metadata
 
 
 def test_set_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog, table_spec: TableSpec):
