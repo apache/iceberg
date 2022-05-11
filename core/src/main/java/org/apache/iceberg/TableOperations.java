@@ -19,15 +19,11 @@
 
 package org.apache.iceberg;
 
-import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.Tasks;
-import org.slf4j.LoggerFactory;
 
 /**
  * SPI interface to abstract table metadata access and updates.
@@ -122,33 +118,6 @@ public interface TableOperations {
     long mostSignificantBits = uuid.getMostSignificantBits();
     long leastSignificantBits = uuid.getLeastSignificantBits();
     return (mostSignificantBits ^ leastSignificantBits) & Long.MAX_VALUE;
-  }
-
-  /**
-   * Deletes the oldest metadata files if {@link TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
-   *
-   * @param base     table metadata on which previous versions were based
-   * @param metadata new table metadata with updated previous versions
-   */
-  default void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
-    if (base == null) {
-      return;
-    }
-
-    boolean deleteAfterCommit = metadata.propertyAsBoolean(
-        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
-        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
-
-    if (deleteAfterCommit) {
-      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
-      removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      Tasks.foreach(removedPreviousMetadataFiles)
-          .noRetry().suppressFailureWhenFinished()
-          .onFailure((previousMetadataFile, exc) ->
-              LoggerFactory.getLogger(TableOperations.class).warn("Delete failed for previous metadata file: {}",
-                  previousMetadataFile, exc))
-          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
-    }
   }
 
 }
