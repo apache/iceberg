@@ -134,6 +134,11 @@ To delete a table, run:
 DROP TABLE prod.db.sample
 ```
 
+To delete an empty table use `PURGE`, run:
+
+```sql
+DROP TABLE prod.db.sample PURGE
+```
 
 ## `ALTER TABLE`
 
