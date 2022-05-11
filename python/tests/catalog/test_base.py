@@ -20,9 +20,9 @@ from typing import Dict, List, Optional, Tuple, cast
 
 import pytest
 
-from iceberg.catalog.base import (
+from iceberg.catalog.base import Catalog
+from iceberg.exceptions import (
     AlreadyExistsError,
-    Catalog,
     NamespaceNotEmptyError,
     NamespaceNotFoundError,
     TableNotFoundError,
@@ -80,7 +80,7 @@ class InMemoryCatalog(Catalog):
     ) -> Table:
 
         if (namespace, name) in self.__tables:
-            raise AlreadyExistsError(name)
+            raise AlreadyExistsError(f"Table {name} already exists in namespace {namespace}")
         else:
             if namespace not in self.__namespaces:
                 self.__namespaces[namespace] = {}
@@ -100,19 +100,19 @@ class InMemoryCatalog(Catalog):
         try:
             return self.__tables[(namespace, name)]
         except KeyError:
-            raise TableNotFoundError(name)
+            raise TableNotFoundError(f"Table {name} not found in the catalog")
 
     def drop_table(self, namespace: Tuple[str, ...], name: str, purge: bool = True) -> None:
         try:
             self.__tables.pop((namespace, name))
         except KeyError:
-            raise TableNotFoundError(name)
+            raise TableNotFoundError(f"Table {name} not found in the catalog")
 
     def rename_table(self, from_namespace: Tuple[str, ...], from_name: str, to_namespace: Tuple[str, ...], to_name: str) -> Table:
         try:
             table = self.__tables.pop((from_namespace, from_name))
         except KeyError:
-            raise TableNotFoundError(from_name)
+            raise TableNotFoundError(f"Table {from_name} not found in the catalog")
 
         renamed_table = InMemoryTable(
             namespace=to_namespace,
@@ -142,7 +142,7 @@ class InMemoryCatalog(Catalog):
         try:
             table = self.__tables.pop((namespace, name))
         except KeyError:
-            raise TableNotFoundError(name)
+            raise TableNotFoundError(f"Table {name} not found in the catalog")
 
         replaced_table = InMemoryTable(
             namespace=namespace if namespace else table.namespace,
@@ -157,17 +157,17 @@ class InMemoryCatalog(Catalog):
 
     def create_namespace(self, namespace: Tuple[str, ...], properties: Optional[Dict[str, str]] = None) -> None:
         if namespace in self.__namespaces:
-            raise AlreadyExistsError(namespace)
+            raise AlreadyExistsError(f"Namespace {namespace} already exists")
         else:
             self.__namespaces[namespace] = properties if properties else {}
 
     def drop_namespace(self, namespace: Tuple[str, ...]) -> None:
         if [table_name_tuple for table_name_tuple in self.__tables.keys() if namespace in table_name_tuple]:
-            raise NamespaceNotEmptyError(namespace)
+            raise NamespaceNotEmptyError(f"Namespace {namespace} not empty")
         try:
             self.__namespaces.pop(namespace)
         except KeyError:
-            raise NamespaceNotFoundError(namespace)
+            raise NamespaceNotFoundError(f"Namespace {namespace} not found in the catalog")
 
     def list_tables(self, namespace: Optional[Tuple[str, ...]] = None) -> List[Tuple[Tuple[str, ...], str]]:
         if namespace:
@@ -185,13 +185,13 @@ class InMemoryCatalog(Catalog):
         try:
             return self.__namespaces[namespace]
         except KeyError:
-            raise NamespaceNotFoundError(namespace)
+            raise NamespaceNotFoundError(f"Namespace {namespace} not found in the catalog")
 
     def set_namespace_metadata(self, namespace: Tuple[str, ...], metadata: Dict[str, str]) -> None:
         if namespace in self.__namespaces:
             self.__namespaces[namespace] = metadata
         else:
-            raise NamespaceNotFoundError(namespace)
+            raise NamespaceNotFoundError(f"Namespace {namespace} not found in the catalog")
 
 
 @pytest.fixture

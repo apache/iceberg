@@ -16,7 +16,7 @@
 #  under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from iceberg.schema import Schema
 from iceberg.table.base import PartitionSpec, Table
@@ -221,31 +221,3 @@ class Catalog(ABC):
         Raises:
             NamespaceNotFoundError: If a namespace with the name does not exist in the namespace
         """
-
-
-class TableNotFoundError(Exception):
-    """Exception when a table is not found in the catalog"""
-
-    def __init__(self, name: str):
-        super().__init__(self, f"Table {name} not found in the catalog")
-
-
-class NamespaceNotFoundError(Exception):
-    """Exception when a Namespace is not found in the catalog"""
-
-    def __init__(self, namespace: Tuple[str, ...]):
-        super().__init__(self, f"Namespace {namespace} not found in the catalog")
-
-
-class NamespaceNotEmptyError(Exception):
-    """Exception when a Namespace is not empty"""
-
-    def __init__(self, namespace: Tuple[str, ...]):
-        super().__init__(self, f"Namespace {namespace} not empty")
-
-
-class AlreadyExistsError(Exception):
-    """Exception when an entity like table or namespace already exists in the catalog"""
-
-    def __init__(self, name: Any):
-        super().__init__(self, f"Table or namespace {name} already exists")
