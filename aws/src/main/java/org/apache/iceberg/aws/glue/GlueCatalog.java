@@ -94,6 +94,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private LockManager lockManager;
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
+  private Map<String, String> catalogProps = Collections.emptyMap();
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID = DynMethods.builder("versionId")
@@ -111,6 +112,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProps = properties;
     AwsClientFactory awsClientFactory;
     FileIO catalogFileIO;
     if (PropertyUtil.propertyAsBoolean(

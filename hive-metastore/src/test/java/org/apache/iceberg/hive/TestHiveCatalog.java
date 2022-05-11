@@ -27,7 +27,11 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -656,7 +660,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Assert.assertEquals("Should have trailing slash stripped", wareHousePath, catalogWithSlash.getConf().get(
         HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
   }
-  
+
   @Test
   public void testTablePropsDefinedAtCatalogLevel() {
     Schema schema = new Schema(
