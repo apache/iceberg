@@ -357,10 +357,9 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
         TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
         TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
-    Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
-    removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-
     if (deleteAfterCommit) {
+      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
+      removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
       Tasks.foreach(removedPreviousMetadataFiles)
           .noRetry().suppressFailureWhenFinished()
           .onFailure((previousMetadataFile, exc) ->
