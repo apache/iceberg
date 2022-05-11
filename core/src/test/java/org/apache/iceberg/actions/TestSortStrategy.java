@@ -101,15 +101,9 @@ public class TestSortStrategy extends TableTestBase {
   }
 
   @Test
-  public void testSelectAll() {
-    List<FileScanTask> invalid = ImmutableList.<FileScanTask>builder()
-        .addAll(tasksForSortOrder(-1, 500, 500, 500, 500))
-        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 10, 10, 2000, 10))
-        .build();
-
+  public void testRewriteAll() {
     List<FileScanTask> expected = ImmutableList.<FileScanTask>builder()
-        .addAll(invalid)
-        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 500, 490, 520))
+        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 10, 2000, 500, 490, 520))
         .build();
 
     RewriteStrategy strategy = defaultSort().options(ImmutableMap.of(SortStrategy.REWRITE_ALL, "true"));
@@ -120,23 +114,51 @@ public class TestSortStrategy extends TableTestBase {
   }
 
   @Test
-  public void testUseSizeOptions() {
+  public void testMisSizedRatioThreshold() {
     List<FileScanTask> expected = ImmutableList.<FileScanTask>builder()
-        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 498, 551))
+        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 400, 500, 520, 590, 620))
         .build();
 
-    List<FileScanTask> fileScanTasks = ImmutableList.<FileScanTask>builder()
-        .addAll(expected)
-        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 500, 500))
-        .build();
-
+    // Note that the actual mis-sized ratio of the above file is 3/5 = 0.6
     RewriteStrategy strategy = defaultSort().options(ImmutableMap.of(
+        SortStrategy.MIS_SIZED_RATIO_THRESHOLD, "0.59",
+        SortStrategy.MIN_FILE_SIZE_BYTES, Long.toString(450 * MB),
+        SortStrategy.MAX_FILE_SIZE_BYTES, Long.toString(550 * MB)));
+    List<FileScanTask> actual = ImmutableList.copyOf(strategy.selectFilesToRewrite(expected));
+    Assert.assertEquals("Should mark all files for rewrite",
+        expected, actual);
+  }
+
+  @Test
+  public void testSortednessScoreThreshold() {
+    List<FileScanTask> expected = ImmutableList.<FileScanTask>builder()
+        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 500, 500, 510, 495))
+        .build();
+
+    // Note that the sortedness score of existing data files of the table is 0.0
+    RewriteStrategy strategy = defaultSort().options(ImmutableMap.of(
+        SortStrategy.SORTEDNESS_SCORE_THRESHOLD, "0.01"));
+    List<FileScanTask> actual = ImmutableList.copyOf(strategy.selectFilesToRewrite(expected));
+    Assert.assertEquals("Should mark all files for rewrite",
+        expected, actual);
+  }
+
+  @Test
+  public void testHaveGoodFileSizes() {
+    List<FileScanTask> fileScanTasks = ImmutableList.<FileScanTask>builder()
+        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 498, 500, 500, 551))
+        .build();
+
+    SortStrategy rewriteAllStrategy = (SortStrategy) defaultSort().options(ImmutableMap.of(
         SortStrategy.MAX_FILE_SIZE_BYTES, Long.toString(550 * MB),
         SortStrategy.MIN_FILE_SIZE_BYTES, Long.toString(499 * MB)));
 
-    List<FileScanTask> actual = ImmutableList.copyOf(strategy.selectFilesToRewrite(fileScanTasks));
+    Assert.assertFalse(rewriteAllStrategy.haveGoodFileSizes(fileScanTasks));
 
-    Assert.assertEquals("Should mark files for rewrite with adjusted min and max size",
-        expected, actual);
+    SortStrategy rewriteNoneStrategy = (SortStrategy) defaultSort().options(ImmutableMap.of(
+        SortStrategy.MAX_FILE_SIZE_BYTES, Long.toString(560 * MB),
+        SortStrategy.MIN_FILE_SIZE_BYTES, Long.toString(490 * MB)));
+
+    Assert.assertTrue(rewriteNoneStrategy.haveGoodFileSizes(fileScanTasks));
   }
 }
