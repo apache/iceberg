@@ -120,6 +120,7 @@ subprojects {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.slf4j:slf4j-simple'
     testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-inline'
     testImplementation 'org.assertj:assertj-core'
   }
 
