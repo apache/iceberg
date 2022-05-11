@@ -18,39 +18,6 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Dict
-
-from attrs import Factory, field, frozen
-
-from iceberg.schema import Schema
-
-
-@frozen(kw_only=True)
-class TableSpec:
-    """An immutable user specification to create or replace a table.
-
-    Usage:
-        table_spec = TableSpec(
-            namespace = "com.organization.department",
-            name = "my_table",
-            schema = Schema(),
-            location = "protocol://some/location",  // Optional
-            partition_spec = PartitionSpec(),       // Optional
-            properties = [                          // Optional
-                "key1": "value1",
-                "key2": "value2",
-            ]
-        )
-
-    TODO: Validators to be added
-    """
-
-    namespace: str
-    name: str
-    schema: Schema
-    location: str = field()
-    partition_spec: PartitionSpec = field()
-    properties: Dict[str, str] = Factory(dict)
 
 
 class Table(ABC):
@@ -58,15 +25,6 @@ class Table(ABC):
 
     To be implemented by https://github.com/apache/iceberg/issues/3227
     """
-
-    _spec: TableSpec
-
-    def __init__(self, spec: TableSpec):
-        self._spec = spec
-
-    @property
-    def spec(self) -> TableSpec:
-        return self._spec
 
 
 class PartitionSpec:
