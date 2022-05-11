@@ -366,7 +366,6 @@ def test_build_position_accessors(table_schema_nested):
         8: Accessor(position=4, inner=Accessor(position=1, inner=None)),
         9: Accessor(position=4, inner=Accessor(position=1, inner=Accessor(position=0, inner=None))),
         10: Accessor(position=4, inner=Accessor(position=1, inner=Accessor(position=1, inner=None))),
-        11: Accessor(position=5, inner=None),
         12: Accessor(position=5, inner=Accessor(position=0, inner=None)),
         13: Accessor(position=5, inner=Accessor(position=0, inner=Accessor(position=0, inner=None))),
         14: Accessor(position=5, inner=Accessor(position=0, inner=Accessor(position=1, inner=None))),

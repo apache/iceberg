@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from iceberg.schema import Schema
+from iceberg import schema
 from iceberg.types import (
     BooleanType,
     FloatType,
@@ -47,7 +47,7 @@ class FooStruct:
 
 @pytest.fixture(scope="session", autouse=True)
 def table_schema_simple():
-    return Schema(
+    return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
@@ -58,7 +58,7 @@ def table_schema_simple():
 
 @pytest.fixture(scope="session", autouse=True)
 def table_schema_nested():
-    return Schema(
+    return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
         NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
