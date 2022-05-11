@@ -96,6 +96,10 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     return true;
   }
 
+  protected Map<String, String> properties() {
+    return Collections.emptyMap();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this).toString();
@@ -259,9 +263,5 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     sb.append(identifier.name());
 
     return sb.toString();
-  }
-
-  protected Map<String, String> properties() {
-    return Collections.emptyMap();
   }
 }

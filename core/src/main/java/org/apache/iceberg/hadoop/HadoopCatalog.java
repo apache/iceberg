@@ -94,15 +94,14 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private FileIO fileIO;
   private LockManager lockManager;
   private boolean suppressPermissionError = false;
-  private Map<String, String> catalogProps = Collections.emptyMap();
+  private Map<String, String> catalogProperties = Collections.emptyMap();
 
   public HadoopCatalog() {
   }
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    this.catalogProps = properties;
-
+    this.catalogProperties = properties;
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(inputWarehouseLocation != null && inputWarehouseLocation.length() > 0,
         "Cannot initialize HadoopCatalog because warehousePath must not be null or empty");
@@ -399,7 +398,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   protected Map<String, String> properties() {
-    return this.catalogProps;
+    return catalogProperties;
   }
 
   private class HadoopCatalogTableBuilder extends BaseMetastoreCatalogTableBuilder {
