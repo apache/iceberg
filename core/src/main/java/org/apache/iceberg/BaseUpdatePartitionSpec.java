@@ -103,7 +103,29 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     this.lastAssignedPartitionId = lastAssignedPartitionId;
   }
 
-  private int assignFieldId() {
+  /**
+   * Calculates a field ID to the newly added PartitionField.
+   * New field ID is assigned in every case for V1 tables, but for V2 we try to recycle a former ID if possible.
+   * @param sourceTransform - pair of source ID and transform for this PartitionField addition
+   * @return - the calculated field ID
+   */
+  private int assignFieldId(Pair<Integer, Transform<?, ?>> sourceTransform) {
+    if (formatVersion == 2) {
+      int sourceId = sourceTransform.first();
+      Transform<?, ?> transform = sourceTransform.second();
+
+      Set<PartitionField> allHistoricalFields = Sets.newHashSet();
+      for (PartitionSpec partitionSpecpec : base.specs()) {
+        allHistoricalFields.addAll(partitionSpecpec.fields());
+      }
+
+      for (PartitionField field : allHistoricalFields) {
+        if (field.sourceId() == sourceId && field.transform().equals(transform)) {
+          return field.fieldId();
+        }
+      }
+    }
+
     this.lastAssignedPartitionId += 1;
     return lastAssignedPartitionId;
   }
@@ -158,7 +180,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         "Cannot add duplicate partition field %s=%s, already added: %s", name, term, added);
 
     PartitionField newField = new PartitionField(
-        sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
+        sourceTransform.first(), assignFieldId(sourceTransform), name, sourceTransform.second());
     if (newField.name() == null) {
       String partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
       newField = new PartitionField(newField.sourceId(), newField.fieldId(), partitionName, newField.transform());

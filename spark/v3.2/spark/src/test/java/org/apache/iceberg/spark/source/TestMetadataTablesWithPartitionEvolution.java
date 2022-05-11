@@ -45,6 +45,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -525,17 +526,34 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
 
     sql("INSERT INTO TABLE %s VALUES (1, 'c1', 'd1')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'c2', 'd2')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c3', 'd3')", tableName);
 
-    assertPartitions(
-        ImmutableList.of(
-            row(null, "c1", null),
-            row(null, "c1", "d1"),
-            row(null, "c2", null),
-            row(null, "c2", "d2"),
-            row("d1", "c1", null),
-            row("d2", "c2", null)),
-        "STRUCT<data_1000:STRING,category:STRING,data:STRING>",
-        PARTITIONS);
+    if (formatVersion == 1) {
+      assertPartitions(
+          ImmutableList.of(
+              row(null, "c1", null),
+              row(null, "c1", "d1"),
+              row(null, "c2", null),
+              row(null, "c2", "d2"),
+              row(null, "c3", "d3"),
+              row("d1", "c1", null),
+              row("d2", "c2", null)),
+          "STRUCT<data_1000:STRING,category:STRING,data:STRING>",
+          PARTITIONS);
+    } else {
+      // In V2 re-adding a former partition field that was part of an older spec will not change its name or its
+      // field ID either, thus values will be collapsed into a single common column (as opposed to V1 where any new
+      // partition field addition will result in a new column in this metadata table)
+      assertPartitions(
+          ImmutableList.of(
+              row(null, "c1"),
+              row(null, "c2"),
+              row("d1", "c1"),
+              row("d2", "c2"),
+              row("d3", "c3")),
+          "STRUCT<data:STRING,category:STRING>",
+          PARTITIONS);
+    }
   }
 
   @Test
