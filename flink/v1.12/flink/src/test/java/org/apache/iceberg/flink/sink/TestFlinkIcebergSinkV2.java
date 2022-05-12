@@ -377,19 +377,6 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         false, elementsPerCheckpoint, expectedRecords);
   }
 
-  @Test
-  public void testUpsertModeIsDisabled() throws Exception {
-    DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    AssertHelpers.assertThrows("Upsert mode is not supported in Flink 1.12",
-        UnsupportedOperationException.class, "Upsert mode is not supported in Flink 1.12",
-        () -> FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .tableLoader(tableLoader)
-            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-            .writeParallelism(parallelism)
-            .upsert(true)
-            .append());
-  }
-
   private StructLikeSet expectedRowSet(Record... records) {
     return SimpleDataUtil.expectedRowSet(table, records);
   }
