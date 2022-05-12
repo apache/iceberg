@@ -398,8 +398,8 @@ public class FlinkSink {
         if (!table.spec().isUnpartitioned()) {
           for (PartitionField partitionField : table.spec().fields()) {
             Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
-              "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
-              partitionField, equalityFieldColumns);
+                "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                partitionField, equalityFieldColumns);
           }
         }
       }
