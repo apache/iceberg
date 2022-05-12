@@ -93,13 +93,14 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
       Preconditions.checkArgument(type instanceof Types.StructType,
           "Cannot visit invalid Iceberg type: %s for Avro complex union type: %s", type, union);
 
-      // we start index from 1 because 0 is the tag field which doesn't exist in the original Avro schema
+      List<Types.NestedField> fields = type.asStructType().fields();
+      // start index from 1 because 0 is the tag field which doesn't exist in the original Avro schema
       int index = 1;
       for (Schema branch : types) {
         if (branch.getType() == Schema.Type.NULL) {
           options.add(visit((Type) null, branch, visitor));
         } else {
-          options.add(visit(type.asStructType().fields().get(index).type(), branch, visitor));
+          options.add(visit(fields.get(index).type(), branch, visitor));
           index += 1;
         }
       }
