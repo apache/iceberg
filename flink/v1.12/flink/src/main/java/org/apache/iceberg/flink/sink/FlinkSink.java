@@ -376,11 +376,13 @@ public class FlinkSink {
           UPSERT_ENABLED, UPSERT_ENABLED_DEFAULT);
 
       // `upsert` mode should not be used in Flink 1.12 due to correctness issues.
-      // As part of a patch release, apachee-iceberg-flink-runtime_1.12:0.13.2,
+      // As part of a patch release, apache-iceberg-flink-runtime_1.12:0.13.2,
       // it has been decided the best course of action would be to log a warning
-      // asking people to upgrade, as Flink 1.12 is deprecated from both upstream
-      // Flink as well as Iceberg as of Iceberg 0.14.0. But we allow the configuration
-      // given that it's a patch release and the change would be otherwise very breaking.
+      // asking people to upgrade, as Flink 1.12 has been deprecated in upstream Apache Flink
+      // for some time as well as will be removed in the next major Iceberg release, Iceberg 0.14.0.
+      //
+      // But we allow the configuration given that it's a patch release and the change would be otherwise
+      // too breaking for a patch release.
       //
       // See in https://github.com/apache/iceberg/pull/4364 for more information.
       if (upsertMode) {
