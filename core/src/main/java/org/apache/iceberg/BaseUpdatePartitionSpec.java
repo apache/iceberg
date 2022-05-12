@@ -110,7 +110,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
    * @return - the calculated field ID
    */
   private int assignFieldId(Pair<Integer, Transform<?, ?>> sourceTransform) {
-    if (formatVersion == 2) {
+    if (formatVersion == 2 && base != null) {
       int sourceId = sourceTransform.first();
       Transform<?, ?> transform = sourceTransform.second();
 
