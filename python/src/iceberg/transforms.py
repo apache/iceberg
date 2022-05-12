@@ -64,10 +64,10 @@ class Transform(ABC, Generic[S, T]):
     def __str__(self):
         return self._transform_string
 
-    def __call__(self, value: S) -> Optional[T]:
+    def __call__(self, value: Optional[S]) -> Optional[T]:
         return self.apply(value)
 
-    def apply(self, value: S) -> Optional[T]:
+    def apply(self, value: Optional[S]) -> Optional[T]:
         ...
 
     def can_transform(self, source: IcebergType) -> bool:
@@ -83,10 +83,8 @@ class Transform(ABC, Generic[S, T]):
     def satisfies_order_of(self, other) -> bool:
         return self == other
 
-    def to_human_string(self, value) -> str:
-        if value is None:
-            return "null"
-        return str(value)
+    def to_human_string(self, value: Optional[S]) -> str:
+        return str(value) if value is not None else "null"
 
     @property
     def dedup_name(self) -> str:
@@ -119,11 +117,8 @@ class BaseBucketTransform(Transform[S, int]):
     def hash(self, value: S) -> int:
         raise NotImplementedError()
 
-    def apply(self, value: S) -> Optional[int]:
-        if value is None:
-            return None
-
-        return (self.hash(value) & IntegerType.max) % self._num_buckets
+    def apply(self, value: Optional[S]) -> Optional[int]:
+        return (self.hash(value) & IntegerType.max) % self._num_buckets if value else None
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return IntegerType()
@@ -220,6 +215,33 @@ class BucketUUIDTransform(BaseBucketTransform):
                 value.int & 0xFFFFFFFFFFFFFFFF,
             )
         )
+
+
+class UnknownTransform(Transform):
+    """A transform that represents when an unknown transform is provided
+    Args:
+      source_type (Type): An Iceberg `Type`
+      transform (str): A string name of a transform
+    Raises:
+      AttributeError: If the apply method is called.
+    """
+
+    def __init__(self, source_type: IcebergType, transform: str):
+        super().__init__(
+            transform,
+            f"transforms.UnknownTransform(source_type={repr(source_type)}, transform={repr(transform)})",
+        )
+        self._type = source_type
+        self._transform = transform
+
+    def apply(self, value):
+        raise AttributeError(f"Cannot apply unsupported transform: {self}")
+
+    def can_transform(self, target: IcebergType) -> bool:
+        return self._type == target
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return StringType()
 
 
 def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:

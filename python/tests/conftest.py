@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from typing import Any
+
 import pytest
 
 from iceberg import schema
@@ -28,6 +30,19 @@ from iceberg.types import (
     StringType,
     StructType,
 )
+
+
+class FooStruct:
+    """An example of an object that abides by StructProtocol"""
+
+    def __init__(self):
+        self.content = {}
+
+    def get(self, pos: int) -> Any:
+        return self.content[pos]
+
+    def set(self, pos: int, value) -> None:
+        self.content[pos] = value
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -83,3 +98,8 @@ def table_schema_nested():
         schema_id=1,
         identifier_field_ids=[1],
     )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def foo_struct():
+    return FooStruct()

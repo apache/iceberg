@@ -136,7 +136,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @Override
   protected boolean supportsNamespaceProperties() {
-    return false;
+    return true;
   }
 
   @Override
@@ -151,12 +151,5 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       "Nessie does not differentiate between table creates & updates, thus a concurrent transaction does not fail")
   public void testConcurrentCreateTransaction() {
     super.testConcurrentCreateTransaction();
-  }
-
-  @Test
-  @Override
-  @Disabled("currently not validated within doCommit")
-  public void testUUIDValidation() {
-    super.testUUIDValidation();
   }
 }

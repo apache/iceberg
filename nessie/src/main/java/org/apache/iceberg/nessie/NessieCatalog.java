@@ -21,7 +21,6 @@ package org.apache.iceberg.nessie;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configurable;
@@ -82,12 +81,13 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     // remove nessie prefix
     final Function<String, String> removePrefix = x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
     final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
+    String requestedHash = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
     NessieApiV1 api = createNessieClientBuilder(options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
         .fromConfig(x -> options.get(removePrefix.apply(x)))
         .build(NessieApiV1.class);
 
     initialize(name,
-        new NessieIcebergClient(api, requestedRef, null, catalogOptions),
+        new NessieIcebergClient(api, requestedRef, requestedHash, catalogOptions),
         fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config),
         catalogOptions);
   }
@@ -103,9 +103,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   @SuppressWarnings("checkstyle:HiddenField")
   public void initialize(String name, NessieIcebergClient client, FileIO fileIO, Map<String, String> catalogOptions) {
     this.name = name == null ? "nessie" : name;
-    this.client = Objects.requireNonNull(client, "client must be non-null");
-    this.fileIO = Objects.requireNonNull(fileIO, "fileIO must be non-null");
-    this.catalogOptions = Objects.requireNonNull(catalogOptions, "catalogOptions must be non-null");
+    this.client = Preconditions.checkNotNull(client, "client must be non-null");
+    this.fileIO = Preconditions.checkNotNull(fileIO, "fileIO must be non-null");
+    this.catalogOptions = Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null");
     this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
   }
 
@@ -224,16 +224,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public boolean setProperties(Namespace namespace, Map<String, String> properties) {
-    throw new UnsupportedOperationException(
-        "Cannot set properties for namespace '" + namespace +
-            "': setProperties is not supported by the NessieCatalog");
+    return client.setProperties(namespace, properties);
   }
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) {
-    throw new UnsupportedOperationException(
-        "Cannot remove properties for namespace '" + namespace +
-            "': removeProperties is not supported by the NessieCatalog");
+    return client.removeProperties(namespace, properties);
   }
 
   @Override
@@ -246,7 +242,8 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     return config;
   }
 
-  public String currentHash() {
+  @VisibleForTesting
+  String currentHash() {
     return client.getRef().getHash();
   }
 

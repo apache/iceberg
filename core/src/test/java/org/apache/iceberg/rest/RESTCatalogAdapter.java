@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -98,7 +99,8 @@ public class RESTCatalogAdapter implements RESTClient {
     CREATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables"),
     LOAD_TABLE(HTTPMethod.GET, "v1/namespaces/{namespace}/tables/{table}"),
     UPDATE_TABLE(HTTPMethod.POST, "v1/namespaces/{namespace}/tables/{table}"),
-    DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{table}");
+    DROP_TABLE(HTTPMethod.DELETE, "v1/namespaces/{namespace}/tables/{table}"),
+    RENAME_TABLE(HTTPMethod.POST, "v1/tables/rename");
 
     private final HTTPMethod method;
     private final int requriedLength;
@@ -223,6 +225,12 @@ public class RESTCatalogAdapter implements RESTClient {
         TableIdentifier ident = identFromPathVars(vars);
         UpdateTableRequest request = castRequest(UpdateTableRequest.class, body);
         return castResponse(responseType, CatalogHandlers.updateTable(catalog, ident, request));
+      }
+
+      case RENAME_TABLE: {
+        RenameTableRequest request = castRequest(RenameTableRequest.class, body);
+        CatalogHandlers.renameTable(catalog, request);
+        return null;
       }
 
       default:

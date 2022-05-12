@@ -59,7 +59,7 @@ public class JsonUtil {
   }
 
   public static Integer getIntOrNull(String property, JsonNode node) {
-    if (!node.has(property)) {
+    if (!node.hasNonNull(property)) {
       return null;
     }
     JsonNode pNode = node.get(property);
@@ -69,7 +69,7 @@ public class JsonUtil {
   }
 
   public static Long getLongOrNull(String property, JsonNode node) {
-    if (!node.has(property)) {
+    if (!node.hasNonNull(property)) {
       return null;
     }
     JsonNode pNode = node.get(property);

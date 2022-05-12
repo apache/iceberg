@@ -82,6 +82,7 @@ abstract class BaseRewriteDataFilesSparkAction
       PARTIAL_PROGRESS_ENABLED,
       PARTIAL_PROGRESS_MAX_COMMITS,
       TARGET_FILE_SIZE_BYTES,
+      USE_STARTING_SEQUENCE_NUMBER,
       REWRITE_JOB_ORDER
   );
 
@@ -91,6 +92,7 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private RewriteStrategy strategy = null;
 
@@ -248,7 +250,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @VisibleForTesting
   RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
-    return new RewriteDataFilesCommitManager(table, startingSnapshotId);
+    return new RewriteDataFilesCommitManager(table, startingSnapshotId, useStartingSequenceNumber);
   }
 
   private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,
@@ -395,6 +397,10 @@ abstract class BaseRewriteDataFilesSparkAction
     partialProgressEnabled = PropertyUtil.propertyAsBoolean(options(),
         PARTIAL_PROGRESS_ENABLED,
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
+
+    useStartingSequenceNumber = PropertyUtil.propertyAsBoolean(options(),
+        USE_STARTING_SEQUENCE_NUMBER,
+        USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
 
     rewriteJobOrder = RewriteJobOrder.fromName(PropertyUtil.propertyAsString(options(),
         REWRITE_JOB_ORDER,

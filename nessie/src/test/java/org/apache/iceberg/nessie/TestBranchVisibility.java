@@ -24,11 +24,13 @@ import java.util.Map;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
@@ -47,6 +49,8 @@ import org.projectnessie.model.Branch;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.Reference;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestBranchVisibility extends BaseTestIceberg {
 
@@ -90,7 +94,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     testCatalogEquality(catalog, testCatalog, false, true,
         () -> updateSchema(catalog, tableIdentifier1));
 
-    testCatalogEquality(catalog, testCatalog, true, false,
+    testCatalogEquality(catalog, testCatalog, false, false,
         () -> updateSchema(catalog, tableIdentifier2));
   }
 
@@ -165,7 +169,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
     NessieCatalog catalogBranch2 = initCatalog(branch2);
     updateSchema(catalogBranch2, tableIdentifier1, Types.IntegerType.get());
-    verifyRefState(catalogBranch2, tableIdentifier1, snapshotIdOnTest, 2);
+    verifyRefState(catalogBranch2, tableIdentifier1, snapshotIdOnTest, 1);
     String metadataOn2 = addRow(catalogBranch2, tableIdentifier1, "testSchemaSnapshot-in-2",
         ImmutableMap.of("id0", 43L, "id2", 666));
     Assertions.assertThat(metadataOn2).isNotEqualTo(metadataOnTest).isNotEqualTo(metadataOnTest2);
@@ -191,10 +195,9 @@ public class TestBranchVisibility extends BaseTestIceberg {
     catalog = initCatalog(branch1);
     // load tableIdentifier1 on branch1
     BaseTable table = (BaseTable) catalog.loadTable(tableIdentifier1);
-    // branch1's tableIdentifier1's metadata location
-    // should be the latest global state (aka commit2 from branch2)
+    // branch1's tableIdentifier1's metadata location must not have changed
     Assertions.assertThat(table.operations().current().metadataFileLocation())
-        .isNotNull().isEqualTo(metadataLocationOfCommit2);
+        .isNotNull().isNotEqualTo(metadataLocationOfCommit2);
   }
 
   /**
@@ -249,10 +252,9 @@ public class TestBranchVisibility extends BaseTestIceberg {
     Assertions.assertThat(snapshotIdOnB).isEqualTo(snapshotIdOnTest);
     // branchB hasn't been modified yet, so it must be "equal" to branch "test"
     verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB, 0);
-    // updateSchema should use schema-id 2 because schema-id 1 has already been used by the above
-    // schema change in branch_a.
+    // updateSchema should use schema-id 1, because it's not tracked globally
     updateSchema(catalogBranchB, tableIdentifier1, Types.LongType.get());
-    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB, 2);
+    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB, 1);
     verifySchema(catalogBranchB, tableIdentifier1, Types.LongType.get(), Types.LongType.get());
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
 
@@ -263,7 +265,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     Assertions.assertThat(metadataOnB1)
         .isNotEqualTo(metadataOnA1)
         .isNotEqualTo(metadataOnTest);
-    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB1, 2);
+    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB1, 1);
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
 
     // repeat addRow() against branchA
@@ -288,7 +290,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
         .isNotEqualTo(metadataOnA1).isNotEqualTo(metadataOnA2)
         .isNotEqualTo(metadataOnB1)
         .isNotEqualTo(metadataOnTest);
-    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB2, 2);
+    verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB2, 1);
 
     // sanity check, branch "test" must not have changed
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
@@ -316,7 +318,8 @@ public class TestBranchVisibility extends BaseTestIceberg {
       throws NessieNotFoundException {
     ContentKey key = NessieUtil.toKey(identifier);
     return api.getContent().refName(catalog.currentRefName()).key(key)
-        .get().get(key).unwrap(IcebergTable.class).get();
+        .get().get(key).unwrap(IcebergTable.class)
+        .orElseThrow(NullPointerException::new);
   }
 
   private String addRow(NessieCatalog catalog, TableIdentifier identifier, String fileName, Map<String, Object> data)
@@ -398,5 +401,46 @@ public class TestBranchVisibility extends BaseTestIceberg {
     } else  {
       assertion.isNotEqualTo(testTable2);
     }
+  }
+
+  @Test
+  public void testWithRefAndHash() throws NessieConflictException, NessieNotFoundException {
+    String testBranch = "testBranch";
+    createBranch(testBranch, null);
+    Schema schema = new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+
+    NessieCatalog nessieCatalog = initCatalog(testBranch);
+    String hashBeforeNamespaceCreation = api.getReference().refName(testBranch).get().getHash();
+    Namespace namespace = Namespace.of("a", "b");
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isEmpty();
+
+    nessieCatalog.createNamespace(namespace);
+    Assertions.assertThat(nessieCatalog.listNamespaces(namespace)).isNotEmpty();
+    Assertions.assertThat(nessieCatalog.listTables(namespace)).isEmpty();
+
+    NessieCatalog catalogAtHash1 = initCatalog(testBranch, hashBeforeNamespaceCreation);
+    Assertions.assertThat(catalogAtHash1.listNamespaces(namespace)).isEmpty();
+    Assertions.assertThat(catalogAtHash1.listTables(namespace)).isEmpty();
+
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    String hashBeforeTableCreation = nessieCatalog.currentHash();
+    nessieCatalog.createTable(identifier, schema);
+    Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(1);
+
+    NessieCatalog catalogAtHash2 = initCatalog(testBranch, hashBeforeTableCreation);
+    Assertions.assertThat(catalogAtHash2.listNamespaces(namespace)).isNotEmpty();
+    Assertions.assertThat(catalogAtHash2.listTables(namespace)).isEmpty();
+
+    // updates should not be possible
+    Assertions.assertThatThrownBy(() -> catalogAtHash2.createTable(identifier, schema))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("You can only mutate tables when using a branch without a hash or timestamp.");
+    Assertions.assertThat(catalogAtHash2.listTables(namespace)).isEmpty();
+
+    // updates should be still possible here
+    nessieCatalog = initCatalog(testBranch);
+    TableIdentifier identifier2 = TableIdentifier.of(namespace, "table2");
+    nessieCatalog.createTable(identifier2, schema);
+    Assertions.assertThat(nessieCatalog.listTables(namespace)).hasSize(2);
   }
 }

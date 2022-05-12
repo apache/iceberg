@@ -35,11 +35,15 @@ import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
+import org.apache.iceberg.rest.requests.UpdateRequirementParser;
+import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.util.JsonUtil;
@@ -65,8 +69,45 @@ public class RESTSerializers {
         .addSerializer(UnboundSortOrder.class, new UnboundSortOrderSerializer())
         .addDeserializer(UnboundSortOrder.class, new UnboundSortOrderDeserializer())
         .addSerializer(MetadataUpdate.class, new MetadataUpdateSerializer())
-        .addDeserializer(MetadataUpdate.class, new MetadataUpdateDeserializer());
+        .addDeserializer(MetadataUpdate.class, new MetadataUpdateDeserializer())
+        .addSerializer(TableMetadata.class, new TableMetadataSerializer())
+        .addDeserializer(TableMetadata.class, new TableMetadataDeserializer())
+        .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
+        .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer());
     mapper.registerModule(module);
+  }
+
+  public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement> {
+    @Override
+    public UpdateRequirement deserialize(JsonParser p, DeserializationContext ctxt)
+        throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return UpdateRequirementParser.fromJson(node);
+    }
+  }
+
+  public static class UpdateRequirementSerializer extends JsonSerializer<UpdateRequirement> {
+    @Override
+    public void serialize(UpdateRequirement value, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      UpdateRequirementParser.toJson(value, gen);
+    }
+  }
+
+  public static class TableMetadataDeserializer extends JsonDeserializer<TableMetadata> {
+    @Override
+    public TableMetadata deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return TableMetadataParser.fromJson(node);
+    }
+  }
+
+  public static class TableMetadataSerializer extends JsonSerializer<TableMetadata> {
+    @Override
+    public void serialize(TableMetadata metadata, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      TableMetadataParser.toJson(metadata, gen);
+    }
   }
 
   public static class MetadataUpdateDeserializer extends JsonDeserializer<MetadataUpdate> {

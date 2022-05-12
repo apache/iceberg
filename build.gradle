@@ -588,6 +588,8 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation "org.projectnessie:nessie-client"
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
 
     testImplementation "org.projectnessie:nessie-jaxrs-testextension"
     // Need to "pull in" el-api explicitly :(
@@ -598,6 +600,10 @@ project(':iceberg-nessie') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+
+    // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
+    compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.0"
+    testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.0"
   }
 }
 

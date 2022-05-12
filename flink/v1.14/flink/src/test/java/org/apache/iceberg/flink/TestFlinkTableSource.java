@@ -32,6 +32,7 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -98,13 +99,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testLimitPushDown() {
-    String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
-    String explain = getTableEnv().explainSql(querySql);
-    String expectedExplain = "limit=[1]";
-    Assert.assertTrue("Explain should contain LimitPushDown", explain.contains(expectedExplain));
-    List<Row> result = sql(querySql);
-    Assert.assertEquals("Should have 1 record", 1, result.size());
-    Assert.assertEquals("Should produce the expected records", Row.of(1, "iceberg", 10.0), result.get(0));
 
     AssertHelpers.assertThrows("Invalid limit number: -1 ", SqlParserException.class,
         () -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME));
@@ -119,7 +113,16 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    Assert.assertEquals("Should produce the expected records", expectedList, resultExceed);
+    assertSameElements(expectedList, resultExceed);
+
+    String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
+    String explain = getTableEnv().explainSql(querySql);
+    String expectedExplain = "limit=[1]";
+    Assert.assertTrue("Explain should contain LimitPushDown", explain.contains(expectedExplain));
+    List<Row> result = sql(querySql);
+    Assert.assertEquals("Should have 1 record", 1, result.size());
+    Assertions.assertThat(result)
+        .containsAnyElementsOf(expectedList);
 
     String sqlMixed = String.format("SELECT * FROM %s WHERE id = 1 LIMIT 2", TABLE_NAME);
     List<Row> mixedResult = sql(sqlMixed);
@@ -136,7 +139,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    Assert.assertArrayEquals("Should produce the expected record", expectedRecords.toArray(), result.toArray());
+    assertSameElements(expectedRecords, result);
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
   }
 
@@ -187,7 +190,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedNE, resultNE);
+    assertSameElements(expectedNE, resultNE);
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
@@ -226,7 +229,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(1, "iceberg", 10.0),
         Row.of(2, "b", 20.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedOR, resultOr);
+    assertSameElements(expectedOR, resultOr);
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -244,7 +247,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedGT, resultGT);
+    assertSameElements(expectedGT, resultGT);
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -271,7 +274,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(1, "iceberg", 10.0),
         Row.of(2, "b", 20.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedGT, resultGT);
+    assertSameElements(expectedGT, resultGT);
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -289,7 +292,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedGTE, resultGTE);
+    assertSameElements(expectedGTE, resultGTE);
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -316,7 +319,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(1, "iceberg", 10.0),
         Row.of(2, "b", 20.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedGTE, resultGTE);
+    assertSameElements(expectedGTE, resultGTE);
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -403,7 +406,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(1, "iceberg", 10.0),
         Row.of(2, "b", 20.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedIN, resultIN);
+    assertSameElements(expectedIN, resultIN);
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
@@ -450,7 +453,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(1, "iceberg", 10.0),
         Row.of(2, "b", 20.0)
     );
-    Assert.assertEquals("Should produce the expected record", expected, resultNotNull);
+    assertSameElements(expected, resultNotNull);
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -493,7 +496,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(1, "iceberg", 10.0),
         Row.of(2, "b", 20.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedBetween, resultBetween);
+    assertSameElements(expectedBetween, resultBetween);
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     String expected = "(ref(name=\"id\") >= 1 and ref(name=\"id\") <= 2)";
@@ -554,7 +557,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    Assert.assertEquals("Should produce the expected record", expectedRecords, resultLike);
+    assertSameElements(expectedRecords, resultLike);
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
 
     sqlNoPushDown = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE 'iceber_' ";
@@ -579,7 +582,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
         Row.of(2, "b", 20.0),
         Row.of(3, null, 30.0)
     );
-    Assert.assertArrayEquals("Should produce the expected record", expectedRecords.toArray(), result.toArray());
+    assertSameElements(expectedRecords, result);
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
   }
 

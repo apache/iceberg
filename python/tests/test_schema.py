@@ -189,7 +189,7 @@ def test_schema_find_column_name_on_id_not_found(table_schema_nested):
     assert table_schema_nested.find_column_name(99) is None
 
 
-def test_schema_find_column_name(table_schema_simple):
+def test_schema_find_column_name_by_id(table_schema_simple):
     """Test finding a column name given its field ID"""
     assert table_schema_simple.find_column_name(1) == "foo"
     assert table_schema_simple.find_column_name(2) == "bar"

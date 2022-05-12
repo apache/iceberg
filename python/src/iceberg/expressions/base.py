@@ -16,7 +16,12 @@
 # under the License.
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Generic, TypeVar
+from functools import reduce
+from typing import Any, Generic, TypeVar
+
+from iceberg.files import StructProtocol
+from iceberg.schema import Schema
+from iceberg.types import NestedField, Singleton
 
 T = TypeVar("T")
 
@@ -122,3 +127,251 @@ class Literal(Generic[T], ABC):
 
     def __ge__(self, other):
         return self.value >= other.value
+
+
+class BooleanExpression(ABC):
+    """base class for all boolean expressions"""
+
+    @abstractmethod
+    def __invert__(self) -> "BooleanExpression":
+        ...
+
+
+class And(BooleanExpression):
+    """AND operation expression - logical conjunction"""
+
+    def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
+        if rest:
+            return reduce(And, (left, right, *rest))
+        if left is AlwaysFalse() or right is AlwaysFalse():
+            return AlwaysFalse()
+        elif left is AlwaysTrue():
+            return right
+        elif right is AlwaysTrue():
+            return left
+        self = super().__new__(cls)
+        self._left = left  # type: ignore
+        self._right = right  # type: ignore
+        return self
+
+    @property
+    def left(self) -> BooleanExpression:
+        return self._left  # type: ignore
+
+    @property
+    def right(self) -> BooleanExpression:
+        return self._right  # type: ignore
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or (isinstance(other, And) and self.left == other.left and self.right == other.right)
+
+    def __invert__(self) -> "Or":
+        return Or(~self.left, ~self.right)
+
+    def __repr__(self) -> str:
+        return f"And({repr(self.left)}, {repr(self.right)})"
+
+    def __str__(self) -> str:
+        return f"({self.left} and {self.right})"
+
+
+class Or(BooleanExpression):
+    """OR operation expression - logical disjunction"""
+
+    def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
+        if rest:
+            return reduce(Or, (left, right, *rest))
+        if left is AlwaysTrue() or right is AlwaysTrue():
+            return AlwaysTrue()
+        elif left is AlwaysFalse():
+            return right
+        elif right is AlwaysFalse():
+            return left
+        self = super().__new__(cls)
+        self._left = left  # type: ignore
+        self._right = right  # type: ignore
+        return self
+
+    @property
+    def left(self) -> BooleanExpression:
+        return self._left  # type: ignore
+
+    @property
+    def right(self) -> BooleanExpression:
+        return self._right  # type: ignore
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or (isinstance(other, Or) and self.left == other.left and self.right == other.right)
+
+    def __invert__(self) -> "And":
+        return And(~self.left, ~self.right)
+
+    def __repr__(self) -> str:
+        return f"Or({repr(self.left)}, {repr(self.right)})"
+
+    def __str__(self) -> str:
+        return f"({self.left} or {self.right})"
+
+
+class Not(BooleanExpression):
+    """NOT operation expression - logical negation"""
+
+    def __new__(cls, child: BooleanExpression):
+        if child is AlwaysTrue():
+            return AlwaysFalse()
+        elif child is AlwaysFalse():
+            return AlwaysTrue()
+        elif isinstance(child, Not):
+            return child.child
+        return super().__new__(cls)
+
+    def __init__(self, child):
+        self.child = child
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or (isinstance(other, Not) and self.child == other.child)
+
+    def __invert__(self) -> BooleanExpression:
+        return self.child
+
+    def __repr__(self) -> str:
+        return f"Not({repr(self.child)})"
+
+    def __str__(self) -> str:
+        return f"(not {self.child})"
+
+
+class AlwaysTrue(BooleanExpression, Singleton):
+    """TRUE expression"""
+
+    def __invert__(self) -> "AlwaysFalse":
+        return AlwaysFalse()
+
+    def __repr__(self) -> str:
+        return "AlwaysTrue()"
+
+    def __str__(self) -> str:
+        return "true"
+
+
+class AlwaysFalse(BooleanExpression, Singleton):
+    """FALSE expression"""
+
+    def __invert__(self) -> "AlwaysTrue":
+        return AlwaysTrue()
+
+    def __repr__(self) -> str:
+        return "AlwaysTrue()"
+
+    def __str__(self) -> str:
+        return "false"
+
+
+class Accessor:
+    """An accessor for a specific position in a container that implements the StructProtocol"""
+
+    def __init__(self, position: int):
+        self._position = position
+
+    def __str__(self):
+        return f"Accessor(position={self._position})"
+
+    def __repr__(self):
+        return f"Accessor(position={self._position})"
+
+    @property
+    def position(self):
+        """The position in the container to access"""
+        return self._position
+
+    def get(self, container: StructProtocol) -> Any:
+        """Returns the value at self.position in `container`
+
+        Args:
+            container(StructProtocol): A container to access at position `self.position`
+
+        Returns:
+            Any: The value at position `self.position` in the container
+        """
+        return container.get(self.position)
+
+
+class BoundReference:
+    """A reference bound to a field in a schema
+
+    Args:
+        field (NestedField): A referenced field in an Iceberg schema
+        accessor (Accessor): An Accessor object to access the value at the field's position
+    """
+
+    def __init__(self, field: NestedField, accessor: Accessor):
+        self._field = field
+        self._accessor = accessor
+
+    def __str__(self):
+        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
+
+    def __repr__(self):
+        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
+
+    @property
+    def field(self) -> NestedField:
+        """The referenced field"""
+        return self._field
+
+    def eval(self, struct: StructProtocol) -> Any:
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
+
+        Args:
+            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
+
+        Returns:
+            Any: The value at the referenced field's position in `struct`
+        """
+        return self._accessor.get(struct)
+
+
+class UnboundReference:
+    """A reference not yet bound to a field in a schema
+
+    Args:
+        name (str): The name of the field
+
+    Note:
+        An unbound reference is sometimes referred to as a "named" reference
+    """
+
+    def __init__(self, name: str):
+        if not name:
+            raise ValueError(f"Name cannot be null: {name}")
+        self._name = name
+
+    def __str__(self) -> str:
+        return f"UnboundReference(name={repr(self.name)})"
+
+    def __repr__(self) -> str:
+        return f"UnboundReference(name={repr(self.name)})"
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
+        """Bind the reference to an Iceberg schema
+
+        Args:
+            schema (Schema): An Iceberg schema
+            case_sensitive (bool): Whether to consider case when binding the reference to the field
+
+        Raises:
+            ValueError: If an empty name is provided
+
+        Returns:
+            BoundReference: A reference bound to the specific field in the Iceberg schema
+        """
+        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
+
+        if not field:
+            raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
+
+        return BoundReference(field=field, accessor=schema.accessor_for_field(field.field_id))

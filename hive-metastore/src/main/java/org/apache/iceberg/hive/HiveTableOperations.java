@@ -52,8 +52,11 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -93,6 +96,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   // the max size is based on HMS backend database. For Hive versions below 2.3, the max table parameter size is 4000
   // characters, see https://issues.apache.org/jira/browse/HIVE-12274
+  // set to 0 to not expose Iceberg metadata in HMS Table properties.
   private static final String HIVE_TABLE_PROPERTY_MAX_SIZE = "iceberg.hive.table-property-max-size";
   private static final long HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT = 32672;
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
@@ -307,6 +311,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } finally {
       cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId, tableLevelMutex);
     }
+
+    LOG.info("Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
   }
 
   @VisibleForTesting
@@ -399,17 +405,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     setSnapshotStats(metadata, parameters);
+    setSchema(metadata, parameters);
+    setPartitionSpec(metadata, parameters);
+    setSortOrder(metadata, parameters);
 
     tbl.setParameters(parameters);
   }
 
-  private void setSnapshotStats(TableMetadata metadata, Map<String, String> parameters) {
+  @VisibleForTesting
+  void setSnapshotStats(TableMetadata metadata, Map<String, String> parameters) {
     parameters.remove(TableProperties.CURRENT_SNAPSHOT_ID);
     parameters.remove(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP);
     parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
 
     Snapshot currentSnapshot = metadata.currentSnapshot();
-    if (currentSnapshot != null) {
+    if (exposeInHmsProperties() && currentSnapshot != null) {
       parameters.put(TableProperties.CURRENT_SNAPSHOT_ID, String.valueOf(currentSnapshot.snapshotId()));
       parameters.put(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP, String.valueOf(currentSnapshot.timestampMillis()));
       setSnapshotSummary(parameters, currentSnapshot);
@@ -431,6 +441,45 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } catch (JsonProcessingException e) {
       LOG.warn("Failed to convert current snapshot({}) summary to a json string", currentSnapshot.snapshotId(), e);
     }
+  }
+
+  @VisibleForTesting
+  void setSchema(TableMetadata metadata, Map<String, String> parameters) {
+    parameters.remove(TableProperties.CURRENT_SCHEMA);
+    if (exposeInHmsProperties() && metadata.schema() != null) {
+      String schema = SchemaParser.toJson(metadata.schema());
+      setField(parameters, TableProperties.CURRENT_SCHEMA, schema);
+    }
+  }
+
+  @VisibleForTesting
+  void setPartitionSpec(TableMetadata metadata, Map<String, String> parameters) {
+    parameters.remove(TableProperties.DEFAULT_PARTITION_SPEC);
+    if (exposeInHmsProperties() && metadata.spec() != null && metadata.spec().isPartitioned()) {
+      String spec = PartitionSpecParser.toJson(metadata.spec());
+      setField(parameters, TableProperties.DEFAULT_PARTITION_SPEC, spec);
+    }
+  }
+
+  @VisibleForTesting
+  void setSortOrder(TableMetadata metadata, Map<String, String> parameters) {
+    parameters.remove(TableProperties.DEFAULT_SORT_ORDER);
+    if (exposeInHmsProperties() && metadata.sortOrder() != null && metadata.sortOrder().isSorted()) {
+      String sortOrder = SortOrderParser.toJson(metadata.sortOrder());
+      setField(parameters, TableProperties.DEFAULT_SORT_ORDER, sortOrder);
+    }
+  }
+
+  private void setField(Map<String, String> parameters, String key, String value) {
+    if (value.length() <= maxHiveTablePropertySize) {
+      parameters.put(key, value);
+    } else {
+      LOG.warn("Not exposing {} in HMS since it exceeds {} characters", key, maxHiveTablePropertySize);
+    }
+  }
+
+  private boolean exposeInHmsProperties() {
+    return maxHiveTablePropertySize > 0;
   }
 
   private StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
