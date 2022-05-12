@@ -385,7 +385,7 @@ public class FlinkSink {
       // See in https://github.com/apache/iceberg/pull/4364 for more information.
       if (upsertMode) {
         String deprecationNotice =
-            "This job is running in upsert mode. Upsert mode should not be used with Flink 1.12 because it will " +
+            "This table sink is running in upsert mode. Upsert mode should not be used with Flink 1.12 because it will " +
             "write incorrect delete file metadata, which could prevent deletes from being correctly applied. " +
             "Upgrading to Flink 1.13+ is recommended. " +
             "To safely use Flink 1.12, set manifest metrics to counts only.";
