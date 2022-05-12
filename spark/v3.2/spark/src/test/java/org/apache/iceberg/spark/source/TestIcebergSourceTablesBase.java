@@ -63,6 +63,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static org.apache.iceberg.ManifestContent.DATA;
+import static org.apache.iceberg.ManifestContent.DELETES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -897,13 +899,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     GenericRecordBuilder summaryBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
         manifestTable.schema().findType("partition_summaries.element").asStructType(), "partition_summary"));
     List<GenericData.Record> expected = Lists.transform(table.currentSnapshot().allManifests(), manifest ->
-        builder.set("path", manifest.path())
+        builder
+            .set("content", manifest.content().id())
+            .set("path", manifest.path())
             .set("length", manifest.length())
             .set("partition_spec_id", manifest.partitionSpecId())
             .set("added_snapshot_id", manifest.snapshotId())
-            .set("added_data_files_count", manifest.addedFilesCount())
-            .set("existing_data_files_count", manifest.existingFilesCount())
-            .set("deleted_data_files_count", manifest.deletedFilesCount())
+            .set("added_data_files_count", manifest.content() == DATA ? manifest.addedFilesCount() : 0)
+            .set("existing_data_files_count", manifest.content() == DATA ? manifest.existingFilesCount() : 0)
+            .set("deleted_data_files_count", manifest.content() == DATA ? manifest.deletedFilesCount() : 0)
+            .set("added_delete_files_count", manifest.content() == DELETES ? manifest.addedFilesCount() : 0)
+            .set("existing_delete_files_count", manifest.content() == DELETES ? manifest.existingFilesCount() : 0)
+            .set("deleted_delete_files_count", manifest.content() == DELETES ? manifest.deletedFilesCount() : 0)
             .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
                 summaryBuilder
                     .set("contains_null", true)
@@ -1012,13 +1019,18 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     GenericRecordBuilder summaryBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
         manifestTable.schema().findType("partition_summaries.element").asStructType(), "partition_summary"));
     List<GenericData.Record> expected = Lists.newArrayList(Iterables.transform(manifests, manifest ->
-        builder.set("path", manifest.path())
+        builder
+            .set("content", manifest.content().id())
+            .set("path", manifest.path())
             .set("length", manifest.length())
             .set("partition_spec_id", manifest.partitionSpecId())
             .set("added_snapshot_id", manifest.snapshotId())
-            .set("added_data_files_count", manifest.addedFilesCount())
-            .set("existing_data_files_count", manifest.existingFilesCount())
-            .set("deleted_data_files_count", manifest.deletedFilesCount())
+            .set("added_data_files_count", manifest.content() == DATA ? manifest.addedFilesCount() : 0)
+            .set("existing_data_files_count", manifest.content() == DATA ? manifest.existingFilesCount() : 0)
+            .set("deleted_data_files_count", manifest.content() == DATA ? manifest.deletedFilesCount() : 0)
+            .set("added_delete_files_count", manifest.content() == DELETES ? manifest.addedFilesCount() : 0)
+            .set("existing_delete_files_count", manifest.content() == DELETES ? manifest.existingFilesCount() : 0)
+            .set("deleted_delete_files_count", manifest.content() == DELETES ? manifest.deletedFilesCount() : 0)
             .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
                 summaryBuilder
                     .set("contains_null", false)
