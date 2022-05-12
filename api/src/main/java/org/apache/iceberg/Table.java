@@ -19,8 +19,10 @@
 
 package org.apache.iceberg;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -108,6 +110,15 @@ public interface Table {
    * @return this table's location
    */
   String location();
+
+  /**
+   * Return the table's base locations.
+   *
+   * @return this table's locations
+   */
+  default Set<String> locations() {
+    return Collections.singleton(location());
+  }
 
   /**
    * Get the current {@link Snapshot snapshot} for this table, or null if there are no snapshots.
