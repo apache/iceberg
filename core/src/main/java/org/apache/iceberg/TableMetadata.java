@@ -981,6 +981,9 @@ public class TableMetadata implements Serializable {
 
     public Builder addSnapshot(Snapshot snapshot) {
       if (snapshot == null || snapshotsById.containsKey(snapshot.snapshotId())) {
+        if (snapshot != null && snapshotsById.containsKey(snapshot.snapshotId())) {
+          throw new RuntimeException("This is just a test to see the impact");
+        }
         // change is a noop
         return this;
       }
