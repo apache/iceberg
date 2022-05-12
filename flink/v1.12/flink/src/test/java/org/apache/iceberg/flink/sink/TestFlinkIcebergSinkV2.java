@@ -463,31 +463,31 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   @Test
   public void testUpsertOnIdDataKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
-            ImmutableList.of(
-                    row("+I", 1, "aaa"),
-                    row("+U", 1, "aaa"),
-                    row("+I", 2, "bbb")
-            ),
-            ImmutableList.of(
-                    row("+I", 1, "aaa"),
-                    row("-D", 2, "bbb"),
-                    row("+I", 2, "ccc")
-            ),
-            ImmutableList.of(
-                    row("+U", 1, "bbb"),
-                    row("-U", 1, "ccc"),
-                    row("-D", 1, "aaa")
-            )
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("+U", 1, "aaa"),
+            row("+I", 2, "bbb")
+        ),
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("-D", 2, "bbb"),
+            row("+I", 2, "ccc")
+        ),
+        ImmutableList.of(
+            row("+U", 1, "bbb"),
+            row("-U", 1, "ccc"),
+            row("-D", 1, "aaa")
+        )
     );
 
     List<List<Record>> expectedRecords = ImmutableList.of(
-            ImmutableList.of(record(1, "aaa"), record(2, "bbb")),
-            ImmutableList.of(record(1, "aaa"), record(2, "ccc")),
-            ImmutableList.of(record(1, "bbb"), record(2, "ccc"))
+        ImmutableList.of(record(1, "aaa"), record(2, "bbb")),
+        ImmutableList.of(record(1, "aaa"), record(2, "ccc")),
+        ImmutableList.of(record(1, "bbb"), record(2, "ccc"))
     );
 
     testChangeLogs(ImmutableList.of("id", "data"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
-            true, elementsPerCheckpoint, expectedRecords);
+        true, elementsPerCheckpoint, expectedRecords);
   }
 
   private StructLikeSet expectedRowSet(Record... records) {
