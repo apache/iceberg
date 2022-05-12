@@ -1361,7 +1361,7 @@ components:
         uuid:
           type: string
         snapshot-id:
-          type: interger
+          type: integer
           format: int64
         last-assigned-field-id:
           type: integer
