@@ -17,7 +17,6 @@
 
 from __future__ import annotations
 
-import logging
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -40,8 +39,6 @@ from iceberg.types import (
 )
 
 T = TypeVar("T")
-
-logger = logging.getLogger(__name__)
 
 
 class Schema:
