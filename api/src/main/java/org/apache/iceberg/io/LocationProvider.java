@@ -20,6 +20,7 @@
 package org.apache.iceberg.io;
 
 import java.io.Serializable;
+import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 
@@ -38,6 +39,17 @@ public interface LocationProvider extends Serializable {
   String newDataLocation(String filename);
 
   /**
+   * Return a fully-qualified data file location for the given filename and options.
+   *
+   * @param filename a file name
+   * @param options options for deciding the location
+   * @return a fully-qualified location URI for a data file
+   */
+  default String newDataLocation(String filename, Map<String, String> options) {
+    return newDataLocation(filename);
+  }
+
+  /**
    * Return a fully-qualified data file location for the given partition and filename.
    *
    * @param spec a partition spec
@@ -46,4 +58,21 @@ public interface LocationProvider extends Serializable {
    * @return a fully-qualified location URI for a data file
    */
   String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename);
+
+  /**
+   * Return a fully-qualified data file location for the given partition, filename and options.
+   *
+   * @param spec a partition spec
+   * @param partitionData a tuple of partition data for data in the file, matching the given spec
+   * @param filename a file name
+   * @param options options for deciding the location
+   * @return a fully-qualified location URI for a data file
+   */
+  default String newDataLocation(
+      PartitionSpec spec,
+      StructLike partitionData,
+      String filename,
+      Map<String, String> options) {
+    return newDataLocation(spec, partitionData, filename);
+  }
 }
