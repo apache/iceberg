@@ -359,9 +359,7 @@ def test_build_position_accessors(table_schema_nested):
         1: Accessor(position=0, inner=None),
         2: Accessor(position=1, inner=None),
         3: Accessor(position=2, inner=None),
-        4: Accessor(position=3, inner=None),
         5: Accessor(position=3, inner=Accessor(position=0, inner=None)),
-        6: Accessor(position=4, inner=None),
         7: Accessor(position=4, inner=Accessor(position=0, inner=None)),
         8: Accessor(position=4, inner=Accessor(position=1, inner=None)),
         9: Accessor(position=4, inner=Accessor(position=1, inner=Accessor(position=0, inner=None))),
@@ -369,6 +367,49 @@ def test_build_position_accessors(table_schema_nested):
         12: Accessor(position=5, inner=Accessor(position=0, inner=None)),
         13: Accessor(position=5, inner=Accessor(position=0, inner=Accessor(position=0, inner=None))),
         14: Accessor(position=5, inner=Accessor(position=0, inner=Accessor(position=1, inner=None))),
+    }
+
+
+def test_build_position_accessors_list():
+    iceberg_schema = schema.Schema(
+        NestedField(
+            field_id=4,
+            name="qux",
+            field_type=ListType(element_id=5, element_type=StringType(), element_is_optional=True),
+            is_optional=True,
+        ),
+        schema_id=1,
+    )
+    accessors = build_position_accessors(iceberg_schema)
+    assert accessors == {
+        5: Accessor(position=0, inner=Accessor(position=0, inner=None)),
+    }
+
+
+def test_build_position_accessors_map():
+    iceberg_schema = schema.Schema(
+        NestedField(
+            field_id=6,
+            name="quux",
+            field_type=MapType(
+                key_id=7,
+                key_type=StringType(),
+                value_id=8,
+                value_type=MapType(
+                    key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_is_optional=True
+                ),
+                value_is_optional=True,
+            ),
+            is_optional=True,
+        ),
+        schema_id=1,
+    )
+    accessors = build_position_accessors(iceberg_schema)
+    assert accessors == {
+        7: Accessor(position=0, inner=Accessor(position=0, inner=None)),
+        8: Accessor(position=0, inner=Accessor(position=1, inner=None)),
+        9: Accessor(position=0, inner=Accessor(position=1, inner=Accessor(position=0, inner=None))),
+        10: Accessor(position=0, inner=Accessor(position=1, inner=Accessor(position=1, inner=None))),
     }
 
 

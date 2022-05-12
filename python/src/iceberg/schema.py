@@ -17,11 +17,9 @@
 
 from __future__ import annotations
 
-import copy
 import logging
 import sys
 from abc import ABC, abstractmethod
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, Generic, Iterable, List, Optional, TypeVar
 
@@ -58,7 +56,7 @@ class Schema:
         self._struct = StructType(*columns)  # type: ignore
         self._schema_id = schema_id
         self._identifier_field_ids = identifier_field_ids or []
-        # self._name_to_id: Dict[str, int] = index_by_name(self)
+        self._name_to_id: Dict[str, int] = index_by_name(self)
         self._name_to_id_lower: Dict[str, int] = {}  # Should be accessed through self._lazy_name_to_id_lower()
         self._id_to_field: Dict[int, NestedField] = {}  # Should be accessed through self._lazy_id_to_field()
         self._id_to_name: Dict[int, str] = {}  # Should be accessed through self._lazy_id_to_name()
@@ -267,7 +265,7 @@ class SchemaVisitor(Generic[T], ABC):
         ...  # pragma: no cover
 
 
-@dataclass(init=True, eq=True)
+@dataclass(init=True, eq=True, frozen=True)
 class Accessor:
     """An accessor for a specific position in a container that implements the StructProtocol"""
 
@@ -279,14 +277,6 @@ class Accessor:
 
     def __repr__(self):
         return self.__str__()
-
-    def with_inner(self, accessor: "Accessor") -> "Accessor":
-        parent = copy.deepcopy(self)
-        acc = parent
-        while acc.inner:
-            acc = acc.inner
-        acc.inner = accessor
-        return parent
 
     def get(self, container: StructProtocol) -> Any:
         """Returns the value at self.position in `container`
@@ -311,7 +301,7 @@ class Accessor:
 def visit(obj, visitor: SchemaVisitor[T]) -> T:
     """A generic function for applying a schema visitor to any point within a schema
 
-    The function traverses the schema in pre-order fashion
+    The function traverses the schema in post-order fashion
 
     Args:
         obj(Schema | IcebergType): An instance of a Schema or an IcebergType
@@ -336,12 +326,11 @@ def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
 
     for field in obj.fields:
         visitor.before_field(field)
-        results.append(visit(field.type, visitor))
+        result = visit(field.type, visitor)
         visitor.after_field(field)
+        results.append(visitor.field(field, result))
 
-    result = visitor.struct(obj, results)
-
-    return result
+    return visitor.struct(obj, results)
 
 
 @visit.register(ListType)
@@ -352,8 +341,7 @@ def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
     result = visit(obj.element.type, visitor)
     visitor.after_list_element(obj.element)
 
-    ret = visitor.list(obj, result)
-    return ret
+    return visitor.list(obj, result)
 
 
 @visit.register(MapType)
@@ -542,7 +530,10 @@ def index_name_by_id(schema_or_type: Schema | IcebergType) -> Dict[int, str]:
     return indexer.by_id()
 
 
-class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
+Position = int
+
+
+class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
     """A schema visitor for generating a field ID to accessor index
 
     Example:
@@ -567,7 +558,6 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
         >>> expected = {
         ...      2: Accessor(position=0, inner=None),
         ...      1: Accessor(position=1, inner=None),
-        ...      3: Accessor(position=2, inner=None),
         ...      5: Accessor(position=2, inner=Accessor(position=0, inner=None)),
         ...      6: Accessor(position=2, inner=Accessor(position=1, inner=None)),
         ... }
@@ -575,46 +565,42 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[int, "Accessor"]]):
         True
     """
 
-    def before_field(self, field: NestedField) -> None:
-        self._current_id = field.field_id
+    @staticmethod
+    def _wrap_leaves(result: Dict[Position, Accessor], position: Position = 0) -> Dict[Position, Accessor]:
+        return {field_id: Accessor(position, inner=inner) for field_id, inner in result.items()}
 
-    def schema(self, schema: Schema, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
+    def schema(self, schema: Schema, result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
         return result
 
-    def struct(self, struct: StructType, field_results: List[Dict[int, Accessor]]) -> Dict[int, Accessor]:
+    def struct(self, struct: StructType, field_results: List[Dict[Position, Accessor]]) -> Dict[Position, Accessor]:
         result = {}
 
-        for idx, field in enumerate(struct.fields):
-            if field_results[idx]:
-                for inner_field_id, acc in field_results[idx].items():
-                    result[inner_field_id] = Accessor(idx, inner=acc)
+        for position, field in enumerate(struct.fields):
+            if field_results[position]:
+                for inner_field_id, acc in field_results[position].items():
+                    result[inner_field_id] = Accessor(position, inner=acc)
             else:
-                result[field.field_id] = Accessor(idx)
+                result[field.field_id] = Accessor(position)
 
         return result
 
-    def field(self, field: NestedField, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
-        print(f"field: {field} {result}")
+    def field(self, field: NestedField, result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
         return result
 
-    def list(self, list_type: ListType, result: Dict[int, Accessor]) -> Dict[int, Accessor]:
+    def list(self, list_type: ListType, result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
+        return {list_type.element.field_id: Accessor(0), **_BuildPositionAccessors._wrap_leaves(result)}
 
-        leaves = {
-            field_id: Accessor(0, inner=inner)
-            for field_id, inner in result.items()
-        }
+    def map(
+        self, map_type: MapType, key_result: Dict[Position, Accessor], value_result: Dict[Position, Accessor]
+    ) -> Dict[Position, Accessor]:
         return {
-            **{list_type.element.field_id: Accessor(0)},
-            **leaves
+            map_type.key.field_id: Accessor(0),
+            map_type.value.field_id: Accessor(1),
+            **self._wrap_leaves(key_result, position=0),
+            **self._wrap_leaves(value_result, position=1),
         }
 
-    def map(self, map_type: MapType, key_result: Dict[int, Accessor], value_result: Dict[int, Accessor]) -> Dict[int, Accessor]:
-        return {
-            **key_result,
-            **value_result
-        }
-
-    def primitive(self, primitive: PrimitiveType) -> Dict[int, Accessor]:
+    def primitive(self, primitive: PrimitiveType) -> Dict[Position, Accessor]:
         return {}
 
 
