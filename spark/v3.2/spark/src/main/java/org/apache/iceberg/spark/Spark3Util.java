@@ -37,6 +37,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -52,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.SortOrderVisitor;
@@ -647,6 +649,21 @@ public class Spark3Util {
     Table sparkTable = catalog.loadTable(catalogAndIdentifier.identifier);
     return toIcebergTable(sparkTable);
   }
+
+  /**
+   * Returns the underlying Iceberg Catalog object represented by a Spark Catalog
+   * @param spark SparkSession used for looking up catalog reference
+   * @param catalogName The name of the Spark Catalog being referenced
+   * @return the Iceberg catalog class being wrapped by the Spark Catalog
+   */
+  public static Catalog loadIcebergCatalog(SparkSession spark, String catalogName) {
+    CatalogPlugin catalogPlugin = spark.sessionState().catalogManager().catalog(catalogName);
+    Preconditions.checkArgument(catalogPlugin instanceof HasIcebergCatalog,
+        String.format("Cannot get iceberg catalog from %s because it is not an Iceberg catalog. Actual Class: %s",
+            catalogName, catalogPlugin.getClass().getName()));
+    return ((BaseCatalog) catalogPlugin).icebergCatalog();
+  }
+
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
     return catalogAndIdentifier(spark, name, spark.sessionState().catalogManager().currentCatalog());
