@@ -434,30 +434,30 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   @Test
   public void testUpsertOnDataKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
-            ImmutableList.of(
-                    row("+I", 1, "aaa"),
-                    row("+I", 2, "aaa"),
-                    row("+I", 3, "bbb")
-            ),
-            ImmutableList.of(
-                    row("+U", 4, "aaa"),
-                    row("-U", 3, "bbb"),
-                    row("+U", 5, "bbb")
-            ),
-            ImmutableList.of(
-                    row("+I", 6, "aaa"),
-                    row("+U", 7, "bbb")
-            )
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("+I", 2, "aaa"),
+            row("+I", 3, "bbb")
+        ),
+        ImmutableList.of(
+            row("+U", 4, "aaa"),
+            row("-U", 3, "bbb"),
+            row("+U", 5, "bbb")
+        ),
+        ImmutableList.of(
+            row("+I", 6, "aaa"),
+            row("+U", 7, "bbb")
+        )
     );
 
     List<List<Record>> expectedRecords = ImmutableList.of(
-            ImmutableList.of(record(2, "aaa"), record(3, "bbb")),
-            ImmutableList.of(record(4, "aaa"), record(5, "bbb")),
-            ImmutableList.of(record(6, "aaa"), record(7, "bbb"))
+        ImmutableList.of(record(2, "aaa"), record(3, "bbb")),
+        ImmutableList.of(record(4, "aaa"), record(5, "bbb")),
+        ImmutableList.of(record(6, "aaa"), record(7, "bbb"))
     );
 
     testChangeLogs(ImmutableList.of("data"), row -> row.getField(ROW_DATA_POS), true,
-            elementsPerCheckpoint, expectedRecords);
+        elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
