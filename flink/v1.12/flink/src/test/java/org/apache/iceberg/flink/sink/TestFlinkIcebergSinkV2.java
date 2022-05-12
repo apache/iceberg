@@ -159,8 +159,6 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
                               boolean insertAsUpsert,
                               List<List<Row>> elementsPerCheckpoint,
                               List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
-    Assert.assertFalse("Upsert mode is not supported in Flink 1.12",  insertAsUpsert);
-
     DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
