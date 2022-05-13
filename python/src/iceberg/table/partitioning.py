@@ -70,9 +70,6 @@ class PartitionField:
     def __repr__(self):
         return f"PartitionField(field_id={self.field_id}, name={self.name}, transform={repr(self.transform)}, source_id={self.source_id})"
 
-    def __hash__(self):
-        return hash((self.source_id, self.field_id, self.name, self.transform))
-
 
 class PartitionSpec:
     """
@@ -113,20 +110,16 @@ class PartitionSpec:
         return self.spec_id == other.spec_id and self.fields == other.fields
 
     def __str__(self):
-        if self.is_unpartitioned():
-            return "[]"
-        else:
-            delimiter = "\n  "
-            partition_fields_in_str = (str(partition_field) for partition_field in self.fields)
-            head = f"[{delimiter}"
-            tail = f"\n]"
-            return f"{head}{delimiter.join(partition_fields_in_str)}{tail}"
+        result_str = "["
+        for partition_field in self.fields:
+            result_str += f"\n  {str(partition_field)}"
+        if len(self.fields) > 0:
+            result_str += "\n"
+        result_str += "]"
+        return result_str
 
     def __repr__(self):
         return f"PartitionSpec: {str(self)}"
-
-    def __hash__(self):
-        return hash((self.spec_id, self.fields))
 
     def is_unpartitioned(self) -> bool:
         return len(self.fields) < 1
