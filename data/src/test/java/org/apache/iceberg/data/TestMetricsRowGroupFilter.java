@@ -305,7 +305,16 @@ public class TestMetricsRowGroupFilter {
     Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
     shouldRead = shouldRead(isNaN("no_nans"));
-    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+    switch (format) {
+      case ORC:
+        Assert.assertFalse("Should read 0 rows due to the ORC filter push-down feature", shouldRead);
+        break;
+      case PARQUET:
+        Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+        break;
+      default:
+        throw new UnsupportedOperationException("Row group filter tests not supported for " + format);
+    }
 
     shouldRead = shouldRead(isNaN("all_nulls"));
     Assert.assertFalse("Should skip: all null column will not contain nan value", shouldRead);
