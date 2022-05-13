@@ -144,6 +144,17 @@ def test_schema_index_by_id_visitor(table_schema_nested):
         ),
         13: NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
         14: NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+        15: NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
+            ),
+            is_optional=False,
+        ),
+        16: NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+        17: NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
     }
 
 
@@ -167,6 +178,9 @@ def test_schema_index_by_name_visitor(table_schema_nested):
         "location.element.longitude": 14,
         "location.latitude": 13,
         "location.longitude": 14,
+        "person": 15,
+        "person.name": 16,
+        "person.age": 17,
     }
 
 
@@ -299,6 +313,17 @@ def test_index_by_id_schema_visitor(table_schema_nested):
         ),
         13: NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
         14: NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+        15: NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
+            ),
+            is_optional=False,
+        ),
+        16: NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+        17: NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
     }
 
 
@@ -359,61 +384,15 @@ def test_build_position_accessors(table_schema_nested):
         1: Accessor(position=0, inner=None),
         2: Accessor(position=1, inner=None),
         3: Accessor(position=2, inner=None),
-        5: Accessor(position=3, inner=Accessor(position=0, inner=None)),
-        7: Accessor(position=4, inner=Accessor(position=0, inner=None)),
-        8: Accessor(position=4, inner=Accessor(position=1, inner=None)),
-        9: Accessor(position=4, inner=Accessor(position=1, inner=Accessor(position=0, inner=None))),
-        10: Accessor(position=4, inner=Accessor(position=1, inner=Accessor(position=1, inner=None))),
-        12: Accessor(position=5, inner=Accessor(position=0, inner=None)),
-        13: Accessor(position=5, inner=Accessor(position=0, inner=Accessor(position=0, inner=None))),
-        14: Accessor(position=5, inner=Accessor(position=0, inner=Accessor(position=1, inner=None))),
+        4: Accessor(position=3, inner=None),
+        6: Accessor(position=4, inner=None),
+        11: Accessor(position=5, inner=None),
+        16: Accessor(position=6, inner=Accessor(position=0, inner=None)),
+        17: Accessor(position=6, inner=Accessor(position=1, inner=None)),
     }
 
 
-def test_build_position_accessors_list():
-    iceberg_schema = schema.Schema(
-        NestedField(
-            field_id=4,
-            name="qux",
-            field_type=ListType(element_id=5, element_type=StringType(), element_is_optional=True),
-            is_optional=True,
-        ),
-        schema_id=1,
-    )
-    accessors = build_position_accessors(iceberg_schema)
-    assert accessors == {
-        5: Accessor(position=0, inner=Accessor(position=0, inner=None)),
-    }
-
-
-def test_build_position_accessors_map():
-    iceberg_schema = schema.Schema(
-        NestedField(
-            field_id=6,
-            name="quux",
-            field_type=MapType(
-                key_id=7,
-                key_type=StringType(),
-                value_id=8,
-                value_type=MapType(
-                    key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_is_optional=True
-                ),
-                value_is_optional=True,
-            ),
-            is_optional=True,
-        ),
-        schema_id=1,
-    )
-    accessors = build_position_accessors(iceberg_schema)
-    assert accessors == {
-        7: Accessor(position=0, inner=Accessor(position=0, inner=None)),
-        8: Accessor(position=0, inner=Accessor(position=1, inner=None)),
-        9: Accessor(position=0, inner=Accessor(position=1, inner=Accessor(position=0, inner=None))),
-        10: Accessor(position=0, inner=Accessor(position=1, inner=Accessor(position=1, inner=None))),
-    }
-
-
-class TestStructProtocol(StructProtocol):
+class TestStruct(StructProtocol):
     def __init__(self, pos: Dict[int, Any] = None):
         self._pos: Dict[int, Any] = pos or {}
 
@@ -426,5 +405,5 @@ class TestStructProtocol(StructProtocol):
 
 def test_build_position_accessors_with_struct(table_schema_nested):
     accessors = build_position_accessors(table_schema_nested)
-    container = TestStructProtocol({5: TestStructProtocol({0: TestStructProtocol({1: "longitude"})})})
-    assert accessors.get(14).get(container) == "longitude"
+    container = TestStruct({6: TestStruct({0: "name"})})
+    assert accessors.get(16).get(container) == "name"

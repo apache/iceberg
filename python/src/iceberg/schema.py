@@ -553,10 +553,10 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
         ... )
         >>> result = build_position_accessors(schema)
         >>> expected = {
-        ...      2: Accessor(position=0, inner=None),
-        ...      1: Accessor(position=1, inner=None),
-        ...      5: Accessor(position=2, inner=Accessor(position=0, inner=None)),
-        ...      6: Accessor(position=2, inner=Accessor(position=1, inner=None)),
+        ...     2: Accessor(position=0, inner=None),
+        ...     1: Accessor(position=1, inner=None),
+        ...     5: Accessor(position=2, inner=Accessor(position=0, inner=None)),
+        ...     6: Accessor(position=2, inner=Accessor(position=1, inner=None))
         ... }
         >>> result == expected
         True
@@ -585,17 +585,12 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
         return result
 
     def list(self, list_type: ListType, result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
-        return {list_type.element.field_id: Accessor(0), **_BuildPositionAccessors._wrap_leaves(result)}
+        return {}
 
     def map(
         self, map_type: MapType, key_result: Dict[Position, Accessor], value_result: Dict[Position, Accessor]
     ) -> Dict[Position, Accessor]:
-        return {
-            map_type.key.field_id: Accessor(0),
-            map_type.value.field_id: Accessor(1),
-            **self._wrap_leaves(key_result, position=0),
-            **self._wrap_leaves(value_result, position=1),
-        }
+        return {}
 
     def primitive(self, primitive: PrimitiveType) -> Dict[Position, Accessor]:
         return {}

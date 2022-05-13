@@ -95,6 +95,15 @@ def table_schema_nested():
             ),
             is_optional=True,
         ),
+        NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
+            ),
+            is_optional=False,
+        ),
         schema_id=1,
         identifier_field_ids=[1],
     )
