@@ -24,7 +24,7 @@ class PartitionField:
 
     Attributes:
         source_id(int): The source column id of table's schema
-        field_id(int): The partition field id across all the table metadata's partition specs
+        field_id(int): The partition field id across all the table partition specs
         transform(Transform): The transform used to produce partition values from source column
         name(str): The name of this partition field
     """

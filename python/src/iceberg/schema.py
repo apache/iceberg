@@ -126,7 +126,7 @@ class Schema:
 
         Args:
             name_or_id (str | int): Either a field name or a field ID
-            case_sensitive (bool, optional): Whether to peform a case-sensitive lookup using a field name. Defaults to True.
+            case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
         Returns:
             NestedField: The matched NestedField
@@ -145,7 +145,7 @@ class Schema:
 
         Args:
             name_or_id (str | int): Either a field name or a field ID
-            case_sensitive (bool, optional): Whether to peform a case-sensitive lookup using a field name. Defaults to True.
+            case_sensitive (bool, optional): Whether to perform a case-sensitive lookup using a field name. Defaults to True.
 
         Returns:
             NestedField: The type of the matched NestedField
@@ -180,7 +180,7 @@ class Schema:
 
         Args:
             names (List[str]): A list of column names
-            case_sensitive (bool, optional): Whether to peform a case-sensitive lookup for each column name. Defaults to True.
+            case_sensitive (bool, optional): Whether to perform a case-sensitive lookup for each column name. Defaults to True.
 
         Returns:
             Schema: A new schema with pruned columns

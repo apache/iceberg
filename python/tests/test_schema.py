@@ -228,7 +228,7 @@ def test_schema_find_field_by_id_raise_on_unknown_field(table_schema_simple):
 
 
 def test_schema_find_field_type_by_id(table_schema_simple):
-    """Test retrieving a columns's type using its field ID"""
+    """Test retrieving a columns' type using its field ID"""
     index = schema.index_by_id(table_schema_simple)
     assert index[1] == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
     assert index[2] == NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True)

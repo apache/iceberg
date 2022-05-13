@@ -520,7 +520,7 @@ class UUIDType(PrimitiveType, Singleton):
 
 
 class BinaryType(PrimitiveType, Singleton):
-    """A Binary data type in Iceberg can be represented using an instance of this class. Binarys in
+    """A Binary data type in Iceberg can be represented using an instance of this class. Binaries in
     Iceberg are arbitrary-length byte arrays.
 
     Example:
