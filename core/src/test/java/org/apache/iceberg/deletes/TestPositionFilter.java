@@ -217,8 +217,8 @@ public class TestPositionFilter {
 
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 3L, 4L, 7L, 9L));
 
-    CloseableIterable<StructLike> actual = Deletes.filter(
-        rows, row -> !Deletes.toPositionIndex(deletes).isDeleted(row.get(0, Long.class)));
+    Predicate<StructLike> shouldKeep = row -> !Deletes.toPositionIndex(deletes).isDeleted(row.get(0, Long.class));
+    CloseableIterable<StructLike> actual = CloseableIterable.filter(rows, shouldKeep);
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
@@ -258,7 +258,7 @@ public class TestPositionFilter {
         .toPositionIndex("file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2))
         .isDeleted(row.get(0, Long.class));
 
-    CloseableIterable<StructLike> actual = Deletes.filter(rows, isDeleted.negate());
+    CloseableIterable<StructLike> actual = CloseableIterable.filter(rows, isDeleted.negate());
 
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),

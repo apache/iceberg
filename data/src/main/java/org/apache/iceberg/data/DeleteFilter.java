@@ -176,7 +176,7 @@ public abstract class DeleteFilter<T> {
         .reduce(Predicate::or)
         .orElse(t -> false);
 
-    return Deletes.filter(records, deletedRows);
+    return CloseableIterable.filter(records, deletedRows);
   }
 
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
@@ -187,7 +187,7 @@ public abstract class DeleteFilter<T> {
     if (hasColumnIsDeleted) {
       return Deletes.markDeleted(records, isEqDeleted, this::markRowDeleted);
     } else {
-      return Deletes.filter(records, isEqDeleted.negate());
+      return CloseableIterable.filter(records, isEqDeleted.negate());
     }
   }
 
@@ -229,7 +229,7 @@ public abstract class DeleteFilter<T> {
       Predicate<T> isInDeleteSet = record -> Deletes.toPositionIndex(filePath, deletes).isDeleted(pos(record));
       return hasColumnIsDeleted ?
           Deletes.markDeleted(records, isInDeleteSet, this::markRowDeleted) :
-          Deletes.filter(records, isInDeleteSet.negate());
+          CloseableIterable.filter(records, isInDeleteSet.negate());
     }
 
     return hasColumnIsDeleted ?

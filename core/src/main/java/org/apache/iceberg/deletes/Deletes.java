@@ -75,16 +75,6 @@ public class Deletes {
     });
   }
 
-  public static <T> CloseableIterable<T> filter(CloseableIterable<T> rows, Predicate<T> shouldKeep) {
-    Filter filter = new Filter<T>() {
-      @Override
-      protected boolean shouldKeep(T item) {
-        return shouldKeep.test(item);
-      }
-    };
-    return filter.filter(rows);
-  }
-
   public static StructLikeSet toEqualitySet(CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
     try (CloseableIterable<StructLike> deletes = eqDeletes) {
       StructLikeSet deleteSet = StructLikeSet.create(eqType);
