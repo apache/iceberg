@@ -234,7 +234,7 @@ class UnknownTransform(Transform):
         self._type = source_type
         self._transform = transform
 
-    def apply(self, value):
+    def apply(self, value: Optional[S]):
         raise AttributeError(f"Cannot apply unsupported transform: {self}")
 
     def can_transform(self, target: IcebergType) -> bool:
@@ -242,6 +242,32 @@ class UnknownTransform(Transform):
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return StringType()
+
+
+class VoidTransform(Transform):
+    """A transform that always returns None"""
+
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(VoidTransform, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        super().__init__("void", "transforms.always_null()")
+
+    def apply(self, value: Optional[S]) -> None:
+        return None
+
+    def can_transform(self, target: IcebergType) -> bool:
+        return True
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return source
+
+    def to_human_string(self, value: Optional[S]) -> str:
+        return "null"
 
 
 def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
@@ -259,3 +285,7 @@ def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
         return BucketUUIDTransform(num_buckets)
     else:
         raise ValueError(f"Cannot bucket by type: {source_type}")
+
+
+def always_null() -> Transform:
+    return VoidTransform()

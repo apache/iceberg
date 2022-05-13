@@ -136,3 +136,17 @@ def test_unknown_transform():
     assert unknown_transform.can_transform(FixedType(8))
     assert not unknown_transform.can_transform(FixedType(5))
     assert isinstance(unknown_transform.result_type(BooleanType()), StringType)
+
+
+def test_void_transform():
+    void_transform = transforms.always_null()
+    assert void_transform is transforms.always_null()
+    assert void_transform == eval(repr(void_transform))
+    assert void_transform.apply("test") is None
+    assert void_transform.can_transform(BooleanType())
+    assert isinstance(void_transform.result_type(BooleanType()), BooleanType)
+    assert not void_transform.preserves_order
+    assert void_transform.satisfies_order_of(transforms.always_null())
+    assert not void_transform.satisfies_order_of(transforms.bucket(DateType(), 100))
+    assert void_transform.to_human_string("test") == "null"
+    assert void_transform.dedup_name == "void"
