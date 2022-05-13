@@ -135,7 +135,7 @@ class PartitionSpec:
                 self._fields_by_source_id[partition_field.source_id] = existing
         return self._fields_by_source_id[field_id]
 
-    def compatible_with(self, other) -> bool:
+    def compatible_with(self, other: "PartitionSpec") -> bool:
         """
         Returns true if this partition spec is equivalent to the other, with partition field_id ignored.
         That is, if both specs have the same number of fields, field order, field name, source column ids, and transforms.
