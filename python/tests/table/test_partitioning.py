@@ -50,6 +50,7 @@ def test_partition_spec_init(table_schema_simple: Schema):
     # only differ by PartitionField field_id
     id_field2 = PartitionField(3, 1002, bucket_transform, "id")
     partition_spec2 = PartitionSpec(table_schema_simple, 0, (id_field2,), 1001)
+    assert partition_spec1 != partition_spec2
     assert partition_spec1.compatible_with(partition_spec2)
     assert partition_spec1.fields_by_source_id(3) == [id_field1]
 

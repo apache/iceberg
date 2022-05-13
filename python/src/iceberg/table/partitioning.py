@@ -21,7 +21,6 @@ from iceberg.transforms import Transform
 
 _PARTITION_DATA_ID_START: int = 1000
 
-
 class PartitionField:
     """
     PartitionField is a single element with name and unique id,
@@ -140,17 +139,8 @@ class PartitionSpec:
         Returns true if this partition spec is equivalent to the other, with partition field_id ignored.
         That is, if both specs have the same number of fields, field order, field name, source column ids, and transforms.
         """
-        if self == other:
-            return True
-        if len(self.fields) != len(other.fields):
-            return False
-        for index in range(len(self.fields)):
-            this_field = self.fields[index]
-            that_field = other.fields[index]
-            if (
-                this_field.source_id != that_field.source_id
-                or this_field.transform != that_field.transform
-                or this_field.name != that_field.name
-            ):
-                return False
-        return True
+        return all(
+            this_field.source_id == that_field.source_id and this_field.transform == that_field.transform and this_field.name == that_field.name
+            for this_field, that_field
+            in zip(self.fields, other.fields)
+        )
