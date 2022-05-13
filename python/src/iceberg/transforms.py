@@ -234,7 +234,7 @@ class UnknownTransform(Transform):
         self._type = source_type
         self._transform = transform
 
-    def apply(self, value):
+    def apply(self, value: Optional[S]):
         raise AttributeError(f"Cannot apply unsupported transform: {self}")
 
     def can_transform(self, target: IcebergType) -> bool:
@@ -257,7 +257,7 @@ class VoidTransform(Transform):
     def __init__(self):
         super().__init__("void", "transforms.always_null()")
 
-    def apply(self, value):
+    def apply(self, value: Optional[S]) -> None:
         return None
 
     def can_transform(self, target: IcebergType) -> bool:
@@ -266,7 +266,7 @@ class VoidTransform(Transform):
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
-    def to_human_string(self, value) -> str:
+    def to_human_string(self, value: Optional[S]) -> str:
         return "null"
 
 

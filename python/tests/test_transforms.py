@@ -140,6 +140,7 @@ def test_unknown_transform():
 
 def test_void_transform():
     void_transform = transforms.always_null()
+    assert void_transform is transforms.always_null()
     assert void_transform == eval(repr(void_transform))
     assert void_transform.apply("test") is None
     assert void_transform.can_transform(BooleanType())
