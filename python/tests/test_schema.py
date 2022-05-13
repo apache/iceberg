@@ -16,10 +16,14 @@
 # under the License.
 
 from textwrap import dedent
+from typing import Any, Dict
 
 import pytest
 
 from iceberg import schema
+from iceberg.expressions.base import Accessor
+from iceberg.files import StructProtocol
+from iceberg.schema import build_position_accessors
 from iceberg.types import (
     BooleanType,
     FloatType,
@@ -140,6 +144,17 @@ def test_schema_index_by_id_visitor(table_schema_nested):
         ),
         13: NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
         14: NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+        15: NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
+            ),
+            is_optional=False,
+        ),
+        16: NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+        17: NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
     }
 
 
@@ -163,6 +178,9 @@ def test_schema_index_by_name_visitor(table_schema_nested):
         "location.element.longitude": 14,
         "location.latitude": 13,
         "location.longitude": 14,
+        "person": 15,
+        "person.name": 16,
+        "person.age": 17,
     }
 
 
@@ -295,6 +313,17 @@ def test_index_by_id_schema_visitor(table_schema_nested):
         ),
         13: NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
         14: NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+        15: NestedField(
+            field_id=15,
+            name="person",
+            field_type=StructType(
+                NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
+            ),
+            is_optional=False,
+        ),
+        16: NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
+        17: NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
     }
 
 
@@ -347,3 +376,34 @@ def test_schema_find_type(table_schema_simple):
         == table_schema_simple.find_type("BAZ", case_sensitive=False)
         == BooleanType()
     )
+
+
+def test_build_position_accessors(table_schema_nested):
+    accessors = build_position_accessors(table_schema_nested)
+    assert accessors == {
+        1: Accessor(position=0, inner=None),
+        2: Accessor(position=1, inner=None),
+        3: Accessor(position=2, inner=None),
+        4: Accessor(position=3, inner=None),
+        6: Accessor(position=4, inner=None),
+        11: Accessor(position=5, inner=None),
+        16: Accessor(position=6, inner=Accessor(position=0, inner=None)),
+        17: Accessor(position=6, inner=Accessor(position=1, inner=None)),
+    }
+
+
+class TestStruct(StructProtocol):
+    def __init__(self, pos: Dict[int, Any] = None):
+        self._pos: Dict[int, Any] = pos or {}
+
+    def set(self, pos: int, value) -> None:
+        pass
+
+    def get(self, pos: int) -> Any:
+        return self._pos[pos]
+
+
+def test_build_position_accessors_with_struct(table_schema_nested):
+    accessors = build_position_accessors(table_schema_nested)
+    container = TestStruct({6: TestStruct({0: "name"})})
+    assert accessors.get(16).get(container) == "name"
