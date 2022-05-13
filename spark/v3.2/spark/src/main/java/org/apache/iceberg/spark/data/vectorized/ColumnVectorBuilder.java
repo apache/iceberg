@@ -37,13 +37,9 @@ public class ColumnVectorBuilder {
     this.numRows = numRows;
   }
 
-  public ColumnVectorBuilder withIsDeletedColumn(boolean[] isDeletedArray) {
-    this.isDeleted = isDeletedArray;
-    return this;
-  }
-
-  public ColumnVectorBuilder filterDeletedRows(int[] rowIdMappingArray) {
+  public ColumnVectorBuilder withDeletedRows(int[] rowIdMappingArray, boolean[] isDeletedArray) {
     this.rowIdMapping = rowIdMappingArray;
+    this.isDeleted = isDeletedArray;
     return this;
   }
 
@@ -57,13 +53,10 @@ public class ColumnVectorBuilder {
       } else {
         throw new IllegalStateException("Unknown dummy vector holder: " + holder);
       }
+    } else if (rowIdMapping != null) {
+      return new ColumnVectorWithFilter(holder, rowIdMapping);
     } else {
-      return removeDeletedRows() ?
-          new ColumnVectorWithFilter(holder, rowIdMapping) : new IcebergArrowColumnVector(holder);
+      return new IcebergArrowColumnVector(holder);
     }
-  }
-
-  private boolean removeDeletedRows() {
-    return rowIdMapping != null && isDeleted == null;
   }
 }

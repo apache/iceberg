@@ -31,7 +31,6 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -149,12 +148,15 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Override
   public StructLikeSet rowSet(String name, Table table, String... columns) {
+    return rowSet(name, table.schema().select(columns).asStruct(), columns);
+  }
+
+  public StructLikeSet rowSet(String name, Types.StructType projection, String... columns) {
     Dataset<Row> df = spark.read()
         .format("iceberg")
         .load(TableIdentifier.of("default", name).toString())
         .selectExpr(columns);
 
-    Types.StructType projection = table.schema().select(columns).asStruct();
     StructLikeSet set = StructLikeSet.create(projection);
     df.collectAsList().forEach(row -> {
       SparkStructLike rowWrapper = new SparkStructLike(projection);
@@ -291,9 +293,9 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .commit();
 
     StructLikeSet expected = expectedRowSet(29, 43, 61, 89);
-    StructLikeSet actual = rowSet(tableName, table, "id", "data", "_deleted");
+    StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
-    validate(expected, actual);
+    Assert.assertTrue("Table should contain expected row", actual.equals(expected));
   }
 
   @Test
@@ -314,8 +316,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet actual = rowSet(tableName, table, "id", "data", "_deleted");
-    validate(expectedRowSet(29, 89, 122), actual);
+    StructLikeSet expected = expectedRowSet(29, 89, 122);
+    StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
+
+    Assert.assertTrue("Table should contain expected row", actual.equals(expected));
   }
 
   @Test
@@ -346,9 +350,9 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .commit();
 
     StructLikeSet expected = expectedRowSet(29, 89, 121, 122);
-    StructLikeSet actual = rowSet(tableName, table, "id", "data", "_deleted");
+    StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
-    validate(expected, actual);
+    Assert.assertTrue("Table should contain expected row", actual.equals(expected));
   }
 
   @Test
@@ -377,17 +381,17 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .select("id", "data", "_deleted")
         .filter("_deleted = false");
 
-    Types.StructType projection = table.schema().select("id", "data", "_deleted").asStruct();
+    Types.StructType projection = PROJECTION_SCHEMA.asStruct();
     StructLikeSet actual = StructLikeSet.create(projection);
     df.collectAsList().forEach(row -> {
       SparkStructLike rowWrapper = new SparkStructLike(projection);
       actual.add(rowWrapper.wrap(row));
     });
 
-    validate(expected, actual);
+    Assert.assertTrue("Table should contain expected row", actual.equals(expected));
 
     // get deleted rows
-    expected = expectedRowSet(false, true, 29, 43, 61, 89);
+    StructLikeSet expectedDeleted = expectedRowSet(false, true, 29, 43, 61, 89);
 
     df = spark.read()
         .format("iceberg")
@@ -401,21 +405,14 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       actualDeleted.add(rowWrapper.wrap(row));
     });
 
-    validate(expected, actualDeleted);
+    Assert.assertTrue("Table should contain expected row", actualDeleted.equals(expectedDeleted));
   }
 
   private static final Schema PROJECTION_SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
+      required(1, "id", Types.IntegerType.get()),
       required(2, "data", Types.StringType.get()),
       MetadataColumns.IS_DELETED
   );
-
-  private void validate(StructLikeSet expected, StructLikeSet actual) {
-    Assert.assertEquals("Table should contain the same number of rows", expected.size(), actual.size());
-    for (StructLike expectedRow : expected) {
-      Assert.assertTrue("Table should contain expected row", actual.contains(expectedRow));
-    }
-  }
 
   private static StructLikeSet expectedRowSet(int... idsToRemove) {
     return expectedRowSet(false, false, idsToRemove);

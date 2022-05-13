@@ -131,15 +131,10 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
             numRowsToRead);
 
         arrowColumnVectors[i] = new ColumnVectorBuilder(vectorHolders[i], numRowsInVector)
-            .withIsDeletedColumn(isDeleted)
-            .filterDeletedRows(rowIdMapping)
+            .withDeletedRows(rowIdMapping, isDeleted)
             .build();
       }
       return arrowColumnVectors;
-    }
-
-    boolean hasDeletes() {
-      return rowIdMapping != null;
     }
 
     boolean hasEqDeletes() {
@@ -256,6 +251,11 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
       for (int i = 0; i < numRowsInRowIdMapping; i++) {
         isDeleted[rowIdMapping[i]] = false;
+      }
+
+      // reset the row id mapping array, so that it doesn't filter out the deleted rows
+      for (int i = 0; i < numRowsToRead; i++) {
+        rowIdMapping[i] = i;
       }
     }
   }
