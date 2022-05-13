@@ -37,11 +37,11 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
@@ -55,8 +55,10 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.TaskContext;
@@ -67,7 +69,6 @@ import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Column;
-import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -83,6 +84,8 @@ import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.NamedExpression;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Function2;
@@ -599,46 +602,26 @@ public class SparkTableUtil {
         .run(item -> io.deleteFile(item.path()));
   }
 
-  // Attempt to use Spark3 Catalog resolution if available on the path
-  private static final DynMethods.UnboundMethod LOAD_METADATA_TABLE = DynMethods.builder("loadMetadataTable")
-      .hiddenImpl("org.apache.iceberg.spark.Spark3Util", SparkSession.class, Table.class, MetadataTableType.class)
-      .orNoop()
-      .build();
-
+  /**
+   * Loads a metadata table.
+   *
+   * @deprecated since 0.14.0, will be removed in 0.15.0;
+   *             use {@link #loadMetadataTable(SparkSession, Table, MetadataTableType)}.
+   */
+  @Deprecated
   public static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, Table table, MetadataTableType type) {
-    Preconditions.checkArgument(!LOAD_METADATA_TABLE.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
-    return LOAD_METADATA_TABLE.asStatic().invoke(spark, table, type);
+    return loadMetadataTable(spark, table, type);
   }
 
   public static Dataset<Row> loadMetadataTable(SparkSession spark, Table table, MetadataTableType type) {
-    if (spark.version().startsWith("3")) {
-      // construct the metadata table instance directly
-      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, table, type);
-      if (catalogMetadataTable != null) {
-        return catalogMetadataTable;
-      }
-    }
+    return loadMetadataTable(spark, table, type, ImmutableMap.of());
+  }
 
-    String tableName = table.name();
-    String tableLocation = table.location();
-
-    DataFrameReader dataFrameReader = spark.read().format("iceberg");
-    if (tableName.contains("/")) {
-      // Hadoop Table or Metadata location passed, load without a catalog
-      return dataFrameReader.load(tableName + "#" + type);
-    }
-
-    // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
-    if (tableName.startsWith("hadoop.")) {
-      // Try loading by location as Hadoop table without Catalog
-      return dataFrameReader.load(tableLocation + "#" + type);
-    } else if (tableName.startsWith("hive")) {
-      // Try loading by name as a Hive table without Catalog
-      return dataFrameReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
-    } else {
-      throw new IllegalArgumentException(String.format(
-          "Cannot find the metadata table for %s of type %s", tableName, type));
-    }
+  public static Dataset<Row> loadMetadataTable(SparkSession spark, Table table, MetadataTableType type,
+                                               Map<String, String> extraOptions) {
+    SparkTable metadataTable = new SparkTable(MetadataTableUtils.createMetadataTableInstance(table, type), false);
+    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(extraOptions);
+    return Dataset.ofRows(spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty(), options));
   }
 
   /**
