@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.actions;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
@@ -34,6 +35,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.actions.Action;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
@@ -50,6 +52,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
+import static org.apache.iceberg.MetadataTableType.MANIFESTS;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 
@@ -122,18 +125,32 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return new BaseTable(ops, metadataFileLocation);
   }
 
+  protected Dataset<Row> buildFilteredContentFileDf(Table table, Set<Long> snapshots) {
+    Preconditions.checkArgument(snapshots.size() > 0, "Cannot filter by empty snapshot groups");
+    JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
+
+    Dataset<ManifestFileBean> result = snapshots.stream()
+        .map(s -> asManifestFileDs(loadMetadataTable(table, MANIFESTS, s)))
+        .reduce(Dataset::union).get();
+    return result.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF(FILE_PATH);
+  }
+
   // builds a DF of delete and data file locations by reading all manifests
   protected Dataset<Row> buildValidContentFileDF(Table table) {
     JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
 
-    Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
+    Dataset<ManifestFileBean> allManifests = asManifestFileDs(loadMetadataTable(table, ALL_MANIFESTS));
+    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF(FILE_PATH);
+  }
+
+  private Dataset<ManifestFileBean> asManifestFileDs(Dataset<Row> dataset) {
+    return dataset
         .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
         .dropDuplicates("path")
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
         .as(Encoders.bean(ManifestFileBean.class));
-
-    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF(FILE_PATH);
   }
 
   protected Dataset<Row> buildManifestFileDF(Table table) {
@@ -170,6 +187,10 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected Dataset<Row> withFileType(Dataset<Row> ds, String type) {
     return ds.withColumn(FILE_TYPE, lit(type));
+  }
+
+  protected Dataset<Row> loadMetadataTable(Table table, MetadataTableType type, long snapshot) {
+    return SparkTableUtil.loadMetadataTable(spark, table, type, snapshot);
   }
 
   protected Dataset<Row> loadMetadataTable(Table table, MetadataTableType type) {
