@@ -25,5 +25,4 @@ package-list
 sitemap.xml
 derby.log
 .python-version
-spellcheck-dictionary.txt
 .*_index.md
