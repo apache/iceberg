@@ -74,7 +74,6 @@ import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANI
 public class TestIcebergFilesCommitter extends TableTestBase {
   private static final Configuration CONF = new Configuration();
 
-  private String tablePath;
   private File flinkManifestFolder;
 
   private final FileFormat format;
@@ -104,8 +103,6 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     this.tableDir = temp.newFolder();
     this.metadataDir = new File(tableDir, "metadata");
     Assert.assertTrue(tableDir.delete());
-
-    tablePath = tableDir.getAbsolutePath();
 
     // Construct the iceberg table.
     table = create(SimpleDataUtil.SCHEMA, PartitionSpec.unpartitioned());
@@ -743,14 +740,13 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private DeleteFile writeEqDeleteFile(FileAppenderFactory<RowData> appenderFactory,
                                        String filename, List<RowData> deletes) throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
+    return SimpleDataUtil.writeEqDeleteFile(table, format, filename, appenderFactory, deletes);
   }
 
   private DeleteFile writePosDeleteFile(FileAppenderFactory<RowData> appenderFactory,
                                         String filename,
                                         List<Pair<CharSequence, Long>> positions) throws IOException {
-    return SimpleDataUtil.writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory,
-        positions);
+    return SimpleDataUtil.writePosDeleteFile(table, format, filename, appenderFactory, positions);
   }
 
   private FileAppenderFactory<RowData> createDeletableAppenderFactory() {
@@ -778,7 +774,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
-    return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF, tablePath, format.addExtension(filename), rows);
+    return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF, table.location(),
+        format.addExtension(filename), rows);
   }
 
   private void assertMaxCommittedCheckpointId(JobID jobID, long expectedId) {
@@ -794,7 +791,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private OneInputStreamOperatorTestHarness<WriteResult, Void> createStreamSink(JobID jobID)
       throws Exception {
-    TestOperatorFactory factory = TestOperatorFactory.of(tablePath);
+    TestOperatorFactory factory = TestOperatorFactory.of(table.location());
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
   }
 
