@@ -151,13 +151,6 @@ public interface ContentFile<F> {
   F copyWithoutStats();
 
   /**
-   * Returns the sequence number of the snapshot in which the file was added to the table.
-   */
-  default Long sequenceNumber() {
-    return null;
-  }
-
-  /**
    * Copies this file (potentially without file stats). Manifest readers can reuse file instances; use
    * this method to copy data when collecting files from tasks.
    *
@@ -168,5 +161,12 @@ public interface ContentFile<F> {
    */
   default F copy(boolean withStats) {
     return withStats ? copy() : copyWithoutStats();
+  }
+
+  /**
+   * Returns the sequence number of the snapshot in which the file was added to the table.
+   */
+  default Long sequenceNumber() {
+    return null;
   }
 }

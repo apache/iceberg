@@ -308,8 +308,7 @@ public class FlinkSink {
     private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
-      Preconditions.checkArgument(tableLoader != null || table != null,
-          "Table loader or table should be exist");
+      Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
 
       DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
 
