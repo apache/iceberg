@@ -150,4 +150,11 @@ public interface ContentFile<F> {
    */
   F copyWithoutStats();
 
+  /**
+   * Returns the sequence number of the snapshot in which the file was added to the table.
+   */
+  default Long sequenceNumber() {
+    return null;
+  }
+
 }
