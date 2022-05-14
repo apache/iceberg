@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,20 +28,26 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -57,6 +65,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -887,6 +896,23 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
+    table.updateProperties()
+        .set(TableProperties.FORMAT_VERSION, "2")
+        .commit();
+
+    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedFiles(), null);
+    PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
+    StructLike dataFilePartition = dataFile.partition();
+
+    PositionDelete<InternalRow> delete = PositionDelete.create();
+    delete.set(dataFile.path(), 0L, null);
+
+    DeleteFile deleteFile = writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
+
+    table.newRowDelta()
+        .addDeletes(deleteFile)
+        .commit();
+
     List<Row> actual = spark.read()
         .format("iceberg")
         .load(loadLocation(tableIdentifier, "manifests"))
@@ -913,7 +939,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("deleted_delete_files_count", manifest.content() == DELETES ? manifest.deletedFilesCount() : 0)
             .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
                 summaryBuilder
-                    .set("contains_null", true)
+                    .set("contains_null", manifest.content() == DATA)
                     .set("contains_nan", false)
                     .set("lower_bound", "1")
                     .set("upper_bound", "1")
@@ -922,8 +948,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .build()
     );
 
-    Assert.assertEquals("Manifests table should have one manifest row", 1, actual.size());
+    Assert.assertEquals("Manifests table should have two manifest rows", 2, actual.size());
     TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(0), actual.get(0));
+    TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(1), actual.get(1));
   }
 
   @Test
@@ -1000,6 +1027,23 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
+    table.updateProperties()
+        .set(TableProperties.FORMAT_VERSION, "2")
+        .commit();
+
+    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedFiles(), null);
+    PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
+    StructLike dataFilePartition = dataFile.partition();
+
+    PositionDelete<InternalRow> delete = PositionDelete.create();
+    delete.set(dataFile.path(), 0L, null);
+
+    DeleteFile deleteFile = writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
+
+    table.newRowDelta()
+        .addDeletes(deleteFile)
+        .commit();
+
     manifests.addAll(table.currentSnapshot().allManifests());
 
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
@@ -1009,6 +1053,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     List<Row> actual = spark.read()
         .format("iceberg")
         .load(loadLocation(tableIdentifier, "all_manifests"))
+        .dropDuplicates("path")
         .orderBy("path")
         .collectAsList();
 
@@ -1044,7 +1089,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     expected.sort(Comparator.comparing(o -> o.get("path").toString()));
 
-    Assert.assertEquals("Manifests table should have two manifest rows", 2, actual.size());
+    Assert.assertEquals("Manifests table should have 4 manifest rows", 4, actual.size());
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(i), actual.get(i));
     }
@@ -1468,5 +1513,29 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   private void asMetadataRecord(GenericData.Record file) {
     file.put(0, FileContent.DATA.id());
     file.put(3, 0); // specId
+  }
+
+  private PositionDeleteWriter<InternalRow> newPositionDeleteWriter(Table table, PartitionSpec spec,
+                                                                    StructLike partition) {
+    OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, 0, 0).build();
+    EncryptedOutputFile outputFile = fileFactory.newOutputFile(spec, partition);
+
+    SparkFileWriterFactory fileWriterFactory = SparkFileWriterFactory.builderFor(table).build();
+    return fileWriterFactory.newPositionDeleteWriter(outputFile, spec, partition);
+  }
+
+  private DeleteFile writePositionDeletes(Table table, PartitionSpec spec, StructLike partition,
+                                          Iterable<PositionDelete<InternalRow>> deletes) {
+    PositionDeleteWriter<InternalRow> positionDeleteWriter = newPositionDeleteWriter(table, spec, partition);
+
+    try (PositionDeleteWriter<InternalRow> writer = positionDeleteWriter) {
+      for (PositionDelete<InternalRow> delete : deletes) {
+        writer.write(delete);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    return positionDeleteWriter.toDeleteFile();
   }
 }
