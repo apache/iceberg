@@ -30,7 +30,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
@@ -92,17 +91,12 @@ abstract class BaseTableScan extends BaseScan<TableScan> implements TableScan {
   }
 
   @Override
-  public TableScan planWith(ExecutorService executorService) {
-    return newRefinedScan(tableOps(), table(), schema(), context().planWith(executorService));
-  }
-
-  @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     Preconditions.checkArgument(snapshotId() == null,
         "Cannot override snapshot, already set to id=%s", snapshotId());
     Preconditions.checkArgument(tableOps().current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
-    return newRefinedScan(tableOps(), table(), schema(), context().useSnapshotId(scanSnapshotId));
+    return newRefinedScan(tableOps(), table(), tableSchema(), context().useSnapshotId(scanSnapshotId));
   }
 
   @Override
@@ -141,22 +135,6 @@ abstract class BaseTableScan extends BaseScan<TableScan> implements TableScan {
     CloseableIterable<FileScanTask> fileScanTasks = planFiles();
     CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
     return TableScanUtil.planTasks(splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
-  }
-
-  @Override
-  public int splitLookback() {
-    int tableValue = tableOps().current().propertyAsInt(
-        TableProperties.SPLIT_LOOKBACK,
-        TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    return PropertyUtil.propertyAsInt(options(), TableProperties.SPLIT_LOOKBACK, tableValue);
-  }
-
-  @Override
-  public long splitOpenFileCost() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_OPEN_FILE_COST,
-        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
-    return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
   }
 
   @Override

@@ -28,6 +28,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
 
 abstract class BaseScan<T extends Scan<T>> implements Scan<T> {
   private final TableOperations ops;
@@ -104,6 +105,30 @@ abstract class BaseScan<T extends Scan<T>> implements Scan<T> {
   @Override
   public Schema schema() {
     return lazyColumnProjection(context, schema);
+  }
+
+  @Override
+  public long targetSplitSize() {
+    long tableValue = ops.current().propertyAsLong(
+        TableProperties.SPLIT_SIZE,
+        TableProperties.SPLIT_SIZE_DEFAULT);
+    return PropertyUtil.propertyAsLong(context.options(), TableProperties.SPLIT_SIZE, tableValue);
+  }
+
+  @Override
+  public int splitLookback() {
+    int tableValue = ops.current().propertyAsInt(
+        TableProperties.SPLIT_LOOKBACK,
+        TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    return PropertyUtil.propertyAsInt(context.options(), TableProperties.SPLIT_LOOKBACK, tableValue);
+  }
+
+  @Override
+  public long splitOpenFileCost() {
+    long tableValue = ops.current().propertyAsLong(
+        TableProperties.SPLIT_OPEN_FILE_COST,
+        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    return PropertyUtil.propertyAsLong(context.options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
   }
 
   /**

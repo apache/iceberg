@@ -29,7 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 
@@ -169,26 +168,5 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
     }
 
     return snapshots;
-  }
-
-  private long targetSplitSize() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
-    return PropertyUtil.propertyAsLong(context().options(), TableProperties.SPLIT_SIZE, tableValue);
-  }
-
-  private int splitLookback() {
-    int tableValue = tableOps().current().propertyAsInt(
-        TableProperties.SPLIT_LOOKBACK,
-        TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    return PropertyUtil.propertyAsInt(context().options(), TableProperties.SPLIT_LOOKBACK, tableValue);
-  }
-
-  private long splitOpenFileCost() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_OPEN_FILE_COST,
-        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
-    return PropertyUtil.propertyAsLong(context().options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
   }
 }
