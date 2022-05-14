@@ -58,7 +58,9 @@ servers:
         default: ""
 # All routes are currently configured using an Authorization header.
 security:
+  - OAuth2: [catalog]
   - BearerAuth: []
+
 paths:
   /v1/config:
 
@@ -115,6 +117,32 @@ paths:
           $ref: '#/components/responses/ForbiddenResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/oauth/token:
+
+    post:
+      tags:
+        - Auth API
+      summary: Get a token using an OAuth2 flow
+      operationId: getToken
+      description:
+        Exchange credentials for a token using the OAuth2 client credentials flow or token exchange.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/TokenResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1435,11 +1463,65 @@ components:
           additionalProperties:
             type: string
 
+    TokenRequest:
+      description:
+        OAuth2 client credentials or token exchange request
+
+
+        See -
+
+        - Client credentials flow - https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
+
+        - Token exchange flow - https://datatracker.ietf.org/doc/html/rfc8693
+      type: object
+      required:
+        - grant_type
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - client_credentials
+            - urn:ietf:params:oauth:grant-type:token-exchange
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        subject_token:
+          type: string
+        subject_token_type:
+          type: string
+        scope:
+          type: string
 
   #############################
   # Reusable Response Objects #
   #############################
   responses:
+
+    TokenResponse:
+      description: OAuth2 token response
+      content:
+        application/json:
+          schema:
+            required:
+              - access_token
+              - expires_in
+              - issued_token_type
+              - token_type
+            properties:
+              access_token:
+                type: string
+              expires_in:
+                type: integer
+                description: lifetime of the access token in seconds
+              issued_token_type:
+                type: string
+              token_type:
+                type: string
+              refresh_token:
+                type: string
+              scope:
+                type: string
 
     BadRequestErrorResponse:
       description:
@@ -1841,6 +1923,13 @@ components:
       }
 
   securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /v1/oauth/token
+          scopes:
+            catalog: Allows interacting with the Config and Catalog APIs
     BearerAuth:
       type: http
       scheme: bearer
