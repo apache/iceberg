@@ -46,7 +46,10 @@ public interface TableLoader extends Closeable, Serializable {
   }
 
   static TableLoader fromHadoopTable(String location) {
-    return fromHadoopTable(location, FlinkCatalogFactory.clusterHadoopConf());
+    return fromHadoopTable(
+        location,
+        (Configuration)
+            FlinkCatalogFactory.clusterHadoopConf(Thread.currentThread().getContextClassLoader()));
   }
 
   static TableLoader fromHadoopTable(String location, Configuration hadoopConf) {

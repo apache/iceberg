@@ -43,7 +43,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
   public void testCreateCatalogWithWarehouseLocation() throws IOException {
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
-    props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
+    props.put(FlinkCatalogFactoryOptions.ICEBERG_CATALOG_TYPE.key(), "hive");
     props.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
 
     File warehouseDir = tempFolder.newFolder();
@@ -69,10 +69,10 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     // Construct the catalog attributions.
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
-    props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
+    props.put(FlinkCatalogFactoryOptions.ICEBERG_CATALOG_TYPE.key(), "hive");
     props.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
     // Set the 'hive-conf-dir' instead of 'warehouse'
-    props.put(FlinkCatalogFactory.HIVE_CONF_DIR, hiveConfDir.getAbsolutePath());
+    props.put(FlinkCatalogFactoryOptions.HIVE_CONF_DIR.key(), hiveConfDir.getAbsolutePath());
 
     checkSQLQuery(props, warehouseDir);
   }
