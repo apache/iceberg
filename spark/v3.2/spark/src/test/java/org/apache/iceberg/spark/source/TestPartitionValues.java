@@ -476,18 +476,18 @@ public class TestPartitionValues {
     MapFunction<Long, ComplexRecord> func =
         value -> new ComplexRecord(value, new NestedRecord(value, "name_" + value));
     spark.range(0, 10, 1, 1).map(func, Encoders.bean(ComplexRecord.class))
-            .write()
-            .format("iceberg")
-            .mode(SaveMode.Append)
-            .save(baseLocation);
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(baseLocation);
 
     List<String> actual = spark.read()
-            .format("iceberg")
-            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-            .load(baseLocation)
-            .select("struct.innerName")
-            .as(Encoders.STRING())
-            .collectAsList();
+        .format("iceberg")
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+        .load(baseLocation)
+        .select("struct.innerName")
+        .as(Encoders.STRING())
+        .collectAsList();
 
     Assert.assertEquals("Number of rows should match", 10, actual.size());
 
