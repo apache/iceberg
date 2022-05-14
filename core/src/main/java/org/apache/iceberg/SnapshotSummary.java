@@ -31,10 +31,10 @@ public class SnapshotSummary {
   public static final String DELETED_FILES_PROP = "deleted-data-files";
   public static final String TOTAL_DATA_FILES_PROP = "total-data-files";
   public static final String ADDED_DELETE_FILES_PROP = "added-delete-files";
-  public static final String ADD_EQ_DELETE_FILES_PROP = "added-eq-delete-files";
-  public static final String REMOVED_EQ_DELETE_FILES_PROP = "removed-eq-delete-files";
-  public static final String ADD_POS_DELETE_FILES_PROP = "added-pos-delete-files";
-  public static final String REMOVED_POS_DELETE_FILES_PROP = "removed-pos-delete-files";
+  public static final String ADD_EQ_DELETE_FILES_PROP = "added-equality-delete-files";
+  public static final String REMOVED_EQ_DELETE_FILES_PROP = "removed-equality-delete-files";
+  public static final String ADD_POS_DELETE_FILES_PROP = "added-position-delete-files";
+  public static final String REMOVED_POS_DELETE_FILES_PROP = "removed-position-delete-files";
   public static final String REMOVED_DELETE_FILES_PROP = "removed-delete-files";
   public static final String TOTAL_DELETE_FILES_PROP = "total-delete-files";
   public static final String ADDED_RECORDS_PROP = "added-records";
