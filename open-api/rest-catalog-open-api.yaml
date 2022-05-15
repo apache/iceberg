@@ -1484,12 +1484,26 @@ components:
             - urn:ietf:params:oauth:grant-type:token-exchange
         client_id:
           type: string
+          description:
+            Client ID for client credentials flow.
+
+
+            This can be sent in the request body, but OAuth2 recomments sending it in
+            a Basic Authorization header.
         client_secret:
           type: string
+          description:
+            Client secret for client credentials flow.
+
+
+            This can be sent in the request body, but OAuth2 recomments sending it in
+            a Basic Authorization header.
         subject_token:
           type: string
+          description: Subject token for token exchange request
         subject_token_type:
           type: string
+          description: Subject token type for token exchange request
         scope:
           type: string
 
