@@ -81,7 +81,7 @@ public class RESTCatalogAdapter implements RESTClient {
     this.asNamespaceCatalog = catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
   }
 
-  private enum HTTPMethod {
+  enum HTTPMethod {
     GET,
     HEAD,
     POST,
@@ -240,7 +240,7 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   public <T extends RESTResponse> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
-                                            Consumer<ErrorResponse> errorHandler) {
+                                            Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
@@ -266,30 +266,32 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
-  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.DELETE, path, null, responseType, errorHandler);
+  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
+                                           Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.DELETE, path, null, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                         Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.POST, path, body, responseType, errorHandler);
+                                         Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.POST, path, body, responseType, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.GET, path, null, responseType, errorHandler);
+  public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
+                                        Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.GET, path, null, responseType, headers, errorHandler);
   }
 
   @Override
-  public void head(String path, Consumer<ErrorResponse> errorHandler) {
-    execute(HTTPMethod.HEAD, path, null, null, errorHandler);
+  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    execute(HTTPMethod.HEAD, path, null, null, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
                                              Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.POST, path, formData, responseType, errorHandler);
+    return execute(HTTPMethod.POST, path, formData, responseType, headers, errorHandler);
   }
 
   @Override

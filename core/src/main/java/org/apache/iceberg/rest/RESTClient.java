@@ -29,13 +29,15 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
  */
 public interface RESTClient extends Closeable {
 
-  void head(String path, Consumer<ErrorResponse> errorHandler);
+  void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler);
 
-  <T extends RESTResponse> T delete(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
+  <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
+                                    Consumer<ErrorResponse> errorHandler);
 
-  <T extends RESTResponse> T get(String path, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
+  <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
+                                 Consumer<ErrorResponse> errorHandler);
 
-  <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
+  <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType, Map<String, String> headers,
                                   Consumer<ErrorResponse> errorHandler);
 
   <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,

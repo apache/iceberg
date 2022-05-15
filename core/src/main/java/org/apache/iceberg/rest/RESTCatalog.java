@@ -96,6 +96,10 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
     this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
   }
 
+  protected Map<String, String> headers() {
+    return ImmutableMap.of();
+  }
+
   public Map<String, String> properties() {
     return properties;
   }
@@ -113,7 +117,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   @Override
   public List<TableIdentifier> listTables(Namespace ns) {
     ListTablesResponse response = client.get(
-        paths.tables(ns), ListTablesResponse.class, ErrorHandlers.namespaceErrorHandler());
+        paths.tables(ns), ListTablesResponse.class, headers(), ErrorHandlers.namespaceErrorHandler());
     return response.identifiers();
   }
 
@@ -121,7 +125,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     // TODO: support purge flagN
     try {
-      client.delete(paths.table(identifier), null, ErrorHandlers.tableErrorHandler());
+      client.delete(paths.table(identifier), null, headers(), ErrorHandlers.tableErrorHandler());
       return true;
     } catch (NoSuchTableException e) {
       return false;
@@ -136,21 +140,20 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
         .build();
 
     // for now, ignore the response because there is no way to return it.
-    client.post("v1/tables/rename", request, null, ErrorHandlers.tableErrorHandler());
+    client.post(paths.rename(), request, null, headers(), ErrorHandlers.tableErrorHandler());
   }
 
-  private LoadTableResponse loadInternal(TableIdentifier identifier) {
-    return client.get(paths.table(identifier), LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+  private LoadTableResponse loadInternal(TableIdentifier identifier, Map<String, String> headers) {
+    return client.get(paths.table(identifier), LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler());
   }
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
-    LoadTableResponse response = loadInternal(identifier);
+    LoadTableResponse response = loadInternal(identifier, headers());
     Pair<RESTClient, FileIO> clients = tableClients(response.config());
-
-    return new BaseTable(
-        new RESTTableOperations(clients.first(), paths.table(identifier), clients.second(), response.tableMetadata()),
-        fullTableName(identifier));
+    RESTTableOperations ops = new RESTTableOperations(
+        clients.first(), paths.table(identifier), headers(), clients.second(), response.tableMetadata());
+    return new BaseTable(ops, fullTableName(identifier));
   }
 
   @Override
@@ -161,7 +164,8 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
         .build();
 
     // for now, ignore the response because there is no way to return it
-    client.post(paths.namespaces(), request, CreateNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
+    client.post(
+        paths.namespaces(), request, CreateNamespaceResponse.class, headers(), ErrorHandlers.namespaceErrorHandler());
   }
 
   @Override
@@ -169,7 +173,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
     Preconditions.checkArgument(namespace.isEmpty(), "Cannot list namespaces under parent: %s", namespace);
     // String joined = NULL.join(namespace.levels());
     ListNamespacesResponse response = client
-        .get(paths.namespaces(), ListNamespacesResponse.class, ErrorHandlers.namespaceErrorHandler());
+        .get(paths.namespaces(), ListNamespacesResponse.class, headers(), ErrorHandlers.namespaceErrorHandler());
     return response.namespaces();
   }
 
@@ -177,14 +181,14 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   public Map<String, String> loadNamespaceMetadata(Namespace ns) throws NoSuchNamespaceException {
     // TODO: rename to LoadNamespaceResponse?
     GetNamespaceResponse response = client
-        .get(paths.namespace(ns), GetNamespaceResponse.class, ErrorHandlers.namespaceErrorHandler());
+        .get(paths.namespace(ns), GetNamespaceResponse.class, headers(), ErrorHandlers.namespaceErrorHandler());
     return response.properties();
   }
 
   @Override
   public boolean dropNamespace(Namespace ns) throws NamespaceNotEmptyException {
     try {
-      client.delete(paths.namespace(ns), null, ErrorHandlers.namespaceErrorHandler());
+      client.delete(paths.namespace(ns), null, headers(), ErrorHandlers.namespaceErrorHandler());
       return true;
     } catch (NoSuchNamespaceException e) {
       return false;
@@ -198,7 +202,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
         .build();
 
     UpdateNamespacePropertiesResponse response = client.post(
-        paths.namespaceProperties(ns), request, UpdateNamespacePropertiesResponse.class,
+        paths.namespaceProperties(ns), request, UpdateNamespacePropertiesResponse.class, headers(),
         ErrorHandlers.namespaceErrorHandler());
 
     return !response.updated().isEmpty();
@@ -211,7 +215,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
         .build();
 
     UpdateNamespacePropertiesResponse response = client.post(
-        paths.namespaceProperties(ns), request, UpdateNamespacePropertiesResponse.class,
+        paths.namespaceProperties(ns), request, UpdateNamespacePropertiesResponse.class, headers(),
         ErrorHandlers.namespaceErrorHandler());
 
     return !response.removed().isEmpty();
@@ -219,7 +223,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
   @Override
   public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
-    return new Builder(identifier, schema);
+    return new Builder(identifier, schema, headers());
   }
 
   @Override
@@ -232,14 +236,16 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
   private class Builder implements TableBuilder {
     private final TableIdentifier ident;
     private final Schema schema;
+    private final Map<String, String> headers;
     private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     private PartitionSpec spec = null;
     private SortOrder writeOrder = null;
     private String location = null;
 
-    private Builder(TableIdentifier ident, Schema schema) {
+    private Builder(TableIdentifier ident, Schema schema, Map<String, String> headers) {
       this.ident = ident;
       this.schema = schema;
+      this.headers = headers;
     }
 
     @Override
@@ -274,7 +280,6 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
     @Override
     public Table create() {
-      String ns = RESTUtil.encodeNamespace(ident.namespace());
       CreateTableRequest request = CreateTableRequest.builder()
           .withName(ident.name())
           .withSchema(schema)
@@ -285,13 +290,14 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
           .build();
 
       LoadTableResponse response = client.post(
-          "v1/namespaces/" + ns + "/tables", request, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+          paths.tables(ident.namespace()), request, LoadTableResponse.class, headers,
+          ErrorHandlers.tableErrorHandler());
 
       Pair<RESTClient, FileIO> clients = tableClients(response.config());
+      RESTTableOperations ops = new RESTTableOperations(
+          clients.first(), paths.table(ident), headers, clients.second(), response.tableMetadata());
 
-      return new BaseTable(
-          new RESTTableOperations(clients.first(), paths.table(ident), clients.second(), response.tableMetadata()),
-          fullTableName(ident));
+      return new BaseTable(ops, fullTableName(ident));
     }
 
     @Override
@@ -303,7 +309,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
       TableMetadata meta = response.tableMetadata();
 
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), clients.second(),
+          clients.first(), paths.table(ident), headers, clients.second(),
           RESTTableOperations.UpdateType.CREATE, createChanges(meta), meta);
 
       return Transactions.createTableTransaction(fullName, ops, meta);
@@ -311,7 +317,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
     @Override
     public Transaction replaceTransaction() {
-      LoadTableResponse response = loadInternal(ident);
+      LoadTableResponse response = loadInternal(ident, headers);
       String fullName = fullTableName(ident);
 
       Pair<RESTClient, FileIO> clients = tableClients(response.config());
@@ -343,7 +349,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
       }
 
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), clients.second(),
+          clients.first(), paths.table(ident), headers, clients.second(),
           RESTTableOperations.UpdateType.REPLACE, changes.build(), base);
 
       return Transactions.replaceTableTransaction(fullName, ops, replacement);
@@ -376,7 +382,8 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
           .build();
 
       return client.post(
-          paths.tables(ident.namespace()), request, LoadTableResponse.class, ErrorHandlers.tableErrorHandler());
+          paths.tables(ident.namespace()), request, LoadTableResponse.class, headers,
+          ErrorHandlers.tableErrorHandler());
     }
   }
 
@@ -443,7 +450,7 @@ public class RESTCatalog implements Catalog, SupportsNamespaces, Configurable<Co
 
     try {
       ConfigResponse configResponse = singleUseClient
-          .get(ResourcePaths.config(), ConfigResponse.class, ErrorHandlers.defaultErrorHandler());
+          .get(ResourcePaths.config(), ConfigResponse.class, headers(), ErrorHandlers.defaultErrorHandler());
       configResponse.validate();
       return configResponse;
     } finally {
