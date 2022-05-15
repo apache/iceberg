@@ -19,8 +19,8 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.NoSuchElementException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -40,7 +40,7 @@ public class ParquetIterable<T> extends CloseableGroup implements CloseableItera
       addCloseable(reader);
       return new ParquetIterator<>(reader);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to create Parquet reader");
+      throw new UncheckedIOException("Failed to create Parquet reader", e);
     }
   }
 
@@ -82,7 +82,7 @@ public class ParquetIterable<T> extends CloseableGroup implements CloseableItera
         this.hasNext = nextRecord != null;
         return nextRecord;
       } catch (IOException e) {
-        throw new RuntimeIOException(e);
+        throw new UncheckedIOException(e);
       }
     }
 

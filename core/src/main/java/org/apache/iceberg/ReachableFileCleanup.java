@@ -19,12 +19,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -115,8 +115,10 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                   currentManifestCallback.accept(manifestFile.copy());
                 }
               } catch (IOException e) {
-                throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                throw new UncheckedIOException(
+                    String.format(
+                        "Failed to close manifest list: %s", snapshot.manifestListLocation()),
+                    e);
               }
             });
 
@@ -141,8 +143,10 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                   manifestFiles.add(manifestFile.copy());
                 }
               } catch (IOException e) {
-                throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                throw new UncheckedIOException(
+                    String.format(
+                        "Failed to close manifest list: %s", snapshot.manifestListLocation()),
+                    e);
               }
             });
 
@@ -167,7 +171,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
               try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
                 paths.forEach(filesToDelete::add);
               } catch (IOException e) {
-                throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+                throw new UncheckedIOException(
+                    String.format("Failed to read manifest file: %s", manifest), e);
               }
             });
 
@@ -195,7 +200,8 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                 try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
                   paths.forEach(filesToDelete::remove);
                 } catch (IOException e) {
-                  throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+                  throw new UncheckedIOException(
+                      String.format("Failed to read manifest file: %s", manifest), e);
                 }
               });
 

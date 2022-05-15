@@ -27,7 +27,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -237,7 +236,8 @@ class ReadConf<T> {
     try {
       return ParquetFileReader.open(ParquetIO.file(file), options);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
+      throw new UncheckedIOException(
+          String.format("Failed to open Parquet file: %s", file.location()), e);
     }
   }
 

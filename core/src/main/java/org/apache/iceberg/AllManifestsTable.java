@@ -19,12 +19,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
@@ -200,7 +200,8 @@ public class AllManifestsTable extends BaseMetadataTable {
         return CloseableIterable.transform(rowIterable, projection::wrap);
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestListLocation);
+        throw new UncheckedIOException(
+            String.format("Cannot read manifest list file: %s", manifestListLocation), e);
       }
     }
 

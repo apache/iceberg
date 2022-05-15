@@ -19,8 +19,8 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
  * An interface used to read input files using {@link SeekableInputStream} instances.
@@ -32,7 +32,7 @@ public interface InputFile {
    * Returns the total length of the file, in bytes
    *
    * @return the total length of the file, in bytes
-   * @throws RuntimeIOException If the implementation throws an {@link IOException}
+   * @throws UncheckedIOException If the implementation throws an {@link IOException}
    */
   long getLength();
 
@@ -41,7 +41,7 @@ public interface InputFile {
    *
    * @return a seekable stream for reading the file
    * @throws NotFoundException If the file does not exist
-   * @throws RuntimeIOException If the implementation throws an {@link IOException}
+   * @throws UncheckedIOException If the implementation throws an {@link IOException}
    */
   SeekableInputStream newStream();
 

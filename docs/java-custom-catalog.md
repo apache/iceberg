@@ -193,7 +193,7 @@ public class CustomFileIO implements FileIO {
     try {
         fs.delete(toDelete, false /* not recursive */);
     } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to delete file: %s", path);
+        throw new UncheckedIOException(String.format("Failed to delete file: %s", path), e);
     }
   }
 

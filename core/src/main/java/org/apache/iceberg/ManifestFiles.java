@@ -21,11 +21,11 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.ContentCache;
 import org.apache.iceberg.io.FileIO;
@@ -269,7 +269,8 @@ public class ManifestFiles {
           summaryBuilder,
           ManifestEntry.Status.ADDED);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
+      throw new UncheckedIOException(
+          String.format("Failed to close manifest: %s", toCopy.location()), e);
     }
   }
 
@@ -294,7 +295,8 @@ public class ManifestFiles {
           summaryBuilder,
           ManifestEntry.Status.EXISTING);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
+      throw new UncheckedIOException(
+          String.format("Failed to close manifest: %s", toCopy.location()), e);
     }
   }
 
@@ -337,7 +339,8 @@ public class ManifestFiles {
         writer.close();
       } catch (IOException e) {
         if (!threw) {
-          throw new RuntimeIOException(e, "Failed to close manifest: %s", outputFile);
+          throw new UncheckedIOException(
+              String.format("Failed to close manifest: %s", outputFile), e);
         }
       }
     }

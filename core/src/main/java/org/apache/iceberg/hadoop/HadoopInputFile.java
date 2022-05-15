@@ -20,6 +20,7 @@ package org.apache.iceberg.hadoop;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -30,7 +31,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -163,7 +163,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
       } catch (FileNotFoundException e) {
         throw new NotFoundException(e, "File does not exist: %s", path);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to get status for file: %s", path);
+        throw new UncheckedIOException(String.format("Failed to get status for file: %s", path), e);
       }
     }
     return stat;
@@ -184,7 +184,8 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
     } catch (FileNotFoundException e) {
       throw new NotFoundException(e, "Failed to open input stream for file: %s", path);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to open input stream for file: %s", path);
+      throw new UncheckedIOException(
+          String.format("Failed to open input stream for file: %s", path), e);
     }
   }
 
@@ -214,7 +215,8 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
       return hosts.toArray(NO_LOCATION_PREFERENCE);
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get block locations for path: %s", path);
+      throw new UncheckedIOException(
+          String.format("Failed to get block locations for path: %s", path), e);
     }
   }
 

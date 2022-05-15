@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,7 +31,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -146,7 +146,7 @@ public class TestSparkOrcReadMetadataColumns {
           OrcFile.readerOptions(new Configuration()).useUTCTimestamp(true);
       reader = OrcFile.createReader(new Path(testFile.toString()), readerOptions);
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to open file: %s", testFile);
+      throw new UncheckedIOException(String.format("Failed to open file: %s", testFile), ioe);
     }
     List<Long> splitOffsets =
         reader.getStripes().stream().map(StripeInformation::getOffset).collect(Collectors.toList());

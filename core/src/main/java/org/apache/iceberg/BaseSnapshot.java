@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -279,7 +278,7 @@ class BaseSnapshot implements Snapshot {
         }
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close entries while caching changes");
+      throw new UncheckedIOException("Failed to close entries while caching changes", e);
     }
 
     this.addedDataFiles = adds.build();

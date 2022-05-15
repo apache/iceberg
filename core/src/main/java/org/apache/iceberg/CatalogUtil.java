@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,7 +31,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
@@ -150,8 +150,8 @@ public class CatalogUtil {
                 String type = reader.isDeleteManifestReader() ? "delete" : "data";
                 deleteFiles(io, pathsToDelete, type, false);
               } catch (IOException e) {
-                throw new RuntimeIOException(
-                    e, "Failed to read manifest file: %s", manifest.path());
+                throw new UncheckedIOException(
+                    String.format("Failed to read manifest file: %s", manifest.path()), e);
               }
             });
   }

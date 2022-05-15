@@ -20,13 +20,13 @@ package org.apache.iceberg.util;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -70,7 +70,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
                                 queue.add(item);
                               }
                             } catch (IOException e) {
-                              throw new RuntimeIOException(e, "Failed to close iterable");
+                              throw new UncheckedIOException("Failed to close iterable", e);
                             }
                           })
               .iterator();

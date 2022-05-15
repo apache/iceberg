@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
@@ -36,7 +37,6 @@ import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -80,7 +80,7 @@ public class ParquetUtil {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
       return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
+      throw new UncheckedIOException(String.format("Failed to read footer of file: %s", file), e);
     }
   }
 

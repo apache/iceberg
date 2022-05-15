@@ -19,6 +19,7 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,7 +33,6 @@ import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
@@ -55,7 +55,8 @@ public class Util {
     try {
       return path.getFileSystem(conf);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
+      throw new UncheckedIOException(
+          String.format("Failed to get file system for path: %s", path), e);
     }
   }
 

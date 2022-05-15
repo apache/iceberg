@@ -19,8 +19,8 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
  * An interface used to create output files using {@link PositionOutputStream} instances.
@@ -36,7 +36,7 @@ public interface OutputFile {
    *
    * @return an output stream that can report its position
    * @throws AlreadyExistsException If the path already exists
-   * @throws RuntimeIOException If the implementation throws an {@link IOException}
+   * @throws UncheckedIOException If the implementation throws an {@link IOException}
    */
   PositionOutputStream create();
 
@@ -46,7 +46,7 @@ public interface OutputFile {
    * <p>If the file already exists, this will not throw an exception and will replace the file.
    *
    * @return an output stream that can report its position
-   * @throws RuntimeIOException If the implementation throws an {@link IOException}
+   * @throws UncheckedIOException If the implementation throws an {@link IOException}
    * @throws SecurityException If staging directory creation fails due to missing JVM level
    *     permission
    */

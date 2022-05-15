@@ -19,6 +19,7 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.List;
@@ -37,7 +38,6 @@ import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
@@ -98,7 +98,8 @@ public class OrcMetrics {
           metricsConfig,
           mapping);
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
+      throw new UncheckedIOException(
+          String.format("Failed to open file: %s", file.location()), ioe);
     }
   }
 
@@ -113,7 +114,7 @@ public class OrcMetrics {
           metricsConfig,
           null);
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to get statistics from writer");
+      throw new UncheckedIOException("Failed to get statistics from writer", ioe);
     }
   }
 

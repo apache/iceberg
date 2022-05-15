@@ -31,7 +31,6 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -195,7 +194,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
           throw new UnsupportedOperationException("Cannot write unknown format: " + fileFormat);
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new UncheckedIOException(e);
     }
   }
 

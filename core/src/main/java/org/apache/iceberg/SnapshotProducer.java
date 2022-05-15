@@ -34,6 +34,7 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +49,6 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -257,7 +257,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       writer.addAll(Arrays.asList(manifestFiles));
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write manifest list file");
+      throw new UncheckedIOException("Failed to write manifest list file", e);
     }
 
     return new BaseSnapshot(
@@ -613,7 +613,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           null);
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
+      throw new UncheckedIOException(
+          String.format("Failed to read manifest: %s", manifest.path()), e);
     }
   }
 

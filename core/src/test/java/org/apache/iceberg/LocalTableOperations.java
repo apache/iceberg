@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -65,7 +65,7 @@ class LocalTableOperations implements TableOperations {
           try {
             return temp.newFile(name).getAbsolutePath();
           } catch (IOException e) {
-            throw new RuntimeIOException(e);
+            throw new UncheckedIOException(e);
           }
         });
   }

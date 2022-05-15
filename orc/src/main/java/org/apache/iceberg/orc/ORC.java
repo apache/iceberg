@@ -39,6 +39,7 @@ import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE_DEFAULT;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -64,7 +65,6 @@ import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
@@ -779,7 +779,8 @@ public class ORC {
     try {
       return OrcFile.createReader(new Path(file.location()), readerOptions);
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
+      throw new UncheckedIOException(
+          String.format("Failed to open file: %s", file.location()), ioe);
     }
   }
 
@@ -796,7 +797,7 @@ public class ORC {
     try {
       writer = OrcFile.createWriter(locPath, options);
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Can't create file %s", locPath);
+      throw new UncheckedIOException(String.format("Can't create file %s", locPath), ioe);
     }
 
     metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));

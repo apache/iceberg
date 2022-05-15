@@ -27,6 +27,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -34,7 +35,6 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
@@ -243,7 +243,7 @@ public class TestRewriteManifests extends TableTestBase {
               try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
                 return !reader.iterator().next().path().equals(FILE_A.path());
               } catch (IOException x) {
-                throw new RuntimeIOException(x);
+                throw new UncheckedIOException(x);
               }
             })
         .commit();
@@ -318,7 +318,7 @@ public class TestRewriteManifests extends TableTestBase {
               try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
                 return !reader.iterator().next().path().equals(FILE_A.path());
               } catch (IOException x) {
-                throw new RuntimeIOException(x);
+                throw new UncheckedIOException(x);
               }
             })
         .commit();
@@ -879,7 +879,7 @@ public class TestRewriteManifests extends TableTestBase {
               try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
                 return !reader.iterator().next().path().equals(FILE_B.path());
               } catch (IOException x) {
-                throw new RuntimeIOException(x);
+                throw new UncheckedIOException(x);
               }
             })
         .commit();

@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +33,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -258,7 +258,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
                                     manifest.partitionSpecId()));
 
                   } catch (IOException x) {
-                    throw new RuntimeIOException(x);
+                    throw new UncheckedIOException(x);
                   }
                 }
               });
@@ -376,7 +376,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
           writer.close();
           newManifests.add(writer.toManifestFile());
         } catch (IOException x) {
-          throw new RuntimeIOException(x);
+          throw new UncheckedIOException(x);
         }
       }
     }

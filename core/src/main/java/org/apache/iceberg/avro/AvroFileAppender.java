@@ -19,6 +19,7 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.avro.Schema;
@@ -27,7 +28,6 @@ import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -65,7 +65,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
       numRecords += 1L;
       writer.append(datum);
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -83,7 +83,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
     try {
       return stream.getPos();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get stream length");
+      throw new UncheckedIOException("Failed to get stream length", e);
     }
   }
 

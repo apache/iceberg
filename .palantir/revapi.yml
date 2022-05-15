@@ -66,6 +66,10 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.io.DataWriter<T>::add(T)"
       justification: "Removing deprecated method"
   "1.1.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.exceptions.RuntimeIOException"
+      justification: "{Remove deprecated RuntimeIOException}"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.noLongerImplementsInterface"
       old: "class org.apache.iceberg.jdbc.JdbcCatalog"

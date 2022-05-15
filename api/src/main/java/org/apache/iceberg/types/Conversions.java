@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.types;
 
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -29,7 +30,6 @@ import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.UUID;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.util.UUIDUtil;
 
@@ -107,7 +107,8 @@ public class Conversions {
         try {
           return ENCODER.get().encode(buffer);
         } catch (CharacterCodingException e) {
-          throw new RuntimeIOException(e, "Failed to encode value as UTF-8: %s", value);
+          throw new UncheckedIOException(
+              String.format("Failed to encode value as UTF-8: %s", value), e);
         }
       case UUID:
         return UUIDUtil.convertToByteBuffer((UUID) value);
@@ -163,7 +164,8 @@ public class Conversions {
         try {
           return DECODER.get().decode(tmp);
         } catch (CharacterCodingException e) {
-          throw new RuntimeIOException(e, "Failed to decode value as UTF-8: %s", buffer);
+          throw new UncheckedIOException(
+              String.format("Failed to decode value as UTF-8: %s", buffer), e);
         }
       case UUID:
         return UUIDUtil.convert(tmp);

@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.WeakHashMap;
 import org.apache.avro.Schema;
@@ -26,7 +27,6 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.ValueReader;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
@@ -70,7 +70,7 @@ public class DecoderResolver {
     try {
       return DecoderFactory.get().resolvingDecoder(fileSchema, readSchema, null);
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new UncheckedIOException(e);
     }
   }
 }

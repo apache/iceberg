@@ -19,12 +19,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -152,8 +152,10 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 }
 
               } catch (IOException e) {
-                throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                throw new UncheckedIOException(
+                    String.format(
+                        "Failed to close manifest list: %s", snapshot.manifestListLocation()),
+                    e);
               }
             });
 
@@ -244,8 +246,10 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                     }
                   }
                 } catch (IOException e) {
-                  throw new RuntimeIOException(
-                      e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                  throw new UncheckedIOException(
+                      String.format(
+                          "Failed to close manifest list: %s", snapshot.manifestListLocation()),
+                      e);
                 }
 
                 // add the manifest list to the delete set, if present
@@ -297,7 +301,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   }
                 }
               } catch (IOException e) {
-                throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+                throw new UncheckedIOException(
+                    String.format("Failed to read manifest file: %s", manifest), e);
               }
             });
 
@@ -321,7 +326,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   }
                 }
               } catch (IOException e) {
-                throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+                throw new UncheckedIOException(
+                    String.format("Failed to read manifest file: %s", manifest), e);
               }
             });
 

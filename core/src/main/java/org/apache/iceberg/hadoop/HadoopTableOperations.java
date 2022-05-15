@@ -21,6 +21,7 @@ package org.apache.iceberg.hadoop;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
@@ -39,7 +40,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -123,7 +123,7 @@ public class HadoopTableOperations implements TableOperations {
       this.shouldRefresh = false;
       return currentMetadata;
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to refresh the table");
+      throw new UncheckedIOException("Failed to refresh the table", e);
     }
   }
 

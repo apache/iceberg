@@ -28,7 +28,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -147,8 +146,9 @@ class OrcFileAppender<D> implements FileAppender<D> {
       List<StripeInformation> stripes = writer.getStripes();
       return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
     } catch (IOException e) {
-      throw new RuntimeIOException(
-          e, "Failed to get stripe information from writer for: %s", file.location());
+      throw new UncheckedIOException(
+          String.format("Failed to get stripe information from writer for: %s", file.location()),
+          e);
     }
   }
 

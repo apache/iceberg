@@ -19,7 +19,7 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.util.Pair;
 import org.apache.orc.RecordReader;
@@ -57,7 +57,8 @@ public class VectorizedRowBatchIterator
         batchOffsetInFile = rows.getRowNumber();
         rows.nextBatch(batch);
       } catch (IOException ioe) {
-        throw new RuntimeIOException(ioe, "Problem reading ORC file %s", fileLocation);
+        throw new UncheckedIOException(
+            String.format("Problem reading ORC file %s", fileLocation), ioe);
       }
       advanced = true;
     }

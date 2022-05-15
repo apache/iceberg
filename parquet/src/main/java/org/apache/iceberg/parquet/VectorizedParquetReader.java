@@ -19,12 +19,12 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
@@ -162,7 +162,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       try {
         pages = reader.readNextRowGroup();
       } catch (IOException e) {
-        throw new RuntimeIOException(e);
+        throw new UncheckedIOException(e);
       }
 
       long rowPosition = rowGroupsStartRowPos[nextRowGroup];

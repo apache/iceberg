@@ -30,7 +30,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
@@ -104,7 +103,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     try {
       fs.delete(toDelete, false /* not recursive */);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
+      throw new UncheckedIOException(String.format("Failed to delete file: %s", path), e);
     }
   }
 

@@ -19,6 +19,7 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileSystem;
@@ -26,7 +27,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -75,7 +75,7 @@ public class HadoopOutputFile implements OutputFile, NativelyEncryptedFile {
     } catch (FileAlreadyExistsException e) {
       throw new AlreadyExistsException(e, "Path already exists: %s", path);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to create file: %s", path);
+      throw new UncheckedIOException(String.format("Failed to create file: %s", path), e);
     }
   }
 
@@ -84,7 +84,7 @@ public class HadoopOutputFile implements OutputFile, NativelyEncryptedFile {
     try {
       return HadoopStreams.wrap(fs.create(path, true /* createOrOverwrite */));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to create file: %s", path);
+      throw new UncheckedIOException(String.format("Failed to create file: %s", path), e);
     }
   }
 

@@ -158,40 +158,43 @@ If your catalog must read Hadoop configuration to access certain environment pro
 Extend `FileIO` and provide implementation to read and write data files
 
 Example:
+
 ```java
+import java.io.UncheckedIOException;
+
 public class CustomFileIO implements FileIO {
 
-  // must have a no-arg constructor to be dynamically loaded
-  // initialize(Map<String, String> properties) will be called to complete initialization
-  public CustomFileIO() {
-  }
-
-  @Override
-  public InputFile newInputFile(String s) {
-    // you also need to implement the InputFile interface for a custom input file
-    return new CustomInputFile(s);
-  }
-
-  @Override
-  public OutputFile newOutputFile(String s) {
-    // you also need to implement the OutputFile interface for a custom output file
-    return new CustomOutputFile(s);
-  }
-
-  @Override
-  public void deleteFile(String path) {
-    Path toDelete = new Path(path);
-    FileSystem fs = Util.getFs(toDelete);
-    try {
-        fs.delete(toDelete, false /* not recursive */);
-    } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to delete file: %s", path);
+    // must have a no-arg constructor to be dynamically loaded
+    // initialize(Map<String, String> properties) will be called to complete initialization
+    public CustomFileIO() {
     }
-  }
 
-  // implement this method to read catalog properties during initialization
-  public void initialize(Map<String, String> properties) {
-  }
+    @Override
+    public InputFile newInputFile(String s) {
+        // you also need to implement the InputFile interface for a custom input file
+        return new CustomInputFile(s);
+    }
+
+    @Override
+    public OutputFile newOutputFile(String s) {
+        // you also need to implement the OutputFile interface for a custom output file
+        return new CustomOutputFile(s);
+    }
+
+    @Override
+    public void deleteFile(String path) {
+        Path toDelete = new Path(path);
+        FileSystem fs = Util.getFs(toDelete);
+        try {
+            fs.delete(toDelete, false /* not recursive */);
+        } catch (IOException e) {
+            throw new UncheckedIOException(String.format("Failed to delete file: %s", path), e);
+        }
+    }
+
+    // implement this method to read catalog properties during initialization
+    public void initialize(Map<String, String> properties) {
+    }
 }
 ```
 

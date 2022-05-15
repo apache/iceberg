@@ -20,9 +20,9 @@ package org.apache.iceberg.spark;
 
 import com.google.errorprone.annotations.FormatMethod;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.spark.sql.AnalysisException;
 
@@ -55,7 +55,7 @@ public class SparkExceptionUtil {
       return new ValidationException(cause, message, args);
 
     } else if (cause instanceof IOException) {
-      return new RuntimeIOException((IOException) cause, message, args);
+      return new UncheckedIOException(String.format(message, args), (IOException) cause);
 
     } else {
       return new RuntimeException(String.format(message, args), cause);

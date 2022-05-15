@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -31,7 +32,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -143,7 +143,7 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
       try (CloseableIterable<FileScanTask> filesIterable = scan.planFiles()) {
         this.files = Lists.newArrayList(filesIterable);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
+        throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
       }
     }
 

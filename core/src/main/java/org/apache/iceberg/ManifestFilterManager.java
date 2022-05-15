@@ -19,13 +19,13 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -319,7 +319,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return filterManifestWithDeletedFiles(evaluator, manifest, reader);
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
+      throw new UncheckedIOException(String.format("Failed to close manifest: %s", manifest), e);
     }
   }
 
@@ -475,7 +475,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return filtered;
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest writer");
+      throw new UncheckedIOException("Failed to close manifest writer", e);
     }
   }
 

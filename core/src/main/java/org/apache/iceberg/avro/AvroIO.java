@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -30,7 +31,6 @@ import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 
@@ -195,7 +195,8 @@ class AvroIO {
       return totalRows;
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read stream while finding starting row position");
+      throw new UncheckedIOException(
+          "Failed to read stream while finding starting row position", e);
     }
   }
 }

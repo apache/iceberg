@@ -48,7 +48,6 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -213,7 +212,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog
         }
       }
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to list tables under: %s", namespace);
+      throw new UncheckedIOException(
+          String.format("Failed to list tables under: %s", namespace), ioe);
     }
 
     return Lists.newArrayList(tblIdents);
@@ -266,7 +266,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
         return fs.delete(tablePath, true /* recursive */);
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to delete file: %s", tablePath);
+      throw new UncheckedIOException(String.format("Failed to delete file: %s", tablePath), e);
     }
   }
 
@@ -294,7 +294,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
       fs.mkdirs(nsPath);
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Create namespace failed: %s", namespace);
+      throw new UncheckedIOException(String.format("Create namespace failed: %s", namespace), e);
     }
   }
 
@@ -321,7 +321,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog
       }
       return namespaces;
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to list namespace under: %s", namespace);
+      throw new UncheckedIOException(
+          String.format("Failed to list namespace under: %s", namespace), ioe);
     }
   }
 
@@ -346,7 +347,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
 
       return fs.delete(nsPath, false /* recursive */);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Namespace delete failed: %s", namespace);
+      throw new UncheckedIOException(String.format("Namespace delete failed: %s", namespace), e);
     }
   }
 

@@ -19,9 +19,9 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -45,8 +45,8 @@ class ManifestLists {
       return Lists.newLinkedList(files);
 
     } catch (IOException e) {
-      throw new RuntimeIOException(
-          e, "Cannot read manifest list file: %s", manifestList.location());
+      throw new UncheckedIOException(
+          String.format("Cannot read manifest list file: %s", manifestList.location()), e);
     }
   }
 
