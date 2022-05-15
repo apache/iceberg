@@ -29,6 +29,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -71,6 +72,24 @@ class RESTUtil {
     });
 
     return result;
+  }
+
+  private static final Joiner.MapJoiner FORM_JOINER = Joiner.on("&").withKeyValueSeparator("=");
+
+  /**
+   * Encodes a map of form data as application/x-www-form-urlencoded.
+   * <p>
+   * This encodes the form with pairs separated by &amp; and keys separated from values by =.
+   *
+   * @param formData a map of form data
+   * @return a String of encoded form data
+   */
+  public static String encodeFormData(Map<?, ?> formData) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+    formData.forEach((key, value) -> builder.put(
+        encodeString(String.valueOf(key)),
+        encodeString(String.valueOf(value))));
+    return FORM_JOINER.join(builder.build());
   }
 
   /**

@@ -287,6 +287,12 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
+  public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
+                                             Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.POST, path, formData, responseType, errorHandler);
+  }
+
+  @Override
   public void close() throws IOException {
     // The calling test is responsible for closing the underlying catalog backing this REST catalog
     // so that the underlying backend catalog is not closed and reopened during the REST catalog's

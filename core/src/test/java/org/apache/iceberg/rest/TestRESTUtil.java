@@ -104,4 +104,25 @@ public class TestRESTUtil {
         .isThrownBy(() -> RESTUtil.decodeNamespace(null))
         .withMessage("Invalid namespace: null");
   }
+
+  @Test
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
+  public void testOAuth2URLEncoding() {
+    // from OAuth2, RFC 6749 Appendix B.
+    String utf8 = "\u0020\u0025\u0026\u002B\u00A3\u20AC";
+    String expected = "+%25%26%2B%C2%A3%E2%82%AC";
+
+    Assertions.assertThat(RESTUtil.encodeString(utf8)).isEqualTo(expected);
+  }
+
+  @Test
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
+  public void testOAuth2FormDataEncoding() {
+    String utf8 = "\u0020\u0025\u0026\u002B\u00A3\u20AC";
+    String asString = "+%25%26%2B%C2%A3%E2%82%AC";
+    Map<String, String> formData = ImmutableMap.of("client_id", "12345", "client_secret", utf8);
+    String expected = "client_id=12345&client_secret=" + asString;
+
+    Assertions.assertThat(RESTUtil.encodeFormData(formData)).isEqualTo(expected);
+  }
 }

@@ -151,15 +151,15 @@ public class HTTPClient implements RESTClient {
 
     String fullUri = String.format("%s/%s", uri, path);
     HttpUriRequestBase request = new HttpUriRequestBase(method.name(), URI.create(fullUri));
-    addRequestHeaders(request);
 
-    if (requestBody != null) {
-      try {
-        StringEntity stringEntity = new StringEntity(mapper.writeValueAsString(requestBody));
-        request.setEntity(stringEntity);
-      } catch (JsonProcessingException e) {
-        throw new RESTException(e, "Failed to write request body: %s", requestBody);
-      }
+    if (requestBody instanceof Map) {
+      // encode maps as form data, application/x-www-form-urlencoded
+      addRequestHeaders(request, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
+      request.setEntity(toFormEncoding((Map<?, ?>) requestBody));
+    } else if (requestBody != null) {
+      // other request bodies are serialized as JSON, application/json
+      addRequestHeaders(request, ContentType.APPLICATION_JSON.getMimeType());
+      request.setEntity(toJson(requestBody));
     }
 
     try (CloseableHttpResponse response = httpClient.execute(request)) {
@@ -217,10 +217,16 @@ public class HTTPClient implements RESTClient {
     return execute(Method.DELETE, path, null, responseType, errorHandler);
   }
 
-  private void addRequestHeaders(HttpUriRequest request) {
+  @Override
+  public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
+                                             Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.POST, path, formData, responseType, errorHandler);
+  }
+
+  private void addRequestHeaders(HttpUriRequest request, String bodyMimeType) {
     request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
     // Many systems require that content type is set regardless and will fail, even on an empty bodied request.
-    request.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+    request.setHeader(HttpHeaders.CONTENT_TYPE, bodyMimeType);
     additionalHeaders.forEach(request::setHeader);
   }
 
@@ -271,5 +277,17 @@ public class HTTPClient implements RESTClient {
     public HTTPClient build() {
       return new HTTPClient(uri, httpClient, additionalHeaders);
     }
+  }
+
+  private StringEntity toJson(Object requestBody) {
+    try {
+      return new StringEntity(mapper.writeValueAsString(requestBody));
+    } catch (JsonProcessingException e) {
+      throw new RESTException(e, "Failed to write request body: %s", requestBody);
+    }
+  }
+
+  private StringEntity toFormEncoding(Map<?, ?> formData) {
+    return new StringEntity(RESTUtil.encodeFormData(formData));
   }
 }
