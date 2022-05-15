@@ -42,7 +42,7 @@ class Singleton:
         return cls._instance
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class IcebergType:
     """Base type for all Iceberg Types
 
@@ -75,7 +75,7 @@ class PrimitiveType(IcebergType):
     """
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class FixedType(PrimitiveType):
     """A fixed data type in Iceberg.
 
@@ -123,7 +123,7 @@ class DecimalType(PrimitiveType):
         object.__setattr__(self, "type_string", f"decimal({self.precision}, {self.scale})")
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class NestedField(IcebergType):
     """Represents a field of a struct, a map key, a map value, or a list element.
 
@@ -180,7 +180,7 @@ class NestedField(IcebergType):
         return self.field_type
 
 
-@dataclass(frozen=True, eq=True, repr=True, init=False)
+@dataclass(frozen=True, init=False)
 class StructType(IcebergType):
     """A struct type in Iceberg
 
@@ -209,7 +209,7 @@ class StructType(IcebergType):
         object.__setattr__(self, "type_string", f"struct<{', '.join(map(str, self.fields))}>")
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class ListType(IcebergType):
     """A list type in Iceberg
 
@@ -249,7 +249,7 @@ class ListType(IcebergType):
         )
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class MapType(IcebergType):
     """A map type in Iceberg
 
@@ -297,7 +297,7 @@ class MapType(IcebergType):
         )
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class BooleanType(PrimitiveType, Singleton):
     """A boolean data type in Iceberg can be represented using an instance of this class.
 
@@ -312,7 +312,7 @@ class BooleanType(PrimitiveType, Singleton):
     type_string = "boolean"
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class IntegerType(PrimitiveType, Singleton):
     """An Integer data type in Iceberg can be represented using an instance of this class. Integers in Iceberg are
     32-bit signed and can be promoted to Longs.
@@ -335,7 +335,7 @@ class IntegerType(PrimitiveType, Singleton):
     min: ClassVar[int] = -2147483648
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class LongType(PrimitiveType, Singleton):
     """A Long data type in Iceberg can be represented using an instance of this class. Longs in Iceberg are
     64-bit signed integers.
@@ -362,7 +362,7 @@ class LongType(PrimitiveType, Singleton):
     min: ClassVar[int] = -9223372036854775808
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class FloatType(PrimitiveType, Singleton):
     """A Float data type in Iceberg can be represented using an instance of this class. Floats in Iceberg are
     32-bit IEEE 754 floating points and can be promoted to Doubles.
@@ -387,7 +387,7 @@ class FloatType(PrimitiveType, Singleton):
     min: ClassVar[float] = -3.4028235e38
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class DoubleType(PrimitiveType, Singleton):
     """A Double data type in Iceberg can be represented using an instance of this class. Doubles in Iceberg are
     64-bit IEEE 754 floating points.
@@ -403,7 +403,7 @@ class DoubleType(PrimitiveType, Singleton):
     type_string = "double"
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class DateType(PrimitiveType, Singleton):
     """A Date data type in Iceberg can be represented using an instance of this class. Dates in Iceberg are
     calendar dates without a timezone or time.
@@ -419,7 +419,7 @@ class DateType(PrimitiveType, Singleton):
     type_string = "date"
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class TimeType(PrimitiveType, Singleton):
     """A Time data type in Iceberg can be represented using an instance of this class. Times in Iceberg
     have microsecond precision and are a time of day without a date or timezone.
@@ -435,7 +435,7 @@ class TimeType(PrimitiveType, Singleton):
     type_string = "time"
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class TimestampType(PrimitiveType, Singleton):
     """A Timestamp data type in Iceberg can be represented using an instance of this class. Timestamps in
     Iceberg have microsecond precision and include a date and a time of day without a timezone.
@@ -452,7 +452,7 @@ class TimestampType(PrimitiveType, Singleton):
     repr_string = "TimestampType()"
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class TimestamptzType(PrimitiveType, Singleton):
     """A Timestamptz data type in Iceberg can be represented using an instance of this class. Timestamptzs in
     Iceberg are stored as UTC and include a date and a time of day with a timezone.
@@ -468,7 +468,7 @@ class TimestamptzType(PrimitiveType, Singleton):
     type_string = "timestamptz"
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class StringType(PrimitiveType, Singleton):
     """A String data type in Iceberg can be represented using an instance of this class. Strings in
     Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
@@ -484,7 +484,7 @@ class StringType(PrimitiveType, Singleton):
     type_string = "string"
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class UUIDType(PrimitiveType, Singleton):
     """A UUID data type in Iceberg can be represented using an instance of this class. UUIDs in
     Iceberg are universally unique identifiers.
@@ -500,7 +500,7 @@ class UUIDType(PrimitiveType, Singleton):
     type_string = "uuid"
 
 
-@dataclass(frozen=True, eq=True, repr=True)
+@dataclass(frozen=True)
 class BinaryType(PrimitiveType, Singleton):
     """A Binary data type in Iceberg can be represented using an instance of this class. Binaries in
     Iceberg are arbitrary-length byte arrays.
