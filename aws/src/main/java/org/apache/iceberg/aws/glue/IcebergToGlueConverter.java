@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
@@ -49,7 +48,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
-import software.amazon.awssdk.services.glue.model.Order;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
@@ -211,7 +209,6 @@ class IcebergToGlueConverter {
           .storageDescriptor(storageDescriptor
               .location(metadata.location())
               .columns(toColumns(metadata))
-              .sortColumns(toSortOrder(metadata))
               .build())
           .partitionKeys(toPartitionColumns(metadata));
     } catch (RuntimeException e) {
@@ -310,17 +307,9 @@ class IcebergToGlueConverter {
   private static List<Column> toPartitionColumns(TableMetadata metadata) {
     return metadata.spec().fields().stream()
         .map(f -> Column.builder()
-            .name(f.toString())
+            .name(f.transform() + "(" + f.name() + ")")
             .type(toTypeString(f.transform().getResultType(metadata.schema().findField(f.sourceId()).type())))
-            .build())
-        .collect(Collectors.toList());
-  }
-
-  private static List<Order> toSortOrder(TableMetadata metadata) {
-    return metadata.sortOrder().fields().stream()
-        .map(sortField -> Order.builder()
-            .sortOrder(sortField.direction() == SortDirection.ASC ? 1 : 0)
-            .column(sortField.toString())
+            .comment("fieldId: " + f.fieldId() + ", sourceId: " + f.sourceId() + ", transform: " + f.transform())
             .build())
         .collect(Collectors.toList());
   }

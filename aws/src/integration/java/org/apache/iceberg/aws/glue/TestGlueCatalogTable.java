@@ -78,6 +78,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Assert.assertEquals("additionalLocations should match",
         tableLocationProperties.values().stream().sorted().collect(Collectors.toList()),
         response.table().storageDescriptor().additionalLocations().stream().sorted().collect(Collectors.toList()));
+    Assert.assertEquals(partitionSpec.fields().size(), response.table().partitionKeys().size());
     // verify metadata file exists in S3
     String metaLocation = response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
     String key = metaLocation.split(testBucketName, -1)[1].substring(1);
