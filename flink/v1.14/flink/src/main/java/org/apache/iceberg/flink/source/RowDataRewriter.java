@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
@@ -30,11 +29,9 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
@@ -68,15 +65,11 @@ public class RowDataRewriter {
     this.nameMapping = PropertyUtil.propertyAsString(table.properties(), DEFAULT_NAME_MAPPING, null);
     this.tableName = table.name();
 
-    String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
-        TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-    FileFormat format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     this.taskWriterFactory = new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table),
         flinkSchema,
         Long.MAX_VALUE,
-        format,
         null,
         false);
   }

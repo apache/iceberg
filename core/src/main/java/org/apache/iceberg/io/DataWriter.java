@@ -39,6 +39,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   private final ByteBuffer keyMetadata;
   private final SortOrder sortOrder;
   private DataFile dataFile = null;
+  private long recordCount = 0;
 
   public DataWriter(FileAppender<T> appender, FileFormat format, String location,
                     PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata) {
@@ -59,6 +60,17 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   @Override
   public void write(T row) {
     appender.add(row);
+    recordCount += 1;
+  }
+
+  @Override
+  public CharSequence location() {
+    return location;
+  }
+
+  @Override
+  public long recordCount() {
+    return recordCount;
   }
 
   /**

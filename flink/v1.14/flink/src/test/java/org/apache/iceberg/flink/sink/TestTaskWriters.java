@@ -88,6 +88,7 @@ public class TestTaskWriters {
     // Construct the iceberg table with the specified file format.
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     table = SimpleDataUtil.createTable(path, props, partitioned);
+    table.updateProperties().defaultFormat(format).commit();
   }
 
   @Test
@@ -235,7 +236,7 @@ public class TestTaskWriters {
   private TaskWriter<RowData> createTaskWriter(long targetFileSize) {
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table), (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(),
-        targetFileSize, format, null, false);
+        targetFileSize, null, false);
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();
   }

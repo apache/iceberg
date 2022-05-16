@@ -43,6 +43,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   private final int[] equalityFieldIds;
   private final SortOrder sortOrder;
   private DeleteFile deleteFile = null;
+  private long recordCount = 0;
 
   public EqualityDeleteWriter(FileAppender<T> appender, FileFormat format, String location,
                               PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
@@ -60,6 +61,17 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   @Override
   public void write(T row) {
     appender.add(row);
+    recordCount += 1;
+  }
+
+  @Override
+  public CharSequence location() {
+    return location;
+  }
+
+  @Override
+  public long recordCount() {
+    return recordCount;
   }
 
   /**
@@ -69,7 +81,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
    */
   @Deprecated
   public void deleteAll(Iterable<T> rows) {
-    appender.addAll(rows);
+    rows.forEach(this::write);
   }
 
   /**
@@ -79,7 +91,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
    */
   @Deprecated
   public void delete(T row) {
-    appender.add(row);
+    write(row);
   }
 
   @Override

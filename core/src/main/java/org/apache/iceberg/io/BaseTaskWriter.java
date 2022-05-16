@@ -32,7 +32,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -130,7 +129,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        posDeleteWriter.delete(previous.path(), previous.rowOffset(), null);
       }
 
       dataWriter.write(row);
@@ -146,7 +145,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        posDeleteWriter.delete(previous.path(), previous.rowOffset(), null);
         return true;
       }
 
@@ -202,28 +201,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
         posDeleteWriter = null;
       }
-    }
-  }
-
-  private static class PathOffset {
-    private final CharSequence path;
-    private final long rowOffset;
-
-    private PathOffset(CharSequence path, long rowOffset) {
-      this.path = path;
-      this.rowOffset = rowOffset;
-    }
-
-    private static PathOffset of(CharSequence path, long rowOffset) {
-      return new PathOffset(path, rowOffset);
-    }
-
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(this)
-          .add("path", path)
-          .add("row_offset", rowOffset)
-          .toString();
     }
   }
 

@@ -43,6 +43,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   private final PositionDelete<T> delete;
   private final CharSequenceSet referencedDataFiles;
   private DeleteFile deleteFile = null;
+  private long recordCount = 0;
 
   public PositionDeleteWriter(FileAppender<StructLike> appender, FileFormat format, String location,
                               PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata) {
@@ -60,6 +61,17 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   public void write(PositionDelete<T> positionDelete) {
     referencedDataFiles.add(positionDelete.path());
     appender.add(positionDelete);
+    recordCount += 1;
+  }
+
+  @Override
+  public CharSequence location() {
+    return location;
+  }
+
+  @Override
+  public long recordCount() {
+    return recordCount;
   }
 
   /**
@@ -69,7 +81,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
    */
   @Deprecated
   public void delete(CharSequence path, long pos) {
-    delete(path, pos, null);
+    write(delete.set(path, pos, null));
   }
 
   /**
@@ -79,8 +91,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
    */
   @Deprecated
   public void delete(CharSequence path, long pos, T row) {
-    referencedDataFiles.add(path);
-    appender.add(delete.set(path, pos, row));
+    write(delete.set(path, pos, row));
   }
 
   @Override

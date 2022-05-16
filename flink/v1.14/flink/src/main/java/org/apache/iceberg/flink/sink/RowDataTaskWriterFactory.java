@@ -19,67 +19,95 @@
 
 package org.apache.iceberg.flink.sink;
 
+import java.io.IOException;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.flink.data.RowDataProjection;
+import org.apache.iceberg.io.BaseEqualityDeltaWriter;
+import org.apache.iceberg.io.ClusteredDataWriter;
+import org.apache.iceberg.io.ClusteredEqualityDeleteWriter;
+import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
+import org.apache.iceberg.io.DataWriteResult;
+import org.apache.iceberg.io.DeleteWriteResult;
+import org.apache.iceberg.io.EqualityDeltaWriter;
+import org.apache.iceberg.io.FanoutDataWriter;
+import org.apache.iceberg.io.FanoutEqualityDeleteWriter;
+import org.apache.iceberg.io.FanoutPositionDeleteWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.PartitionedFanoutWriter;
+import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.io.UnpartitionedWriter;
+import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.Tasks;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Table table;
-  private final Schema schema;
   private final RowType flinkSchema;
+  private final Schema schema;
   private final PartitionSpec spec;
   private final FileIO io;
-  private final long targetFileSizeBytes;
-  private final FileFormat format;
-  private final List<Integer> equalityFieldIds;
-  private final boolean upsert;
-  private final FileAppenderFactory<RowData> appenderFactory;
 
+  private final Schema deleteSchema;
+
+  private final long targetFileSizeBytes;
+  private final boolean upsert;
+
+  private final FlinkFileWriterFactory fileWriterFactory;
   private transient OutputFileFactory outputFileFactory;
 
-  public RowDataTaskWriterFactory(Table table,
-                                  RowType flinkSchema,
-                                  long targetFileSizeBytes,
-                                  FileFormat format,
-                                  List<Integer> equalityFieldIds,
-                                  boolean upsert) {
+  public RowDataTaskWriterFactory(
+      Table table,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      List<Integer> equalityFieldIds,
+      boolean upsert) {
     this.table = table;
-    this.schema = table.schema();
     this.flinkSchema = flinkSchema;
+    this.schema = table.schema();
     this.spec = table.spec();
     this.io = table.io();
+
     this.targetFileSizeBytes = targetFileSizeBytes;
-    this.format = format;
-    this.equalityFieldIds = equalityFieldIds;
     this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
+      this.deleteSchema = null;
+      this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
+          .dataSchema(schema)
+          .dataFlinkType(flinkSchema)
+          .build();
     } else if (upsert) {
       // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of the inserted row
       // may differ from the deleted row other than the primary key fields, and the delete file must contain values
       // that are correct for the deleted row. Therefore, only write the equality delete fields.
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
-          ArrayUtil.toIntArray(equalityFieldIds), TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)), null);
+      this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
+      this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
+          .dataSchema(schema)
+          .dataFlinkType(flinkSchema)
+          .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+          .equalityDeleteRowSchema(deleteSchema)
+          .build();
     } else {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
-          ArrayUtil.toIntArray(equalityFieldIds), schema, null);
+      this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
+      this.fileWriterFactory = FlinkFileWriterFactory.builderFor(table)
+          .dataSchema(schema)
+          .dataFlinkType(flinkSchema)
+          .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+          .equalityDeleteRowSchema(schema)
+          .build();
     }
   }
 
@@ -90,46 +118,203 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   @Override
   public TaskWriter<RowData> create() {
-    Preconditions.checkNotNull(outputFileFactory,
+    Preconditions.checkNotNull(
+        outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
-    if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      // Initialize a task writer to write INSERT only.
-      if (spec.isUnpartitioned()) {
-        return new UnpartitionedWriter<>(spec, format, appenderFactory, outputFileFactory, io, targetFileSizeBytes);
-      } else {
-        return new RowDataPartitionedFanoutWriter(spec, format, appenderFactory, outputFileFactory,
-            io, targetFileSizeBytes, schema, flinkSchema);
-      }
+    if (deleteSchema != null) {
+      return new DeltaWriter(spec.isPartitioned());
     } else {
-      // Initialize a task writer to write both INSERT and equality DELETE.
-      if (spec.isUnpartitioned()) {
-        return new UnpartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert);
-      } else {
-        return new PartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert);
-      }
+      return new InsertOnlyWriter(spec.isPartitioned());
     }
   }
 
-  private static class RowDataPartitionedFanoutWriter extends PartitionedFanoutWriter<RowData> {
+  private static <T extends ContentFile<T>> void cleanFiles(FileIO io, T[] files) {
+    Tasks.foreach(files)
+        .throwFailureWhenFinished()
+        .noRetry()
+        .run(file -> io.deleteFile(file.path().toString()));
+  }
+
+  private abstract class FlinkBaseWriter implements TaskWriter<RowData> {
+    private final WriteResult.Builder writeResultBuilder = WriteResult.builder();
+
+    @Override
+    public void write(RowData row) throws IOException {
+      switch (row.getRowKind()) {
+        case INSERT:
+        case UPDATE_AFTER:
+          if (upsert) {
+            deleteKey(row);
+          }
+          insert(row);
+          break;
+
+        case UPDATE_BEFORE:
+          if (upsert) {
+            // Skip to write delete in upsert mode because UPDATE_AFTER will insert after delete.
+            break;
+          }
+          delete(row);
+          break;
+
+        case DELETE:
+          delete(row);
+          break;
+
+        default:
+          throw new UnsupportedOperationException("Unknown row kind: " + row.getRowKind());
+      }
+    }
+
+    protected abstract void delete(RowData row);
+
+    protected abstract void deleteKey(RowData row);
+
+    protected abstract void insert(RowData row);
+
+    protected void aggregateResult(DataWriteResult result) {
+      writeResultBuilder.addDataFiles(result.dataFiles());
+    }
+
+    protected void aggregateResult(WriteResult result) {
+      writeResultBuilder.add(result);
+    }
+
+    @Override
+    public void abort() throws IOException {
+      close();
+
+      WriteResult result = writeResultBuilder.build();
+      cleanFiles(io, result.dataFiles());
+      cleanFiles(io, result.deleteFiles());
+    }
+
+    @Override
+    public WriteResult complete() throws IOException {
+      close();
+
+      return writeResultBuilder.build();
+    }
+  }
+
+  private PartitioningWriter<RowData, DataWriteResult> newDataWriter(boolean fanoutEnabled) {
+    if (fanoutEnabled) {
+      return new FanoutDataWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
+    } else {
+      return new ClusteredDataWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
+    }
+  }
+
+  private PartitioningWriter<RowData, DeleteWriteResult> newEqualityWriter(boolean fanoutEnabled) {
+    if (fanoutEnabled) {
+      return new FanoutEqualityDeleteWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
+    } else {
+      return new ClusteredEqualityDeleteWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
+    }
+  }
+
+  private PartitioningWriter<PositionDelete<RowData>, DeleteWriteResult> newPositionWriter(boolean fanoutEnabled) {
+    if (fanoutEnabled) {
+      return new FanoutPositionDeleteWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
+    } else {
+      return new ClusteredPositionDeleteWriter<>(fileWriterFactory, outputFileFactory, io, targetFileSizeBytes);
+    }
+  }
+
+  private class InsertOnlyWriter extends FlinkBaseWriter {
 
     private final PartitionKey partitionKey;
     private final RowDataWrapper rowDataWrapper;
 
-    RowDataPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
-                                   OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
-                                   RowType flinkSchema) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    private final PartitioningWriter<RowData, DataWriteResult> delegate;
+    private boolean closed = false;
+
+    private InsertOnlyWriter(boolean fanoutEnabled) {
       this.partitionKey = new PartitionKey(spec, schema);
       this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+
+      this.delegate = newDataWriter(fanoutEnabled);
     }
 
     @Override
-    protected PartitionKey partition(RowData row) {
+    protected void delete(RowData row) {
+      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement delete.");
+    }
+
+    @Override
+    protected void deleteKey(RowData key) {
+      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement deleteKey.");
+    }
+
+    @Override
+    protected void insert(RowData row) {
       partitionKey.partition(rowDataWrapper.wrap(row));
-      return partitionKey;
+      delegate.write(row, spec, partitionKey);
+    }
+
+    @Override
+    public void close() throws IOException {
+      if (!closed) {
+        delegate.close();
+        aggregateResult(delegate.result());
+
+        closed = true;
+      }
+    }
+  }
+
+  private class DeltaWriter extends FlinkBaseWriter {
+
+    private final PartitionKey partitionKey;
+    private final RowDataWrapper rowDataWrapper;
+    private final RowDataWrapper keyWrapper;
+    private final RowDataProjection keyProjection;
+
+    private final EqualityDeltaWriter<RowData> delegate;
+    private boolean closed = false;
+
+    private DeltaWriter(boolean fanoutEnabled) {
+      this.partitionKey = new PartitionKey(spec, schema);
+      this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+      this.keyWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(deleteSchema), deleteSchema.asStruct());
+      this.keyProjection = RowDataProjection.create(schema, deleteSchema);
+
+      this.delegate = new BaseEqualityDeltaWriter<>(
+          newDataWriter(fanoutEnabled),
+          newEqualityWriter(fanoutEnabled),
+          newPositionWriter(fanoutEnabled),
+          schema, deleteSchema,
+          rowDataWrapper::wrap,
+          keyWrapper::wrap);
+    }
+
+    @Override
+    protected void delete(RowData row) {
+      partitionKey.partition(rowDataWrapper.wrap(row));
+      delegate.delete(row, spec, partitionKey);
+    }
+
+    @Override
+    protected void deleteKey(RowData row) {
+      partitionKey.partition(rowDataWrapper.wrap(row));
+      delegate.deleteKey(keyProjection.wrap(row), spec, partitionKey);
+    }
+
+    @Override
+    protected void insert(RowData row) {
+      partitionKey.partition(rowDataWrapper.wrap(row));
+      delegate.insert(row, spec, partitionKey);
+    }
+
+    @Override
+    public void close() throws IOException {
+      if (!closed) {
+        delegate.close();
+        aggregateResult(delegate.result());
+
+        this.closed = true;
+      }
     }
   }
 }

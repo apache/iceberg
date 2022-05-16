@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.io;
 
+import java.io.Serializable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -28,7 +29,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 /**
  * A factory for creating data and delete writers.
  */
-public interface FileWriterFactory<T> {
+public interface FileWriterFactory<T> extends Serializable {
 
   /**
    * Creates a new {@link DataWriter}.
