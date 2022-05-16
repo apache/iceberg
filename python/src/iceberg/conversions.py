@@ -99,7 +99,7 @@ def _(primitive_type, value_str: str) -> int:
     Raises:
         ValueError: If the scale/exponent is not 0
     """
-    _, digits, exponent = Decimal(value_str).as_tuple()
+    _, _, exponent = Decimal(value_str).as_tuple()
     if exponent != 0:  # Raise if there are digits to the right of the decimal
         raise ValueError(f"Cannot convert partition value, value cannot have fractional digits for {primitive_type} partition")
     return int(float(value_str))
@@ -216,7 +216,7 @@ def _(primitive_type, value: Decimal) -> bytes:
     Returns:
         bytes: The byte representation of `value`
     """
-    sign, digits, exponent = value.as_tuple()
+    _, digits, exponent = value.as_tuple()
 
     if -exponent != primitive_type.scale:
         raise ValueError(f"Cannot serialize value, scale of value does not match type {primitive_type}: {-exponent}")

@@ -66,8 +66,8 @@ class Operation(Enum):
 
         try:
             return OPERATION_NEGATIONS[self]
-        except KeyError:
-            raise ValueError(f"No negation defined for operation {self}")
+        except KeyError as e:
+            raise ValueError(f"No negation defined for operation {self}") from e
 
 
 OPERATION_NEGATIONS = {

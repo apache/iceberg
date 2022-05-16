@@ -72,7 +72,7 @@ class PyArrowFile(InputFile, OutputFile):
             file_info = self._filesystem.get_file_info(self._path)
         except OSError as e:
             if e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot get file info, access denied: {self.location}")
+                raise PermissionError(f"Cannot get file info, access denied: {self.location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
 
         if file_info.type == FileType.NotFound:
@@ -111,9 +111,9 @@ class PyArrowFile(InputFile, OutputFile):
             raise
         except OSError as e:
             if e.errno == 2 or "Path does not exist" in str(e):
-                raise FileNotFoundError(f"Cannot open file, does not exist: {self.location}")
+                raise FileNotFoundError(f"Cannot open file, does not exist: {self.location}") from e
             elif e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot open file, access denied: {self.location}")
+                raise PermissionError(f"Cannot open file, access denied: {self.location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return input_file
 
@@ -144,7 +144,7 @@ class PyArrowFile(InputFile, OutputFile):
             raise
         except OSError as e:
             if e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot create file, access denied: {self.location}")
+                raise PermissionError(f"Cannot create file, access denied: {self.location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return output_file
 
@@ -204,7 +204,7 @@ class PyArrowFileIO(FileIO):
             raise
         except OSError as e:
             if e.errno == 2 or "Path does not exist" in str(e):
-                raise FileNotFoundError(f"Cannot delete file, does not exist: {location}")
+                raise FileNotFoundError(f"Cannot delete file, does not exist: {location}") from e
             elif e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot delete file, access denied: {location}")
+                raise PermissionError(f"Cannot delete file, access denied: {location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
