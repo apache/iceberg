@@ -276,6 +276,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testPosDeletesWithDeletedColumn() throws IOException {
+    if (vectorized) {
+      return;
+    }
+
     // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all deleted.
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 0L), // id = 29
@@ -300,6 +304,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testEqualityDeleteWithDeletedColumn() throws IOException {
+    if (vectorized) {
+      return;
+    }
+
     String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
@@ -324,6 +332,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testMixedPosAndEqDeletesWithDeletedColumn() throws IOException {
+    if (vectorized) {
+      return;
+    }
+
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
     List<Record> dataDeletes = Lists.newArrayList(
@@ -357,6 +369,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testFilterOnDeletedMetadataColumn() throws IOException {
+    if (vectorized) {
+      return;
+    }
+
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 0L), // id = 29
         Pair.of(dataFile.path(), 1L), // id = 43
