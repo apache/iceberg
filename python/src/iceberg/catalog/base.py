@@ -149,7 +149,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Tuple[Identifier, str]]:
+    def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         """List tables under the given namespace in the catalog.
 
         If namespace not provided, will list all tables in the catalog.
