@@ -29,8 +29,15 @@ Example:
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
+import sys
 from dataclasses import dataclass, field
 from typing import ClassVar, Dict, List, Optional, Tuple
+
+if sys.version_info >= (3, 8):
+    from functools import cached_property
+else:
+    # In the case of <= Python 3.7
+    from cached_property import cached_property
 
 
 class Singleton:
@@ -53,12 +60,12 @@ class IcebergType:
         'IcebergType()'
     """
 
-    type_string: str = field(init=False, repr=False)
-
-    def __str__(self):
-        if hasattr(self, "type_string"):
-            return self.type_string
+    @property
+    def string_type(self) -> str:
         return self.__repr__()
+
+    def __str__(self) -> str:
+        return self.string_type
 
     @property
     def is_primitive(self) -> bool:
@@ -94,8 +101,9 @@ class FixedType(PrimitiveType):
         cls._instances[length] = cls._instances.get(length) or object.__new__(cls)
         return cls._instances[length]
 
-    def __post_init__(self):
-        object.__setattr__(self, "type_string", f"fixed[{self.length}]")
+    @property
+    def string_type(self) -> str:
+        return f"fixed[{self.length}]"
 
 
 @dataclass(frozen=True, eq=True)
@@ -119,8 +127,9 @@ class DecimalType(PrimitiveType):
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
-    def __post_init__(self):
-        object.__setattr__(self, "type_string", f"decimal({self.precision}, {self.scale})")
+    @property
+    def string_type(self) -> str:
+        return f"decimal({self.precision}, {self.scale})"
 
 
 @dataclass(frozen=True)
@@ -163,15 +172,12 @@ class NestedField(IcebergType):
     def is_required(self) -> bool:
         return not self.is_optional
 
-    def __post_init__(self):
-        object.__setattr__(
-            self,
-            "type_string",
-            (
-                f"{self.field_id}: {self.name}: {'optional' if self.is_optional else 'required'} {self.type}"
-                if self.doc is None
-                else f" ({self.doc})"
-            ),
+    @property
+    def string_type(self) -> str:
+        return (
+            f"{self.field_id}: {self.name}: {'optional' if self.is_optional else 'required'} {self.type}"
+            if self.doc is None
+            else f" ({self.doc})"
         )
 
     # Alias for field_type
@@ -206,7 +212,10 @@ class StructType(IcebergType):
         if "fields" in kwargs:
             fields = kwargs["fields"]
         object.__setattr__(self, "fields", fields)
-        object.__setattr__(self, "type_string", f"struct<{', '.join(map(str, self.fields))}>")
+
+    @cached_property
+    def string_type(self) -> str:
+        return f"struct<{', '.join(map(str, self.fields))}>"
 
 
 @dataclass(frozen=True)
@@ -236,7 +245,6 @@ class ListType(IcebergType):
         return cls._instances[key]
 
     def __post_init__(self):
-        object.__setattr__(self, "type_string", f"list<{self.element_type}>")
         object.__setattr__(
             self,
             "element",
@@ -247,6 +255,10 @@ class ListType(IcebergType):
                 field_type=self.element_type,
             ),
         )
+
+    @property
+    def string_type(self) -> str:
+        return f"list<{self.element_type}>"
 
 
 @dataclass(frozen=True)
@@ -266,6 +278,7 @@ class MapType(IcebergType):
     key: NestedField = field(init=False, repr=False)
     value: NestedField = field(init=False, repr=False)
 
+    # _type_string_def = lambda self: f"map<{self.key_type}, {self.value_type}>"
     _instances: ClassVar[Dict[Tuple[int, IcebergType, int, IcebergType, bool], "MapType"]] = {}
 
     def __new__(
@@ -281,7 +294,6 @@ class MapType(IcebergType):
         return cls._instances[impl_key]
 
     def __post_init__(self):
-        object.__setattr__(self, "type_string", f"map<{self.key_type}, {self.value_type}>")
         object.__setattr__(
             self, "key", NestedField(name="key", field_id=self.key_id, field_type=self.key_type, is_optional=False)
         )
@@ -309,7 +321,9 @@ class BooleanType(PrimitiveType, Singleton):
         BooleanType()
     """
 
-    type_string = "boolean"
+    @property
+    def string_type(self) -> str:
+        return "boolean"
 
 
 @dataclass(frozen=True)
@@ -329,10 +343,12 @@ class IntegerType(PrimitiveType, Singleton):
           in Java (returns `-2147483648`)
     """
 
-    type_string = "int"
-
     max: ClassVar[int] = 2147483647
     min: ClassVar[int] = -2147483648
+
+    @property
+    def string_type(self) -> str:
+        return "int"
 
 
 @dataclass(frozen=True)
@@ -356,10 +372,12 @@ class LongType(PrimitiveType, Singleton):
           in Java (returns `-9223372036854775808`)
     """
 
-    type_string = "long"
-
     max: ClassVar[int] = 9223372036854775807
     min: ClassVar[int] = -9223372036854775808
+
+    @property
+    def string_type(self) -> str:
+        return "long"
 
 
 @dataclass(frozen=True)
@@ -381,10 +399,12 @@ class FloatType(PrimitiveType, Singleton):
           in Java (returns `-3.4028235e38`)
     """
 
-    type_string = "float"
-
     max: ClassVar[float] = 3.4028235e38
     min: ClassVar[float] = -3.4028235e38
+
+    @property
+    def string_type(self) -> str:
+        return "float"
 
 
 @dataclass(frozen=True)
@@ -400,7 +420,9 @@ class DoubleType(PrimitiveType, Singleton):
         DoubleType()
     """
 
-    type_string = "double"
+    @property
+    def string_type(self) -> str:
+        return "double"
 
 
 @dataclass(frozen=True)
@@ -416,7 +438,9 @@ class DateType(PrimitiveType, Singleton):
         DateType()
     """
 
-    type_string = "date"
+    @property
+    def string_type(self) -> str:
+        return "date"
 
 
 @dataclass(frozen=True)
@@ -432,7 +456,9 @@ class TimeType(PrimitiveType, Singleton):
         TimeType()
     """
 
-    type_string = "time"
+    @property
+    def string_type(self) -> str:
+        return "time"
 
 
 @dataclass(frozen=True)
@@ -448,8 +474,9 @@ class TimestampType(PrimitiveType, Singleton):
         TimestampType()
     """
 
-    type_string = "timestamp"
-    repr_string = "TimestampType()"
+    @property
+    def string_type(self) -> str:
+        return "timestamp"
 
 
 @dataclass(frozen=True)
@@ -465,7 +492,9 @@ class TimestamptzType(PrimitiveType, Singleton):
         TimestamptzType()
     """
 
-    type_string = "timestamptz"
+    @property
+    def string_type(self) -> str:
+        return "timestamptz"
 
 
 @dataclass(frozen=True)
@@ -481,7 +510,9 @@ class StringType(PrimitiveType, Singleton):
         StringType()
     """
 
-    type_string = "string"
+    @property
+    def string_type(self) -> str:
+        return "string"
 
 
 @dataclass(frozen=True)
@@ -497,7 +528,9 @@ class UUIDType(PrimitiveType, Singleton):
         UUIDType()
     """
 
-    type_string = "uuid"
+    @property
+    def string_type(self) -> str:
+        return "uuid"
 
 
 @dataclass(frozen=True)
@@ -513,4 +546,6 @@ class BinaryType(PrimitiveType, Singleton):
         BinaryType()
     """
 
-    type_string = "binary"
+    @property
+    def string_type(self) -> str:
+        return "binary"

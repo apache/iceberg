@@ -26,10 +26,13 @@ FileInfo
 filesystem
 fs
 func
+IcebergType
 io
 NativeFile
+NestedField
 nullability
 pragma
+PrimitiveType
 pyarrow
 repr
 schemas
@@ -43,3 +46,4 @@ Timestamptz
 Timestamptzs
 unscaled
 URI
+
