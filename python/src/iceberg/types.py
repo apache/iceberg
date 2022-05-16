@@ -175,15 +175,10 @@ class NestedField(IcebergType):
     @property
     def string_type(self) -> str:
         return (
-            f"{self.field_id}: {self.name}: {'optional' if self.is_optional else 'required'} {self.type}"
+            f"{self.field_id}: {self.name}: {'optional' if self.is_optional else 'required'} {self.field_type}"
             if self.doc is None
             else f" ({self.doc})"
         )
-
-    # Alias for field_type
-    @property
-    def type(self) -> IcebergType:
-        return self.field_type
 
 
 @dataclass(frozen=True, init=False)
