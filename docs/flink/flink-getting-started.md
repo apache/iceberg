@@ -22,8 +22,7 @@ url: flink
 
 # Flink
 
-Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. Currently,
-Iceberg integration for Apache Flink is available for Flink versions 1.12, 1.13, and 1.14. Previous versions of Iceberg also support Flink 1.11.
+Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. See the [Multi-Engine Support#apache-flink](https://iceberg.apache.org/multi-engine-support/#apache-flink) page for the integration of Apache Flink.
 
 | Feature support                                             | Flink  | Notes                                                        |
 | ----------------------------------------------------------- | -----  | ------------------------------------------------------------ |
