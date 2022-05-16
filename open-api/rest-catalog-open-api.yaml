@@ -1513,29 +1513,52 @@ components:
   responses:
 
     OAuthTokenResponse:
-      description: OAuth2 token response
+      description: OAuth2 token response for client credentials or token exchange
       content:
         application/json:
           schema:
             required:
               - access_token
-              - expires_in
-              - issued_token_type
               - token_type
             properties:
               access_token:
                 type: string
-              expires_in:
-                type: integer
-                description: lifetime of the access token in seconds
-              issued_token_type:
-                type: string
+                description:
+                  The access token, for client credentials or token exchange
               token_type:
                 type: string
+                enum:
+                  - bearer
+                  - mac
+                  - N_A
+                description:
+                  Access token type for client credentials or token exchange
+
+
+                  See https://datatracker.ietf.org/doc/html/rfc6749#section-7.1
+              expires_in:
+                type: integer
+                description:
+                  Lifetime of the access token in seconds for client credentials or token exchange
+              issued_token_type:
+                type: string
+                enum:
+                  - urn:ietf:params:oauth:token-type:access_token
+                  - urn:ietf:params:oauth:token-type:refresh_token
+                  - urn:ietf:params:oauth:token-type:id_token
+                  - urn:ietf:params:oauth:token-type:saml1
+                  - urn:ietf:params:oauth:token-type:saml2
+                description:
+                  Issued security token type for token exchange only
+
+
+                  Required for token exchange. See https://datatracker.ietf.org/doc/html/rfc8693#section-3
               refresh_token:
                 type: string
+                description: Refresh token for client credentials or token exchange
               scope:
                 type: string
+                description: Authorization scope for client credentials or token exchange
 
     OAuthErrorResponse:
       description: OAuth2 error response
