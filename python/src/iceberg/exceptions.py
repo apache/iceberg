@@ -16,11 +16,11 @@
 #  under the License.
 
 
-class TableNotFoundError(Exception):
+class NoSuchTableError(Exception):
     """Raised when a referenced table is not found"""
 
 
-class NamespaceNotFoundError(Exception):
+class NoSuchNamespaceError(Exception):
     """Raised when a referenced namespace is not found"""
 
 
