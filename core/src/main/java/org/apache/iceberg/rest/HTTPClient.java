@@ -160,6 +160,8 @@ public class HTTPClient implements RESTClient {
       // other request bodies are serialized as JSON, application/json
       addRequestHeaders(request, ContentType.APPLICATION_JSON.getMimeType());
       request.setEntity(toJson(requestBody));
+    } else {
+      addRequestHeaders(request, ContentType.APPLICATION_JSON.getMimeType());
     }
 
     try (CloseableHttpResponse response = httpClient.execute(request)) {
