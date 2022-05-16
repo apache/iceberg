@@ -15,7 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-from typing import Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Dict, List, Optional, Set, Union
 
 import pytest
 
@@ -119,7 +119,7 @@ class InMemoryCatalog(Catalog):
         except KeyError:
             raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog")
 
-    def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Tuple[Identifier, str]]:
+    def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         if namespace:
             namespace = InMemoryCatalog.identifier_to_tuple(namespace)
             list_tables = [table_identifier for table_identifier in self.__tables.keys() if namespace == table_identifier[:-1]]
@@ -127,7 +127,7 @@ class InMemoryCatalog(Catalog):
             list_tables = list(self.__tables.keys())
 
         # Casting to make mypy happy
-        return cast(List[Tuple[Identifier, str]], list_tables)
+        return list_tables
 
     def list_namespaces(self) -> List[Identifier]:
         return list(self.__namespaces.keys())
