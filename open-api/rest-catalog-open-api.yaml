@@ -122,7 +122,7 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/oauth/token:
+  /v1/oauth/tokens:
 
     post:
       tags:
@@ -1986,7 +1986,7 @@ components:
       type: oauth2
       flows:
         clientCredentials:
-          tokenUrl: /v1/oauth/token
+          tokenUrl: /v1/oauth/tokens
           scopes:
             catalog: Allows interacting with the Config and Catalog APIs
     BearerAuth:
