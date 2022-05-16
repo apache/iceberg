@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
@@ -37,6 +38,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
+import software.amazon.awssdk.services.glue.model.Order;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
@@ -129,8 +131,11 @@ public class TestIcebergToGlueConverter {
         .identity("x")
         .withSpecId(1000)
         .build();
+
+    SortOrder sortOrder = SortOrder.builderFor(schema).asc("x").build();
+
     TableMetadata tableMetadata = TableMetadata
-        .newTableMetadata(schema, partitionSpec, "s3://test", tableLocationProperties);
+        .newTableMetadata(schema, partitionSpec, sortOrder, "s3://test", tableLocationProperties);
     IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
@@ -160,7 +165,19 @@ public class TestIcebergToGlueConverter {
                         IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"
                     ))
                     .build()))
+            .sortColumns(ImmutableList.of(
+                Order.builder()
+                    .column("identity(1) ASC NULLS FIRST")
+                    .sortOrder(1)
+                    .build()
+            ))
             .build())
+        .partitionKeys(ImmutableList.of(
+            Column.builder()
+                .name("1000: x: identity(1)")
+                .type("string")
+                .build()
+        ))
         .build();
 
     Assert.assertEquals(
@@ -175,6 +192,15 @@ public class TestIcebergToGlueConverter {
         "Columns should match",
         expectedTableInput.storageDescriptor().columns(),
         actualTableInput.storageDescriptor().columns());
+    Assert.assertEquals(
+        "Partition keys should match",
+        expectedTableInput.partitionKeys(),
+        actualTableInput.partitionKeys());
+
+    Assert.assertEquals(
+        "SortOrders should match",
+        expectedTableInput.storageDescriptor().sortColumns(),
+        actualTableInput.storageDescriptor().sortColumns());
   }
 
   @Test
