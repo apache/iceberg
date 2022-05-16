@@ -3,7 +3,7 @@ title: "StarRocks"
 bookIconImage: ../img/starrocks-logo.png
 bookFlatSection: true
 weight: 430
-bookExternalUrlNewWindow: https://docs.starrocks.com/en-us/main/introduction/StarRocks_intro
+bookExternalUrlNewWindow: https://docs.starrocks.com/en-us/main/using_starrocks/External_table#apache-iceberg-external-table
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
