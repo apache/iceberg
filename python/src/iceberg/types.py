@@ -203,13 +203,13 @@ class StructType(IcebergType):
     _instances: ClassVar[Dict[Tuple[NestedField, ...], "StructType"]] = {}
 
     def __new__(cls, *fields: NestedField, **kwargs):
-        if "fields" in kwargs:
+        if not fields and "fields" in kwargs:
             fields = kwargs["fields"]
         cls._instances[fields] = cls._instances.get(fields) or object.__new__(cls)
         return cls._instances[fields]
 
     def __init__(self, *fields: NestedField, **kwargs):
-        if "fields" in kwargs:
+        if not fields and "fields" in kwargs:
             fields = kwargs["fields"]
         object.__setattr__(self, "fields", fields)
 
