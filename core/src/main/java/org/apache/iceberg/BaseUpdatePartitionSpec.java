@@ -106,8 +106,8 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   /**
    * Calculates a field ID to the newly added PartitionField.
    * New field ID is assigned in every case for V1 tables, but for V2 we try to recycle a former ID if possible.
-   * @param sourceTransform - pair of source ID and transform for this PartitionField addition
-   * @return - the calculated field ID
+   * @param sourceTransform pair of source ID and transform for this PartitionField addition
+   * @return the calculated field ID
    */
   private int assignFieldId(Pair<Integer, Transform<?, ?>> sourceTransform) {
     if (formatVersion == 2 && base != null) {
@@ -115,8 +115,8 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       Transform<?, ?> transform = sourceTransform.second();
 
       Set<PartitionField> allHistoricalFields = Sets.newHashSet();
-      for (PartitionSpec partitionSpecpec : base.specs()) {
-        allHistoricalFields.addAll(partitionSpecpec.fields());
+      for (PartitionSpec partitionSpec : base.specs()) {
+        allHistoricalFields.addAll(partitionSpec.fields());
       }
 
       for (PartitionField field : allHistoricalFields) {
