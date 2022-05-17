@@ -16,7 +16,7 @@
 # under the License.
 
 import struct
-from abc import ABC
+from abc import ABC, abstractmethod
 from decimal import Decimal
 from typing import Generic, Optional, TypeVar
 from uuid import UUID
@@ -67,12 +67,15 @@ class Transform(ABC, Generic[S, T]):
     def __call__(self, value: Optional[S]) -> Optional[T]:
         return self.apply(value)
 
+    @abstractmethod
     def apply(self, value: Optional[S]) -> Optional[T]:
         ...
 
+    @abstractmethod
     def can_transform(self, source: IcebergType) -> bool:
         return False
 
+    @abstractmethod
     def result_type(self, source: IcebergType) -> IcebergType:
         ...
 
@@ -122,6 +125,10 @@ class BaseBucketTransform(Transform[S, int]):
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return IntegerType()
+
+    @abstractmethod
+    def can_transform(self, source: IcebergType) -> bool:
+        pass
 
 
 class BucketNumberTransform(BaseBucketTransform):
@@ -237,8 +244,8 @@ class UnknownTransform(Transform):
     def apply(self, value: Optional[S]):
         raise AttributeError(f"Cannot apply unsupported transform: {self}")
 
-    def can_transform(self, target: IcebergType) -> bool:
-        return self._type == target
+    def can_transform(self, source: IcebergType) -> bool:
+        return self._type == source
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return StringType()
@@ -249,7 +256,7 @@ class VoidTransform(Transform):
 
     _instance = None
 
-    def __new__(cls):
+    def __new__(cls):  # pylint: disable=W0221
         if cls._instance is None:
             cls._instance = super(VoidTransform, cls).__new__(cls)
         return cls._instance
@@ -260,7 +267,7 @@ class VoidTransform(Transform):
     def apply(self, value: Optional[S]) -> None:
         return None
 
-    def can_transform(self, target: IcebergType) -> bool:
+    def can_transform(self, _: IcebergType) -> bool:
         return True
 
     def result_type(self, source: IcebergType) -> IcebergType:

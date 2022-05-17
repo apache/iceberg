@@ -456,15 +456,15 @@ def test_raise_on_unregistered_type():
 
     with pytest.raises(TypeError) as exc_info:
         conversions.partition_to_py(FooUnknownType(), "foo")
-    assert (f"Cannot convert 'foo' to unsupported type: FooUnknownType()") in str(exc_info.value)
+    assert "Cannot convert 'foo' to unsupported type: FooUnknownType()" in str(exc_info.value)
 
     with pytest.raises(TypeError) as exc_info:
         conversions.to_bytes(FooUnknownType(), "foo")
-    assert ("scale does not match FooUnknownType()") in str(exc_info.value)
+    assert "scale does not match FooUnknownType()" in str(exc_info.value)
 
     with pytest.raises(TypeError) as exc_info:
         conversions.from_bytes(FooUnknownType(), b"foo")
-    assert ("Cannot deserialize bytes, type FooUnknownType() not supported: b'foo'") in str(exc_info.value)
+    assert "Cannot deserialize bytes, type FooUnknownType() not supported: b'foo'" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(

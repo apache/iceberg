@@ -115,7 +115,7 @@ def test_strs(op, string):
 
 
 @pytest.mark.parametrize(
-    "input, testexpra, testexprb",
+    "exp, testexpra, testexprb",
     [
         (
             base.And(TestExpressionA(), TestExpressionB()),
@@ -132,12 +132,12 @@ def test_strs(op, string):
         (TestExpressionB(), TestExpressionB(), TestExpressionA()),
     ],
 )
-def test_eq(input, testexpra, testexprb):
-    assert input == testexpra and input != testexprb
+def test_eq(exp, testexpra, testexprb):
+    assert exp == testexpra and exp != testexprb
 
 
 @pytest.mark.parametrize(
-    "input, exp",
+    "lhs, rhs",
     [
         (
             base.And(TestExpressionA(), TestExpressionB()),
@@ -151,12 +151,12 @@ def test_eq(input, testexpra, testexprb):
         (TestExpressionA(), TestExpressionB()),
     ],
 )
-def test_negate(input, exp):
-    assert ~input == exp
+def test_negate(lhs, rhs):
+    assert ~lhs == rhs
 
 
 @pytest.mark.parametrize(
-    "input, exp",
+    "lhs, rhs",
     [
         (
             base.And(TestExpressionA(), TestExpressionB(), TestExpressionA()),
@@ -169,12 +169,12 @@ def test_negate(input, exp):
         (base.Not(base.Not(TestExpressionA())), TestExpressionA()),
     ],
 )
-def test_reduce(input, exp):
-    assert input == exp
+def test_reduce(lhs, rhs):
+    assert lhs == rhs
 
 
 @pytest.mark.parametrize(
-    "input, exp",
+    "lhs, rhs",
     [
         (base.And(base.AlwaysTrue(), TestExpressionB()), TestExpressionB()),
         (base.And(base.AlwaysFalse(), TestExpressionB()), base.AlwaysFalse()),
@@ -183,8 +183,8 @@ def test_reduce(input, exp):
         (base.Not(base.Not(TestExpressionA())), TestExpressionA()),
     ],
 )
-def test_base_AlwaysTrue_base_AlwaysFalse(input, exp):
-    assert input == exp
+def test_base_AlwaysTrue_base_AlwaysFalse(lhs, rhs):
+    assert lhs == rhs
 
 
 def test_accessor_base_class(foo_struct):

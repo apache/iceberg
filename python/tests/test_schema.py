@@ -49,7 +49,7 @@ def test_schema_str(table_schema_simple):
 
 
 @pytest.mark.parametrize(
-    "schema, expected_repr",
+    "schema_repr, expected_repr",
     [
         (
             schema.Schema(NestedField(1, "foo", StringType()), schema_id=1),
@@ -63,9 +63,9 @@ def test_schema_str(table_schema_simple):
         ),
     ],
 )
-def test_schema_repr(schema, expected_repr):
+def test_schema_repr(schema_repr, expected_repr):
     """Test schema representation"""
-    assert repr(schema) == expected_repr
+    assert repr(schema_repr) == expected_repr
 
 
 def test_schema_raise_on_duplicate_names():
@@ -241,7 +241,7 @@ def test_schema_find_field_by_id_raise_on_unknown_field(table_schema_simple):
     """Test raising when the field ID is not found among columns"""
     index = schema.index_by_id(table_schema_simple)
     with pytest.raises(Exception) as exc_info:
-        index[4]
+        _ = index[4]
     assert str(exc_info.value) == "4"
 
 
@@ -392,18 +392,17 @@ def test_build_position_accessors(table_schema_nested):
     }
 
 
-class TestStruct(StructProtocol):
-    def __init__(self, pos: Dict[int, Any] = None):
-        self._pos: Dict[int, Any] = pos or {}
-
-    def set(self, pos: int, value) -> None:
-        pass
-
-    def get(self, pos: int) -> Any:
-        return self._pos[pos]
-
-
 def test_build_position_accessors_with_struct(table_schema_nested):
+    class TestStruct(StructProtocol):
+        def __init__(self, pos: Dict[int, Any] = None):
+            self._pos: Dict[int, Any] = pos or {}
+
+        def set(self, pos: int, value) -> None:
+            pass
+
+        def get(self, pos: int) -> Any:
+            return self._pos[pos]
+
     accessors = build_position_accessors(table_schema_nested)
     container = TestStruct({6: TestStruct({0: "name"})})
     assert accessors.get(16).get(container) == "name"

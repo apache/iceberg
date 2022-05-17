@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=W0511
 
 from __future__ import annotations
 
@@ -234,32 +235,26 @@ class SchemaVisitor(Generic[T], ABC):
     @abstractmethod
     def schema(self, schema: Schema, struct_result: T) -> T:
         """Visit a Schema"""
-        ...  # pragma: no cover
 
     @abstractmethod
     def struct(self, struct: StructType, field_results: List[T]) -> T:
         """Visit a StructType"""
-        ...  # pragma: no cover
 
     @abstractmethod
     def field(self, field: NestedField, field_result: T) -> T:
         """Visit a NestedField"""
-        ...  # pragma: no cover
 
     @abstractmethod
     def list(self, list_type: ListType, element_result: T) -> T:
         """Visit a ListType"""
-        ...  # pragma: no cover
 
     @abstractmethod
     def map(self, map_type: MapType, key_result: T, value_result: T) -> T:
         """Visit a MapType"""
-        ...  # pragma: no cover
 
     @abstractmethod
     def primitive(self, primitive: PrimitiveType) -> T:
         """Visit a PrimitiveType"""
-        ...  # pragma: no cover
 
 
 @dataclass(init=True, eq=True, frozen=True)
@@ -367,18 +362,18 @@ class _IndexById(SchemaVisitor[Dict[int, NestedField]]):
     def __init__(self) -> None:
         self._index: Dict[int, NestedField] = {}
 
-    def schema(self, schema: Schema, result) -> Dict[int, NestedField]:
+    def schema(self, schema: Schema, struct_result) -> Dict[int, NestedField]:
         return self._index
 
-    def struct(self, struct: StructType, result) -> Dict[int, NestedField]:
+    def struct(self, struct: StructType, field_results) -> Dict[int, NestedField]:
         return self._index
 
-    def field(self, field: NestedField, result) -> Dict[int, NestedField]:
+    def field(self, field: NestedField, field_result) -> Dict[int, NestedField]:
         """Add the field ID to the index"""
         self._index[field.field_id] = field
         return self._index
 
-    def list(self, list_type: ListType, result) -> Dict[int, NestedField]:
+    def list(self, list_type: ListType, element_result) -> Dict[int, NestedField]:
         """Add the list element ID to the index"""
         self._index[list_type.element.field_id] = list_type.element
         return self._index
@@ -439,15 +434,15 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
     def schema(self, schema: Schema, struct_result: Dict[str, int]) -> Dict[str, int]:
         return self._index
 
-    def struct(self, struct: StructType, struct_result: List[Dict[str, int]]) -> Dict[str, int]:
+    def struct(self, struct: StructType, field_results: List[Dict[str, int]]) -> Dict[str, int]:
         return self._index
 
-    def field(self, field: NestedField, struct_result: Dict[str, int]) -> Dict[str, int]:
+    def field(self, field: NestedField, field_result: Dict[str, int]) -> Dict[str, int]:
         """Add the field name to the index"""
         self._add_field(field.name, field.field_id)
         return self._index
 
-    def list(self, list_type: ListType, struct_result: Dict[str, int]) -> Dict[str, int]:
+    def list(self, list_type: ListType, element_result: Dict[str, int]) -> Dict[str, int]:
         """Add the list element name to the index"""
         self._add_field(list_type.element.name, list_type.element.field_id)
         return self._index
@@ -566,8 +561,8 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
     def _wrap_leaves(result: Dict[Position, Accessor], position: Position = 0) -> Dict[Position, Accessor]:
         return {field_id: Accessor(position, inner=inner) for field_id, inner in result.items()}
 
-    def schema(self, schema: Schema, result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
-        return result
+    def schema(self, schema: Schema, struct_result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
+        return struct_result
 
     def struct(self, struct: StructType, field_results: List[Dict[Position, Accessor]]) -> Dict[Position, Accessor]:
         result = {}
@@ -581,10 +576,10 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
 
         return result
 
-    def field(self, field: NestedField, result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
-        return result
+    def field(self, field: NestedField, field_result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
+        return field_result
 
-    def list(self, list_type: ListType, result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
+    def list(self, list_type: ListType, element_result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
         return {}
 
     def map(

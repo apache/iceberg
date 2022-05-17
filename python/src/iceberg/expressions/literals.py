@@ -18,6 +18,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=W0613
 
 import struct
 import sys
@@ -118,10 +119,8 @@ def _(value: Decimal) -> Literal[Decimal]:
     return DecimalLiteral(value)
 
 
-class AboveMax(Literal[None], Singleton):
-    def __init__(self):
-        pass
-
+class AboveMax(Singleton):
+    @property
     def value(self):
         raise ValueError("AboveMax has no value")
 
@@ -135,7 +134,7 @@ class AboveMax(Literal[None], Singleton):
         return "AboveMax"
 
 
-class BelowMin(Literal[None], Singleton):
+class BelowMin(Singleton):
     def __init__(self):
         pass
 
