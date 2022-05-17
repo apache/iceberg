@@ -88,7 +88,7 @@ public class PropertyUtil {
       return ImmutableMap.of();
     }
 
-    Preconditions.checkArgument(prefix != null, "prefix can't be null.");
+    Preconditions.checkArgument(prefix != null, "Invalid prefix: null");
 
     return properties.entrySet().stream()
         .filter(e -> e.getKey().startsWith(prefix))
