@@ -165,6 +165,13 @@ public class GlueCatalog extends BaseMetastoreCatalog
   }
 
   @VisibleForTesting
+  void initialize(String name, String path, AwsProperties properties, GlueClient client,
+      LockManager lock, FileIO io, Map<String, String> catalogProps) {
+    this.catalogProperties = catalogProps;
+    initialize(name, path, properties, client, lock, io);
+  }
+
+  @VisibleForTesting
   void initialize(String name, String path, AwsProperties properties, GlueClient client, LockManager lock, FileIO io) {
     Preconditions.checkArgument(path != null && path.length() > 0,
         "Cannot initialize GlueCatalog because warehousePath must not be null or empty");
