@@ -62,6 +62,7 @@ public class RowDataConverter {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
+
       Type fieldType = field.type();
       rowData.setField(i, convert(fieldType, record.get(i)));
     }
