@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -61,6 +62,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
+  private static ThreadLocal<Long> latestSnapshotIdInThread = new ThreadLocal<Long>();
 
   /**
    * Default callback used to delete files.
@@ -71,6 +73,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       ops.io().deleteFile(file);
     }
   };
+
+  public static long getLatestSnapshotIdInThread() {
+    return latestSnapshotIdInThread.get();
+  }
 
   /**
    * Cache used to enrich ManifestFile instances that are written to a ManifestListWriter.
@@ -316,7 +322,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             // to ensure that if a concurrent operation assigns the UUID, this operation will not fail.
             taskOps.commit(base, updated.withUUID());
           });
-
     } catch (CommitStateUnknownException commitStateUnknownException) {
       throw commitStateUnknownException;
     } catch (RuntimeException e) {
@@ -325,7 +330,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     try {
       LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
-
+      latestSnapshotIdInThread.set(newSnapshotId.get());
       // at this point, the commit must have succeeded. after a refresh, the snapshot is loaded by
       // id in case another commit was added between this commit and the refresh.
       Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());

@@ -19,9 +19,26 @@
 
 package org.apache.iceberg;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Tasks;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class TestSnapshot extends TableTestBase {
@@ -82,4 +99,47 @@ public class TestSnapshot extends TableTestBase {
     validateSnapshot(oldSnapshot, newSnapshot, FILE_A, FILE_B);
   }
 
+  @Test
+  public void testPerThreadLatestSnapshot() throws Exception {
+    File dir = temp.newFolder();
+    dir.delete();
+    int threadsCount = 3;
+    int numberOfCommitedFilesPerThread = 1;
+
+    String fileName = UUID.randomUUID().toString();
+    DataFile file = DataFiles.builder(table.spec())
+        .withPath(FileFormat.PARQUET.addExtension(fileName))
+        .withRecordCount(2)
+        .withFileSizeInBytes(0)
+        .build();
+    ExecutorService executorService = Executors.newFixedThreadPool(threadsCount);
+
+    AtomicInteger barrier = new AtomicInteger(0);
+    Set<Long> syncedSet = ConcurrentHashMap.newKeySet();
+    Tasks
+        .range(threadsCount)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(index -> {
+          for (int numCommittedFiles = 0; numCommittedFiles < numberOfCommitedFilesPerThread; numCommittedFiles++) {
+            while (barrier.get() < numCommittedFiles * threadsCount) {
+              try {
+                Thread.sleep(10);
+              } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+              }
+            }
+            table.newFastAppend().appendFile(file).commit();
+            syncedSet.add(SnapshotProducer.getLatestSnapshotIdInThread());
+            barrier.incrementAndGet();
+          }
+        });
+
+    table.refresh();
+    assertEquals(threadsCount * numberOfCommitedFilesPerThread,
+        Lists.newArrayList(table.snapshots()).size());
+    // check the number of non-identical values in syncedList which should always equal to thread number
+    assertEquals(threadsCount, syncedSet.size());
+  }
 }
