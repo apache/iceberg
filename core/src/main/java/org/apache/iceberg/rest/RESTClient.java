@@ -20,6 +20,7 @@
 package org.apache.iceberg.rest;
 
 import java.io.Closeable;
+import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 
@@ -36,5 +37,8 @@ public interface RESTClient extends Closeable {
 
   <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
                                   Consumer<ErrorResponse> errorHandler);
+
+  <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
+                                      Map<String, String> headers, Consumer<ErrorResponse> errorHandler);
 }
 

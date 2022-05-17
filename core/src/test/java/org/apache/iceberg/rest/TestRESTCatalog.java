@@ -126,6 +126,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       }
 
       @Override
+      public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
+                                                 Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
+      }
+
+      @Override
       public void close() {
       }
     };
