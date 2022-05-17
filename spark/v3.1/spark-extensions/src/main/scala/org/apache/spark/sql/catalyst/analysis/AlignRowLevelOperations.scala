@@ -63,6 +63,7 @@ case object AlignRowLevelOperations extends Rule[LogicalPlan]
           }
 
           val colNames = refs.map(_.head)
+
           // check there are no duplicates
           val duplicateColNames = colNames.groupBy(identity).collect {
             case (name, matchingNames) if matchingNames.size > 1 => name

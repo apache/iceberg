@@ -77,6 +77,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   // TODO: add tests for multiple NOT MATCHED clauses when we move to Spark 3.1
+  
   @Test
   public void testMergeIntoEmptyTargetInsertAllNonMatchingRows() {
     createAndInitTable("id INT, dep STRING");
