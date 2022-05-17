@@ -152,7 +152,7 @@ class Schema:
             NestedField: The type of the matched NestedField
         """
         field = self.find_field(name_or_id=name_or_id, case_sensitive=case_sensitive)
-        return field.type  # type: ignore
+        return field.field_type
 
     def find_column_name(self, column_id: int) -> str:
         """Find a column name given a column ID
@@ -318,7 +318,7 @@ def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
 
     for field in obj.fields:
         visitor.before_field(field)
-        result = visit(field.type, visitor)
+        result = visit(field.field_type, visitor)
         visitor.after_field(field)
         results.append(visitor.field(field, result))
 
@@ -330,7 +330,7 @@ def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
     """Visit a ListType with a concrete SchemaVisitor"""
 
     visitor.before_list_element(obj.element)
-    result = visit(obj.element.type, visitor)
+    result = visit(obj.element.field_type, visitor)
     visitor.after_list_element(obj.element)
 
     return visitor.list(obj, result)
@@ -340,11 +340,11 @@ def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
 def _(obj: MapType, visitor: SchemaVisitor[T]) -> T:
     """Visit a MapType with a concrete SchemaVisitor"""
     visitor.before_map_key(obj.key)
-    key_result = visit(obj.key.type, visitor)
+    key_result = visit(obj.key.field_type, visitor)
     visitor.after_map_key(obj.key)
 
     visitor.before_map_value(obj.value)
-    value_result = visit(obj.value.type, visitor)
+    value_result = visit(obj.value.field_type, visitor)
     visitor.after_list_element(obj.value)
 
     return visitor.map(obj, key_result, value_result)
@@ -412,12 +412,12 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
 
     def before_list_element(self, element: NestedField) -> None:
         """Short field names omit element when the element is a StructType"""
-        if not isinstance(element.type, StructType):
+        if not isinstance(element.field_type, StructType):
             self._short_field_names.append(element.name)
         self._field_names.append(element.name)
 
     def after_list_element(self, element: NestedField) -> None:
-        if not isinstance(element.type, StructType):
+        if not isinstance(element.field_type, StructType):
             self._short_field_names.pop()
         self._field_names.pop()
 

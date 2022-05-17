@@ -221,19 +221,19 @@ def test_schema_find_field_by_id(table_schema_simple):
     column1 = index[1]
     assert isinstance(column1, NestedField)
     assert column1.field_id == 1
-    assert column1.type == StringType()
+    assert column1.field_type == StringType()
     assert column1.is_optional == False
 
     column2 = index[2]
     assert isinstance(column2, NestedField)
     assert column2.field_id == 2
-    assert column2.type == IntegerType()
+    assert column2.field_type == IntegerType()
     assert column2.is_optional == True
 
     column3 = index[3]
     assert isinstance(column3, NestedField)
     assert column3.field_id == 3
-    assert column3.type == BooleanType()
+    assert column3.field_type == BooleanType()
     assert column3.is_optional == False
 
 

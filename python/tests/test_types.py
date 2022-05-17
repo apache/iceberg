@@ -146,8 +146,8 @@ def test_list_type():
         ),
         False,
     )
-    assert isinstance(type_var.element.type, StructType)
-    assert len(type_var.element.type.fields) == 2
+    assert isinstance(type_var.element.field_type, StructType)
+    assert len(type_var.element.field_type.fields) == 2
     assert type_var.element.field_id == 1
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
@@ -162,9 +162,9 @@ def test_list_type():
 
 def test_map_type():
     type_var = MapType(1, DoubleType(), 2, UUIDType(), False)
-    assert isinstance(type_var.key.type, DoubleType)
+    assert isinstance(type_var.key.field_type, DoubleType)
     assert type_var.key.field_id == 1
-    assert isinstance(type_var.value.type, UUIDType)
+    assert isinstance(type_var.value.field_type, UUIDType)
     assert type_var.value.field_id == 2
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
@@ -193,7 +193,7 @@ def test_nested_field():
     assert field_var.is_optional
     assert not field_var.is_required
     assert field_var.field_id == 1
-    assert isinstance(field_var.type, StructType)
+    assert isinstance(field_var.field_type, StructType)
     assert str(field_var) == str(eval(repr(field_var)))
 
 
