@@ -1548,6 +1548,7 @@ components:
                   - urn:ietf:params:oauth:token-type:id_token
                   - urn:ietf:params:oauth:token-type:saml1
                   - urn:ietf:params:oauth:token-type:saml2
+                  - urn:ietf:params:oauth:token-type:jwt
                 description:
                   Issued security token type for token exchange only
 
