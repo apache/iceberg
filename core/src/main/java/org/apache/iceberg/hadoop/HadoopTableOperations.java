@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -415,6 +416,7 @@ public class HadoopTableOperations implements TableOperations {
       Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
       Tasks.foreach(removedPreviousMetadataFiles)
+          .executeWith(ThreadPools.getWorkerPool())
           .noRetry().suppressFailureWhenFinished()
           .onFailure((previousMetadataFile, exc) ->
               LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
