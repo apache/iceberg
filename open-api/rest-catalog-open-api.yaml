@@ -1463,29 +1463,43 @@ components:
           additionalProperties:
             type: string
 
-    OAuthTokenRequest:
+    TokenType:
+      type: string
+      enum:
+        - urn:ietf:params:oauth:token-type:access_token
+        - urn:ietf:params:oauth:token-type:refresh_token
+        - urn:ietf:params:oauth:token-type:id_token
+        - urn:ietf:params:oauth:token-type:saml1
+        - urn:ietf:params:oauth:token-type:saml2
+        - urn:ietf:params:oauth:token-type:jwt
       description:
-        OAuth2 client credentials or token exchange request
+        Token type identifier, from RFC 8693 Section 3
 
 
-        See -
+        See https://datatracker.ietf.org/doc/html/rfc8693#section-3
 
-        - Client credentials flow - https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
+    OAuthClientCredentialsRequest:
+      description:
+        OAuth2 client credentials request
 
-        - Token exchange flow - https://datatracker.ietf.org/doc/html/rfc8693
+
+        See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
       type: object
       required:
         - grant_type
+        - client_id
+        - client_secret
       properties:
         grant_type:
           type: string
           enum:
             - client_credentials
-            - urn:ietf:params:oauth:grant-type:token-exchange
+        scope:
+          type: string
         client_id:
           type: string
           description:
-            Client ID for client credentials flow.
+            Client ID
 
 
             This can be sent in the request body, but OAuth2 recomments sending it in
@@ -1493,19 +1507,47 @@ components:
         client_secret:
           type: string
           description:
-            Client secret for client credentials flow.
+            Client secret
 
 
             This can be sent in the request body, but OAuth2 recomments sending it in
             a Basic Authorization header.
+
+    OAuthTokenExchangeRequest:
+      description:
+        OAuth2 token exchange request
+
+
+        See https://datatracker.ietf.org/doc/html/rfc8693
+      type: object
+      required:
+        - grant_type
+        - subject_token
+        - subject_token_type
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - urn:ietf:params:oauth:grant-type:token-exchange
+        scope:
+          type: string
+        requested_token_type:
+          $ref: '#/components/schemas/TokenType'
         subject_token:
           type: string
           description: Subject token for token exchange request
         subject_token_type:
+          $ref: '#/components/schemas/TokenType'
+        actor_token:
           type: string
-          description: Subject token type for token exchange request
-        scope:
-          type: string
+          description: Actor token for token exchange request
+        actor_token_type:
+          $ref: '#/components/schemas/TokenType'
+
+    OAuthTokenRequest:
+      anyOf:
+        - $ref: '#/components/schemas/OAuthClientCredentialsRequest'
+        - $ref: '#/components/schemas/OAuthTokenExchangeRequest'
 
   #############################
   # Reusable Response Objects #
@@ -1541,19 +1583,7 @@ components:
                 description:
                   Lifetime of the access token in seconds for client credentials or token exchange
               issued_token_type:
-                type: string
-                enum:
-                  - urn:ietf:params:oauth:token-type:access_token
-                  - urn:ietf:params:oauth:token-type:refresh_token
-                  - urn:ietf:params:oauth:token-type:id_token
-                  - urn:ietf:params:oauth:token-type:saml1
-                  - urn:ietf:params:oauth:token-type:saml2
-                  - urn:ietf:params:oauth:token-type:jwt
-                description:
-                  Issued security token type for token exchange only
-
-
-                  Required for token exchange. See https://datatracker.ietf.org/doc/html/rfc8693#section-3
+                $ref: '#/components/schemas/TokenType'
               refresh_token:
                 type: string
                 description: Refresh token for client credentials or token exchange
