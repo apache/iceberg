@@ -141,7 +141,7 @@ public interface SessionCatalog {
   Catalog.TableBuilder buildTable(SessionContext context, TableIdentifier ident, Schema schema);
 
   /**
-   * Register a table with if it does not exist.
+   * Register a table if it does not exist.
    *
    * @param context session context
    * @param ident a table identifier
