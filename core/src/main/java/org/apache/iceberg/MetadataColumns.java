@@ -75,6 +75,9 @@ public class MetadataColumns {
   public static final String DELETE_FILE_ROW_FIELD_NAME = "row";
   public static final int DELETE_FILE_ROW_FIELD_ID = Integer.MAX_VALUE - 103;
   public static final String DELETE_FILE_ROW_DOC = "Deleted row values";
+  public static final int POSITION_DELETE_TABLE_PARTITION_FIELD_ID = Integer.MAX_VALUE - 104;
+  public static final int POSITION_DELETE_TABLE_SPEC_ID = Integer.MAX_VALUE - 105;
+  public static final int POSITION_DELETE_TABLE_FILE_PATH = Integer.MAX_VALUE - 106;
 
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(
@@ -89,8 +92,15 @@ public class MetadataColumns {
           ROW_POSITION.fieldId(),
           IS_DELETED.fieldId(),
           SPEC_ID.fieldId(),
-          PARTITION_COLUMN_ID);
+          PARTITION_COLUMN_ID,
+          POSITION_DELETE_TABLE_PARTITION_FIELD_ID,
+          POSITION_DELETE_TABLE_SPEC_ID,
+          POSITION_DELETE_TABLE_FILE_PATH);
 
+  /**
+   * Returns ids of all known constant and metadata columns (to be avoided when projecting from
+   * content files)
+   */
   public static Set<Integer> metadataFieldIds() {
     return META_IDS;
   }

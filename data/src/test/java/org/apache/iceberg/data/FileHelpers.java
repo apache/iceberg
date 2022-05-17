@@ -34,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -67,6 +68,28 @@ public class FileHelpers {
     }
 
     return Pair.of(writer.toDeleteFile(), writer.referencedDataFiles());
+  }
+
+  public static DeleteFile writePosDeleteFile(
+      Table table, OutputFile out, StructLike partition, List<PositionDelete<?>> deletes)
+      throws IOException {
+    FileFormat format = defaultFormat(table.properties());
+    FileAppenderFactory<Record> factory =
+        new GenericAppenderFactory(
+            table.schema(),
+            table.spec(),
+            null, // Equality Fields
+            null, // Equality Delete row schema
+            table.schema()); // Position Delete row schema (will be wrapped)
+
+    PositionDeleteWriter<?> writer = factory.newPosDeleteWriter(encrypt(out), format, partition);
+    try (Closeable toClose = writer) {
+      for (PositionDelete delete : deletes) {
+        writer.write(delete);
+      }
+    }
+
+    return writer.toDeleteFile();
   }
 
   public static DeleteFile writeDeleteFile(

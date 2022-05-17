@@ -91,7 +91,7 @@ public class PartitionUtil {
   }
 
   // adapts the provided partition data to match the table partition type
-  private static StructLike coercePartition(
+  public static StructLike coercePartition(
       Types.StructType partitionType, PartitionSpec spec, StructLike partition) {
     StructProjection projection =
         StructProjection.createAllowMissing(spec.partitionType(), partitionType);

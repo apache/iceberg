@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -63,6 +64,21 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
       FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
     if (task.isDataTask()) {
       return newDataIterable(task.asDataTask(), readSchema);
+    } else if (task instanceof PositionDeletesTable.PositionDeletesFileScanTask) {
+      InputFile inputFile = getInputFile(task.file().path().toString());
+      Preconditions.checkNotNull(
+          inputFile, "Could not find InputFile associated with PositionDeletesFileScan");
+      Map<Integer, ?> positionDeleteConstants =
+          ((PositionDeletesTable.PositionDeletesFileScanTask) task)
+              .constantsMap(BaseReader::convertConstant);
+      return newIterable(
+          inputFile,
+          task.file().format(),
+          task.start(),
+          task.length(),
+          task.residual(),
+          readSchema,
+          positionDeleteConstants);
     } else {
       InputFile inputFile = getInputFile(task.file().path().toString());
       Preconditions.checkNotNull(

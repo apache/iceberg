@@ -740,6 +740,23 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testPositionDeletesWithFilter() {
+    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+    preparePartitionedTable();
+
+    Table positionDeletesTable = new PositionDeletesTable(table.ops(), table);
+
+    Expression expression =
+        Expressions.and(
+            Expressions.equal("partition.data_bucket", 0), Expressions.greaterThan("pos", 0));
+    TableScan scan = positionDeletesTable.newScan().filter(expression);
+
+    CloseableIterable<FileScanTask> tasks = scan.planFiles();
+    Assert.assertEquals(1, Iterators.size(tasks.iterator()));
+    validateIncludesPartitionScan(tasks, 0);
+  }
+
+  @Test
   public void testAllEntriesTableScanWithPlanExecutor() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 

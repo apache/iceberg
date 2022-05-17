@@ -109,6 +109,32 @@ public class DataFiles {
         .build();
   }
 
+  public static DataFile fromDeleteFile(DeleteFile deleteFile, PartitionSpec spec) {
+    Metrics metrics =
+        new Metrics(
+            deleteFile.recordCount(),
+            deleteFile.columnSizes(),
+            deleteFile.valueCounts(),
+            deleteFile.nullValueCounts(),
+            deleteFile.nanValueCounts(),
+            deleteFile.lowerBounds(),
+            deleteFile.upperBounds());
+
+    return DataFiles.builder(spec)
+        .withEncryptionKeyMetadata(deleteFile.keyMetadata())
+        .withFormat(deleteFile.format())
+        .withFileSizeInBytes(deleteFile.fileSizeInBytes())
+        .withPath(deleteFile.path().toString())
+        .withPartition(deleteFile.partition())
+        .withRecordCount(deleteFile.recordCount())
+        .withSortOrderId(
+            deleteFile.sortOrderId() != null
+                ? deleteFile.sortOrderId()
+                : SortOrder.unsorted().orderId())
+        .withMetrics(metrics)
+        .build();
+  }
+
   public static Builder builder(PartitionSpec spec) {
     return new Builder(spec);
   }
@@ -278,6 +304,11 @@ public class DataFiles {
       if (newSortOrder != null) {
         this.sortOrderId = newSortOrder.orderId();
       }
+      return this;
+    }
+
+    public Builder withSortOrderId(int newSortOrderId) {
+      this.sortOrderId = newSortOrderId;
       return this;
     }
 
