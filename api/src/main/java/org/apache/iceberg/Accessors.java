@@ -121,6 +121,8 @@ public class Accessors {
       return javaClass;
     }
 
+    public String getSomeRandomField() { return someRandomField; }
+
     @Override
     public String toString() {
       return "Accessor(positions=[" + p0 + ", " + p1 + "], type=" + type + ")";
