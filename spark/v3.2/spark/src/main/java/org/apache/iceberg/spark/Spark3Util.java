@@ -662,7 +662,7 @@ public class Spark3Util {
         String.format("Cannot load Iceberg catalog from catalog %s because it is not a Spark Iceberg catalog. Actual " +
                           "Class: %s",
             catalogName, catalogPlugin.getClass().getName()));
-    return ((BaseCatalog) catalogPlugin).icebergCatalog();
+    return ((HasIcebergCatalog) catalogPlugin).icebergCatalog();
   }
 
 

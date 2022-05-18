@@ -22,6 +22,7 @@ package org.apache.iceberg.spark;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -306,8 +307,8 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
 
   @Override
   public Catalog icebergCatalog() {
-    Preconditions.checkArgument(icebergCatalog instanceof SparkCatalog,
+    Preconditions.checkArgument(icebergCatalog instanceof HasIcebergCatalog,
         "Cannot return underlying Iceberg Catalog, wrapped catalog is not an Iceberg Catalog");
-    return ((SparkCatalog) icebergCatalog).icebergCatalog();
+    return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
   }
 }
