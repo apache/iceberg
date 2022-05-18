@@ -23,7 +23,7 @@ import yaml
 from iceberg import assets
 
 
-@lru_cache(maxsize=1)
+@cache
 def read_yaml_file(path: str):
     return yaml.safe_load(open(path))
 
