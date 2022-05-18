@@ -65,7 +65,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     List<Object[]> output = sql(
         "CALL %s.system.expire_snapshots('%s')",
         catalogName, tableIdent);
-    assertEquals("Should not delete any files", ImmutableList.of(row(0L, 0L, 0L)), output);
+    assertEquals("Should not delete any files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L)), output);
   }
 
   @Test
@@ -92,7 +92,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s')",
         catalogName, tableIdent, secondSnapshotTimestamp);
     assertEquals("Procedure output must match",
-        ImmutableList.of(row(0L, 0L, 1L)),
+        ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)),
         output1);
 
     table.refresh();
@@ -118,7 +118,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s', 2)",
         catalogName, tableIdent, currentTimestamp);
     assertEquals("Procedure output must match",
-        ImmutableList.of(row(2L, 2L, 1L)),
+        ImmutableList.of(row(2L, 0L, 0L, 2L, 1L)),
         output);
   }
 
@@ -144,7 +144,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             "retain_last => 1)",
         catalogName, currentTimestamp, tableIdent);
     assertEquals("Procedure output must match",
-        ImmutableList.of(row(0L, 0L, 1L)),
+        ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)),
         output);
   }
 
@@ -213,7 +213,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             "max_concurrent_deletes => %s," +
             "retain_last => 1)",
         catalogName, currentTimestamp, tableIdent, 4);
-    assertEquals("Expiring snapshots concurrently should succeed", ImmutableList.of(row(0L, 0L, 3L)), output);
+    assertEquals("Expiring snapshots concurrently should succeed",
+        ImmutableList.of(row(0L, 0L, 0L, 0L, 3L)), output);
   }
 
   @Test
@@ -274,12 +275,14 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Assert.assertTrue("Delete file should still exist", localFs.exists(deleteFilePath));
 
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
-    sql("CALL %s.system.expire_snapshots(" +
+    List<Object[]> output = sql("CALL %s.system.expire_snapshots(" +
             "older_than => TIMESTAMP '%s'," +
             "table => '%s'," +
             "retain_last => 1)",
         catalogName, currentTimestamp, tableIdent);
 
+    assertEquals("Should deleted 1 data and pos delete file and 4 manifests and lists (one for each txn)",
+        ImmutableList.of(row(1L, 1L, 0L, 4L, 4L)), output);
     Assert.assertFalse("Delete manifest should be removed", localFs.exists(deleteManifestPath));
     Assert.assertFalse("Delete file should be removed", localFs.exists(deleteFilePath));
   }
@@ -306,7 +309,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             "retain_last => 1, " +
             "stream_results => true)",
         catalogName, currentTimestamp, tableIdent);
-    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 1L)), output);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output);
   }
 
   @Test
@@ -337,7 +340,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     List<Object[]> output = sql(
         callStatement, catalogName, currentTimestamp, tableIdent);
     assertEquals("Procedure output must match",
-        ImmutableList.of(row(0L, 0L, 1L)),
+        ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)),
         output);
 
     table.refresh();
