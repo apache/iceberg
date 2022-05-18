@@ -21,24 +21,10 @@
 # pylint: disable=W0613
 
 import struct
-import sys
 from decimal import ROUND_HALF_UP, Decimal
-from functools import singledispatch
+from functools import singledispatch, singledispatchmethod
 from typing import Optional, Union
 from uuid import UUID
-
-from iceberg.utils.datetime import (
-    date_to_days,
-    micros_to_days,
-    time_to_micros,
-    timestamp_to_micros,
-    timestamptz_to_micros,
-)
-
-if sys.version_info >= (3, 8):
-    from functools import singledispatchmethod  # pragma: no cover
-else:
-    from singledispatch import singledispatchmethod  # pragma: no cover
 
 from iceberg.expressions.base import Literal
 from iceberg.types import (
@@ -57,6 +43,13 @@ from iceberg.types import (
     TimestamptzType,
     TimeType,
     UUIDType,
+)
+from iceberg.utils.datetime import (
+    date_to_days,
+    micros_to_days,
+    time_to_micros,
+    timestamp_to_micros,
+    timestamptz_to_micros,
 )
 
 

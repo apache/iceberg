@@ -29,15 +29,9 @@ Example:
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
-import sys
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import ClassVar, Dict, List, Optional, Tuple
-
-if sys.version_info >= (3, 8):
-    from functools import cached_property
-else:
-    # In the case of <= Python 3.7
-    from cached_property import cached_property
 
 
 class Singleton:
