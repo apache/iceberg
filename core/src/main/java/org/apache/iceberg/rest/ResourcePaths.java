@@ -63,4 +63,8 @@ public class ResourcePaths {
         "v1", prefix, "namespaces", RESTUtil.encodeNamespace(ident.namespace()), "tables",
         RESTUtil.encodeString(ident.name()));
   }
+
+  public String rename() {
+    return SLASH.join("v1", prefix, "tables", "rename");
+  }
 }

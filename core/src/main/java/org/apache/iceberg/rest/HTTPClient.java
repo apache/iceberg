@@ -59,13 +59,12 @@ public class HTTPClient implements RESTClient {
   private final String uri;
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
-  private final Map<String, String> additionalHeaders;
+  private final Map<String, String> baseHeaders;
 
-  private HTTPClient(
-      String uri, CloseableHttpClient httpClient, Map<String, String> additionalHeaders) {
+  private HTTPClient(String uri, Map<String, String> baseHeaders) {
     this.uri = uri;
-    this.httpClient = httpClient != null ? httpClient : HttpClients.createDefault();
-    this.additionalHeaders = additionalHeaders != null ? additionalHeaders : ImmutableMap.of();
+    this.httpClient = HttpClients.createDefault();
+    this.baseHeaders = baseHeaders != null ? baseHeaders : ImmutableMap.of();
     this.mapper = RESTObjectMapper.mapper();
   }
 
@@ -143,7 +142,8 @@ public class HTTPClient implements RESTClient {
    * @return The response entity, parsed and converted to its type T
    */
   private <T> T execute(
-      Method method, String path, Object requestBody, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+      Method method, String path, Object requestBody, Class<T> responseType, Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
     if (path.startsWith("/")) {
       throw new RESTException(
           "Received a malformed path for a REST request: %s. Paths should not start with /", path);
@@ -154,14 +154,14 @@ public class HTTPClient implements RESTClient {
 
     if (requestBody instanceof Map) {
       // encode maps as form data, application/x-www-form-urlencoded
-      addRequestHeaders(request, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
+      addRequestHeaders(request, headers, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
       request.setEntity(toFormEncoding((Map<?, ?>) requestBody));
     } else if (requestBody != null) {
       // other request bodies are serialized as JSON, application/json
-      addRequestHeaders(request, ContentType.APPLICATION_JSON.getMimeType());
+      addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
       request.setEntity(toJson(requestBody));
     } else {
-      addRequestHeaders(request, ContentType.APPLICATION_JSON.getMimeType());
+      addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
     }
 
     try (CloseableHttpResponse response = httpClient.execute(request)) {
@@ -197,39 +197,40 @@ public class HTTPClient implements RESTClient {
   }
 
   @Override
-  public void head(String path, Consumer<ErrorResponse> errorHandler) {
-    execute(Method.HEAD, path, null, null, errorHandler);
+  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    execute(Method.HEAD, path, null, null, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T get(String path, Class<T> responseType,
+  public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
                                         Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.GET, path, null, responseType, errorHandler);
+    return execute(Method.GET, path, null, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                         Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, body, responseType, errorHandler);
+                                         Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.POST, path, body, responseType, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T delete(String path, Class<T> responseType,
+  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
                                            Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, null, responseType, errorHandler);
+    return execute(Method.DELETE, path, null, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
                                              Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, formData, responseType, errorHandler);
+    return execute(Method.POST, path, formData, responseType, headers, errorHandler);
   }
 
-  private void addRequestHeaders(HttpUriRequest request, String bodyMimeType) {
+  private void addRequestHeaders(HttpUriRequest request, Map<String, String> requestHeaders, String bodyMimeType) {
     request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
     // Many systems require that content type is set regardless and will fail, even on an empty bodied request.
     request.setHeader(HttpHeaders.CONTENT_TYPE, bodyMimeType);
-    additionalHeaders.forEach(request::setHeader);
+    baseHeaders.forEach(request::setHeader);
+    requestHeaders.forEach(request::setHeader);
   }
 
   @Override
@@ -242,10 +243,8 @@ public class HTTPClient implements RESTClient {
   }
 
   public static class Builder {
-    private final Map<String, String> additionalHeaders = Maps.newHashMap();
+    private final Map<String, String> baseHeaders = Maps.newHashMap();
     private String uri;
-    private CloseableHttpClient httpClient;
-    private ObjectMapper mapper;
 
     private Builder() {
     }
@@ -261,23 +260,23 @@ public class HTTPClient implements RESTClient {
     }
 
     public Builder withHeader(String key, String value) {
-      additionalHeaders.put(key, value);
+      baseHeaders.put(key, value);
       return this;
     }
 
     public Builder withHeaders(Map<String, String> headers) {
-      additionalHeaders.putAll(headers);
+      baseHeaders.putAll(headers);
       return this;
     }
 
     public Builder withBearerAuth(String token) {
       Preconditions.checkNotNull(token, "Invalid auth token: null");
-      additionalHeaders.put(HttpHeaders.AUTHORIZATION, asBearer(token));
+      baseHeaders.put(HttpHeaders.AUTHORIZATION, asBearer(token));
       return this;
     }
 
     public HTTPClient build() {
-      return new HTTPClient(uri, httpClient, additionalHeaders);
+      return new HTTPClient(uri, baseHeaders);
     }
   }
 
