@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -46,10 +47,9 @@ public class TestFlinkCatalogFactory {
   @Test
   public void testCreateCreateCatalogHive() {
     String catalogName = "hiveCatalog";
-    props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HIVE);
+    props.put(FlinkCatalogFactoryOptions.ICEBERG_CATALOG_TYPE.key(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
 
-    Catalog catalog = FlinkCatalogFactory
-        .createCatalogLoader(catalogName, props, new Configuration())
+    Catalog catalog = createCatalogLoader(catalogName, props)
         .loadCatalog();
 
     Assertions.assertThat(catalog).isNotNull().isInstanceOf(HiveCatalog.class);
@@ -58,10 +58,9 @@ public class TestFlinkCatalogFactory {
   @Test
   public void testCreateCreateCatalogHadoop() {
     String catalogName = "hadoopCatalog";
-    props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HADOOP);
+    props.put(FlinkCatalogFactoryOptions.ICEBERG_CATALOG_TYPE.key(), CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP);
 
-    Catalog catalog = FlinkCatalogFactory
-        .createCatalogLoader(catalogName, props, new Configuration())
+    Catalog catalog = createCatalogLoader(catalogName, props)
         .loadCatalog();
 
     Assertions.assertThat(catalog).isNotNull().isInstanceOf(HadoopCatalog.class);
@@ -70,10 +69,9 @@ public class TestFlinkCatalogFactory {
   @Test
   public void testCreateCreateCatalogCustom() {
     String catalogName = "customCatalog";
-    props.put(CatalogProperties.CATALOG_IMPL, CustomHadoopCatalog.class.getName());
+    props.put(FlinkCatalogFactoryOptions.CATALOG_IMPL.key(), CustomHadoopCatalog.class.getName());
 
-    Catalog catalog = FlinkCatalogFactory
-        .createCatalogLoader(catalogName, props, new Configuration())
+    Catalog catalog = createCatalogLoader(catalogName, props)
         .loadCatalog();
 
     Assertions.assertThat(catalog).isNotNull().isInstanceOf(CustomHadoopCatalog.class);
@@ -82,27 +80,32 @@ public class TestFlinkCatalogFactory {
   @Test
   public void testCreateCreateCatalogCustomWithHiveCatalogTypeSet() {
     String catalogName = "customCatalog";
-    props.put(CatalogProperties.CATALOG_IMPL, CustomHadoopCatalog.class.getName());
-    props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HIVE);
+    props.put(FlinkCatalogFactoryOptions.CATALOG_IMPL.key(), CustomHadoopCatalog.class.getName());
+    props.put(FlinkCatalogFactoryOptions.ICEBERG_CATALOG_TYPE.key(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
 
     AssertHelpers.assertThrows(
         "Should throw when both catalog-type and catalog-impl are set",
         IllegalArgumentException.class,
         "both catalog-type and catalog-impl are set", () ->
-            FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration()));
+            createCatalogLoader(catalogName, props));
   }
 
   @Test
   public void testLoadCatalogUnknown() {
     String catalogName = "unknownCatalog";
-    props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "fooType");
+    props.put(FlinkCatalogFactoryOptions.ICEBERG_CATALOG_TYPE.key(), "fooType");
 
     AssertHelpers.assertThrows(
         "Should throw when an unregistered / unknown catalog is set as the catalog factor's`type` setting",
         UnsupportedOperationException.class,
         "Unknown catalog-type", () ->
-            FlinkCatalogFactory.createCatalogLoader(catalogName, props, new Configuration())
+            createCatalogLoader(catalogName, props)
     );
+  }
+
+  static CatalogLoader createCatalogLoader(String catalogName, Map<String, String> props) {
+    return FlinkCatalogFactory.createCatalogLoader(catalogName,
+        org.apache.flink.configuration.Configuration.fromMap(props), new Configuration());
   }
 
   public static class CustomHadoopCatalog extends HadoopCatalog {
