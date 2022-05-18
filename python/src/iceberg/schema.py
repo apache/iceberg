@@ -18,18 +18,12 @@
 
 from __future__ import annotations
 
-import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import singledispatch
 from typing import Any, Dict, Generic, Iterable, List, Optional, TypeVar
 
 from iceberg.files import StructProtocol
-
-if sys.version_info >= (3, 8):
-    from functools import singledispatch  # pragma: no cover
-else:
-    from singledispatch import singledispatch  # pragma: no cover
-
 from iceberg.types import IcebergType, ListType, MapType, NestedField, PrimitiveType, StructType
 
 T = TypeVar("T")
