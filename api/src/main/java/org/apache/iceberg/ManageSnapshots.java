@@ -197,4 +197,6 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
    * @throws IllegalArgumentException if the reference does not exist
    */
   ManageSnapshots setMaxRefAgeMs(String name, long maxRefAgeMs);
+
+  ManageSnapshots someBreakingChange(String name, long theLongestLong);
 }

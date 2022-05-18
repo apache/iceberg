@@ -156,4 +156,9 @@ public class SnapshotManager implements ManageSnapshots {
     commitIfRefUpdatesExist();
     transaction.commitTransaction();
   }
+
+  @Override
+  public ManageSnapshots someBreakingChange(String name, long theLongestLong) {
+    return this;
+  }
 }
