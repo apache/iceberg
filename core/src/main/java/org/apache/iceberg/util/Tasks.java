@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +69,7 @@ public class Tasks {
   }
 
   public static class Builder<I> {
-    private final Iterable<I> items;
+    private final Iterator<I> items;
     private ExecutorService service = null;
     private FailureTask<I, ?> onFailure = null;
     private boolean stopOnFailure = false;
@@ -88,8 +89,17 @@ public class Tasks {
     private long maxSleepTimeMs = 600000; // 10 minutes
     private long maxDurationMs = 600000;  // 10 minutes
     private double scaleFactor = 2.0;     // exponential
+    private boolean hasStarted = false;
 
+    /**
+     * @deprecated Use {@link #Builder(Iterator)} instead.
+     */
+    @Deprecated
     public Builder(Iterable<I> items) {
+      this.items = items.iterator();
+    }
+
+    public Builder(Iterator<I> items) {
       this.items = items;
     }
 
@@ -205,11 +215,12 @@ public class Tasks {
       List<I> succeeded = Lists.newArrayList();
       List<Throwable> exceptions = Lists.newArrayList();
 
-      Iterator<I> iterator = items.iterator();
+      Preconditions.checkState(!hasStarted, "Cannot run twice");
+      hasStarted = true;
       boolean threw = true;
       try {
-        while (iterator.hasNext()) {
-          I item = iterator.next();
+        while (items.hasNext()) {
+          I item = items.next();
           try {
             runTaskWithRetry(task, item);
             succeeded.add(item);
@@ -251,9 +262,9 @@ public class Tasks {
 
           if (abortTask != null) {
             boolean failed = false;
-            while (iterator.hasNext()) {
+            while (items.hasNext()) {
               try {
-                abortTask.run(iterator.next());
+                abortTask.run(items.next());
               } catch (Exception e) {
                 failed = true;
                 LOG.error("Failed to abort task", e);
@@ -298,7 +309,10 @@ public class Tasks {
 
       List<Future<?>> futures = Lists.newArrayList();
 
-      for (final I item : items) {
+      Preconditions.checkState(!hasStarted, "Cannot run twice");
+      hasStarted = true;
+      while (items.hasNext()) {
+        I item = items.next();
         // submit a task for each item that will either run or abort the task
         futures.add(service.submit(new Runnable() {
           @Override
@@ -570,7 +584,7 @@ public class Tasks {
   }
 
   public static <I> Builder<I> foreach(Stream<I> items) {
-    return new Builder<>(items::iterator);
+    return new Builder<>(items.iterator());
   }
 
   private static <E extends Exception> void throwOne(
