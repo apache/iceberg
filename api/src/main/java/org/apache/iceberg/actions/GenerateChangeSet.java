@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.actions;
 
+/**
+ * An action that generates a change data set from snapshots.
+ */
 public interface GenerateChangeSet extends Action<GenerateChangeSet, GenerateChangeSet.Result> {
   /**
    * Emit changed data set by a snapshot id.
@@ -29,28 +32,36 @@ public interface GenerateChangeSet extends Action<GenerateChangeSet, GenerateCha
   GenerateChangeSet forSnapshot(long snapshotId);
 
   /**
-   * Emit changed data set for the current snapshot.
+   * Emit change data set from the start snapshot (inclusive).
+   * <p>
+   * If neither {@link #fromSnapshotInclusive(long)} or {@link #fromSnapshotExclusive(long)} is provided,
+   * the start snapshot (inclusive) is defaulted to the oldest ancestor of the snapshot history.
    *
+   * @param fromSnapshotId id of the start snapshot (inclusive)
    * @return this for method chaining
    */
-  GenerateChangeSet forCurrentSnapshot();
+  GenerateChangeSet fromSnapshotInclusive(long fromSnapshotId);
 
   /**
-   * Emit changed data from a particular snapshot(exclusive).
+   * Emit change data set from the start snapshot (exclusive).
+   * <p>
+   * If neither {@link #fromSnapshotInclusive(long)} or {@link #fromSnapshotExclusive(long)} is provided,
+   * the start snapshot (inclusive) is defaulted to the oldest ancestor of the snapshot history.
    *
-   * @param fromSnapshotId id of the start snapshot
+   * @param fromSnapshotId id of the start snapshot (exclusive)
    * @return this for method chaining
    */
-  GenerateChangeSet afterSnapshot(long fromSnapshotId);
+  GenerateChangeSet fromSnapshotExclusive(long fromSnapshotId);
 
   /**
-   * Emit change data set from the start snapshot (exclusive) to the end snapshot (inclusive).
+   * Emit changed data to a particular snapshot (inclusive).
+   * <p>
+   * If not provided, end snapshot is defaulted to the table's current snapshot.
    *
-   * @param fromSnapshotId id of the start snapshot
-   * @param toSnapshotId   id of the end snapshot
+   * @param toSnapshotId id of the end snapshot (inclusive)
    * @return this for method chaining
    */
-  GenerateChangeSet betweenSnapshots(long fromSnapshotId, long toSnapshotId);
+  GenerateChangeSet toSnapshot(long toSnapshotId);
 
   /**
    * The action result that contains a dataset of changed rows.
