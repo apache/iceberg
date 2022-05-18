@@ -35,7 +35,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.flink.FlinkCatalogFactory.CACHE_ENABLED;
+import static org.apache.iceberg.flink.FlinkCatalogFactoryOptions.CACHE_ENABLED;
 
 public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
 
@@ -62,7 +62,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
                                          boolean cacheEnabled) {
     super(catalogName, baseNamespace);
     this.format = format;
-    config.put(CACHE_ENABLED, String.valueOf(cacheEnabled));
+    config.put(CACHE_ENABLED.key(), String.valueOf(cacheEnabled));
   }
 
   @Override

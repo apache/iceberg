@@ -99,12 +99,12 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
 
     config.put("type", "iceberg");
     if (!baseNamespace.isEmpty()) {
-      config.put(FlinkCatalogFactory.BASE_NAMESPACE, baseNamespace.toString());
+      config.put(FlinkCatalogFactoryOptions.BASE_NAMESPACE.key(), baseNamespace.toString());
     }
     if (isHadoopCatalog) {
-      config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
+      config.put(FlinkCatalogFactoryOptions.ICEBERG_CATALOG_TYPE.key(), "hadoop");
     } else {
-      config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
+      config.put(FlinkCatalogFactoryOptions.ICEBERG_CATALOG_TYPE.key(), "hive");
       config.put(CatalogProperties.URI, getURI(hiveConf));
     }
     config.put(CatalogProperties.WAREHOUSE_LOCATION, String.format("file://%s", warehouseRoot()));

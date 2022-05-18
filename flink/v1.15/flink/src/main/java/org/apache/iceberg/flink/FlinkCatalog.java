@@ -90,6 +90,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  */
 public class FlinkCatalog extends AbstractCatalog {
 
+
+  public static final String DEFAULT_DATABASE = "default";
+
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
   private final Namespace baseNamespace;
