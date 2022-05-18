@@ -307,7 +307,10 @@ public class SnapshotUtil {
       return schema;
     }
 
-    // TODO: recover the schema by reading previous metadata files
+    snapshot = table.snapshot(snapshot.parentId());
+    if (snapshot != null) {
+      return table.schemas().get(snapshot.schemaId());
+    }
     return table.schema();
   }
 
