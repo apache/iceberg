@@ -137,18 +137,18 @@ public abstract class ScanTestBase<T extends Scan<T>> extends TableTestBase {
   }
 
   @Test
-  public void testReaddingPartitionField() throws Exception {
+  public void testReAddingPartitionField() throws Exception {
     Assume.assumeTrue(formatVersion == 2);
     Schema schema = new Schema(
         required(1, "a", Types.IntegerType.get()),
         required(2, "b", Types.StringType.get()),
         required(3, "data", Types.IntegerType.get())
     );
-    PartitionSpec spec_a = PartitionSpec.builderFor(schema).identity("a").build();
+    PartitionSpec initialSpec = PartitionSpec.builderFor(schema).identity("a").build();
     File dir = temp.newFolder();
     dir.delete();
-    this.table = TestTables.create(dir, "test_part_evolution", schema, spec_a, formatVersion);
-    table.newFastAppend().appendFile(DataFiles.builder(spec_a)
+    this.table = TestTables.create(dir, "test_part_evolution", schema, initialSpec, formatVersion);
+    table.newFastAppend().appendFile(DataFiles.builder(initialSpec)
         .withPath("/path/to/data/a.parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath("a=1")
