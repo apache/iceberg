@@ -21,12 +21,12 @@ class NoSuchTableError(Exception):
 
 
 class NoSuchNamespaceError(Exception):
-    """Raised when a referenced namespace is not found"""
+    """Raised when a referenced name-space is not found"""
 
 
 class NamespaceNotEmptyError(Exception):
-    """Raised when a namespaced being dropped is not empty"""
+    """Raised when a name-space being dropped is not empty"""
 
 
 class AlreadyExistsError(Exception):
-    """Raised when a table or namespace being created already exists in the catalog"""
+    """Raised when a table or name-space being created already exists in the catalog"""
