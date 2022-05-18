@@ -207,7 +207,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     RowReader(ReadTask task) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
-      numSplits = (long) task.task.files().size();
+      numSplits = task.task.files().size();
       LOG.debug("Reading {} file split(s) for table {} using RowReader", numSplits, task.table().name());
     }
 
@@ -222,7 +222,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
-      numSplits = (long) task.task.files().size();
+      numSplits = task.task.files().size();
       LOG.debug("Reading {} file split(s) for table {} using BatchReader", numSplits, task.table().name());
     }
 
