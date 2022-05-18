@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -28,6 +27,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -97,7 +97,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   }
 
   protected Map<String, String> properties() {
-    return Collections.emptyMap();
+    return ImmutableMap.of();
   }
 
   @Override
@@ -229,7 +229,10 @@ public abstract class BaseMetastoreCatalog implements Catalog {
      * @return default table properties specified in catalog properties
      */
     private Map<String, String> tableDefaultProperties() {
-      return PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+      Map<String, String> tableDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+      LOG.info("Table properties set at catalog level through catalog properties: {}", tableDefaultProperties);
+      return tableDefaultProperties;
     }
 
     /**
@@ -238,7 +241,10 @@ public abstract class BaseMetastoreCatalog implements Catalog {
      * @return default table properties enforced through catalog properties
      */
     private Map<String, String> tableOverrideProperties() {
-      return PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
+      Map<String, String> tableOverrideProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
+      LOG.info("Table properties enforced at catalog level through catalog properties: {}", tableOverrideProperties);
+      return tableOverrideProperties;
     }
   }
 
