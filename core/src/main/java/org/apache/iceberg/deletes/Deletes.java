@@ -109,7 +109,6 @@ public class Deletes {
     return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
   }
 
-
   public static <T> CloseableIterable<T> streamingMarker(CloseableIterable<T> rows,
                                                          Function<T, Long> rowToPosition,
                                                          CloseableIterable<Long> posDeletes,

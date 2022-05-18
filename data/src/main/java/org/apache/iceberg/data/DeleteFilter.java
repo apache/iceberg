@@ -95,8 +95,8 @@ public abstract class DeleteFilter<T> {
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
-    this.hasColumnIsDeleted = requestedSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
-    this.columnIsDeletedPosition = requestedSchema.columns().indexOf(MetadataColumns.IS_DELETED);
+    this.hasColumnIsDeleted = requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
+    this.columnIsDeletedPosition = requiredSchema.columns().indexOf(MetadataColumns.IS_DELETED);
   }
 
   protected int columnIsDeletedPosition() {
@@ -192,7 +192,7 @@ public abstract class DeleteFilter<T> {
   }
 
   protected void markRowDeleted(T item) {
-    throw new UnsupportedOperationException("GenericDeleteFilter.markRowDeleted() is not supported");
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement markRowDeleted");
   }
 
   public Predicate<T> eqDeletedRowFilter() {
@@ -226,7 +226,8 @@ public abstract class DeleteFilter<T> {
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      Predicate<T> isInDeleteSet = record -> Deletes.toPositionIndex(filePath, deletes).isDeleted(pos(record));
+      PositionDeleteIndex positionIndex = Deletes.toPositionIndex(filePath, deletes);
+      Predicate<T> isInDeleteSet = record -> positionIndex.isDeleted(pos(record));
       return hasColumnIsDeleted ?
           Deletes.markDeleted(records, isInDeleteSet, this::markRowDeleted) :
           CloseableIterable.filter(records, isInDeleteSet.negate());
