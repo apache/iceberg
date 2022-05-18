@@ -22,18 +22,24 @@ from iceberg.schema import Schema
 from iceberg.table.base import PartitionSpec, Table
 
 Identifier = Tuple[str, ...]
-Metadata = Dict[str, str]
+Properties = Dict[str, str]
 
 
 class Catalog(ABC):
     """Base Catalog for table operations like - create, drop, load, list and others.
 
+    The catalog table APIs accept a table identifier, which is fully classified table name. The identifier can be a string or
+    tuple of strings. If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+
+    The catalog name-space APIs follow a similar convention wherein they also accept a name-space identifier that can be a string
+    or tuple of strings.
+
     Attributes:
         name(str): Name of the catalog
-        properties(Dict[str, str]): Catalog properties
+        properties(Properties): Catalog properties
     """
 
-    def __init__(self, name: str, properties: Metadata):
+    def __init__(self, name: str, properties: Properties):
         self._name = name
         self._properties = properties
 
@@ -42,7 +48,7 @@ class Catalog(ABC):
         return self._name
 
     @property
-    def properties(self) -> Metadata:
+    def properties(self) -> Properties:
         return self._properties
 
     @abstractmethod
@@ -52,16 +58,16 @@ class Catalog(ABC):
         schema: Schema,
         location: Optional[str] = None,
         partition_spec: Optional[PartitionSpec] = None,
-        properties: Optional[Metadata] = None,
+        properties: Optional[Properties] = None,
     ) -> Table:
         """Create a table
 
         Args:
-            identifier: Fully classified table name with its namespace. If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+            identifier: Table identifier.
             schema: Table's schema.
             location: Location for the table. Optional Argument.
             partition_spec: PartitionSpec for the table. Optional Argument.
-            properties: Table metadata that can be a string based dictionary. Optional Argument.
+            properties: Table properties that can be a string based dictionary. Optional Argument.
 
         Returns:
             Table: the created table instance
@@ -78,7 +84,7 @@ class Catalog(ABC):
         Note: This method doesn't scan data stored in the table.
 
         Args:
-            identifier: Fully classified table name with its namespace. If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+            identifier: Table identifier.
 
         Returns:
             Table: the table instance with its metadata
@@ -92,7 +98,7 @@ class Catalog(ABC):
         """Drop a table.
 
         Args:
-            identifier: Fully classified table name with its namespace. If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+            identifier: Table identifier.
 
         Raises:
             TableNotFoundError: If a table with the name does not exist
@@ -103,7 +109,7 @@ class Catalog(ABC):
         """Drop a table and purge all data and metadata files.
 
         Args:
-            identifier: Fully classified table name with its namespace. If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+            identifier: Table identifier.
 
         Raises:
             TableNotFoundError: If a table with the name does not exist
@@ -114,8 +120,8 @@ class Catalog(ABC):
         """Rename a fully classified table name
 
         Args:
-            from_identifier: Fully classified table name with its namespace. If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
-            to_identifier: New fully classified table name with its namespace. If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+            from_identifier: Existing table identifier.
+            to_identifier: New table identifier.
 
         Returns:
             Table: the updated table instance with its metadata
@@ -125,80 +131,117 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Metadata] = None) -> None:
-        """Create a namespace in the catalog.
+    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
+        """Create a name-space in the catalog.
 
         Args:
-            namespace: The namespace to be created. If the namespace is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
-            properties: A string dictionary of properties for the given namespace
+            namespace: Name-space identifier
+            properties: A string dictionary of properties for the given name-space
 
         Raises:
-            AlreadyExistsError: If a namespace with the given name already exists
+            AlreadyExistsError: If a name-space with the given name already exists
         """
 
     @abstractmethod
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
-        """Drop a namespace.
+        """Drop a name-space.
 
         Args:
-            namespace: The namespace to be dropped. If the namespace is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+            namespace: Name-space identifier
 
         Raises:
-            NamespaceNotFoundError: If a namespace with the given name does not exist
-            NamespaceNotEmptyError: If the namespace is not empty
+            NamespaceNotFoundError: If a name-space with the given name does not exist
+            NamespaceNotEmptyError: If the name-space is not empty
         """
 
     @abstractmethod
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
-        """List tables under the given namespace in the catalog.
+        """List tables under the given name-space in the catalog.
 
-        If namespace not provided, will list all tables in the catalog.
+        If name-space not provided, will list all tables in the catalog.
 
         Args:
-            namespace: the namespace to search. If the namespace is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+            namespace: Name-space identifier to search.
 
         Returns:
-            List[Tuple[str, str]]: list of tuple of table namespace and their names.
+            List[Identifier]: list of table identifiers.
 
         Raises:
-            NamespaceNotFoundError: If a namespace with the given name does not exist
+            NamespaceNotFoundError: If a name-space with the given name does not exist
         """
 
     @abstractmethod
     def list_namespaces(self) -> List[Identifier]:
-        """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
+        """List name-spaces from the given name-space. If not given, list top-level name-spaces from the catalog.
 
         Returns:
-            List[Identifier]: a List of namespace, where each element is a Tuple of namespace levels. Ex: ('com','org','dept')
+            List[Identifier]: a List of name-space identifiers
         """
 
     @abstractmethod
-    def load_namespace(self, namespace: Union[str, Identifier]) -> Metadata:
-        """Get metadata dictionary for a namespace.
+    def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
+        """Get properties for a name-space.
 
         Args:
-            namespace: If the namespace is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+            namespace: Name-space identifier
 
         Returns:
-            Metadata: a dictionary of properties for the given namespace
+            Properties: Properties for the given name-space
 
         Raises:
-            NamespaceNotFoundError: If a namespace with the given name does not exist
+            NamespaceNotFoundError: If a name-space with the given name does not exist
         """
 
     @abstractmethod
-    def update_namespace_metadata(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Metadata] = None
+    def update_namespace_properties(
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
     ) -> None:
-        """Removes provided metadata keys and then updates metadata for a namespace.
-
-        Note: No errors are raised if a provided removal key is not found.
+        """Removes provided property keys and updates properties for a name-space.
 
         Args:
-            namespace: If the namespace is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
-            removals: a set of metadata keys that need to be removed. Optional Argument.
-            updates: a dictionary of properties to be updated for the given namespace. Optional Argument.
+            namespace: Name-space identifier
+            removals: Set of property keys that need to be removed. Optional Argument.
+            updates: Properties to be updated for the given name-space. Optional Argument.
 
         Raises:
-            NamespaceNotFoundError: If a namespace with the given name does not exist
+            NamespaceNotFoundError: If a name-space with the given name does not exist
+            ValueError: If removals and updates have overlapping keys.
         """
+
+    @staticmethod
+    def identifier_to_tuple(identifier: Union[str, Identifier]) -> Identifier:
+        """Parses an identifier to a tuple.
+
+        If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
+
+        Args:
+            identifier: an identifier, either a string or tuple of strings
+
+        Returns:
+            Identifier: a tuple of strings
+        """
+        return identifier if isinstance(identifier, tuple) else tuple(str.split(identifier, "."))
+
+    @staticmethod
+    def table_name_from(identifier: Union[str, Identifier]) -> str:
+        """Extracts table name from a table identifier
+
+        Args:
+            identifier: a table identifier
+
+        Returns:
+            str: Table name
+        """
+        return Catalog.identifier_to_tuple(identifier)[-1]
+
+    @staticmethod
+    def namespace_from(identifier: Union[str, Identifier]) -> Identifier:
+        """Extracts table name-space from a table identifier
+
+        Args:
+            identifier: a table identifier
+
+        Returns:
+            Identifier: Name-space identifier
+        """
+        return Catalog.identifier_to_tuple(identifier)[:-1]
