@@ -237,47 +237,6 @@ public class HadoopTables implements Tables, Configurable {
     return TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, location, tableProps);
   }
 
-  /**
-   * Start a transaction to create a table.
-   *
-   * @param location a location for the table
-   * @param schema a schema
-   * @param spec a partition spec
-   * @param properties a string map of table properties
-   * @return a {@link Transaction} to create the table
-   * @throws AlreadyExistsException if the table already exists
-   */
-  public Transaction newCreateTableTransaction(
-      String location,
-      Schema schema,
-      PartitionSpec spec,
-      Map<String, String> properties) {
-    return buildTable(location, schema).withPartitionSpec(spec).withProperties(properties).createTransaction();
-  }
-
-  /**
-   * Start a transaction to replace a table.
-   *
-   * @param location a location for the table
-   * @param schema a schema
-   * @param spec a partition spec
-   * @param properties a string map of table properties
-   * @param orCreate whether to create the table if not exists
-   * @return a {@link Transaction} to replace the table
-   * @throws NoSuchTableException if the table doesn't exist and orCreate is false
-   */
-  public Transaction newReplaceTableTransaction(
-      String location,
-      Schema schema,
-      PartitionSpec spec,
-      Map<String, String> properties,
-      boolean orCreate) {
-
-
-    Catalog.TableBuilder builder = buildTable(location, schema).withPartitionSpec(spec).withProperties(properties);
-    return orCreate ? builder.createOrReplaceTransaction() : builder.replaceTransaction();
-  }
-
   public Catalog.TableBuilder buildTable(String location, Schema schema) {
     return new HadoopTableBuilder(location, schema);
   }
@@ -288,7 +247,6 @@ public class HadoopTables implements Tables, Configurable {
     private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     private PartitionSpec spec = PartitionSpec.unpartitioned();
     private SortOrder sortOrder = SortOrder.unsorted();
-
 
     HadoopTableBuilder(String location, Schema schema) {
       this.location = location;
