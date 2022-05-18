@@ -30,14 +30,7 @@ if sys.version_info >= (3, 8):
 else:
     from singledispatch import singledispatch  # pragma: no cover
 
-from iceberg.types import (
-    IcebergType,
-    ListType,
-    MapType,
-    NestedField,
-    PrimitiveType,
-    StructType,
-)
+from iceberg.types import IcebergType, ListType, MapType, NestedField, PrimitiveType, StructType
 
 T = TypeVar("T")
 
@@ -50,7 +43,7 @@ class Schema:
         >>> from iceberg import types
     """
 
-    def __init__(self, *columns: Iterable[NestedField], schema_id: int, identifier_field_ids: Optional[List[int]] = None):
+    def __init__(self, *columns: NestedField, schema_id: int, identifier_field_ids: Optional[List[int]] = None):
         self._struct = StructType(*columns)  # type: ignore
         self._schema_id = schema_id
         self._identifier_field_ids = identifier_field_ids or []

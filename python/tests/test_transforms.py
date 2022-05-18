@@ -37,12 +37,7 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
-from iceberg.utils.datetime import (
-    date_to_days,
-    time_to_micros,
-    timestamp_to_micros,
-    timestamptz_to_micros,
-)
+from iceberg.utils.datetime import date_to_days, time_to_micros, timestamp_to_micros, timestamptz_to_micros
 
 
 @pytest.mark.parametrize(

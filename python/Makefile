@@ -15,32 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
-]
-build-backend = "setuptools.build_meta"
+lint:
+	pre-commit run $(args)
 
-[tool.black]
-line-length = 130
-target-version = ['py38']
-
-[tool.isort]
-profile = 'black'
-line_length = 130
-
-[tool.pycln]
-all = true
-
-[tool.mypy]
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unreachable = true
-
-[[tool.mypy.overrides]]
-module = "mypy-pyarrow.*"
-ignore_missing_imports = true
-
-[tool.coverage.run]
-source = ['src/']
+test:
+	coverage run --source=src/ -m pytest tests/
+	coverage report -m --fail-under=90
+	coverage html
+	coverage xml

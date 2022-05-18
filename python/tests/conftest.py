@@ -20,16 +20,7 @@ from typing import Any
 import pytest
 
 from iceberg import schema
-from iceberg.types import (
-    BooleanType,
-    FloatType,
-    IntegerType,
-    ListType,
-    MapType,
-    NestedField,
-    StringType,
-    StructType,
-)
+from iceberg.types import BooleanType, FloatType, IntegerType, ListType, MapType, NestedField, StringType, StructType
 
 
 class FooStruct:

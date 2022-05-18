@@ -180,20 +180,6 @@ def test_raise_on_creating_a_local_file_no_permission():
         assert "Cannot get file info, access denied:" in str(exc_info.value)
 
 
-def test_raise_on_checking_if_local_file_exists_no_permission():
-    """Test that a PyArrowFile raises when deleting a local file without permission"""
-
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        os.chmod(tmpdirname, 0o600)
-        file_location = os.path.join(tmpdirname, "foo.txt")
-        file_io = PyArrowFileIO()
-
-        with pytest.raises(PermissionError) as exc_info:
-            file_io.delete(file_location)
-
-        assert "Cannot delete file" in str(exc_info.value)
-
-
 @patch("iceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
 @patch("iceberg.io.pyarrow.FileSystem")
 def test_raise_on_opening_an_s3_file_no_permission(filesystem_mock, exists_mock):

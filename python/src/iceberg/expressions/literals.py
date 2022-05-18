@@ -27,13 +27,7 @@ from functools import singledispatch
 from typing import Optional, Union
 from uuid import UUID
 
-from iceberg.utils.datetime import (
-    date_to_days,
-    micros_to_days,
-    time_to_micros,
-    timestamp_to_micros,
-    timestamptz_to_micros,
-)
+from iceberg.utils.datetime import date_to_days, micros_to_days, time_to_micros, timestamp_to_micros, timestamptz_to_micros
 
 if sys.version_info >= (3, 8):
     from functools import singledispatchmethod  # pragma: no cover

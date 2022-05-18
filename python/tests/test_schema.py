@@ -24,16 +24,7 @@ from iceberg import schema
 from iceberg.expressions.base import Accessor
 from iceberg.files import StructProtocol
 from iceberg.schema import build_position_accessors
-from iceberg.types import (
-    BooleanType,
-    FloatType,
-    IntegerType,
-    ListType,
-    MapType,
-    NestedField,
-    StringType,
-    StructType,
-)
+from iceberg.types import BooleanType, FloatType, IntegerType, ListType, MapType, NestedField, StringType, StructType
 
 
 def test_schema_str(table_schema_simple):
