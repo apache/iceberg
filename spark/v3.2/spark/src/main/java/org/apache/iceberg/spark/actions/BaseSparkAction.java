@@ -134,7 +134,11 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     Broadcast<Table> tableBroadcast = context.broadcast(SerializableTable.copyOf(table));
 
     Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
-        .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
+        .selectExpr("content",
+            "path",
+            "length",
+            "partition_spec_id as partitionSpecId",
+            "added_snapshot_id as addedSnapshotId")
         .dropDuplicates("path")
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
         .as(Encoders.bean(ManifestFileBean.class));
