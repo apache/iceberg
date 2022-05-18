@@ -82,10 +82,10 @@ abstract class BaseDataReader<T> implements Closeable {
         .map(entry -> EncryptedFiles.encryptedInput(table.io().newInputFile(entry.getKey()), entry.getValue()));
 
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-    Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encrypted::iterator);
+    Iterator<InputFile> decryptedFiles = table.encryption().decrypt(encrypted.iterator());
 
     Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
-    decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
+    decryptedFiles.forEachRemaining(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
     this.inputFiles = ImmutableMap.copyOf(files);
 
     this.currentIterator = CloseableIterator.empty();

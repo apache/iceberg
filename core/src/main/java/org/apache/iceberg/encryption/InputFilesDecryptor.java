@@ -21,6 +21,7 @@ package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.CombinedScanTask;
@@ -43,10 +44,10 @@ public class InputFilesDecryptor {
         .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
 
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-    Iterable<InputFile> decryptedFiles = encryption.decrypt(encrypted::iterator);
+    Iterator<InputFile> decryptedFiles = encryption.decrypt(encrypted.iterator());
 
     Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(keyMetadata.size());
-    decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
+    decryptedFiles.forEachRemaining(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
     this.decryptedInputFiles = Collections.unmodifiableMap(files);
   }
 

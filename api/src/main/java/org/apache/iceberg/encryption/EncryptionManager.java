@@ -20,9 +20,11 @@
 package org.apache.iceberg.encryption;
 
 import java.io.Serializable;
+import java.util.Iterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 
 /**
  * Module for encrypting and decrypting table data files.
@@ -47,9 +49,24 @@ public interface EncryptionManager extends Serializable {
    * By default this calls the single-file decryption method for each element in the iterator.
    * Implementations can override this for a variety of optimizations. For example, an
    * implementation can perform lookahead on the input iterator and fetch encryption keys in batch.
+   *
+   * @deprecated Use {@link #decrypt(Iterator)}.
    */
+  @Deprecated
   default Iterable<InputFile> decrypt(Iterable<EncryptedInputFile> encrypted) {
     return Iterables.transform(encrypted, this::decrypt);
+  }
+
+  /**
+   * Variant of {@link #decrypt(EncryptedInputFile)} that provides a sequence of files that all
+   * need to be decrypted in a single context.
+   * <p>
+   * By default this calls the single-file decryption method for each element in the iterator.
+   * Implementations can override this for a variety of optimizations. For example, an
+   * implementation can perform lookahead on the input iterator and fetch encryption keys in batch.
+   */
+  default Iterator<InputFile> decrypt(Iterator<EncryptedInputFile> encrypted) {
+    return Iterators.transform(encrypted, this::decrypt);
   }
 
   /**

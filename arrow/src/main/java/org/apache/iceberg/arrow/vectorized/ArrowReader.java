@@ -268,10 +268,10 @@ public class ArrowReader extends CloseableGroup {
           .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
 
       // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-      Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(encrypted::iterator);
+      Iterator<InputFile> decryptedFiles = encryptionManager.decrypt(encrypted.iterator());
 
       Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(fileTasks.size());
-      decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
+      decryptedFiles.forEachRemaining(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
       this.inputFiles = ImmutableMap.copyOf(files);
       this.currentIterator = CloseableIterator.empty();
       this.expectedSchema = expectedSchema;
