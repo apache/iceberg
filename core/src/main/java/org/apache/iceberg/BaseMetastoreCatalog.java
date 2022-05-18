@@ -229,7 +229,10 @@ public abstract class BaseMetastoreCatalog implements Catalog {
      * @return default table properties specified in catalog properties
      */
     private Map<String, String> tableDefaultProperties() {
-      return PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+      Map<String, String> tableDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+      LOG.info("Table properties set at catalog level through catalog properties: {}", tableDefaultProperties);
+      return tableDefaultProperties;
     }
 
     /**
@@ -238,7 +241,10 @@ public abstract class BaseMetastoreCatalog implements Catalog {
      * @return default table properties enforced through catalog properties
      */
     private Map<String, String> tableOverrideProperties() {
-      return PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
+      Map<String, String> tableOverrideProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
+      LOG.info("Table properties enforced at catalog level through catalog properties: {}", tableOverrideProperties);
+      return tableOverrideProperties;
     }
   }
 
