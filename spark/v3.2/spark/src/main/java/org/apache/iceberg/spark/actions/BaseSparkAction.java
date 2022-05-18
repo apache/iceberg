@@ -130,11 +130,11 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   // builds a DF of delete and data file path and type by reading all manifests
   protected Dataset<Row> buildValidContentFileWithTypeDF(Table table) {
-    JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    Broadcast<Table> tableBroadcast = context.broadcast(SerializableTable.copyOf(table));
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
-        .selectExpr("content",
+        .selectExpr(
+            "content",
             "path",
             "length",
             "partition_spec_id as partitionSpecId",

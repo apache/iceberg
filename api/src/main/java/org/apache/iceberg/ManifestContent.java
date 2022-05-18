@@ -41,6 +41,6 @@ public enum ManifestContent {
       case 0: return DATA;
       case 1: return DELETES;
     }
-    return null;
+    throw new IllegalArgumentException("Unknown manifest content: " + id);
   }
 }

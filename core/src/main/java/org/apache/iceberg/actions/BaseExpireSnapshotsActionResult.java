@@ -39,12 +39,12 @@ public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
 
   public BaseExpireSnapshotsActionResult(long deletedDataFilesCount,
                                          long deletedPosDeleteFilesCount,
-                                         long deletedEqDeleteFileCount,
+                                         long deletedEqDeleteFilesCount,
                                          long deletedManifestsCount,
                                          long deletedManifestListsCount) {
     this.deletedDataFilesCount = deletedDataFilesCount;
     this.deletedPosDeleteFilesCount = deletedPosDeleteFilesCount;
-    this.deletedEqDeleteFilesCount = deletedEqDeleteFileCount;
+    this.deletedEqDeleteFilesCount = deletedEqDeleteFilesCount;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;
   }
