@@ -91,10 +91,14 @@ public class Accessors {
   }
 
   private static class Position2Accessor implements Accessor<StructLike> {
+
+    private static final Long serialVersionUID = 45564654651L;
+
     private final int p0;
     private final int p1;
     private final Type type;
     private final Class<?> javaClass;
+    private final String someRandomField = "pi";
 
     Position2Accessor(int pos, PositionAccessor wrapped) {
       this.p0 = pos;
