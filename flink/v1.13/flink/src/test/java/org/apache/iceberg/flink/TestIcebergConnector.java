@@ -31,8 +31,9 @@ import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.factories.CatalogFactory;
+import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.types.Row;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
@@ -246,8 +247,11 @@ public class TestIcebergConnector extends FlinkTestBase {
         Sets.newHashSet(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
         Sets.newHashSet(sql("SELECT * FROM %s", TABLE_NAME)));
 
+    CatalogFactory.Context context =
+        new FactoryUtil.DefaultCatalogContext(
+            catalogName, tableProps, null, Thread.currentThread().getContextClassLoader());
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
-    Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, new Configuration());
+    Catalog flinkCatalog = factory.createCatalog(context);
     Assert.assertTrue("Should have created the expected database",
         flinkCatalog.databaseExists(databaseName()));
     Assert.assertTrue("Should have created the expected table",
@@ -309,7 +313,7 @@ public class TestIcebergConnector extends FlinkTestBase {
           IllegalArgumentException.class,
           "Cannot create the table with 'connector'='iceberg' table property in an iceberg catalog",
           () -> sql("CREATE TABLE `test_catalog`.`%s`.`%s` (id BIGINT, data STRING) WITH %s",
-              FlinkCatalogFactory.DEFAULT_DATABASE_NAME,
+              FlinkCatalogFactoryOptions.DEFAULT_DATABASE.defaultValue(),
               TABLE_NAME,
               toWithClause(tableProps)
           )
@@ -334,7 +338,7 @@ public class TestIcebergConnector extends FlinkTestBase {
   }
 
   private boolean isDefaultDatabaseName() {
-    return FlinkCatalogFactory.DEFAULT_DATABASE_NAME.equalsIgnoreCase(databaseName());
+    return FlinkCatalogFactoryOptions.DEFAULT_DATABASE.defaultValue().equalsIgnoreCase(databaseName());
   }
 
   private String tableName() {
