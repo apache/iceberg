@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Collections;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -28,6 +27,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -97,7 +97,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   }
 
   protected Map<String, String> properties() {
-    return Collections.emptyMap();
+    return ImmutableMap.of();
   }
 
   @Override

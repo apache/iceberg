@@ -21,7 +21,6 @@ package org.apache.iceberg.aws.glue;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -93,7 +92,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private FileIO fileIO;
   private LockManager lockManager;
   private CloseableGroup closeableGroup;
-  private Map<String, String> catalogProperties = Collections.emptyMap();
+  private Map<String, String> catalogProperties;
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID = DynMethods.builder("versionId")
@@ -111,7 +110,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    this.catalogProperties = properties;
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     AwsClientFactory awsClientFactory;
     FileIO catalogFileIO;
     if (PropertyUtil.propertyAsBoolean(
@@ -165,8 +164,14 @@ public class GlueCatalog extends BaseMetastoreCatalog
   }
 
   @VisibleForTesting
-  void initialize(String name, String path, AwsProperties properties, GlueClient client,
-      LockManager lock, FileIO io, Map<String, String> catalogProps) {
+  void initialize(
+      String name,
+      String path,
+      AwsProperties properties,
+      GlueClient client,
+      LockManager lock,
+      FileIO io,
+      Map<String, String> catalogProps) {
     this.catalogProperties = catalogProps;
     initialize(name, path, properties, client, lock, io);
   }
@@ -507,6 +512,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   protected Map<String, String> properties() {
-    return catalogProperties;
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 }

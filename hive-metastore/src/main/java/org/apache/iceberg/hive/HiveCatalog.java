@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hive;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.thrift.TException;
@@ -74,14 +74,14 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private FileIO fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
-  private Map<String, String> catalogProperties = Collections.emptyMap();
+  private Map<String, String> catalogProperties;
 
   public HiveCatalog() {
   }
 
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
-    this.catalogProperties = properties;
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     this.name = inputName;
     if (conf == null) {
       LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
@@ -544,7 +544,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   protected Map<String, String> properties() {
-    return catalogProperties;
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 
   @VisibleForTesting
