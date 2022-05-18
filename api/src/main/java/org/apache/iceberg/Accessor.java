@@ -23,6 +23,10 @@ import java.io.Serializable;
 import org.apache.iceberg.types.Type;
 
 public interface Accessor<T> extends Serializable {
+
+  // Apply a breaking change to ensure that it is reflected in our CI.
+  public static final long serialVersionUID = 42L;
+
   Object get(T container);
 
   Type type();
