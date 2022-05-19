@@ -50,12 +50,15 @@ class AvroSchemaConversion:
     PRIMITIVE_FIELD_TYPE_MAP: Dict[str, PrimitiveType] = {
         "boolean": BooleanType(),
         "bytes": BinaryType(),
-        "date": DateType(),
         "double": DoubleType(),
         "float": FloatType(),
         "int": IntegerType(),
         "long": LongType(),
         "string": StringType(),
+    }
+
+    LOGICAL_FIELD_TYPE_MAP: Dict[str, PrimitiveType] = {
+        "date": DateType(),
         "time-millis": TimeType(),
         "timestamp-millis": TimestampType(),
         "uuid": UUIDType(),
@@ -276,6 +279,36 @@ class AvroSchemaConversion:
                     field_id=field_id,
                     name=field_name,
                     field_type=DecimalType(precision=raw_avro_type["precision"], scale=raw_avro_type["scale"]),
+                    is_optional=is_optional,
+                    doc=field_doc,
+                )
+            elif logical_type == "map":
+                # In the case where a map hasn't has a key as a type
+                # For more information:
+                # https://iceberg.apache.org/spec/#appendix-a-format-specific-requirements
+                fields = raw_avro_type["items"]["fields"]
+                key = self._parse_field(fields[0])
+                assert isinstance(key, NestedField)
+                value = self._parse_field(fields[1])
+                assert isinstance(value, NestedField)
+                return NestedField(
+                    field_id=field_id,
+                    name=field_name,
+                    field_type=MapType(
+                        key_id=key.field_id,
+                        key_type=key.field_type,
+                        value_id=value.field_id,
+                        value_type=value.field_type,
+                        value_is_optional=value.is_optional,
+                    ),
+                    is_optional=is_optional,
+                    doc=field_doc,
+                )
+            elif logical_type in AvroSchemaConversion.LOGICAL_FIELD_TYPE_MAP:
+                return NestedField(
+                    field_id=field_id,
+                    name=field_name,
+                    field_type=AvroSchemaConversion.LOGICAL_FIELD_TYPE_MAP[logical_type],
                     is_optional=is_optional,
                     doc=field_doc,
                 )

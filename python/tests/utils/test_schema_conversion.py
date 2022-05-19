@@ -19,6 +19,7 @@ from iceberg.schema import Schema
 from iceberg.types import (
     BinaryType,
     BooleanType,
+    DateType,
     DecimalType,
     FixedType,
     IntegerType,
@@ -276,6 +277,22 @@ def test_avro_fixed():
     assert expected_iceberg_schema == iceberg_schema
 
 
+def test_avro_date():
+    avro_schema = {
+        "type": "record",
+        "name": "avro_schema",
+        "fields": [{"name": "birthday", "type": {"type": "int", "logicalType": "date"}, "field-id": 100}],
+    }
+
+    expected_iceberg_schema = Schema(
+        NestedField(name="birthday", field_id=100, field_type=DateType(), is_optional=False), schema_id=1
+    )
+
+    iceberg_schema = AvroSchemaConversion().avro_to_iceberg(avro_schema)
+
+    assert expected_iceberg_schema == iceberg_schema
+
+
 def test_avro_decimal():
     avro_schema = {
         "type": "record",
@@ -292,6 +309,48 @@ def test_avro_decimal():
     expected_iceberg_schema = Schema(
         NestedField(name="some_decimal", field_id=100, field_type=DecimalType(precision=19, scale=25), is_optional=False),
         schema_id=1,
+    )
+
+    iceberg_schema = AvroSchemaConversion().avro_to_iceberg(avro_schema)
+
+    assert expected_iceberg_schema == iceberg_schema
+
+
+def test_avro_non_string_key_map():
+    avro_schema = {
+        "type": "record",
+        "name": "avro_schema",
+        "fields": [
+            {
+                "name": "some_decimal",
+                "type": {
+                    "type": "array",
+                    "logicalType": "map",
+                    "items": {
+                        "type": "record",
+                        "name": "k12_v13",
+                        "fields": [
+                            {"name": "key", "type": "int", "field-id": 101},
+                            {"name": "value", "type": "string", "field-id": 102},
+                        ],
+                    },
+                },
+                "field-id": 100,
+            }
+        ],
+    }
+
+    expected_iceberg_schema = Schema(
+        NestedField(
+            field_id=100,
+            name="some_decimal",
+            field_type=MapType(
+                key_id=101, key_type=IntegerType(), value_id=102, value_type=StringType(), value_is_optional=False
+            ),
+            is_optional=False,
+        ),
+        schema_id=1,
+        identifier_field_ids=[],
     )
 
     iceberg_schema = AvroSchemaConversion().avro_to_iceberg(avro_schema)
