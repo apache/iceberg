@@ -24,6 +24,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -122,6 +123,8 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
             "older_than => TIMESTAMP '%s')",
         catalogName, tableIdent, currentTimestamp);
     Assert.assertEquals("Should be orphan files in the data folder", 1, output2.size());
+    Assert.assertTrue("Deleted status of orphan file should be true", toDeletedStatus(output2.get(0)));
+    Assert.assertNull("Error message of orphan file should be null", toErrorMessage(output2.get(0)));
 
     // the previous call should have deleted all orphan files
     List<Object[]> output3 = sql(
@@ -169,6 +172,9 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
             "dry_run => true)",
         catalogName, tableIdent, currentTimestamp);
     Assert.assertEquals("Should be one orphan files", 1, output1.size());
+    Assert.assertFalse("Deleted status of orphan file should be false during dry run",
+        toDeletedStatus(output1.get(0)));
+    Assert.assertNull("Error message of orphan file should be null during dry run", toErrorMessage(output1.get(0)));
 
     // actually delete orphans
     List<Object[]> output2 = sql(
@@ -177,6 +183,8 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
             "older_than => TIMESTAMP '%s')",
         catalogName, tableIdent, currentTimestamp);
     Assert.assertEquals("Should be one orphan files", 1, output2.size());
+    Assert.assertTrue("Deleted status of orphan file should be true", toDeletedStatus(output2.get(0)));
+    Assert.assertNull("Error message of orphan file should be null", toErrorMessage(output2.get(0)));
 
     // the previous call should have deleted all orphan files
     List<Object[]> output3 = sql(
@@ -285,6 +293,10 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
             "older_than => TIMESTAMP '%s')",
         catalogName, tableIdent, 4, currentTimestamp);
     Assert.assertEquals("Should be orphan files in the data folder", 4, output.size());
+    Assert.assertTrue("Deleted status of orphan files should be true",
+        output.stream().allMatch(this::toDeletedStatus));
+    Assert.assertTrue("Error message of orphan files should be null",
+        output.stream().map(this::toErrorMessage).allMatch(Objects::isNull));
 
     // the previous call should have deleted all orphan files
     List<Object[]> output3 = sql(
@@ -399,5 +411,13 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
+  }
+
+  private boolean toDeletedStatus(Object[] row) {
+    return (boolean) row[1];
+  }
+
+  private String toErrorMessage(Object[] row) {
+    return (String) row[2];
   }
 }

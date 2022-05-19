@@ -145,19 +145,19 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     DeleteOrphanFiles.Result result1 = actions.deleteOrphanFiles(table)
         .deleteWith(s -> { })
         .execute();
-    Assert.assertTrue("Default olderThan interval should be safe", Iterables.isEmpty(result1.orphanFileLocations()));
+    Assert.assertTrue("Default olderThan interval should be safe", Iterables.isEmpty(result1.orphanFiles()));
 
     DeleteOrphanFiles.Result result2 = actions.deleteOrphanFiles(table)
         .olderThan(System.currentTimeMillis())
         .deleteWith(s -> { })
         .execute();
-    Assert.assertEquals("Action should find 1 file", invalidFiles, result2.orphanFileLocations());
+    Assert.assertEquals("Action should find 1 file", invalidFiles, toFileLocations(result2.orphanFiles()));
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
 
     DeleteOrphanFiles.Result result3 = actions.deleteOrphanFiles(table)
         .olderThan(System.currentTimeMillis())
         .execute();
-    Assert.assertEquals("Action should delete 1 file", invalidFiles, result3.orphanFileLocations());
+    Assert.assertEquals("Action should delete 1 file", invalidFiles, toFileLocations(result3.orphanFiles()));
     Assert.assertFalse("Invalid file should not be present", fs.exists(new Path(invalidFiles.get(0))));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
@@ -230,7 +230,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 4 files", 4, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals("Should delete 4 files", 4, Iterables.size(result.orphanFiles()));
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
@@ -358,7 +358,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
+    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFiles()));
   }
 
   @Test
@@ -389,7 +389,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFiles()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords = resultDF
@@ -430,7 +430,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(timestamp)
         .execute();
 
-    Assert.assertEquals("Should delete only 2 files", 2, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals("Should delete only 2 files", 2, Iterables.size(result.orphanFiles()));
   }
 
   @Test
@@ -465,9 +465,9 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFileLocations()));
-    Assert.assertTrue("Should remove v1 file", StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("v1.metadata.json")));
+    Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFiles()));
+    Assert.assertTrue("Should remove v1 file", StreamSupport.stream(result.orphanFiles().spliterator(), false)
+            .anyMatch(fileStatus -> fileStatus.location().contains("v1.metadata.json")));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records);
@@ -505,7 +505,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
+    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFiles()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords = resultDF
@@ -539,7 +539,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
+    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFiles()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords = resultDF
@@ -587,7 +587,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFiles()));
   }
 
   @Test
@@ -633,7 +633,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFiles()));
   }
 
   @Test
@@ -677,7 +677,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete 0 files", 0, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals("Should delete 0 files", 0, Iterables.size(result.orphanFiles()));
     Assert.assertTrue(fs.exists(pathToFileInHiddenFolder));
   }
 
@@ -735,7 +735,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .deleteWith(s -> { })
         .execute();
-    Assert.assertEquals("Action should find 1 file", invalidFiles, result.orphanFileLocations());
+    Assert.assertEquals("Action should find 1 file", invalidFiles, toFileLocations(result.orphanFiles()));
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
   }
 
@@ -771,7 +771,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis())
         .execute();
 
-    Assert.assertEquals("Should delete only 1 files", 1, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals("Should delete only 1 files", 1, Iterables.size(result.orphanFiles()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(table.location());
     List<ThreeColumnRecord> actualRecords = resultDF
@@ -803,8 +803,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     DeleteOrphanFiles.Result result = SparkActions.get().deleteOrphanFiles(table)
         .olderThan(System.currentTimeMillis() + 1000).execute();
     Assert.assertTrue("trash file should be removed",
-        StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
-            .anyMatch(file -> file.contains("file:" + location + "data/trashfile")));
+        StreamSupport.stream(result.orphanFiles().spliterator(), false)
+            .anyMatch(fileStatus -> fileStatus.location().contains("file:" + location + "data/trashfile")));
   }
 
   @Test
@@ -898,7 +898,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .execute();
     Assert.assertTrue(
         "Default olderThan interval should be safe",
-        Iterables.isEmpty(result1.orphanFileLocations()));
+        Iterables.isEmpty(result1.orphanFiles()));
 
     DeleteOrphanFiles.Result result2 =
         ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
@@ -907,7 +907,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .deleteWith(s -> { })
             .execute();
     Assert.assertEquals(
-        "Action should find 1 file", invalidFilePaths, result2.orphanFileLocations());
+        "Action should find 1 file", invalidFilePaths, toFileLocations(result2.orphanFiles()));
     Assert.assertTrue(
         "Invalid file should be present", fs.exists(new Path(invalidFilePaths.get(0))));
 
@@ -917,7 +917,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .olderThan(System.currentTimeMillis())
             .execute();
     Assert.assertEquals(
-        "Action should delete 1 file", invalidFilePaths, result3.orphanFileLocations());
+        "Action should delete 1 file", invalidFilePaths, toFileLocations(result3.orphanFiles()));
     Assert.assertFalse(
         "Invalid file should not be present", fs.exists(new Path(invalidFilePaths.get(0))));
 
@@ -945,7 +945,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .deleteWith(s -> { })
             .execute();
     Assert.assertEquals(
-        "Action should find nothing", Lists.newArrayList(), result4.orphanFileLocations());
+        "Action should find nothing", Lists.newArrayList(), result4.orphanFiles());
   }
 
   protected long waitUntilAfter(long timestampMillis) {
@@ -954,5 +954,11 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
       current = System.currentTimeMillis();
     }
     return current;
+  }
+
+  protected static List<String> toFileLocations(Iterable<DeleteOrphanFiles.OrphanFileStatus> fileStatuses) {
+    return StreamSupport.stream(fileStatuses.spliterator(), false)
+        .map(DeleteOrphanFiles.OrphanFileStatus::location)
+        .collect(Collectors.toList());
   }
 }

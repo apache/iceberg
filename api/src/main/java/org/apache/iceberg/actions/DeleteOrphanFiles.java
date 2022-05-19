@@ -85,8 +85,26 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    */
   interface Result {
     /**
-     * Returns locations of orphan files.
+     * Returns orphan files.
      */
-    Iterable<String> orphanFileLocations();
+    Iterable<OrphanFileStatus> orphanFiles();
+  }
+
+  interface OrphanFileStatus {
+
+    /**
+     * Returns the location of the orphan file.
+     */
+    String location();
+
+    /**
+     * Returns whether the orphan file was successfully deleted or not.
+     */
+    boolean deleted();
+
+    /**
+     * Returns the exception that occurred while deleting the file, else returns null.
+     */
+    Exception failureCause();
   }
 }
