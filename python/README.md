@@ -67,6 +67,9 @@ Set environment variable `PYENCHANT_LIBRARY_PATH` to point to the installed ench
 export PYENCHANT_LIBRARY_PATH=/opt/homebrew/lib/libenchant-2.dylib
 ```
 You can set this environment variable in your `~/.zshrc` or in your IDE to avoid doing it everytime.
+```shell
+echo 'export PYENCHANT_LIBRARY_PATH="/opt/homebrew/lib/libenchant-2.dylib"' >> ~/.zshrc
+```
 
 ## Get in Touch
 - [Iceberg community](https://iceberg.apache.org/community/)
