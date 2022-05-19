@@ -44,8 +44,8 @@ class Schema:
         >>> from iceberg import types
     """
 
-    def __init__(self, *columns: Iterable[NestedField], schema_id: int, identifier_field_ids: Optional[List[int]] = None):
-        self._struct = StructType(*columns)  # type: ignore
+    def __init__(self, *columns: NestedField, schema_id: int, identifier_field_ids: Optional[List[int]] = None):
+        self._struct = StructType(*columns)
         self._schema_id = schema_id
         self._identifier_field_ids = identifier_field_ids or []
         self._name_to_id: Dict[str, int] = index_by_name(self)

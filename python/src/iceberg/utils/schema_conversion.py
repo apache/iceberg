@@ -14,20 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Util class for converting between Avro and Iceberg schemas
+"""Utility class for converting between Avro and Iceberg schemas
 
 """
 import logging
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from iceberg.schema import Schema
 from iceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
+    DecimalType,
     DoubleType,
+    FixedType,
     FloatType,
+    IcebergType,
     IntegerType,
+    ListType,
     LongType,
     MapType,
     NestedField,
@@ -36,6 +40,7 @@ from iceberg.types import (
     StructType,
     TimestampType,
     TimeType,
+    UUIDType,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,12 +58,13 @@ class AvroSchemaConversion:
         "string": StringType(),
         "time-millis": TimeType(),
         "timestamp-millis": TimestampType(),
+        "uuid": UUIDType(),
     }
 
     def avro_to_iceberg(self, avro_schema: Dict[str, Any]) -> Schema:
         """Converts an Apache Avro into an Apache Iceberg schema equivalent
 
-        This expect to have field id's to be encoded in the Avro schema::
+        This expects to have field id's to be encoded in the Avro schema::
 
             {
                 "type": "record",
@@ -97,18 +103,15 @@ class AvroSchemaConversion:
 
         Returns:
             Equivalent Iceberg schema
-
-        Todo:
-            * Implement full support for unions
-            * Implement logical types
         """
         fields = self._parse_record(avro_schema)
-        return Schema(*fields.fields, schema_id=1)  # type: ignore
+        return Schema(*fields.fields, schema_id=1)
 
     def _parse_record(self, avro_field: Dict[str, Any]) -> StructType:
-        return StructType(*[self._parse_field(field) for field in avro_field["fields"]])
+        fields = [self._parse_field(field) for field in avro_field["fields"]]
+        return StructType(*fields)  # type: ignore
 
-    def _resolve_union(self, type_union: Union[Dict, List, str]) -> Tuple[Union[str, dict], bool]:
+    def _resolve_union(self, type_union: Union[Dict, List, str]) -> Tuple[Union[str, Dict[str, Any]], bool]:
         """
         Converts Unions into their type and resolves if the field is optional
 
@@ -128,10 +131,16 @@ class AvroSchemaConversion:
         Returns:
             A tuple containing the type and nullability
 
+        Raises:
+            TypeError: In the case non-optional union types are encountered
         """
         avro_types: Union[Dict, List]
         if isinstance(type_union, str):
-            avro_types = [type_union]
+            # It is a primitive and required
+            return type_union, False
+        elif isinstance(type_union, dict):
+            # It is a context and required
+            return type_union, False
         else:
             avro_types = type_union
 
@@ -141,13 +150,22 @@ class AvroSchemaConversion:
         avro_types = list(filter(lambda t: t != "null", avro_types))
 
         if len(avro_types) != 1:
-            raise ValueError("Support for unions is yet to be implemented")
+            raise TypeError("Non-optional types aren't part of the Iceberg specification")
 
         avro_type = avro_types[0]
 
         return avro_type, is_optional
 
-    def _parse_field(self, field: Dict[str, Any]) -> NestedField:
+    def _resolve_inner_type(
+        self, raw_avro_type: Dict[str, Any], inner_field_name: str, id_field: str
+    ) -> Tuple[IcebergType, bool]:
+        plain_type, element_is_optional = self._resolve_union(raw_avro_type[inner_field_name])
+        inner_field = self._parse_field(plain_type, field_id=raw_avro_type[id_field])
+        if isinstance(inner_field, NestedField):
+            return inner_field.field_type, element_is_optional
+        return inner_field, element_is_optional
+
+    def _parse_field(self, field: Union[str, Dict[str, Any]], field_id: Optional[int] = None) -> IcebergType:
         """
         Recursively walks through the Schema, constructing the Iceberg schema
 
@@ -176,7 +194,7 @@ class AvroSchemaConversion:
             ...                                {
             ...                                    "name": "contains_nan",
             ...                                    "type": ["null", "boolean"],
-            ...                                    "doc": "True if any file has a nan partition value",
+            ...                                    "doc": "True if any file has a NaN partition value",
             ...                                    "default": None,
             ...                                    "field-id": 518,
             ...                                },
@@ -198,21 +216,25 @@ class AvroSchemaConversion:
             ...     NestedField(
             ...         field_id=507,
             ...         name="partitions",
-            ...         field_type=StructType(
-            ...             NestedField(
-            ...                 field_id=509,
-            ...                 name="contains_null",
-            ...                 field_type=BooleanType(),
-            ...                 is_optional=False,
-            ...                 doc="True if any file has a null partition value",
+            ...         field_type=ListType(
+            ...             element_id=508,
+            ...             element_type=StructType(
+            ...                 NestedField(
+            ...                     field_id=509,
+            ...                     name="contains_null",
+            ...                     field_type=BooleanType(),
+            ...                     is_optional=False,
+            ...                     doc="True if any file has a null partition value",
+            ...                 ),
+            ...                 NestedField(
+            ...                     field_id=518,
+            ...                     name="contains_nan",
+            ...                     field_type=BooleanType(),
+            ...                     is_optional=True,
+            ...                     doc="True if any file has a NaN partition value",
+            ...                 )
             ...             ),
-            ...             NestedField(
-            ...                 field_id=518,
-            ...                 name="contains_nan",
-            ...                 field_type=BooleanType(),
-            ...                 is_optional=True,
-            ...                 doc="True if any file has a nan partition value",
-            ...             ),
+            ...             element_is_optional=False
             ...         ),
             ...         is_optional=True,
             ...         doc="Summary for each partition",
@@ -223,20 +245,45 @@ class AvroSchemaConversion:
             True
 
         Args:
-            field:
+            field: The Avro field
+            field_id: Ability to override the field_id when it is provided from up in the tree (in the case of a list or map)
 
         Returns:
-
+            The equivalent IcebergType
         """
-        field_id = field["field-id"]
+        # In the case of a primitive field
+        if isinstance(field, str):
+            return AvroSchemaConversion.PRIMITIVE_FIELD_TYPE_MAP[field]
+
+        raw_avro_type, is_optional = self._resolve_union(field["type"])
+        if isinstance(raw_avro_type, dict):
+            avro_type = raw_avro_type["type"]
+        else:
+            avro_type = raw_avro_type
+
+        if not field_id and "field-id" not in field:
+            raise ValueError(f"The field-id is missing from the Avro field: {field}")
+
+        field_id = field_id or field["field-id"]
         field_name = field["name"]
         field_doc = field.get("doc")
 
-        avro_type, is_optional = self._resolve_union(field["type"])
-        if isinstance(avro_type, dict):
-            avro_type = avro_type["type"]
+        # Check on logical types
+        if isinstance(raw_avro_type, dict) and "logicalType" in raw_avro_type:
+            logical_type = raw_avro_type.get("logicalType")
+            if logical_type == "decimal":
+                return NestedField(
+                    field_id=field_id,
+                    name=field_name,
+                    field_type=DecimalType(precision=raw_avro_type["precision"], scale=raw_avro_type["scale"]),
+                    is_optional=is_optional,
+                    doc=field_doc,
+                )
+            else:
+                raise ValueError(f"Unknown logical type: {field}")
 
-        if isinstance(avro_type, str) and avro_type in AvroSchemaConversion.PRIMITIVE_FIELD_TYPE_MAP:
+        # Check on primitive types
+        elif isinstance(avro_type, str) and avro_type in AvroSchemaConversion.PRIMITIVE_FIELD_TYPE_MAP:
             return NestedField(
                 field_id=field_id,
                 name=field_name,
@@ -244,29 +291,46 @@ class AvroSchemaConversion:
                 is_optional=is_optional,
                 doc=field_doc,
             )
+
+        # Check on complex types
         elif avro_type == "record":
             return NestedField(
                 field_id=field_id, name=field_name, field_type=self._parse_record(field), is_optional=is_optional, doc=field_doc
             )
         elif avro_type == "array":
-            inner_type, _ = self._resolve_union(field["type"])
-            assert isinstance(inner_type, dict)
-            inner_type["items"]["field-id"] = inner_type["element-id"]
-            inner_field = self._parse_field(inner_type["items"])
-
+            assert isinstance(raw_avro_type, dict)
+            element_type, element_is_optional = self._resolve_inner_type(raw_avro_type, "items", "element-id")
             return NestedField(
-                field_id=field_id, name=field_name, field_type=inner_field.type, is_optional=is_optional, doc=field_doc
+                field_id=field_id,
+                name=field_name,
+                field_type=ListType(
+                    element_id=raw_avro_type["element-id"], element_type=element_type, element_is_optional=element_is_optional
+                ),
+                is_optional=is_optional,
+                doc=field_doc,
             )
         elif avro_type == "map":
+            assert isinstance(raw_avro_type, dict)
+            value_type, value_is_optional = self._resolve_inner_type(raw_avro_type, "values", "value-id")
             return NestedField(
                 field_id=field_id,
                 name=field_name,
                 field_type=MapType(
-                    key_id=field["key-id"],
+                    key_id=raw_avro_type["key-id"],
+                    # Avro only supports string keys
                     key_type=StringType(),
-                    value_id=field["value-id"],
-                    value_type=self._parse_field(field["values"]),
+                    value_id=raw_avro_type["value-id"],
+                    value_type=value_type,
+                    value_is_optional=value_is_optional,
                 ),
+                is_optional=is_optional,
+                doc=field_doc,
+            )
+        elif avro_type == "fixed":
+            return NestedField(
+                field_id=field_id,
+                name=field_name,
+                field_type=FixedType(length=field["size"]),
                 is_optional=is_optional,
                 doc=field_doc,
             )

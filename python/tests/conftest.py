@@ -214,3 +214,86 @@ def manifest_schema() -> Dict[str, Any]:
             },
         ],
     }
+
+
+@pytest.fixture(scope="session")
+def all_avro_types() -> Dict[str, Any]:
+    return {
+        "type": "record",
+        "name": "all_avro_types",
+        "fields": [
+            {"name": "primitive_string", "type": "string", "field-id": 100},
+            {"name": "primitive_int", "type": "int", "field-id": 200},
+            {"name": "primitive_long", "type": "long", "field-id": 300},
+            {"name": "primitive_float", "type": "float", "field-id": 400},
+            {"name": "primitive_double", "type": "double", "field-id": 500},
+            {"name": "primitive_bytes", "type": "bytes", "field-id": 600},
+            {
+                "type": "record",
+                "name": "Person",
+                "fields": [
+                    {"name": "name", "type": "string", "field-id": 701},
+                    {"name": "age", "type": "long", "field-id": 702},
+                    {"name": "gender", "type": ["string", "null"], "field-id": 703},
+                ],
+                "field-id": 700,
+            },
+            {
+                "name": "array_with_string",
+                "type": {
+                    "type": "array",
+                    "items": "string",
+                    "default": [],
+                    "element-id": 801,
+                },
+                "field-id": 800,
+            },
+            {
+                "name": "array_with_optional_string",
+                "type": [
+                    "null",
+                    {
+                        "type": "array",
+                        "items": ["string", "null"],
+                        "default": [],
+                        "element-id": 901,
+                    },
+                ],
+                "field-id": 900,
+            },
+            {
+                "name": "array_with_optional_record",
+                "type": [
+                    "null",
+                    {
+                        "type": "array",
+                        "items": [
+                            "null",
+                            {
+                                "type": "record",
+                                "name": "person",
+                                "fields": [
+                                    {"name": "name", "type": "string", "field-id": 1002},
+                                    {"name": "age", "type": "long", "field-id": 1003},
+                                    {"name": "gender", "type": ["string", "null"], "field-id": 1004},
+                                ],
+                            },
+                        ],
+                        "element-id": 1001,
+                    },
+                ],
+                "field-id": 1000,
+            },
+            {
+                "name": "map_with_longs",
+                "type": {
+                    "type": "map",
+                    "values": "long",
+                    "default": {},
+                    "key-id": 1101,
+                    "value-id": 1102,
+                },
+                "field-id": 1000,
+            },
+        ],
+    }
