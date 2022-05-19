@@ -56,7 +56,7 @@ pyenv local 3.7.12 3.8.12 3.9.10
 
 If you are using an M1 Mac to run tox, there is currently [an issue with pyenchant](https://github.com/pyenchant/pyenchant/issues/265) that you would run into while running `linters`. 
 This happens because python distributions installed by `pyenv` are in the default M1 architecture (aarch64), and can't find a compatible enchant library.  
-As a workaround, you can follow the below steps. 
+As a workaround, you can follow the steps below:
 
 Install enchant with Homebrew 
 ```shell
