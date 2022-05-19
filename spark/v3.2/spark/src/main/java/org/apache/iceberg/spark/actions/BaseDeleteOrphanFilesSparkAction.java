@@ -230,7 +230,7 @@ public class BaseDeleteOrphanFilesSparkAction
         .suppressFailureWhenFinished()
         .onFailure((file, exc) -> {
           LOG.warn("Failed to delete file: {}", file, exc);
-          orphanFileStatuses.add(new BaseOrphanFileStatus(file, /* deleted = */ false, exc));
+          orphanFileStatuses.add(new BaseOrphanFileStatus(file, /* deleted */ false, exc));
         })
         .run((file) -> {
           deleteFunc.accept(file);

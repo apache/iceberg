@@ -55,9 +55,9 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[] {
-      new StructField("orphan_file_location", DataTypes.StringType, false, Metadata.empty()),
-      new StructField("deleted", DataTypes.BooleanType, false, Metadata.empty()),
-      new StructField("error_message", DataTypes.StringType, true, Metadata.empty())
+      new StructField("orphan_file_location", DataTypes.StringType, /* nullable */ false, Metadata.empty()),
+      new StructField("deleted", DataTypes.BooleanType, /* nullable */ false, Metadata.empty()),
+      new StructField("error_message", DataTypes.StringType, /* nullable */ true, Metadata.empty())
   });
 
   public static ProcedureBuilder builder() {
@@ -140,7 +140,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       String errorMessage = fileStatus.failureCause() != null ? fileStatus.failureCause().getMessage() : null;
       // During dry run DeleteOrphanFiles.OrphanFileStatus#deleted() will be ignored and deleted will always be false.
       // For an actual run, deleted will use the value of DeleteOrphanFiles.OrphanFileStatus#deleted().
-      boolean deleted = !dryRun && fileStatus.deleted();
+      boolean deleted = dryRun ? false : fileStatus.deleted();
       rows[index] = newInternalRow(UTF8String.fromString(fileStatus.location()), deleted, errorMessage);
       index++;
     }
