@@ -45,7 +45,7 @@ class PartitionField:
         return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
 
 
-@dataclass(eq=False)
+@dataclass(eq=False, frozen=True)
 class PartitionSpec:
     """
     PartitionSpec capture the transformation from table data to partition values
@@ -64,14 +64,15 @@ class PartitionSpec:
     source_id_to_fields_map: Dict[int, List[PartitionField]] = field(init=False)
 
     def __post_init__(self):
-        self.source_id_to_fields_map = dict()
+        source_id_to_fields_map = dict()
         for partition_field in self.fields:
             source_column = self.schema.find_column_name(partition_field.source_id)
             if not source_column:
                 raise ValueError(f"Cannot find source column: {partition_field.source_id}")
-            existing = self.source_id_to_fields_map.get(partition_field.source_id, [])
+            existing = source_id_to_fields_map.get(partition_field.source_id, [])
             existing.append(partition_field)
-            self.source_id_to_fields_map[partition_field.source_id] = existing
+            source_id_to_fields_map[partition_field.source_id] = existing
+        object.__setattr__(self, "source_id_to_fields_map", source_id_to_fields_map)
 
     def __eq__(self, other):
         """
