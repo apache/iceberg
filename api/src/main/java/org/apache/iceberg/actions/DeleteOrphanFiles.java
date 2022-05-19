@@ -85,6 +85,13 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    */
   interface Result {
     /**
+     * @deprecated since 0.14.0, will be removed in 0.15.0; use {@link #orphanFiles()} instead.
+     * Returns locations of orphan files.
+     */
+    @Deprecated
+    Iterable<String> orphanFileLocations();
+
+    /**
      * Returns orphan files.
      */
     Iterable<OrphanFileStatus> orphanFiles();

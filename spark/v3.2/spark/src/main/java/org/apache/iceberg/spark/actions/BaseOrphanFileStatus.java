@@ -17,28 +17,38 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.actions;
 
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import org.apache.iceberg.actions.DeleteOrphanFiles;
 
-public class BaseDeleteOrphanFilesActionResult implements DeleteOrphanFiles.Result {
+public class BaseOrphanFileStatus implements DeleteOrphanFiles.OrphanFileStatus {
 
-  private final Iterable<DeleteOrphanFiles.OrphanFileStatus> orphanFileLocations;
+  private final String location;
+  private final boolean deleted;
+  private final Exception failureCause;
 
-  public BaseDeleteOrphanFilesActionResult(Iterable<DeleteOrphanFiles.OrphanFileStatus> orphanFileLocations) {
-    this.orphanFileLocations = orphanFileLocations;
+  public BaseOrphanFileStatus(String location) {
+    this(location, true, null);
+  }
+
+  public BaseOrphanFileStatus(String location, boolean deleted, Exception failureCause) {
+    this.location = location;
+    this.deleted = deleted;
+    this.failureCause = failureCause;
   }
 
   @Override
-  public Iterable<String> orphanFileLocations() {
-    return StreamSupport.stream(this.orphanFileLocations.spliterator(), false)
-        .map(DeleteOrphanFiles.OrphanFileStatus::location)
-        .collect(Collectors.toList());
+  public String location() {
+    return location;
   }
 
   @Override
-  public Iterable<DeleteOrphanFiles.OrphanFileStatus> orphanFiles() {
-    return orphanFileLocations;
+  public boolean deleted() {
+    return deleted;
+  }
+
+  @Override
+  public Exception failureCause() {
+    return failureCause;
   }
 }

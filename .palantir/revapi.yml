@@ -28,6 +28,10 @@ acceptedBreaks:
       new: "method ThisT org.apache.iceberg.SnapshotUpdate<ThisT>::scanManifestsWith(java.util.concurrent.ExecutorService)"
       justification: "Accept all changes prior to introducing API compatibility checks"
     - code: "java.method.addedToInterface"
+      new: "method java.lang.Iterable<org.apache.iceberg.actions.DeleteOrphanFiles.OrphanFileStatus>\
+        \ org.apache.iceberg.actions.DeleteOrphanFiles.Result::orphanFiles()"
+      justification: "Accept all changes prior to introducing API compatibility checks"
+    - code: "java.method.addedToInterface"
       new: "method long org.apache.iceberg.actions.ExpireSnapshots.Result::deletedEqualityDeleteFilesCount()"
       justification: "Interface is backward compatible, very unlikely anyone implements this Result bean interface"
     - code: "java.method.addedToInterface"
