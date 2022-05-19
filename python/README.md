@@ -52,5 +52,21 @@ Once all three versions are installed, you can set an application-specific pyenv
 pyenv local 3.7.12 3.8.12 3.9.10
 ```
 
+## Pyenchant linter errors on Apple Silicons
+
+If you are using an M1 Mac to run tox, there is currently [an issue with pyenchant](https://github.com/pyenchant/pyenchant/issues/265) that you would run into while running `linters`. 
+This happens because python distributions installed by `pyenv` are in the default M1 architecture (aarch64), and can't find a compatible enchant library.  
+As a workaround, you can follow the below steps. 
+
+Install enchant with Homebrew 
+```shell
+brew install enchant
+```
+Set environment variable `PYENCHANT_LIBRARY_PATH` to point to the installed enchant library before running `tox`.
+```shell
+export PYENCHANT_LIBRARY_PATH = /opt/homebrew/lib/libenchant-2.dylib
+```
+You can set this environment variable in your `~/.zshrc` or in your IDE to avoid doing it everytime.
+
 ## Get in Touch
 - [Iceberg community](https://iceberg.apache.org/community/)
