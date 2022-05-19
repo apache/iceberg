@@ -158,8 +158,12 @@ public class OrcValueReaders {
           this.isConstantOrMetadataField[pos] = true;
           this.readers[pos] = constants(false);
         } else {
-          this.readers[pos] = readers.get(readerIndex);
-          readerIndex++;
+          if (MetadataColumns.isMetadataColumn(field.name())) {
+            this.isConstantOrMetadataField[pos] = true;
+            this.readers[pos] = constants(null);
+          } else {
+            this.readers[pos] = readers.get(readerIndex++);
+          }
         }
       }
     }
