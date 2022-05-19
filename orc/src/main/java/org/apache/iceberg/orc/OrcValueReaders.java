@@ -157,13 +157,12 @@ public class OrcValueReaders {
         } else if (field.equals(MetadataColumns.IS_DELETED)) {
           this.isConstantOrMetadataField[pos] = true;
           this.readers[pos] = constants(false);
+        } else if (MetadataColumns.isMetadataColumn(field.name())) {
+          // in case of any other metadata field, fill with nulls
+          this.isConstantOrMetadataField[pos] = true;
+          this.readers[pos] = constants(null);
         } else {
-          if (MetadataColumns.isMetadataColumn(field.name())) {
-            this.isConstantOrMetadataField[pos] = true;
-            this.readers[pos] = constants(null);
-          } else {
-            this.readers[pos] = readers.get(readerIndex++);
-          }
+          this.readers[pos] = readers.get(readerIndex++);
         }
       }
     }
