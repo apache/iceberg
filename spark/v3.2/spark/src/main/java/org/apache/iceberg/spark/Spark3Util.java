@@ -659,8 +659,8 @@ public class Spark3Util {
   public static Catalog loadIcebergCatalog(SparkSession spark, String catalogName) {
     CatalogPlugin catalogPlugin = spark.sessionState().catalogManager().catalog(catalogName);
     Preconditions.checkArgument(catalogPlugin instanceof HasIcebergCatalog,
-        String.format("Cannot load Iceberg catalog from catalog %s because it is not a Spark Iceberg catalog. Actual " +
-                          "Class: %s",
+        String.format("Cannot load Iceberg catalog from catalog %s because it does not contain an Iceberg Catalog. " +
+                          "Actual Class: %s",
             catalogName, catalogPlugin.getClass().getName()));
     return ((HasIcebergCatalog) catalogPlugin).icebergCatalog();
   }

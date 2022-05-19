@@ -62,15 +62,18 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
     Assume.assumeTrue("Register only implemented on Hive Catalogs",
         spark.conf().get("spark.sql.catalog." + catalogName + ".type").equals("hive"));
 
+    long numRows = 1000;
+
     sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
-    spark.range(0, 1000)
+    spark.range(0, numRows)
         .withColumn("data", functions.col("id").cast(DataTypes.StringType))
         .writeTo(tableName)
         .append();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    long originalFileCount = (long) scalarSql("SELECT COUNT(*) from %s.files", tableName);
     long currentSnapshotId = table.currentSnapshot().snapshotId();
-    String metadataJson = ((HiveTableOperations)(((HasTableOperations) table).operations())).currentMetadataLocation();
+    String metadataJson = ((HiveTableOperations) (((HasTableOperations) table).operations())).currentMetadataLocation();
 
     List<Object[]> result = sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
     Assert.assertEquals("Current Snapshot is not correct", currentSnapshotId, result.get(0)[0]);
@@ -78,5 +81,9 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
     List<Object[]> original = sql("SELECT * FROM %s", tableName);
     List<Object[]> registered = sql("SELECT * FROM %s", targetName);
     assertEquals("Registered table rows should match original table rows", original, registered);
+    Assert.assertEquals("Should have the right row count in the procedure result",
+        numRows, result.get(0)[1]);
+    Assert.assertEquals("Should have the right datafile count the procedure result",
+        originalFileCount, result.get(0)[2]);
   }
 }

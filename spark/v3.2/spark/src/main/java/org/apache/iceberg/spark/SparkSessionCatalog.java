@@ -308,7 +308,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   @Override
   public Catalog icebergCatalog() {
     Preconditions.checkArgument(icebergCatalog instanceof HasIcebergCatalog,
-        "Cannot return underlying Iceberg Catalog, wrapped catalog is not an Iceberg Catalog");
+        "Cannot return underlying Iceberg Catalog, wrapped catalog does not contain an Iceberg Catalog");
     return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
   }
 }

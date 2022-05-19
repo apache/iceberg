@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -42,8 +44,8 @@ class RegisterTableProcedure extends BaseProcedure {
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
       new StructField("Current Snapshot", DataTypes.LongType, false, Metadata.empty()),
-      new StructField("Manifests Registered", DataTypes.LongType, false, Metadata.empty()),
-      new StructField("Datafiles Registered", DataTypes.LongType, false, Metadata.empty())
+      new StructField("Rows", DataTypes.LongType, false, Metadata.empty()),
+      new StructField("Datafiles", DataTypes.LongType, false, Metadata.empty())
   });
 
   private RegisterTableProcedure(TableCatalog tableCatalog) {
@@ -73,21 +75,24 @@ class RegisterTableProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     TableIdentifier tableName = Spark3Util.identifierToTableIdentifier(toIdentifier(args.getString(0), "table"));
     String metadataFile = args.getString(1);
+    Preconditions.checkArgument(tableCatalog() instanceof HasIcebergCatalog,
+        "Cannot use Register Table in a non-Iceberg catalog");
     Preconditions.checkArgument(metadataFile != null && !metadataFile.isEmpty(),
         "Cannot handle an empty argument metadata_file");
 
     Catalog icebergCatalog = ((HasIcebergCatalog) tableCatalog()).icebergCatalog();
-    Table registeredTable = icebergCatalog.registerTable(tableName, metadataFile);
-    long currentSnapshotId = registeredTable.currentSnapshot().snapshotId();
-    long totalManifests = spark().table(tableCatalog().name() + "." + tableName + ".manifests").count();
-    long totalDataFiles = spark().table(tableCatalog().name() + "." + tableName + ".files").count();
+    Table table = icebergCatalog.registerTable(tableName, metadataFile);
+    Snapshot currentSnapshot = table.currentSnapshot();
+    long currentSnapshotId = currentSnapshot.snapshotId();
+    long totalDataFiles = Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    long totalRecords = Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_RECORDS_PROP));
 
-    return new InternalRow[] {newInternalRow(currentSnapshotId, totalManifests, totalDataFiles)};
+    return new InternalRow[] {newInternalRow(currentSnapshotId, totalRecords, totalDataFiles)};
   }
 
   @Override
   public String description() {
-    return "MigrateTableProcedure";
+    return "RegisterTableProcedure";
   }
 }
 
