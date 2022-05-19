@@ -21,6 +21,8 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
@@ -28,6 +30,7 @@ import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
@@ -35,9 +38,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.source.BoundedTableFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -58,6 +63,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   @ClassRule
   public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
+  private static final String SOURCE_TABLE = "default_catalog.default_database.bounded_source";
   private static final String TABLE_NAME = "test_table";
   private TableEnvironment tEnv;
   private Table icebergTable;
@@ -127,6 +133,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    BoundedTableFactory.clearDataSets();
     super.clean();
   }
 
@@ -253,33 +260,37 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
         "write.format.default", format.name(),
         TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName()
     );
+
+    // Initialize a BoundedSource table to precisely emit those rows in only one checkpoint.
+    List<Row> dataSet = IntStream.range(1, 1000)
+        .mapToObj(i -> ImmutableList.of(Row.of(i, "aaa"), Row.of(i, "bbb"), Row.of(i, "ccc")))
+        .flatMap(List::stream)
+        .collect(Collectors.toList());
+    String dataId = BoundedTableFactory.registerDataSet(ImmutableList.of(dataSet));
+    sql("CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)" +
+        " WITH ('connector'='BoundedSource', 'data-id'='%s')", SOURCE_TABLE, dataId);
+    Assert.assertEquals("Should have the expected rows in source table.", Sets.newHashSet(dataSet),
+        Sets.newHashSet(sql("SELECT * FROM %s", SOURCE_TABLE)));
+
     sql("CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH %s",
         tableName, toWithClause(tableProps));
 
     try {
       // Insert data set.
-      sql("INSERT INTO %s VALUES " +
-          "(1, 'aaa'), (1, 'bbb'), (1, 'ccc'), " +
-          "(2, 'aaa'), (2, 'bbb'), (2, 'ccc'), " +
-          "(3, 'aaa'), (3, 'bbb'), (3, 'ccc')", tableName);
+      sql("INSERT INTO %s SELECT * FROM %s", tableName, SOURCE_TABLE);
 
-      Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
-      SimpleDataUtil.assertTableRecords(table, ImmutableList.of(
-          SimpleDataUtil.createRecord(1, "aaa"),
-          SimpleDataUtil.createRecord(1, "bbb"),
-          SimpleDataUtil.createRecord(1, "ccc"),
-          SimpleDataUtil.createRecord(2, "aaa"),
-          SimpleDataUtil.createRecord(2, "bbb"),
-          SimpleDataUtil.createRecord(2, "ccc"),
-          SimpleDataUtil.createRecord(3, "aaa"),
-          SimpleDataUtil.createRecord(3, "bbb"),
-          SimpleDataUtil.createRecord(3, "ccc")
-      ));
+      Assert.assertEquals("Should have the expected rows in sink table.", Sets.newHashSet(dataSet),
+          Sets.newHashSet(sql("SELECT * FROM %s", tableName)));
 
       // Sometimes we will have more than one checkpoint if we pass the auto checkpoint interval,
       // thus producing multiple snapshots.  Here we assert that each snapshot has only 1 file per partition.
+      Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
       Map<Long, List<DataFile>> snapshotToDataFiles = SimpleDataUtil.snapshotToDataFiles(table);
       for (List<DataFile> dataFiles : snapshotToDataFiles.values()) {
+        if (dataFiles.isEmpty()) {
+          continue;
+        }
+
         Assert.assertEquals("There should be 1 data file in partition 'aaa'", 1,
             SimpleDataUtil.matchingPartitions(dataFiles, table.spec(), ImmutableMap.of("data", "aaa")).size());
         Assert.assertEquals("There should be 1 data file in partition 'bbb'", 1,
