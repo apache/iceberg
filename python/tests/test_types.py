@@ -17,7 +17,6 @@
 # pylint: disable=W0123,W0613
 
 import pytest
-
 from iceberg.types import (
     BinaryType,
     BooleanType,

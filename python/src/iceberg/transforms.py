@@ -22,7 +22,6 @@ from typing import Generic, Optional, TypeVar
 from uuid import UUID
 
 import mmh3  # type: ignore
-
 from iceberg.types import (
     BinaryType,
     DateType,

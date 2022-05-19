@@ -18,7 +18,6 @@
 import random
 
 import pytest
-
 from iceberg.utils.bin_packing import PackingIterator
 
 

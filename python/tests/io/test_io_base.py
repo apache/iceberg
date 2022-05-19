@@ -21,8 +21,13 @@ from typing import Union
 from urllib.parse import ParseResult, urlparse
 
 import pytest
-
-from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
+from iceberg.io.base import (
+    FileIO,
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 from iceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 

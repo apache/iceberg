@@ -27,8 +27,11 @@ line-length = 130
 target-version = ['py38']
 
 [tool.isort]
+src_paths = ["python/src/", "python/tests/"]
+multi_line_output = 3
 profile = 'black'
 line_length = 130
+force_grid_wrap = 4
 
 [tool.pycln]
 all = true

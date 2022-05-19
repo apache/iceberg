@@ -21,10 +21,25 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import singledispatch
-from typing import Any, Dict, Generic, Iterable, List, Optional, TypeVar
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    TypeVar,
+)
 
 from iceberg.files import StructProtocol
-from iceberg.types import IcebergType, ListType, MapType, NestedField, PrimitiveType, StructType
+from iceberg.types import (
+    IcebergType,
+    ListType,
+    MapType,
+    NestedField,
+    PrimitiveType,
+    StructType,
+)
 
 T = TypeVar("T")
 
