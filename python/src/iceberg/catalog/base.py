@@ -31,7 +31,7 @@ class Catalog(ABC):
     The catalog table APIs accept a table identifier, which is fully classified table name. The identifier can be a string or
     tuple of strings. If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
 
-    The catalog name-space APIs follow a similar convention wherein they also accept a name-space identifier that can be a string
+    The catalog namespace APIs follow a similar convention wherein they also accept a namespace identifier that can be a string
     or tuple of strings.
 
     Attributes:
@@ -132,79 +132,79 @@ class Catalog(ABC):
 
     @abstractmethod
     def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
-        """Create a name-space in the catalog.
+        """Create a namespace in the catalog.
 
         Args:
-            namespace: Name-space identifier
-            properties: A string dictionary of properties for the given name-space
+            namespace: Namespace identifier
+            properties: A string dictionary of properties for the given namespace
 
         Raises:
-            AlreadyExistsError: If a name-space with the given name already exists
+            AlreadyExistsError: If a namespace with the given name already exists
         """
 
     @abstractmethod
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
-        """Drop a name-space.
+        """Drop a namespace.
 
         Args:
-            namespace: Name-space identifier
+            namespace: Namespace identifier
 
         Raises:
-            NamespaceNotFoundError: If a name-space with the given name does not exist
-            NamespaceNotEmptyError: If the name-space is not empty
+            NamespaceNotFoundError: If a namespace with the given name does not exist
+            NamespaceNotEmptyError: If the namespace is not empty
         """
 
     @abstractmethod
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
-        """List tables under the given name-space in the catalog.
+        """List tables under the given namespace in the catalog.
 
-        If name-space not provided, will list all tables in the catalog.
+        If namespace not provided, will list all tables in the catalog.
 
         Args:
-            namespace: Name-space identifier to search.
+            namespace: Namespace identifier to search.
 
         Returns:
             List[Identifier]: list of table identifiers.
 
         Raises:
-            NamespaceNotFoundError: If a name-space with the given name does not exist
+            NamespaceNotFoundError: If a namespace with the given name does not exist
         """
 
     @abstractmethod
     def list_namespaces(self) -> List[Identifier]:
-        """List name-spaces from the given name-space. If not given, list top-level name-spaces from the catalog.
+        """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
         Returns:
-            List[Identifier]: a List of name-space identifiers
+            List[Identifier]: a List of namespace identifiers
         """
 
     @abstractmethod
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
-        """Get properties for a name-space.
+        """Get properties for a namespace.
 
         Args:
-            namespace: Name-space identifier
+            namespace: Namespace identifier
 
         Returns:
-            Properties: Properties for the given name-space
+            Properties: Properties for the given namespace
 
         Raises:
-            NamespaceNotFoundError: If a name-space with the given name does not exist
+            NamespaceNotFoundError: If a namespace with the given name does not exist
         """
 
     @abstractmethod
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
     ) -> None:
-        """Removes provided property keys and updates properties for a name-space.
+        """Removes provided property keys and updates properties for a namespace.
 
         Args:
-            namespace: Name-space identifier
+            namespace: Namespace identifier
             removals: Set of property keys that need to be removed. Optional Argument.
-            updates: Properties to be updated for the given name-space. Optional Argument.
+            updates: Properties to be updated for the given namespace. Optional Argument.
 
         Raises:
-            NamespaceNotFoundError: If a name-space with the given name does not exist
+            NamespaceNotFoundError: If a namespace with the given name does not exist
             ValueError: If removals and updates have overlapping keys.
         """
 
@@ -236,12 +236,12 @@ class Catalog(ABC):
 
     @staticmethod
     def namespace_from(identifier: Union[str, Identifier]) -> Identifier:
-        """Extracts table name-space from a table identifier
+        """Extracts table namespace from a table identifier
 
         Args:
             identifier: a table identifier
 
         Returns:
-            Identifier: Name-space identifier
+            Identifier: Namespace identifier
         """
         return Catalog.identifier_to_tuple(identifier)[:-1]

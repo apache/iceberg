@@ -28,6 +28,8 @@ fs
 func
 IcebergType
 io
+namespace
+namespaces
 NativeFile
 NestedField
 nullability
