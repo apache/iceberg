@@ -70,8 +70,8 @@ class InMemoryCatalog(Catalog):
         name = Catalog.table_name_from(identifier)
         try:
             return self.__tables[identifier]
-        except KeyError:
-            raise NoSuchTableError(f"Table {name} not found in the namespace {namespace}")
+        except KeyError as error:
+            raise NoSuchTableError(f"Table {name} not found in the namespace {namespace}") from error
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         identifier = Catalog.identifier_to_tuple(identifier)
@@ -79,8 +79,8 @@ class InMemoryCatalog(Catalog):
         name = Catalog.table_name_from(identifier)
         try:
             self.__tables.pop(identifier)
-        except KeyError:
-            raise NoSuchTableError(f"Table {name} not found in the namespace {namespace}")
+        except KeyError as error:
+            raise NoSuchTableError(f"Table {name} not found in the namespace {namespace}") from error
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
         self.drop_table(identifier)
@@ -91,8 +91,8 @@ class InMemoryCatalog(Catalog):
         from_name = Catalog.table_name_from(from_identifier)
         try:
             self.__tables.pop(from_identifier)
-        except KeyError:
-            raise NoSuchTableError(f"Table {from_name} not found in the namespace {from_namespace}")
+        except KeyError as error:
+            raise NoSuchTableError(f"Table {from_name} not found in the namespace {from_namespace}") from error
 
         renamed_table = Table()
         to_identifier = Catalog.identifier_to_tuple(to_identifier)
@@ -116,8 +116,8 @@ class InMemoryCatalog(Catalog):
             raise NamespaceNotEmptyError(f"Namespace {namespace} not empty")
         try:
             self.__namespaces.pop(namespace)
-        except KeyError:
-            raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog")
+        except KeyError as error:
+            raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog") from error
 
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         if namespace:
@@ -135,8 +135,8 @@ class InMemoryCatalog(Catalog):
         namespace = Catalog.identifier_to_tuple(namespace)
         try:
             return self.__namespaces[namespace]
-        except KeyError:
-            raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog")
+        except KeyError as error:
+            raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog") from error
 
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
@@ -145,7 +145,9 @@ class InMemoryCatalog(Catalog):
         removals = {} if not removals else removals
         updates = [] if not updates else updates
         if namespace in self.__namespaces:
-            [self.__namespaces[namespace].pop(key) for key in removals]
+            for key in removals:
+                if key in self.__namespaces[namespace]:
+                    del self.__namespaces[namespace][key]
             self.__namespaces[namespace].update(updates)
         else:
             raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog")
