@@ -52,72 +52,66 @@ class InMemoryCatalog(Catalog):
 
         identifier = Catalog.identifier_to_tuple(identifier)
         namespace = Catalog.namespace_from(identifier)
-        name = Catalog.table_name_from(identifier)
 
         if identifier in self.__tables:
-            raise AlreadyExistsError(f"Table {name} already exists in namespace {namespace}")
+            raise AlreadyExistsError(f"Table already exists: {identifier}")
         else:
             if namespace not in self.__namespaces:
                 self.__namespaces[namespace] = {}
 
             table = Table()
+            table.identifier = identifier
             self.__tables[identifier] = table
             return table
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         identifier = Catalog.identifier_to_tuple(identifier)
-        namespace = Catalog.namespace_from(identifier)
-        name = Catalog.table_name_from(identifier)
         try:
             return self.__tables[identifier]
         except KeyError as error:
-            raise NoSuchTableError(f"Table {name} not found in the namespace {namespace}") from error
+            raise NoSuchTableError(f"Table does not exist: {identifier}") from error
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         identifier = Catalog.identifier_to_tuple(identifier)
-        namespace = Catalog.namespace_from(identifier)
-        name = Catalog.table_name_from(identifier)
         try:
             self.__tables.pop(identifier)
         except KeyError as error:
-            raise NoSuchTableError(f"Table {name} not found in the namespace {namespace}") from error
+            raise NoSuchTableError(f"Table does not exist: {identifier}") from error
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
         self.drop_table(identifier)
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         from_identifier = Catalog.identifier_to_tuple(from_identifier)
-        from_namespace = Catalog.namespace_from(from_identifier)
-        from_name = Catalog.table_name_from(from_identifier)
         try:
-            self.__tables.pop(from_identifier)
+            table = self.__tables.pop(from_identifier)
         except KeyError as error:
-            raise NoSuchTableError(f"Table {from_name} not found in the namespace {from_namespace}") from error
+            raise NoSuchTableError(f"Table does not exist: {from_identifier}") from error
 
-        renamed_table = Table()
         to_identifier = Catalog.identifier_to_tuple(to_identifier)
         to_namespace = Catalog.namespace_from(to_identifier)
         if to_namespace not in self.__namespaces:
             self.__namespaces[to_namespace] = {}
 
-        self.__tables[to_identifier] = renamed_table
-        return renamed_table
+        table.identifier = to_identifier
+        self.__tables[to_identifier] = table
+        return table
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
         namespace = Catalog.identifier_to_tuple(namespace)
         if namespace in self.__namespaces:
-            raise AlreadyExistsError(f"Namespace {namespace} already exists")
+            raise AlreadyExistsError(f"Namespace already exists: {namespace}")
         else:
             self.__namespaces[namespace] = properties if properties else {}
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         namespace = Catalog.identifier_to_tuple(namespace)
         if [table_identifier for table_identifier in self.__tables.keys() if namespace == table_identifier[:-1]]:
-            raise NamespaceNotEmptyError(f"Namespace {namespace} not empty")
+            raise NamespaceNotEmptyError(f"Namespace is not empty: {namespace}")
         try:
             self.__namespaces.pop(namespace)
         except KeyError as error:
-            raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog") from error
+            raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}") from error
 
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         if namespace:
@@ -136,7 +130,7 @@ class InMemoryCatalog(Catalog):
         try:
             return self.__namespaces[namespace]
         except KeyError as error:
-            raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog") from error
+            raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}") from error
 
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
@@ -150,7 +144,7 @@ class InMemoryCatalog(Catalog):
                     del self.__namespaces[namespace][key]
             self.__namespaces[namespace].update(updates)
         else:
-            raise NoSuchNamespaceError(f"Namespace {namespace} not found in the catalog")
+            raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}")
 
 
 TEST_TABLE_IDENTIFIER = ("com", "organization", "department", "my_table")
@@ -160,6 +154,11 @@ TEST_TABLE_SCHEMA = Schema(schema_id=1)
 TEST_TABLE_LOCATION = "protocol://some/location"
 TEST_TABLE_PARTITION_SPEC = PartitionSpec()
 TEST_TABLE_PROPERTIES = {"key1": "value1", "key2": "value2"}
+NO_SUCH_TABLE_ERROR = "Table does not exist: \\('com', 'organization', 'department', 'my_table'\\)"
+TABLE_ALREADY_EXISTS_ERROR = "Table already exists: \\('com', 'organization', 'department', 'my_table'\\)"
+NAMESPACE_ALREADY_EXISTS_ERROR = "Namespace already exists: \\('com', 'organization', 'department'\\)"
+NO_SUCH_NAMESPACE_ERROR = "Namespace does not exist: \\('com', 'organization', 'department'\\)"
+NAMESPACE_NOT_EMPTY_ERROR = "Namespace is not empty: \\('com', 'organization', 'department'\\)"
 
 
 def given_catalog_has_a_table(catalog: InMemoryCatalog) -> Table:
@@ -223,7 +222,7 @@ def test_create_table_raises_error_when_table_already_exists(catalog: InMemoryCa
     # Given
     given_catalog_has_a_table(catalog)
     # When
-    with pytest.raises(AlreadyExistsError, match="Table my_table already exists"):
+    with pytest.raises(AlreadyExistsError, match=TABLE_ALREADY_EXISTS_ERROR):
         catalog.create_table(
             identifier=TEST_TABLE_IDENTIFIER,
             schema=TEST_TABLE_SCHEMA,
@@ -240,7 +239,7 @@ def test_load_table(catalog: InMemoryCatalog):
 
 
 def test_table_raises_error_on_table_not_found(catalog: InMemoryCatalog):
-    with pytest.raises(NoSuchTableError, match="Table my_table not found"):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
@@ -250,12 +249,12 @@ def test_drop_table(catalog: InMemoryCatalog):
     # When
     catalog.drop_table(TEST_TABLE_IDENTIFIER)
     # Then
-    with pytest.raises(NoSuchTableError, match="Table my_table not found"):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
 def test_drop_table_that_does_not_exist_raise_error(catalog: InMemoryCatalog):
-    with pytest.raises(NoSuchTableError, match="Table my_table not found"):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
@@ -265,32 +264,30 @@ def test_purge_table(catalog: InMemoryCatalog):
     # When
     catalog.purge_table(TEST_TABLE_IDENTIFIER)
     # Then
-    with pytest.raises(NoSuchTableError, match="Table my_table not found"):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
 def test_rename_table(catalog: InMemoryCatalog):
     # Given
-    given_table = given_catalog_has_a_table(catalog)
+    given_catalog_has_a_table(catalog)
 
     # When
     new_table = "new.namespace.new_table"
     table = catalog.rename_table(TEST_TABLE_IDENTIFIER, new_table)
 
     # Then
-    assert table
-    assert table is not given_table
+    assert table.identifier == Catalog.identifier_to_tuple(new_table)
 
     # And
     table = catalog.load_table(new_table)
-    assert table
-    assert table is not given_table
+    assert table.identifier == Catalog.identifier_to_tuple(new_table)
 
     # And
     assert ("new", "namespace") in catalog.list_namespaces()
 
     # And
-    with pytest.raises(NoSuchTableError, match="Table my_table not found"):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
@@ -307,14 +304,12 @@ def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCa
     # Given
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
     # When
-    with pytest.raises(AlreadyExistsError, match="Namespace \\('com', 'organization', 'department'\\) already exists"):
+    with pytest.raises(AlreadyExistsError, match=NAMESPACE_ALREADY_EXISTS_ERROR):
         catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
 
 
 def test_get_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog):
-    with pytest.raises(
-        NoSuchNamespaceError, match="Namespace \\('com', 'organization', 'department'\\) not found in the catalog"
-    ):
+    with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_NAMESPACE_ERROR):
         catalog.load_namespace_properties(TEST_TABLE_NAMESPACE)
 
 
@@ -337,9 +332,7 @@ def test_drop_namespace(catalog: InMemoryCatalog):
 
 
 def test_drop_namespace_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog):
-    with pytest.raises(
-        NoSuchNamespaceError, match="Namespace \\('com', 'organization', 'department'\\) not found in the catalog"
-    ):
+    with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_NAMESPACE_ERROR):
         catalog.drop_namespace(TEST_TABLE_NAMESPACE)
 
 
@@ -347,7 +340,7 @@ def test_drop_namespace_raises_error_when_namespace_not_empty(catalog: InMemoryC
     # Given
     given_catalog_has_a_table(catalog)
     # When
-    with pytest.raises(NamespaceNotEmptyError, match="Namespace \\('com', 'organization', 'department'\\) not empty"):
+    with pytest.raises(NamespaceNotEmptyError, match=NAMESPACE_NOT_EMPTY_ERROR):
         catalog.drop_namespace(TEST_TABLE_NAMESPACE)
 
 
@@ -404,7 +397,5 @@ def test_update_namespace_metadata_removals(catalog: InMemoryCatalog):
 
 
 def test_update_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog):
-    with pytest.raises(
-        NoSuchNamespaceError, match="Namespace \\('com', 'organization', 'department'\\) not found in the catalog"
-    ):
+    with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_NAMESPACE_ERROR):
         catalog.update_namespace_properties(TEST_TABLE_NAMESPACE, updates=TEST_TABLE_PROPERTIES)
