@@ -64,7 +64,7 @@ brew install enchant
 ```
 Set environment variable `PYENCHANT_LIBRARY_PATH` to point to the installed enchant library before running `tox`.
 ```shell
-export PYENCHANT_LIBRARY_PATH = /opt/homebrew/lib/libenchant-2.dylib
+export PYENCHANT_LIBRARY_PATH=/opt/homebrew/lib/libenchant-2.dylib
 ```
 You can set this environment variable in your `~/.zshrc` or in your IDE to avoid doing it everytime.
 
