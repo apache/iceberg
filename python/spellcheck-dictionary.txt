@@ -46,4 +46,6 @@ Timestamptz
 Timestamptzs
 unscaled
 URI
-
+UnboundPredicate
+BoundPredicate
+BooleanExpression
