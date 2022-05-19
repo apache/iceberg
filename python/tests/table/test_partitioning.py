@@ -30,10 +30,13 @@ def test_partition_field_init():
     assert partition_field.transform == bucket_transform
     assert partition_field.name == "id"
     assert partition_field == partition_field
+    print(str(partition_field))
+    print("repr")
+    print(repr(partition_field))
     assert str(partition_field) == "1000: id: bucket[100](3)"
     assert (
         repr(partition_field)
-        == "PartitionField(field_id=1000, name=id, transform=transforms.bucket(source_type=IntegerType(), num_buckets=100), source_id=3)"
+        == "PartitionField(source_id=3, field_id=1000, transform=transforms.bucket(source_type=IntegerType(), num_buckets=100), name='id')"
     )
 
 
