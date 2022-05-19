@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -33,11 +32,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -46,8 +43,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.spark.source.SparkTable;
-import org.apache.iceberg.spark.source.TestSparkCatalog;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -69,9 +64,6 @@ import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
@@ -852,52 +844,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hr", "c1")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
-  }
-
-  @Test
-  public void testCommitUnknownException() throws IOException, NoSuchTableException {
-    createAndInitTable("id INT, dep STRING, category STRING");
-
-    // write an unpartitioned file
-    append(tableName, "{ \"id\": 1, \"dep\": \"hr\", \"category\": \"c1\"}");
-    append(tableName, "{ \"id\": 2, \"dep\": \"hr\", \"category\": \"c1\" }\n" +
-        "{ \"id\": 3, \"dep\": \"hr\", \"category\": \"c1\" }");
-
-    Table table = validationCatalog.loadTable(tableIdent);
-
-    RowDelta newRowDelta = table.newRowDelta();
-    RowDelta spyNewRowDelta = spy(newRowDelta);
-    doAnswer(invocation -> {
-      newRowDelta.commit();
-      throw new CommitStateUnknownException(new RuntimeException("Datacenter on Fire"));
-    }).when(spyNewRowDelta).commit();
-
-    Table spyTable = spy(table);
-    when(spyTable.newRowDelta()).thenReturn(spyNewRowDelta);
-    SparkTable sparkTable = new SparkTable(spyTable, false);
-
-
-    ImmutableMap<String, String> config = ImmutableMap.of(
-        "type", "hive",
-        "default-namespace", "default"
-    );
-    spark.conf().set("spark.sql.catalog.dummy_catalog", "org.apache.iceberg.spark.source.TestSparkCatalog");
-    config.forEach((key, value) -> spark.conf().set("spark.sql.catalog.dummy_catalog." + key, value));
-
-    TestSparkCatalog.setDummyIcebergTbl(sparkTable);
-
-    // Although an exception is thrown here, write and commit have succeeded
-    AssertHelpers.assertThrowsWithCause("Should throw a Commit State Unknown Exception",
-        SparkException.class,
-        "Writing job aborted",
-        CommitStateUnknownException.class,
-        "Datacenter on Fire",
-        () -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"));
-
-    // Since write and commit succeeded, the rows should be readable
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(1, "hr", "c1"), row(3, "hr", "c1")),
-        sql("SELECT * FROM %s ORDER BY id", "dummy_catalog.default.table"));
   }
 
   // TODO: multiple stripes for ORC
