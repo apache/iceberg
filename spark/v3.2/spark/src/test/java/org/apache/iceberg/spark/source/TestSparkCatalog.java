@@ -31,8 +31,14 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 
 public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces> extends SparkSessionCatalog<T> {
 
+  private static Table dummyIcebergTbl;
+
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
+    if (dummyIcebergTbl != null) {
+      return dummyIcebergTbl;
+    }
+
     TableIdentifier tableIdentifier = Spark3Util.identifierToTableIdentifier(ident);
     Namespace namespace = tableIdentifier.namespace();
 
@@ -42,5 +48,9 @@ public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces> exten
     }
 
     return new SparkTable(table, false);
+  }
+
+  public static void setDummyIcebergTbl(Table dummyTbl) {
+    dummyIcebergTbl = dummyTbl;
   }
 }
