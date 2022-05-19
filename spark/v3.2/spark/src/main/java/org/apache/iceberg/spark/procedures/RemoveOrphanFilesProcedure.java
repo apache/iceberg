@@ -141,7 +141,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       // During dry run DeleteOrphanFiles.OrphanFileStatus#deleted() will be ignored and deleted will always be false.
       // For an actual run, deleted will use the value of DeleteOrphanFiles.OrphanFileStatus#deleted().
       boolean deleted = dryRun ? false : fileStatus.deleted();
-      rows[index] = newInternalRow(UTF8String.fromString(fileStatus.location()), deleted, errorMessage);
+      rows[index] = newInternalRow(UTF8String.fromString(fileStatus.location()), deleted,
+          UTF8String.fromString(errorMessage));
       index++;
     }
 

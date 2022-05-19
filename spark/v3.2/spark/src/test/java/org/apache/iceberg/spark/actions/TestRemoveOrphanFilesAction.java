@@ -323,6 +323,76 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testOrphanFileDeleteThrowsException() {
+    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records1 = Lists.newArrayList(
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df1 = spark.createDataFrame(records1, ThreeColumnRecord.class).coalesce(1);
+
+    // original append
+    df1.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    List<ThreeColumnRecord> records2 = Lists.newArrayList(
+        new ThreeColumnRecord(2, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df2 = spark.createDataFrame(records2, ThreeColumnRecord.class).coalesce(1);
+
+    // dynamic partition overwrite
+    df2.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("overwrite")
+        .save(tableLocation);
+
+    // second append
+    df2.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data");
+    df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA");
+    df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA/c3=AAAA");
+    df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data/invalid/invalid");
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    String locationSubstringForException = "invalid";
+    DeleteOrphanFiles.Result result = SparkActions.get().deleteOrphanFiles(table)
+        .olderThan(System.currentTimeMillis())
+        .deleteWith(file -> {
+          if (file.contains(locationSubstringForException)) {
+            throw new RuntimeException("simulating failure during file deletion");
+          }
+          table.io().deleteFile(file);
+        })
+        .execute();
+
+    Assert.assertEquals("Should delete 4 files", 4, Iterables.size(result.orphanFiles()));
+
+    DeleteOrphanFiles.OrphanFileStatus fileStatus = StreamSupport.stream(result.orphanFiles().spliterator(), false)
+        .filter(status -> status.location().contains(locationSubstringForException))
+        .findFirst()
+        .get();
+    Assert.assertFalse("Deleted status should be false", fileStatus.deleted());
+    Assert.assertEquals("Failure cause should be present", "simulating failure during file deletion",
+        fileStatus.failureCause().getMessage());
+
+    List<DeleteOrphanFiles.OrphanFileStatus> deletedFileStatuses = StreamSupport.stream(
+            result.orphanFiles().spliterator(), false)
+        .filter(status -> !status.location().contains(locationSubstringForException))
+        .collect(Collectors.toList());
+    assertDeletedStatusAndFailureCause(deletedFileStatuses);
+  }
+
+  @Test
   public void testWapFilesAreKept() throws InterruptedException {
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true");

@@ -30,7 +30,9 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method java.lang.Iterable<org.apache.iceberg.actions.DeleteOrphanFiles.OrphanFileStatus>\
         \ org.apache.iceberg.actions.DeleteOrphanFiles.Result::orphanFiles()"
-      justification: "Accept all changes prior to introducing API compatibility checks"
+      justification: "Introduced improved API to represent results of DeleteOrphanFiles\
+        \ action. The new API will allow users to gracefully deal with failure encountered\
+        \ during file deletion"
     - code: "java.method.addedToInterface"
       new: "method long org.apache.iceberg.actions.ExpireSnapshots.Result::deletedEqualityDeleteFilesCount()"
       justification: "Interface is backward compatible, very unlikely anyone implements this Result bean interface"
