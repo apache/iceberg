@@ -38,6 +38,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 
 public class AwsClientFactories {
 
@@ -83,6 +84,7 @@ public class AwsClientFactories {
     private String s3AccessKeyId;
     private String s3SecretAccessKey;
     private String s3SessionToken;
+    private Boolean s3PathStyleAccess;
     private Boolean s3UseArnRegionEnabled;
     private String httpClientType;
 
@@ -94,7 +96,7 @@ public class AwsClientFactories {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .serviceConfiguration(s -> s.useArnRegionEnabled(s3UseArnRegionEnabled).build())
+          .serviceConfiguration(s3Configuration(s3PathStyleAccess, s3UseArnRegionEnabled))
           .credentialsProvider(credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
     }
@@ -120,11 +122,19 @@ public class AwsClientFactories {
       this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
       this.s3SecretAccessKey = properties.get(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY);
       this.s3SessionToken = properties.get(AwsProperties.S3FILEIO_SESSION_TOKEN);
-      this.s3UseArnRegionEnabled = PropertyUtil.propertyAsBoolean(properties, AwsProperties.S3_USE_ARN_REGION_ENABLED,
-          AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+      this.s3PathStyleAccess = PropertyUtil.propertyAsBoolean(
+          properties,
+          AwsProperties.S3FILEIO_PATH_STYLE_ACCESS,
+          AwsProperties.S3FILEIO_PATH_STYLE_ACCESS_DEFAULT
+      );
+      this.s3UseArnRegionEnabled = PropertyUtil.propertyAsBoolean(
+          properties,
+          AwsProperties.S3_USE_ARN_REGION_ENABLED,
+          AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT
+      );
 
-      ValidationException.check((s3AccessKeyId == null && s3SecretAccessKey == null) ||
-          (s3AccessKeyId != null && s3SecretAccessKey != null),
+      ValidationException.check(
+          (s3AccessKeyId == null) == (s3SecretAccessKey == null),
           "S3 client access key ID and secret access key must be set at the same time");
       this.httpClientType = PropertyUtil.propertyAsString(properties,
           AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
@@ -138,7 +148,7 @@ public class AwsClientFactories {
     }
     switch (clientType) {
       case AwsProperties.HTTP_CLIENT_TYPE_URLCONNECTION:
-        return  UrlConnectionHttpClient.builder();
+        return UrlConnectionHttpClient.builder();
       case AwsProperties.HTTP_CLIENT_TYPE_APACHE:
         return ApacheHttpClient.builder();
       default:
@@ -150,6 +160,13 @@ public class AwsClientFactories {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }
+  }
+
+  public static S3Configuration s3Configuration(Boolean pathStyleAccess, Boolean s3UseArnRegionEnabled) {
+    return S3Configuration.builder()
+        .pathStyleAccessEnabled(pathStyleAccess)
+        .useArnRegionEnabled(s3UseArnRegionEnabled)
+        .build();
   }
 
   static AwsCredentialsProvider credentialsProvider(
