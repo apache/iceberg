@@ -108,7 +108,14 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history and finds the oldest ancestor of snapshotId.
+   * Traverses the history and finds the oldest ancestor of the specified snapshot.
+   * <p>
+   * Oldest ancestor is defined as the ancestor snapshot whose parent is null or has been expired.
+   * If the specified snapshot has no parent or parent has been expired,
+   * the specified snapshot itself is returned.
+   *
+   * @param snapshotId the ID of the snapshot to find the oldest ancestor
+   * @param lookup lookup function from snapshot ID to snapshot
    * @return null if there is no current snapshot in the table, else the oldest Snapshot.
    */
   public static Snapshot oldestAncestor(long snapshotId, Function<Long, Snapshot> lookup) {

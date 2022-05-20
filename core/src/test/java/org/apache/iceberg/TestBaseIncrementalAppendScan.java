@@ -20,10 +20,7 @@
 package org.apache.iceberg;
 
 
-import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -49,10 +46,15 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
     IncrementalAppendScan scan = newScan()
         .fromSnapshotInclusive(snapshotAId);
     Assert.assertEquals(3, Iterables.size(scan.planFiles()));
+
+    IncrementalAppendScan scanWithToSnapshot = newScan()
+        .fromSnapshotInclusive(snapshotAId)
+        .toSnapshot(snapshotCId);
+    Assert.assertEquals(3, Iterables.size(scanWithToSnapshot.planFiles()));
   }
 
   @Test
-  public void testFromSnapshotExclusiveAndToSnapshot() {
+  public void testFromSnapshotExclusive() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
     table.newFastAppend().appendFile(FILE_B).commit();
@@ -61,9 +63,13 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
     long snapshotCId = table.currentSnapshot().snapshotId();
 
     IncrementalAppendScan scan = newScan()
+        .fromSnapshotExclusive(snapshotAId);
+    Assert.assertEquals(2, Iterables.size(scan.planFiles()));
+
+    IncrementalAppendScan scanWithToSnapshot = newScan()
         .fromSnapshotExclusive(snapshotAId)
         .toSnapshot(snapshotBId);
-    Assert.assertEquals(1, Iterables.size(scan.planFiles()));
+    Assert.assertEquals(1, Iterables.size(scanWithToSnapshot.planFiles()));
   }
 
   @Test
@@ -87,14 +93,9 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
     long expireTimestampSnapshotA = TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // append file B in a staged branch
-    table.newFastAppend().appendFile(FILE_B).stageOnly().commit();
-    List<Snapshot> snapshotsAfterB = Lists.newArrayList(table.snapshots().iterator());
-    Assert.assertEquals(2, snapshotsAfterB.size());
-    long snapshotBId = snapshotsAfterB.stream()
-        .filter(snapshot -> snapshot.snapshotId() != snapshotAId)
-        .collect(Collectors.toList())
-        .get(0)
-        .snapshotId();
+    AppendFiles appendFiles = table.newFastAppend().appendFile(FILE_B).stageOnly();
+    long snapshotBId = appendFiles.apply().snapshotId();
+    appendFiles.commit();
 
     table.newFastAppend().appendFile(FILE_C).commit();
     long snapshotCId = table.currentSnapshot().snapshotId();
@@ -115,8 +116,18 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
         .toSnapshot(snapshotDId);
     AssertHelpers.assertThrows("Should throw exception",
         IllegalArgumentException.class,
-        String.format("Starting snapshot (exclusive) %%d is not an ancestor of end snapshot %%d [%d, %d]",
+        String.format("Starting snapshot (exclusive) %d is not an ancestor of end snapshot %d",
             snapshotBId, snapshotDId),
         () -> Iterables.size(scanShouldFail.planFiles()));
+
+    // scan should fail because snapshot B is not an ancestor of snapshot D
+    IncrementalAppendScan scanShouldFailInclusive = newScan()
+        .fromSnapshotInclusive(snapshotBId)
+        .toSnapshot(snapshotDId);
+    AssertHelpers.assertThrows("Should throw exception",
+        IllegalArgumentException.class,
+        String.format("Starting snapshot (inclusive) %d is not an ancestor of end snapshot %d",
+            snapshotBId, snapshotDId),
+        () -> Iterables.size(scanShouldFailInclusive.planFiles()));
   }
 }

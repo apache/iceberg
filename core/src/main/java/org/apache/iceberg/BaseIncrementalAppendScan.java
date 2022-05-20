@@ -53,14 +53,7 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
     Snapshot startingSnapshotInclusive = table().snapshot(fromSnapshotId);
     Preconditions.checkArgument(startingSnapshotInclusive != null,
         "Cannot find the starting snapshot: %d", fromSnapshotId);
-    // To achieve inclusive behavior, we pass the parent snapshot id to the TableScanContext.
-    // If parent id is null, leave the TableScanContext#fromSnapshotId as null.
-    // This way, TableScanContext#fromSnapshotId always capture the exclusive behavior.
-    if (startingSnapshotInclusive.parentId() != null) {
-      return newRefinedScan(tableOps(), table(), schema(),
-          context().fromSnapshotId(startingSnapshotInclusive.parentId()));
-    }
-    return this;
+    return newRefinedScan(tableOps(), table(), schema(), context().fromSnapshotIdInclusive(fromSnapshotId));
   }
 
   @Override
@@ -79,26 +72,50 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    // Return an empty iterable when table is empty
-    if (table().currentSnapshot() == null) {
-      return CloseableIterable.empty();
+    long toSnapshotIdInclusive;
+    if (context().toSnapshotId() != null) {
+      toSnapshotIdInclusive = context().toSnapshotId();
+    } else if (table().currentSnapshot() != null) {
+      toSnapshotIdInclusive = table().currentSnapshot().snapshotId();
+    } else {
+      throw new IllegalArgumentException("End snapshot is not set and table has no current snapshot");
     }
 
-    long toSnapshotIdInclusive = context().toSnapshotId() != null ?
-        context().toSnapshotId() : table().currentSnapshot().snapshotId();
+
     if (context().fromSnapshotId() != null) {
       Preconditions.checkArgument(
           SnapshotUtil.isAncestorOf(table(), toSnapshotIdInclusive, context().fromSnapshotId()),
-          "Starting snapshot (exclusive) %d is not an ancestor of end snapshot %d",
+          "Starting snapshot (%s) %s is not an ancestor of end snapshot %s",
+          context().fromSnapshotInclusive() ? "inclusive" : "exclusive",
           context().fromSnapshotId(), toSnapshotIdInclusive);
     }
 
+    Long fromSnapshotIdExclusive = context().fromSnapshotId();
+    if (context().fromSnapshotId() != null && context().fromSnapshotInclusive()) {
+      // for inclusive behavior fromSnapshotIdExclusive is set to the parent snapshot id, which can be null.
+      // appendsBetween handles null fromSnapshotIdExclusive properly by finding the ancestors of end snapshot.
+      fromSnapshotIdExclusive = table().snapshot(context().fromSnapshotId()).parentId();
+    }
+
+    notifyIncrementalScanEvent(table(), context(), toSnapshotIdInclusive);
+
     // appendsBetween handles null fromSnapshotId (exclusive) properly
-    List<Snapshot> snapshots = appendsBetween(table(), context().fromSnapshotId(), toSnapshotIdInclusive);
+    List<Snapshot> snapshots = appendsBetween(table(), fromSnapshotIdExclusive, toSnapshotIdInclusive);
     if (snapshots.isEmpty()) {
       return CloseableIterable.empty();
     }
 
+    return planFilesFromSnapshots(snapshots);
+  }
+
+  @Override
+  public CloseableIterable<CombinedScanTask> planTasks() {
+    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
+    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
+    return TableScanUtil.planTasks(splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
+  }
+
+  private CloseableIterable<FileScanTask> planFilesFromSnapshots(List<Snapshot> snapshots) {
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
         .from(snapshots)
@@ -121,11 +138,6 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    long fromSnapshotId = resolveFromSnapshotIdForListenerEvent(
-        table(), context().fromSnapshotId(), toSnapshotIdInclusive);
-    Listeners.notifyAll(new IncrementalScanEvent(table().name(), fromSnapshotId,
-        toSnapshotIdInclusive, context().rowFilter(), table().schema()));
-
     if (manifests.size() > 1 &&
         (DataTableScan.PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(context().planExecutor());
@@ -134,28 +146,21 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
     return manifestGroup.planFiles();
   }
 
-  @Override
-  public CloseableIterable<CombinedScanTask> planTasks() {
-    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
-    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
-    return TableScanUtil.planTasks(splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
-  }
-
-  /**
-   * Resolve nullable fromSnapshotIdExclusive to a primitive long type,
-   * as {@link IncrementalScanEvent} only accepts primitive long type.
-   */
-  private static long resolveFromSnapshotIdForListenerEvent(
-      Table table, Long fromSnapshotIdExclusive, long toSnapshotIdInclusive) {
-    if (fromSnapshotIdExclusive != null) {
-      return fromSnapshotIdExclusive;
+  private static void notifyIncrementalScanEvent(
+      Table table, TableScanContext context, long toSnapshotIdInclusive) {
+    long fromSnapshotId;
+    boolean fromSnapshotInclusive;
+    if (context.fromSnapshotId() != null) {
+      fromSnapshotId = context.fromSnapshotId();
+      fromSnapshotInclusive = context.fromSnapshotInclusive();
     } else {
-      // Resolve to the oldest ancestor of toSnapshotIdInclusive.
-      // This doesn't accurately capture the exclusive behavior of fromSnapshotId.
-      // Alternative is a special value (like 0L) to indicate null fromSnapshotIdExclusive.
       Snapshot oldestAncestorSnapshot = SnapshotUtil.oldestAncestor(toSnapshotIdInclusive, table::snapshot);
-      return oldestAncestorSnapshot != null ? oldestAncestorSnapshot.snapshotId() : toSnapshotIdInclusive;
+      fromSnapshotId = oldestAncestorSnapshot.snapshotId();
+      fromSnapshotInclusive = true;
     }
+
+    Listeners.notifyAll(new IncrementalScanEvent(table.name(), fromSnapshotId,
+        toSnapshotIdInclusive, context.rowFilter(), table.schema(), fromSnapshotInclusive));
   }
 
   private static List<Snapshot> appendsBetween(Table table, Long fromSnapshotIdExclusive, long toSnapshotIdInclusive) {
