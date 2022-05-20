@@ -204,8 +204,8 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThat(getTableLocation(tableName)).isEqualTo(expected);
 
     // Only 1 snapshotFile Should exist and no manifests should exist
-    Assertions.assertThat(metadataVersionFiles(tableName)).isNotNull().hasSize(2);
-    Assertions.assertThat(manifestFiles(tableName)).isNotNull().isEmpty();
+    Assertions.assertThat(metadataVersionFiles(tableLocation)).isNotNull().hasSize(2);
+    Assertions.assertThat(manifestFiles(tableLocation)).isNotNull().isEmpty();
 
     verifyCommitMetadata();
   }
@@ -428,7 +428,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
   @Test
   public void testRegisterTableWithGivenBranch() {
-    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     ImmutableTableReference tableReference =
         ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
@@ -439,7 +439,7 @@ public class TestNessieTable extends BaseTestIceberg {
   @Test
   public void testRegisterTableFailureScenarios()
       throws NessieConflictException, NessieNotFoundException {
-    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     // Case 1: Branch does not exist
     ImmutableTableReference defaultTableReference =
@@ -485,7 +485,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
   @Test
   public void testRegisterTableWithDefaultBranch() {
-    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
     validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
@@ -493,7 +493,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
   @Test
   public void testRegisterTableMoreThanOneBranch() {
-    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     ImmutableTableReference tableReference =
         ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
@@ -512,8 +512,8 @@ public class TestNessieTable extends BaseTestIceberg {
     icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     // Only 2 snapshotFile Should exist and no manifests should exist
-    Assertions.assertThat(metadataVersionFiles(TABLE_NAME)).isNotNull().hasSize(2);
-    Assertions.assertThat(manifestFiles(TABLE_NAME)).isNotNull().isEmpty();
+    Assertions.assertThat(metadataVersionFiles(tableLocation)).isNotNull().hasSize(2);
+    Assertions.assertThat(manifestFiles(tableLocation)).isNotNull().isEmpty();
     Assertions.assertThat(altered.asStruct()).isEqualTo(icebergTable.schema().asStruct());
   }
 
@@ -579,28 +579,26 @@ public class TestNessieTable extends BaseTestIceberg {
     return getTableLocationPath(tableName).toString();
   }
 
-  private String metadataLocation(String tableName) {
-    return Paths.get(getTableBasePath(tableName), "metadata").toString();
-  }
-
   @SuppressWarnings(
       "RegexpSinglelineJava") // respecting this rule requires a lot more lines of code
-  private List<String> metadataFiles(String tableName) {
-    return Arrays.stream(Objects.requireNonNull(new File(metadataLocation(tableName)).listFiles()))
+  private List<String> metadataFiles(String tablePath) {
+    return Arrays.stream(
+            Objects.requireNonNull(new File((tablePath + "/" + "metadata")).listFiles()))
         .map(File::getAbsolutePath)
         .collect(Collectors.toList());
   }
 
-  protected List<String> metadataVersionFiles(String tableName) {
-    return filterByExtension(tableName, getFileExtension(TableMetadataParser.Codec.NONE));
+  protected List<String> metadataVersionFiles(Path tablePath) {
+    return filterByExtension(
+        tablePath.toUri().getPath(), getFileExtension(TableMetadataParser.Codec.NONE));
   }
 
-  protected List<String> manifestFiles(String tableName) {
-    return filterByExtension(tableName, ".avro");
+  protected List<String> manifestFiles(Path tablePath) {
+    return filterByExtension(tablePath.toUri().getPath(), ".avro");
   }
 
-  private List<String> filterByExtension(String tableName, String extension) {
-    return metadataFiles(tableName).stream()
+  private List<String> filterByExtension(String tablePath, String extension) {
+    return metadataFiles(tablePath).stream()
         .filter(f -> f.endsWith(extension))
         .collect(Collectors.toList());
   }
