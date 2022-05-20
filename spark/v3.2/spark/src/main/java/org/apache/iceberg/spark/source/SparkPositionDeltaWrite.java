@@ -226,8 +226,12 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public void abort(WriterCommitMessage[] messages) {
+      if (!cleanupOnAbort) {
+        return;
+      }
+
       for (WriterCommitMessage message : messages) {
-        if (message != null && cleanupOnAbort) {
+        if (message != null) {
           DeltaTaskCommit taskCommit = (DeltaTaskCommit) message;
           cleanFiles(table.io(), Arrays.asList(taskCommit.dataFiles()));
           cleanFiles(table.io(), Arrays.asList(taskCommit.deleteFiles()));
