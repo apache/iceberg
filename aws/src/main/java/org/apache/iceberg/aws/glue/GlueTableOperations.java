@@ -140,7 +140,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     } catch (software.amazon.awssdk.services.glue.model.ValidationException e) {
       throw new ValidationException(e,
               "Cannot commit %s because Glue encountered a validation exception " +
-                      "while accessing requested resources", tableName());
+                  "while accessing requested resources",
+          tableName());
     } catch (RuntimeException persistFailure) {
       LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
           fullTableName, persistFailure);
