@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.RowDelta;
@@ -31,8 +30,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.TestSparkCatalog;
 import org.apache.spark.SparkException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.junit.Test;
+import org.junit.runners.Parameterized;
 
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -53,12 +53,16 @@ public class TestMergeOnReadDelete extends TestDelete {
     );
   }
 
+  @Parameterized.AfterParam
+  public static void clearTestSparkCatalogCache() {
+    TestSparkCatalog.clearTables();
+  }
 
   @Test
-  public void testCommitUnknownException() throws IOException, NoSuchTableException {
+  public void testCommitUnknownException() {
     createAndInitTable("id INT, dep STRING, category STRING");
 
-    // write an unpartitioned file
+    // write unpartitioned files
     append(tableName, "{ \"id\": 1, \"dep\": \"hr\", \"category\": \"c1\"}");
     append(tableName, "{ \"id\": 2, \"dep\": \"hr\", \"category\": \"c1\" }\n" +
         "{ \"id\": 3, \"dep\": \"hr\", \"category\": \"c1\" }");
@@ -76,15 +80,14 @@ public class TestMergeOnReadDelete extends TestDelete {
     when(spyTable.newRowDelta()).thenReturn(spyNewRowDelta);
     SparkTable sparkTable = new SparkTable(spyTable, false);
 
-
     ImmutableMap<String, String> config = ImmutableMap.of(
         "type", "hive",
         "default-namespace", "default"
     );
     spark.conf().set("spark.sql.catalog.dummy_catalog", "org.apache.iceberg.spark.source.TestSparkCatalog");
     config.forEach((key, value) -> spark.conf().set("spark.sql.catalog.dummy_catalog." + key, value));
-
-    TestSparkCatalog.setDummyIcebergTbl(sparkTable);
+    Identifier ident = Identifier.of(new String[]{"default"}, "table");
+    TestSparkCatalog.setTable(ident, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
     AssertHelpers.assertThrowsWithCause("Should throw a Commit State Unknown Exception",
