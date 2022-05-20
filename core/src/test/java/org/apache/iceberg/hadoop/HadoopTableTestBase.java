@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.TestPathUtil;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
@@ -191,8 +192,12 @@ public class HadoopTableTestBase {
         "hadoop",
         ImmutableMap.<String, String>builder()
             .putAll(catalogProperties)
-            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath())
+            .put(CatalogProperties.WAREHOUSE_LOCATION, getCrossOSPath(temp.newFolder()))
             .build());
     return hadoopCatalog;
+  }
+
+  protected static String getCrossOSPath(File file) {
+    return TestPathUtil.getCrossOSPath(file);
   }
 }

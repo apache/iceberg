@@ -93,7 +93,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     this.baseNamespace = baseNamespace;
     this.isHadoopCatalog = catalogName.startsWith("testhadoop");
     this.validationCatalog = isHadoopCatalog ?
-        new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getRoot()) :
+        new HadoopCatalog(hiveConf, "file:" + getCrossOSPath(hadoopWarehouse.getRoot())) :
         catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
@@ -115,9 +115,9 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
 
   protected String warehouseRoot() {
     if (isHadoopCatalog) {
-      return hadoopWarehouse.getRoot().getAbsolutePath();
+      return getCrossOSPath(hadoopWarehouse.getRoot());
     } else {
-      return hiveWarehouse.getRoot().getAbsolutePath();
+      return getCrossOSPath(hiveWarehouse.getRoot());
     }
   }
 

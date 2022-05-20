@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.TestPathUtil;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -93,7 +94,7 @@ public abstract class TestFlinkScan {
     File warehouseFile = TEMPORARY_FOLDER.newFolder();
     Assert.assertTrue(warehouseFile.delete());
     // before variables
-    warehouse = "file:" + warehouseFile;
+    warehouse = "file:" + getCrossOSPath(warehouseFile);
     Configuration conf = new Configuration();
     catalog = new HadoopCatalog(conf, warehouse);
     location = String.format("%s/%s/%s", warehouse, TestFixtures.DATABASE, TestFixtures.TABLE);
@@ -329,5 +330,9 @@ public abstract class TestFlinkScan {
     while (current <= timestampMillis) {
       current = System.currentTimeMillis();
     }
+  }
+
+  protected static String getCrossOSPath(File file) {
+    return TestPathUtil.getCrossOSPath(file);
   }
 }

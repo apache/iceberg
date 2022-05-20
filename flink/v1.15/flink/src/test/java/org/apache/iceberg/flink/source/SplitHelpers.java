@@ -23,6 +23,7 @@ import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -60,7 +61,7 @@ public class SplitHelpers {
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
     final File warehouseFile = temporaryFolder.newFolder();
     Assert.assertTrue(warehouseFile.delete());
-    final String warehouse = "file:" + warehouseFile;
+    final String warehouse = "file:" + getCrossOSPath(warehouseFile);
     Configuration hadoopConf = new Configuration();
     final HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
     try {
@@ -88,5 +89,14 @@ public class SplitHelpers {
       catalog.dropTable(TestFixtures.TABLE_IDENTIFIER);
       catalog.close();
     }
+  }
+
+  private static String getCrossOSPath(File file) {
+    String absolutePath = file.getAbsolutePath();
+    // Handle windows
+    if (absolutePath.contains(":\\")) {
+      absolutePath = "/" + absolutePath;
+    }
+    return StringUtils.replace(absolutePath, "\\", "/");
   }
 }

@@ -80,7 +80,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   public static void createWarehouse() throws IOException {
     File warehouseFile = TEMPORARY_FOLDER.newFolder();
     Assert.assertTrue("The warehouse should be deleted", warehouseFile.delete());
-    warehouse = String.format("file:%s", warehouseFile);
+    warehouse = String.format("file:%s", getCrossOSPath(warehouseFile));
   }
 
   @Before

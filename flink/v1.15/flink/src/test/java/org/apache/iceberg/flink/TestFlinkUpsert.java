@@ -34,7 +34,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -109,13 +108,6 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
     sql("CREATE DATABASE IF NOT EXISTS %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-  }
-
-  @Override
-  @After
-  public void clean() {
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
-    super.clean();
   }
 
   @Test

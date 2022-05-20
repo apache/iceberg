@@ -71,7 +71,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
   @Test
   public void testHadoopCatalogLoader() throws IOException, ClassNotFoundException {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, "file:" + warehouse);
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, "file:" + getCrossOSPath(warehouse));
     CatalogLoader loader = CatalogLoader.hadoop("my_catalog", hiveConf, properties);
     validateCatalogLoader(loader);
   }
@@ -84,7 +84,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
 
   @Test
   public void testHadoopTableLoader() throws IOException, ClassNotFoundException {
-    String location = "file:" + warehouse + "/my_table";
+    String location = "file:" + getCrossOSPath(warehouse) + "/my_table";
     new HadoopTables(hiveConf).create(SCHEMA, location);
     validateTableLoader(TableLoader.fromHadoopTable(location, hiveConf));
   }

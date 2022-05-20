@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink;
 
+import java.io.File;
 import java.util.List;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -33,6 +34,7 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.TestPathUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -115,5 +117,9 @@ public abstract class FlinkTestBase extends TestBaseUtils {
         .isNotNull()
         .as(message)
         .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  protected static String getCrossOSPath(File file) {
+    return TestPathUtil.getCrossOSPath(file);
   }
 }

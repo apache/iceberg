@@ -348,7 +348,7 @@ public class TestIcebergConnector extends FlinkTestBase {
 
   private static String createWarehouse() {
     try {
-      return String.format("file://%s", WAREHOUSE.newFolder().getAbsolutePath());
+      return String.format("file://%s", getCrossOSPath(WAREHOUSE.newFolder()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

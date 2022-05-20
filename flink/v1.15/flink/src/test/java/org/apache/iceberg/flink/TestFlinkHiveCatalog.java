@@ -47,7 +47,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     props.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
 
     File warehouseDir = tempFolder.newFolder();
-    props.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + warehouseDir.getAbsolutePath());
+    props.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + getCrossOSPath(warehouseDir));
 
     checkSQLQuery(props, warehouseDir);
   }
@@ -61,7 +61,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     try (FileOutputStream fos = new FileOutputStream(hiveSiteXML)) {
       Configuration newConf = new Configuration(hiveConf);
       // Set another new directory which is different with the hive metastore's warehouse path.
-      newConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + warehouseDir.getAbsolutePath());
+      newConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + getCrossOSPath(warehouseDir));
       newConf.writeXml(fos);
     }
     Assert.assertTrue("hive-site.xml should be created now.", Files.exists(hiveSiteXML.toPath()));

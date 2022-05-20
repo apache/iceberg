@@ -72,7 +72,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     File warehouseFile = TEMPORARY_FOLDER.newFolder();
     Assert.assertTrue("The warehouse should be deleted", warehouseFile.delete());
     // before variables
-    warehouse = "file:" + warehouseFile;
+    warehouse = "file:" + getCrossOSPath(warehouseFile);
   }
 
   @Before

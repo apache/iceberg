@@ -227,14 +227,14 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
     File location = TEMPORARY_FOLDER.newFile();
     Assert.assertTrue(location.delete());
 
-    sql("CREATE DATABASE %s WITH ('location'='%s')", flinkDatabase, location);
+    sql("CREATE DATABASE %s WITH ('location'='%s')", flinkDatabase, getCrossOSPath(location));
 
     Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
 
     Map<String, String> nsMetadata = validationNamespaceCatalog.loadNamespaceMetadata(icebergNamespace);
 
     Assert.assertEquals("Namespace should have expected location",
-        "file:" + location.getPath(), nsMetadata.get("location"));
+        "file:" + getCrossOSPath(location), nsMetadata.get("location"));
   }
 
   @Test
