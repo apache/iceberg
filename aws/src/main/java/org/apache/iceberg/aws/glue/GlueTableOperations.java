@@ -133,14 +133,14 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           "Cannot commit %s because its Glue table already exists when trying to create one", tableName());
     } catch (software.amazon.awssdk.services.glue.model.EntityNotFoundException e) {
       throw new NotFoundException(e,
-              "Cannot commit %s because Glue cannot find the requested entity", tableName());
+          "Cannot commit %s because Glue cannot find the requested entity", tableName());
     } catch (software.amazon.awssdk.services.glue.model.AccessDeniedException e) {
       throw new ForbiddenException(e,
-              "Cannot commit %s because Glue cannot access the requested resources", tableName());
+          "Cannot commit %s because Glue cannot access the requested resources", tableName());
     } catch (software.amazon.awssdk.services.glue.model.ValidationException e) {
       throw new ValidationException(e,
-              "Cannot commit %s because Glue encountered a validation exception " +
-                  "while accessing requested resources",
+          "Cannot commit %s because Glue encountered a validation exception " +
+              "while accessing requested resources",
           tableName());
     } catch (RuntimeException persistFailure) {
       LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
