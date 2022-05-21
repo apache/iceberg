@@ -117,7 +117,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testConfigRoute() throws IOException {
     RESTCatalogAdapter adaptor = new RESTCatalogAdapter(backendCatalog) {
       @Override
-      public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+      public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
+                                            Consumer<ErrorResponse> errorHandler) {
         if (ResourcePaths.config().equals(path)) {
           return castResponse(responseType, ConfigResponse
               .builder()
