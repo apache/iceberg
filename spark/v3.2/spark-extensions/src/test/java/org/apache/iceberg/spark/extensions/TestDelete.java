@@ -68,8 +68,8 @@ import static org.apache.spark.sql.functions.lit;
 public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   public TestDelete(String catalogName, String implementation, Map<String, String> config,
-                    String fileFormat, Boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+                    String fileFormat, Boolean vectorized, String distributionMode, Boolean useBloomFiler) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, useBloomFiler);
   }
 
   @BeforeClass
@@ -122,6 +122,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr")),
+        sql("SELECT * FROM %s WHERE dep = 'hr' ORDER BY id", tableName));
   }
 
   @Test
@@ -155,6 +163,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s WHERE dep = 'hr' ORDER BY id ASC NULLS LAST", tableName));
   }
 
   @Test
@@ -168,6 +184,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s WHERE dep = 'hardware' ORDER BY id", tableName));
   }
 
   @Test
@@ -192,6 +216,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hardware"), row(1, "hr"), row(3, "hr")),
         sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hardware"), row(1, "hr")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id, dep", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(3, "hr")),
+        sql("SELECT * FROM %s WHERE dep = 'hr' ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -220,6 +252,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s WHERE dep = 'hr' ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id ASC NULLS LAST", tableName));
   }
 
   @Test
@@ -264,6 +304,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "dep1")),
         sql("SELECT * FROM %s", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "dep1")),
+        sql("SELECT * FROM %s WHERE id = 1", tableName));
   }
 
   @Test
@@ -291,6 +335,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s WHERE dep = 'hr' ORDER BY id ASC NULLS LAST", tableName));
   }
 
   @Test
@@ -390,6 +438,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(null, "hr")),
+        sql("SELECT * FROM %s WHERE dep = 'hr' ORDER BY id ASC NULLS LAST", tableName));
   }
 
   @Test
@@ -469,6 +521,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(1, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s WHERE dep = 'hr' ORDER BY id ASC NULLS LAST", tableName));
   }
 
   @Test
@@ -484,6 +540,14 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(null, "hr")),
+        sql("SELECT * FROM %s WHERE dep = 'hr' ORDER BY id ASC NULLS LAST", tableName));
   }
 
   @Test
@@ -570,6 +634,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s WHERE dep = 'hardware'", tableName));
   }
 
   @Test
@@ -614,6 +682,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       assertEquals("Should have expected rows",
           ImmutableList.of(row(2, "hardware"), row(null, "hr")),
           sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+      assertEquals("Should have expected rows",
+          ImmutableList.of(row(2, "hardware")),
+          sql("SELECT * FROM %s WHERE id = 2 ORDER BY id ASC NULLS LAST", tableName));
     });
   }
 
@@ -844,6 +916,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hr", "c1")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hr", "c1")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id", tableName));
   }
 
   // TODO: multiple stripes for ORC

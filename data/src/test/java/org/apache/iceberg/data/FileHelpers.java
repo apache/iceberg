@@ -42,9 +42,14 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PropertyUtil;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.DEFAULT_PARQUET_BLOOM_FILTER_ENABLED;
+import static org.apache.iceberg.TableProperties.DEFAULT_PARQUET_BLOOM_FILTER_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
 
 public class FileHelpers {
   private FileHelpers() {
@@ -115,6 +120,14 @@ public class FileHelpers {
       throws IOException {
     FileFormat format = defaultFormat(table.properties());
     GenericAppenderFactory factory = new GenericAppenderFactory(table.schema(), table.spec());
+    boolean useBloomFilter = PropertyUtil.propertyAsBoolean(table.properties(),
+        DEFAULT_PARQUET_BLOOM_FILTER_ENABLED,
+        DEFAULT_PARQUET_BLOOM_FILTER_ENABLED_DEFAULT);
+    int blockSize = PropertyUtil.propertyAsInt(table.properties(),
+        PARQUET_ROW_GROUP_SIZE_BYTES,
+        PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+    factory.set(DEFAULT_PARQUET_BLOOM_FILTER_ENABLED, Boolean.toString(useBloomFilter));
+    factory.set(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(blockSize));
 
     FileAppender<Record> writer = factory.newAppender(out, format);
     try (Closeable toClose = writer) {

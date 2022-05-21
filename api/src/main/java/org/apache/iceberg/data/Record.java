@@ -58,4 +58,22 @@ public interface Record extends StructLike {
     return copy(overwriteValues);
   }
 
+  default Record copy(String field1, Object value1, String field2, Object value2, String field3, Object value3,
+                      String field4, Object value4, String field5, Object value5, String field6, Object value6,
+                      String field7, Object value7, String field8, Object value8, String field9, Object value9,
+                      String field10, Object value10, String field11, Object value11) {
+    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(9);
+    overwriteValues.put(field1, value1);
+    overwriteValues.put(field2, value2);
+    overwriteValues.put(field3, value3);
+    overwriteValues.put(field4, value4);
+    overwriteValues.put(field5, value5);
+    overwriteValues.put(field6, value6);
+    overwriteValues.put(field7, value7);
+    overwriteValues.put(field8, value8);
+    overwriteValues.put(field9, value9);
+    overwriteValues.put(field10, value10);
+    overwriteValues.put(field11, value11);
+    return copy(overwriteValues);
+  }
 }

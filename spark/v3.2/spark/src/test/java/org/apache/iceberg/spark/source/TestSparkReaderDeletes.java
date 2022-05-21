@@ -72,7 +72,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
-  private final boolean vectorized;
+  protected final boolean vectorized;
 
   public TestSparkReaderDeletes(boolean vectorized) {
     this.vectorized = vectorized;

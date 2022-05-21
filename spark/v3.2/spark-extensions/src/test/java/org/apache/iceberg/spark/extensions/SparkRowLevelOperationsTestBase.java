@@ -47,6 +47,7 @@ import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_PARQUET_BLOOM_FILTER_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
@@ -61,19 +62,22 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected final String fileFormat;
   protected final boolean vectorized;
   protected final String distributionMode;
+  protected final boolean useBloomFilter;
 
   public SparkRowLevelOperationsTestBase(String catalogName, String implementation,
                                          Map<String, String> config, String fileFormat,
                                          boolean vectorized,
-                                         String distributionMode) {
+                                         String distributionMode,
+                                         boolean useBloomFilter) {
     super(catalogName, implementation, config);
     this.fileFormat = fileFormat;
     this.vectorized = vectorized;
     this.distributionMode = distributionMode;
+    this.useBloomFilter = useBloomFilter;
   }
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}," +
-      " format = {3}, vectorized = {4}, distributionMode = {5}")
+      " format = {3}, vectorized = {4}, distributionMode = {5}, useBloomFilter = {6}")
   public static Object[][] parameters() {
     return new Object[][] {
         { "testhive", SparkCatalog.class.getName(),
@@ -83,16 +87,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             ),
             "orc",
             true,
-            WRITE_DISTRIBUTION_MODE_NONE
-        },
-        { "testhive", SparkCatalog.class.getName(),
-            ImmutableMap.of(
-                "type", "hive",
-                "default-namespace", "default"
-            ),
-            "parquet",
-            true,
-            WRITE_DISTRIBUTION_MODE_NONE
+            WRITE_DISTRIBUTION_MODE_NONE,
+            false
         },
         { "testhadoop", SparkCatalog.class.getName(),
             ImmutableMap.of(
@@ -100,7 +96,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             ),
             "parquet",
             RANDOM.nextBoolean(),
-            WRITE_DISTRIBUTION_MODE_HASH
+            WRITE_DISTRIBUTION_MODE_HASH,
+            false
         },
         { "spark_catalog", SparkSessionCatalog.class.getName(),
             ImmutableMap.of(
@@ -112,7 +109,17 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             ),
             "avro",
             false,
-            WRITE_DISTRIBUTION_MODE_RANGE
+            WRITE_DISTRIBUTION_MODE_RANGE,
+            false
+        },
+        { "testhadoop", SparkCatalog.class.getName(),
+            ImmutableMap.of(
+                "type", "hadoop"
+            ),
+            "parquet",
+            RANDOM.nextBoolean(),
+            WRITE_DISTRIBUTION_MODE_HASH,
+            true
         }
     };
   }
@@ -126,6 +133,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     switch (fileFormat) {
       case "parquet":
         sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')", tableName, PARQUET_VECTORIZATION_ENABLED, vectorized);
+        sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName,
+            DEFAULT_PARQUET_BLOOM_FILTER_ENABLED, useBloomFilter);
         break;
       case "orc":
         Assert.assertTrue(vectorized);

@@ -26,8 +26,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 public class TestCopyOnWriteDelete extends TestDelete {
 
   public TestCopyOnWriteDelete(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, Boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+                               String fileFormat, Boolean vectorized, String distributionMode, Boolean useBloomFilter) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, useBloomFilter);
   }
 
   @Override

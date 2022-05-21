@@ -63,8 +63,8 @@ import static org.apache.spark.sql.functions.lit;
 public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   public TestMerge(String catalogName, String implementation, Map<String, String> config,
-                   String fileFormat, boolean vectorized, String distributionMode) {
-    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+                   String fileFormat, Boolean vectorized, String distributionMode, Boolean useBloomFilter) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode, useBloomFilter);
   }
 
   @BeforeClass
@@ -119,6 +119,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2L, "hardware")  // new
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1L, "finance"), row(1L, "hr")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id, dep", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(2L, "hardware")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -141,6 +147,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(3, "emp-id-3")  // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-1")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-1' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -162,6 +173,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(3, "emp-id-3")  // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(3, "emp-id-3")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-3' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -185,6 +201,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(6, "emp-id-six")  // kept
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-1")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-1' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(6, "emp-id-six")),
+        sql("SELECT * FROM %s WHERE id = 6 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -207,6 +228,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(1, "emp-id-one") // kept
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-one")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-one' ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -234,6 +258,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "emp-id-2")  // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-1")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-1' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -261,6 +290,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "emp-id-2")  // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-1")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-1' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -289,6 +323,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(3, "emp-id-3")  // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(3, "emp-id-3")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-3' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -353,6 +392,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(6, "emp-id-6")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-6' ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -387,6 +429,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-one")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-one' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(6, "emp-id-6")),
+        sql("SELECT * FROM %s WHERE id = 6 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -419,6 +466,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-one")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-one' ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -449,6 +499,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-one")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-one' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(6, "emp-id-6")),
+        sql("SELECT * FROM %s WHERE id = 6 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -477,6 +532,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-one")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-one' ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -508,6 +566,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-one")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-one' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(6, "emp-id-6")),
+        sql("SELECT * FROM %s WHERE id = 6 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -533,6 +596,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "emp-id-2")  // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-2' ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -562,6 +628,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Target should be unchanged",
         ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-one")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-one' ORDER BY id, dep", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(6, "emp-id-6")),
+        sql("SELECT * FROM %s WHERE id = 6 ORDER BY id, dep", tableName));
   }
 
   @Test
@@ -594,6 +665,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           row(2, "emp-id-2")  // new
       );
       assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+      assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-1")),
+          sql("SELECT * FROM %s WHERE dep = 'emp-id-1' ORDER BY id, dep", tableName));
+      assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+          sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
 
       removeTables();
     }
@@ -632,6 +708,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           expectedRows,
           sql("SELECT id, CAST(ts AS STRING) FROM %s ORDER BY id", tableName));
 
+      assertEquals("Output should match", ImmutableList.of(row(1, "2001-01-01 00:00:00")),
+          sql("SELECT id, CAST(ts AS STRING) FROM %s WHERE ts = '2001-01-01 00:00:00' ORDER BY id", tableName));
+      assertEquals("Output should match", ImmutableList.of(row(2, "2001-01-02 00:00:00")),
+          sql("SELECT id, CAST(ts AS STRING) FROM %s WHERE id = 2 ORDER BY id", tableName));
+
       removeTables();
     }
   }
@@ -667,6 +748,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       );
       assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
 
+      assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-1")),
+          sql("SELECT * FROM %s WHERE dep = 'emp-id-1' ORDER BY id, dep", tableName));
+      assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+          sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
+
       removeTables();
     }
   }
@@ -701,6 +787,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           row(2, "emp-id-2")  // new
       );
       assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+      assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-1")),
+          sql("SELECT * FROM %s WHERE dep = 'emp-id-1' ORDER BY id, dep", tableName));
+      assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+          sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
 
       removeTables();
     }
@@ -738,6 +829,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       );
       assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
 
+      assertEquals("Output should match", ImmutableList.of(row(1, "emp-id-1")),
+          sql("SELECT * FROM %s WHERE dep = 'emp-id-1' ORDER BY id, dep", tableName));
+      assertEquals("Output should match", ImmutableList.of(row(2, "emp-id-2")),
+          sql("SELECT * FROM %s WHERE id = 2 ORDER BY id, dep", tableName));
+
       removeTables();
     }
   }
@@ -760,6 +856,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "v2") // kept
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "x")),
+        sql("SELECT * FROM %s WHERE v = 'x' ORDER BY id", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id", tableName));
   }
 
   @Test
@@ -782,6 +883,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "v2") // kept
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "x")),
+        sql("SELECT * FROM %s WHERE v = 'x' ORDER BY id", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id", tableName));
   }
 
   @Test
@@ -804,6 +910,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "v2") // kept
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "x")),
+        sql("SELECT * FROM %s WHERE v = 'x' ORDER BY id", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id", tableName));
   }
 
   @Test
@@ -938,6 +1049,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(4, "v4")    // new
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "v1_1")),
+        sql("SELECT * FROM %s WHERE v = 'v1_1' ORDER BY id", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY id", tableName));
   }
 
   @Test
@@ -964,6 +1080,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(4, "v4")       // new
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(null, "v1_1")),
+        sql("SELECT * FROM %s WHERE v = 'v1_1' ORDER BY v", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY v", tableName));
   }
 
   @Test
@@ -989,6 +1110,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(4, "v4")       // new
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(null, "v1_1")),
+        sql("SELECT * FROM %s WHERE v = 'v1_1' ORDER BY v", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY v", tableName));
   }
 
   @Test
@@ -1015,6 +1141,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "v2_2")     // new
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(null, "v1_1")),
+        sql("SELECT * FROM %s WHERE v = 'v1_1' ORDER BY v", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2"), row(2, "v2_2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY v", tableName));
   }
 
   @Test
@@ -1058,6 +1189,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "v2") // kept
     );
     assertEquals("Output should match", expectedRows2, sql("SELECT * FROM %s ORDER BY v", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY v", tableName));
   }
 
   @Test
@@ -1085,6 +1219,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "v2")    // kept (matches neither the update nor the delete cond)
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, "v1_1")),
+        sql("SELECT * FROM %s WHERE v = 'v1_1' ORDER BY v", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, "v2")),
+        sql("SELECT * FROM %s WHERE id = 2 ORDER BY v", tableName));
   }
 
   @Test
@@ -1144,6 +1283,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row("d", "v4_2")  // new
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row("a", "v1")),
+        sql("SELECT * FROM %s WHERE v = 'v1' ORDER BY id", tableName));
+    assertEquals("Output should match", ImmutableList.of(row("b", "v2")),
+        sql("SELECT * FROM %s WHERE id = 'b' ORDER BY id", tableName));
   }
 
   @Test
@@ -1165,6 +1309,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, 121) // new
     );
     assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, 1)),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, 121)),
+        sql("SELECT * FROM %s WHERE v = 121 ORDER BY id", tableName));
   }
 
   @Test
@@ -1184,6 +1333,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Output should match",
         ImmutableList.of(row(1, -2, "new_str_1"), row(2, -20, "new_str_2")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match", ImmutableList.of(row(1, -2, "new_str_1")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
+    assertEquals("Output should match", ImmutableList.of(row(2, -20, "new_str_2")),
+        sql("SELECT * FROM %s WHERE b = 'new_str_2'ORDER BY id", tableName));
   }
 
   @Test
@@ -1221,6 +1375,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Output should match",
         ImmutableList.of(row(1, row(100, row(ImmutableList.of(1), ImmutableMap.of("x", "y"))))),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, row(100, row(ImmutableList.of(1), ImmutableMap.of("x", "y"))))),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
   }
 
   @Test
@@ -1237,6 +1395,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Output should match",
         ImmutableList.of(row(1, "-2")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, "-2")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
   }
 
   @Test
@@ -1252,6 +1414,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Output should match",
         ImmutableList.of(row(1, row(-10, null))),
         sql("SELECT * FROM %s", tableName));
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, row(-10, null))),
+        sql("SELECT * FROM %s WHERE id = 1", tableName));
   }
 
   @Test
@@ -1276,6 +1442,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("View should have correct data",
         ImmutableList.of(row("n2")),
         sql("SELECT * FROM tmp"));
+
+    assertEquals("View should have correct data",
+        ImmutableList.of(row("n2")),
+        sql("SELECT * FROM tmp WHERE name = 'n2'"));
 
     spark.sql("UNCACHE TABLE tmp");
   }
@@ -1303,6 +1473,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(3, "emp-id-3")   // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows", ImmutableList.of(row(0, "emp-id-0")),
+        sql("SELECT * FROM %s WHERE id = 0 ORDER BY id", tableName));
+    assertEquals("Should have expected rows", ImmutableList.of(row(3, "emp-id-3")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-3' ORDER BY id", tableName));
   }
 
   @Test
@@ -1327,6 +1502,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(2, "emp-id-2")   // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows", ImmutableList.of(row(-1, "emp-id-1")),
+        sql("SELECT * FROM %s WHERE id = -1 ORDER BY id", tableName));
+    assertEquals("Should have expected rows", ImmutableList.of(row(2, "emp-id-2")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-2' ORDER BY id", tableName));
   }
 
   @Test
@@ -1354,6 +1534,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     );
     assertEquals("Should have expected rows", expectedRows,
         sql("SELECT id, badge, dep FROM %s ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows", ImmutableList.of(row(1, 1001, "emp-id-1")),
+        sql("SELECT id, badge, dep FROM %s WHERE id = 1 ORDER BY id", tableName));
+    assertEquals("Should have expected rows", ImmutableList.of(row(7, 7007, "emp-id-7")),
+        sql("SELECT id, badge, dep FROM %s WHERE dep = 'emp-id-7' ORDER BY id", tableName));
   }
 
   @Test
@@ -1380,6 +1565,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         row(3, "emp-id-3")  // new
     );
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals("Should have expected rows", ImmutableList.of(row(1, "emp-id-1")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
+    assertEquals("Should have expected rows", ImmutableList.of(row(3, "emp-id-3")),
+        sql("SELECT * FROM %s WHERE dep = 'emp-id-3' ORDER BY id", tableName));
   }
 
   @Test
