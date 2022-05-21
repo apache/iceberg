@@ -41,6 +41,7 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -48,6 +49,7 @@ import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.Pair;
 
 /**
@@ -89,6 +91,7 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   private enum Route {
+    TOKENS(HTTPMethod.POST, "v1/oauth/tokens"),
     CONFIG(HTTPMethod.GET, "v1/config"),
     LIST_NAMESPACES(HTTPMethod.GET, "v1/namespaces"),
     CREATE_NAMESPACE(HTTPMethod.POST, "v1/namespaces"),
@@ -155,6 +158,30 @@ public class RESTCatalogAdapter implements RESTClient {
   public <T extends RESTResponse> T handleRequest(Route route, Map<String, String> vars,
                                                   Object body, Class<T> responseType) {
     switch (route) {
+      case TOKENS: {
+        @SuppressWarnings("unchecked")
+        Map<String, String> request = (Map<String, String>) castRequest(Map.class, body);
+        String grantType = request.get("grant_type");
+        switch (grantType) {
+          case "client_credentials":
+            return castResponse(responseType, OAuthTokenResponse.builder()
+                .withToken("client-credentials-token:sub=" + request.get("client_id"))
+                .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
+                .withTokenType("Bearer")
+                .build());
+
+          case "urn:ietf:params:oauth:grant-type:token-exchange":
+            return castResponse(responseType, OAuthTokenResponse.builder()
+                .withToken("token-exchange-token:sub=" + request.get("subject_token"))
+                .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
+                .withTokenType("Bearer")
+                .build());
+
+          default:
+            throw new UnsupportedOperationException("Unsupported grant_type: " + grantType);
+        }
+      }
+
       case CONFIG:
         return castResponse(responseType, ConfigResponse.builder().build());
 
