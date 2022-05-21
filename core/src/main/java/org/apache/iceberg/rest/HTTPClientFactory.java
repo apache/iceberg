@@ -39,15 +39,6 @@ public class HTTPClientFactory implements Function<Map<String, String>, RESTClie
 
     String baseURI = properties.get(CatalogProperties.URI).trim();
 
-    HTTPClient.Builder builder = HTTPClient.builder()
-        .uri(baseURI);
-
-    // Only apply bearer auth token if one is provided.
-    String token = properties.get(RESTCatalogProperties.AUTH_TOKEN);
-    if (token != null && !token.trim().isEmpty()) {
-      builder.withBearerAuth(token.trim());
-    }
-
-    return builder.build();
+    return HTTPClient.builder().uri(baseURI).build();
   }
 }
