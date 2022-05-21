@@ -198,6 +198,25 @@ public class TestFlinkIcebergSink {
   }
 
   @Test
+  public void testWriteRowWithResolvedTableSchema() throws Exception {
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+
+    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .tableSchema(SimpleDataUtil.FLINK_RESOLVED_SCHEMA)
+        .writeParallelism(parallelism)
+        .distributionMode(DistributionMode.NONE)
+        .append();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream.");
+
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
+  }
+
+  @Test
   public void testJobNoneDistributeMode() throws Exception {
     table
         .updateProperties()
