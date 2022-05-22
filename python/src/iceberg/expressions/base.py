@@ -381,7 +381,7 @@ class BooleanExpressionVisitor(Generic[T], ABC):
         """
 
     @abstractmethod
-    def visit_or(self, left_result: T, right: T) -> T:
+    def visit_or(self, left_result: T, right_result: T) -> T:
         """Visit method for an Or boolean expression
 
         Args:
@@ -437,19 +437,19 @@ def _(obj: AlwaysFalse, visitor: BooleanExpressionVisitor[T]) -> T:
 @visit.register(Not)
 def _(obj: Not, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit a Not boolean expression with a concrete BooleanExpressionVisitor"""
-    result = visit(obj.child)
-    return visitor.visit_not(result=result)
+    child_result: T = visit(obj=obj.child, visitor=visitor)
+    return visitor.visit_not(child_result=child_result)
 
 
 @visit.register(And)
 def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
-    left_result = visit(obj.left)
-    right_result = visit(obj.right)
-    return visitor.visit_and(left=left_result, right=right_result)
+    left_result: T = visit(obj=obj.left, visitor=visitor)
+    right_result: T = visit(obj=obj.right, visitor=visitor)
+    return visitor.visit_and(left_result=left_result, right_result=right_result)
 
 
 @visit.register(Or)
 def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
-    return visitor.visit_or(left=obj.left, right=obj.right)
+    return visitor.visit_or(left_result=obj.left, right_result=obj.right)  # type: ignore

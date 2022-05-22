@@ -49,3 +49,4 @@ URI
 UnboundPredicate
 BoundPredicate
 BooleanExpression
+BooleanExpressionVisitor
