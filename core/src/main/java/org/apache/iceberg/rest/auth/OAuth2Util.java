@@ -136,7 +136,7 @@ public class OAuth2Util {
         // client ID and client secret
         return Pair.of(parts.get(0), parts.get(1));
       case 1:
-        // client ID
+        // client secret
         return Pair.of(null, parts.get(0));
       default:
         // this should never happen because the credential splitter is limited to 2
