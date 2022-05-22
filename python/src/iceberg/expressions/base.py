@@ -348,114 +348,108 @@ class UnboundReference:
         return BoundReference(field=field, accessor=schema.accessor_for_field(field.field_id))
 
 
-class BooleanExpressionVisitor(ABC):
+class BooleanExpressionVisitor(Generic[T], ABC):
     @abstractmethod
-    def visit_always_true(self) -> BooleanExpression:
+    def visit_true(self) -> T:
         """Visit method for an AlwaysTrue boolean expression
 
         Note: This visit method has no arguments since AlwaysTrue instances have no context.
-
-        Returns:
-            BooleanExpression: The resulting expression after any modifications performed by the visitor
         """
 
     @abstractmethod
-    def visit_always_false(self) -> BooleanExpression:
+    def visit_false(self) -> T:
         """Visit method for an AlwaysFalse boolean expression
 
-        Note: This visit method has no arguments since AlwaysTrue instances have no context.
-
-        Returns:
-            BooleanExpression: The resulting expression after any modifications performed by the visitor
+        Note: This visit method has no arguments since AlwaysFalse instances have no context.
         """
 
     @abstractmethod
-    def visit_not(self, result: BooleanExpression) -> BooleanExpression:
+    def visit_not(self, child_result: T) -> T:
         """Visit method for a Not boolean expression
 
         Args:
-            left (BooleanExpression): The left side of the expression
-            right (BooleanExpression): The right side of the expression
-
-        Returns:
-            BooleanExpression: The resulting expression after any modifications performed by the visitor
+            result (T): The result of visiting the child of the Not boolean expression
         """
 
     @abstractmethod
-    def visit_and(self, left: BooleanExpression, right: BooleanExpression) -> BooleanExpression:
+    def visit_and(self, left_result: T, right_result: T) -> T:
         """Visit method for an And boolean expression
 
         Args:
-            left (BooleanExpression): The left side of the expression
-            right (BooleanExpression): The right side of the expression
-
-        Returns:
-            BooleanExpression: The resulting expression after any modifications performed by the visitor
+            left_result (T): The result of visiting the left side of the expression
+            right_result (T): The result of visiting the right side of the expression
         """
 
     @abstractmethod
-    def visit_or(self, left: BooleanExpression, right: BooleanExpression) -> BooleanExpression:
+    def visit_or(self, left_result: T, right: T) -> T:
         """Visit method for an Or boolean expression
 
         Args:
-            left (BooleanExpression): The left side of the expression
-            right (BooleanExpression): The right side of the expression
-
-        Returns:
-            BooleanExpression: The resulting expression after any modifications performed by the visitor
+            left_result (T): The result of visiting the left side of the expression
+            right_result (T): The result of visiting the right side of the expression
         """
 
     @abstractmethod
-    def visit_predicate(self, predicate):
-        """Visit method for a predicate in an expression tree
+    def visit_unbound_predicate(self, predicate) -> T:
+        """Visit method for an unbound predicate in an expression tree
 
         Args:
-            predicate (UnboundPredicate | BoundPredicate): An instance of either an UnboundPredicate or a BoundPredicate,
-            depending on the concrete implementation.
+            predicate (UnboundPredicate): An instance of an UnboundPredicate
+        """
+
+    @abstractmethod
+    def visit_bound_predicate(self, predicate) -> T:
+        """Visit method for a bound predicate in an expression tree
+
+        Args:
+            predicate (BoundPredicate): An instance of a BoundPredicate
         """
 
 
 @singledispatch
-def visit(obj, visitor: BooleanExpressionVisitor) -> BooleanExpression:
+def visit(obj, visitor: BooleanExpressionVisitor[T]) -> T:
     """A generic function for applying a boolean expression visitor to any point within an expression
 
     The function traverses the expression in post-order fashion
 
     Args:
         obj(BooleanExpression): An instance of a BooleanExpression
-        visitor (BooleanExpressionVisitor): An instance of an implementation of the generic BooleanExpressionVisitor base class
+        visitor(BooleanExpressionVisitor[T]): An instance of an implementation of the generic BooleanExpressionVisitor base class
 
     Raises:
-        NotImplementedError: If attempting to visit an unrecognized object type
+        NotImplementedError: If attempting to visit an unsupported expression
     """
-    raise NotImplementedError(f"Cannot visit non-type: {obj}")
+    raise NotImplementedError(f"Cannot visit unsupported expression: {obj}")
 
 
 @visit.register(AlwaysTrue)
-def _(obj: AlwaysTrue, visitor: BooleanExpressionVisitor) -> BooleanExpression:
+def _(obj: AlwaysTrue, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an AlwaysTrue boolean expression with a concrete BooleanExpressionVisitor"""
-    return visitor.visit_always_true()
+    return visitor.visit_true()
 
 
 @visit.register(AlwaysFalse)
-def _(obj: AlwaysFalse, visitor: BooleanExpressionVisitor) -> BooleanExpression:
+def _(obj: AlwaysFalse, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an AlwaysFalse boolean expression with a concrete BooleanExpressionVisitor"""
-    return visitor.visit_always_true()
+    return visitor.visit_false()
 
 
 @visit.register(Not)
-def _(obj: Not, visitor: BooleanExpressionVisitor) -> BooleanExpression:
+def _(obj: Not, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit a Not boolean expression with a concrete BooleanExpressionVisitor"""
-    return visitor.visit_not(result=obj)
+    result = visit(obj.child)
+    return visitor.visit_not(result=result)
 
 
 @visit.register(And)
-def _(obj: And, visitor: BooleanExpressionVisitor) -> BooleanExpression:
-    """Visit a And boolean expression with a concrete BooleanExpressionVisitor"""
-    return visitor.visit_and(left=obj.left, right=obj.right)
+def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
+    left_result = visit(obj.left)
+    right_result = visit(obj.right)
+    return visitor.visit_and(left=left_result, right=right_result)
 
 
 @visit.register(Or)
-def _(obj: Or, visitor: BooleanExpressionVisitor) -> BooleanExpression:
-    """Visit a Or boolean expression with a concrete BooleanExpressionVisitor"""
+def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_or(left=obj.left, right=obj.right)
