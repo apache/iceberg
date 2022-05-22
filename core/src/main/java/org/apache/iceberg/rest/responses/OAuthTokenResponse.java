@@ -23,8 +23,8 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.rest.auth.OAuth2Util;
 
 public class OAuthTokenResponse implements RESTResponse {
   private final String accessToken;
