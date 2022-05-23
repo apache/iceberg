@@ -28,7 +28,7 @@ import org.apache.iceberg.util.SnapshotUtil;
 public class DataTableScan extends BaseTableScan {
   static final ImmutableList<String> SCAN_COLUMNS = ImmutableList.of(
       "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
-      "file_size_in_bytes", "record_count", "partition", "key_metadata", "split_offsets"
+      "file_size_in_bytes", "record_count", "partition", "key_metadata", "split_offsets", "schema_id"
   );
   static final ImmutableList<String> SCAN_WITH_STATS_COLUMNS = ImmutableList.<String>builder()
       .addAll(SCAN_COLUMNS)
@@ -83,6 +83,7 @@ public class DataTableScan extends BaseTableScan {
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())
+        .schemasById(table().schema(), table().schemas())
         .specsById(table().specs())
         .ignoreDeleted();
 

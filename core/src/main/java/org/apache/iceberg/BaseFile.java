@@ -54,6 +54,7 @@ abstract class BaseFile<F>
   private Types.StructType partitionType;
 
   private Long fileOrdinal = null;
+  private int schemaId = -1;
   private int partitionSpecId = -1;
   private FileContent content = FileContent.DATA;
   private String filePath = null;
@@ -116,12 +117,13 @@ abstract class BaseFile<F>
     this.partitionData = new PartitionData(partitionType);
   }
 
-  BaseFile(int specId, FileContent content, String filePath, FileFormat format,
+  BaseFile(int schemaId, int specId, FileContent content, String filePath, FileFormat format,
            PartitionData partition, long fileSizeInBytes, long recordCount,
            Map<Integer, Long> columnSizes, Map<Integer, Long> valueCounts,
            Map<Integer, Long> nullValueCounts, Map<Integer, Long> nanValueCounts,
            Map<Integer, ByteBuffer> lowerBounds, Map<Integer, ByteBuffer> upperBounds, List<Long> splitOffsets,
            int[] equalityFieldIds, Integer sortOrderId, ByteBuffer keyMetadata) {
+    this.schemaId = schemaId;
     this.partitionSpecId = specId;
     this.content = content;
     this.filePath = filePath;
@@ -159,6 +161,7 @@ abstract class BaseFile<F>
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
     this.fileOrdinal = toCopy.fileOrdinal;
+    this.schemaId = toCopy.schemaId;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
     this.filePath = toCopy.filePath;
@@ -277,6 +280,9 @@ abstract class BaseFile<F>
         this.sortOrderId = (Integer) value;
         return;
       case 17:
+        this.schemaId = (int) value;
+        return;
+      case 18:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -332,6 +338,8 @@ abstract class BaseFile<F>
       case 16:
         return sortOrderId;
       case 17:
+        return schemaId;
+      case 18:
         return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -351,6 +359,11 @@ abstract class BaseFile<F>
   @Override
   public Long pos() {
     return fileOrdinal;
+  }
+
+  @Override
+  public int schemaId() {
+    return schemaId;
   }
 
   @Override
@@ -461,6 +474,7 @@ abstract class BaseFile<F>
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .add("sort_order_id", sortOrderId)
+        .add("schema_id", schemaId)
         .toString();
   }
 }

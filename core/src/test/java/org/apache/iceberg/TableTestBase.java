@@ -452,6 +452,7 @@ public class TableTestBase {
         .withFileSizeInBytes(10)
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
+        .withSchemaId(table.schema().schemaId())
         .build();
   }
 
@@ -463,6 +464,7 @@ public class TableTestBase {
         .withFileSizeInBytes(10)
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
+        .withSchemaId(table.schema().schemaId())
         .build();
   }
 

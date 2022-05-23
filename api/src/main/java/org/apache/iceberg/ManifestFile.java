@@ -64,14 +64,15 @@ public interface ManifestFile {
       "Summary for each partition");
   Types.NestedField KEY_METADATA = optional(519, "key_metadata", Types.BinaryType.get(),
       "Encryption key metadata blob");
-  // next ID to assign: 520
+  Types.NestedField SCHEMA_ID = optional(520, "schema_id", Types.IntegerType.get(), "");
+  // next ID to assign: 521
 
   Schema SCHEMA = new Schema(
       PATH, LENGTH, SPEC_ID, MANIFEST_CONTENT,
       SEQUENCE_NUMBER, MIN_SEQUENCE_NUMBER, SNAPSHOT_ID,
       ADDED_FILES_COUNT, EXISTING_FILES_COUNT, DELETED_FILES_COUNT,
       ADDED_ROWS_COUNT, EXISTING_ROWS_COUNT, DELETED_ROWS_COUNT,
-      PARTITION_SUMMARIES, KEY_METADATA);
+      PARTITION_SUMMARIES, KEY_METADATA, SCHEMA_ID);
 
   static Schema schema() {
     return SCHEMA;
@@ -187,6 +188,12 @@ public interface ManifestFile {
   default ByteBuffer keyMetadata() {
     return null;
   }
+
+  /**
+   * Returns ID of the {@link Schema} used to write the manifest file. This could be -1 when not all the
+   * entries have the same schema ID.
+   */
+  int schemaId();
 
   /**
    * Copies this {@link ManifestFile manifest file}. Readers can reuse manifest file instances; use

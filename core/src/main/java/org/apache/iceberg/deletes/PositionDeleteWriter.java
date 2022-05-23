@@ -42,10 +42,17 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   private final ByteBuffer keyMetadata;
   private final PositionDelete<T> delete;
   private final CharSequenceSet referencedDataFiles;
+  private final int schemaId;
   private DeleteFile deleteFile = null;
 
   public PositionDeleteWriter(FileAppender<StructLike> appender, FileFormat format, String location,
                               PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata) {
+    this(appender, format, location, spec, partition, keyMetadata, -1);
+  }
+
+  public PositionDeleteWriter(FileAppender<StructLike> appender, FileFormat format, String location,
+                              PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
+                              int schemaId) {
     this.appender = appender;
     this.format = format;
     this.location = location;
@@ -54,6 +61,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
     this.delete = PositionDelete.create();
     this.referencedDataFiles = CharSequenceSet.empty();
+    this.schemaId = schemaId;
   }
 
   @Override
@@ -100,6 +108,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
           .withEncryptionKeyMetadata(keyMetadata)
           .withFileSizeInBytes(appender.length())
           .withMetrics(appender.metrics())
+          .withSchemaId(schemaId)
           .build();
     }
   }

@@ -33,6 +33,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.expressions.SchemaEvaluator;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -72,6 +73,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final PartitionSet deleteFilePartitions;
   private final PartitionSet dropPartitions;
   private final CharSequenceSet deletePaths = CharSequenceSet.empty();
+  private final Schema currentSchema;
+  private final Map<Integer, Schema> schemasById;
   private Expression deleteExpression = Expressions.alwaysFalse();
   private long minSequenceNumber = 0;
   private boolean hasPathOnlyDeletes = false;
@@ -89,8 +92,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   private final Supplier<ExecutorService> workerPoolSupplier;
 
-  protected ManifestFilterManager(Map<Integer, PartitionSpec> specsById,
-                                  Supplier<ExecutorService> executorSupplier) {
+  protected ManifestFilterManager(Schema currentSchema, Map<Integer, Schema> schemasById,
+                                  Map<Integer, PartitionSpec> specsById, Supplier<ExecutorService> executorSupplier) {
+    this.currentSchema = currentSchema;
+    this.schemasById = schemasById;
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
@@ -317,12 +322,19 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private boolean canContainDeletedFiles(ManifestFile manifest) {
-    boolean canContainExpressionDeletes;
+    boolean canContainExpressionDeletes = true;
     if (deleteExpression != null && deleteExpression != Expressions.alwaysFalse()) {
+      if (currentSchema != null && schemasById != null && manifest.schemaId() > -1) {
+        SchemaEvaluator schemaEvaluator =
+            new SchemaEvaluator(currentSchema.asStruct(), deleteExpression, caseSensitive);
+        canContainExpressionDeletes = schemaEvaluator.eval(schemasById.get(manifest.schemaId()));
+      }
+
       ManifestEvaluator manifestEvaluator =
           ManifestEvaluator.forRowFilter(deleteExpression, specsById.get(manifest.partitionSpecId()), caseSensitive);
-      canContainExpressionDeletes = manifestEvaluator.eval(manifest);
+      canContainExpressionDeletes = canContainExpressionDeletes && manifestEvaluator.eval(manifest);
     } else {
       canContainExpressionDeletes = false;
     }

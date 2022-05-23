@@ -51,6 +51,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private int deletedFiles = 0;
   private long deletedRows = 0L;
   private Long minSequenceNumber = null;
+  private int schemaId = -2;
 
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
@@ -87,6 +88,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     stats.update(entry.file().partition());
     if (entry.sequenceNumber() != null && (minSequenceNumber == null || entry.sequenceNumber() < minSequenceNumber)) {
       this.minSequenceNumber = entry.sequenceNumber();
+    }
+
+    int fileSchemaId = entry.file().schemaId();
+    if (schemaId == -2) {
+      // the schemaId in initial state
+      schemaId = fileSchemaId;
+    } else if (schemaId >= -1 && schemaId != fileSchemaId) {
+      // Checking whether schemaId is valid which means all the files have same schemaId
+      schemaId = -1;
     }
     writer.add(prepare(entry));
   }
@@ -171,9 +181,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     // if the minSequenceNumber is null, then no manifests with a sequence number have been written, so the min
     // sequence number is the one that will be assigned when this is committed. pass UNASSIGNED_SEQ to inherit it.
     long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : UNASSIGNED_SEQ;
-    return new GenericManifestFile(file.location(), writer.length(), specId, content(),
-        UNASSIGNED_SEQ, minSeqNumber, snapshotId,
-        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(), null);
+    int validSchemaId = schemaId == -2 ? -1 : schemaId;
+    return new GenericManifestFile(file.location(), writer.length(), specId, content(), UNASSIGNED_SEQ, minSeqNumber,
+        snapshotId, addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(),
+        null, validSchemaId);
   }
 
   @Override

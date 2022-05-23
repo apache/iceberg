@@ -39,6 +39,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.SchemaEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -329,6 +330,8 @@ class DeleteFileIndex {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
     private long minSequenceNumber = 0L;
+    private Schema currentSchema;
+    private Map<Integer, Schema> schemasById = null;
     private Map<Integer, PartitionSpec> specsById = null;
     private Expression dataFilter = Expressions.alwaysTrue();
     private Expression partitionFilter = Expressions.alwaysTrue();
@@ -343,6 +346,14 @@ class DeleteFileIndex {
 
     Builder afterSequenceNumber(long seq) {
       this.minSequenceNumber = seq;
+      return this;
+    }
+
+    Builder schemasById(Schema newCurrentSchema, Map<Integer, Schema> newSchemasById) {
+      Preconditions.checkState(newCurrentSchema != null, "Current schema should not be null");
+      Preconditions.checkState(newSchemasById != null, "newSchemaById should not be null");
+      this.currentSchema = newCurrentSchema;
+      this.schemasById = newSchemasById;
       return this;
     }
 
@@ -458,6 +469,17 @@ class DeleteFileIndex {
     }
 
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
+      SchemaEvaluator schemaEval =
+          schemasById == null ? null : new SchemaEvaluator(currentSchema.asStruct(), dataFilter, caseSensitive);
+      Iterable<ManifestFile> matchingManifests = schemaEval == null ? deleteManifests :
+          Iterables.filter(deleteManifests, manifest -> {
+            if (manifest.schemaId() > -1) {
+              return schemaEval.eval(schemasById.get(manifest.schemaId()));
+            }
+
+            return true;
+          });
+
       LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ? null :
           Caffeine.newBuilder().build(specId -> {
             PartitionSpec spec = specsById.get(specId);
@@ -466,7 +488,7 @@ class DeleteFileIndex {
                 spec, caseSensitive);
           });
 
-      Iterable<ManifestFile> matchingManifests = evalCache == null ? deleteManifests :
+      matchingManifests = evalCache == null ? matchingManifests :
           Iterables.filter(deleteManifests, manifest ->
               manifest.content() == ManifestContent.DELETES &&
                   (manifest.hasAddedFiles() || manifest.hasExistingFiles()) &&
@@ -474,13 +496,20 @@ class DeleteFileIndex {
 
       return Iterables.transform(
           matchingManifests,
-          manifest ->
-              ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                  .filterRows(dataFilter)
-                  .filterPartitions(partitionFilter)
-                  .filterPartitions(partitionSet)
-                  .caseSensitive(caseSensitive)
-                  .liveEntries()
+          manifest -> {
+            ManifestReader<DeleteFile> readerBuilder = ManifestFiles.readDeleteManifest(manifest, io, specsById)
+                .filterRows(dataFilter)
+                .filterPartitions(partitionFilter)
+                .filterPartitions(partitionSet)
+                .caseSensitive(caseSensitive);
+
+            if (schemasById != null && manifest.schemaId() == -1) {
+              // Manifest schema ID is -1 which means the entries maybe have different schema ID
+              readerBuilder.evaluateSchema(schemasById);
+            }
+
+            return readerBuilder.liveEntries();
+          }
       );
     }
   }

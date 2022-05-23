@@ -35,6 +35,11 @@ public interface ContentFile<F> {
   Long pos();
 
   /**
+   * Return id of the schema when write this file.
+   */
+  int schemaId();
+
+  /**
    * Returns id of the partition spec used for partition metadata.
    */
   int specId();

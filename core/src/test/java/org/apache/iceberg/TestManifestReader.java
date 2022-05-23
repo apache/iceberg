@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -128,7 +129,7 @@ public class TestManifestReader extends TableTestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
-        Assert.assertEquals("Position from field index should match", expectedPos, ((BaseFile) file).get(17));
+        Assert.assertEquals("Position from field index should match", expectedPos, ((BaseFile) file).get(18));
         expectedPos += 1;
       }
     }
@@ -142,9 +143,41 @@ public class TestManifestReader extends TableTestBase {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
-        Assert.assertEquals("Position from field index should match", expectedPos, ((BaseFile) file).get(17));
+        Assert.assertEquals("Position from field index should match", expectedPos, ((BaseFile) file).get(18));
         expectedPos += 1;
       }
     }
+  }
+
+  @Test
+  public void testManifestReaderWithSchemaEvaluation() throws IOException {
+    table.updateSchema().addColumn("name", Types.StringType.get()).commit();
+    table.refresh();
+
+    DataFile dataFile0 = createDataFile("0", -1);
+    DataFile dataFile1 = createDataFile("1", 0);
+    DataFile dataFile2 = createDataFile("2", 0);
+    DataFile dataFile3 = createDataFile("3", 1);
+    DataFile dataFile4 = createDataFile("4", 1);
+
+    ManifestFile manifest = writeManifest(1000L, dataFile0, dataFile1, dataFile2, dataFile3, dataFile4);
+    Expression rowFilter = Expressions.and(Expressions.equal("id", 0), Expressions.equal("name", "abc"));
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
+        .filterRows(rowFilter).evaluateSchema(table.schemas())) {
+      List<String> files = Streams.stream(reader).map(file -> file.path().toString()).collect(Collectors.toList());
+
+      Assert.assertEquals("Should read the expected files",
+          Lists.newArrayList(dataFile0.path(), dataFile3.path(), dataFile4.path()), files);
+    }
+  }
+
+  DataFile createDataFile(String fileName, int schemaId) {
+    return DataFiles.builder(SPEC)
+        .withPath(String.format("/path/tp/data-%s.parquet", fileName))
+        .withPartitionPath("data_bucket=0")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withSchemaId(schemaId)
+        .build();
   }
 }

@@ -438,6 +438,7 @@ public class Parquet {
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
     private SortOrder sortOrder = null;
+    private int schemaId = -1;
 
     private DataWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -449,6 +450,7 @@ public class Parquet {
       withSpec(table.spec());
       setAll(table.properties());
       metricsConfig(MetricsConfig.forTable(table));
+      withSchemaId(table.schema().schemaId());
       return this;
     }
 
@@ -511,13 +513,19 @@ public class Parquet {
       return this;
     }
 
+    public DataWriteBuilder withSchemaId(int newSchemaId) {
+      this.schemaId = newSchemaId;
+      return this;
+    }
+
     public <T> DataWriter<T> build() throws IOException {
       Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null when creating data writer for partitioned spec");
 
       FileAppender<T> fileAppender = appenderBuilder.build();
-      return new DataWriter<>(fileAppender, FileFormat.PARQUET, location, spec, partition, keyMetadata, sortOrder);
+      return new DataWriter<>(
+          fileAppender, FileFormat.PARQUET, location, spec, partition, keyMetadata, sortOrder, schemaId);
     }
   }
 
@@ -535,6 +543,7 @@ public class Parquet {
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
     private SortOrder sortOrder;
+    private int schemaId = -1;
     private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
@@ -547,6 +556,7 @@ public class Parquet {
       withSpec(table.spec());
       setAll(table.properties());
       metricsConfig(MetricsConfig.forTable(table));
+      withSchemaId(table.schema().schemaId());
       return this;
     }
 
@@ -624,6 +634,11 @@ public class Parquet {
       return this;
     }
 
+    public DeleteWriteBuilder withSchemaId(int newSchemaId) {
+      this.schemaId = newSchemaId;
+      return this;
+    }
+
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
       Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
@@ -646,7 +661,7 @@ public class Parquet {
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata,
-          sortOrder, equalityFieldIds);
+          sortOrder, schemaId, equalityFieldIds);
     }
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
@@ -684,7 +699,7 @@ public class Parquet {
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new PositionDeleteWriter<>(
-          appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
+          appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata, schemaId);
     }
   }
 

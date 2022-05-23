@@ -108,11 +108,42 @@ public class TestManifestWriter extends TableTestBase {
     }
   }
 
+  @Test
+  public void testWriteManifestWithSchemaId() throws IOException {
+    ManifestFile manifest = writeManifest(
+        "manifest-without-schema-id.avro",
+        manifestEntry(Status.ADDED, null, newFile(10, TestHelpers.Row.of(1))),
+        manifestEntry(Status.EXISTING, null, newFile(15, TestHelpers.Row.of(2))),
+        manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3))));
+
+    Assert.assertEquals("Default schema Id should be -1", -1, manifest.schemaId());
+
+    manifest = writeManifest(
+        "entries-with-different-schema-id.avro",
+        manifestEntry(Status.ADDED, null, newFile(10, TestHelpers.Row.of(1), -1)),
+        manifestEntry(Status.EXISTING, null, newFile(15, TestHelpers.Row.of(2), 0)),
+        manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3), 1)));
+
+    Assert.assertEquals("The schema ID should be -1 when entries have different schema Id", -1, manifest.schemaId());
+
+    manifest = writeManifest(
+        "entries-with-same-schema-id.avro",
+        manifestEntry(Status.ADDED, null, newFile(10, TestHelpers.Row.of(1), 1)),
+        manifestEntry(Status.EXISTING, null, newFile(15, TestHelpers.Row.of(2), 1)),
+        manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3), 1)));
+
+    Assert.assertEquals("The schema ID should be same when entries have same schema Id", 1, manifest.schemaId());
+  }
+
   private DataFile newFile(long recordCount) {
     return newFile(recordCount, null);
   }
 
   private DataFile newFile(long recordCount, StructLike partition) {
+    return newFile(recordCount, partition, -1);
+  }
+
+  private DataFile newFile(long recordCount, StructLike partition, int schemaId) {
     String fileName = UUID.randomUUID().toString();
     DataFiles.Builder builder = DataFiles.builder(SPEC)
         .withPath("data_bucket=0/" + fileName + ".parquet")
@@ -121,6 +152,8 @@ public class TestManifestWriter extends TableTestBase {
     if (partition != null) {
       builder.withPartition(partition);
     }
+
+    builder.withSchemaId(schemaId);
     return builder.build();
   }
 }

@@ -20,11 +20,15 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -129,5 +133,42 @@ public class TestDataTableScan extends TableTestBase {
         }));
     Assert.assertEquals(2, Iterables.size(scan.planFiles()));
     Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+  }
+
+  @Test
+  public void testTableScanWithSchemaEvaluation() throws IOException {
+    DataFile fileA = newDataFile("data_bucket=0");
+    DataFile fileB = newDataFile("data_bucket=0");
+    table.newFastAppend().appendFile(fileA).appendFile(fileB).commit();
+
+    table.updateSchema().addColumn("name", Types.StringType.get()).commit();
+    table.refresh();
+
+    DataFile fileC = newDataFile("data_bucket=0");
+    DataFile fileD = newDataFile("data_bucket=0");
+    table.newFastAppend().appendFile(fileC).appendFile(fileD).commit();
+
+    TableScan scan = table.newScan().filter(Expressions.startsWith("data", "abc"));
+    try (CloseableIterable<FileScanTask> files = scan.planFiles()) {
+      Assert.assertEquals("Should read 4 files", 4, Iterables.size(files));
+
+      Set<String> dataFiles =
+          Streams.stream(files).map(fileScanTask -> fileScanTask.file().path().toString()).collect(Collectors.toSet());
+      Set<String> expectedFiles =
+          Sets.newHashSet(fileA, fileB, fileC, fileD).stream()
+              .map(file -> file.path().toString())
+              .collect(Collectors.toSet());
+      Assert.assertEquals("Should read all files", expectedFiles, dataFiles);
+    }
+
+    scan = table.newScan().filter(Expressions.startsWith("name", "abc"));
+    try (CloseableIterable<FileScanTask> files = scan.planFiles()) {
+      Assert.assertEquals("Should read 2 files", 2, Iterables.size(files));
+
+      Set<String> dataFiles =
+          Streams.stream(files).map(fileScanTask -> fileScanTask.file().path().toString()).collect(Collectors.toSet());
+      Assert.assertEquals("Should only read files with new schema",
+          Sets.newHashSet(fileC.path().toString(), fileD.path().toString()), dataFiles);
+    }
   }
 }
