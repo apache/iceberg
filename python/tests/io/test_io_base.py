@@ -17,112 +17,20 @@
 
 import os
 import tempfile
-from typing import Union
-from urllib.parse import ParseResult, urlparse
 
 import pytest
 
-from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
 from iceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
-class LocalInputFile(InputFile):
-    """An InputFile implementation for local files (for test use only)"""
-
-    def __init__(self, location: str):
-
-        parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
-            raise ValueError("LocalInputFile location must have a scheme of `file`")
-        elif parsed_location.netloc:
-            raise ValueError(f"Network location is not allowed for LocalInputFile: {parsed_location.netloc}")
-
-        super().__init__(location=location)
-        self._parsed_location = parsed_location
-
-    @property
-    def parsed_location(self) -> ParseResult:
-        """The parsed location
-
-        Returns:
-            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
-            `params`, `query`, and `fragments`.
-        """
-        return self._parsed_location
-
-    def __len__(self):
-        return os.path.getsize(self.parsed_location.path)
-
-    def exists(self):
-        return os.path.exists(self.parsed_location.path)
-
-    def open(self) -> InputStream:
-        input_file = open(self.parsed_location.path, "rb")
-        if not isinstance(input_file, InputStream):
-            raise TypeError("Object returned from LocalInputFile.open() does not match the OutputStream protocol.")
-        return input_file
-
-
-class LocalOutputFile(OutputFile):
-    """An OutputFile implementation for local files (for test use only)"""
-
-    def __init__(self, location: str):
-
-        parsed_location = urlparse(location)  # Create a ParseResult from the uri
-        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
-            raise ValueError("LocalOutputFile location must have a scheme of `file`")
-        elif parsed_location.netloc:
-            raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
-
-        super().__init__(location=location)
-        self._parsed_location = parsed_location
-
-    @property
-    def parsed_location(self) -> ParseResult:
-        """The parsed location
-
-        Returns:
-            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
-            `params`, `query`, and `fragments`.
-        """
-        return self._parsed_location
-
-    def __len__(self):
-        return os.path.getsize(self.parsed_location.path)
-
-    def exists(self):
-        return os.path.exists(self.parsed_location.path)
-
-    def to_input_file(self):
-        return LocalInputFile(location=self.location)
-
-    def create(self, overwrite: bool = False) -> OutputStream:
-        output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
-        if not isinstance(output_file, OutputStream):
-            raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
-        return output_file
-
-
-class LocalFileIO(FileIO):
-    """A FileIO implementation for local files (for test use only)"""
-
-    def new_input(self, location: str):
-        return LocalInputFile(location=location)
-
-    def new_output(self, location: str):
-        return LocalOutputFile(location=location)
-
-    def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
-        parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(location)
-        try:
-            os.remove(parsed_location.path)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e))
-
-
-@pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowFile])
-def test_custom_local_input_file(CustomInputFile):
+@pytest.mark.parametrize("CustomInputFileFixture", ["LocalInputFileFixture", PyArrowFile])
+def test_custom_local_input_file(CustomInputFileFixture, request):
     """Test initializing an InputFile implementation to read a local file"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a InputFile class was passed directly
+    CustomInputFile = (
+        request.getfixturevalue(CustomInputFileFixture) if isinstance(CustomInputFileFixture, str) else CustomInputFileFixture
+    )
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
         with open(file_location, "wb") as f:
@@ -142,9 +50,14 @@ def test_custom_local_input_file(CustomInputFile):
         assert len(input_file) == 3
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
-def test_custom_local_output_file(CustomOutputFile):
+@pytest.mark.parametrize("CustomOutputFileFixture", ["LocalOutputFileFixture", PyArrowFile])
+def test_custom_local_output_file(CustomOutputFileFixture, request):
     """Test initializing an OutputFile implementation to write to a local file"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a OutputFile class was passed directly
+    CustomOutputFile = (
+        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture, str) else CustomOutputFileFixture
+    )
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
 
@@ -163,9 +76,14 @@ def test_custom_local_output_file(CustomOutputFile):
         assert len(output_file) == 3
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
-def test_custom_local_output_file_with_overwrite(CustomOutputFile):
+@pytest.mark.parametrize("CustomOutputFileFixture", ["LocalOutputFileFixture", PyArrowFile])
+def test_custom_local_output_file_with_overwrite(CustomOutputFileFixture, request):
     """Test initializing an OutputFile implementation to overwrite a local file"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a OutputFile class was passed directly
+    CustomOutputFile = (
+        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture, str) else CustomOutputFileFixture
+    )
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
 
@@ -188,9 +106,12 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFile):
             assert f.read() == b"bar"
 
 
-@pytest.mark.parametrize("CustomFile", [LocalInputFile, LocalOutputFile, PyArrowFile, PyArrowFile])
-def test_custom_file_exists(CustomFile):
+@pytest.mark.parametrize("CustomFileFixture", ["LocalInputFileFixture", "LocalOutputFileFixture", PyArrowFile, PyArrowFile])
+def test_custom_file_exists(CustomFileFixture, request):
     """Test that the exists property returns the proper value for existing and non-existing files"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a file class was passed directly
+    CustomFile = request.getfixturevalue(CustomFileFixture) if isinstance(CustomFileFixture, str) else CustomFileFixture
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         file_location = os.path.join(tmpdirname, "foo.txt")
         with open(file_location, "wb") as f:
@@ -214,9 +135,14 @@ def test_custom_file_exists(CustomFile):
         assert not non_existent_file.exists()
 
 
-@pytest.mark.parametrize("CustomOutputFile", [LocalOutputFile, PyArrowFile])
-def test_output_file_to_input_file(CustomOutputFile):
+@pytest.mark.parametrize("CustomOutputFileFixture", ["LocalOutputFileFixture", PyArrowFile])
+def test_output_file_to_input_file(CustomOutputFileFixture, request):
     """Test initializing an InputFile using the `to_input_file()` method on an OutputFile instance"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a OutputFile class was passed directly
+    CustomOutputFile = (
+        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture, str) else CustomOutputFileFixture
+    )
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         output_file_location = os.path.join(tmpdirname, "foo.txt")
 
@@ -234,18 +160,21 @@ def test_output_file_to_input_file(CustomOutputFile):
 
 
 @pytest.mark.parametrize(
-    "CustomFileIO,string_uri",
+    "CustomFileIOFixture,string_uri",
     [
-        (LocalFileIO, "foo/bar.parquet"),
-        (LocalFileIO, "file:///foo/bar.parquet"),
-        (LocalFileIO, "file:/foo/bar/baz.parquet"),
+        ("LocalFileIOFixture", "foo/bar.parquet"),
+        ("LocalFileIOFixture", "file:///foo/bar.parquet"),
+        ("LocalFileIOFixture", "file:/foo/bar/baz.parquet"),
         (PyArrowFileIO, "foo/bar/baz.parquet"),
         (PyArrowFileIO, "file:/foo/bar/baz.parquet"),
         (PyArrowFileIO, "file:/foo/bar/baz.parquet"),
     ],
 )
-def test_custom_file_io_locations(CustomFileIO, string_uri):
+def test_custom_file_io_locations(CustomFileIOFixture, string_uri, request):
     """Test that the location property is maintained as the value of the location argument"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+
     # Instantiate the file-io and create a new input and output file
     file_io = CustomFileIO()
     input_file = file_io.new_input(location=string_uri)
@@ -259,8 +188,9 @@ def test_custom_file_io_locations(CustomFileIO, string_uri):
     "string_uri_w_netloc",
     ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
 )
-def test_raise_on_network_location_in_input_file(string_uri_w_netloc):
+def test_raise_on_network_location_in_input_file(string_uri_w_netloc, request):
     """Test raising a ValueError when providing a network location to a LocalInputFile"""
+    LocalInputFile = request.getfixturevalue("LocalInputFileFixture")
     with pytest.raises(ValueError) as exc_info:
         LocalInputFile(location=string_uri_w_netloc)
 
@@ -271,17 +201,21 @@ def test_raise_on_network_location_in_input_file(string_uri_w_netloc):
     "string_uri_w_netloc",
     ["file://localhost:80/foo/bar.parquet", "file://foo/bar.parquet"],
 )
-def test_raise_on_network_location_in_output_file(string_uri_w_netloc):
+def test_raise_on_network_location_in_output_file(string_uri_w_netloc, request):
     """Test raising a ValueError when providing a network location to a LocalOutputFile"""
+    LocalInputFile = request.getfixturevalue("LocalInputFileFixture")
     with pytest.raises(ValueError) as exc_info:
         LocalInputFile(location=string_uri_w_netloc)
 
     assert ("Network location is not allowed for LocalInputFile") in str(exc_info.value)
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_deleting_local_file_using_file_io(CustomFileIO):
+@pytest.mark.parametrize("CustomFileIOFixture", ["LocalFileIOFixture", PyArrowFileIO])
+def test_deleting_local_file_using_file_io(CustomFileIOFixture, request):
     """Test deleting a local file using FileIO.delete(...)"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -301,9 +235,12 @@ def test_deleting_local_file_using_file_io(CustomFileIO):
         assert not os.path.exists(output_file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO", [LocalFileIO, PyArrowFileIO])
-def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
+@pytest.mark.parametrize("CustomFileIOFixture", ["LocalFileIOFixture", PyArrowFileIO])
+def test_raise_file_not_found_error_for_fileio_delete(CustomFileIOFixture, request):
     """Test raising a FileNotFound error when trying to delete a non-existent file"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         output_file_location = os.path.join(tmpdirname, "foo.txt")
@@ -321,9 +258,19 @@ def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
         assert not os.path.exists(output_file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO, CustomInputFile", [(LocalFileIO, LocalInputFile), (PyArrowFileIO, PyArrowFile)])
-def test_deleting_local_file_using_file_io_input_file(CustomFileIO, CustomInputFile):
+@pytest.mark.parametrize(
+    "CustomFileIOFixture, CustomInputFileFixture", [("LocalFileIOFixture", "LocalInputFileFixture"), (PyArrowFileIO, PyArrowFile)]
+)
+def test_deleting_local_file_using_file_io_input_file(CustomFileIOFixture, CustomInputFileFixture, request):
     """Test deleting a local file by passing an InputFile instance to FileIO.delete(...)"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a InputFile class was passed directly
+    CustomInputFile = (
+        request.getfixturevalue(CustomInputFileFixture) if isinstance(CustomInputFileFixture, str) else CustomInputFileFixture
+    )
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         file_location = os.path.join(tmpdirname, "foo.txt")
@@ -346,9 +293,20 @@ def test_deleting_local_file_using_file_io_input_file(CustomFileIO, CustomInputF
         assert not os.path.exists(file_location)
 
 
-@pytest.mark.parametrize("CustomFileIO, CustomOutputFile", [(LocalFileIO, LocalOutputFile), (PyArrowFileIO, PyArrowFile)])
-def test_deleting_local_file_using_file_io_output_file(CustomFileIO, CustomOutputFile):
+@pytest.mark.parametrize(
+    "CustomFileIOFixture, CustomOutputFileFixture",
+    [("LocalFileIOFixture", "LocalOutputFileFixture"), (PyArrowFileIO, PyArrowFile)],
+)
+def test_deleting_local_file_using_file_io_output_file(CustomFileIOFixture, CustomOutputFileFixture, request):
     """Test deleting a local file by passing an OutputFile instance to FileIO.delete(...)"""
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+
+    # If a fixture name is used, retrieve the fixture, otherwise assume that a OutputFile class was passed directly
+    CustomOutputFile = (
+        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture, str) else CustomOutputFileFixture
+    )
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
         file_location = os.path.join(tmpdirname, "foo.txt")
