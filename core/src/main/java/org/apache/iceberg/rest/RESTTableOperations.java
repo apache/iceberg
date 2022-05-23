@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.TableMetadata;
@@ -49,19 +50,21 @@ class RESTTableOperations implements TableOperations {
 
   private final RESTClient client;
   private final String path;
-  private final Map<String, String> headers;
+  private final Supplier<Map<String, String>> headers;
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private UpdateType updateType;
   private TableMetadata current;
 
-  RESTTableOperations(RESTClient client, String path, Map<String, String> headers, FileIO io, TableMetadata current) {
+  RESTTableOperations(
+      RESTClient client, String path, Supplier<Map<String, String>> headers, FileIO io, TableMetadata current) {
     this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
   }
 
-  RESTTableOperations(RESTClient client, String path, Map<String, String> headers, FileIO io, UpdateType updateType,
-                      List<MetadataUpdate> createChanges, TableMetadata current) {
+  RESTTableOperations(
+      RESTClient client, String path, Supplier<Map<String, String>> headers, FileIO io, UpdateType updateType,
+      List<MetadataUpdate> createChanges, TableMetadata current) {
     this.client = client;
     this.path = path;
     this.headers = headers;

@@ -25,7 +25,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Takes in the full configuration for the {@link RESTCatalog}, which should already have
+ * Takes in the full configuration for the {@link RESTSessionCatalog}, which should already have
  * called the server's initial configuration route.
  * Using the merged configuration, an instance of {@link RESTClient} is obtained that can be used with the
  * RESTCatalog.
