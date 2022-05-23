@@ -19,7 +19,7 @@ install:
 	pip install -e ".[dev,arrow]"
 
 lint:
-	pre-commit run $(args)
+	pre-commit run --all-files
 
 test:
 	coverage run --source=src/ -m pytest tests/

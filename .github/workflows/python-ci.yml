@@ -51,7 +51,7 @@ jobs:
       run: pip3 install -e .[dev,arrow]
     - name: Run linters
       working-directory: ./python
-      run: make args="--all-files" lint
+      run: make lint
     - name: Run tests
       working-directory: ./python
       run: make test
