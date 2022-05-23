@@ -17,7 +17,12 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from functools import reduce, singledispatch
-from typing import Any, Generic, TypeVar
+from typing import (
+    Any,
+    Generic,
+    List,
+    TypeVar,
+)
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
@@ -25,68 +30,6 @@ from pyiceberg.types import NestedField
 from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
-
-
-class Operation(Enum):
-    """Operations to be used as components in expressions
-
-    Operations can be negated by calling the negate method.
-    >>> Operation.TRUE.negate()
-    <Operation.FALSE: 2>
-    >>> Operation.IS_NULL.negate()
-    <Operation.NOT_NULL: 4>
-
-    The above example uses the OPERATION_NEGATIONS map which maps each enum
-    to it's opposite enum.
-
-    Raises:
-        ValueError: This is raised when attempting to negate an operation
-            that cannot be negated.
-    """
-
-    TRUE = auto()
-    FALSE = auto()
-    IS_NULL = auto()
-    NOT_NULL = auto()
-    IS_NAN = auto()
-    NOT_NAN = auto()
-    LT = auto()
-    LT_EQ = auto()
-    GT = auto()
-    GT_EQ = auto()
-    EQ = auto()
-    NOT_EQ = auto()
-    IN = auto()
-    NOT_IN = auto()
-    NOT = auto()
-    AND = auto()
-    OR = auto()
-
-    def negate(self) -> "Operation":
-        """Returns the operation used when this is negated."""
-
-        try:
-            return OPERATION_NEGATIONS[self]
-        except KeyError as e:
-            raise ValueError(f"No negation defined for operation {self}") from e
-
-
-OPERATION_NEGATIONS = {
-    Operation.TRUE: Operation.FALSE,
-    Operation.FALSE: Operation.TRUE,
-    Operation.IS_NULL: Operation.NOT_NULL,
-    Operation.NOT_NULL: Operation.IS_NULL,
-    Operation.IS_NAN: Operation.NOT_NAN,
-    Operation.NOT_NAN: Operation.IS_NAN,
-    Operation.LT: Operation.GT_EQ,
-    Operation.LT_EQ: Operation.GT,
-    Operation.GT: Operation.LT_EQ,
-    Operation.GT_EQ: Operation.LT,
-    Operation.EQ: Operation.NOT_EQ,
-    Operation.NOT_EQ: Operation.EQ,
-    Operation.IN: Operation.NOT_IN,
-    Operation.NOT_IN: Operation.IN,
-}
 
 
 class Literal(Generic[T], ABC):
@@ -136,6 +79,28 @@ class BooleanExpression(ABC):
     @abstractmethod
     def __invert__(self) -> "BooleanExpression":
         ...
+
+
+class BoundPredicate(ABC):
+    def __init__(self, left, right):
+        """A concrete predicate must have a `left` and `right`"""
+        self._left = left
+        self._right = right
+
+    @abstractmethod
+    def eval(self, struct: StructProtocol) -> bool:
+        """Evaluate the bound predicate"""
+
+
+class UnboundPredicate:
+    def __init__(self, left, right):
+        """A concrete predicate must have a `left` and `right`"""
+        self._left = left
+        self._right = right
+
+    @abstractmethod
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundPredicate:
+        """Bind to a schema to create a BoundPredicate"""
 
 
 class And(BooleanExpression):
@@ -266,6 +231,68 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
 
     def __str__(self) -> str:
         return "false"
+
+
+class UnboundIn(BooleanExpression, UnboundPredicate):
+    """IN operation expression"""
+
+    def __init__(self, left: "UnboundReference", right: List[Literal]):
+        self._left = left
+        self._right = right
+
+    @property
+    def ref(self) -> "UnboundReference":
+        return self._left
+
+    @property
+    def list(self) -> List[Literal]:
+        return self._right
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or (isinstance(other, UnboundIn) and self.ref == other.ref and self.list == other.list)
+
+    def __invert__(self) -> Not:
+        return Not(self)
+
+    def __repr__(self) -> str:
+        return f"UnboundIn({repr(self.ref)}, {repr(self.list)})"
+
+    def __str__(self) -> str:
+        return f"({self.ref} in {self.list})"
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> "In":
+        return In(self.ref.bind(schema, case_sensitive), self.list)
+
+
+class In(BooleanExpression, BoundPredicate):
+    """IN operation expression"""
+
+    def __init__(self, left: "BoundReference", right: List[Literal]):
+        self._left = left
+        self._right = right
+
+    @property
+    def ref(self) -> "BoundReference":
+        return self._left
+
+    @property
+    def list(self) -> List[Literal]:
+        return self._right
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or (isinstance(other, UnboundIn) and self.ref == other.ref and self.list == other.list)
+
+    def __invert__(self) -> Not:
+        return Not(self)
+
+    def __repr__(self) -> str:
+        return f"In({repr(self.ref)}, {repr(self.list)})"
+
+    def __str__(self) -> str:
+        return f"({self.ref} in {self.list})"
+
+    def eval(self, struct: StructProtocol):
+        return self.ref.eval(struct)
 
 
 class BoundReference:
