@@ -119,6 +119,30 @@ public class TestPositionFilter {
   }
 
   @Test
+  public void testPositionStreamRowDeleteMarker() {
+    CloseableIterable<StructLike> rows = CloseableIterable.withNoopClose(Lists.newArrayList(
+        Row.of(0L, "a", false),
+        Row.of(1L, "b", false),
+        Row.of(2L, "c", false),
+        Row.of(3L, "d", false),
+        Row.of(4L, "e", false),
+        Row.of(5L, "f", false),
+        Row.of(6L, "g", false),
+        Row.of(7L, "h", false),
+        Row.of(8L, "i", false),
+        Row.of(9L, "j", false)
+    ));
+
+    CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 3L, 4L, 7L, 9L));
+
+    CloseableIterable<StructLike> actual = Deletes.streamingMarker(rows, row -> row.get(0, Long.class), deletes,
+        row -> row.set(2, true));
+    Assert.assertEquals("Filter should produce expected rows",
+        Lists.newArrayList(true, false, false, true, true, false, false, true, false, true),
+        Lists.newArrayList(Iterables.transform(actual, row -> row.get(2, Boolean.class))));
+  }
+
+  @Test
   public void testPositionStreamRowFilterWithDuplicates() {
     CloseableIterable<StructLike> rows = CloseableIterable.withNoopClose(Lists.newArrayList(
         Row.of(0L, "a"),
