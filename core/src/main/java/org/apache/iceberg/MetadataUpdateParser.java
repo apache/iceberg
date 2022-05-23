@@ -26,8 +26,11 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 
 public class MetadataUpdateParser {
@@ -53,6 +56,9 @@ public class MetadataUpdateParser {
   static final String REMOVE_PROPERTIES = "remove-properties";
   static final String SET_LOCATION = "set-location";
 
+  // AssignUUID
+  private static final String UUID = "uuid";
+
   // UpgradeFormatVersion
   private static final String FORMAT_VERSION = "format-version";
 
@@ -71,6 +77,32 @@ public class MetadataUpdateParser {
 
   // AddSortOrder
   private static final String SORT_ORDER = "sort-order";
+
+  // SetDefaultSortOrder
+  private static final String SORT_ORDER_ID = "sort-order-id";
+
+  // AddSnapshot
+  private static final String SNAPSHOT = "snapshot";
+
+  // RemoveSnapshot
+  private static final String SNAPSHOT_IDS = "snapshot-ids";
+
+  // SetSnapshotRef
+  private static final String REF_NAME = "ref-name";
+  private static final String SNAPSHOT_ID = "snapshot-id";
+  private static final String TYPE = "type";
+  private static final String MIN_SNAPSHOTS_TO_KEEP = "min-snapshots-to-keep";
+  private static final String MAX_SNAPSHOT_AGE_MS = "max-snapshot-age-ms";
+  private static final String MAX_REF_AGE_MS = "max-ref-age-ms";
+
+  // SetProperties
+  private static final String UPDATED = "updated";
+
+  // RemoveProperties
+  private static final String REMOVED = "removed";
+
+  // SetLocation
+  private static final String LOCATION = "location";
 
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS = ImmutableMap
       .<Class<? extends MetadataUpdate>, String>builder()
@@ -112,12 +144,18 @@ public class MetadataUpdateParser {
   public static void toJson(MetadataUpdate metadataUpdate, JsonGenerator generator) throws IOException {
     String updateAction = ACTIONS.get(metadataUpdate.getClass());
 
+    // Provide better exception message than the NPE thrown by writing null for the update action, which is required
+    Preconditions.checkArgument(updateAction != null,
+        "Cannot convert metadata update to json. Unrecognized metadata update type: {}",
+        metadataUpdate.getClass().getName());
+
     generator.writeStartObject();
     generator.writeStringField(ACTION, updateAction);
 
     switch (updateAction) {
       case ASSIGN_UUID:
-        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for AssignUUID");
+        writeAssignUUID((MetadataUpdate.AssignUUID) metadataUpdate, generator);
+        break;
       case UPGRADE_FORMAT_VERSION:
         writeUpgradeFormatVersion((MetadataUpdate.UpgradeFormatVersion) metadataUpdate, generator);
         break;
@@ -137,13 +175,26 @@ public class MetadataUpdateParser {
         writeAddSortOrder((MetadataUpdate.AddSortOrder) metadataUpdate, generator);
         break;
       case SET_DEFAULT_SORT_ORDER:
+        writeSetDefaultSortOrder((MetadataUpdate.SetDefaultSortOrder) metadataUpdate, generator);
+        break;
       case ADD_SNAPSHOT:
+        writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
+        break;
       case REMOVE_SNAPSHOTS:
+        writeRemoveSnapshots((MetadataUpdate.RemoveSnapshot) metadataUpdate, generator);
+        break;
       case SET_SNAPSHOT_REF:
+        writeSetSnapshotRef((MetadataUpdate.SetSnapshotRef) metadataUpdate, generator);
+        break;
       case SET_PROPERTIES:
+        writeSetProperties((MetadataUpdate.SetProperties) metadataUpdate, generator);
+        break;
       case REMOVE_PROPERTIES:
+        writeRemoveProperties((MetadataUpdate.RemoveProperties) metadataUpdate, generator);
+        break;
       case SET_LOCATION:
-        throw new UnsupportedOperationException("Not Implemented: MetadataUpdate#toJson for " + updateAction);
+        writeSetLocation((MetadataUpdate.SetLocation) metadataUpdate, generator);
+        break;
       default:
         throw new IllegalArgumentException(
             String.format("Cannot convert metadata update to json. Unrecognized action: %s", updateAction));
@@ -174,7 +225,7 @@ public class MetadataUpdateParser {
 
     switch (action) {
       case ASSIGN_UUID:
-        throw new UnsupportedOperationException("Not implemented: AssignUUID");
+        return readAssignUUID(jsonNode);
       case UPGRADE_FORMAT_VERSION:
         return readUpgradeFormatVersion(jsonNode);
       case ADD_SCHEMA:
@@ -188,17 +239,27 @@ public class MetadataUpdateParser {
       case ADD_SORT_ORDER:
         return readAddSortOrder(jsonNode);
       case SET_DEFAULT_SORT_ORDER:
+        return readSetDefaultSortOrder(jsonNode);
       case ADD_SNAPSHOT:
+        return readAddSnapshot(jsonNode);
       case REMOVE_SNAPSHOTS:
+        return readRemoveSnapshots(jsonNode);
       case SET_SNAPSHOT_REF:
+        return readSetSnapshotRef(jsonNode);
       case SET_PROPERTIES:
+        return readSetProperties(jsonNode);
       case REMOVE_PROPERTIES:
+        return readRemoveProperties(jsonNode);
       case SET_LOCATION:
-        throw new UnsupportedOperationException("Not Implemented: MetadataUpdatefromJson for " + action);
+        return readSetLocation(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
     }
+  }
+
+  private static void writeAssignUUID(MetadataUpdate.AssignUUID update, JsonGenerator gen) throws IOException {
+    gen.writeStringField(UUID, update.uuid());
   }
 
   private static void writeUpgradeFormatVersion(MetadataUpdate.UpgradeFormatVersion update, JsonGenerator gen)
@@ -232,6 +293,55 @@ public class MetadataUpdateParser {
       throws IOException {
     gen.writeFieldName(SORT_ORDER);
     SortOrderParser.toJson(update.sortOrder(), gen);
+  }
+
+  private static void writeSetDefaultSortOrder(MetadataUpdate.SetDefaultSortOrder update, JsonGenerator gen)
+      throws IOException {
+    gen.writeNumberField(SORT_ORDER_ID, update.sortOrderId());
+  }
+
+  private static void writeAddSnapshot(MetadataUpdate.AddSnapshot update, JsonGenerator gen) throws IOException {
+    gen.writeFieldName(SNAPSHOT);
+    SnapshotParser.toJson(update.snapshot(), gen);
+  }
+
+  // TODO - Reconcile the spec's set-based removal with the current class implementation that only handles one value.
+  private static void writeRemoveSnapshots(MetadataUpdate.RemoveSnapshot update, JsonGenerator gen) throws IOException {
+    gen.writeArrayFieldStart(SNAPSHOT_IDS);
+    for (long snapshotId : ImmutableSet.of(update.snapshotId())) {
+      gen.writeNumber(snapshotId);
+    }
+    gen.writeEndArray();
+  }
+
+  private static void writeSetSnapshotRef(MetadataUpdate.SetSnapshotRef update, JsonGenerator gen) throws IOException {
+    gen.writeStringField(REF_NAME, update.name());
+    gen.writeNumberField(SNAPSHOT_ID, update.snapshotId());
+    gen.writeStringField(TYPE, update.type());
+    JsonUtil.writeIntegerFieldIf(
+        update.minSnapshotsToKeep() != null, MIN_SNAPSHOTS_TO_KEEP, update.minSnapshotsToKeep(), gen);
+    JsonUtil.writeLongFieldIf(update.maxSnapshotAgeMs() != null, MAX_SNAPSHOT_AGE_MS, update.maxSnapshotAgeMs(), gen);
+    JsonUtil.writeLongFieldIf(update.maxRefAgeMs() != null, MAX_REF_AGE_MS, update.maxRefAgeMs(), gen);
+  }
+
+  private static void writeSetProperties(MetadataUpdate.SetProperties update, JsonGenerator gen) throws IOException {
+    gen.writeFieldName(UPDATED);
+    gen.writeObject(update.updated());
+  }
+
+  private static void writeRemoveProperties(MetadataUpdate.RemoveProperties update, JsonGenerator gen)
+      throws IOException {
+    gen.writeFieldName(REMOVED);
+    gen.writeObject(update.removed());
+  }
+
+  private static void writeSetLocation(MetadataUpdate.SetLocation update, JsonGenerator gen) throws IOException {
+    gen.writeStringField(LOCATION, update.location());
+  }
+
+  private static MetadataUpdate readAssignUUID(JsonNode node) {
+    String uuid = JsonUtil.getString(UUID, node);
+    return new MetadataUpdate.AssignUUID(uuid);
   }
 
   private static MetadataUpdate readUpgradeFormatVersion(JsonNode node) {
@@ -270,6 +380,51 @@ public class MetadataUpdateParser {
     JsonNode sortOrderNode = node.get(SORT_ORDER);
     UnboundSortOrder sortOrder = SortOrderParser.fromJson(sortOrderNode);
     return new MetadataUpdate.AddSortOrder(sortOrder);
+  }
+
+  private static MetadataUpdate readSetDefaultSortOrder(JsonNode node) {
+    int sortOrderId = JsonUtil.getInt(SORT_ORDER_ID, node);
+    return new MetadataUpdate.SetDefaultSortOrder(sortOrderId);
+  }
+
+  private static MetadataUpdate readAddSnapshot(JsonNode node) {
+    Preconditions.checkArgument(node.has(SNAPSHOT), "Cannot parse missing field: snapshot");
+    Snapshot snapshot = SnapshotParser.fromJson(null, node.get(SNAPSHOT));
+    return new MetadataUpdate.AddSnapshot(snapshot);
+  }
+
+  private static MetadataUpdate readRemoveSnapshots(JsonNode node) {
+    Set<Long> snapshotIds = JsonUtil.getLongSetOrNull(SNAPSHOT_IDS, node);
+    Preconditions.checkArgument(snapshotIds != null && snapshotIds.size() == 1,
+        "Invalid set of snapshot ids to remove. Expected one value but received: %s", snapshotIds);
+    Long snapshotId = Iterables.getOnlyElement(snapshotIds);
+    return new MetadataUpdate.RemoveSnapshot(snapshotId);
+  }
+
+  private static MetadataUpdate readSetSnapshotRef(JsonNode node) {
+    String refName = JsonUtil.getString(REF_NAME, node);
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
+    SnapshotRefType type = SnapshotRefType.valueOf(JsonUtil.getString(TYPE, node).toUpperCase(Locale.ENGLISH));
+    Integer minSnapshotsToKeep = JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, node);
+    Long maxSnapshotAgeMs = JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, node);
+    Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);
+    return new MetadataUpdate.SetSnapshotRef(
+        refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
+  }
+
+  private static MetadataUpdate readSetProperties(JsonNode node) {
+    Map<String, String> updated = JsonUtil.getStringMap(UPDATED, node);
+    return new MetadataUpdate.SetProperties(updated);
+  }
+
+  private static MetadataUpdate readRemoveProperties(JsonNode node) {
+    Set<String> removed = JsonUtil.getStringSet(REMOVED, node);
+    return new MetadataUpdate.RemoveProperties(removed);
+  }
+
+  private static MetadataUpdate readSetLocation(JsonNode node) {
+    String location = JsonUtil.getString(LOCATION, node);
+    return new MetadataUpdate.SetLocation(location);
   }
 }
 

@@ -1113,10 +1113,13 @@ components:
           enum: ["tag", "branch"]
         snapshot-id:
           type: integer
+          format: int64
         max-ref-age-ms:
           type: integer
+          format: int64
         max-snapshot-age-ms:
           type: integer
+          format: int64
         min-snapshots-to-keep:
           type: integer
 
@@ -1300,9 +1303,9 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
           required:
-            - order-id
+            - sort-order-id
           properties:
-            order-id:
+            sort-order-id:
               type: integer
               description: Sort order ID to set as the default, or -1 to set last added sort order
 
@@ -1322,9 +1325,9 @@ components:
         - $ref: '#/components/schemas/SnapshotReference'
         - type: object
           required:
-            - ref
+            - ref-name
           properties:
-            ref:
+            ref-name:
               type: string
 
     RemoveSnapshotsUpdate:
@@ -1338,6 +1341,7 @@ components:
               type: array
               items:
                 type: integer
+                format: int64
 
     SetLocationUpdate:
       allOf:
