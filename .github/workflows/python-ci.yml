@@ -48,7 +48,8 @@ jobs:
         python-version: ${{ matrix.python }}
     - working-directory: ./python
       run: |
-        pip install -e .[dev]
-        pip install -U tox-gh-actions
+        pip3 install poetry
+        poetry install -E pyarrow
+        poetry run pytest
     - working-directory: ./python
       run: tox
