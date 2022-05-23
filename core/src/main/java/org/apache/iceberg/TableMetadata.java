@@ -731,6 +731,7 @@ public class TableMetadata implements Serializable {
 
   public static class Builder {
     private final TableMetadata base;
+    private String metadataLocation;
     private int formatVersion;
     private String uuid;
     private Long lastUpdatedMillis;
@@ -793,6 +794,11 @@ public class TableMetadata implements Serializable {
       this.schemasById = Maps.newHashMap(base.schemasById);
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
+    }
+
+    public Builder withMetadataLocation(String newMetadataLocation) {
+      this.metadataLocation = newMetadataLocation;
+      return this;
     }
 
     public Builder assignUUID() {
@@ -1009,6 +1015,12 @@ public class TableMetadata implements Serializable {
         this.lastUpdatedMillis = System.currentTimeMillis();
       }
 
+      // when associated with a metadata file, table metadata must have no changes so that the metadata matches exactly
+      // what is in the metadata file, which does not store changes. metadata location with changes is inconsistent.
+      Preconditions.checkArgument(
+          changes.size() == 0 || discardChanges || metadataLocation == null,
+          "Cannot set metadata location with changes to table metadata: %s changes", changes.size());
+
       Schema schema = schemasById.get(currentSchemaId);
       PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
       SortOrder.checkCompatibility(sortOrdersById.get(defaultSortOrderId), schema);
@@ -1018,7 +1030,7 @@ public class TableMetadata implements Serializable {
       List<HistoryEntry> newSnapshotLog = updateSnapshotLog(snapshotLog, snapshotsById, currentSnapshotId, changes);
 
       return new TableMetadata(
-          null,
+          metadataLocation,
           formatVersion,
           uuid,
           location,
