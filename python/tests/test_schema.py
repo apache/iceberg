@@ -19,6 +19,7 @@ from textwrap import dedent
 from typing import Any, Dict
 
 import pytest
+
 from iceberg import schema
 from iceberg.expressions.base import Accessor
 from iceberg.files import StructProtocol

@@ -19,6 +19,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+
 from iceberg.expressions.literals import (
     AboveMax,
     BelowMin,

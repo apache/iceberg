@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+install:
+	pip install -e ".[dev,arrow]"
+
 lint:
 	pre-commit run $(args)
 

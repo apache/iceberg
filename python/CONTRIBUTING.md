@@ -24,7 +24,7 @@
 We rely on `pre-commit` to apply autoformatting and linting:
 
 ```bash
-pip install -e ".[dev,arrow]"
+make install
 make lint
 ```
 
@@ -39,6 +39,6 @@ In contrast to the name, it doesn't run on the git pre-commit hook by default. I
 For Python, we use pytest in combination with coverage to maintain 90% code coverage
 
 ```bash
-pip install -e ".[dev,arrow]"
+make install
 make test
 ```

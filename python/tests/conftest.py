@@ -18,6 +18,7 @@
 from typing import Any
 
 import pytest
+
 from iceberg import schema
 from iceberg.types import (
     BooleanType,

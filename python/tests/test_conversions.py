@@ -75,8 +75,9 @@ import struct
 import uuid
 from decimal import Decimal
 
-import iceberg.utils.decimal as decimal_util
 import pytest
+
+import iceberg.utils.decimal as decimal_util
 from iceberg import conversions
 from iceberg.types import (
     BinaryType,

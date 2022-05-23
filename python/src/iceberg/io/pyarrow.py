@@ -26,6 +26,8 @@ import os
 from typing import Union
 from urllib.parse import urlparse
 
+from pyarrow.fs import FileInfo, FileSystem, FileType
+
 from iceberg.io.base import (
     FileIO,
     InputFile,
@@ -33,7 +35,6 @@ from iceberg.io.base import (
     OutputFile,
     OutputStream,
 )
-from pyarrow.fs import FileInfo, FileSystem, FileType
 
 
 class PyArrowFile(InputFile, OutputFile):

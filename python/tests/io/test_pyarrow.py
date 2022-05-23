@@ -20,9 +20,10 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pyarrow.fs import FileType
+
 from iceberg.io.base import InputStream, OutputStream
 from iceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
-from pyarrow.fs import FileType
 
 
 def test_pyarrow_input_file():
@@ -138,7 +139,7 @@ def test_raise_on_opening_a_local_file_not_found():
 
 
 def test_raise_on_opening_a_local_file_no_permission():
-    """Test that a PyArrowFile raises appropriately when creating a local file without permission"""
+    """Test that a PyArrowFile raises appropriately when opening a local file without permission"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         os.chmod(tmpdirname, 0o600)

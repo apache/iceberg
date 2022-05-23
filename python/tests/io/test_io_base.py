@@ -21,6 +21,7 @@ from typing import Union
 from urllib.parse import ParseResult, urlparse
 
 import pytest
+
 from iceberg.io.base import (
     FileIO,
     InputFile,

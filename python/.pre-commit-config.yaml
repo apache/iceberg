@@ -43,5 +43,5 @@ repos:
   -   repo: https://github.com/hadialqattan/pycln
       rev: v1.3.2
       hooks:
-        -   id: pycln
-            args: [--config=python/pyproject.toml]
+        - id: pycln
+          args: [--config=python/pyproject.toml]

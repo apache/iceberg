@@ -19,6 +19,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+
 from iceberg.expressions import base
 from iceberg.types import NestedField, Singleton, StringType
 
