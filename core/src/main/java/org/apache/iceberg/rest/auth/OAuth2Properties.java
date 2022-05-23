@@ -34,7 +34,27 @@ public class OAuth2Properties {
   public static final String CREDENTIAL = "credential";
 
   /**
+   * Interval in milliseconds to wait before attempting to exchange the configured catalog Bearer token.
+   * By default, token exchange will be attempted after 1 hour.
+   */
+  public static final String EXCHANGE_TOKEN_MS = "exchange-token-in-ms";
+  public static final long EXCHANGE_TOKEN_MS_DEFAULT = 3_600_000; // 1 hour
+
+  /**
+   * Additional scope for OAuth2.
+   */
+  public static final String SCOPE = "scope";
+
+  /**
    * Scope for OAuth2 flows.
    */
   public static final String CATALOG_SCOPE = "catalog";
+
+  // token type constants
+  public static final String ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
+  public static final String REFRESH_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:refresh_token";
+  public static final String ID_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:id_token";
+  public static final String SAML1_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:saml1";
+  public static final String SAML2_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:saml2";
+  public static final String JWT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt";
 }

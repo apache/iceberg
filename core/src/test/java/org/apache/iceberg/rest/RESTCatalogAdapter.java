@@ -170,8 +170,13 @@ public class RESTCatalogAdapter implements RESTClient {
                 .build());
 
           case "urn:ietf:params:oauth:grant-type:token-exchange":
+            String actor = request.get("actor_token");
+            String token = String.format(
+                "token-exchange-token:sub=%s%s",
+                request.get("subject_token"),
+                actor != null ? ",act=" + actor : "");
             return castResponse(responseType, OAuthTokenResponse.builder()
-                .withToken("token-exchange-token:sub=" + request.get("subject_token"))
+                .withToken(token)
                 .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
                 .withTokenType("Bearer")
                 .build());

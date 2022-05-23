@@ -19,11 +19,16 @@
 
 package org.apache.iceberg.rest;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
@@ -50,7 +55,9 @@ import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -61,20 +68,32 @@ import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RESTSessionCatalog extends BaseSessionCatalog implements Configurable<Configuration>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
+  private static final long MAX_REFRESH_WINDOW_MILLIS = 60_000; // 1 minute
+  private static final long MIN_REFRESH_WAIT_MILLIS = 10;
+  private static final List<String> TOKEN_PREFERENCE_ORDER = ImmutableList.of(
+      OAuth2Properties.ID_TOKEN_TYPE, OAuth2Properties.ACCESS_TOKEN_TYPE, OAuth2Properties.JWT_TOKEN_TYPE,
+      OAuth2Properties.SAML2_TOKEN_TYPE, OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
+  private final Cache<String, AuthSession> sessions = Caffeine.newBuilder().build();
+  private AuthSession catalogAuth = null;
   private RESTClient client = null;
-  private Map<String, String> baseHeaders = ImmutableMap.of();
   private ResourcePaths paths = null;
   private Object conf = null;
   private FileIO io = null;
+
+  // a lazy thread pool for token refresh
+  private volatile ScheduledExecutorService refreshExecutor = null;
 
   public RESTSessionCatalog() {
     this(new HTTPClientFactory());
@@ -87,18 +106,54 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   @Override
   public void initialize(String name, Map<String, String> props) {
     Preconditions.checkArgument(props != null, "Invalid configuration: null");
-    ConfigResponse config = fetchConfig(props);
-    Map<String, String> properties = config.merge(props);
-    this.client = clientBuilder.apply(properties);
-    this.baseHeaders = RESTUtil.extractPrefixMap(properties, "header.");
-    this.paths = ResourcePaths.forCatalogProperties(properties);
-    String ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), properties, conf);
-    super.initialize(name, properties);
+
+    long startTimeMillis = System.currentTimeMillis(); // keep track of the init start time for token refresh
+    String initToken = props.get(OAuth2Properties.TOKEN);
+
+    // fetch auth and config to complete initialization
+    ConfigResponse config;
+    OAuthTokenResponse authResponse;
+    try (RESTClient initClient = clientBuilder.apply(props)) {
+      Map<String, String> initHeaders = RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
+      String credential = props.get(OAuth2Properties.CREDENTIAL);
+      if (credential != null && !credential.isEmpty()) {
+        String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
+        authResponse = OAuth2Util.fetchToken(initClient, initHeaders, credential, scope);
+        config = fetchConfig(initClient, RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token())));
+      } else {
+        authResponse = null;
+        config = fetchConfig(initClient, initHeaders);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close HTTP client", e);
+    }
+
+    // build the final configuration and set up the catalog's auth
+    Map<String, String> mergedProps = config.merge(props);
+    Map<String, String> baseHeaders = configHeaders(mergedProps);
+    this.catalogAuth = new AuthSession(baseHeaders, null, null);
+    if (authResponse != null) {
+      this.catalogAuth = newSession(authResponse, startTimeMillis, catalogAuth);
+    } else if (initToken != null) {
+      this.catalogAuth = newSession(initToken, expiresInMs(mergedProps), catalogAuth);
+    }
+
+    this.client = clientBuilder.apply(mergedProps);
+    this.paths = ResourcePaths.forCatalogProperties(mergedProps);
+
+    String ioImpl = mergedProps.get(CatalogProperties.FILE_IO_IMPL);
+    this.io = CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
+
+    super.initialize(name, mergedProps);
   }
 
-  protected Supplier<Map<String, String>> headers(SessionContext context) {
-    return () -> baseHeaders;
+  private AuthSession session(SessionContext context) {
+    return sessions.get(context.sessionId(),
+        id -> newSession(context.credentials(), context.properties(), catalogAuth));
+  }
+
+  private Supplier<Map<String, String>> headers(SessionContext context) {
+    return session(context)::headers;
   }
 
   @Override
@@ -148,8 +203,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
     LoadTableResponse response = loadInternal(context, identifier);
     Pair<RESTClient, FileIO> clients = tableClients(response.config());
+    AuthSession session = tableSession(response.config(), session(context));
     RESTTableOperations ops = new RESTTableOperations(
-        clients.first(), paths.table(identifier), headers(context), clients.second(), response.tableMetadata());
+        clients.first(), paths.table(identifier), session::headers, clients.second(), response.tableMetadata());
     return new BaseTable(ops, fullTableName(identifier));
   }
 
@@ -222,10 +278,60 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return !response.updated().isEmpty();
   }
 
+  private ScheduledExecutorService tokenRefreshExecutor() {
+    if (refreshExecutor == null) {
+      synchronized (this) {
+        if (refreshExecutor == null) {
+          this.refreshExecutor = ThreadPools.newScheduledPool(name() + "-token-refresh", 1);
+        }
+      }
+    }
+
+    return refreshExecutor;
+  }
+
+  private void scheduleTokenRefresh(
+      AuthSession session, long startTimeMillis, long expiresIn, TimeUnit unit) {
+    // convert expiration interval to milliseconds
+    long expiresInMillis = unit.toMillis(expiresIn);
+    // how much ahead of time to start the request to allow it to complete
+    long refreshWindowMillis = Math.min(expiresInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
+    // how much time to wait before expiration
+    long waitIntervalMillis = expiresInMillis - refreshWindowMillis;
+    // how much time has already elapsed since the new token was issued
+    long elapsedMillis = System.currentTimeMillis() - startTimeMillis;
+    // how much time to actually wait
+    long timeToWait = Math.max(waitIntervalMillis - elapsedMillis, MIN_REFRESH_WAIT_MILLIS);
+
+    tokenRefreshExecutor().schedule(
+        () -> {
+          long refreshStartTime = System.currentTimeMillis();
+          Pair<Integer, TimeUnit> expiration = session.refresh(client);
+          if (expiration != null) {
+            scheduleTokenRefresh(session, refreshStartTime, expiration.first(), expiration.second());
+          }
+        },
+        timeToWait, TimeUnit.MILLISECONDS);
+  }
+
   @Override
   public void close() throws IOException {
     if (client != null) {
       client.close();
+    }
+
+    if (refreshExecutor != null) {
+      ScheduledExecutorService service = refreshExecutor;
+      this.refreshExecutor = null;
+
+      try {
+        if (service.awaitTermination(1, TimeUnit.MINUTES)) {
+          LOG.warn("Timed out waiting for refresh executor to terminate");
+        }
+      } catch (InterruptedException e) {
+        LOG.warn("Interrupted while waiting for refresh executor to terminate", e);
+        Thread.currentThread().interrupt();
+      }
     }
   }
 
@@ -292,8 +398,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
           ErrorHandlers.tableErrorHandler());
 
       Pair<RESTClient, FileIO> clients = tableClients(response.config());
+      AuthSession session = tableSession(response.config(), session(context));
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), headers(context), clients.second(), response.tableMetadata());
+          clients.first(), paths.table(ident), session::headers, clients.second(), response.tableMetadata());
 
       return new BaseTable(ops, fullTableName(ident));
     }
@@ -304,10 +411,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       String fullName = fullTableName(ident);
 
       Pair<RESTClient, FileIO> clients = tableClients(response.config());
+      AuthSession session = tableSession(response.config(), session(context));
       TableMetadata meta = response.tableMetadata();
 
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), headers(context), clients.second(),
+          clients.first(), paths.table(ident), session::headers, clients.second(),
           RESTTableOperations.UpdateType.CREATE, createChanges(meta), meta);
 
       return Transactions.createTableTransaction(fullName, ops, meta);
@@ -319,6 +427,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       String fullName = fullTableName(ident);
 
       Pair<RESTClient, FileIO> clients = tableClients(response.config());
+      AuthSession session = tableSession(response.config(), session(context));
       TableMetadata base = response.tableMetadata();
 
       Map<String, String> tableProperties = propertiesBuilder.build();
@@ -347,7 +456,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       }
 
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), headers(context), clients.second(),
+          clients.first(), paths.table(ident), session::headers, clients.second(),
           RESTTableOperations.UpdateType.REPLACE, changes.build(), base);
 
       return Transactions.replaceTableTransaction(fullName, ops, replacement);
@@ -421,18 +530,12 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return String.format("%s.%s", name(), ident);
   }
 
-  private Map<String, String> fullConf(Map<String, String> config) {
-    Map<String, String> fullConf = Maps.newHashMap(properties());
-    fullConf.putAll(config);
-    return fullConf;
-  }
-
   private Pair<RESTClient, FileIO> tableClients(Map<String, String> config) {
     if (config.isEmpty()) {
       return Pair.of(client, io); // reuse client and io since config is the same
     }
 
-    Map<String, String> fullConf = fullConf(config);
+    Map<String, String> fullConf = RESTUtil.merge(properties(), config);
     String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
     FileIO tableIO = CatalogUtil.loadFileIO(
         ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
@@ -441,23 +544,74 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return Pair.of(tableClient, tableIO);
   }
 
-  private ConfigResponse fetchConfig(Map<String, String> props) {
-    // Create a client for one time use, as we will reconfigure the client using the merged server and application
-    // defined configuration.
-    RESTClient singleUseClient = clientBuilder.apply(props);
-    Map<String, String> headers = RESTUtil.extractPrefixMap(props, "header.");
+  private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
+    return newSession(tableConf, tableConf, parent);
+  }
 
-    try {
-      ConfigResponse configResponse = singleUseClient
-          .get(ResourcePaths.config(), ConfigResponse.class, headers, ErrorHandlers.defaultErrorHandler());
-      configResponse.validate();
-      return configResponse;
-    } finally {
-      try {
-        singleUseClient.close();
-      } catch (IOException e) {
-        LOG.error("Failed to close HTTP client used for getting catalog configuration. Possible resource leak.", e);
+  private static ConfigResponse fetchConfig(RESTClient client, Map<String, String> headers) {
+    ConfigResponse configResponse = client
+        .get(ResourcePaths.config(), ConfigResponse.class, headers, ErrorHandlers.defaultErrorHandler());
+    configResponse.validate();
+    return configResponse;
+  }
+
+  private AuthSession newSession(Map<String, String> credentials, Map<String, String> properties, AuthSession parent) {
+    if (credentials != null) {
+      // use the bearer token without exchanging
+      if (credentials.containsKey(OAuth2Properties.TOKEN)) {
+        return newSession(credentials.get(OAuth2Properties.TOKEN), expiresInMs(properties), parent);
+      }
+
+      if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
+        // fetch a token using the client credentials flow
+        return newSession(credentials.get(OAuth2Properties.CREDENTIAL), parent);
+      }
+
+      for (String tokenType : TOKEN_PREFERENCE_ORDER) {
+        if (credentials.containsKey(tokenType)) {
+          // exchange the token for an access token using the token exchange flow
+          return newSession(credentials.get(tokenType), tokenType, parent);
+        }
       }
     }
+
+    return parent;
+  }
+
+  private AuthSession newSession(String token, long expirationMs, AuthSession parent) {
+    AuthSession session = new AuthSession(parent.headers(), token, OAuth2Properties.ACCESS_TOKEN_TYPE);
+    scheduleTokenRefresh(session, System.currentTimeMillis(), expirationMs, TimeUnit.MILLISECONDS);
+    return session;
+  }
+
+  private AuthSession newSession(String token, String tokenType, AuthSession parent) {
+    long startTimeMillis = System.currentTimeMillis();
+    OAuthTokenResponse response = OAuth2Util.exchangeToken(
+        client, parent.headers(), token, tokenType, parent.token(), parent.tokenType(), OAuth2Properties.CATALOG_SCOPE);
+    return newSession(response, startTimeMillis, parent);
+  }
+
+  private AuthSession newSession(String credential, AuthSession parent) {
+    long startTimeMillis = System.currentTimeMillis();
+    OAuthTokenResponse response = OAuth2Util.fetchToken(
+        client, parent.headers(), credential, OAuth2Properties.CATALOG_SCOPE);
+    return newSession(response, startTimeMillis, parent);
+  }
+
+  private AuthSession newSession(OAuthTokenResponse response, long startTimeMillis, AuthSession parent) {
+    AuthSession session = new AuthSession(parent.headers(), response.token(), response.issuedTokenType());
+    if (response.expiresInSeconds() != null) {
+      scheduleTokenRefresh(session, startTimeMillis, response.expiresInSeconds(), TimeUnit.SECONDS);
+    }
+    return session;
+  }
+
+  private long expiresInMs(Map<String, String> properties) {
+    return PropertyUtil.propertyAsLong(
+        properties, OAuth2Properties.EXCHANGE_TOKEN_MS, OAuth2Properties.EXCHANGE_TOKEN_MS_DEFAULT);
+  }
+
+  private static Map<String, String> configHeaders(Map<String, String> properties) {
+    return RESTUtil.extractPrefixMap(properties, "header.");
   }
 }
