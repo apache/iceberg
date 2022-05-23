@@ -169,7 +169,6 @@ public class OAuth2Util {
       tokenResponseToJson(response, generator);
       generator.flush();
       return writer.toString();
-
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
