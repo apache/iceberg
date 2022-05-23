@@ -40,7 +40,15 @@ object AssignmentUtils extends SQLConfHelper {
     sameSize && table.output.zip(assignments).forall { case (attr, assignment) =>
       val key = assignment.key
       val value = assignment.value
-      toAssignmentRef(attr) == toAssignmentRef(key) &&
+      val refsEqual = if (conf.caseSensitiveAnalysis) {
+        toAssignmentRef(attr) == toAssignmentRef(key)
+      } else {
+        toAssignmentRef(attr).zip(toAssignmentRef(key)).forall {
+          case (attrRef, keyRef) => attrRef.equalsIgnoreCase(keyRef)
+        }
+      }
+
+      refsEqual &&
         DataType.equalsIgnoreCompatibleNullability(value.dataType, attr.dataType) &&
         (attr.nullable || !value.nullable)
     }
