@@ -261,7 +261,7 @@ class AlwaysFalse(BooleanExpression, Singleton):
         return AlwaysTrue()
 
     def __repr__(self) -> str:
-        return "AlwaysTrue()"
+        return "AlwaysFalse()"
 
     def __str__(self) -> str:
         return "false"
@@ -437,19 +437,21 @@ def _(obj: AlwaysFalse, visitor: BooleanExpressionVisitor[T]) -> T:
 @visit.register(Not)
 def _(obj: Not, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit a Not boolean expression with a concrete BooleanExpressionVisitor"""
-    child_result: T = visit(obj=obj.child, visitor=visitor)
+    child_result: T = visit(obj.child, visitor=visitor)
     return visitor.visit_not(child_result=child_result)
 
 
 @visit.register(And)
 def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
-    left_result: T = visit(obj=obj.left, visitor=visitor)
-    right_result: T = visit(obj=obj.right, visitor=visitor)
+    left_result: T = visit(obj.left, visitor=visitor)
+    right_result: T = visit(obj.right, visitor=visitor)
     return visitor.visit_and(left_result=left_result, right_result=right_result)
 
 
 @visit.register(Or)
 def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
-    return visitor.visit_or(left_result=obj.left, right_result=obj.right)  # type: ignore
+    left_result: T = visit(obj.left, visitor=visitor)
+    right_result: T = visit(obj.right, visitor=visitor)
+    return visitor.visit_or(left_result=left_result, right_result=right_result)

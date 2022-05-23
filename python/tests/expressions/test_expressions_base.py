@@ -17,6 +17,7 @@
 
 import uuid
 from decimal import Decimal
+from typing import List
 
 import pytest
 
@@ -82,6 +83,65 @@ class TestExpressionB(base.BooleanExpression, Singleton):
 
     def __str__(self):
         return "testexprb"
+
+
+class TestBooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
+    """A test implementation of a BooleanExpressionVisit
+
+    As this visitor visits each node, it appends an element to a `visit_histor` list. This enables testing that a given expression is
+    visited in an expected order by the `visit` method.
+    """
+
+    def __init__(self):
+        self.visit_history: List = []
+
+    def visit_true(self) -> List:
+        self.visit_history.append("TRUE")
+        return self.visit_history
+
+    def visit_false(self) -> List:
+        self.visit_history.append("FALSE")
+        return self.visit_history
+
+    def visit_not(self, child_result: List) -> List:
+        self.visit_history.append("NOT")
+        return self.visit_history
+
+    def visit_and(self, left_result: List, right_result: List) -> List:
+        self.visit_history.append("AND")
+        return self.visit_history
+
+    def visit_or(self, left_result: List, right_result: List) -> List:
+        self.visit_history.append("OR")
+        return self.visit_history
+
+    def visit_unbound_predicate(self, predicate) -> List:
+        self.visit_history.append("UNBOUND PREDICATE")
+        return self.visit_history
+
+    def visit_bound_predicate(self, predicate) -> List:
+        self.visit_history.append("BOUND PREDICATE")
+        return self.visit_history
+
+    def visit_test_expression_a(self) -> List:
+        self.visit_history.append("TestExpressionA")
+        return self.visit_history
+
+    def visit_test_expression_b(self) -> List:
+        self.visit_history.append("TestExpressionB")
+        return self.visit_history
+
+
+@base.visit.register(TestExpressionA)
+def _(obj: TestExpressionA, visitor: TestBooleanExpressionVisitor) -> List:
+    """Visit a TestExpressionA with a TestBooleanExpressionVisitor"""
+    return visitor.visit_test_expression_a()
+
+
+@base.visit.register(TestExpressionB)
+def _(obj: TestExpressionB, visitor: TestBooleanExpressionVisitor) -> List:
+    """Visit a TestExpressionB with a TestBooleanExpressionVisitor"""
+    return visitor.visit_test_expression_b()
 
 
 @pytest.mark.parametrize(
@@ -257,3 +317,111 @@ def test_bound_reference(table_schema_simple, foo_struct):
     assert bound_ref1.eval(foo_struct) == "foovalue"
     assert bound_ref2.eval(foo_struct) == 123
     assert bound_ref3.eval(foo_struct) == True
+
+
+def test_boolean_expression_visitor():
+    """Test post-order traversal of boolean expression visit method"""
+    expr = base.And(
+        base.Or(base.Not(TestExpressionA()), base.Not(TestExpressionB()), TestExpressionA(), TestExpressionB()),
+        base.Not(TestExpressionA()),
+        TestExpressionB(),
+    )
+    visitor = TestBooleanExpressionVisitor()
+    result = base.visit(expr, visitor=visitor)
+    assert result == [
+        "TestExpressionA",
+        "NOT",
+        "TestExpressionB",
+        "NOT",
+        "OR",
+        "TestExpressionA",
+        "OR",
+        "TestExpressionB",
+        "OR",
+        "TestExpressionA",
+        "NOT",
+        "AND",
+        "TestExpressionB",
+        "AND",
+    ]
+
+
+def test_or_with_always_true():
+    """Test visiting an Or expression with AlwaysTrue
+
+    Any Or expression with an AlwaysTrue child should be reduced to a single AlwaysTrue expression and a visitor should only call the `visit_true` method.
+    """
+    expr = base.Or(
+        base.And(
+            base.Or(base.Not(TestExpressionA()), base.Not(TestExpressionB()), TestExpressionA(), TestExpressionB()),
+            base.Not(TestExpressionA()),
+            TestExpressionB(),
+        ),
+        base.AlwaysTrue(),
+    )
+    visitor = TestBooleanExpressionVisitor()
+    result = base.visit(expr, visitor=visitor)
+    assert result == ["TRUE"]
+
+
+def test_or_with_always_false():
+    """Test visiting an Or expression with AlwaysFalse
+
+    An Or expression with an AlwaysFalse child should skip calling `visit_false`, yet visit the rest of the child expressions.
+    """
+    expr = base.Or(
+        base.And(
+            base.Or(base.Not(TestExpressionA()), base.Not(TestExpressionB()), TestExpressionA(), TestExpressionB()),
+            base.Not(TestExpressionA()),
+            TestExpressionB(),
+        ),
+        base.AlwaysFalse(),
+    )
+    visitor = TestBooleanExpressionVisitor()
+    result = base.visit(expr, visitor=visitor)
+    assert result == [
+        "TestExpressionA",
+        "NOT",
+        "TestExpressionB",
+        "NOT",
+        "OR",
+        "TestExpressionA",
+        "OR",
+        "TestExpressionB",
+        "OR",
+        "TestExpressionA",
+        "NOT",
+        "AND",
+        "TestExpressionB",
+        "AND",
+    ]
+
+
+def test_or_with_only_always_false():
+    """Test visiting an Or expression with only AlwaysFalse expressions
+
+    An Or expression with only AlwaysFalse expressions should be reduced to a single AlwaysFalse expression
+    and only require a single call to the `visit_false` method.
+    """
+    expr = base.Or(
+        base.AlwaysFalse(),
+        base.AlwaysFalse(),
+        base.AlwaysFalse(),
+        base.AlwaysFalse(),
+        base.AlwaysFalse(),
+        base.AlwaysFalse(),
+        base.AlwaysFalse(),
+    )
+    visitor = TestBooleanExpressionVisitor()
+    result = base.visit(expr, visitor=visitor)
+    assert isinstance(expr, base.AlwaysFalse)
+    assert result == ["FALSE"]
+
+
+def test_boolean_expression_visit_raise_not_implemented_error():
+    """Test raise NotImplementedError when visiting an unsupported object type"""
+    visitor = TestBooleanExpressionVisitor()
+    with pytest.raises(NotImplementedError) as exc_info:
+        base.visit("foo", visitor=visitor)
+
+    assert str(exc_info.value) == "Cannot visit unsupported expression: foo"
