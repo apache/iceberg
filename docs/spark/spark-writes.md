@@ -311,7 +311,11 @@ distribution & sort order to Spark.
 {{< /hint >}}
 
 {{< hint info >}}
-Both global sort (`orderBy`/`sort`) and local sort (`sortWithinPartitions`) work for the requirement.
+Both global sort (sorting all the data in the write) and local sort (sorting the data within a Spark task) can be used to write against a partitioned table.
+
+In SQL, [`ORDER BY`](https://spark.apache.org/docs/latest/sql-ref-syntax-qry-select-orderby.html) will achieve global sorting and [`SORT BY`](https://spark.apache.org/docs/latest/sql-ref-syntax-qry-select-sortby.html) will achieve local sorting.
+
+In the Dataframe API, the `orderBy`/`sort` functions will achieve global sorting and `sortWithinPartitions` will achieve local sorting.
 {{< /hint >}}
 
 Let's go through writing the data against below sample table:
@@ -326,9 +330,9 @@ USING iceberg
 PARTITIONED BY (days(ts), category)
 ```
 
-To write data to the sample table, your data needs to be sorted by `days(ts), category`.
+#### Sort Order Using Spark SQL
 
-If you're inserting data with SQL statement, you can use `ORDER BY` to achieve it, like below:
+To globally sort data based on `ts` and `category`:
 
 ```sql
 INSERT INTO prod.db.sample
@@ -336,8 +340,39 @@ SELECT id, data, category, ts FROM another_table
 ORDER BY ts, category
 ```
 
-If you're inserting data with DataFrame, you can use either `orderBy`/`sort` to trigger global sort, or `sortWithinPartitions`
-to trigger local sort. Local sort for example:
+To locally sort data based on `ts` and `category`:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+SORT BY ts, category
+```
+
+`SORT BY` clauses can also be used with partition transforms. The [date-and-timestamp-functions](https://spark.apache.org/docs/latest/sql-ref-functions-builtin.html#date-and-timestamp-functions) should be used when partition transforms are time related. Truncate related functions such as `substr` should be used when the partition transform is `truncate[W]`. It is required to [define and register UDFs](https://spark.apache.org/docs/latest/sql-ref-functions-udf-scalar.html) when the partition transform is [bucket transform](##Bucket Transform).
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+SORT BY day(ts), category
+```
+
+#### Sort Order Using the Dataframe API
+
+To globally sort data based on `ts` and `category`:
+
+```scala
+data.sort("ts", "category")
+    .writeTo("prod.db.sample")
+    .append()
+```
+
+```scala
+data.orderBy("ts", "category")
+    .writeTo("prod.db.sample")
+    .append()
+```
+
+To locally sort data based on `ts` and `category`:
 
 ```scala
 data.sortWithinPartitions("ts", "category")
@@ -345,9 +380,11 @@ data.sortWithinPartitions("ts", "category")
     .append()
 ```
 
-You can simply add the original column to the sort condition for the most partition transformations, except `bucket`.
+#### Bucket Transform
 
-For `bucket` partition transformation, you need to register the Iceberg transform function in Spark to specify it during sort.
+`Bucket` transforms require additional steps which are not necessary with other partition transforms.
+
+For `bucket` partition transformation, it is required to register the Iceberg transform function in Spark to specify it during sort.
 
 Let's go through another sample table having bucket partition:
 
@@ -361,7 +398,7 @@ USING iceberg
 PARTITIONED BY (bucket(16, id))
 ```
 
-You need to register the function to deal with bucket, like below:
+Register the function to deal with bucket, like below:
 
 ```scala
 import org.apache.iceberg.spark.IcebergSpark
@@ -376,9 +413,9 @@ Explicit registration of the function is necessary because Spark doesn't allow I
 which can be used in query.
 {{< /hint >}}
 
-Here we just registered the bucket function as `iceberg_bucket16`, which can be used in sort clause.
+Here the bucket function is registered as `iceberg_bucket16`, which can be used in a sort clause.
 
-If you're inserting data with SQL statement, you can use the function like below:
+In Spark SQL, the function can be used as follows:
 
 ```sql
 INSERT INTO prod.db.sample
@@ -386,7 +423,7 @@ SELECT id, data, category, ts FROM another_table
 ORDER BY iceberg_bucket16(id)
 ```
 
-If you're inserting data with DataFrame, you can use the function like below:
+In the Dataframe API, the function can be used as follows:
 
 ```scala
 data.sortWithinPartitions(expr("iceberg_bucket16(id)"))
