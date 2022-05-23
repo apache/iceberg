@@ -115,46 +115,22 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testConfigRoute() throws IOException {
-    RESTClient testClient = new RESTClient() {
-      @Override
-      public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
-      }
-
-      @Override
-      public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
-                                               Consumer<ErrorResponse> errorHandler) {
-        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
-      }
-
+    RESTCatalogAdapter adaptor = new RESTCatalogAdapter(backendCatalog) {
       @Override
       public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
                                             Consumer<ErrorResponse> errorHandler) {
-        return (T) ConfigResponse
-            .builder()
-            .withDefaults(ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))
-            .withOverrides(ImmutableMap.of(CatalogProperties.CACHE_ENABLED, "false"))
-            .build();
-      }
-
-      @Override
-      public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                             Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
-      }
-
-      @Override
-      public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
-                                                 Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
-      }
-
-      @Override
-      public void close() {
+        if (ResourcePaths.config().equals(path)) {
+          return castResponse(responseType, ConfigResponse
+              .builder()
+              .withDefaults(ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))
+              .withOverrides(ImmutableMap.of(CatalogProperties.CACHE_ENABLED, "false"))
+              .build());
+        }
+        return super.get(path, responseType, headers, errorHandler);
       }
     };
 
-    RESTCatalog restCat = new RESTCatalog((config) -> testClient);
+    RESTCatalog restCat = new RESTCatalog((config) -> adaptor);
     Map<String, String> initialConfig = ImmutableMap.of(
         CatalogProperties.URI, "http://localhost:8080",
         CatalogProperties.CACHE_ENABLED, "true");

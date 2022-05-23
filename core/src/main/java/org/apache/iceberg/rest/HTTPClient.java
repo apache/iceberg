@@ -249,10 +249,6 @@ public class HTTPClient implements RESTClient {
     private Builder() {
     }
 
-    private static String asBearer(String token) {
-      return String.format("Bearer %s", token);
-    }
-
     public Builder uri(String baseUri) {
       Preconditions.checkNotNull(baseUri, "Invalid uri for http client: null");
       this.uri = RESTUtil.stripTrailingSlash(baseUri);
@@ -266,12 +262,6 @@ public class HTTPClient implements RESTClient {
 
     public Builder withHeaders(Map<String, String> headers) {
       baseHeaders.putAll(headers);
-      return this;
-    }
-
-    public Builder withBearerAuth(String token) {
-      Preconditions.checkNotNull(token, "Invalid auth token: null");
-      baseHeaders.put(HttpHeaders.AUTHORIZATION, asBearer(token));
       return this;
     }
 
