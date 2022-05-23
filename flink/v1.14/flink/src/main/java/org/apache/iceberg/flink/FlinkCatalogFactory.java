@@ -25,6 +25,9 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.catalog.Catalog;
@@ -37,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
  * A Flink Catalog factory implementation that creates {@link FlinkCatalog}.
@@ -53,8 +57,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  *   <li><code>cache-enabled</code> - whether to enable catalog cache</li>
  * </ul>
  * <p>
- * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
- * {@link #createCatalogLoader(String, Map, Configuration)}.
  */
 public class FlinkCatalogFactory implements CatalogFactory {
 
@@ -71,6 +73,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   public static final String TYPE = "type";
   public static final String PROPERTY_VERSION = "property-version";
+  public static final String FACTORY_IDENTIFIER = "iceberg";
 
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
@@ -126,8 +129,43 @@ public class FlinkCatalogFactory implements CatalogFactory {
     return createCatalog(name, properties, clusterHadoopConf());
   }
 
-  protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
-    CatalogLoader catalogLoader = createCatalogLoader(name, properties, hadoopConf);
+  @Override
+  public String factoryIdentifier() {
+    return FACTORY_IDENTIFIER;
+  }
+
+  @Override
+  public Set<ConfigOption<?>> requiredOptions() {
+    return Sets.newHashSet(
+            ConfigOptions
+                    .key("type")
+                    .stringType()
+                    .defaultValue("iceberg"));
+  }
+
+  @Override
+  public Set<ConfigOption<?>> optionalOptions() {
+    return Sets.newHashSet();
+  }
+
+  @Override
+  public Catalog createCatalog(Context context) {
+    String name = context.getName();
+    Map<String, String> properties = context.getOptions();
+    String catalogImpl = properties.get(CatalogProperties.CATALOG_IMPL);
+    if (catalogImpl != null) {
+      String catalogType = properties.get(ICEBERG_CATALOG_TYPE);
+      Preconditions.checkArgument(catalogType == null,
+              "Cannot create catalog %s, both catalog-type and catalog-impl are set: catalog-type=%s, catalog-impl=%s",
+              name, catalogType, catalogImpl);
+      return createCatalog(CatalogLoader.catalog(context));
+    }
+    return createCatalog(createCatalogLoader(name, properties, clusterHadoopConf()));
+  }
+
+  protected Catalog createCatalog(CatalogLoader catalogLoader) {
+    String name = catalogLoader.getName();
+    Map<String, String> properties = catalogLoader.getOptions();
     String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, DEFAULT_DATABASE_NAME);
 
     Namespace baseNamespace = Namespace.empty();
@@ -137,6 +175,10 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
     boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault(CACHE_ENABLED, "true"));
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
+  }
+
+  protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
+    return createCatalog(createCatalogLoader(name, properties, hadoopConf));
   }
 
   private static Configuration mergeHiveConf(Configuration hadoopConf, String hiveConfDir) {

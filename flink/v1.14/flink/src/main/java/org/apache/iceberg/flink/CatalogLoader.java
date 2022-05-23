@@ -21,10 +21,12 @@ package org.apache.iceberg.flink;
 
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -44,17 +46,27 @@ public interface CatalogLoader extends Serializable {
    *
    * @return a newly created {@link Catalog}
    */
-  Catalog loadCatalog();
+  String getName();
+  Map<String, String> getOptions();
+  Object getConf();
 
-  static CatalogLoader hadoop(String name, Configuration hadoopConf, Map<String, String> properties) {
+  default Catalog loadCatalog() {
+    return CatalogUtil.buildIcebergCatalog(this.getName(), this.getOptions(), this.getConf());
+  }
+
+  static CatalogLoader catalog(CatalogFactory.Context context) {
+    return new BaseCatalogLoader(context);
+  }
+
+  static CatalogLoader hadoop(String name, Object hadoopConf, Map<String, String> properties) {
     return new HadoopCatalogLoader(name, hadoopConf, properties);
   }
 
-  static CatalogLoader hive(String name, Configuration hadoopConf, Map<String, String> properties) {
+  static CatalogLoader hive(String name, Object hadoopConf, Map<String, String> properties) {
     return new HiveCatalogLoader(name, hadoopConf, properties);
   }
 
-  static CatalogLoader custom(String name, Map<String, String> properties, Configuration hadoopConf, String impl) {
+  static CatalogLoader custom(String name, Map<String, String> properties, Object hadoopConf, String impl) {
     return new CustomCatalogLoader(name, properties, hadoopConf, impl);
   }
 
@@ -66,12 +78,27 @@ public interface CatalogLoader extends Serializable {
 
     private HadoopCatalogLoader(
         String catalogName,
-        Configuration conf,
+        Object conf,
         Map<String, String> properties) {
       this.catalogName = catalogName;
-      this.hadoopConf = new SerializableConfiguration(conf);
+      this.hadoopConf = new SerializableConfiguration((Configuration) conf);
       this.warehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
       this.properties = Maps.newHashMap(properties);
+    }
+
+    @Override
+    public String getName() {
+      return this.catalogName;
+    }
+
+    @Override
+    public Map<String, String> getOptions() {
+      return this.properties;
+    }
+
+    @Override
+    public Object getConf() {
+      return this.hadoopConf.get();
     }
 
     @Override
@@ -96,15 +123,30 @@ public interface CatalogLoader extends Serializable {
     private final int clientPoolSize;
     private final Map<String, String> properties;
 
-    private HiveCatalogLoader(String catalogName, Configuration conf, Map<String, String> properties) {
+    private HiveCatalogLoader(String catalogName, Object conf, Map<String, String> properties) {
       this.catalogName = catalogName;
-      this.hadoopConf = new SerializableConfiguration(conf);
+      this.hadoopConf = new SerializableConfiguration((Configuration) conf);
       this.uri = properties.get(CatalogProperties.URI);
       this.warehouse = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
       this.clientPoolSize = properties.containsKey(CatalogProperties.CLIENT_POOL_SIZE) ?
           Integer.parseInt(properties.get(CatalogProperties.CLIENT_POOL_SIZE)) :
           CatalogProperties.CLIENT_POOL_SIZE_DEFAULT;
       this.properties = Maps.newHashMap(properties);
+    }
+
+    @Override
+    public String getName() {
+      return this.catalogName;
+    }
+
+    @Override
+    public Map<String, String> getOptions() {
+      return this.properties;
+    }
+
+    @Override
+    public Object getConf() {
+      return this.hadoopConf.get();
     }
 
     @Override
@@ -133,17 +175,30 @@ public interface CatalogLoader extends Serializable {
     private CustomCatalogLoader(
         String name,
         Map<String, String> properties,
-        Configuration conf,
+        Object conf,
         String impl) {
-      this.hadoopConf = new SerializableConfiguration(conf);
+      this.hadoopConf = new SerializableConfiguration((Configuration) conf);
       this.properties = Maps.newHashMap(properties); // wrap into a hashmap for serialization
       this.name = name;
       this.impl = Preconditions.checkNotNull(impl, "Cannot initialize custom Catalog, impl class name is null");
     }
 
     @Override
-    public Catalog loadCatalog() {
-      return CatalogUtil.loadCatalog(impl, name, properties, hadoopConf.get());
+    public String getName() {
+      return this.name;
+    }
+
+    @Override
+    public Map<String, String> getOptions() {
+      return this.properties;
+    }
+
+    @Override
+    public Object getConf() {
+      if (this.hadoopConf == null) {
+        return null;
+      }
+      return this.hadoopConf.get();
     }
 
     @Override
@@ -152,6 +207,57 @@ public interface CatalogLoader extends Serializable {
           .add("name", name)
           .add("impl", impl)
           .toString();
+    }
+  }
+
+  class BaseCatalogLoader implements CatalogLoader {
+
+    private final Map<String, String> options;
+    private final String catalogName;
+    private final SerializableConfiguration hadoopConf;
+
+    private BaseCatalogLoader(
+            CatalogFactory.Context context
+    ) {
+      this.options = Maps.newHashMap(context.getOptions()); // wrap into a hashmap for serialization
+      this.catalogName = context.getName();
+      // Check to see if there are hadoop classes loaded in Flink's application classloader
+      if (isHadoopEnv(context.getClassLoader().getParent())) {
+        this.hadoopConf = new SerializableConfiguration(FlinkCatalogFactory.clusterHadoopConf());
+      } else {
+        this.hadoopConf = null;
+      }
+    }
+
+    @Override
+    public String getName() {
+      return this.catalogName;
+    }
+
+    @Override
+    public Map<String, String> getOptions() {
+      return this.options;
+    }
+
+    @Override
+    public Object getConf() {
+      if (this.hadoopConf == null) {
+        return null;
+      }
+      return this.hadoopConf.get();
+    }
+
+  }
+
+  static Boolean isHadoopEnv(ClassLoader classLoader) {
+    try {
+      DynClasses.builder()
+              .loader(classLoader)
+              .impl("org.apache.hadoop.conf.Configuration")
+              .buildChecked();
+      return true;
+    } catch (ClassNotFoundException e) {
+      return false;
     }
   }
 
