@@ -12,11 +12,15 @@
 
 accessor
 accessors
+api
 Args
 ASF
 BD
 bool
 boolean
+codegen
+config
+datamodel
 datetime
 disjunction
 dispatchable
@@ -29,6 +33,7 @@ func
 IcebergType
 io
 NativeFile
+namespace
 NestedField
 nullability
 pragma
@@ -46,4 +51,4 @@ Timestamptz
 Timestamptzs
 unscaled
 URI
-
+yaml
