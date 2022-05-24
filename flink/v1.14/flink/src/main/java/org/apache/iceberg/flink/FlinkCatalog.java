@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,11 +35,15 @@ import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogFunction;
+import org.apache.flink.table.catalog.CatalogFunctionImpl;
 import org.apache.flink.table.catalog.CatalogPartition;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.CatalogTableImpl;
+import org.apache.flink.table.catalog.Column.ComputedColumn;
+import org.apache.flink.table.catalog.FunctionLanguage;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotEmptyException;
@@ -51,6 +56,7 @@ import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.Factory;
+import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
@@ -69,7 +75,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
+import org.apache.iceberg.flink.sink.PartitionTransformUdf;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -96,6 +102,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
+  private final Map<String, CatalogFunction> partitionFunctions;
 
   public FlinkCatalog(
       String catalogName,
@@ -107,6 +114,7 @@ public class FlinkCatalog extends AbstractCatalog {
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
+    this.partitionFunctions = new LinkedHashMap<>();
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
@@ -122,6 +130,18 @@ public class FlinkCatalog extends AbstractCatalog {
     } catch (DatabaseAlreadyExistException e) {
       // Ignore the exception if it's already exist.
     }
+
+    addUdfJava("years", PartitionTransformUdf.Year.class);
+    addUdfJava("months", PartitionTransformUdf.Month.class);
+    addUdfJava("days", PartitionTransformUdf.Day.class);
+    addUdfJava("hours", PartitionTransformUdf.Hour.class);
+    addUdfJava("buckets", PartitionTransformUdf.Bucket.class);
+    addUdfJava("truncates", PartitionTransformUdf.Truncate.class);
+
+  }
+
+  private void addUdfJava(String name, Class<? extends UserDefinedFunction> functionClass) {
+    partitionFunctions.put(name, new CatalogFunctionImpl(functionClass.getName(), FunctionLanguage.JAVA));
   }
 
   @Override
@@ -375,7 +395,11 @@ public class FlinkCatalog extends AbstractCatalog {
     validateFlinkTable(table);
 
     Schema icebergSchema = FlinkSchemaUtil.convert(table.getSchema());
-    PartitionSpec spec = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
+    Map<String, ComputedColumn> computedColumnMap = Maps.newHashMap();
+    ((ResolvedCatalogTable) table).getResolvedSchema().getColumns().stream()
+        .filter(c -> c instanceof ComputedColumn)
+        .forEach(c -> computedColumnMap.put(c.getName(), (ComputedColumn) c));
+    PartitionSpec spec = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema, computedColumnMap);
 
     ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
     String location = null;
@@ -488,20 +512,62 @@ public class FlinkCatalog extends AbstractCatalog {
     Preconditions.checkArgument(table instanceof CatalogTable, "The Table should be a CatalogTable.");
 
     TableSchema schema = table.getSchema();
-    schema.getTableColumns().forEach(column -> {
-      if (!FlinkCompatibilityUtil.isPhysicalColumn(column)) {
-        throw new UnsupportedOperationException("Creating table with computed columns is not supported yet.");
-      }
-    });
+//    schema.getTableColumns().forEach(column -> {
+//      if (!FlinkCompatibilityUtil.isPhysicalColumn(column)) {
+//        throw new UnsupportedOperationException("Creating table with computed columns is not supported yet.");
+//      }
+//    });
 
     if (!schema.getWatermarkSpecs().isEmpty()) {
       throw new UnsupportedOperationException("Creating table with watermark specs is not supported yet.");
     }
   }
 
-  private static PartitionSpec toPartitionSpec(List<String> partitionKeys, Schema icebergSchema) {
+  private static PartitionSpec toPartitionSpec(
+      List<String> partitionKeys,
+      Schema icebergSchema,
+      Map<String, ComputedColumn> computedCols) {
+
+    computedCols.keySet().forEach(c -> {
+      if (!partitionKeys.contains(c)) {
+        throw new UnsupportedOperationException(
+            "Computed columns that are not in the partition keys are not supported yet.");
+      }
+    });
+
     PartitionSpec.Builder builder = PartitionSpec.builderFor(icebergSchema);
-    partitionKeys.forEach(builder::identity);
+    partitionKeys.forEach(name -> {
+      ComputedColumn computedColumn = computedCols.get(name);
+      if (computedColumn == null) {
+        builder.identity(name);
+      } else {
+        PartitionTransformUdf partitionFunc = PartitionTransformUdf
+            .newBuilder(computedColumn.getExpression().asSerializableString())
+            .build();
+        switch (partitionFunc.getFuncName()) {
+          case "years":
+            builder.year(partitionFunc.getSrcColumn());
+            break;
+          case "months":
+            builder.month(partitionFunc.getSrcColumn());
+            break;
+          case "days":
+            builder.day(partitionFunc.getSrcColumn());
+            break;
+          case "hours":
+            builder.hour(partitionFunc.getSrcColumn());
+            break;
+          case "bucket":
+            builder.bucket(partitionFunc.getSrcColumn(), partitionFunc.getWidth());
+            break;
+          case "truncate":
+            builder.truncate(partitionFunc.getSrcColumn(), partitionFunc.getWidth());
+            break;
+          default:
+            throw new UnsupportedOperationException("Transform is not supported: " + partitionFunc.getFuncName());
+        }
+      }
+    });
     return builder.build();
   }
 
@@ -624,7 +690,12 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public CatalogFunction getFunction(ObjectPath functionPath) throws FunctionNotExistException, CatalogException {
-    throw new FunctionNotExistException(getName(), functionPath);
+    CatalogFunction catalogFunction = partitionFunctions.get(functionPath.getObjectName());
+    if (catalogFunction == null) {
+      throw new FunctionNotExistException(getName(), functionPath);
+    } else {
+      return catalogFunction;
+    }
   }
 
   @Override
@@ -635,6 +706,7 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void createFunction(ObjectPath functionPath, CatalogFunction function, boolean ignoreIfExists)
       throws CatalogException {
+//    functions.put(functionPath, function.copy());
     throw new UnsupportedOperationException();
   }
 
