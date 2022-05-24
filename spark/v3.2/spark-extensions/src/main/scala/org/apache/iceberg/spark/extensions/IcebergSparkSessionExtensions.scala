@@ -20,7 +20,16 @@
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.{AlignRowLevelCommandAssignments, AlignedRowLevelIcebergCommandCheck, CheckMergeIntoTableConditions, MergeIntoIcebergTableResolutionCheck, ProcedureArgumentCoercion, ResolveMergeIntoTableReferences, ResolveProcedures, RewriteDeleteFromTable, RewriteMergeIntoTable, RewriteUpdateTable}
+import org.apache.spark.sql.catalyst.analysis.AlignRowLevelCommandAssignments
+import org.apache.spark.sql.catalyst.analysis.AlignedRowLevelIcebergCommandCheck
+import org.apache.spark.sql.catalyst.analysis.CheckMergeIntoTableConditions
+import org.apache.spark.sql.catalyst.analysis.MergeIntoIcebergTableResolutionCheck
+import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
+import org.apache.spark.sql.catalyst.analysis.ResolveMergeIntoTableReferences
+import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
+import org.apache.spark.sql.catalyst.analysis.RewriteDeleteFromTable
+import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
+import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
