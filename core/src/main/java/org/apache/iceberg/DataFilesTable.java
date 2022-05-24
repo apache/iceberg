@@ -19,10 +19,12 @@
 
 package org.apache.iceberg;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
-import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -108,16 +110,16 @@ public class DataFilesTable extends BaseMetadataTable {
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
-      Expression partitionFilter = Projections
-          .inclusive(
-              transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX),
-              caseSensitive)
-          .project(rowFilter);
+      Map<Integer, PartitionSpec> specsById = table().specs();
 
-      ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
-          partitionFilter, table().spec(), caseSensitive);
-      CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(manifests, manifestEval::eval);
+      LoadingCache<Integer, ManifestEvaluator> evalCache = Caffeine.newBuilder().build(specId -> {
+        PartitionSpec spec = specsById.get(specId);
+        PartitionSpec transformedSpec = transformSpec(fileSchema, spec);
+        return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
+      });
+
+      CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(manifests,
+          manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
       // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
       // This data task needs to use the table schema, which may not include a partition schema to avoid having an
