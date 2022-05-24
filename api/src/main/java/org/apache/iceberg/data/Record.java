@@ -62,7 +62,7 @@ public interface Record extends StructLike {
                       String field4, Object value4, String field5, Object value5, String field6, Object value6,
                       String field7, Object value7, String field8, Object value8, String field9, Object value9,
                       String field10, Object value10, String field11, Object value11) {
-    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(9);
+    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(11);
     overwriteValues.put(field1, value1);
     overwriteValues.put(field2, value2);
     overwriteValues.put(field3, value3);

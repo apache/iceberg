@@ -407,7 +407,7 @@ public class TestBloomRowGroupFilter {
   public void testNot() {
     // this test case must use a real predicate, not alwaysTrue(), otherwise binding will simplify it out
     for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA,   not(equal("id", i)))
+      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, not(equal("id", i)))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
     }

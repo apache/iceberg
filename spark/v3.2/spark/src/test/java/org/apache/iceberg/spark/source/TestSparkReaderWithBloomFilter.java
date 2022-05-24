@@ -215,13 +215,10 @@ public class TestSparkReaderWithBloomFilter {
     Dataset<org.apache.spark.sql.Row> df = spark.read()
         .format("iceberg")
         .load(TableIdentifier.of("default", tableName).toString())
-        .selectExpr("*")
         // this is from the first row group
         .filter("id = 30 AND id_long = 1030 AND id_double = 10030.0 AND id_float = 100030.0" +
             " AND id_string = 'BINARY测试_30' AND id_boolean = true AND id_date = '2021-09-05'" +
-            " AND id_timestamp = '1969-12-31 16:00:00' AND id_int_decimal = 77.77" +
-            " AND id_long_decimal = 88.88 AND id_fixed_decimal = 99.99");
-    df.show();
+            " AND id_int_decimal = 77.77 AND id_long_decimal = 88.88 AND id_fixed_decimal = 99.99");
 
     Record record = SparkValueConverter.convert(table.schema(), df.collectAsList().get(0));
 
@@ -232,12 +229,10 @@ public class TestSparkReaderWithBloomFilter {
     df = spark.read()
         .format("iceberg")
         .load(TableIdentifier.of("default", tableName).toString())
-        .selectExpr("*")
         // this is from the third row group
         .filter("id = 250 AND id_long = 1250 AND id_double = 10250.0 AND id_float = 100250.0" +
             " AND id_string = 'BINARY测试_250' AND id_boolean = true AND id_date = '2021-09-05'" +
-            " AND id_timestamp = '1969-12-31 16:00:00' AND id_int_decimal = 77.77" +
-            " AND id_long_decimal = 88.88 AND id_fixed_decimal = 99.99");
+            " AND id_int_decimal = 77.77 AND id_long_decimal = 88.88 AND id_fixed_decimal = 99.99");
 
     record = SparkValueConverter.convert(table.schema(), df.collectAsList().get(0));
 
