@@ -98,7 +98,7 @@ public class GlueTestBase {
   }
 
   public static String createNamespace() {
-    String namespace = getRandomName();
+    String namespace = "iceberg_aws_ci_" + getRandomName();
     namespaces.add(namespace);
     glueCatalog.createNamespace(Namespace.of(namespace));
     return namespace;
