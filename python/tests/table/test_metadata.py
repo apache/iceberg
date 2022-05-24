@@ -22,7 +22,13 @@ import tempfile
 
 import pytest
 
-from iceberg.table.metadata import TableMetadata
+from iceberg.serializers import (
+    FromByteStream,
+    FromDict,
+    FromInputFile,
+    ToDict,
+    ToOutputFile,
+)
 
 EXAMPLE_TABLE_METADATA_V1 = {
     "format-version": 1,
@@ -117,7 +123,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
     "last-partition-id": 999,
     "default-sort-order-id": 0,
     "sort-orders": [{"order-id": 0, "fields": []}],
-    "properties": {"owner": "root", "write.format.default": "parquet"},
+    "properties": {"owner": "root", "write.format.default": "parquet", "read.split.target.size": 134217728},
     "current-snapshot-id": 7681945274687743099,
     "snapshots": [
         {
@@ -149,7 +155,6 @@ EXAMPLE_TABLE_METADATA_V2 = {
             "metadata-file": "3://foo/bar/baz/00000-907830f8-1a92-4944-965a-ff82c890e912.metadata.json",
         }
     ],
-    "properties": {"read.split.target.size": 134217728},
 }
 
 
@@ -162,7 +167,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
 )
 def test_from_dict(metadata):
     """Test initialization of a TableMetadata instance from a dictionary"""
-    table_metadata = TableMetadata.from_dict(metadata)
+    FromDict.table_metadata(d=metadata)
 
 
 @pytest.mark.parametrize(
@@ -188,7 +193,7 @@ def test_from_input_file(metadata, LocalFileIOFixture):
         f.close()
 
         input_file = file_io.new_input(location=f"file:{absolute_file_location}")
-        table_metadata = TableMetadata.from_input_file(input_file)
+        FromInputFile.table_metadata(input_file=input_file)
 
 
 @pytest.mark.parametrize(
@@ -201,7 +206,7 @@ def test_from_input_file(metadata, LocalFileIOFixture):
 def test_to_output_file(metadata, LocalFileIOFixture):
     """Test writing a TableMetadata instance to a LocalOutputFile instance"""
     with tempfile.TemporaryDirectory() as tmpdirname:
-        table_metadata = TableMetadata.from_dict(metadata)  # Create TableMetadata instance from dictionary
+        table_metadata = FromDict.table_metadata(d=metadata)  # Create TableMetadata instance from dictionary
         file_io = LocalFileIOFixture()  # Use LocalFileIO fixture defined in conftest.py
 
         # Create an output file in the temporary directory
@@ -210,10 +215,10 @@ def test_to_output_file(metadata, LocalFileIOFixture):
         output_file = file_io.new_output(location=f"file:{absolute_file_location}")
 
         # Write the TableMetadata instance to the output file
-        table_metadata.to_output_file(output_file)
+        ToOutputFile.table_metadata(metadata=table_metadata, output_file=output_file)
 
         # Read the raw json file and compare to metadata dictionary
-        table_metadata_dict = json.load(open(file_location, "r"))
+        table_metadata_dict = json.load(open(file_location, "r", encoding="utf-8"))
         assert table_metadata_dict == metadata
 
 
@@ -221,12 +226,12 @@ def test_from_byte_stream():
     """Test generating a TableMetadata instance from a file-like byte stream"""
     data = bytes(json.dumps(EXAMPLE_TABLE_METADATA_V2), encoding="utf-8")
     byte_stream = io.BytesIO(data)
-    TableMetadata.from_byte_stream(byte_stream)
+    FromByteStream.table_metadata(byte_stream=byte_stream)
 
 
 def test_v2_metadata_parsing():
-    """Test retrieveing values from a TableMetadata instance of version 2"""
-    table_metadata = TableMetadata.from_dict(EXAMPLE_TABLE_METADATA_V2)
+    """Test retrieving values from a TableMetadata instance of version 2"""
+    table_metadata = FromDict.table_metadata(d=EXAMPLE_TABLE_METADATA_V2)
 
     assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == "foo-table-uuid"
@@ -251,7 +256,7 @@ def test_v2_metadata_parsing():
 def test_updating_metadata():
     """Test creating a new TableMetadata instance that's an updated version of
     an existing TableMetadata instance"""
-    table_metadata = TableMetadata.from_dict(EXAMPLE_TABLE_METADATA_V2)
+    table_metadata = FromDict.table_metadata(d=EXAMPLE_TABLE_METADATA_V2)
 
     new_schema = {
         "type": "struct",
@@ -263,11 +268,11 @@ def test_updating_metadata():
         ],
     }
 
-    mutable_table_metadata = table_metadata.to_dict()
+    mutable_table_metadata = ToDict.table_metadata(metadata=table_metadata)
     mutable_table_metadata["schemas"].append(new_schema)
     mutable_table_metadata["current-schema-id"] = 1
 
-    new_table_metadata = TableMetadata.from_dict(mutable_table_metadata)
+    new_table_metadata = FromDict.table_metadata(d=mutable_table_metadata)
 
     assert new_table_metadata.current_schema_id == 1
     assert new_table_metadata.schemas[-1] == new_schema

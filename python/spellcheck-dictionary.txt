@@ -46,4 +46,14 @@ Timestamptz
 Timestamptzs
 unscaled
 URI
-
+json
+py
+conftest
+pytest
+parametrize
+uri
+URI
+InputFile
+OutputFile
+bytestream
+deserialize

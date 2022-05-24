@@ -148,7 +148,7 @@ class LocalFileIO(FileIO):
         try:
             os.remove(parsed_location.path)
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e))
+            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e)) from e
 
 
 @pytest.fixture(scope="session", autouse=True)
