@@ -1192,14 +1192,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createOrReplaceView(
         "source",
         "{ \"id\": 1, \"c1\": -2, \"c2\": \"new_str_1\" }\n" +
-            "{ \"id\": 2, \"c1\": -20, \"c2\": \"new_str_2\" }");
+        "{ \"id\": 2, \"c1\": -20, \"c2\": \"new_str_2\" }");
 
     sql("MERGE INTO %s t USING source " +
-            "ON t.iD == source.Id " +
-            "WHEN MATCHED THEN " +
-            "  UPDATE SET B = c2, A = c1, t.Id = source.ID " +
-            "WHEN NOT MATCHED THEN " +
-            "  INSERT (b, A, iD) VALUES (c2, c1, id)", tableName);
+        "ON t.iD == source.Id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET B = c2, A = c1, t.Id = source.ID " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT (b, A, iD) VALUES (c2, c1, id)", tableName);
 
     assertEquals(
         "Output should match",

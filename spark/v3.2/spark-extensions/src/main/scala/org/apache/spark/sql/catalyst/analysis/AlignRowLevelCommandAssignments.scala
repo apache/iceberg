@@ -84,16 +84,7 @@ object AlignRowLevelCommandAssignments
           throw new AnalysisException("Not matched actions can only contain INSERT")
       }
 
-      val alignedMerge = m.copy(
-        matchedActions = alignedMatchedActions,
-        notMatchedActions = alignedNotMatchedActions)
-
-      if (!alignedMerge.aligned) {
-        // This should never happen, but it is better than failing silently and allowing analysis to continue
-        throw new AnalysisException(s"Alignment of row level commands failed")
-      }
-
-      alignedMerge
+      m.copy(matchedActions = alignedMatchedActions, notMatchedActions = alignedNotMatchedActions)
   }
 
   private def alignInsertActionAssignments(
