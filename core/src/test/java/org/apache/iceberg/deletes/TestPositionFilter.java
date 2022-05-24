@@ -135,8 +135,11 @@ public class TestPositionFilter {
 
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 3L, 4L, 7L, 9L));
 
-    CloseableIterable<StructLike> actual = Deletes.streamingMarker(rows, row -> row.get(0, Long.class), deletes,
-        row -> row.set(2, true));
+    CloseableIterable<StructLike> actual = Deletes.streamingMarker(rows,
+        row -> row.get(0, Long.class), /* row to position */
+        deletes,
+        row -> row.set(2, true)  /* delete marker */
+    );
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(true, false, false, true, true, false, false, true, false, true),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(2, Boolean.class))));

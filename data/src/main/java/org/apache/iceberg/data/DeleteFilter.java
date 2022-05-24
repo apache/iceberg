@@ -184,11 +184,7 @@ public abstract class DeleteFilter<T> {
         .reduce(Predicate::or)
         .orElse(t -> false);
 
-    if (hasColumnIsDeleted) {
-      return Deletes.markDeleted(records, isEqDeleted, this::markRowDeleted);
-    } else {
-      return CloseableIterable.filter(records, isEqDeleted.negate());
-    }
+    return createDeleteIterable(records, isEqDeleted);
   }
 
   protected void markRowDeleted(T item) {
@@ -227,15 +223,19 @@ public abstract class DeleteFilter<T> {
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
       PositionDeleteIndex positionIndex = Deletes.toPositionIndex(filePath, deletes);
-      Predicate<T> isInDeleteSet = record -> positionIndex.isDeleted(pos(record));
-      return hasColumnIsDeleted ?
-          Deletes.markDeleted(records, isInDeleteSet, this::markRowDeleted) :
-          CloseableIterable.filter(records, isInDeleteSet.negate());
+      Predicate<T> isDeleted = record -> positionIndex.isDeleted(pos(record));
+      return createDeleteIterable(records, isDeleted);
     }
 
     return hasColumnIsDeleted ?
         Deletes.streamingMarker(records, this::pos, Deletes.deletePositions(filePath, deletes), this::markRowDeleted) :
         Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
+  }
+
+  private CloseableIterable<T> createDeleteIterable(CloseableIterable<T> records, Predicate<T> isDeleted) {
+    return hasColumnIsDeleted ?
+        Deletes.markDeleted(records, isDeleted, this::markRowDeleted) :
+        Deletes.filterDeleted(records, isDeleted);
   }
 
   private CloseableIterable<Record> openPosDeletes(DeleteFile file) {

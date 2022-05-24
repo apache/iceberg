@@ -65,6 +65,7 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.jetbrains.annotations.NotNull;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -276,9 +277,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testPosDeletesWithDeletedColumn() throws IOException {
-    if (vectorized) {
-      return;
-    }
+    Assume.assumeFalse(vectorized);
 
     // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all deleted.
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
@@ -299,14 +298,12 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet expected = expectedRowSet(29, 43, 61, 89);
     StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
-    Assert.assertTrue("Table should contain expected row", actual.equals(expected));
+    Assert.assertEquals("Table should contain expected row", expected, actual);
   }
 
   @Test
   public void testEqualityDeleteWithDeletedColumn() throws IOException {
-    if (vectorized) {
-      return;
-    }
+    Assume.assumeFalse(vectorized);
 
     String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
     Schema deleteRowSchema = table.schema().select("data");
@@ -327,14 +324,12 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet expected = expectedRowSet(29, 89, 122);
     StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
-    Assert.assertTrue("Table should contain expected row", actual.equals(expected));
+    Assert.assertEquals("Table should contain expected row", expected, actual);
   }
 
   @Test
   public void testMixedPosAndEqDeletesWithDeletedColumn() throws IOException {
-    if (vectorized) {
-      return;
-    }
+    Assume.assumeFalse(vectorized);
 
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
@@ -364,14 +359,12 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet expected = expectedRowSet(29, 89, 121, 122);
     StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
-    Assert.assertTrue("Table should contain expected row", actual.equals(expected));
+    Assert.assertEquals("Table should contain expected row", expected, actual);
   }
 
   @Test
   public void testFilterOnDeletedMetadataColumn() throws IOException {
-    if (vectorized) {
-      return;
-    }
+    Assume.assumeFalse(vectorized);
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 0L), // id = 29
@@ -388,9 +381,9 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
-    // get undeleted rows
-    StructLikeSet expected = expectedRowSet(true, false, 29, 43, 61, 89);
+    StructLikeSet expected = expectedRowSetWithNonDeletesOnly(29, 43, 61, 89);
 
+    // get non-deleted rows
     Dataset<Row> df = spark.read()
         .format("iceberg")
         .load(TableIdentifier.of("default", tableName).toString())
@@ -404,11 +397,11 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       actual.add(rowWrapper.wrap(row));
     });
 
-    Assert.assertTrue("Table should contain expected row", actual.equals(expected));
+    Assert.assertEquals("Table should contain expected row", expected, actual);
+
+    StructLikeSet expectedDeleted = expectedRowSetWithDeletesOnly(29, 43, 61, 89);
 
     // get deleted rows
-    StructLikeSet expectedDeleted = expectedRowSet(false, true, 29, 43, 61, 89);
-
     df = spark.read()
         .format("iceberg")
         .load(TableIdentifier.of("default", tableName).toString())
@@ -421,7 +414,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       actualDeleted.add(rowWrapper.wrap(row));
     });
 
-    Assert.assertTrue("Table should contain expected row", actualDeleted.equals(expectedDeleted));
+    Assert.assertEquals("Table should contain expected row", expectedDeleted, actualDeleted);
   }
 
   private static final Schema PROJECTION_SCHEMA = new Schema(
@@ -434,7 +427,15 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     return expectedRowSet(false, false, idsToRemove);
   }
 
-  private static StructLikeSet expectedRowSet(boolean removeDeleted, boolean removeUndeleted, int... idsToRemove) {
+  private static StructLikeSet expectedRowSetWithDeletesOnly(int... idsToRemove) {
+    return expectedRowSet(false, true, idsToRemove);
+  }
+
+  private static StructLikeSet expectedRowSetWithNonDeletesOnly(int... idsToRemove) {
+    return expectedRowSet(true, false, idsToRemove);
+  }
+
+  private static StructLikeSet expectedRowSet(boolean removeDeleted, boolean removeNonDeleted, int... idsToRemove) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
     List<Record> records = recordsWithDeletedColumn();
     // mark rows deleted
@@ -445,7 +446,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     });
 
     records.removeIf(record -> deletedIds.contains(record.getField("id")) && removeDeleted);
-    records.removeIf(record -> !deletedIds.contains(record.getField("id")) && removeUndeleted);
+    records.removeIf(record -> !deletedIds.contains(record.getField("id")) && removeNonDeleted);
 
     StructLikeSet set = StructLikeSet.create(PROJECTION_SCHEMA.asStruct());
     records.forEach(record -> set.add(new InternalRecordWrapper(PROJECTION_SCHEMA.asStruct()).wrap(record)));
