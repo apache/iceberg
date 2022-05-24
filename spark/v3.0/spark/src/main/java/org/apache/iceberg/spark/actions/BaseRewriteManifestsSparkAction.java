@@ -40,6 +40,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.BaseRewriteManifestsActionResult;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -295,6 +296,9 @@ public class BaseRewriteManifestsSparkAction
         // delete new manifests as they were rewritten before the commit
         deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
       }
+    } catch (CommitStateUnknownException commitStateUnknownException) {
+      // don't clean up added manifest files, because they may have been successfully committed.
+      throw commitStateUnknownException;
     } catch (Exception e) {
       // delete all new manifests because the rewrite failed
       deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
