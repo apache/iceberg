@@ -34,7 +34,8 @@ body:
       label: What happened
       description: Describe what happened.
       placeholder: >
-        Please provide the context in which the problem occurred and explain what happened. Feel free to include stacktraces. You can include files by dragging and dropping them here.
+        Please provide the context in which the problem occurred and explain what happened. When using acronyms, please define them at least once.
+        Feel free to include stacktraces. You can include files by dragging and dropping them here.
     validations:
       required: true
   - type: textarea
@@ -66,9 +67,12 @@ body:
         - "Dremio"
         - "Amazon Athena"
         - "Amazon EMR"
-        - "0.9.1"
-        - "0.9.0"
-        - "main (development)"
+  - type: textarea
+    attributes:
+      label: Version of Query Engine
+      description: Which version of the query engine are you using?
+      placeholder: >
+        To reproduce the issue, we need to know which version of the Query Engine you're using.
   - type: textarea
     attributes:
       label: Anything else
