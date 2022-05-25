@@ -1206,9 +1206,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         ImmutableList.of(row(1, -2, "new_str_1"), row(2, -20, "new_str_2")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    assertEquals("Output should match", ImmutableList.of(row(1, -2, "new_str_1")),
+    assertEquals(
+        "Output should match",
+        ImmutableList.of(row(1, -2, "new_str_1")),
         sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
-    assertEquals("Output should match", ImmutableList.of(row(2, -20, "new_str_2")),
+    assertEquals(
+        "Output should match",
+        ImmutableList.of(row(2, -20, "new_str_2")),
         sql("SELECT * FROM %s WHERE b = 'new_str_2'ORDER BY id", tableName));
   }
 
