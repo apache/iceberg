@@ -36,7 +36,7 @@ class BaseSnapshot implements Snapshot {
   private static final long INITIAL_SEQUENCE_NUMBER = 0;
 
   /**
-   * @deprecated since 1.0.0 - {@link FileIO} should be passed to the methods that require them
+   * @deprecated since 0.14.0, will be removed in 1.0.0; {@link FileIO} should be passed to methods which require it
    */
   @Deprecated
   private final FileIO io;
@@ -182,7 +182,7 @@ class BaseSnapshot implements Snapshot {
   }
 
   /**
-   * @deprecated since 1.0.0 - Use {@link Snapshot#allManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#allManifests(FileIO)} instead.
    */
   @Override
   @Deprecated
@@ -203,7 +203,7 @@ class BaseSnapshot implements Snapshot {
 
 
   /**
-   * @deprecated since 1.0.0 - Use {@link Snapshot#dataManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#dataManifests(FileIO)} instead.
    */
   @Override
   @Deprecated
@@ -223,7 +223,7 @@ class BaseSnapshot implements Snapshot {
   }
 
   /**
-   * @deprecated since 1.0.0 - Use {@link Snapshot#deleteManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#deleteManifests(FileIO)} instead.
    */
   @Override
   @Deprecated
@@ -243,7 +243,7 @@ class BaseSnapshot implements Snapshot {
   }
 
   /**
-   * @deprecated since 1.0.0 - Use {@link Snapshot#addedFiles(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#addedFiles(FileIO)} instead.
    */
   @Override
   @Deprecated
@@ -263,7 +263,7 @@ class BaseSnapshot implements Snapshot {
   }
 
   /**
-   * @deprecated since 1.0.0 - Use {@link Snapshot#deletedFiles(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#deletedFiles(FileIO)} instead.
    */
   @Override
   @Deprecated

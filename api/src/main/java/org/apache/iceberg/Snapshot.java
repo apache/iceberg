@@ -69,7 +69,7 @@ public interface Snapshot extends Serializable {
    * Return all {@link ManifestFile} instances for either data or delete manifests in this snapshot.
    *
    * @return a list of ManifestFile
-   * @deprecated since 1.0.0 - Use {@link Snapshot#allManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#allManifests(FileIO)} instead.
    */
   @Deprecated
   List<ManifestFile> allManifests();
@@ -86,7 +86,7 @@ public interface Snapshot extends Serializable {
    * Return a {@link ManifestFile} for each data manifest in this snapshot.
    *
    * @return a list of ManifestFile
-   * @deprecated since 1.0.0 - Use {@link Snapshot#dataManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#dataManifests(FileIO)} instead.
    */
   @Deprecated
   List<ManifestFile> dataManifests();
@@ -103,7 +103,7 @@ public interface Snapshot extends Serializable {
    * Return a {@link ManifestFile} for each delete manifest in this snapshot.
    *
    * @return a list of ManifestFile
-   * @deprecated since 1.0.0 - Use {@link Snapshot#deleteManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#deleteManifests(FileIO)} instead.
    */
   @Deprecated
   List<ManifestFile> deleteManifests();
@@ -139,7 +139,7 @@ public interface Snapshot extends Serializable {
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
    * @return all files added to the table in this snapshot.
-   * @deprecated since 1.0.0 - Use {@link Snapshot#addedFiles(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#addedFiles(FileIO)} instead.
    */
   @Deprecated
   Iterable<DataFile> addedFiles();
@@ -162,7 +162,7 @@ public interface Snapshot extends Serializable {
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
    * @return all files deleted from the table in this snapshot.
-   * @deprecated since 1.0.0 - Use {@link Snapshot#deletedFiles(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#deletedFiles(FileIO)} instead.
    */
   @Deprecated
   Iterable<DataFile> deletedFiles();
