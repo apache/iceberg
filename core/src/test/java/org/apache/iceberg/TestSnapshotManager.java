@@ -33,7 +33,7 @@ public class TestSnapshotManager extends TableTestBase {
   static final DataFile REPLACEMENT_FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a-replacement.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+      .withPartitionPath("data_bucket_16=0") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
 
@@ -41,7 +41,7 @@ public class TestSnapshotManager extends TableTestBase {
   static final DataFile CONFLICT_FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a-conflict.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+      .withPartitionPath("data_bucket_16=0") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
 

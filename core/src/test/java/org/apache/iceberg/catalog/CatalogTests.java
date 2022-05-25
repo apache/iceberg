@@ -124,21 +124,21 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
       .withFileSizeInBytes(10)
-      .withPartitionPath("id_bucket=0") // easy way to set partition data for now
+      .withPartitionPath("id_bucket_16=0") // easy way to set partition data for now
       .withRecordCount(2) // needs at least one record or else metrics will filter it out
       .build();
 
   static final DataFile FILE_B = DataFiles.builder(SPEC)
       .withPath("/path/to/data-b.parquet")
       .withFileSizeInBytes(10)
-      .withPartitionPath("id_bucket=1") // easy way to set partition data for now
+      .withPartitionPath("id_bucket_16=1") // easy way to set partition data for now
       .withRecordCount(2) // needs at least one record or else metrics will filter it out
       .build();
 
   static final DataFile FILE_C = DataFiles.builder(SPEC)
       .withPath("/path/to/data-c.parquet")
       .withFileSizeInBytes(10)
-      .withPartitionPath("id_bucket=2") // easy way to set partition data for now
+      .withPartitionPath("id_bucket_16=2") // easy way to set partition data for now
       .withRecordCount(2) // needs at least one record or else metrics will filter it out
       .build();
 

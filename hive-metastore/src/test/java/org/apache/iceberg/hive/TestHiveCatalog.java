@@ -230,7 +230,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertEquals(newLocation, table.location());
       Assert.assertNull(table.currentSnapshot());
       PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
-          .alwaysNull("data", "data_bucket")
+          .alwaysNull("data", "data_bucket_16")
           .withSpecId(1)
           .build();
       Assert.assertEquals("Table should have a spec with one void field",

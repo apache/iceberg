@@ -82,32 +82,32 @@ public class HadoopTableTestBase {
   static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+      .withPartitionPath("data_bucket_16=0") // easy way to set partition data for now
       .withRecordCount(2) // needs at least one record or else metrics will filter it out
       .build();
   static final DataFile FILE_B = DataFiles.builder(SPEC)
       .withPath("/path/to/data-b.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=1") // easy way to set partition data for now
+      .withPartitionPath("data_bucket_16=1") // easy way to set partition data for now
       .withRecordCount(2) // needs at least one record or else metrics will filter it out
       .build();
   static final DeleteFile FILE_B_DELETES = FileMetadata.deleteFileBuilder(SPEC)
       .ofPositionDeletes()
       .withPath("/path/to/data-b-deletes.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=1")
+      .withPartitionPath("data_bucket_16=1")
       .withRecordCount(1)
       .build();
   static final DataFile FILE_C = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=2") // easy way to set partition data for now
+      .withPartitionPath("data_bucket_16=2") // easy way to set partition data for now
       .withRecordCount(2) // needs at least one record or else metrics will filter it out
       .build();
   static final DataFile FILE_D = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=3") // easy way to set partition data for now
+      .withPartitionPath("data_bucket_16=3") // easy way to set partition data for now
       .withRecordCount(2) // needs at least one record or else metrics will filter it out
       .build();
 

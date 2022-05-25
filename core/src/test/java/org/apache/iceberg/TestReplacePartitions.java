@@ -35,21 +35,21 @@ public class TestReplacePartitions extends TableTestBase {
   static final DataFile FILE_E = DataFiles.builder(SPEC)
       .withPath("/path/to/data-e.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // same partition as FILE_A
+      .withPartitionPath("data_bucket_16=0") // same partition as FILE_A
       .withRecordCount(0)
       .build();
 
   static final DataFile FILE_F = DataFiles.builder(SPEC)
       .withPath("/path/to/data-f.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=1") // same partition as FILE_B
+      .withPartitionPath("data_bucket_16=1") // same partition as FILE_B
       .withRecordCount(0)
       .build();
 
   static final DataFile FILE_G = DataFiles.builder(SPEC)
       .withPath("/path/to/data-g.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=10") // no other partition
+      .withPartitionPath("data_bucket_16=10") // no other partition
       .withRecordCount(0)
       .build();
 
@@ -310,7 +310,7 @@ public class TestReplacePartitions extends TableTestBase {
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
         "Found conflicting files that can contain records matching partitions " +
-            "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
+            "[data_bucket_16=0, data_bucket_16=1]: [/path/to/data-a.parquet]",
         () ->
             replace
                 .addFile(FILE_A)
@@ -338,7 +338,7 @@ public class TestReplacePartitions extends TableTestBase {
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
         "Found conflicting files that can contain records matching partitions " +
-            "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
+            "[data_bucket_16=0, data_bucket_16=1]: [/path/to/data-a.parquet]",
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)
@@ -430,7 +430,7 @@ public class TestReplacePartitions extends TableTestBase {
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
         "Found conflicting files that can contain records matching partitions " +
-            "[data_bucket=0, data_bucket=1]: [/path/to/data-b.parquet]",
+            "[data_bucket_16=0, data_bucket_16=1]: [/path/to/data-b.parquet]",
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)
@@ -529,7 +529,7 @@ public class TestReplacePartitions extends TableTestBase {
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
         "Found new conflicting delete files that can apply to records matching " +
-            "[data_bucket=0]: [/path/to/data-a-deletes.parquet]",
+            "[data_bucket_16=0]: [/path/to/data-a-deletes.parquet]",
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)
@@ -631,7 +631,7 @@ public class TestReplacePartitions extends TableTestBase {
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
         "Found conflicting deleted files that can apply to records matching " +
-            "[data_bucket=0]: [/path/to/data-a.parquet]",
+            "[data_bucket_16=0]: [/path/to/data-a.parquet]",
         () ->
             table.newReplacePartitions()
                 .validateFromSnapshot(baseId)

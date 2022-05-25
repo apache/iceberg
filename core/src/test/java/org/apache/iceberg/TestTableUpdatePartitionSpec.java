@@ -67,13 +67,13 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     table.updateSpec()
         .removeField("id_bucket_8")
-        .removeField("data_bucket")
+        .removeField("data_bucket_16")
         .addField(truncate("data", 8))
         .commit();
 
     V1Assert.assertEquals("Should soft delete id and data buckets", PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("data", "data_bucket")
+        .alwaysNull("data", "data_bucket_16")
         .alwaysNull("id", "id_bucket_8")
         .truncate("data", 8, "data_trunc_8")
         .build(), table.spec());
@@ -101,7 +101,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     // no-op commit due to no-op rename
     table.updateSpec()
-        .renameField("data_bucket", "data_bucket")
+        .renameField("data_bucket_16", "data_bucket_16")
         .commit();
     updated = table.ops().current();
     updatedVersion = TestTables.metadataVersion("test");
@@ -113,7 +113,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRenameField() {
     table.updateSpec()
-        .renameField("data_bucket", "data_partition")
+        .renameField("data_bucket_16", "data_partition")
         .addField(bucket("id", 8))
         .commit();
 
@@ -145,7 +145,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRenameOnlyEvolution() {
     table.updateSpec()
-        .renameField("data_bucket", "data_partition")
+        .renameField("data_bucket_16", "data_partition")
         .commit();
 
     PartitionSpec evolvedSpec = PartitionSpec.builderFor(table.schema())
@@ -160,13 +160,13 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRemoveAndAddField() {
     table.updateSpec()
-        .removeField("data_bucket")
+        .removeField("data_bucket_16")
         .addField(bucket("id", 8))
         .commit();
 
     V1Assert.assertEquals("Should soft delete data bucket", PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("data", "data_bucket")
+        .alwaysNull("data", "data_bucket_16")
         .bucket("id", 8, "id_bucket_8")
         .build(), table.spec());
 
@@ -182,12 +182,12 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
   public void testAddAndRemoveField() {
     table.updateSpec()
         .addField(bucket("data", 6))
-        .removeField("data_bucket")
+        .removeField("data_bucket_16")
         .commit();
 
     V1Assert.assertEquals("Should remove and then add a bucket field", PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("data", "data_bucket")
+        .alwaysNull("data", "data_bucket_16")
         .bucket("data", 6, "data_bucket_6")
         .build(), table.spec());
     V2Assert.assertEquals("Should remove and then add a bucket field", PartitionSpec.builderFor(table.schema())
@@ -200,12 +200,12 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testAddAfterLastFieldRemoved() {
     table.updateSpec()
-        .removeField("data_bucket")
+        .removeField("data_bucket_16")
         .commit();
 
     V1Assert.assertEquals("Should add a new id bucket", PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("data", "data_bucket")
+        .alwaysNull("data", "data_bucket_16")
         .build(), table.spec());
     V1Assert.assertEquals("Should match the last assigned field id",
         1000, table.spec().lastAssignedFieldId());
@@ -222,7 +222,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     V1Assert.assertEquals("Should add a new id bucket", PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("data", "data_bucket")
+        .alwaysNull("data", "data_bucket_16")
         .bucket("id", 8, "id_bucket_8")
         .build(), table.spec());
     V2Assert.assertEquals("Should add a new id bucket", PartitionSpec.builderFor(table.schema())

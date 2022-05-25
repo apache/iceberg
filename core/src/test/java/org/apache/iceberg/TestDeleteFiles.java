@@ -38,7 +38,7 @@ public class TestDeleteFiles extends TableTestBase {
   private static final DataFile DATA_FILE_BUCKET_0_IDS_0_2 = DataFiles.builder(SPEC)
       .withPath("/path/to/data-1.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
+        .withPartitionPath("data_bucket_16=0")
         .withMetrics(new Metrics(5L,
             null, // no column sizes
       ImmutableMap.of(1, 5L, 2, 5L), // value count
@@ -52,7 +52,7 @@ public class TestDeleteFiles extends TableTestBase {
   private static final DataFile DATA_FILE_BUCKET_0_IDS_8_10 = DataFiles.builder(SPEC)
       .withPath("/path/to/data-2.parquet")
       .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=0")
+      .withPartitionPath("data_bucket_16=0")
       .withMetrics(new Metrics(5L,
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 5L), // value count
@@ -116,7 +116,7 @@ public class TestDeleteFiles extends TableTestBase {
     DataFile firstDataFile = DataFiles.builder(spec)
         .withPath("/path/to/data-2.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
+        .withPartitionPath("data_bucket_16=0")
         .withMetrics(new Metrics(5L,
             null, // no column sizes
             ImmutableMap.of(1, 5L, 2, 5L), // value count
@@ -130,7 +130,7 @@ public class TestDeleteFiles extends TableTestBase {
     DataFile secondDataFile = DataFiles.builder(spec)
         .withPath("/path/to/data-1.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
+        .withPartitionPath("data_bucket_16=0")
         .withMetrics(new Metrics(5L,
             null, // no column sizes
             ImmutableMap.of(1, 5L, 2, 5L), // value count

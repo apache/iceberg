@@ -178,7 +178,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     final DataFile fileA = DataFiles.builder(PARTITION_SPEC)
         .withPath("/path/to/data-a.parquet")
         .withFileSizeInBytes(0)
-        .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+        .withPartitionPath("data_bucket_16=0") // easy way to set partition data for now
         .withRecordCount(2) // needs at least one record or else metrics will filter it out
         .build();
 
@@ -204,7 +204,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     table = catalog.loadTable(tableIdent);
     Assert.assertNull(table.currentSnapshot());
     PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
-        .alwaysNull("data", "data_bucket")
+        .alwaysNull("data", "data_bucket_16")
         .withSpecId(1)
         .build();
     Assert.assertEquals("Table should have a spec with one void field",

@@ -708,7 +708,7 @@ public class TestMergeAppend extends TableTestBase {
     DataFile newFileY = DataFiles.builder(newSpec)
         .withPath("/path/to/data-y.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=2/id_bucket=3")
+        .withPartitionPath("data_bucket_16=2/id_bucket_4=3")
         .withRecordCount(1)
         .build();
 
@@ -776,7 +776,7 @@ public class TestMergeAppend extends TableTestBase {
     DataFile newFileY = DataFiles.builder(table.spec())
         .withPath("/path/to/data-y.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=2/id_bucket=3")
+        .withPartitionPath("data_bucket_16=2/id_bucket_4=3")
         .withRecordCount(1)
         .build();
 
@@ -1111,7 +1111,7 @@ public class TestMergeAppend extends TableTestBase {
     Types.StructType structType = partitionSpec.partitionType();
     List<Types.NestedField> fields = structType.fields();
     Assert.assertEquals(1, fields.size());
-    Assert.assertEquals("data_bucket", fields.get(0).name());
+    Assert.assertEquals("data_bucket_16", fields.get(0).name());
     Assert.assertEquals(1000, fields.get(0).fieldId());
 
     partitionSpec = partitionSpecs.get(1);
@@ -1120,11 +1120,11 @@ public class TestMergeAppend extends TableTestBase {
     structType = partitionSpec.partitionType();
     fields = structType.fields();
     Assert.assertEquals(4, fields.size());
-    Assert.assertEquals("id_bucket", fields.get(0).name());
+    Assert.assertEquals("id_bucket_16", fields.get(0).name());
     Assert.assertEquals(1000, fields.get(0).fieldId());
     Assert.assertEquals("data", fields.get(1).name());
     Assert.assertEquals(1001, fields.get(1).fieldId());
-    Assert.assertEquals("data_bucket", fields.get(2).name());
+    Assert.assertEquals("data_bucket_4", fields.get(2).name());
     Assert.assertEquals(1002, fields.get(2).fieldId());
     Assert.assertEquals("data_partition", fields.get(3).name());
     Assert.assertEquals(1003, fields.get(3).fieldId());
@@ -1161,7 +1161,7 @@ public class TestMergeAppend extends TableTestBase {
     DataFile newFile = DataFiles.builder(table.spec())
         .withPath("/path/to/data-x.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("id_bucket=1/data_bucket=1")
+        .withPartitionPath("id_bucket_8=1/data_bucket_8=1")
         .withRecordCount(1)
         .build();
 
@@ -1192,15 +1192,15 @@ public class TestMergeAppend extends TableTestBase {
         .entries().iterator().next();
     Types.NestedField field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
     Assert.assertEquals(1000, field.fieldId());
-    Assert.assertEquals("id_bucket", field.name());
+    Assert.assertEquals("id_bucket_8", field.name());
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(1);
     Assert.assertEquals(1001, field.fieldId());
-    Assert.assertEquals("data_bucket", field.name());
+    Assert.assertEquals("data_bucket_8", field.name());
 
     entry = ManifestFiles.read(committedSnapshot.allManifests().get(1), FILE_IO).entries().iterator().next();
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
     Assert.assertEquals(1000, field.fieldId());
-    Assert.assertEquals("data_bucket", field.name());
+    Assert.assertEquals("data_bucket_16", field.name());
   }
 
   @Test
@@ -1245,7 +1245,7 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertEquals("Should set changed partition count", "1", changedPartitions);
 
     String partitionSummary = table.currentSnapshot().summary()
-        .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0");
+        .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket_16=0");
     Assert.assertEquals("Summary should include 1 file with 1 record that is 10 bytes",
         "added-data-files=1,added-records=1,added-files-size=10", partitionSummary);
   }

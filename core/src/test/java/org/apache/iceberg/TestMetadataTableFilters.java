@@ -166,10 +166,10 @@ public class TestMetadataTableFilters extends TableTestBase {
     Table metadataTable = createMetadataTable();
     Types.StructType expected = new Schema(
         required(102, "partition", Types.StructType.of(
-            optional(1000, "data_bucket", Types.IntegerType.get())),
+            optional(1000, "data_bucket_16", Types.IntegerType.get())),
             "Partition data tuple, schema based on the partition spec")).asStruct();
 
-    TableScan scan = metadataTable.newScan().select("partition.data_bucket");
+    TableScan scan = metadataTable.newScan().select("partition.data_bucket_16");
     Assert.assertEquals(expected, scan.schema().asStruct());
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
@@ -185,7 +185,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Table metadataTable = createMetadataTable();
 
     Expression and = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(and);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
@@ -198,7 +198,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   public void testLt() {
     Table metadataTable = createMetadataTable();
 
-    Expression lt = Expressions.lessThan("partition.data_bucket", 2);
+    Expression lt = Expressions.lessThan("partition.data_bucket_16", 2);
     TableScan scan = metadataTable.newScan().filter(lt);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
     Assert.assertEquals(expectedScanTaskCount(2), Iterables.size(tasks));
@@ -211,7 +211,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Table metadataTable = createMetadataTable();
 
     Expression or = Expressions.or(
-        Expressions.equal("partition.data_bucket", 2),
+        Expressions.equal("partition.data_bucket_16", 2),
         Expressions.greaterThan("record_count", 0));
     TableScan scan = metadataTable.newScan().filter(or);
 
@@ -228,7 +228,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   public void testNot() {
     Table metadataTable = createMetadataTable();
 
-    Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
+    Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket_16", 2));
     TableScan scan = metadataTable.newScan().filter(not);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
@@ -241,7 +241,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   public void testIn() {
     Table metadataTable = createMetadataTable();
 
-    Expression set = Expressions.in("partition.data_bucket", 2, 3);
+    Expression set = Expressions.in("partition.data_bucket_16", 2, 3);
     TableScan scan = metadataTable.newScan().filter(set);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
@@ -254,7 +254,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   @Test
   public void testNotNull() {
     Table metadataTable = createMetadataTable();
-    Expression unary = Expressions.notNull("partition.data_bucket");
+    Expression unary = Expressions.notNull("partition.data_bucket_16");
     TableScan scan = metadataTable.newScan().filter(unary);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
@@ -271,7 +271,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Table metadataTable = createMetadataTable();
 
     Expression and = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
 
     TableScan scan = metadataTable.newScan().filter(and);
@@ -331,7 +331,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
@@ -406,7 +406,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
@@ -467,7 +467,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();
@@ -491,27 +491,27 @@ public class TestMetadataTableFilters extends TableTestBase {
         .withPath("/path/to/data-10.parquet")
         .withRecordCount(10)
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0/id=10")
+        .withPartitionPath("data_bucket_16=0/id=10")
         .build();
     DataFile data11 = DataFiles.builder(newSpec)
         .withPath("/path/to/data-11.parquet")
         .withRecordCount(10)
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=1/id=11")
+        .withPartitionPath("data_bucket_16=1/id=11")
         .build();
 
     DeleteFile delete10 = FileMetadata.deleteFileBuilder(newSpec)
         .ofPositionDeletes()
         .withPath("/path/to/data-10-deletes.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0/id=10")
+        .withPartitionPath("data_bucket_16=0/id=10")
         .withRecordCount(1)
         .build();
     DeleteFile delete11 = FileMetadata.deleteFileBuilder(newSpec)
         .ofPositionDeletes()
         .withPath("/path/to/data-11-deletes.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=1/id=11")
+        .withPartitionPath("data_bucket_16=1/id=11")
         .withRecordCount(1)
         .build();
 
@@ -542,7 +542,7 @@ public class TestMetadataTableFilters extends TableTestBase {
     Assert.assertEquals(expectedScanTaskCount(5), Iterables.size(tasks));
 
     filter = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
     tasks = scan.planFiles();

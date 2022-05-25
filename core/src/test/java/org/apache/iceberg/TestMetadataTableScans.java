@@ -365,9 +365,9 @@ public class TestMetadataTableScans extends TableTestBase {
     Table partitionsTable = new PartitionsTable(table.ops(), table);
     Types.StructType expected = new Schema(
         required(1, "partition", Types.StructType.of(
-            optional(1000, "data_bucket", Types.IntegerType.get())))).asStruct();
+            optional(1000, "data_bucket_16", Types.IntegerType.get())))).asStruct();
 
-    TableScan scanNoFilter = partitionsTable.newScan().select("partition.data_bucket");
+    TableScan scanNoFilter = partitionsTable.newScan().select("partition.data_bucket_16");
     Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
     CloseableIterable<FileScanTask> tasksNoFilter = PartitionsTable.planFiles((StaticTableScan) scanNoFilter);
     Assert.assertEquals(4, Iterators.size(tasksNoFilter.iterator()));
@@ -421,7 +421,7 @@ public class TestMetadataTableScans extends TableTestBase {
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
     Expression andEquals = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
     CloseableIterable<FileScanTask> tasksAndEq = PartitionsTable.planFiles((StaticTableScan) scanAndEq);
@@ -436,7 +436,7 @@ public class TestMetadataTableScans extends TableTestBase {
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
     Expression ltAnd = Expressions.and(
-        Expressions.lessThan("partition.data_bucket", 2),
+        Expressions.lessThan("partition.data_bucket_16", 2),
         Expressions.greaterThan("record_count", 0));
     TableScan scanLtAnd = partitionsTable.newScan().filter(ltAnd);
     CloseableIterable<FileScanTask> tasksLtAnd = PartitionsTable.planFiles((StaticTableScan) scanLtAnd);
@@ -452,7 +452,7 @@ public class TestMetadataTableScans extends TableTestBase {
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
     Expression or = Expressions.or(
-        Expressions.equal("partition.data_bucket", 2),
+        Expressions.equal("partition.data_bucket_16", 2),
         Expressions.greaterThan("record_count", 0));
     TableScan scanOr = partitionsTable.newScan().filter(or);
     CloseableIterable<FileScanTask> tasksOr = PartitionsTable.planFiles((StaticTableScan) scanOr);
@@ -469,7 +469,7 @@ public class TestMetadataTableScans extends TableTestBase {
     preparePartitionedTable();
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
-    Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
+    Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket_16", 2));
     TableScan scanNot = partitionsTable.newScan().filter(not);
     CloseableIterable<FileScanTask> tasksNot = PartitionsTable.planFiles((StaticTableScan) scanNot);
     Assert.assertEquals(2, Iterators.size(tasksNot.iterator()));
@@ -483,7 +483,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
-    Expression set = Expressions.in("partition.data_bucket", 2, 3);
+    Expression set = Expressions.in("partition.data_bucket_16", 2, 3);
     TableScan scanSet = partitionsTable.newScan().filter(set);
     CloseableIterable<FileScanTask> tasksSet = PartitionsTable.planFiles((StaticTableScan) scanSet);
     Assert.assertEquals(2, Iterators.size(tasksSet.iterator()));
@@ -497,7 +497,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
-    Expression unary = Expressions.notNull("partition.data_bucket");
+    Expression unary = Expressions.notNull("partition.data_bucket_16");
     TableScan scanUnary = partitionsTable.newScan().filter(unary);
     CloseableIterable<FileScanTask> tasksUnary = PartitionsTable.planFiles((StaticTableScan) scanUnary);
     Assert.assertEquals(4, Iterators.size(tasksUnary.iterator()));
@@ -527,11 +527,19 @@ public class TestMetadataTableScans extends TableTestBase {
 
     Schema schema = dataFilesTable.schema();
     Types.StructType actualType = schema.findField(DataFile.PARTITION_ID).type().asStructType();
-    Types.StructType expectedType = Types.StructType.of(
-        Types.NestedField.optional(1000, "data_bucket", Types.IntegerType.get()),
-        Types.NestedField.optional(1001, "data_bucket_16", Types.IntegerType.get()),
-        Types.NestedField.optional(1002, "data_trunc_2", Types.StringType.get())
-    );
+    Types.StructType expectedType;
+    if (formatVersion == 1) {
+      expectedType = Types.StructType.of(
+          Types.NestedField.optional(1000, "data_bucket_16_1000", Types.IntegerType.get()),
+          Types.NestedField.optional(1001, "data_bucket_16", Types.IntegerType.get()),
+          Types.NestedField.optional(1002, "data_trunc_2", Types.StringType.get())
+      );
+    } else {
+      expectedType = Types.StructType.of(
+          Types.NestedField.optional(1000, "data_bucket_16", Types.IntegerType.get()),
+          Types.NestedField.optional(1001, "data_trunc_2", Types.StringType.get())
+      );
+    }
     Assert.assertEquals("Partition type must match", expectedType, actualType);
     Accessor<StructLike> accessor = schema.accessorForField(1000);
 
@@ -614,7 +622,7 @@ public class TestMetadataTableScans extends TableTestBase {
     Assert.assertEquals(5, Iterables.size(tasks));
 
     filter = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
     tasks = PartitionsTable.planFiles((StaticTableScan) scan);
@@ -669,7 +677,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
     // Filter for a dropped partition spec field.  Correct behavior is that only old partitions are returned.
     filter = Expressions.and(
-        Expressions.equal("partition.data_bucket", 0),
+        Expressions.equal("partition.data_bucket_16", 0),
         Expressions.greaterThan("record_count", 0));
     scan = metadataTable.newScan().filter(filter);
     tasks = PartitionsTable.planFiles((StaticTableScan) scan);
