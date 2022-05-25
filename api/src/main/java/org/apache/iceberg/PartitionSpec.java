@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.PartitionNameGenerator;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.transforms.UnknownTransform;
@@ -413,7 +414,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder identity(String sourceName) {
-      return identity(sourceName, sourceName);
+      String targetName = PartitionNameGenerator.getInstance().identity(sourceName, -1);
+      return identity(sourceName, targetName);
     }
 
     public Builder year(String sourceName, String targetName) {
@@ -427,7 +429,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder year(String sourceName) {
-      return year(sourceName, sourceName + "_year");
+      String targetName = PartitionNameGenerator.getInstance().year(sourceName, -1);
+      return year(sourceName, targetName);
     }
 
     public Builder month(String sourceName, String targetName) {
@@ -441,7 +444,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder month(String sourceName) {
-      return month(sourceName, sourceName + "_month");
+      String targetName = PartitionNameGenerator.getInstance().month(sourceName, -1);
+      return month(sourceName, targetName);
     }
 
     public Builder day(String sourceName, String targetName) {
@@ -455,7 +459,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder day(String sourceName) {
-      return day(sourceName, sourceName + "_day");
+      String targetName = PartitionNameGenerator.getInstance().day(sourceName, -1);
+      return day(sourceName, targetName);
     }
 
     public Builder hour(String sourceName, String targetName) {
@@ -469,7 +474,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder hour(String sourceName) {
-      return hour(sourceName, sourceName + "_hour");
+      String targetName = PartitionNameGenerator.getInstance().hour(sourceName, -1);
+      return hour(sourceName, targetName);
     }
 
     public Builder bucket(String sourceName, int numBuckets, String targetName) {
@@ -481,7 +487,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder bucket(String sourceName, int numBuckets) {
-      return bucket(sourceName, numBuckets, sourceName + "_bucket");
+      String targetName = PartitionNameGenerator.getInstance().bucket(sourceName, -1, numBuckets);
+      return bucket(sourceName, numBuckets, targetName);
     }
 
     public Builder truncate(String sourceName, int width, String targetName) {
@@ -493,7 +500,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder truncate(String sourceName, int width) {
-      return truncate(sourceName, width, sourceName + "_trunc");
+      String targetName = PartitionNameGenerator.getInstance().truncate(sourceName, -1, width);
+      return truncate(sourceName, width, targetName);
     }
 
     public Builder alwaysNull(String sourceName, String targetName) {
@@ -504,7 +512,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder alwaysNull(String sourceName) {
-      return alwaysNull(sourceName, sourceName + "_null");
+      String targetName = PartitionNameGenerator.getInstance().alwaysNull(sourceName, -1);
+      return alwaysNull(sourceName, targetName);
     }
 
     // add a partition field with an auto-increment partition field id starting from PARTITION_DATA_ID_START

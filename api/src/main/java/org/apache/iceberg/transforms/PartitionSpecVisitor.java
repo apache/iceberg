@@ -86,6 +86,10 @@ public interface PartitionSpecVisitor<T> {
     throw new UnsupportedOperationException("Void transform is not supported");
   }
 
+  default T alwaysNull(String sourceName, int sourceId) {
+    throw new UnsupportedOperationException("Void transform is not supported");
+  }
+
   default T unknown(int fieldId, String sourceName, int sourceId, String transform) {
     throw new UnsupportedOperationException(String.format("Unknown transform %s is not supported", transform));
   }

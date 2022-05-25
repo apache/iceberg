@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.PartitionNameGenerator;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -160,7 +161,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     PartitionField newField = new PartitionField(
         sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
     if (newField.name() == null) {
-      String partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
+      String partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.getInstance());
       newField = new PartitionField(newField.sourceId(), newField.fieldId(), partitionName, newField.transform());
     }
 
@@ -441,53 +442,6 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     @Override
     public Boolean unknown(int fieldId, String sourceName, int sourceId, String transform) {
       return false;
-    }
-  }
-
-  private static class PartitionNameGenerator implements PartitionSpecVisitor<String> {
-    private static final PartitionNameGenerator INSTANCE = new PartitionNameGenerator();
-
-    private PartitionNameGenerator() {
-    }
-
-    @Override
-    public String identity(int fieldId, String sourceName, int sourceId) {
-      return sourceName;
-    }
-
-    @Override
-    public String bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
-      return sourceName + "_bucket_" + numBuckets;
-    }
-
-    @Override
-    public String truncate(int fieldId, String sourceName, int sourceId, int width) {
-      return sourceName + "_trunc_" + width;
-    }
-
-    @Override
-    public String year(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_year";
-    }
-
-    @Override
-    public String month(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_month";
-    }
-
-    @Override
-    public String day(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_day";
-    }
-
-    @Override
-    public String hour(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_hour";
-    }
-
-    @Override
-    public String alwaysNull(int fieldId, String sourceName, int sourceId) {
-      return sourceName + "_null";
     }
   }
 }
