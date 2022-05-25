@@ -17,11 +17,11 @@
  * under the License.
  */
 
-
 package org.apache.iceberg;
 
 /**
- * API for configuring an incremental table scan for appends only snapshots
+ * An enum representing possible operations in a changelog.
  */
-public interface IncrementalAppendScan extends IncrementalScan<IncrementalAppendScan, FileScanTask, CombinedScanTask> {
+public enum ChangelogOperation {
+  INSERT, DELETE
 }
