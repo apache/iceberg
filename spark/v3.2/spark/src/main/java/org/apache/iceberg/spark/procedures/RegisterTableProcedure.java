@@ -43,9 +43,9 @@ class RegisterTableProcedure extends BaseProcedure {
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("Current Snapshot", DataTypes.LongType, false, Metadata.empty()),
-      new StructField("Rows", DataTypes.LongType, false, Metadata.empty()),
-      new StructField("Datafiles", DataTypes.LongType, false, Metadata.empty())
+      new StructField("Current Snapshot", DataTypes.LongType, true, Metadata.empty()),
+      new StructField("Rows", DataTypes.LongType, true, Metadata.empty()),
+      new StructField("Datafiles", DataTypes.LongType, true, Metadata.empty())
   });
 
   private RegisterTableProcedure(TableCatalog tableCatalog) {
@@ -82,10 +82,16 @@ class RegisterTableProcedure extends BaseProcedure {
 
     Catalog icebergCatalog = ((HasIcebergCatalog) tableCatalog()).icebergCatalog();
     Table table = icebergCatalog.registerTable(tableName, metadataFile);
+    Long currentSnapshotId = null;
+    Long totalDataFiles = null;
+    Long totalRecords = null;
+
     Snapshot currentSnapshot = table.currentSnapshot();
-    long currentSnapshotId = currentSnapshot.snapshotId();
-    long totalDataFiles = Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-    long totalRecords = Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_RECORDS_PROP));
+    if (currentSnapshot != null) {
+      currentSnapshotId = currentSnapshot.snapshotId();
+      totalDataFiles = Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+      totalRecords = Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_RECORDS_PROP));
+    }
 
     return new InternalRow[] {newInternalRow(currentSnapshotId, totalRecords, totalDataFiles)};
   }
