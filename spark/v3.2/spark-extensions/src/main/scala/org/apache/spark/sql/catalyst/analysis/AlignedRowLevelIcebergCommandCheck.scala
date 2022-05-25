@@ -29,9 +29,9 @@ object AlignedRowLevelIcebergCommandCheck extends (LogicalPlan => Unit) {
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
       case m: MergeIntoIcebergTable if !m.aligned =>
-        throw new AnalysisException(s"Could not align Iceberg MERGE INT: $m")
+        throw new AnalysisException(s"Could not align Iceberg MERGE INTO: $m")
       case u: UpdateIcebergTable if !u.aligned =>
-        throw new AnalysisException(s"Could not align Iceberg UPDATE was never aligned: $u")
+        throw new AnalysisException(s"Could not align Iceberg UPDATE: $u")
       case _ => // OK
     }
   }
