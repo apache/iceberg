@@ -42,7 +42,8 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: 3.9
-      - working-directory: ./python
+      - name: "Validate that python OpenAPI code is in sync"
+        working-directory: ./python
         run: |
           make generate-openapi
           if ! git diff --exit-code src/iceberg/openapi/rest_catalog.py; then
