@@ -76,12 +76,8 @@ public interface Snapshot extends Serializable {
 
   /**
    * Return all {@link ManifestFile} instances for either data or delete manifests in this snapshot.
-   * <p>
-   * The FileIO instance is passed in for cases where the correct FileIO to use is not known when the
-   * TableMetadata (and thus BaseSnapshot implementations) is not known, such as parsing JSON for the
-   * RESTCatalog or for highly sessionzed applications like Trino or shared Spark servers.
    *
-   * @param io the {@link FileIO} instance to be used for reading Snapshot manifests, if not already cached
+   * @param io a {@link FileIO} instance used for reading files from storage
    * @return a list of ManifestFile
    */
   List<ManifestFile> allManifests(FileIO io);
@@ -98,7 +94,7 @@ public interface Snapshot extends Serializable {
   /**
    * Return a {@link ManifestFile} for each data manifest in this snapshot.
    *
-   * @param io the {@link FileIO} instance to be used for reading manifests, if not already cached
+   * @param io a {@link FileIO} instance used for reading files from storage
    * @return a list of ManifestFile
    */
   List<ManifestFile> dataManifests(FileIO io);
@@ -116,7 +112,7 @@ public interface Snapshot extends Serializable {
   /**
    * Return a {@link ManifestFile} for each delete manifest in this snapshot.
    *
-   * @param io the {@link FileIO} instance to be used for reading Snapshot manifests, if not already cached
+   * @param io a {@link FileIO} instance used for reading files from storage
    * @return a list of ManifestFile
    */
   List<ManifestFile> deleteManifests(FileIO io);
@@ -154,7 +150,7 @@ public interface Snapshot extends Serializable {
    * The files returned include the following columns: file_path, file_format, partition,
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
-   * @param io the {@link FileIO} instance to be used for reading files added in this snapshot, if not already cached
+   * @param io a {@link FileIO} instance used for reading files from storage
    * @return all files added to the table in this snapshot.
    */
   Iterable<DataFile> addedFiles(FileIO io);
@@ -177,7 +173,7 @@ public interface Snapshot extends Serializable {
    * The files returned include the following columns: file_path, file_format, partition,
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
-   * @param io the {@link FileIO} instance to be used for reading files deleted in this snapshot, if not already cached
+   * @param io a {@link FileIO} instance used for reading files from storage
    * @return all files deleted from the table in this snapshot.
    */
   Iterable<DataFile> deletedFiles(FileIO io);

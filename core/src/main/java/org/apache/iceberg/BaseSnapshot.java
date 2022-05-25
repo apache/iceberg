@@ -157,30 +157,12 @@ class BaseSnapshot implements Snapshot {
 
   private void cacheManifests(FileIO fileIO) {
     if (fileIO == null) {
-      throw new IllegalStateException("Cannot cache changes: FileIO is null");
+      throw new IllegalStateException("Cannot cache changes: file io is null");
     }
 
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
       this.allManifests = ManifestLists.read(fileIO.newInputFile(manifestListLocation));
-    }
-
-    if (dataManifests == null || deleteManifests == null) {
-      this.dataManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
-          manifest -> manifest.content() == ManifestContent.DATA));
-      this.deleteManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
-          manifest -> manifest.content() == ManifestContent.DELETES));
-    }
-  }
-
-  private void cacheManifests() {
-    if (io == null) {
-      throw new IllegalStateException("Cannot cache changes: FileIO is null");
-    }
-
-    if (allManifests == null) {
-      // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation));
     }
 
     if (dataManifests == null || deleteManifests == null) {
@@ -205,9 +187,8 @@ class BaseSnapshot implements Snapshot {
   @Override
   @Deprecated
   public List<ManifestFile> allManifests() {
-    // TODO - Consider throwing here if allManifests are not already cached or if called at all.
     if (allManifests == null) {
-      cacheManifests();
+      cacheManifests(io);
     }
     return allManifests;
   }
@@ -228,7 +209,7 @@ class BaseSnapshot implements Snapshot {
   @Deprecated
   public List<ManifestFile> dataManifests() {
     if (dataManifests == null) {
-      cacheManifests();
+      cacheManifests(io);
     }
     return dataManifests;
   }
@@ -248,7 +229,7 @@ class BaseSnapshot implements Snapshot {
   @Deprecated
   public List<ManifestFile> deleteManifests() {
     if (deleteManifests == null) {
-      cacheManifests();
+      cacheManifests(io);
     }
     return deleteManifests;
   }
@@ -268,7 +249,7 @@ class BaseSnapshot implements Snapshot {
   @Deprecated
   public List<DataFile> addedFiles() {
     if (cachedAdds == null) {
-      cacheChanges();
+      cacheChanges(io);
     }
     return cachedAdds;
   }
@@ -288,7 +269,7 @@ class BaseSnapshot implements Snapshot {
   @Deprecated
   public List<DataFile> deletedFiles() {
     if (cachedDeletes == null) {
-      cacheChanges();
+      cacheChanges(io);
     }
     return cachedDeletes;
   }
@@ -310,41 +291,6 @@ class BaseSnapshot implements Snapshot {
     Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(fileIO),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
     try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(fileIO, changedManifests)
-        .ignoreExisting()
-        .entries()) {
-      for (ManifestEntry<DataFile> entry : entries) {
-        switch (entry.status()) {
-          case ADDED:
-            adds.add(entry.file().copy());
-            break;
-          case DELETED:
-            deletes.add(entry.file().copyWithoutStats());
-            break;
-          default:
-            throw new IllegalStateException(
-                "Unexpected entry status, not added or deleted: " + entry);
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close entries while caching changes");
-    }
-
-    this.cachedAdds = adds.build();
-    this.cachedDeletes = deletes.build();
-  }
-
-  private void cacheChanges() {
-    if (io == null) {
-      throw new IllegalStateException("Cannot cache changes: file io is null");
-    }
-
-    ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
-    ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
-
-    // read only manifests that were created by this snapshot
-    Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(io),
-        manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests)
         .ignoreExisting()
         .entries()) {
       for (ManifestEntry<DataFile> entry : entries) {
