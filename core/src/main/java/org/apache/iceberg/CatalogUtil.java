@@ -102,16 +102,19 @@ public class CatalogUtil {
     }
 
     Tasks.foreach(Iterables.transform(manifestsToDelete, ManifestFile::path))
+        .executeWith(ThreadPools.getWorkerPool())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
         .run(io::deleteFile);
 
     Tasks.foreach(manifestListsToDelete)
+        .executeWith(ThreadPools.getWorkerPool())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(io::deleteFile);
 
     Tasks.foreach(Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file))
+        .executeWith(ThreadPools.getWorkerPool())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((metadataFile, exc) -> LOG.warn("Delete failed for previous metadata file: {}", metadataFile, exc))
         .run(io::deleteFile);
