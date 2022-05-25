@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -34,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.RESTClient;
@@ -43,10 +43,19 @@ import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 public class OAuth2Util {
   private OAuth2Util() {
   }
+
+  private static final Logger LOG = LoggerFactory.getLogger(OAuth2Util.class);
 
   // valid scope tokens are from ascii 0x21 to 0x7E, excluding 0x22 (") and 0x5C (\)
   private static final Pattern VALID_SCOPE_TOKEN = Pattern.compile("^[!-~&&[^\"\\\\]]+$");
@@ -197,7 +206,7 @@ public class OAuth2Util {
       formData.put(CLIENT_ID, clientId);
     }
     formData.put(CLIENT_SECRET, clientSecret);
-    formData.put(SCOPE, toScope(Iterables.concat(scopes, ImmutableList.of(CATALOG))));
+    formData.put(SCOPE, toScope(scopes));
 
     return formData.build();
   }
@@ -298,8 +307,24 @@ public class OAuth2Util {
      */
     public Pair<Integer, TimeUnit> refresh(RESTClient client) {
       if (token != null) {
-        OAuthTokenResponse response = refreshToken(client, headers(), token, tokenType, OAuth2Properties.CATALOG_SCOPE);
+        AtomicReference<OAuthTokenResponse> ref = new AtomicReference<>(null);
+        boolean isSuccessful = Tasks.foreach(ref)
+            .suppressFailureWhenFinished()
+            .retry(5)
+            .onFailure((task, err) -> LOG.warn("Failed to refresh token", err))
+            .exponentialBackoff(
+                COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+                COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+                COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
+                2.0 /* exponential */)
+            .run(holder ->
+                holder.set(refreshToken(client, headers(), token, tokenType, OAuth2Properties.CATALOG_SCOPE)));
 
+        if (!isSuccessful) {
+          return null;
+        }
+
+        OAuthTokenResponse response = ref.get();
         this.token = response.token();
         this.tokenType = response.issuedTokenType();
         this.headers = RESTUtil.merge(headers, authHeaders(token));
