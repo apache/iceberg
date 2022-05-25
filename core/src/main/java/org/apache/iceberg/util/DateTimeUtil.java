@@ -83,4 +83,25 @@ public class DateTimeUtil {
   public static String formatTimestampMillis(long millis) {
     return Instant.ofEpochMilli(millis).toString().replace("Z", "+00:00");
   }
+
+  public static String formatEpochDays(int days) {
+    return LocalDate.ofEpochDay(days).format(DateTimeFormatter.ISO_LOCAL_DATE);
+  }
+
+  public static String formatTimeOfDayMicros(long micros) {
+    return LocalTime.ofNanoOfDay(micros * 1000).format(DateTimeFormatter.ISO_LOCAL_TIME);
+  }
+
+  public static String formatEpochTimeMicros(long micros, boolean withUTCZone) {
+    String localDateTime = LocalDateTime.ofEpochSecond(micros / 1000000,
+        (int) (micros % 1000000) * 1000, ZoneOffset.UTC).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+    if (withUTCZone) {
+      // We standardize the format by always using the UTC zone
+      return LocalDateTime.parse(localDateTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+          .atOffset(ZoneOffset.UTC)
+          .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+    } else {
+      return localDateTime;
+    }
+  }
 }
