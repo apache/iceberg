@@ -63,7 +63,7 @@ public final class IncrementalScanEvent {
     return projection;
   }
 
-  public boolean fromSnapshotInclusive() {
+  public boolean isFromSnapshotInclusive() {
     return fromSnapshotInclusive;
   }
 }
