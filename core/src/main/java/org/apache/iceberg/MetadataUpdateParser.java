@@ -52,6 +52,7 @@ public class MetadataUpdateParser {
   static final String ADD_SNAPSHOT = "add-snapshot";
   static final String REMOVE_SNAPSHOTS = "remove-snapshots";
   static final String SET_SNAPSHOT_REF = "set-snapshot-ref";
+  static final String REMOVE_SNAPSHOT_REF = "remove-snapshot-ref";
   static final String SET_PROPERTIES = "set-properties";
   static final String REMOVE_PROPERTIES = "remove-properties";
   static final String SET_LOCATION = "set-location";
@@ -117,6 +118,7 @@ public class MetadataUpdateParser {
       .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
       .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
       .put(MetadataUpdate.SetSnapshotRef.class, SET_SNAPSHOT_REF)
+      .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
       .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
       .put(MetadataUpdate.RemoveProperties.class, REMOVE_PROPERTIES)
       .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
@@ -186,6 +188,9 @@ public class MetadataUpdateParser {
       case SET_SNAPSHOT_REF:
         writeSetSnapshotRef((MetadataUpdate.SetSnapshotRef) metadataUpdate, generator);
         break;
+      case REMOVE_SNAPSHOT_REF:
+        writeRemoveSnapshotRef((MetadataUpdate.RemoveSnapshotRef) metadataUpdate, generator);
+        break;
       case SET_PROPERTIES:
         writeSetProperties((MetadataUpdate.SetProperties) metadataUpdate, generator);
         break;
@@ -246,6 +251,8 @@ public class MetadataUpdateParser {
         return readRemoveSnapshots(jsonNode);
       case SET_SNAPSHOT_REF:
         return readSetSnapshotRef(jsonNode);
+      case REMOVE_SNAPSHOT_REF:
+        return readRemoveSnapshotRef(jsonNode);
       case SET_PROPERTIES:
         return readSetProperties(jsonNode);
       case REMOVE_PROPERTIES:
@@ -322,6 +329,12 @@ public class MetadataUpdateParser {
         update.minSnapshotsToKeep() != null, MIN_SNAPSHOTS_TO_KEEP, update.minSnapshotsToKeep(), gen);
     JsonUtil.writeLongFieldIf(update.maxSnapshotAgeMs() != null, MAX_SNAPSHOT_AGE_MS, update.maxSnapshotAgeMs(), gen);
     JsonUtil.writeLongFieldIf(update.maxRefAgeMs() != null, MAX_REF_AGE_MS, update.maxRefAgeMs(), gen);
+  }
+
+  private static void writeRemoveSnapshotRef(
+      MetadataUpdate.RemoveSnapshotRef update,
+      JsonGenerator gen) throws IOException {
+    gen.writeStringField(REF_NAME, update.name());
   }
 
   private static void writeSetProperties(MetadataUpdate.SetProperties update, JsonGenerator gen) throws IOException {
@@ -410,6 +423,11 @@ public class MetadataUpdateParser {
     Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);
     return new MetadataUpdate.SetSnapshotRef(
         refName, snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
+  }
+
+  private static MetadataUpdate readRemoveSnapshotRef(JsonNode node) {
+    String refName = JsonUtil.getString(REF_NAME, node);
+    return new MetadataUpdate.RemoveSnapshotRef(refName);
   }
 
   private static MetadataUpdate readSetProperties(JsonNode node) {

@@ -1231,6 +1231,7 @@ components:
             - set-default-sort-order
             - add-snapshot
             - set-snapshot-ref
+            - remove-snapshot-ref
             - remove-snapshots
             - set-location
             - set-properties
@@ -1343,6 +1344,17 @@ components:
                 type: integer
                 format: int64
 
+    RemoveSnapshotRefUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          required:
+            - ref-name
+          properties:
+            name:
+              type: string
+              description: SnapshotRef name to remove
+
     SetLocationUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
@@ -1389,6 +1401,7 @@ components:
         - $ref: '#/components/schemas/AddSnapshotUpdate'
         - $ref: '#/components/schemas/SetSnapshotRefUpdate'
         - $ref: '#/components/schemas/RemoveSnapshotsUpdate'
+        - $ref: '#/components/schemas/RemoveSnapshotRefUpdate'
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
