@@ -26,6 +26,8 @@ import java.io.StringWriter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -33,15 +35,27 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.ErrorHandlers;
+import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
+import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 public class OAuth2Util {
   private OAuth2Util() {
   }
+
+  private static final Logger LOG = LoggerFactory.getLogger(OAuth2Util.class);
 
   // valid scope tokens are from ascii 0x21 to 0x7E, excluding 0x22 (") and 0x5C (\)
   private static final Pattern VALID_SCOPE_TOKEN = Pattern.compile("^[!-~&&[^\"\\\\]]+$");
@@ -68,12 +82,8 @@ public class OAuth2Util {
   private static final String ACTOR_TOKEN = "actor_token";
   private static final String ACTOR_TOKEN_TYPE = "actor_token_type";
   private static final Set<String> VALID_TOKEN_TYPES = Sets.newHashSet(
-      "urn:ietf:params:oauth:token-type:access_token",
-      "urn:ietf:params:oauth:token-type:refresh_token",
-      "urn:ietf:params:oauth:token-type:id_token",
-      "urn:ietf:params:oauth:token-type:saml1",
-      "urn:ietf:params:oauth:token-type:saml2",
-      "urn:ietf:params:oauth:token-type:jwt");
+      OAuth2Properties.ACCESS_TOKEN_TYPE, OAuth2Properties.REFRESH_TOKEN_TYPE, OAuth2Properties.ID_TOKEN_TYPE,
+      OAuth2Properties.SAML1_TOKEN_TYPE, OAuth2Properties.SAML2_TOKEN_TYPE, OAuth2Properties.JWT_TOKEN_TYPE);
 
   // response serialization
   private static final String ACCESS_TOKEN = "access_token";
@@ -102,12 +112,51 @@ public class OAuth2Util {
     return SCOPE_JOINER.join(scopes);
   }
 
-  public static Map<String, String> tokenExchangeRequest(String subjectToken, String subjectTokenType,
+  private static OAuthTokenResponse refreshToken(RESTClient client, Map<String, String> headers,
+                                                 String subjectToken, String subjectTokenType, String scope) {
+    Map<String, String> request = tokenExchangeRequest(
+        subjectToken, subjectTokenType,
+        scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+
+    OAuthTokenResponse response = client.postForm(
+        ResourcePaths.tokens(), request, OAuthTokenResponse.class, headers, ErrorHandlers.defaultErrorHandler());
+    response.validate();
+
+    return response;
+  }
+
+  public static OAuthTokenResponse exchangeToken(RESTClient client, Map<String, String> headers,
+                                                 String subjectToken, String subjectTokenType,
+                                                 String actorToken, String actorTokenType, String scope) {
+    Map<String, String> request = tokenExchangeRequest(
+        subjectToken, subjectTokenType, actorToken, actorTokenType,
+        scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+
+    OAuthTokenResponse response = client.postForm(
+        ResourcePaths.tokens(), request, OAuthTokenResponse.class, headers, ErrorHandlers.defaultErrorHandler());
+    response.validate();
+
+    return response;
+  }
+
+  public static OAuthTokenResponse fetchToken(RESTClient client, Map<String, String> headers, String credential,
+                                              String scope) {
+    Map<String, String> request = clientCredentialsRequest(
+        credential, scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+
+    OAuthTokenResponse response = client.postForm(
+        ResourcePaths.tokens(), request, OAuthTokenResponse.class, headers, ErrorHandlers.defaultErrorHandler());
+    response.validate();
+
+    return response;
+  }
+
+  private static Map<String, String> tokenExchangeRequest(String subjectToken, String subjectTokenType,
                                                          List<String> scopes) {
     return tokenExchangeRequest(subjectToken, subjectTokenType, null, null, scopes);
   }
 
-  public static Map<String, String> tokenExchangeRequest(String subjectToken, String subjectTokenType,
+  private static Map<String, String> tokenExchangeRequest(String subjectToken, String subjectTokenType,
                                                          String actorToken, String actorTokenType,
                                                          List<String> scopes) {
     Preconditions.checkArgument(VALID_TOKEN_TYPES.contains(subjectTokenType),
@@ -144,12 +193,12 @@ public class OAuth2Util {
     }
   }
 
-  public static Map<String, String> clientCredentialsRequest(String credential, List<String> scopes) {
+  private static Map<String, String> clientCredentialsRequest(String credential, List<String> scopes) {
     Pair<String, String> credentialPair = parseCredential(credential);
     return clientCredentialsRequest(credentialPair.first(), credentialPair.second(), scopes);
   }
 
-  public static Map<String, String> clientCredentialsRequest(String clientId, String clientSecret,
+  private static Map<String, String> clientCredentialsRequest(String clientId, String clientSecret,
                                                              List<String> scopes) {
     ImmutableMap.Builder<String, String> formData = ImmutableMap.builder();
     formData.put(GRANT_TYPE, CLIENT_CREDENTIALS);
@@ -157,7 +206,7 @@ public class OAuth2Util {
       formData.put(CLIENT_ID, clientId);
     }
     formData.put(CLIENT_SECRET, clientSecret);
-    formData.put(SCOPE, toScope(Iterables.concat(scopes, ImmutableList.of(CATALOG))));
+    formData.put(SCOPE, toScope(scopes));
 
     return formData.build();
   }
@@ -222,5 +271,70 @@ public class OAuth2Util {
     }
 
     return builder.build();
+  }
+
+  /**
+   * Class to handle authorization headers and token refresh.
+   */
+  public static class AuthSession {
+    private Map<String, String> headers;
+    private String token;
+    private String tokenType;
+
+    public AuthSession(Map<String, String> baseHeaders, String token, String tokenType) {
+      this.headers = RESTUtil.merge(baseHeaders, authHeaders(token));
+      this.token = token;
+      this.tokenType = tokenType;
+    }
+
+    public Map<String, String> headers() {
+      return headers;
+    }
+
+    public String token() {
+      return token;
+    }
+
+    public String tokenType() {
+      return tokenType;
+    }
+
+    /**
+     * Attempt to refresh the session token using the token exchange flow.
+     *
+     * @param client a RESTClient
+     * @return interval to wait before calling refresh again, or null if no refresh is needed
+     */
+    public Pair<Integer, TimeUnit> refresh(RESTClient client) {
+      if (token != null) {
+        AtomicReference<OAuthTokenResponse> ref = new AtomicReference<>(null);
+        boolean isSuccessful = Tasks.foreach(ref)
+            .suppressFailureWhenFinished()
+            .retry(5)
+            .onFailure((task, err) -> LOG.warn("Failed to refresh token", err))
+            .exponentialBackoff(
+                COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+                COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+                COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
+                2.0 /* exponential */)
+            .run(holder ->
+                holder.set(refreshToken(client, headers(), token, tokenType, OAuth2Properties.CATALOG_SCOPE)));
+
+        if (!isSuccessful) {
+          return null;
+        }
+
+        OAuthTokenResponse response = ref.get();
+        this.token = response.token();
+        this.tokenType = response.issuedTokenType();
+        this.headers = RESTUtil.merge(headers, authHeaders(token));
+
+        if (response.expiresInSeconds() != null) {
+          return Pair.of(response.expiresInSeconds(), TimeUnit.SECONDS);
+        }
+      }
+
+      return null;
+    }
   }
 }
