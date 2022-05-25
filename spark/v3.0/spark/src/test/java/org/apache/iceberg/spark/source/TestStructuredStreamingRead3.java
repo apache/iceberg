@@ -417,7 +417,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws Exception {
     table.updateSpec()
-        .removeField("id_bucket")
+        .removeField("id_bucket_3")
         .addField(ref("id"))
         .commit();
 
@@ -446,7 +446,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadStreamWithSnapshotTypeDeleteAndSkipDeleteOption() throws Exception {
     table.updateSpec()
-        .removeField("id_bucket")
+        .removeField("id_bucket_3")
         .addField(ref("id"))
         .commit();
 
@@ -470,7 +470,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadStreamWithSnapshotTypeDeleteAndSkipOverwriteOption() throws Exception {
     table.updateSpec()
-        .removeField("id_bucket")
+        .removeField("id_bucket_3")
         .addField(ref("id"))
         .commit();
 

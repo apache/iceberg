@@ -51,7 +51,7 @@ public class TestPartitionPaths {
     Row partition = Row.of(tsHour, idBucket);
 
     Assert.assertEquals("Should produce expected partition key",
-        "ts_hour=2017-12-01-10/id_bucket=" + idBucket, spec.partitionToPath(partition));
+        "ts_hour=2017-12-01-10/id_bucket_10=" + idBucket, spec.partitionToPath(partition));
   }
 
   @Test
@@ -62,7 +62,7 @@ public class TestPartitionPaths {
         .build();
 
     Assert.assertEquals("Should escape / as %2F",
-        "data=a%2Fb%2Fc%2Fd/data_trunc=a%2Fb%2Fc%2Fd",
+        "data=a%2Fb%2Fc%2Fd/data_trunc_10=a%2Fb%2Fc%2Fd",
         spec.partitionToPath(Row.of("a/b/c/d", "a/b/c/d")));
   }
 }

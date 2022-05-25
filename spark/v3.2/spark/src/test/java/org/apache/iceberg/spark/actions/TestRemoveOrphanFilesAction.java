@@ -576,8 +576,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .mode("append")
         .save(tableLocation);
 
-    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
-    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc_2=AA/c3=AAAA");
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc_2=AA/c3=AAAA");
 
     waitUntilAfter(System.currentTimeMillis());
 
@@ -617,13 +617,13 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .mode("append")
         .save(tableLocation);
 
-    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA");
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc_2=AA");
 
     table.updateSpec()
         .addField("_c1")
         .commit();
 
-    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/_c1=1");
+    df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc_2=AA/_c1=1");
 
     waitUntilAfter(System.currentTimeMillis());
 
@@ -666,7 +666,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
-    Path pathToFileInHiddenFolder = new Path(dataPath, "_c2_trunc/file.txt");
+    Path pathToFileInHiddenFolder = new Path(dataPath, "_c2_trunc_2/file.txt");
     fs.createNewFile(pathToFileInHiddenFolder);
 
     waitUntilAfter(System.currentTimeMillis());

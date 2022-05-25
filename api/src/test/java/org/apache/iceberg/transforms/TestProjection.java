@@ -354,17 +354,17 @@ public class TestProjection {
 
     predicate = (UnboundPredicate<Integer>) Projections
         .strict(partitionSpec).project(equal(bucket("long", 10), 20));
-    Assert.assertEquals("should expected long_bucket", "long_bucket", predicate.ref().name());
+    Assert.assertEquals("should expected long_bucket", "long_bucket_10", predicate.ref().name());
     predicate = (UnboundPredicate<Integer>) Projections
         .inclusive(partitionSpec).project(equal(bucket("long", 10), 20));
-    Assert.assertEquals("should expected long_bucket", "long_bucket", predicate.ref().name());
+    Assert.assertEquals("should expected long_bucket", "long_bucket_10", predicate.ref().name());
 
     predicate = (UnboundPredicate<Integer>) Projections
         .strict(partitionSpec).project(equal(truncate("string", 10), "abc"));
-    Assert.assertEquals("should expected string_trunc", "string_trunc", predicate.ref().name());
+    Assert.assertEquals("should expected string_trunc", "string_trunc_10", predicate.ref().name());
     predicate = (UnboundPredicate<Integer>) Projections
         .inclusive(partitionSpec).project(equal(truncate("string", 10), "abc"));
-    Assert.assertEquals("should expected string_trunc", "string_trunc", predicate.ref().name());
+    Assert.assertEquals("should expected string_trunc", "string_trunc_10", predicate.ref().name());
   }
 
 }
