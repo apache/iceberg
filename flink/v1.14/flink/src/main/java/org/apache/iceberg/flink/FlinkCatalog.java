@@ -557,10 +557,10 @@ public class FlinkCatalog extends AbstractCatalog {
           case "hours":
             builder.hour(partitionFunc.getSrcColumn());
             break;
-          case "bucket":
+          case "buckets":
             builder.bucket(partitionFunc.getSrcColumn(), partitionFunc.getWidth());
             break;
-          case "truncate":
+          case "truncates":
             builder.truncate(partitionFunc.getSrcColumn(), partitionFunc.getWidth());
             break;
           default:

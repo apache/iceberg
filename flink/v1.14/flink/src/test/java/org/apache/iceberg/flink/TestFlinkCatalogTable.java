@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
@@ -401,6 +402,57 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     // test set current snapshot
     sql("ALTER TABLE tl SET('current-snapshot-id'='%s')", snapshotId);
     validateTableFiles(table, fileA);
+  }
+
+  @Test
+  public void testCreateTableWithPartitionTransform() {
+    AssertHelpers.assertThrows(
+        "Should fail if computed column not in the partition keys",
+        TableException.class,
+        () -> sql("CREATE TABLE tl ( \n" +
+            "c1 int, \n" +
+            "c2 string, \n" +
+            "c3 AS buckets(3, c1)) \n" +
+            "PARTITIONED BY (c1)"));
+
+    sql("CREATE TABLE tl (\n" +
+        "c_tinyint TINYINT, \n" +
+        "c_smallint SMALLINT, \n" +
+        "c_int INT, \n" +
+        "c_long BIGINT, \n" +
+        "c_decimal DECIMAL(10,3), \n" +
+        "c_date DATE, \n" +
+        "c_time TIME, \n" +
+        "c_timestamp TIMESTAMP, \n" +
+        "c_timestamp2 TIMESTAMP, \n" +
+        "c_timestamptz TIMESTAMP_LTZ, \n" +
+        "c_fixed BINARY(32), \n" +
+        "c_binary VARBINARY(32), \n" +
+        "p1 AS years(c_timestamp), \n" +
+        "p2 AS months(c_timestamptz), \n" +
+        "p3 AS days(c_date), \n" +
+        "p4 AS hours(c_timestamp2), \n" +
+        "p5 AS buckets(10, c_fixed), \n" +
+        "p6 AS truncates(10, c_binary), \n" +
+        "p7 AS buckets(10, c_binary) \n" +
+        ") PARTITIONED BY ( \n" +
+        " p1, p2, p3, p4, p5, p6, p7, c_date " +
+        ") with (" +
+        "'write.format.default'='parquet'," +
+        "'format-version'='2'" +
+        ")");
+    Table table = table("tl");
+    PartitionSpec spec = table.spec();
+    Assert.assertEquals("c_timestamp_year", spec.fields().get(0).name());
+    Assert.assertEquals("c_timestamptz_month", spec.fields().get(1).name());
+    Assert.assertEquals("c_date_day", spec.fields().get(2).name());
+    Assert.assertEquals("c_timestamp2_hour", spec.fields().get(3).name());
+    Assert.assertEquals("c_fixed_bucket", spec.fields().get(4).name());
+    Assert.assertEquals("c_binary_trunc", spec.fields().get(5).name());
+    Assert.assertEquals("c_binary_bucket", spec.fields().get(6).name());
+//    sql("select * from tl");
+//    sql("desc tl");
+    getTableEnv().executeSql("desc tl").print();
   }
 
   private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
