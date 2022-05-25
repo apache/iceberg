@@ -50,6 +50,10 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
 | write.parquet.compression-codec    | gzip               | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
+| write.parquet.bloom-filter-enabled.default | false | Whether to enable writing bloom filter for all columns |
+| write.parquet.bloom-filter-enabled.column.col1 | (not set) | Whether to enable writing bloom filter for column 'col1' to allow per-column configuration; This property overrides `bloom-filter-enabled.default` for the specified column; For example, setting both `write.parquet.bloom-filter-enabled.default=true` and `write.parquet.bloom-filter-enabled.column.some_col=false` will enable bloom filter for all columns except `some_col` |
+| write.parquet.bloom-filter-expected-ndv.column.col1 | (not set) | The expected number of distinct values in a column, it is used to compute the optimal size of the bloom filter; Note that the NDV is specific for a parquet file. If this property is not set, the bloom filter will use the maximum size set in `bloom-filter-max-bytes`; If this property is set for a column, then no need to enable the bloom filter with `write.parquet.bloom-filter-enabled` property |
+| write.parquet.bloom-filter-max-bytes | 1048576 (1 MB) | The maximum number of bytes for a bloom filter bitset |
 | write.avro.compression-codec       | gzip               | Avro compression codec: gzip(deflate with 9 level), zstd, snappy, uncompressed |
 | write.avro.compression-level       | null               | Avro compression level                             |
 | write.orc.stripe-size-bytes        | 67108864 (64 MB)   | Define the default ORC stripe size, in bytes       |
