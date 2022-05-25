@@ -263,7 +263,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     AssertHelpers.assertThrows(
             "Should throw not found exception",
             NotFoundException.class,
-            "Cannot commit because Glue cannot find the requested entity",
+            "because Glue cannot find the requested entity",
             () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
@@ -286,7 +286,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     AssertHelpers.assertThrows(
             "Should throw forbidden exception",
             ForbiddenException.class,
-            "Cannot commit because Glue cannot access the requested resources",
+            "because Glue cannot access the requested resources",
             () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
@@ -309,7 +309,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     AssertHelpers.assertThrows(
             "Should throw validation exception",
             org.apache.iceberg.exceptions.ValidationException.class,
-            "Cannot commit because Glue encountered a validation exception while accessing requested resources",
+            "because Glue encountered a validation exception while accessing requested resources",
             () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
