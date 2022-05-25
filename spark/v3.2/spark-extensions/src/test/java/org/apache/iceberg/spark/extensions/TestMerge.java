@@ -1190,6 +1190,36 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeMixedCaseAlignsUpdateAndInsertActions() {
+    createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }");
+    createOrReplaceView(
+        "source",
+        "{ \"id\": 1, \"c1\": -2, \"c2\": \"new_str_1\" }\n" +
+        "{ \"id\": 2, \"c1\": -20, \"c2\": \"new_str_2\" }");
+
+    sql("MERGE INTO %s t USING source " +
+        "ON t.iD == source.Id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET B = c2, A = c1, t.Id = source.ID " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT (b, A, iD) VALUES (c2, c1, id)", tableName);
+
+    assertEquals(
+        "Output should match",
+        ImmutableList.of(row(1, -2, "new_str_1"), row(2, -20, "new_str_2")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    assertEquals(
+        "Output should match",
+        ImmutableList.of(row(1, -2, "new_str_1")),
+        sql("SELECT * FROM %s WHERE id = 1 ORDER BY id", tableName));
+    assertEquals(
+        "Output should match",
+        ImmutableList.of(row(2, -20, "new_str_2")),
+        sql("SELECT * FROM %s WHERE b = 'new_str_2'ORDER BY id", tableName));
+  }
+
+  @Test
   public void testMergeUpdatesNestedStructFields() {
     createAndInitTable("id INT, s STRUCT<c1:INT,c2:STRUCT<a:ARRAY<INT>,m:MAP<STRING, STRING>>>",
         "{ \"id\": 1, \"s\": { \"c1\": 2, \"c2\": { \"a\": [1,2], \"m\": { \"a\": \"b\"} } } } }");
