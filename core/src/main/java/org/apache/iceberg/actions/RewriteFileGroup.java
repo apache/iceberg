@@ -61,15 +61,17 @@ public class RewriteFileGroup {
     return fileScans().stream().map(FileScanTask::file).collect(Collectors.toSet());
   }
 
-  public int rewrittenEqDeletes() {
+  public int referencedEqDeletes() {
     return (int) fileScans().stream().flatMap(f -> f.deletes().stream())
         .filter(d -> d.content().equals(FileContent.EQUALITY_DELETES))
+        .distinct()
         .count();
   }
 
-  public int rewrittenPosDeletes() {
+  public int referencedPositionalDeletes() {
     return (int) fileScans().stream().flatMap(f -> f.deletes().stream())
         .filter(d -> d.content().equals(FileContent.POSITION_DELETES))
+        .distinct()
         .count();
   }
 
