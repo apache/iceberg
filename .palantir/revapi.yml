@@ -91,3 +91,11 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method org.apache.iceberg.ReplacePartitions org.apache.iceberg.ReplacePartitions::validateNoConflictingDeletes()"
       justification: "Accept all changes prior to introducing API compatibility checks"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.events.IncrementalScanEvent::<init>(java.lang.String,\
+        \ long, long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.Schema)"
+      new: "method void org.apache.iceberg.events.IncrementalScanEvent::<init>(java.lang.String,\
+        \ long, long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.Schema,\
+        \ boolean)"
+      justification: "IncrementalScanEvent should only be constructed by Iceberg code.\
+        \ Hence the change of constructor params shouldn't affect users"
