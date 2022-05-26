@@ -573,61 +573,68 @@ For more doc about options of the rewrite files action, please see [RewriteDataF
 
 ## Type compatibility
 
-Flink and Iceberg support different set of types. Iceberg does the type conversion automatically, but not for all combinations,
-so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
+Iceberg's type system is mapped to Flink's type system. This type conversion can be done by Iceberg automatically, though the following cases need to be considered.
+See the notes section below for compatibility concerns and how to overcome them.
 
 ### Flink type to Iceberg type
 
-This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
+This type conversion table describes how Flink types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Flink.
 
-| Flink           | Iceberg                    | Notes         |
-|-----------------|----------------------------|---------------|
-| boolean         | boolean                    |               |
-| tinyint         | integer                    |               |
-| smallint        | integer                    |               |
-| integer         | integer                    |               |
-| bigint          | long                       |               |
-| float           | float                      |               |
-| double          | double                     |               |
-| char            | string                     |               |
-| varchar         | string                     |               |
-| string          | string                     |               |
-| binary          | binary                     |               |
-| varbinary       | fixed                      |               |
-| decimal         | decimal                    |               |
-| date            | date                       |               |
-| time            | time                       |               |
-| timestamp       | timestamp without timezone |               |
-| timestamp_ltz   | timestamp with timezone    |               |
-| array           | list                       |               |
-| map             | map                        |               |
-| multiset        | map                        |               |
-| row             | struct                     |               |
-| raw             |                            | Not supported |
+| Flink               | Iceberg                    | Notes         |
+|-----------------    |----------------------------|---------------|
+| boolean             | boolean                    |               |
+| tinyint             | integer                    |               |
+| smallint            | integer                    |               |
+| integer             | integer                    |               |
+| bigint              | long                       |               |
+| float               | float                      |               |
+| double              | double                     |               |
+| char                | string                     |               |
+| varchar             | string                     |               |
+| string              | string                     |               |
+| binary              | binary                     |               |
+| varbinary           | fixed                      |               |
+| decimal             | decimal                    |               |
+| date                | date                       |               |
+| time                | time                       |               |
+| timestamp           | timestamp without timezone |               |
+| timestamp_ltz       | timestamp with timezone    |               |
+| array               | list                       |               |
+| map                 | map                        |               |
+| multiset            | map                        |               |
+| row                 | struct                     |               |
+| raw                 |                            | Not supported |
+| interval            |                            | Not supported |
+| structured          |                            | Not supported |
+| timestamp with zone |                            | Not supported |
+| distinct            |                            | Not supported |
+| null                |                            | Not supported |
+| symbol              |                            | Not supported |
+| logical             |                            | Not supported |
 
 ### Iceberg type to Flink type
 
 This type conversion table describes how Iceberg types are converted to the Flink types. The conversion applies on reading from Iceberg table via Flink.
 
-| Iceberg                    | Flink            | Note          |
-|----------------------------|------------------|---------------|
-| boolean                    | boolean          |               |
-| struct                     | row              |               |
-| list                       | array            |               |
-| map                        | map              |               |
-| integer                    | integer          |               |
-| long                       | bigint           |               |
-| float                      | float            |               |
-| double                     | double           |               |
-| date                       | date             |               |
-| time                       | time             |               |
-| timestamp without timezone | timestamp(6)     |               |
-| timestamp with timezone    | timestamp_ltz(6) |               |
-| string                     | varchar          |               |
-| uuid                       | binary(16)       |               |
-| fixed                      | binary           |               |
-| binary                     | varbinary        |               |
-| decimal                    | decimal          |               |
+| Iceberg                    | Flink         | Notes                                            |
+|----------------------------|---------------|--------------------------------------------------|
+| boolean                    | boolean       |                                                  |
+| struct                     | row           |                                                  |
+| list                       | array         |                                                  |
+| map                        | map           |                                                  |
+| integer                    | integer       |                                                  |
+| long                       | bigint        |                                                  |
+| float                      | float         |                                                  |
+| double                     | double        |                                                  |
+| date                       | date          |                                                  |
+| time                       | time          | precision is fixed at 0                          |
+| timestamp without timezone | timestamp     | precision is fixed at 6                          |
+| timestamp with timezone    | timestamp_ltz | precision is fixed at 6                          |
+| string                     | varchar       | length is fixed at 2<sup>31</sup>-1              |
+| uuid                       | binary        | length is fixed at 16                            |
+| fixed                      | binary        |                                                  |
+| binary                     | varbinary     | width is fixed at 2<sup>31</sup>-1               |
+| decimal                    | decimal       | precision and scale are the same as the original |
 
 ## Future improvement.
 
