@@ -47,7 +47,9 @@ class V2Metadata {
       ManifestFile.ADDED_ROWS_COUNT.asRequired(),
       ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
       ManifestFile.DELETED_ROWS_COUNT.asRequired(),
-      ManifestFile.PARTITION_SUMMARIES
+      ManifestFile.PARTITION_SUMMARIES,
+      ManifestFile.KEY_METADATA,
+      ManifestFile.SCHEMA_ID
   );
 
   /**
@@ -134,6 +136,8 @@ class V2Metadata {
           return wrapped.partitions();
         case 14:
           return wrapped.keyMetadata();
+        case 15:
+          return wrapped.schemaId();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -230,6 +234,11 @@ class V2Metadata {
     }
 
     @Override
+    public int schemaId() {
+      return wrapped.schemaId();
+    }
+
+    @Override
     public ManifestFile copy() {
       return wrapped.copy();
     }
@@ -263,7 +272,8 @@ class V2Metadata {
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
         DataFile.EQUALITY_IDS,
-        DataFile.SORT_ORDER_ID
+        DataFile.SORT_ORDER_ID,
+        DataFile.SCHEMA_ID
     );
   }
 
@@ -419,6 +429,8 @@ class V2Metadata {
           return wrapped.equalityFieldIds();
         case 15:
           return wrapped.sortOrderId();
+        case 16:
+          return wrapped.schemaId();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -516,6 +528,11 @@ class V2Metadata {
     @Override
     public Integer sortOrderId() {
       return wrapped.sortOrderId();
+    }
+
+    @Override
+    public int schemaId() {
+      return wrapped.schemaId();
     }
 
     @Override

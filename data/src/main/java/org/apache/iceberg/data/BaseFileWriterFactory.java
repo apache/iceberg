@@ -53,6 +53,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   private final Schema equalityDeleteRowSchema;
   private final SortOrder equalityDeleteSortOrder;
   private final Schema positionDeleteRowSchema;
+  private final int schemaId;
 
   protected BaseFileWriterFactory(Table table, FileFormat dataFileFormat, Schema dataSchema,
                                   SortOrder dataSortOrder, FileFormat deleteFileFormat,
@@ -67,6 +68,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     this.equalityDeleteRowSchema = equalityDeleteRowSchema;
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
+    this.schemaId = table.schema().schemaId();
   }
 
   protected abstract void configureDataWrite(Avro.DataWriteBuilder builder);
@@ -99,6 +101,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
               .withSortOrder(dataSortOrder)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configureDataWrite(avroBuilder);
@@ -114,6 +117,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
               .withSortOrder(dataSortOrder)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configureDataWrite(parquetBuilder);
@@ -129,6 +133,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
               .withSortOrder(dataSortOrder)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configureDataWrite(orcBuilder);
@@ -163,6 +168,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
               .withSortOrder(equalityDeleteSortOrder)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configureEqualityDelete(avroBuilder);
@@ -179,6 +185,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
               .withSortOrder(equalityDeleteSortOrder)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configureEqualityDelete(parquetBuilder);
@@ -195,6 +202,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
               .withSortOrder(equalityDeleteSortOrder)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configureEqualityDelete(orcBuilder);
@@ -227,6 +235,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withSpec(spec)
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configurePositionDelete(avroBuilder);
@@ -241,6 +250,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withSpec(spec)
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configurePositionDelete(parquetBuilder);
@@ -255,6 +265,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
               .withSpec(spec)
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
+              .withSchemaId(schemaId)
               .overwrite();
 
           configurePositionDelete(orcBuilder);

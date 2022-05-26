@@ -88,6 +88,7 @@ class IncrementalDataTableScan extends DataTableScan {
             manifestEntry ->
                 snapshotIds.contains(manifestEntry.snapshotId()) &&
                 manifestEntry.status() == ManifestEntry.Status.ADDED)
+        .schemasById(table().schema(), table().schemas())
         .specsById(table().specs())
         .ignoreDeleted();
 

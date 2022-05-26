@@ -23,17 +23,23 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 public class TestDeleteFileIndex extends TableTestBase {
   public TestDeleteFileIndex() {
@@ -453,6 +459,88 @@ public class TestDeleteFileIndex extends TableTestBase {
         2, task.deletes().size());
     Assert.assertEquals("Should have expected delete files",
         Sets.newHashSet(FILE_A_EQ_1.path(), FILE_A_POS_1.path()),
+        Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
+  }
+
+  @Test
+  public void testWithSchemaEvaluation() {
+    // those files with schema ID: 0
+    DataFile dataFileA = newDataFile("data_bucket=0");
+    DeleteFile posDeleteFileA = newDeleteFile(table.spec().specId(), "data_bucket=0");
+    DeleteFile eqDeleteFileA = newEqualityDeleteFile(
+        table.spec().specId(), "data_bucket=0", table.schema().asStruct().fields().get(0).fieldId());
+
+    table.newAppend()
+        .appendFile(dataFileA)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(posDeleteFileA)
+        .addDeletes(eqDeleteFileA)
+        .commit();
+
+    // update table schema
+    table.updateSchema().addColumn("name", Types.StringType.get()).commit();
+    table.refresh();
+
+    // those files with schema ID: 1
+    DataFile dataFileB = newDataFile("data_bucket=0");
+    DeleteFile posDeleteFileB = newDeleteFile(table.spec().specId(), "data_bucket=0");
+    DeleteFile eqDeleteFileB = newEqualityDeleteFile(
+        table.spec().specId(), "data_bucket=0", table.schema().asStruct().fields().get(0).fieldId());
+
+    table.newAppend()
+        .appendFile(dataFileB)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(posDeleteFileB)
+        .addDeletes(eqDeleteFileB)
+        .commit();
+
+    // scan table without filter on new added column
+    List<FileScanTask> tasks =
+        Lists.newArrayList(table.newScan().filter(equal(bucket("data", BUCKETS_NUMBER), 0))
+            .planFiles().iterator());
+    Assert.assertEquals("Should have two task", 2, tasks.size());
+
+    Set<CharSequence> dataFiles = tasks.stream().map(file -> file.file().path()).collect(Collectors.toSet());
+    Assert.assertEquals("Should have the correct data file path",
+        Sets.newHashSet(dataFileA.path(), dataFileB.path()), dataFiles);
+
+    FileScanTask taskA;
+    FileScanTask taskB;
+    if (tasks.get(0).file().path().equals(dataFileA.path())) {
+      taskA = tasks.get(0);
+      taskB = tasks.get(1);
+    } else {
+      taskA = tasks.get(1);
+      taskB = tasks.get(0);
+    }
+
+    Assert.assertEquals("Should have two associated delete files for data file A",
+        4, taskA.deletes().size());
+    Assert.assertEquals("Should have expected delete files",
+        Sets.newHashSet(posDeleteFileA.path(), eqDeleteFileA.path(), posDeleteFileB.path(), eqDeleteFileB.path()),
+        Sets.newHashSet(Iterables.transform(taskA.deletes(), ContentFile::path)));
+
+    Assert.assertEquals("Should have four associated delete files for data file B",
+        2, taskB.deletes().size());
+    Assert.assertEquals("Should have expected delete files",
+        Sets.newHashSet(posDeleteFileB.path(), eqDeleteFileB.path()),
+        Sets.newHashSet(Iterables.transform(taskB.deletes(), ContentFile::path)));
+
+    // scan table filter on new added column
+    Expression filterExp = and(equal(bucket("data", BUCKETS_NUMBER), 0), startsWith("name", "abc"));
+    tasks = Lists.newArrayList(table.newScan().filter(filterExp).planFiles().iterator());
+    Assert.assertEquals("Should have two task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path", dataFileB.path(), task.file().path());
+
+    Assert.assertEquals("Should have two associated delete files", 2, task.deletes().size());
+    Assert.assertEquals("Should have expected delete files",
+        Sets.newHashSet(posDeleteFileB.path(), eqDeleteFileB.path()),
         Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
   }
 }

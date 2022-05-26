@@ -147,6 +147,11 @@ public class ManifestFileBean implements ManifestFile {
   }
 
   @Override
+  public int schemaId() {
+    return -1;
+  }
+
+  @Override
   public ManifestFile copy() {
     throw new UnsupportedOperationException("Cannot copy");
   }

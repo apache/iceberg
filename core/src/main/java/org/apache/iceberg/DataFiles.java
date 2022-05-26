@@ -122,6 +122,7 @@ public class DataFiles {
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
+    private int schemaId = -1;
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -156,6 +157,7 @@ public class DataFiles {
       this.upperBounds = null;
       this.splitOffsets = null;
       this.sortOrderId = SortOrder.unsorted().orderId();
+      this.schemaId = -1;
     }
 
     public Builder copy(DataFile toCopy) {
@@ -177,6 +179,7 @@ public class DataFiles {
           : ByteBuffers.copy(toCopy.keyMetadata());
       this.splitOffsets = toCopy.splitOffsets() == null ? null : copyList(toCopy.splitOffsets());
       this.sortOrderId = toCopy.sortOrderId();
+      this.schemaId = toCopy.schemaId();
       return this;
     }
 
@@ -278,6 +281,11 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withSchemaId(int newSchemaId) {
+      this.schemaId = newSchemaId;
+      return this;
+    }
+
     public DataFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -288,7 +296,7 @@ public class DataFiles {
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
       return new GenericDataFile(
-          specId, filePath, format, isPartitioned ? partitionData.copy() : null,
+          schemaId, specId, filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, new Metrics(
               recordCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, lowerBounds, upperBounds),
           keyMetadata, splitOffsets, sortOrderId);

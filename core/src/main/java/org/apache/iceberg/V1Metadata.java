@@ -181,6 +181,11 @@ class V1Metadata {
     }
 
     @Override
+    public int schemaId() {
+      return wrapped.schemaId();
+    }
+
+    @Override
     public ManifestFile copy() {
       return wrapped.copy();
     }
@@ -215,7 +220,8 @@ class V1Metadata {
         DataFile.UPPER_BOUNDS,
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
-        DataFile.SORT_ORDER_ID
+        DataFile.SORT_ORDER_ID,
+        DataFile.SCHEMA_ID
     );
   }
 
@@ -356,6 +362,8 @@ class V1Metadata {
           return wrapped.splitOffsets();
         case 14:
           return wrapped.sortOrderId();
+        case 15:
+          return wrapped.schemaId();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -453,6 +461,11 @@ class V1Metadata {
     @Override
     public Integer sortOrderId() {
       return wrapped.sortOrderId();
+    }
+
+    @Override
+    public int schemaId() {
+      return wrapped.schemaId();
     }
 
     @Override

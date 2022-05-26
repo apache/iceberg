@@ -33,8 +33,10 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.expressions.SchemaEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -49,6 +51,8 @@ class ManifestGroup {
   private final DeleteFileIndex.Builder deleteIndexBuilder;
   private Predicate<ManifestFile> manifestPredicate;
   private Predicate<ManifestEntry<DataFile>> manifestEntryPredicate;
+  private Schema currentSchema;
+  private Map<Integer, Schema> schemasById;
   private Map<Integer, PartitionSpec> specsById;
   private Expression dataFilter;
   private Expression fileFilter;
@@ -80,6 +84,15 @@ class ManifestGroup {
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
+  }
+
+  ManifestGroup schemasById(Schema newCurrentSchema, Map<Integer, Schema> newSchemasById) {
+    Preconditions.checkState(newCurrentSchema != null, "Current schema should not be null");
+    Preconditions.checkState(newSchemasById != null, "newSchemaById should not be null");
+    this.currentSchema = newCurrentSchema;
+    this.schemasById = newSchemasById;
+    deleteIndexBuilder.schemasById(newCurrentSchema, newSchemasById);
+    return this;
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -201,6 +214,7 @@ class ManifestGroup {
     return CloseableIterable.concat(entries((manifest, entries) -> entries));
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private <T> Iterable<CloseableIterable<T>> entries(
       BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn) {
     LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
@@ -211,6 +225,9 @@ class ManifestGroup {
               spec, caseSensitive);
         });
 
+    SchemaEvaluator schemaEval =
+        schemasById == null ? null : new SchemaEvaluator(currentSchema.asStruct(), dataFilter, caseSensitive);
+
     Evaluator evaluator;
     if (fileFilter != null && fileFilter != Expressions.alwaysTrue()) {
       evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter, caseSensitive);
@@ -218,8 +235,17 @@ class ManifestGroup {
       evaluator = null;
     }
 
-    Iterable<ManifestFile> matchingManifests = evalCache == null ? dataManifests :
-        Iterables.filter(dataManifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
+    Iterable<ManifestFile> matchingManifests = schemaEval == null ? dataManifests :
+        Iterables.filter(dataManifests, manifest -> {
+          if (manifest.schemaId() > -1) {
+            return schemaEval.eval(schemasById.get(manifest.schemaId()));
+          }
+
+          return true;
+        });
+
+    matchingManifests = evalCache == null ? matchingManifests :
+        Iterables.filter(matchingManifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
     if (ignoreDeleted) {
       // only scan manifests that have entries other than deletes
@@ -247,6 +273,11 @@ class ManifestGroup {
               .filterPartitions(partitionFilter)
               .caseSensitive(caseSensitive)
               .select(columns);
+
+          if (schemasById != null && manifest.schemaId() == -1) {
+            // Manifest schema ID is -1 which means the entries maybe have different schema ID
+            reader.evaluateSchema(schemasById);
+          }
 
           CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
           if (ignoreDeleted) {

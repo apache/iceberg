@@ -49,6 +49,7 @@ public class FileMetadata {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
+    private int schemaId = -1;
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -65,6 +66,7 @@ public class FileMetadata {
       this.specId = spec.specId();
       this.isPartitioned = spec.fields().size() > 0;
       this.partitionData = isPartitioned ? DataFiles.newPartitionData(spec) : null;
+      this.schemaId = spec.schema().schemaId();
     }
 
     public void clear() {
@@ -82,6 +84,7 @@ public class FileMetadata {
       this.lowerBounds = null;
       this.upperBounds = null;
       this.sortOrderId = null;
+      this.schemaId = -1;
     }
 
     public Builder copy(DeleteFile toCopy) {
@@ -103,6 +106,7 @@ public class FileMetadata {
       this.keyMetadata = toCopy.keyMetadata() == null ? null
           : ByteBuffers.copy(toCopy.keyMetadata());
       this.sortOrderId = toCopy.sortOrderId();
+      this.schemaId = toCopy.schemaId();
       return this;
     }
 
@@ -207,6 +211,11 @@ public class FileMetadata {
       return this;
     }
 
+    public Builder withSchemaId(int newSchemaId) {
+      this.schemaId = newSchemaId;
+      return this;
+    }
+
     public DeleteFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -232,7 +241,7 @@ public class FileMetadata {
       }
 
       return new GenericDeleteFile(
-          specId, content, filePath, format, isPartitioned ? DataFiles.copy(spec, partitionData) : null,
+          schemaId, specId, content, filePath, format, isPartitioned ? DataFiles.copy(spec, partitionData) : null,
           fileSizeInBytes, new Metrics(
           recordCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, lowerBounds, upperBounds),
           equalityFieldIds, sortOrderId, keyMetadata);

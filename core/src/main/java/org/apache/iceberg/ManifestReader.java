@@ -32,6 +32,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.expressions.SchemaEvaluator;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -80,6 +81,7 @@ public class ManifestReader<F extends ContentFile<F>>
   private final PartitionSpec spec;
   private final Schema fileSchema;
 
+
   // updated by configuration methods
   private PartitionSet partitionSet = null;
   private Expression partFilter = alwaysTrue();
@@ -87,10 +89,12 @@ public class ManifestReader<F extends ContentFile<F>>
   private Schema fileProjection = null;
   private Collection<String> columns = null;
   private boolean caseSensitive = true;
+  private Map<Integer, Schema> schemasById;
 
   // lazily initialized
   private Evaluator lazyEvaluator = null;
   private InclusiveMetricsEvaluator lazyMetricsEvaluator = null;
+  private SchemaEvaluator lazySchemaEvaluator = null;
 
   protected ManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById,
                            InheritableMetadata inheritableMetadata, FileType content) {
@@ -175,12 +179,21 @@ public class ManifestReader<F extends ContentFile<F>>
     return this;
   }
 
+  public ManifestReader<F> evaluateSchema(Map<Integer, Schema> newSchemasById) {
+    Preconditions.checkState(newSchemasById != null,
+        "schemaById should not be null when enable evaluate ManifestEntry for Schema");
+    this.schemasById = newSchemasById;
+    return this;
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   CloseableIterable<ManifestEntry<F>> entries() {
     if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
         (partFilter != null && partFilter != Expressions.alwaysTrue()) ||
         (partitionSet != null)) {
       Evaluator evaluator = evaluator();
       InclusiveMetricsEvaluator metricsEvaluator = metricsEvaluator();
+      SchemaEvaluator schemaEvaluator = schemaEvaluator();
 
       // ensure stats columns are present for metrics evaluation
       boolean requireStatsProjection = requireStatsProjection(rowFilter, columns);
@@ -188,10 +201,17 @@ public class ManifestReader<F extends ContentFile<F>>
 
       return CloseableIterable.filter(
           open(projection(fileSchema, fileProjection, projectColumns, caseSensitive)),
-          entry -> entry != null &&
-              evaluator.eval(entry.file().partition()) &&
-              metricsEvaluator.eval(entry.file()) &&
-              inPartitionSet(entry.file()));
+          entry -> {
+            boolean keep = entry != null;
+            if (keep && schemaEvaluator != null && entry.file().schemaId() > -1) {
+              keep = schemaEvaluator.eval(schemasById.get(entry.file().schemaId()));
+            }
+
+            return keep &&
+                evaluator.eval(entry.file().partition()) &&
+                metricsEvaluator.eval(entry.file()) &&
+                inPartitionSet(entry.file());
+          });
     } else {
       return open(projection(fileSchema, fileProjection, columns, caseSensitive));
     }
@@ -286,6 +306,17 @@ public class ManifestReader<F extends ContentFile<F>>
       }
     }
     return lazyMetricsEvaluator;
+  }
+
+  private SchemaEvaluator schemaEvaluator() {
+    if (schemasById == null) {
+      return null;
+    }
+
+    if (lazySchemaEvaluator == null) {
+      this.lazySchemaEvaluator = new SchemaEvaluator(spec.schema().asStruct(), rowFilter, caseSensitive);
+    }
+    return lazySchemaEvaluator;
   }
 
   private static boolean requireStatsProjection(Expression rowFilter, Collection<String> columns) {

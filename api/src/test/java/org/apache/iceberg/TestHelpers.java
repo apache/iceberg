@@ -371,6 +371,11 @@ public class TestHelpers {
     }
 
     @Override
+    public int schemaId() {
+      return -1;
+    }
+
+    @Override
     public ManifestFile copy() {
       return this;
     }
@@ -474,6 +479,11 @@ public class TestHelpers {
     @Override
     public ByteBuffer keyMetadata() {
       return null;
+    }
+
+    @Override
+    public int schemaId() {
+      return -1;
     }
 
     @Override

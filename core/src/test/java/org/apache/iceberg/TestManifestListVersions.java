@@ -56,18 +56,19 @@ public class TestManifestListVersions {
   private static final long EXISTING_ROWS = 857273L;
   private static final int DELETED_FILES = 1;
   private static final long DELETED_ROWS = 22910L;
+  private static final int SCHEMA_ID = 1;
   private static final List<ManifestFile.PartitionFieldSummary> PARTITION_SUMMARIES = ImmutableList.of();
   private static final ByteBuffer KEY_METADATA = null;
 
   private static final ManifestFile TEST_MANIFEST = new GenericManifestFile(
       PATH, LENGTH, SPEC_ID, ManifestContent.DATA, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
       ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
-      PARTITION_SUMMARIES, KEY_METADATA);
+      PARTITION_SUMMARIES, KEY_METADATA, SCHEMA_ID);
 
   private static final ManifestFile TEST_DELETE_MANIFEST = new GenericManifestFile(
       PATH, LENGTH, SPEC_ID, ManifestContent.DELETES, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
       ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
-      PARTITION_SUMMARIES, KEY_METADATA);
+      PARTITION_SUMMARIES, KEY_METADATA, SCHEMA_ID);
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -99,6 +100,7 @@ public class TestManifestListVersions {
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) manifest.addedRowsCount());
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
+    Assert.assertEquals("Schema id", -1, manifest.schemaId());
   }
 
   @Test
@@ -119,6 +121,7 @@ public class TestManifestListVersions {
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) manifest.existingRowsCount());
     Assert.assertEquals("Deleted files count", DELETED_FILES, (int) manifest.deletedFilesCount());
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) manifest.deletedRowsCount());
+    Assert.assertEquals("Schema id", SCHEMA_ID, manifest.schemaId());
   }
 
   @Test
@@ -225,7 +228,7 @@ public class TestManifestListVersions {
     ManifestFile manifest = new GenericManifestFile(
         PATH, LENGTH, SPEC_ID, ManifestContent.DATA, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
         ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
-        partitionFieldSummaries, KEY_METADATA);
+        partitionFieldSummaries, KEY_METADATA, -1);
 
     InputFile manifestList = writeManifestList(manifest, 2);
 
