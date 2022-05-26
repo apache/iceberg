@@ -331,9 +331,8 @@ public class MetadataUpdateParser {
     JsonUtil.writeLongFieldIf(update.maxRefAgeMs() != null, MAX_REF_AGE_MS, update.maxRefAgeMs(), gen);
   }
 
-  private static void writeRemoveSnapshotRef(
-      MetadataUpdate.RemoveSnapshotRef update,
-      JsonGenerator gen) throws IOException {
+  private static void writeRemoveSnapshotRef(MetadataUpdate.RemoveSnapshotRef update, JsonGenerator gen)
+      throws IOException {
     gen.writeStringField(REF_NAME, update.name());
   }
 
