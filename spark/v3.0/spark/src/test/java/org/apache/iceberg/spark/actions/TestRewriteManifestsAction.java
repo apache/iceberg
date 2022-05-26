@@ -347,7 +347,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           .stagingLocation(temp.newFolder().toString())
           .execute();
 
-      Assert.assertEquals("Action should rewrite all manifests", snapshot.allManifests(table.io()), result.rewrittenManifests());
+      Assert.assertEquals("Action should rewrite all manifests",
+          snapshot.allManifests(table.io()), result.rewrittenManifests());
       Assert.assertEquals("Action should add 1 manifest", 1, Iterables.size(result.addedManifests()));
 
     } finally {

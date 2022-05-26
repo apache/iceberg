@@ -962,7 +962,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", result.rewriteResults().size(), 1);
-    Assert.assertTrue("Should have written 40+ files", Iterables.size(table.currentSnapshot().addedFiles(table.io())) >= 40);
+    Assert.assertTrue("Should have written 40+ files",
+        Iterables.size(table.currentSnapshot().addedFiles(table.io())) >= 40);
 
     table.refresh();
 
