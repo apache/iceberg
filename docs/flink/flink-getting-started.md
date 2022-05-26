@@ -23,7 +23,7 @@ url: flink
 # Flink
 
 Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. Currently,
-Iceberg integration for Apache Flink is available for Flink versions 1.12, 1.13, and 1.14. Previous versions of Iceberg also support Flink 1.11.
+Iceberg integration for Apache Flink is available for Flink versions 1.12, 1.13, 1.14 and 1.15. Previous versions of Iceberg also support Flink 1.11.
 
 | Feature support                                             | Flink  | Notes                                                        |
 | ----------------------------------------------------------- | -----  | ------------------------------------------------------------ |
@@ -44,12 +44,12 @@ Iceberg integration for Apache Flink is available for Flink versions 1.12, 1.13,
 
 ## Preparation when using Flink SQL Client
 
-To create iceberg table in flink, we recommend to use [Flink SQL Client](https://nightlies.apache.org/flink/flink-docs-release-1.14/docs/dev/table/sqlclient/) because it's easier for users to understand the concepts.
+To create iceberg table in flink, we recommend to use [Flink SQL Client](https://nightlies.apache.org/flink/flink-docs-release-1.15/docs/dev/table/sqlclient/) because it's easier for users to understand the concepts.
 
-Step.1 Downloading the flink 1.14.x binary package from the apache flink [download page](https://flink.apache.org/downloads.html). We now use scala 2.12 to archive the apache iceberg-flink-runtime jar, so it's recommended to use flink 1.14 bundled with scala 2.12.
+Step.1 Downloading the flink 1.15.x binary package from the apache flink [download page](https://flink.apache.org/downloads.html). We now use scala 2.12 to archive the apache iceberg-flink-runtime jar, so it's recommended to use flink 1.15 bundled with scala 2.12.
 
 ```bash
-FLINK_VERSION=1.14.4
+FLINK_VERSION=1.15.0
 SCALA_VERSION=2.12
 APACHE_FLINK_URL=archive.apache.org/dist/flink
 wget ${APACHE_FLINK_URL}/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_${SCALA_VERSION}.tgz
@@ -70,16 +70,16 @@ Step.3 Start the flink SQL client.
 
 We've created a separate `flink-runtime` module in iceberg project to generate a bundled jar, which could be loaded by flink SQL client directly.
 
-If we want to build the `flink-runtime` bundled jar manually for a specific Flink version, such as v1.14, please just build the `iceberg` project and it will generate the jar under `<iceberg-root-dir>/flink/v1.14/flink-runtime/build/libs`. Of course, we could also download the `flink-runtime-1.14` jar from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/).
+If we want to build the `flink-runtime` bundled jar manually for a specific Flink version, such as v1.15, please just build the `iceberg` project and it will generate the jar under `<iceberg-root-dir>/flink/v1.15/flink-runtime/build/libs`. Of course, we could also download the `flink-runtime-1.15` jar from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.15/).
 
 ```bash
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 
-./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.14-xxx.jar shell
+./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.15-xxx.jar shell
 ```
 
-By default, iceberg has included hadoop jars for hadoop catalog. If we want to use hive catalog, we will need to load the hive jars when opening the flink sql client. Fortunately, apache flink has provided a [bundled hive jar](https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-hive-2.3.6_2.12/1.14.4/flink-sql-connector-hive-2.3.6_2.12-1.14.4.jar) for sql client. So we could open the sql client
+By default, iceberg has included hadoop jars for hadoop catalog. If we want to use hive catalog, we will need to load the hive jars when opening the flink sql client. Fortunately, apache flink has provided a [bundled hive jar](https://repo.maven.apache.org/maven2/org/apache/flink/flink-sql-connector-hive-2.3.6_2.12/1.15.0/flink-sql-connector-hive-2.3.6_2.12-1.15.0.jar) for sql client. So we could open the sql client
 as the following:
 
 ```bash
@@ -90,14 +90,14 @@ export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 ICEBERG_VERSION=0.13.1
 MAVEN_URL=https://repo.maven.apache.org/maven2
 ICEBERG_MAVEN_URL=${MAVEN_URL}/org/apache/iceberg
-ICEBERG_FLINK_VERSION=1.14
+ICEBERG_FLINK_VERSION=1.15
 ICEBERG_PACKAGE=iceberg-flink-runtime-${ICEBERG_FLINK_VERSION}
 wget ${ICEBERG_MAVEN_URL}/${ICEBERG_PACKAGE}/${ICEBERG_VERSION}/${ICEBERG_PACKAGE}-${ICEBERG_VERSION}.jar
 
 # download the flink-sql-connector-hive-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar
 HIVE_VERSION=2.3.6
 SCALA_VERSION=2.12
-FLINK_VERSION=1.14.4
+FLINK_VERSION=1.15.0
 FLINK_CONNECTOR_URL=${MAVEN_URL}/org/apache/flink
 FLINK_CONNECTOR_PACKAGE=flink-sql-connector-hive
 wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}/${FLINK_VERSION}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar
@@ -112,7 +112,7 @@ wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_V
 
 Install the Apache Flink dependency using `pip`
 ```python
-pip install apache-flink==1.14.4
+pip install apache-flink==1.15.0
 ```
 
 In order for `pyflink` to function properly, it needs to have access to all Hadoop jars. For `pyflink`
@@ -164,7 +164,7 @@ Copying 645 Hadoop jar files to pyflink's lib directory at <PYTHON_DIR>/lib/pyth
 ```
 
 Now we need to provide a file:// path to the iceberg-flink-runtime jar, which we can either get by building the project and looking at <iceberg-root-dir>/flink/v1.14/flink-runtime/build/libs, 
-or downloading it from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/).
+or downloading it from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.15/).
 Third-party libs can be added to `pyflink` via `env.add_jars("file:///my/jar/path/connector.jar")` / `table_env.get_config().get_configuration().set_string("pipeline.jars", "file:///my/jar/path/connector.jar")`, which is also mentioned in the official [docs](https://ci.apache.org/projects/flink/flink-docs-release-1.13/docs/dev/python/dependency_management/).
 In our example we're using `env.add_jars(..)` as shown below:
 
@@ -190,7 +190,7 @@ table_env.execute_sql("CREATE CATALOG my_catalog WITH ("
                       "'my-additional-catalog-config'='my-value')")
 ```
 
-For more details, please refer to the [Python Table API](https://ci.apache.org/projects/flink/flink-docs-release-1.14/docs/dev/python/table/intro_to_table_api/).
+For more details, please refer to the [Python Table API](https://ci.apache.org/projects/flink/flink-docs-release-1.15/docs/dev/python/table/intro_to_table_api/).
 
 ## Creating catalogs and using catalogs.
 
@@ -301,7 +301,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 );
 ```
 
-Table create commands support the most commonly used [flink create clauses](https://nightlies.apache.org/flink/flink-docs-release-1.14/docs/dev/table/sql/create/), including: 
+Table create commands support the most commonly used [flink create clauses](https://nightlies.apache.org/flink/flink-docs-release-1.15/docs/dev/table/sql/create/), including: 
 
 * `PARTITIONED BY (column1, column2, ...)` to configure partitioning, apache flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
@@ -335,12 +335,12 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`default`.`sample`;
 ```
 
-For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-1.14/docs/dev/table/sql/create/).
+For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-1.15/docs/dev/table/sql/create/).
 
 
 ### `ALTER TABLE`
 
-Iceberg only supports altering table properties in flink 1.14.
+Iceberg only supports altering table properties in flink 1.15.
 
 ```sql
 ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro')
@@ -407,7 +407,7 @@ Those are the options that could be set in flink SQL hint options for streaming 
 
 ## Writing with SQL
 
-Iceberg supports both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.14.
+Iceberg supports both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.15.
 
 ### `INSERT INTO`
 
