@@ -202,8 +202,6 @@ The following properties from the Hadoop configuration are used by the Hive Meta
 | iceberg.hive.lock-timeout-ms          | 180000 (3 min)   | Maximum time in milliseconds to acquire a lock                                     |
 | iceberg.hive.lock-check-min-wait-ms   | 50               | Minimum time in milliseconds to check back on the status of lock acquisition       |
 | iceberg.hive.lock-check-max-wait-ms   | 5000             | Maximum time in milliseconds to check back on the status of lock acquisition       |
-| external.table.purge        | true                       | If all data and metadata should be purged in a table by default when the table is dropped |
-| gc.enabled                  | true                       | if all data and metadata should be purged in the table by default |
 | iceberg.mr.reuse.containers  | false                   | if Avro reader should reuse containers                 |
 | iceberg.mr.case.sensitive    | true                    | if the query is case-sensitive                         |
 | iceberg.mr.commit.table.thread.pool.size          | 10                                       | the number of threads of a shared thread pool to execute parallel commits for output tables |
@@ -214,4 +212,23 @@ The following properties from the Hadoop configuration are used by the Hive Meta
 `iceberg.hive.lock-check-max-wait-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
 of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 
 Hive Metastore before the lock is retried from Iceberg.
+{{< /hint >}}
+
+### Hive Table Level Configurations
+
+| Property                              | Default          | Description                                                                        |
+| ------------------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| external.table.purge        | true                       | If all data and metadata should be purged in a table by default when the table is dropped |
+| gc.enabled                  | true                       | if all data and metadata should be purged in the table by default |
+
+{{< hint info >}}
+Changing `gc.enabled` on the Iceberg table via UpdateProperties, updates
+`external.table.purge` on the HMS table accordingly. Setting `external.table.purge` as a table
+prop during Hive `CREATE TABLE` pushes `gc.enabled` down to the Iceberg table properties.
+This ensures these properties are always consistent at table level between Hive and
+Iceberg.
+{{< /hint >}}
+
+{{< hint info >}}
+HMS table properties and Iceberg table properties are kept in sync for HiveCatalog tables in Hive 4.0.0+
 {{< /hint >}}
