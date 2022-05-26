@@ -356,7 +356,7 @@ public class TestDataSourceOptions {
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
-    tables.create(SCHEMA, spec, options, tableLocation);
+    Table icebergTable = tables.create(SCHEMA, spec, options, tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
         new SimpleRecord(1, "a"),
@@ -371,7 +371,7 @@ public class TestDataSourceOptions {
     int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // 32MB split size
 
     int expectedSplits = ((int) tables.load(tableLocation + "#entries")
-        .currentSnapshot().allManifests().get(0).length() + splitSize - 1) / splitSize;
+        .currentSnapshot().allManifests(icebergTable.io()).get(0).length() + splitSize - 1) / splitSize;
 
     Dataset<Row> metadataDf = spark.read()
         .format("iceberg")
