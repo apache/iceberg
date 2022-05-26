@@ -546,6 +546,42 @@ RewriteDataFilesActionResult result = Actions.forTable(table)
 
 For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
 
+## Configuration.
+
+The following options can be used to tune the performance of the query execution.
+
+|                       Key                       | Default | Type    | Description                                                                                                                      |
+|:-----------------------------------------------:|---------|---------|----------------------------------------------------------------------------------------------------------------------------------|
+| table.exec.iceberg.infer-source-parallelism   | true    | Boolean | If is false, parallelism of source are set by config.<br/>If is true, source parallelism is inferred according to splits number. |
+| table.exec.iceberg.infer-source-parallelism.max | 100     | Int     | Sets max infer parallelism for source operator.                                                                                  |
+| table.exec.iceberg.expose-split-locality-info  | (none)  | Boolean | Expose split host information to use Flink's locality aware split assigner.                                                      |
+| table.exec.iceberg.fetch-batch-record-count   | 2048    | Int     | EThe target number of records for Iceberg reader fetch batch.                                                                    |
+
+Usage:
+When constructing Flink Iceberg source via Java API, configs can be set in Configuration passed to source builder. E.g.
+```java
+configuration.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
+FlinkSource.forRowData()
+    .flinkConf(configuration)
+    ...
+```
+
+When using Flink SQL/table API, connector options can be set in Flink's TableEnvironment.
+```java
+TableEnvironment tEnv = createTableEnv();
+tEnv.getConfig()
+    .getConfiguration()
+    .setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
+```
+
+When using Flink SQL Client, configs can be set via SET command.
+```sql
+-- Enable this switch to expose split host information
+SET 'table.exec.iceberg.expose-split-locality-info'='true';
+```
+
+
+
 ## Future improvement.
 
 There are some features that we do not yet support in the current flink iceberg integration work:
