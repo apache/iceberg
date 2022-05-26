@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.PropertyUtil;
@@ -79,7 +80,8 @@ public class DataTableScan extends BaseTableScan {
   public CloseableIterable<FileScanTask> doPlanFiles() {
     Snapshot snapshot = snapshot();
 
-    ManifestGroup manifestGroup = new ManifestGroup(table().io(), snapshot.dataManifests(), snapshot.deleteManifests())
+    FileIO io = table().io();
+    ManifestGroup manifestGroup = new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())
@@ -90,7 +92,7 @@ public class DataTableScan extends BaseTableScan {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (snapshot.dataManifests().size() > 1 &&
+    if (snapshot.dataManifests(io).size() > 1 &&
         (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }

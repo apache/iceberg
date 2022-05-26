@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -227,7 +228,8 @@ public class SnapshotUtil {
     return Iterables.transform(snapshots, Snapshot::snapshotId);
   }
 
-  public static List<DataFile> newFiles(Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup) {
+  public static List<DataFile> newFiles(
+      Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
     List<DataFile> newFiles = Lists.newArrayList();
     Snapshot lastSnapshot = null;
     for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
@@ -236,7 +238,7 @@ public class SnapshotUtil {
         return newFiles;
       }
 
-      Iterables.addAll(newFiles, currentSnapshot.addedFiles());
+      Iterables.addAll(newFiles, currentSnapshot.addedFiles(io));
     }
 
     ValidationException.check(Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
