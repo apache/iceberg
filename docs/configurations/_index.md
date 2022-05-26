@@ -142,8 +142,7 @@ Flink passes in catalog properties through `CREATE CATALOG` statement, see more 
 
 | Property                                           | Values                        | Description                                                          |
 | -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-|  spark.sql.catalog.spark_catalog     | org.apache.iceberg.spark.SparkSessionCatalog | description |
-|  spark.sql.catalog.spark_catalog.type     | `hive` | description |
+|  spark.sql.catalog.spark_catalog     | org.apache.iceberg.spark.SparkSessionCatalog | Adds support for Iceberg tables to Spark’s built-in catalog |
 | spark.sql.catalog._catalog-name_.type              | `hive` or `hadoop`            | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog` or left unset if using a custom catalog. |
 | spark.sql.catalog._catalog-name_.catalog-impl      |                               | The underlying Iceberg catalog implementation.|
 | spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog |
