@@ -442,7 +442,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
           .collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
-      for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
+      for (ManifestFile manifest : table.currentSnapshot().dataManifests(table.io())) {
         InputFile in = table.io().newInputFile(manifest.path());
         try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
