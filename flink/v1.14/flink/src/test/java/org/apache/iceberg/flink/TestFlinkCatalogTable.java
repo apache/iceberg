@@ -450,9 +450,6 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals("c_fixed_bucket", spec.fields().get(4).name());
     Assert.assertEquals("c_binary_trunc", spec.fields().get(5).name());
     Assert.assertEquals("c_binary_bucket", spec.fields().get(6).name());
-//    sql("select * from tl");
-//    sql("desc tl");
-    getTableEnv().executeSql("desc tl").print();
   }
 
   private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
