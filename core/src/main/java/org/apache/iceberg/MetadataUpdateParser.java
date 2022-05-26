@@ -51,8 +51,8 @@ public class MetadataUpdateParser {
   static final String SET_DEFAULT_SORT_ORDER = "set-default-sort-order";
   static final String ADD_SNAPSHOT = "add-snapshot";
   static final String REMOVE_SNAPSHOTS = "remove-snapshots";
-  static final String SET_SNAPSHOT_REF = "set-snapshot-ref";
   static final String REMOVE_SNAPSHOT_REF = "remove-snapshot-ref";
+  static final String SET_SNAPSHOT_REF = "set-snapshot-ref";
   static final String SET_PROPERTIES = "set-properties";
   static final String REMOVE_PROPERTIES = "remove-properties";
   static final String SET_LOCATION = "set-location";
@@ -89,7 +89,7 @@ public class MetadataUpdateParser {
   private static final String SNAPSHOT_IDS = "snapshot-ids";
 
   // SetSnapshotRef
-  private static final String REF_NAME = "ref-name";
+  private static final String REF_NAME = "ref-name"; // Also used in RemoveSnapshotRef
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String TYPE = "type";
   private static final String MIN_SNAPSHOTS_TO_KEEP = "min-snapshots-to-keep";
@@ -117,8 +117,8 @@ public class MetadataUpdateParser {
       .put(MetadataUpdate.SetDefaultSortOrder.class, SET_DEFAULT_SORT_ORDER)
       .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
       .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
-      .put(MetadataUpdate.SetSnapshotRef.class, SET_SNAPSHOT_REF)
       .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
+      .put(MetadataUpdate.SetSnapshotRef.class, SET_SNAPSHOT_REF)
       .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
       .put(MetadataUpdate.RemoveProperties.class, REMOVE_PROPERTIES)
       .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
@@ -185,11 +185,11 @@ public class MetadataUpdateParser {
       case REMOVE_SNAPSHOTS:
         writeRemoveSnapshots((MetadataUpdate.RemoveSnapshot) metadataUpdate, generator);
         break;
-      case SET_SNAPSHOT_REF:
-        writeSetSnapshotRef((MetadataUpdate.SetSnapshotRef) metadataUpdate, generator);
-        break;
       case REMOVE_SNAPSHOT_REF:
         writeRemoveSnapshotRef((MetadataUpdate.RemoveSnapshotRef) metadataUpdate, generator);
+        break;
+      case SET_SNAPSHOT_REF:
+        writeSetSnapshotRef((MetadataUpdate.SetSnapshotRef) metadataUpdate, generator);
         break;
       case SET_PROPERTIES:
         writeSetProperties((MetadataUpdate.SetProperties) metadataUpdate, generator);
@@ -249,10 +249,10 @@ public class MetadataUpdateParser {
         return readAddSnapshot(jsonNode);
       case REMOVE_SNAPSHOTS:
         return readRemoveSnapshots(jsonNode);
-      case SET_SNAPSHOT_REF:
-        return readSetSnapshotRef(jsonNode);
       case REMOVE_SNAPSHOT_REF:
         return readRemoveSnapshotRef(jsonNode);
+      case SET_SNAPSHOT_REF:
+        return readSetSnapshotRef(jsonNode);
       case SET_PROPERTIES:
         return readSetProperties(jsonNode);
       case REMOVE_PROPERTIES:

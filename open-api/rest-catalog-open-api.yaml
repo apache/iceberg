@@ -1231,8 +1231,8 @@ components:
             - set-default-sort-order
             - add-snapshot
             - set-snapshot-ref
-            - remove-snapshot-ref
             - remove-snapshots
+            - remove-snapshot-ref
             - set-location
             - set-properties
             - remove-properties
@@ -1353,7 +1353,7 @@ components:
           properties:
             name:
               type: string
-              description: SnapshotRef name to remove
+              description: Name of the snapshot ref to remove
 
     SetLocationUpdate:
       allOf:

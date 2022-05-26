@@ -372,6 +372,26 @@ public class TestMetadataUpdateParser {
     Assert.assertEquals("Remove snapshots should serialize to the correct JSON value", expected, actual);
   }
 
+  /** RemoveSnapshotRef **/
+
+  @Test
+  public void testRemoveSnapshotRefFromJson() {
+    String action = MetadataUpdateParser.REMOVE_SNAPSHOT_REF;
+    String snapshotRef = "snapshot-ref";
+    String json = "{\"action\":\"remove-snapshot-ref\",\"ref-name\":\"snapshot-ref\"}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshotRef(snapshotRef);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
+  public void testRemoveSnapshotRefToJson() {
+    String snapshotRef = "snapshot-ref";
+    String expected = "{\"action\":\"remove-snapshot-ref\",\"ref-name\":\"snapshot-ref\"}";
+    MetadataUpdate actual = new MetadataUpdate.RemoveSnapshotRef(snapshotRef);
+    Assert.assertEquals("RemoveSnapshotRef should convert to the correct JSON value",
+        expected, MetadataUpdateParser.toJson(actual));
+  }
+
   /** SetSnapshotRef **/
 
   @Test
@@ -551,26 +571,6 @@ public class TestMetadataUpdateParser {
         expected, actual);
   }
 
-  /** RemoveSnapshotRef **/
-
-  @Test
-  public void testRemoveSnapshotRefFromJson() {
-    String action = MetadataUpdateParser.REMOVE_SNAPSHOT_REF;
-    String snapshotRef = "snapshot-ref";
-    String json = "{\"action\":\"remove-snapshot-ref\",\"ref-name\":\"snapshot-ref\"}";
-    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshotRef(snapshotRef);
-    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
-  }
-
-  @Test
-  public void testRemoveSnapshotRefToJson() {
-    String snapshotRef = "snapshot-ref";
-    String expected = "{\"action\":\"remove-snapshot-ref\",\"ref-name\":\"snapshot-ref\"}";
-    MetadataUpdate actual = new MetadataUpdate.RemoveSnapshotRef(snapshotRef);
-    Assert.assertEquals("RemoveSnapshotRef should convert to the correct JSON value",
-        expected, MetadataUpdateParser.toJson(actual));
-  }
-
   /** SetProperties */
 
   @Test
@@ -699,13 +699,13 @@ public class TestMetadataUpdateParser {
         assertEqualsRemoveSnapshots((MetadataUpdate.RemoveSnapshot) expectedUpdate,
             (MetadataUpdate.RemoveSnapshot) actualUpdate);
         break;
-      case MetadataUpdateParser.SET_SNAPSHOT_REF:
-        assertEqualsSetSnapshotRef((MetadataUpdate.SetSnapshotRef) expectedUpdate,
-            (MetadataUpdate.SetSnapshotRef) actualUpdate);
-        break;
       case MetadataUpdateParser.REMOVE_SNAPSHOT_REF:
         assertEqualsRemoveSnapshotRef((MetadataUpdate.RemoveSnapshotRef) expectedUpdate,
             (MetadataUpdate.RemoveSnapshotRef) actualUpdate);
+        break;
+      case MetadataUpdateParser.SET_SNAPSHOT_REF:
+        assertEqualsSetSnapshotRef((MetadataUpdate.SetSnapshotRef) expectedUpdate,
+            (MetadataUpdate.SetSnapshotRef) actualUpdate);
         break;
       case MetadataUpdateParser.SET_PROPERTIES:
         assertEqualsSetProperties((MetadataUpdate.SetProperties) expectedUpdate,
