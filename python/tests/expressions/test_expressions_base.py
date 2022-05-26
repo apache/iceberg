@@ -26,44 +26,6 @@ from pyiceberg.types import NestedField, StringType
 from pyiceberg.utils.singleton import Singleton
 
 
-@pytest.mark.parametrize(
-    "operation,opposite_operation",
-    [
-        (base.Operation.TRUE, base.Operation.FALSE),
-        (base.Operation.FALSE, base.Operation.TRUE),
-        (base.Operation.IS_NULL, base.Operation.NOT_NULL),
-        (base.Operation.NOT_NULL, base.Operation.IS_NULL),
-        (base.Operation.IS_NAN, base.Operation.NOT_NAN),
-        (base.Operation.NOT_NAN, base.Operation.IS_NAN),
-        (base.Operation.LT, base.Operation.GT_EQ),
-        (base.Operation.LT_EQ, base.Operation.GT),
-        (base.Operation.GT, base.Operation.LT_EQ),
-        (base.Operation.GT_EQ, base.Operation.LT),
-        (base.Operation.EQ, base.Operation.NOT_EQ),
-        (base.Operation.NOT_EQ, base.Operation.EQ),
-        (base.Operation.IN, base.Operation.NOT_IN),
-        (base.Operation.NOT_IN, base.Operation.IN),
-    ],
-)
-def test_negation_of_operations(operation, opposite_operation):
-    assert operation.negate() == opposite_operation
-
-
-@pytest.mark.parametrize(
-    "operation",
-    [
-        base.Operation.NOT,
-        base.Operation.AND,
-        base.Operation.OR,
-    ],
-)
-def test_raise_on_no_negation_for_operation(operation):
-    with pytest.raises(ValueError) as exc_info:
-        operation.negate()
-
-    assert str(exc_info.value) == f"No negation defined for operation {operation}"
-
-
 class TestExpressionA(base.BooleanExpression, Singleton):
     def __invert__(self):
         return TestExpressionB()

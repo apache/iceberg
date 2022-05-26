@@ -241,11 +241,11 @@ class UnboundIn(BooleanExpression, UnboundPredicate):
         self._right = right
 
     @property
-    def ref(self) -> "UnboundReference":
+    def left(self) -> "UnboundReference":
         return self._left
 
     @property
-    def list(self) -> List[Literal]:
+    def right(self) -> List[Literal]:
         return self._right
 
     def __eq__(self, other) -> bool:
@@ -272,11 +272,11 @@ class In(BooleanExpression, BoundPredicate):
         self._right = right
 
     @property
-    def ref(self) -> "BoundReference":
+    def left(self) -> "BoundReference":
         return self._left
 
     @property
-    def list(self) -> List[Literal]:
+    def right(self) -> List[Literal]:
         return self._right
 
     def __eq__(self, other) -> bool:
