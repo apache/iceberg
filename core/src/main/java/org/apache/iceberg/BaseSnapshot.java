@@ -281,7 +281,7 @@ class BaseSnapshot implements Snapshot {
 
   private void cacheChanges(FileIO fileIO) {
     if (fileIO == null) {
-      throw new IllegalStateException("Cannot cache changes: file io is null");
+      throw new IllegalArgumentException("Cannot cache changes: FileIO is null");
     }
 
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
