@@ -327,7 +327,7 @@ public class TestDataSourceOptions {
         .mode("append")
         .save(tableLocation);
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 
     Assert.assertEquals("Must be 2 manifests", 2, manifests.size());
 

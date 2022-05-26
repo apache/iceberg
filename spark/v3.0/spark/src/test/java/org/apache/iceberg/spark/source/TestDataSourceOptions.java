@@ -203,7 +203,7 @@ public class TestDataSourceOptions {
         .mode("append")
         .save(tableLocation);
 
-    List<DataFile> files = Lists.newArrayList(icebergTable.currentSnapshot().addedFiles());
+    List<DataFile> files = Lists.newArrayList(icebergTable.currentSnapshot().addedFiles(icebergTable.io()));
     Assert.assertEquals("Should have written 1 file", 1, files.size());
 
     long fileSize = files.get(0).fileSizeInBytes();
@@ -327,7 +327,7 @@ public class TestDataSourceOptions {
         .mode("append")
         .save(tableLocation);
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 
     Assert.assertEquals("Must be 2 manifests", 2, manifests.size());
 
