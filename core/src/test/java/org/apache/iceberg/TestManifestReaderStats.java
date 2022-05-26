@@ -58,7 +58,7 @@ public class TestManifestReaderStats extends TableTestBase {
   private static final DataFile FILE = DataFiles.builder(SPEC)
       .withPath(FILE_PATH)
       .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+      .withPartitionPath("data_bucket_16=0") // easy way to set partition data for now
       .withRecordCount(3)
       .withMetrics(METRICS)
       .build();

@@ -76,6 +76,6 @@ public class TestOutputFileFactory extends TableTestBase {
     partitionKey.partition(record);
     EncryptedOutputFile partitionedFile = fileFactory.newOutputFile(table.spec(), partitionKey);
     String partitionedFileLocation = partitionedFile.encryptingOutputFile().location();
-    Assert.assertTrue(partitionedFileLocation.endsWith("data_bucket=7/00001-100-append-00002.parquet"));
+    Assert.assertTrue(partitionedFileLocation.endsWith("data_bucket_16=7/00001-100-append-00002.parquet"));
   }
 }

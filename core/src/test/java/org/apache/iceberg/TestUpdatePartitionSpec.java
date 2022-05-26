@@ -364,7 +364,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRename() {
     PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-        .renameField("shard", "id_bucket") // rename back to default
+        .renameField("shard", "id_bucket_16") // rename back to default
         .apply();
 
     PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
@@ -387,7 +387,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
         .alwaysNull("ts", "ts_day")
-        .bucket("id", 16)
+        .bucket("id", 16, "id_bucket")
         .truncate("data", 4, "prefix")
         .build();
 

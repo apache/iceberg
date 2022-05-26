@@ -450,7 +450,7 @@ public class TestFastAppend extends TableTestBase {
     Assert.assertEquals("Should set changed partition count", "1", changedPartitions);
 
     String partitionSummary = table.currentSnapshot().summary()
-        .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0");
+        .get(SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket_16=0");
     Assert.assertEquals("Summary should include 1 file with 1 record that is 10 bytes",
         "added-data-files=1,added-records=1,added-files-size=10", partitionSummary);
   }

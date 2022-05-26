@@ -612,7 +612,7 @@ public class TestRewriteManifests extends TableTestBase {
     DataFile newFileY = DataFiles.builder(table.spec())
         .withPath("/path/to/data-y.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=2/id_bucket=3")
+        .withPartitionPath("data_bucket_16=2/id_bucket_4=3")
         .withRecordCount(1)
         .build();
 
@@ -623,7 +623,7 @@ public class TestRewriteManifests extends TableTestBase {
     DataFile newFileZ = DataFiles.builder(table.spec())
         .withPath("/path/to/data-z.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=2/id_bucket=4")
+        .withPartitionPath("data_bucket_16=2/id_bucket_4=4")
         .withRecordCount(1)
         .build();
 
@@ -685,7 +685,7 @@ public class TestRewriteManifests extends TableTestBase {
     DataFile newFileY = DataFiles.builder(table.spec())
         .withPath("/path/to/data-y.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=2/id_bucket=3")
+        .withPartitionPath("data_bucket_16=2/id_bucket_4=3")
         .withRecordCount(1)
         .build();
 
@@ -696,7 +696,7 @@ public class TestRewriteManifests extends TableTestBase {
     DataFile newFileZ = DataFiles.builder(table.spec())
         .withPath("/path/to/data-z.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=2/id_bucket=4")
+        .withPartitionPath("data_bucket_16=2/id_bucket_4=4")
         .withRecordCount(1)
         .build();
 

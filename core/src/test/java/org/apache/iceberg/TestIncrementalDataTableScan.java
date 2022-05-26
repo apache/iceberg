@@ -260,7 +260,7 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     return DataFiles.builder(SPEC)
             .withPath(name + ".parquet")
             .withFileSizeInBytes(10)
-            .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+            .withPartitionPath("data_bucket_16=0") // easy way to set partition data for now
             .withRecordCount(1)
             .build();
   }

@@ -715,7 +715,7 @@ public class TestTableMetadata {
     PartitionSpec expected = PartitionSpec.builderFor(updated.schema()).withSpecId(1)
         .add(1, 1000, "x", "identity")
         .add(2, 1001, "y", "void")
-        .add(3, 1002, "z_bucket", "bucket[8]")
+        .add(3, 1002, "z_bucket_8", "bucket[8]")
         .build();
     Assert.assertEquals(
         "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
@@ -748,7 +748,7 @@ public class TestTableMetadata {
     TableMetadata updated = metadata.buildReplacement(
         updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
     PartitionSpec expected = PartitionSpec.builderFor(updated.schema()).withSpecId(1)
-        .add(3, 1002, "z_bucket", "bucket[8]")
+        .add(3, 1002, "z_bucket_8", "bucket[8]")
         .add(1, 1000, "x", "identity")
         .build();
     Assert.assertEquals(

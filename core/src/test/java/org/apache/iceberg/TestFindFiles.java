@@ -76,7 +76,7 @@ public class TestFindFiles extends TableTestBase {
     table.newAppend()
         .appendFile(DataFiles.builder(SPEC)
             .withInputFile(Files.localInput("/path/to/data-e.parquet"))
-            .withPartitionPath("data_bucket=4")
+            .withPartitionPath("data_bucket_16=4")
             .withMetrics(new Metrics(3L,
                 null, // no column sizes
                 ImmutableMap.of(1, 3L), // value count

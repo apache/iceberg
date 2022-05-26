@@ -150,12 +150,12 @@ public class TestMetadataUpdateParser {
     String specString = "{" +
         "\"spec-id\":1," +
         "\"fields\":[{" +
-        "\"name\":\"id_bucket\"," +
+        "\"name\":\"id_bucket_8\"," +
         "\"transform\":\"bucket[8]\"," +
         "\"source-id\":1," +
         "\"field-id\":1000" +
         "},{" +
-        "\"name\":\"data_bucket\"," +
+        "\"name\":\"data_bucket_16\"," +
         "\"transform\":\"bucket[16]\"," +
         "\"source-id\":2," +
         "\"field-id\":1001" +
@@ -182,11 +182,11 @@ public class TestMetadataUpdateParser {
     String specString = "{" +
         "\"spec-id\":1," +
         "\"fields\":[{" +
-        "\"name\":\"id_bucket\"," +
+        "\"name\":\"id_bucket_8\"," +
         "\"transform\":\"bucket[8]\"," +
         "\"source-id\":1" +
         "},{" +
-        "\"name\": \"data_bucket\"," +
+        "\"name\": \"data_bucket_16\"," +
         "\"transform\":\"bucket[16]\"," +
         "\"source-id\":2" +
         "}]" +
@@ -210,12 +210,12 @@ public class TestMetadataUpdateParser {
     String specString = "{" +
         "\"spec-id\":1," +
         "\"fields\":[{" +
-        "\"name\":\"id_bucket\"," +
+        "\"name\":\"id_bucket_8\"," +
         "\"transform\":\"bucket[8]\"," +
         "\"source-id\":1," +
         "\"field-id\":1000" +
         "},{" +
-        "\"name\":\"data_bucket\"," +
+        "\"name\":\"data_bucket_16\"," +
         "\"transform\":\"bucket[16]\"," +
         "\"source-id\":2," +
         "\"field-id\":1001" +

@@ -772,7 +772,7 @@ public class TestRowDelta extends V2TableTestBase {
         .commit();
 
     // append a partitioned data file
-    DataFile firstSnapshotDataFile = newDataFile("data_bucket=0");
+    DataFile firstSnapshotDataFile = newDataFile("data_bucket_16=0");
     table.newAppend()
         .appendFile(firstSnapshotDataFile)
         .commit();
@@ -805,7 +805,7 @@ public class TestRowDelta extends V2TableTestBase {
 
     // commit a row delta with 1 data file and 3 delete files where delete files have different specs
     DataFile dataFile = newDataFile("data=xyz");
-    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
+    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket_16=0");
     DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
     DeleteFile thirdDeleteFile = newDeleteFile(thirdSnapshotDataFile.specId(), "data=abc");
 
@@ -834,7 +834,7 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertTrue("Partition metrics must be correct",
         summary.get(CHANGED_PARTITION_PREFIX).contains(ADDED_DELETE_FILES_PROP + "=1"));
     Assert.assertTrue("Partition metrics must be correct",
-        summary.get(CHANGED_PARTITION_PREFIX + "data_bucket=0").contains(ADDED_DELETE_FILES_PROP + "=1"));
+        summary.get(CHANGED_PARTITION_PREFIX + "data_bucket_16=0").contains(ADDED_DELETE_FILES_PROP + "=1"));
     Assert.assertTrue("Partition metrics must be correct",
         summary.get(CHANGED_PARTITION_PREFIX + "data=abc").contains(ADDED_DELETE_FILES_PROP + "=1"));
     Assert.assertTrue("Partition metrics must be correct",
@@ -889,7 +889,7 @@ public class TestRowDelta extends V2TableTestBase {
         .commit();
 
     // append a partitioned data file
-    DataFile firstSnapshotDataFile = newDataFile("data_bucket=0");
+    DataFile firstSnapshotDataFile = newDataFile("data_bucket_16=0");
     table.newAppend()
         .appendFile(firstSnapshotDataFile)
         .commit();
@@ -908,7 +908,7 @@ public class TestRowDelta extends V2TableTestBase {
         .commit();
 
     // commit two delete files to two specs in a single operation
-    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
+    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket_16=0");
     DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
 
     table.newRowDelta()
@@ -923,7 +923,7 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Should have 2 delete manifest", 2, thirdSnapshot.deleteManifests().size());
 
     // commit two more delete files to the same specs to trigger merging
-    DeleteFile thirdDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
+    DeleteFile thirdDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket_16=0");
     DeleteFile fourthDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
 
     table.newRowDelta()
@@ -959,7 +959,7 @@ public class TestRowDelta extends V2TableTestBase {
   @Test
   public void testAbortMultipleSpecs() {
     // append a partitioned data file
-    DataFile firstSnapshotDataFile = newDataFile("data_bucket=0");
+    DataFile firstSnapshotDataFile = newDataFile("data_bucket_16=0");
     table.newAppend()
         .appendFile(firstSnapshotDataFile)
         .commit();
@@ -978,7 +978,7 @@ public class TestRowDelta extends V2TableTestBase {
         .commit();
 
     // prepare two delete files that belong to different specs
-    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
+    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket_16=0");
     DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
 
     // capture all deletes

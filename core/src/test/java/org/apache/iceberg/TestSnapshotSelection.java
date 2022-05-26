@@ -63,7 +63,7 @@ public class TestSnapshotSelection extends TableTestBase {
     DataFile fileWithStats = DataFiles.builder(SPEC)
         .withPath("/path/to/data-with-stats.parquet")
         .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0")
+        .withPartitionPath("data_bucket_16=0")
         .withRecordCount(10)
         .withMetrics(new Metrics(3L,
             null, // no column sizes

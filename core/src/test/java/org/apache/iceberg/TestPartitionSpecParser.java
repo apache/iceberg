@@ -32,7 +32,7 @@ public class TestPartitionSpecParser extends TableTestBase {
     String expected = "{\n" +
         "  \"spec-id\" : 0,\n" +
         "  \"fields\" : [ {\n" +
-        "    \"name\" : \"data_bucket\",\n" +
+        "    \"name\" : \"data_bucket_16\",\n" +
         "    \"transform\" : \"bucket[16]\",\n" +
         "    \"source-id\" : 2,\n" +
         "    \"field-id\" : 1000\n" +
@@ -50,12 +50,12 @@ public class TestPartitionSpecParser extends TableTestBase {
     expected = "{\n" +
         "  \"spec-id\" : 1,\n" +
         "  \"fields\" : [ {\n" +
-        "    \"name\" : \"id_bucket\",\n" +
+        "    \"name\" : \"id_bucket_8\",\n" +
         "    \"transform\" : \"bucket[8]\",\n" +
         "    \"source-id\" : 1,\n" +
         "    \"field-id\" : 1000\n" +
         "  }, {\n" +
-        "    \"name\" : \"data_bucket\",\n" +
+        "    \"name\" : \"data_bucket_16\",\n" +
         "    \"transform\" : \"bucket[16]\",\n" +
         "    \"source-id\" : 2,\n" +
         "    \"field-id\" : 1001\n" +
@@ -69,12 +69,12 @@ public class TestPartitionSpecParser extends TableTestBase {
     String specString = "{\n" +
         "  \"spec-id\" : 1,\n" +
         "  \"fields\" : [ {\n" +
-        "    \"name\" : \"id_bucket\",\n" +
+        "    \"name\" : \"id_bucket_8\",\n" +
         "    \"transform\" : \"bucket[8]\",\n" +
         "    \"source-id\" : 1,\n" +
         "    \"field-id\" : 1001\n" +
         "  }, {\n" +
-        "    \"name\" : \"data_bucket\",\n" +
+        "    \"name\" : \"data_bucket_16\",\n" +
         "    \"transform\" : \"bucket[16]\",\n" +
         "    \"source-id\" : 2,\n" +
         "    \"field-id\" : 1000\n" +
@@ -94,11 +94,11 @@ public class TestPartitionSpecParser extends TableTestBase {
     String specString = "{\n" +
         "  \"spec-id\" : 1,\n" +
         "  \"fields\" : [ {\n" +
-        "    \"name\" : \"id_bucket\",\n" +
+        "    \"name\" : \"id_bucket_8\",\n" +
         "    \"transform\" : \"bucket[8]\",\n" +
         "    \"source-id\" : 1\n" +
         "  }, {\n" +
-        "    \"name\" : \"data_bucket\",\n" +
+        "    \"name\" : \"data_bucket_16\",\n" +
         "    \"transform\" : \"bucket[16]\",\n" +
         "    \"source-id\" : 2\n" +
         "  } ]\n" +

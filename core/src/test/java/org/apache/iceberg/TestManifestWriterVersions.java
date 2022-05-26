@@ -57,9 +57,10 @@ public class TestManifestWriterVersions {
 
   private static final long SEQUENCE_NUMBER = 34L;
   private static final long SNAPSHOT_ID = 987134631982734L;
-  private static final String PATH = "s3://bucket/table/category=cheesy/timestamp_hour=10/id_bucket=3/file.avro";
+  private static final String PATH = "s3://bucket/table/category=cheesy/timestamp_hour=10/id_bucket_16=3/file.avro";
   private static final FileFormat FORMAT = FileFormat.AVRO;
-  private static final PartitionData PARTITION = DataFiles.data(SPEC, "category=cheesy/timestamp_hour=10/id_bucket=3");
+  private static final PartitionData PARTITION = DataFiles.data(SPEC, "category=cheesy/timestamp_hour=10/id_bucket_16" +
+      "=3");
   private static final Metrics METRICS = new Metrics(
       1587L,
       ImmutableMap.of(1, 15L, 2, 122L, 3, 4021L, 4, 9411L, 5, 15L), // sizes
