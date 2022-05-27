@@ -139,19 +139,45 @@ def test_strs(op, string):
 
 
 @pytest.mark.parametrize(
-    "a, col_idx, schema, success",
+    "a, col_idx, schema, ignore_case, success",
     [
-        (base.UnboundIn(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]), 0, "table_schema_simple", False),
-        (base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]), 0, "table_schema_simple", True),
+        (
+            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            0,
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.UnboundIn(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
+            0,
+            "table_schema_simple",
+            True,
+            False,
+        ),
+        (
+            base.UnboundIn(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
+            1,
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.UnboundIn(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
+            1,
+            "table_schema_simple",
+            False,
+            False,
+        ),
     ],
 )
-def test_bind_simple(a, col_idx, schema, success, request):
+def test_bind_simple(a, col_idx, schema, success, ignore_case, request):
     schema = request.getfixturevalue(schema)
     if success:
-        assert a.bind(schema, False).left.field == [c for i, c in enumerate(schema.columns) if i == col_idx][0]
+        assert a.bind(schema, ignore_case).term.field == [c for i, c in enumerate(schema.columns) if i == col_idx][0]
     else:
-        with pytest.raises(ValueError) as e_info:
-            a.bind(schema, False)
+        with pytest.raises(ValueError):
+            a.bind(schema, ignore_case)
 
 
 @pytest.mark.parametrize(
@@ -187,23 +213,30 @@ def test_eq(exp, testexpra, testexprb):
 
 
 @pytest.mark.parametrize(
-    "lhs, rhs",
+    "lhs, rhs, raises",
     [
         (
             base.And(TestExpressionA(), TestExpressionB()),
-            base.Or(TestExpressionB(), TestExpressionA()),
+            base.Or(TestExpressionB(), TestExpressionA()), False
         ),
         (
             base.Or(TestExpressionA(), TestExpressionB()),
-            base.And(TestExpressionB(), TestExpressionA()),
+            base.And(TestExpressionB(), TestExpressionA()), False
         ),
-        (base.Not(TestExpressionA()), TestExpressionA()),
-        (TestExpressionA(), TestExpressionB()),
+        (base.Not(TestExpressionA()), TestExpressionA(), False),
+        (
+            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            None, True
+        ),
+        (TestExpressionA(), TestExpressionB(), False),
     ],
 )
-def test_negate(lhs, rhs):
-    assert ~lhs == rhs
-
+def test_negate(lhs, rhs, raises):
+    if not raises:
+        assert ~lhs == rhs
+    else:
+        with pytest.raises(TypeError):
+            ~lhs
 
 @pytest.mark.parametrize(
     "lhs, rhs",

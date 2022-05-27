@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum, auto
 from functools import reduce, singledispatch
 from typing import (
@@ -233,66 +234,29 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
         return "false"
 
 
+@dataclass
 class UnboundIn(BooleanExpression, UnboundPredicate):
-    """IN operation expression"""
+    term: "UnboundReference"
+    literal: List[Literal]
 
-    def __init__(self, left: "UnboundReference", right: List[Literal]):  # pylint: disable=super-init-not-called
-        self._left = left
-        self._right = right
-
-    @property
-    def left(self) -> "UnboundReference":
-        return self._left
-
-    @property
-    def right(self) -> List[Literal]:
-        return self._right
-
-    def __eq__(self, other) -> bool:
-        return id(self) == id(other) or (isinstance(other, UnboundIn) and self.left == other.left and self.right == other.right)
-
-    def __invert__(self) -> Not:
-        return Not(self)
-
-    def __repr__(self) -> str:
-        return f"UnboundIn({repr(self.left)}, {repr(self.right)})"
-
-    def __str__(self) -> str:
-        return f"({self.left} in {self.right})"
+    def __invert__(self):
+        raise TypeError("In expressions do not support negation.")
 
     def bind(self, schema: Schema, case_sensitive: bool) -> "In":
-        return In(self.left.bind(schema, case_sensitive), self.right)
+        return In(self.term.bind(schema, case_sensitive), self.literal)
 
 
 class In(BooleanExpression, BoundPredicate):
     """IN operation expression"""
 
-    def __init__(self, left: "BoundReference", right: List[Literal]):  # pylint: disable=super-init-not-called
-        self._left = left
-        self._right = right
+    term: "BoundReference"
+    literal: List[Literal]
 
-    @property
-    def left(self) -> "BoundReference":
-        return self._left
-
-    @property
-    def right(self) -> List[Literal]:
-        return self._right
-
-    def __eq__(self, other) -> bool:
-        return id(self) == id(other) or (isinstance(other, UnboundIn) and self.left == other.left and self.right == other.right)
-
-    def __invert__(self) -> Not:
-        return Not(self)
-
-    def __repr__(self) -> str:
-        return f"In({repr(self.left)}, {repr(self.right)})"
-
-    def __str__(self) -> str:
-        return f"({self.left} in {self.right})"
+    def __invert__(self):
+        raise TypeError("In expressions do not support negation.")
 
     def eval(self, struct: StructProtocol):
-        return self.left.eval(struct)
+        return self.term.eval(struct)
 
 
 class BoundReference:
