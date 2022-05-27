@@ -129,7 +129,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
     SparkActions actions = SparkActions.get();
@@ -143,7 +143,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
 
     Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
@@ -183,7 +183,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
     SparkActions actions = SparkActions.get();
@@ -207,7 +207,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     table.refresh();
 
     // table should reflect the changes, since the commit was successful
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
 
     Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
@@ -262,7 +262,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 4 manifests before rewrite", 4, manifests.size());
 
     SparkActions actions = SparkActions.get();
@@ -284,7 +284,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
@@ -347,7 +347,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           .stagingLocation(temp.newFolder().toString())
           .execute();
 
-      Assert.assertEquals("Action should rewrite all manifests", snapshot.allManifests(), result.rewrittenManifests());
+      Assert.assertEquals("Action should rewrite all manifests",
+          snapshot.allManifests(table.io()), result.rewrittenManifests());
       Assert.assertEquals("Action should add 1 manifest", 1, Iterables.size(result.addedManifests()));
 
     } finally {
@@ -375,7 +376,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 1 manifests before rewrite", 1, manifests.size());
 
     // set the target manifest size to a small value to force splitting records into multiple files
@@ -395,7 +396,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
@@ -430,7 +431,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
     SparkActions actions = SparkActions.get();
@@ -447,7 +448,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Assert.assertFalse("First manifest must be rewritten", newManifests.contains(manifests.get(0)));
