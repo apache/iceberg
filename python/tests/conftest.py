@@ -30,6 +30,7 @@ from iceberg.types import (
     StringType,
     StructType,
 )
+from tests.catalog.test_base import InMemoryCatalog
 
 
 class FooStruct:
@@ -112,3 +113,8 @@ def table_schema_nested():
 @pytest.fixture(scope="session", autouse=True)
 def foo_struct():
     return FooStruct()
+
+
+@pytest.fixture
+def catalog() -> InMemoryCatalog:
+    return InMemoryCatalog("test.in.memory.catalog", {"test.key": "test.value"})
