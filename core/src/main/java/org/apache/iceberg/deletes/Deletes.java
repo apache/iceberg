@@ -168,7 +168,7 @@ public class Deletes {
       CloseableIterator<T> iter;
       if (deletePosIterator.hasNext()) {
         nextDeletePos = deletePosIterator.next();
-        iter = createPosDeleteIterator(rows.iterator());
+        iter = applyDelete(rows.iterator());
       } else {
         iter = rows.iterator();
       }
@@ -198,7 +198,7 @@ public class Deletes {
       return isDeleted;
     }
 
-    protected abstract CloseableIterator createPosDeleteIterator(CloseableIterator<T> items);
+    protected abstract CloseableIterator<T> applyDelete(CloseableIterator<T> items);
   }
 
   private static class PositionStreamDeleteFilter<T> extends PositionStreamDeleteIterable<T> {
@@ -208,7 +208,7 @@ public class Deletes {
     }
 
     @Override
-    protected CloseableIterator createPosDeleteIterator(CloseableIterator<T> items) {
+    protected CloseableIterator<T> applyDelete(CloseableIterator<T> items) {
       return new FilterIterator<T>(items) {
         @Override
         protected boolean shouldKeep(T item) {
@@ -228,7 +228,7 @@ public class Deletes {
     }
 
     @Override
-    protected CloseableIterator createPosDeleteIterator(CloseableIterator<T> items) {
+    protected CloseableIterator<T> applyDelete(CloseableIterator<T> items) {
       return CloseableIterator.transform(items, row -> {
         if (isDeleted(row)) {
           markDeleted.accept(row);

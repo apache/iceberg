@@ -66,8 +66,8 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
-  private final boolean hasColumnIsDeleted;
-  private final int columnIsDeletedPosition;
+  private final boolean hasIsDeletedColumn;
+  private final int isDeletedColumnPosition;
 
   private PositionDeleteIndex deleteRowPositions = null;
   private Predicate<T> eqDeleteRows = null;
@@ -95,12 +95,12 @@ public abstract class DeleteFilter<T> {
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
-    this.hasColumnIsDeleted = requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
-    this.columnIsDeletedPosition = requiredSchema.columns().indexOf(MetadataColumns.IS_DELETED);
+    this.hasIsDeletedColumn = requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
+    this.isDeletedColumnPosition = requiredSchema.columns().indexOf(MetadataColumns.IS_DELETED);
   }
 
   protected int columnIsDeletedPosition() {
-    return columnIsDeletedPosition;
+    return isDeletedColumnPosition;
   }
 
   public Schema requiredSchema() {
@@ -227,13 +227,13 @@ public abstract class DeleteFilter<T> {
       return createDeleteIterable(records, isDeleted);
     }
 
-    return hasColumnIsDeleted ?
+    return hasIsDeletedColumn ?
         Deletes.streamingMarker(records, this::pos, Deletes.deletePositions(filePath, deletes), this::markRowDeleted) :
         Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
   }
 
   private CloseableIterable<T> createDeleteIterable(CloseableIterable<T> records, Predicate<T> isDeleted) {
-    return hasColumnIsDeleted ?
+    return hasIsDeletedColumn ?
         Deletes.markDeleted(records, isDeleted, this::markRowDeleted) :
         Deletes.filterDeleted(records, isDeleted);
   }

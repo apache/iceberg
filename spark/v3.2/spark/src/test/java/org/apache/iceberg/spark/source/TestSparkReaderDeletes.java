@@ -417,6 +417,15 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     Assert.assertEquals("Table should contain expected row", expectedDeleted, actualDeleted);
   }
 
+  @Test
+  public void testIsDeletedColumnWithoutDeleteFile() {
+    Assume.assumeFalse(vectorized);
+
+    StructLikeSet expected = expectedRowSet();
+    StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
+    Assert.assertEquals("Table should contain expected row", expected, actual);
+  }
+
   private static final Schema PROJECTION_SCHEMA = new Schema(
       required(1, "id", Types.IntegerType.get()),
       required(2, "data", Types.StringType.get()),
