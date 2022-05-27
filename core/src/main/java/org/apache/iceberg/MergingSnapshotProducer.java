@@ -652,13 +652,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       if (matchingOperations.contains(currentSnapshot.operation())) {
         newSnapshots.add(currentSnapshot.snapshotId());
         if (content == ManifestContent.DATA) {
-          for (ManifestFile manifest : currentSnapshot.dataManifests()) {
+          for (ManifestFile manifest : currentSnapshot.dataManifests(ops.io())) {
             if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
               manifests.add(manifest);
             }
           }
         } else {
-          for (ManifestFile manifest : currentSnapshot.deleteManifests()) {
+          for (ManifestFile manifest : currentSnapshot.deleteManifests(ops.io())) {
             if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
               manifests.add(manifest);
             }
@@ -687,14 +687,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     // filter any existing manifests
     List<ManifestFile> filtered = filterManager.filterManifests(
-        base.schema(), current != null ? current.dataManifests() : null);
+        base.schema(), current != null ? current.dataManifests(ops.io()) : null);
     long minDataSequenceNumber = filtered.stream()
         .map(ManifestFile::minSequenceNumber)
         .filter(seq -> seq != ManifestWriter.UNASSIGNED_SEQ) // filter out unassigned in rewritten manifests
         .reduce(base.lastSequenceNumber(), Math::min);
     deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
     List<ManifestFile> filteredDeletes = deleteFilterManager.filterManifests(
-        base.schema(), current != null ? current.deleteManifests() : null);
+        base.schema(), current != null ? current.deleteManifests(ops.io()) : null);
 
     // only keep manifests that have live data files or that were written by this commit
     Predicate<ManifestFile> shouldKeep = manifest ->

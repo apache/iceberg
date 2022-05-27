@@ -47,19 +47,19 @@ public class TestManifestCleanup extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Table should have one append manifest",
-        1, table.currentSnapshot().allManifests().size());
+        1, table.currentSnapshot().allManifests(table.io()).size());
 
     table.newDelete()
         .deleteFromRowFilter(Expressions.alwaysTrue())
         .commit();
 
     Assert.assertEquals("Table should have one delete manifest",
-        1, table.currentSnapshot().allManifests().size());
+        1, table.currentSnapshot().allManifests(table.io()).size());
 
     table.newAppend().commit();
 
     Assert.assertEquals("Table should have no manifests",
-        0, table.currentSnapshot().allManifests().size());
+        0, table.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test
@@ -74,7 +74,7 @@ public class TestManifestCleanup extends TableTestBase {
 
     Snapshot s1 = table.currentSnapshot();
     Assert.assertEquals("Table should have one append manifest",
-        1, s1.allManifests().size());
+        1, s1.allManifests(table.io()).size());
 
     table.newDelete()
         .deleteFile(FILE_B)
@@ -82,13 +82,13 @@ public class TestManifestCleanup extends TableTestBase {
 
     Snapshot s2 = table.currentSnapshot();
     Assert.assertEquals("Table should have one mixed manifest",
-        1, s2.allManifests().size());
+        1, s2.allManifests(table.io()).size());
 
     table.newAppend().commit();
 
     Snapshot s3 = table.currentSnapshot();
     Assert.assertEquals("Table should have the same manifests",
-        s2.allManifests(), s3.allManifests());
+        s2.allManifests(table.io()), s3.allManifests(table.io()));
   }
 
   @Test
@@ -102,7 +102,7 @@ public class TestManifestCleanup extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Table should have one append manifest",
-        1, table.currentSnapshot().allManifests().size());
+        1, table.currentSnapshot().allManifests(table.io()).size());
 
     table.newOverwrite()
         .overwriteByRowFilter(Expressions.alwaysTrue())
@@ -111,7 +111,7 @@ public class TestManifestCleanup extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Table should have one delete manifest and one append manifest",
-        2, table.currentSnapshot().allManifests().size());
+        2, table.currentSnapshot().allManifests(table.io()).size());
 
     table.newOverwrite()
         .overwriteByRowFilter(Expressions.alwaysTrue())
@@ -120,6 +120,6 @@ public class TestManifestCleanup extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Table should have one delete manifest and one append manifest",
-        2, table.currentSnapshot().allManifests().size());
+        2, table.currentSnapshot().allManifests(table.io()).size());
   }
 }

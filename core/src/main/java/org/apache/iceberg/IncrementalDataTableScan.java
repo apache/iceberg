@@ -76,7 +76,7 @@ class IncrementalDataTableScan extends DataTableScan {
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
         .from(snapshots)
-        .transformAndConcat(Snapshot::dataManifests)
+        .transformAndConcat(snapshot -> snapshot.dataManifests(tableOps().io()))
         .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
         .toSet();
 
@@ -95,7 +95,8 @@ class IncrementalDataTableScan extends DataTableScan {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    Listeners.notifyAll(new IncrementalScanEvent(table().name(), fromSnapshotId, toSnapshotId, filter(), schema()));
+    Listeners.notifyAll(new IncrementalScanEvent(table().name(), fromSnapshotId, toSnapshotId,
+        filter(), schema(), false));
 
     if (manifests.size() > 1 && (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(planExecutor());

@@ -216,19 +216,19 @@ public interface MetadataUpdate extends Serializable {
   }
 
   class RemoveSnapshotRef implements MetadataUpdate {
-    private final String name;
+    private final String refName;
 
-    public RemoveSnapshotRef(String name) {
-      this.name = name;
+    public RemoveSnapshotRef(String refName) {
+      this.refName = refName;
     }
 
     public String name() {
-      return name;
+      return refName;
     }
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.removeRef(name);
+      metadataBuilder.removeRef(refName);
     }
   }
 

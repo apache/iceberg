@@ -1232,6 +1232,7 @@ components:
             - add-snapshot
             - set-snapshot-ref
             - remove-snapshots
+            - remove-snapshot-ref
             - set-location
             - set-properties
             - remove-properties
@@ -1343,6 +1344,16 @@ components:
                 type: integer
                 format: int64
 
+    RemoveSnapshotRefUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          required:
+            - ref-name
+          properties:
+            ref-name:
+              type: string
+
     SetLocationUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
@@ -1389,6 +1400,7 @@ components:
         - $ref: '#/components/schemas/AddSnapshotUpdate'
         - $ref: '#/components/schemas/SetSnapshotRefUpdate'
         - $ref: '#/components/schemas/RemoveSnapshotsUpdate'
+        - $ref: '#/components/schemas/RemoveSnapshotRefUpdate'
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'

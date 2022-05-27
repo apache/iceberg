@@ -32,6 +32,8 @@ fs
 func
 IcebergType
 io
+namespace
+namespaces
 NativeFile
 namespace
 NestedField
@@ -52,3 +54,7 @@ Timestamptzs
 unscaled
 URI
 yaml
+UnboundPredicate
+BoundPredicate
+BooleanExpression
+BooleanExpressionVisitor

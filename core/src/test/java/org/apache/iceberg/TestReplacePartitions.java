@@ -92,15 +92,15 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
     Assert.assertEquals("Table should have 2 manifests",
-        2, table.currentSnapshot().allManifests().size());
+        2, table.currentSnapshot().allManifests(table.io()).size());
 
     // manifest is not merged because it is less than the minimum
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(replaceId),
         files(FILE_E),
         statuses(Status.ADDED));
 
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(replaceId, baseId),
         files(FILE_A, FILE_B),
         statuses(Status.DELETED, Status.EXISTING));
@@ -126,9 +126,9 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
     Assert.assertEquals("Table should have 1 manifest",
-        1, table.currentSnapshot().allManifests().size());
+        1, table.currentSnapshot().allManifests(table.io()).size());
 
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(replaceId, replaceId, baseId),
         files(FILE_E, FILE_A, FILE_B),
         statuses(Status.ADDED, Status.DELETED, Status.EXISTING));
@@ -164,12 +164,12 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = replaceMetadata.currentSnapshot().snapshotId();
 
     Assert.assertEquals("Table should have 2 manifests",
-        2, replaceMetadata.currentSnapshot().allManifests().size());
+        2, replaceMetadata.currentSnapshot().allManifests(unpartitioned.io()).size());
 
-    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests().get(0),
+    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests(unpartitioned.io()).get(0),
         ids(replaceId), files(FILE_B), statuses(Status.ADDED));
 
-    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests(unpartitioned.io()).get(1),
         ids(replaceId), files(FILE_A), statuses(Status.DELETED));
   }
 
@@ -206,9 +206,9 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = replaceMetadata.currentSnapshot().snapshotId();
 
     Assert.assertEquals("Table should have 1 manifest",
-        1, replaceMetadata.currentSnapshot().allManifests().size());
+        1, replaceMetadata.currentSnapshot().allManifests(unpartitioned.io()).size());
 
-    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests().get(0),
+    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests(unpartitioned.io()).get(0),
         ids(replaceId, replaceId), files(FILE_B, FILE_A), statuses(Status.ADDED, Status.DELETED));
   }
 
@@ -253,15 +253,15 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
     Assert.assertEquals("Table should have 2 manifests",
-        2, table.currentSnapshot().allManifests().size());
+        2, table.currentSnapshot().allManifests(table.io()).size());
 
     // manifest is not merged because it is less than the minimum
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(replaceId),
         files(FILE_G),
         statuses(Status.ADDED));
 
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(baseId, baseId),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
@@ -288,12 +288,12 @@ public class TestReplacePartitions extends TableTestBase {
 
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertEquals("Table should have 2 manifest",
-        2, table.currentSnapshot().allManifests().size());
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        2, table.currentSnapshot().allManifests(table.io()).size());
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(replaceId, replaceId),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(replaceId),
         files(FILE_E),
         statuses(Status.DELETED));
@@ -373,12 +373,12 @@ public class TestReplacePartitions extends TableTestBase {
 
     long id3 = readMetadata().currentSnapshot().snapshotId();
     Assert.assertEquals("Table should have 2 manifests",
-        2, table.currentSnapshot().allManifests().size());
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        2, table.currentSnapshot().allManifests(table.io()).size());
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(id3),
         files(FILE_B),
         statuses(Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(id2),
         files(FILE_A),
         statuses(Status.ADDED));
@@ -466,16 +466,16 @@ public class TestReplacePartitions extends TableTestBase {
 
     long id3 = readMetadata().currentSnapshot().snapshotId();
     Assert.assertEquals("Table should have 3 manifests",
-        3, table.currentSnapshot().allManifests().size());
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        3, table.currentSnapshot().allManifests(table.io()).size());
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(id3),
         files(FILE_A),
         statuses(Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(id2),
         files(FILE_B),
         statuses(Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(2),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(2),
         ids(id3),
         files(FILE_A),
         statuses(Status.DELETED));
@@ -597,16 +597,16 @@ public class TestReplacePartitions extends TableTestBase {
     long id3 = readMetadata().currentSnapshot().snapshotId();
 
     Assert.assertEquals("Table should have 3 manifest",
-        3, table.currentSnapshot().allManifests().size());
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        3, table.currentSnapshot().allManifests(table.io()).size());
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(id3),
         files(FILE_B),
         statuses(Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(id1),
         files(FILE_A),
         statuses(Status.ADDED));
-    validateDeleteManifest(table.currentSnapshot().allManifests().get(2),
+    validateDeleteManifest(table.currentSnapshot().allManifests(table.io()).get(2),
         seqs(2),
         ids(id2),
         files(FILE_A_DELETES),
@@ -667,12 +667,12 @@ public class TestReplacePartitions extends TableTestBase {
     long finalId = readMetadata().currentSnapshot().snapshotId();
 
     Assert.assertEquals("Table should have 2 manifest",
-        2, table.currentSnapshot().allManifests().size());
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        2, table.currentSnapshot().allManifests(table.io()).size());
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(finalId),
         files(FILE_B),
         statuses(Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(finalId),
         files(FILE_B),
         statuses(Status.DELETED));
@@ -730,16 +730,16 @@ public class TestReplacePartitions extends TableTestBase {
     long finalId = readMetadata().currentSnapshot().snapshotId();
 
     Assert.assertEquals("Table should have 3 manifest",
-        3, table.currentSnapshot().allManifests().size());
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        3, table.currentSnapshot().allManifests(table.io()).size());
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(finalId),
         files(FILE_B),
         statuses(Status.ADDED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(finalId),
         files(FILE_B),
         statuses(Status.DELETED));
-    validateManifestEntries(table.currentSnapshot().allManifests().get(2),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(2),
         ids(baseId),
         files(FILE_A),
         statuses(Status.ADDED));

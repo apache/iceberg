@@ -33,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-class RESTUtil {
+public class RESTUtil {
   private static final Joiner NULL_JOINER = Joiner.on("%00");
   private static final Splitter NULL_SPLITTER = Splitter.on("%00");
 
@@ -50,6 +50,27 @@ class RESTUtil {
       result = result.substring(0, result.length() - 1);
     }
     return result;
+  }
+
+  /**
+   * Merge updates into a target string map.
+   *
+   * @param target a map to update
+   * @param updates a map of updates
+   * @return an immutable result map built from target and updates
+   */
+  public static Map<String, String> merge(Map<String, String> target, Map<String, String> updates) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+
+    target.forEach((key, value) -> {
+      if (!updates.containsKey(key)) {
+        builder.put(key, value);
+      }
+    });
+
+    updates.forEach(builder::put);
+
+    return builder.build();
   }
 
   /**

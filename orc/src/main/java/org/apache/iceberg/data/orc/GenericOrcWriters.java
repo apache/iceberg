@@ -318,6 +318,7 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<OffsetDateTime> INSTANCE = new TimestampTzWriter();
 
     @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
     public void nonNullWrite(int rowId, OffsetDateTime data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       // millis
@@ -331,6 +332,7 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampWriter();
 
     @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
     public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       cv.setIsUTC(true);

@@ -54,6 +54,7 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -261,7 +262,7 @@ public class BaseRewriteManifestsSparkAction
       return ImmutableList.of();
     }
 
-    return currentSnapshot.dataManifests().stream()
+    return currentSnapshot.dataManifests(fileIO).stream()
         .filter(manifest -> manifest.partitionSpecId() == spec.specId() && predicate.test(manifest))
         .collect(Collectors.toList());
   }
@@ -308,6 +309,7 @@ public class BaseRewriteManifestsSparkAction
 
   private void deleteFiles(Iterable<String> locations) {
     Tasks.foreach(locations)
+        .executeWith(ThreadPools.getWorkerPool())
         .noRetry()
         .suppressFailureWhenFinished()
         .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))

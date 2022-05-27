@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.io.FileIO;
 
 /**
  * A snapshot of the data in a table at a point in time.
@@ -68,22 +69,53 @@ public interface Snapshot extends Serializable {
    * Return all {@link ManifestFile} instances for either data or delete manifests in this snapshot.
    *
    * @return a list of ManifestFile
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#allManifests(FileIO)} instead.
    */
+  @Deprecated
   List<ManifestFile> allManifests();
+
+  /**
+   * Return all {@link ManifestFile} instances for either data or delete manifests in this snapshot.
+   *
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @return a list of ManifestFile
+   */
+  List<ManifestFile> allManifests(FileIO io);
 
   /**
    * Return a {@link ManifestFile} for each data manifest in this snapshot.
    *
    * @return a list of ManifestFile
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#dataManifests(FileIO)} instead.
    */
+  @Deprecated
   List<ManifestFile> dataManifests();
+
+  /**
+   * Return a {@link ManifestFile} for each data manifest in this snapshot.
+   *
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @return a list of ManifestFile
+   */
+  List<ManifestFile> dataManifests(FileIO io);
 
   /**
    * Return a {@link ManifestFile} for each delete manifest in this snapshot.
    *
    * @return a list of ManifestFile
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#deleteManifests(FileIO)} instead.
    */
+  @Deprecated
   List<ManifestFile> deleteManifests();
+
+
+  /**
+   * Return a {@link ManifestFile} for each delete manifest in this snapshot.
+   *
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @return a list of ManifestFile
+   */
+  List<ManifestFile> deleteManifests(FileIO io);
 
   /**
    * Return the name of the {@link DataOperations data operation} that produced this snapshot.
@@ -107,8 +139,21 @@ public interface Snapshot extends Serializable {
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
    * @return all files added to the table in this snapshot.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#addedFiles(FileIO)} instead.
    */
+  @Deprecated
   Iterable<DataFile> addedFiles();
+
+  /**
+   * Return all files added to the table in this snapshot.
+   * <p>
+   * The files returned include the following columns: file_path, file_format, partition,
+   * record_count, and file_size_in_bytes. Other columns will be null.
+   *
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @return all files added to the table in this snapshot.
+   */
+  Iterable<DataFile> addedFiles(FileIO io);
 
   /**
    * Return all files deleted from the table in this snapshot.
@@ -117,8 +162,21 @@ public interface Snapshot extends Serializable {
    * record_count, and file_size_in_bytes. Other columns will be null.
    *
    * @return all files deleted from the table in this snapshot.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#deletedFiles(FileIO)} instead.
    */
+  @Deprecated
   Iterable<DataFile> deletedFiles();
+
+  /**
+   * Return all files deleted from the table in this snapshot.
+   * <p>
+   * The files returned include the following columns: file_path, file_format, partition,
+   * record_count, and file_size_in_bytes. Other columns will be null.
+   *
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @return all files deleted from the table in this snapshot.
+   */
+  Iterable<DataFile> deletedFiles(FileIO io);
 
   /**
    * Return the location of this snapshot's manifest list, or null if it is not separate.
