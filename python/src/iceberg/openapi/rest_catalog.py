@@ -263,6 +263,7 @@ class BaseUpdate(BaseModel):
         'add-snapshot',
         'set-snapshot-ref',
         'remove-snapshots',
+        'remove-snapshot-ref',
         'set-location',
         'set-properties',
         'remove-properties',
@@ -342,6 +343,13 @@ class RemoveSnapshotsUpdate(BaseUpdate):
         allow_population_by_field_name = True
 
     snapshot_ids: List[int] = Field(..., alias='snapshot-ids')
+
+
+class RemoveSnapshotRefUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
+    ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
@@ -592,6 +600,7 @@ class TableUpdate(BaseModel):
         AddSnapshotUpdate,
         SetSnapshotRefUpdate,
         RemoveSnapshotsUpdate,
+        RemoveSnapshotRefUpdate,
         SetLocationUpdate,
         SetPropertiesUpdate,
         RemovePropertiesUpdate,
