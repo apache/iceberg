@@ -101,7 +101,7 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
         // validate the parent snapshot id an ancestor of toSnapshotId
         Preconditions.checkArgument(
             SnapshotUtil.isParentAncestorOf(table(), toSnapshotIdInclusive, context().fromSnapshotId()),
-            "Starting snapshot (exclusive) %s is not an parent ancestor of end snapshot %s",
+            "Starting snapshot (exclusive) %s is not a parent ancestor of end snapshot %s",
             context().fromSnapshotId(), toSnapshotIdInclusive);
       }
     }
