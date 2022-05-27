@@ -23,8 +23,10 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -41,8 +43,9 @@ class SparkFilesScan extends SparkScan {
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkFilesScan(SparkSession spark, Table table, SparkReadConf readConf) {
-    super(spark, table, readConf, table.schema(), ImmutableList.of());
+  SparkFilesScan(SparkSession spark, Table table, SparkReadConf readConf, Schema expectedSchema,
+                 List<Expression> filterExpressions) {
+    super(spark, table, readConf, expectedSchema == null ? table.schema() : expectedSchema, ImmutableList.of());
 
     this.taskSetID = readConf.fileScanTaskSetId();
     this.splitSize = readConf.splitSize();

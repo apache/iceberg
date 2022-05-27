@@ -87,7 +87,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
               fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED, idToConstant,
               deleteFilter))
           .recordsPerBatch(batchSize)
-          .filter(task.residual())
+          .filter(task.residual()) // todo we may need to remove _delete filter in case of filter pushdown
           .caseSensitive(caseSensitive)
           // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
           // without worrying about subsequent reads clobbering over each other. This improves
