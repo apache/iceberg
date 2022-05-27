@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -56,6 +58,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
+  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
+
   @TempDir
   public Path temp;
 
@@ -94,7 +98,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             Assertions.assertEquals(contextHeaders, headers, "Headers did not match for path: " + path);
           }
         }
-        return super.execute(method, path, body, responseType, headers, errorHandler);
+        Object request = roundTripSerialize(body, "request");
+        T response = super.execute(method, path, request, responseType, headers, errorHandler);
+        T responseAfterSerialization = roundTripSerialize(response, "response");
+        return responseAfterSerialization;
       }
     };
 
@@ -104,6 +111,24 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     this.restCatalog = new RESTCatalog(context, (config) -> adaptor);
     restCatalog.setConf(conf);
     restCatalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:12345"));
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> T roundTripSerialize(T payload, String description) {
+    if (payload != null) {
+      try {
+        if (payload instanceof RESTMessage) {
+          return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), payload.getClass());
+        } else {
+          // use Map so that Jackson doesn't try to instantiate ImmutableMap from payload.getClass()
+          return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), Map.class);
+        }
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(
+            String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
+      }
+    }
+    return null;
   }
 
   @AfterEach
