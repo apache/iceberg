@@ -249,19 +249,19 @@ class UnboundIn(BooleanExpression, UnboundPredicate):
         return self._right
 
     def __eq__(self, other) -> bool:
-        return id(self) == id(other) or (isinstance(other, UnboundIn) and self.ref == other.ref and self.list == other.list)
+        return id(self) == id(other) or (isinstance(other, UnboundIn) and self.left == other.left and self.right == other.right)
 
     def __invert__(self) -> Not:
         return Not(self)
 
     def __repr__(self) -> str:
-        return f"UnboundIn({repr(self.ref)}, {repr(self.list)})"
+        return f"UnboundIn({repr(self.left)}, {repr(self.right)})"
 
     def __str__(self) -> str:
-        return f"({self.ref} in {self.list})"
+        return f"({self.left} in {self.right})"
 
     def bind(self, schema: Schema, case_sensitive: bool) -> "In":
-        return In(self.ref.bind(schema, case_sensitive), self.list)
+        return In(self.left.bind(schema, case_sensitive), self.right)
 
 
 class In(BooleanExpression, BoundPredicate):
@@ -280,16 +280,16 @@ class In(BooleanExpression, BoundPredicate):
         return self._right
 
     def __eq__(self, other) -> bool:
-        return id(self) == id(other) or (isinstance(other, UnboundIn) and self.ref == other.ref and self.list == other.list)
+        return id(self) == id(other) or (isinstance(other, UnboundIn) and self.left == other.left and self.right == other.right)
 
     def __invert__(self) -> Not:
         return Not(self)
 
     def __repr__(self) -> str:
-        return f"In({repr(self.ref)}, {repr(self.list)})"
+        return f"In({repr(self.left)}, {repr(self.right)})"
 
     def __str__(self) -> str:
-        return f"({self.ref} in {self.list})"
+        return f"({self.left} in {self.right})"
 
     def eval(self, struct: StructProtocol):
         return self.ref.eval(struct)
