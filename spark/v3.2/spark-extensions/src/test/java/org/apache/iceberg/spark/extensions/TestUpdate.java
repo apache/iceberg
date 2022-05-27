@@ -905,7 +905,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Must have 2 files before UPDATE", "2", dataFilesCount);
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
-    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedFiles());
+    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedFiles(table.io()));
     table.io().deleteFile(dataFile.path().toString());
 
     // disable dynamic pruning and rely only on static predicate pushdown

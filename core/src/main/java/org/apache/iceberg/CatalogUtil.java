@@ -83,7 +83,7 @@ public class CatalogUtil {
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
     for (Snapshot snapshot : metadata.snapshots()) {
       // add all manifests to the delete set because both data and delete files should be removed
-      Iterables.addAll(manifestsToDelete, snapshot.allManifests());
+      Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
       // add the manifest list to the delete set, if present
       if (snapshot.manifestListLocation() != null) {
         manifestListsToDelete.add(snapshot.manifestListLocation());
@@ -102,16 +102,19 @@ public class CatalogUtil {
     }
 
     Tasks.foreach(Iterables.transform(manifestsToDelete, ManifestFile::path))
+        .executeWith(ThreadPools.getWorkerPool())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
         .run(io::deleteFile);
 
     Tasks.foreach(manifestListsToDelete)
+        .executeWith(ThreadPools.getWorkerPool())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(io::deleteFile);
 
     Tasks.foreach(Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file))
+        .executeWith(ThreadPools.getWorkerPool())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((metadataFile, exc) -> LOG.warn("Delete failed for previous metadata file: {}", metadataFile, exc))
         .run(io::deleteFile);

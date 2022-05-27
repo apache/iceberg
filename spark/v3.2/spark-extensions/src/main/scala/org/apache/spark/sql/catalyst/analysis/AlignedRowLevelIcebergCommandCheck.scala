@@ -17,19 +17,22 @@
  * under the License.
  */
 
-package org.apache.iceberg.rest;
+package org.apache.spark.sql.catalyst.analysis
 
-/**
- * Catalog properties which are specific to the RESTCatalog, which can be used in conjunction with
- * {@link org.apache.iceberg.CatalogProperties}
- */
-public class RESTCatalogProperties {
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 
-  private RESTCatalogProperties() {
+object AlignedRowLevelIcebergCommandCheck extends (LogicalPlan => Unit) {
+
+  override def apply(plan: LogicalPlan): Unit = {
+    plan foreach {
+      case m: MergeIntoIcebergTable if !m.aligned =>
+        throw new AnalysisException(s"Could not align Iceberg MERGE INTO: $m")
+      case u: UpdateIcebergTable if !u.aligned =>
+        throw new AnalysisException(s"Could not align Iceberg UPDATE: $u")
+      case _ => // OK
+    }
   }
-
-  /**
-   * A Bearer authorization token which will be used to authenticate requests with the server.
-   */
-  public static final String AUTH_TOKEN = "token";
 }

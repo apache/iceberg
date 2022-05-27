@@ -90,8 +90,8 @@ public class TestDeleteFiles extends TableTestBase {
 
     Assert.assertEquals("Metadata should be at version 2", 2L, (long) version());
     Snapshot delete = readMetadata().currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, delete.allManifests().size());
-    validateManifestEntries(delete.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, delete.allManifests(FILE_IO).size());
+    validateManifestEntries(delete.allManifests(table.io()).get(0),
         ids(delete.snapshotId(), append.snapshotId(), append.snapshotId()),
         files(FILE_A, FILE_B, FILE_C),
         statuses(Status.DELETED, Status.EXISTING, Status.EXISTING));
@@ -102,8 +102,8 @@ public class TestDeleteFiles extends TableTestBase {
 
     Assert.assertEquals("Metadata should be at version 3", 3L, (long) version());
     Snapshot delete2 = readMetadata().currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, delete2.allManifests().size());
-    validateManifestEntries(delete2.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, delete2.allManifests(FILE_IO).size());
+    validateManifestEntries(delete2.allManifests(FILE_IO).get(0),
         ids(delete2.snapshotId(), append.snapshotId()),
         files(FILE_B, FILE_C),
         statuses(Status.DELETED, Status.EXISTING));
@@ -148,8 +148,8 @@ public class TestDeleteFiles extends TableTestBase {
         .commit();
 
     Snapshot initialSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
-    validateManifestEntries(initialSnapshot.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests(FILE_IO).size());
+    validateManifestEntries(initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(firstDataFile, secondDataFile),
         statuses(Status.ADDED, Status.ADDED));
@@ -160,8 +160,8 @@ public class TestDeleteFiles extends TableTestBase {
         .commit();
 
     Snapshot deleteSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
-    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests(FILE_IO).size());
+    validateManifestEntries(deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(deleteSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(firstDataFile, secondDataFile),
         statuses(Status.DELETED, Status.EXISTING));
@@ -173,8 +173,8 @@ public class TestDeleteFiles extends TableTestBase {
         .commit();
 
     Snapshot finalSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, finalSnapshot.allManifests().size());
-    validateManifestEntries(finalSnapshot.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, finalSnapshot.allManifests(FILE_IO).size());
+    validateManifestEntries(finalSnapshot.allManifests(FILE_IO).get(0),
         ids(finalSnapshot.snapshotId()),
         files(secondDataFile),
         statuses(Status.DELETED));
@@ -189,8 +189,8 @@ public class TestDeleteFiles extends TableTestBase {
         .commit();
 
     Snapshot initialSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
-    validateManifestEntries(initialSnapshot.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests(FILE_IO).size());
+    validateManifestEntries(initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
         statuses(Status.ADDED, Status.ADDED));
@@ -201,8 +201,8 @@ public class TestDeleteFiles extends TableTestBase {
         .commit();
 
     Snapshot deleteSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
-    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests(FILE_IO).size());
+    validateManifestEntries(deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
         statuses(Status.EXISTING, Status.DELETED));
@@ -217,8 +217,8 @@ public class TestDeleteFiles extends TableTestBase {
         .commit();
 
     Snapshot initialSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests().size());
-    validateManifestEntries(initialSnapshot.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, initialSnapshot.allManifests(FILE_IO).size());
+    validateManifestEntries(initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
         statuses(Status.ADDED, Status.ADDED));
@@ -232,8 +232,8 @@ public class TestDeleteFiles extends TableTestBase {
         .commit();
 
     Snapshot deleteSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
-    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests(FILE_IO).size());
+    validateManifestEntries(deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2, DATA_FILE_BUCKET_0_IDS_8_10),
         statuses(Status.EXISTING, Status.DELETED));
@@ -295,8 +295,8 @@ public class TestDeleteFiles extends TableTestBase {
         .commit();
 
     Snapshot deleteSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests().size());
-    validateManifestEntries(deleteSnapshot.allManifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, deleteSnapshot.allManifests(FILE_IO).size());
+    validateManifestEntries(deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(deleteSnapshot.snapshotId()),
         files(DATA_FILE_BUCKET_0_IDS_0_2),
         statuses(Status.DELETED));

@@ -387,7 +387,7 @@ public class TestDeleteFileIndex extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Table should contain 2 delete files",
-        2, (long) unpartitioned.currentSnapshot().deleteManifests().get(0).addedFilesCount());
+        2, (long) unpartitioned.currentSnapshot().deleteManifests(unpartitioned.io()).get(0).addedFilesCount());
 
     List<FileScanTask> tasks = Lists.newArrayList(unpartitioned.newScan().planFiles().iterator());
     Assert.assertEquals("Should have one task", 1, tasks.size());
@@ -425,7 +425,7 @@ public class TestDeleteFileIndex extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Should have two delete manifests",
-        2, table.currentSnapshot().deleteManifests().size());
+        2, table.currentSnapshot().deleteManifests(table.io()).size());
 
     // merge delete manifests
     table.newAppend()
@@ -433,13 +433,13 @@ public class TestDeleteFileIndex extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Should have one delete manifest",
-        1, table.currentSnapshot().deleteManifests().size());
+        1, table.currentSnapshot().deleteManifests(table.io()).size());
     Assert.assertEquals("Should have zero added delete file",
-        0, table.currentSnapshot().deleteManifests().get(0).addedFilesCount().intValue());
+        0, table.currentSnapshot().deleteManifests(table.io()).get(0).addedFilesCount().intValue());
     Assert.assertEquals("Should have zero deleted delete file",
-        0, table.currentSnapshot().deleteManifests().get(0).deletedFilesCount().intValue());
+        0, table.currentSnapshot().deleteManifests(table.io()).get(0).deletedFilesCount().intValue());
     Assert.assertEquals("Should have two existing delete files",
-        2, table.currentSnapshot().deleteManifests().get(0).existingFilesCount().intValue());
+        2, table.currentSnapshot().deleteManifests(table.io()).get(0).existingFilesCount().intValue());
 
     List<FileScanTask> tasks =
         Lists.newArrayList(table.newScan().filter(equal(bucket("data", BUCKETS_NUMBER), 0))

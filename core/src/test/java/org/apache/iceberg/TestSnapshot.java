@@ -42,7 +42,7 @@ public class TestSnapshot extends TableTestBase {
         .commit();
 
     // collect data files from deserialization
-    Iterable<DataFile> filesToAdd = table.currentSnapshot().addedFiles();
+    Iterable<DataFile> filesToAdd = table.currentSnapshot().addedFiles(table.io());
 
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_B).commit();
 

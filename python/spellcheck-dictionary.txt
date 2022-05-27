@@ -30,6 +30,8 @@ fs
 func
 IcebergType
 io
+namespace
+namespaces
 NativeFile
 NaN
 nan
@@ -50,4 +52,7 @@ Timestamptz
 Timestamptzs
 unscaled
 URI
-
+UnboundPredicate
+BoundPredicate
+BooleanExpression
+BooleanExpressionVisitor

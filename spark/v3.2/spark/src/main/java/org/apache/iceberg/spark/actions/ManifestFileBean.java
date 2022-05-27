@@ -29,6 +29,7 @@ public class ManifestFileBean implements ManifestFile {
   private Long length = null;
   private Integer partitionSpecId = null;
   private Long addedSnapshotId = null;
+  private Integer content = null;
 
   public String getPath() {
     return path;
@@ -62,6 +63,14 @@ public class ManifestFileBean implements ManifestFile {
     this.addedSnapshotId = addedSnapshotId;
   }
 
+  public Integer getContent() {
+    return content;
+  }
+
+  public void setContent(Integer content) {
+    this.content = content;
+  }
+
   @Override
   public String path() {
     return path;
@@ -79,7 +88,7 @@ public class ManifestFileBean implements ManifestFile {
 
   @Override
   public ManifestContent content() {
-    return ManifestContent.DATA;
+    return ManifestContent.fromId(content);
   }
 
   @Override

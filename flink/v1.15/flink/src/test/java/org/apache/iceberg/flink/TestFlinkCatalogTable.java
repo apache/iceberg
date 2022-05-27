@@ -209,13 +209,13 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   public void testCreateTableLocation() {
     Assume.assumeFalse("HadoopCatalog does not support creating table with location", isHadoopCatalog);
 
-    sql("CREATE TABLE tl(id BIGINT) WITH ('location'='/tmp/location')");
+    sql("CREATE TABLE tl(id BIGINT) WITH ('location'='file:///tmp/location')");
 
     Table table = table("tl");
     Assert.assertEquals(
         new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
         table.schema().asStruct());
-    Assert.assertEquals("/tmp/location", table.location());
+    Assert.assertEquals("file:///tmp/location", table.location());
     Assert.assertEquals(Maps.newHashMap(), table.properties());
   }
 
@@ -346,8 +346,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assume.assumeFalse("HadoopCatalog does not support relocate table", isHadoopCatalog);
 
     sql("CREATE TABLE tl(id BIGINT)");
-    sql("ALTER TABLE tl SET('location'='/tmp/location')");
-    Assert.assertEquals("/tmp/location", table("tl").location());
+    sql("ALTER TABLE tl SET('location'='file:///tmp/location')");
+    Assert.assertEquals("file:///tmp/location", table("tl").location());
   }
 
   @Test

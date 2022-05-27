@@ -41,17 +41,18 @@ public interface SessionCatalog {
   final class SessionContext {
     private final String sessionId;
     private final String identity;
-    private final String credential;
+    private final Map<String, String> credentials;
     private final Map<String, String> properties;
 
     public static SessionContext createEmpty() {
       return new SessionContext(UUID.randomUUID().toString(), null, null, ImmutableMap.of());
     }
 
-    public SessionContext(String sessionId, String identity, String credential, Map<String, String> properties) {
+    public SessionContext(String sessionId, String identity, Map<String, String> credentials,
+                          Map<String, String> properties) {
       this.sessionId = sessionId;
       this.identity = identity;
-      this.credential = credential;
+      this.credentials = credentials;
       this.properties = properties;
     }
 
@@ -78,14 +79,14 @@ public interface SessionCatalog {
     }
 
     /**
-     * Returns a credential string.
+     * Returns the session's credential map.
      * <p>
      * This cannot change for a given session ID.
      *
      * @return a credential string
      */
-    public String credential() {
-      return credential;
+    public Map<String, String> credentials() {
+      return credentials;
     }
 
     /**

@@ -30,6 +30,7 @@ from iceberg.types import (
     StringType,
     StructType,
 )
+from tests.catalog.test_base import InMemoryCatalog
 
 
 class FooStruct:
@@ -297,3 +298,8 @@ def all_avro_types() -> Dict[str, Any]:
             },
         ],
     }
+
+
+@pytest.fixture
+def catalog() -> InMemoryCatalog:
+    return InMemoryCatalog("test.in.memory.catalog", {"test.key": "test.value"})

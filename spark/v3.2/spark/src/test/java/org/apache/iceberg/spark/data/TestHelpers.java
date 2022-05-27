@@ -707,11 +707,11 @@ public class TestHelpers {
   }
 
   public static List<ManifestFile> dataManifests(Table table) {
-    return table.currentSnapshot().dataManifests();
+    return table.currentSnapshot().dataManifests(table.io());
   }
 
   public static List<ManifestFile> deleteManifests(Table table) {
-    return table.currentSnapshot().deleteManifests();
+    return table.currentSnapshot().deleteManifests(table.io());
   }
 
   public static Set<DataFile> dataFiles(Table table) {
