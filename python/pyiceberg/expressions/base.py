@@ -267,7 +267,7 @@ class UnboundIn(BooleanExpression, UnboundPredicate):
 class In(BooleanExpression, BoundPredicate):
     """IN operation expression"""
 
-    def __init__(self, left: "BoundReference", right: List[Literal]):
+    def __init__(self, left: "BoundReference", right: List[Literal]):  # pylint: disable=super-init-not-called
         self._left = left
         self._right = right
 
