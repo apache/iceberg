@@ -188,7 +188,7 @@ public class TestHelpers {
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Setting values is not supported");
+      values[pos] = value;
     }
 
     @Override
