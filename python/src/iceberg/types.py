@@ -154,7 +154,7 @@ class NestedField(IcebergType):
     name: str = field()
     field_type: IcebergType = field()
     is_optional: bool = field(default=True)
-    doc: Optional[str] = field(default=None, repr=False, compare=False, hash=False)
+    doc: Optional[str] = field(default=None, repr=False)
 
     _instances: ClassVar[Dict[Tuple[bool, int, str, IcebergType, Optional[str]], "NestedField"]] = {}
 
