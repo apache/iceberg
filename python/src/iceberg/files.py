@@ -51,5 +51,5 @@ class StructProtocol(Protocol):  # pragma: no cover
         ...
 
     @abstractmethod
-    def set(self, pos: int, value) -> None:
+    def set(self, pos: int, value: Any) -> None:
         ...

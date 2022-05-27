@@ -45,5 +45,13 @@ warn_unreachable = true
 module = "mypy-pyarrow.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "mypy-snappy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mypy-zstandard.*"
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ['src/']

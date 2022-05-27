@@ -21,10 +21,10 @@ describe an Iceberg table schema, these classes can be used in the construction 
 
 Example:
     >>> str(StructType(
-    ...     NestedField(1, "required_field", StringType(), True),
-    ...     NestedField(2, "optional_field", IntegerType())
+    ...     NestedField(1, "required_field", StringType(), is_optional=False),
+    ...     NestedField(2, "optional_field", IntegerType(), is_optional=True)
     ... ))
-    'struct<1: required_field: optional string, 2: optional_field: optional int>'
+    'struct<1: required_field: required string, 2: optional_field: optional int>'
 
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
@@ -192,10 +192,10 @@ class StructType(IcebergType):
 
     Example:
         >>> str(StructType(
-        ...     NestedField(1, "required_field", StringType(), True),
-        ...     NestedField(2, "optional_field", IntegerType())
+        ...     NestedField(1, "required_field", StringType(), is_optional=False),
+        ...     NestedField(2, "optional_field", IntegerType(), is_optional=True)
         ... ))
-        'struct<1: required_field: optional string, 2: optional_field: optional int>'
+        'struct<1: required_field: required string, 2: optional_field: optional int>'
     """
 
     fields: Tuple[NestedField] = field()
