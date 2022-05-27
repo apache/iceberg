@@ -1158,8 +1158,14 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    private boolean hasChanges() {
+      return changes.size() != startingChangeCount ||
+          (discardChanges && changes.size() > 0) ||
+          metadataLocation != null;
+    }
+
     public TableMetadata build() {
-      if (changes.size() == startingChangeCount && !(discardChanges && changes.size() > 0)) {
+      if (!hasChanges()) {
         return base;
       }
 
