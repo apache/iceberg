@@ -132,7 +132,7 @@ public class SnapshotUtil {
    * @param lookup lookup function from snapshot ID to snapshot
    * @return null if there is no current snapshot in the table, else the oldest Snapshot.
    */
-  public static Snapshot oldestAncestor(long snapshotId, Function<Long, Snapshot> lookup) {
+  public static Snapshot oldestAncestorOf(long snapshotId, Function<Long, Snapshot> lookup) {
     Snapshot lastSnapshot = null;
     for (Snapshot snapshot : ancestorsOf(snapshotId, lookup)) {
       lastSnapshot = snapshot;

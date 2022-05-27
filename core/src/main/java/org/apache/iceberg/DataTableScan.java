@@ -23,7 +23,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 public class DataTableScan extends BaseTableScan {
@@ -51,7 +50,7 @@ public class DataTableScan extends BaseTableScan {
     Preconditions.checkState(snapshotId() == null,
         "Cannot enable incremental scan, scan-snapshot set to id=%s", snapshotId());
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
-        context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
+        context().fromSnapshotIdExclusive(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
 
   @Override
@@ -98,13 +97,5 @@ public class DataTableScan extends BaseTableScan {
     }
 
     return manifestGroup.planFiles();
-  }
-
-  @Override
-  public long targetSplitSize() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
-    return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 }

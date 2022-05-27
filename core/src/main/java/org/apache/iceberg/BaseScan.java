@@ -59,8 +59,8 @@ abstract class BaseScan<T extends Scan<T>> implements Scan<T> {
     return context;
   }
 
-  protected abstract T newRefinedScan(
-      TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext);
+  protected abstract T newRefinedScan(TableOperations newOps, Table newTable, Schema newSchema,
+                                      TableScanContext newContext);
 
   @Override
   public T option(String property, String value) {
@@ -134,7 +134,7 @@ abstract class BaseScan<T extends Scan<T>> implements Scan<T> {
   /**
    * Resolve the schema to be projected lazily.
    *
-   * if there are selected columns from scan context, selected columns are projected to the table schema.
+   * If there are selected columns from scan context, selected columns are projected to the table schema.
    * Otherwise, projected schema from scan context shall be returned.
    *
    * @param context scan context
