@@ -236,7 +236,7 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
 class UnboundIn(BooleanExpression, UnboundPredicate):
     """IN operation expression"""
 
-    def __init__(self, left: "UnboundReference", right: List[Literal]):
+    def __init__(self, left: "UnboundReference", right: List[Literal]):  # pylint: disable=super-init-not-called
         self._left = left
         self._right = right
 
