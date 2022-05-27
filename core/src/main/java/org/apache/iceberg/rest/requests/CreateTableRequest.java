@@ -24,6 +24,8 @@ import java.util.Objects;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.UnboundPartitionSpec;
+import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -38,8 +40,8 @@ public class CreateTableRequest implements RESTRequest {
   private String name;
   private String location;
   private Schema schema;
-  private PartitionSpec spec;
-  private SortOrder order;
+  private UnboundPartitionSpec spec;
+  private UnboundSortOrder order;
   private Map<String, String> properties;
   private Boolean stageCreate;
 
@@ -52,8 +54,8 @@ public class CreateTableRequest implements RESTRequest {
     this.name = name;
     this.location = location;
     this.schema = schema;
-    this.spec = spec;
-    this.order = order;
+    this.spec = spec != null ? spec.toUnbound() : null;
+    this.order = order != null ? order.toUnbound() : null;
     this.properties = properties;
     this.stageCreate = stageCreate;
     validate();
@@ -79,11 +81,11 @@ public class CreateTableRequest implements RESTRequest {
   }
 
   public PartitionSpec spec() {
-    return spec;
+    return spec != null ? spec.bind(schema) : null;
   }
 
   public SortOrder writeOrder() {
-    return order;
+    return order != null ? order.bind(schema) : null;
   }
 
   public Map<String, String> properties() {
