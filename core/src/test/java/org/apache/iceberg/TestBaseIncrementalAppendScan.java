@@ -73,6 +73,27 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
   }
 
   @Test
+  public void testFromSnapshotExclusiveForExpiredParent() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotAId = table.currentSnapshot().snapshotId();
+    long expireTimestampSnapshotA = TestHelpers.waitUntilAfter(table.currentSnapshot().timestampMillis());
+    table.newFastAppend().appendFile(FILE_B).commit();
+    long snapshotBId = table.currentSnapshot().snapshotId();
+    table.newFastAppend().appendFile(FILE_C).commit();
+    long snapshotCId = table.currentSnapshot().snapshotId();
+    table.expireSnapshots().expireOlderThan(expireTimestampSnapshotA).commit();
+
+    IncrementalAppendScan scan = newScan()
+        .fromSnapshotExclusive(snapshotAId);
+    Assert.assertEquals(2, Iterables.size(scan.planFiles()));
+
+    IncrementalAppendScan scanWithToSnapshot = newScan()
+        .fromSnapshotExclusive(snapshotAId)
+        .toSnapshot(snapshotBId);
+    Assert.assertEquals(1, Iterables.size(scanWithToSnapshot.planFiles()));
+  }
+
+  @Test
   public void testToSnapshot() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
@@ -116,7 +137,7 @@ public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppen
         .toSnapshot(snapshotDId);
     AssertHelpers.assertThrows("Should throw exception",
         IllegalArgumentException.class,
-        String.format("Starting snapshot (exclusive) %d is not an ancestor of end snapshot %d",
+        String.format("Starting snapshot (exclusive) %d is not a parent ancestor of end snapshot %d",
             snapshotBId, snapshotDId),
         () -> Iterables.size(scanShouldFail.planFiles()));
 

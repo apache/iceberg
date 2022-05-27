@@ -72,6 +72,19 @@ public class SnapshotUtil {
   }
 
   /**
+   * Returns whether some ancestor of snapshotId has parentId matches ancestorParentSnapshotId
+   */
+  public static boolean isParentAncestorOf(Table table, long snapshotId, long ancestorParentSnapshotId) {
+    for (Snapshot snapshot : ancestorsOf(snapshotId, table::snapshot)) {
+      if (snapshot.parentId() == ancestorParentSnapshotId) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Returns an iterable that traverses the table's snapshots from the current to the last known ancestor.
    *
    * @param table a Table
