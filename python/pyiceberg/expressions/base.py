@@ -292,7 +292,7 @@ class In(BooleanExpression, BoundPredicate):
         return f"({self.left} in {self.right})"
 
     def eval(self, struct: StructProtocol):
-        return self.ref.eval(struct)
+        return self.left.eval(struct)
 
 
 class BoundReference:
@@ -312,6 +312,9 @@ class BoundReference:
 
     def __repr__(self):
         return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or (self.field == other.field and self.accessor == other.accessor)
 
     @property
     def field(self) -> NestedField:
@@ -350,6 +353,9 @@ class UnboundReference:
 
     def __repr__(self) -> str:
         return f"UnboundReference(name={repr(self.name)})"
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or self.name == other.name
 
     @property
     def name(self) -> str:

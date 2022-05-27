@@ -22,6 +22,7 @@ from typing import List
 import pytest
 
 from pyiceberg.expressions import base
+from pyiceberg.expressions.literals import literal
 from pyiceberg.types import NestedField, StringType
 from pyiceberg.utils.singleton import Singleton
 
@@ -138,6 +139,22 @@ def test_strs(op, string):
 
 
 @pytest.mark.parametrize(
+    "a, col_idx, schema, success",
+    [
+        (base.UnboundIn(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]), 0, "table_schema_simple", False),
+        (base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]), 0, "table_schema_simple", True),
+    ],
+)
+def test_bind_simple(a, col_idx, schema, success, request):
+    schema = request.getfixturevalue(schema)
+    if success:
+        assert a.bind(schema, False).left.field == [c for i, c in enumerate(schema.columns) if i == col_idx][0]
+    else:
+        with pytest.raises(ValueError) as e_info:
+            a.bind(schema, False)
+
+
+@pytest.mark.parametrize(
     "exp, testexpra, testexprb",
     [
         (
@@ -153,6 +170,16 @@ def test_strs(op, string):
         (base.Not(TestExpressionA()), base.Not(TestExpressionA()), TestExpressionB()),
         (TestExpressionA(), TestExpressionA(), TestExpressionB()),
         (TestExpressionB(), TestExpressionB(), TestExpressionA()),
+        (
+            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.UnboundIn(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
+        ),
+        (
+            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.UnboundIn(base.UnboundReference("foo"), [literal("goodbye"), literal("world")]),
+        ),
     ],
 )
 def test_eq(exp, testexpra, testexprb):
