@@ -25,6 +25,7 @@ generate-openapi:
 		--input ../open-api/rest-catalog-open-api.yaml \
 		--disable-timestamp \
 		--input-file-type openapi \
+		--allow-population-by-field-name \
 		--output src/iceberg/openapi/rest_catalog.py
 	cat ../dev/licenses/python.txt src/iceberg/openapi/rest_catalog.py > out
 	mv out src/iceberg/openapi/rest_catalog.py

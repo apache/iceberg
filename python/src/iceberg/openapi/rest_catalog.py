@@ -30,6 +30,9 @@ class ErrorModel(BaseModel):
     JSON error payload returned in a response with further details on the error
     """
 
+    class Config:
+        allow_population_by_field_name = True
+
     message: str = Field(..., description='Human-readable error message')
     type: str = Field(
         ...,
@@ -47,6 +50,9 @@ class CatalogConfig(BaseModel):
     Server-provided configuration for the catalog.
     """
 
+    class Config:
+        allow_population_by_field_name = True
+
     overrides: Dict[str, Any] = Field(
         ...,
         description='Properties that should be used to override client configuration; applied after defaults and client configuration.',
@@ -60,8 +66,14 @@ class CatalogConfig(BaseModel):
 class Updates(BaseModel):
     pass
 
+    class Config:
+        allow_population_by_field_name = True
+
 
 class UpdateNamespacePropertiesRequest(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     removals: Optional[List[str]] = Field(
         None, example=['department', 'access_group'], unique_items=True
     )
@@ -75,6 +87,9 @@ class Namespace(BaseModel):
     Reference to one or more levels of a namespace
     """
 
+    class Config:
+        allow_population_by_field_name = True
+
     __root__: List[str] = Field(
         ...,
         description='Reference to one or more levels of a namespace',
@@ -83,15 +98,24 @@ class Namespace(BaseModel):
 
 
 class TableIdentifier(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     namespace: Namespace
     name: str
 
 
 class PrimitiveType(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     __root__: str = Field(..., example=['long', 'string', 'fixed[16]', 'decimal(10,2)'])
 
 
 class Transform(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     __root__: str = Field(
         ...,
         example=[
@@ -107,6 +131,9 @@ class Transform(BaseModel):
 
 
 class PartitionField(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     field_id: Optional[int] = Field(None, alias='field-id')
     source_id: int = Field(..., alias='source-id')
     name: str
@@ -114,6 +141,9 @@ class PartitionField(BaseModel):
 
 
 class PartitionSpec(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     spec_id: Optional[int] = Field(None, alias='spec-id')
     fields: List[PartitionField]
 
@@ -129,6 +159,9 @@ class NullOrder(Enum):
 
 
 class SortField(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     source_id: int = Field(..., alias='source-id')
     transform: Transform
     direction: SortDirection
@@ -136,16 +169,25 @@ class SortField(BaseModel):
 
 
 class SortOrder(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     order_id: Optional[int] = Field(None, alias='order-id')
     fields: List[SortField]
 
 
 class Summary(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     operation: Literal['append', 'replace', 'overwrite', 'delete']
     additionalProperties: Optional[str] = None
 
 
 class Snapshot(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     snapshot_id: int = Field(..., alias='snapshot-id')
     timestamp_ms: int = Field(..., alias='timestamp-ms')
     manifest_list: str = Field(
@@ -158,6 +200,9 @@ class Snapshot(BaseModel):
 
 
 class SnapshotReference(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     type: Literal['tag', 'branch']
     snapshot_id: int = Field(..., alias='snapshot-id')
     max_ref_age_ms: Optional[int] = Field(None, alias='max-ref-age-ms')
@@ -170,27 +215,43 @@ class SnapshotReferences(BaseModel):
 
     class Config:
         extra = Extra.allow
+        allow_population_by_field_name = True
 
 
 class SnapshotLogItem(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     snapshot_id: int = Field(..., alias='snapshot-id')
     timestamp_ms: int = Field(..., alias='timestamp-ms')
 
 
 class SnapshotLog(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     __root__: List[SnapshotLogItem]
 
 
 class MetadataLogItem(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     metadata_file: str = Field(..., alias='metadata-file')
     timestamp_ms: int = Field(..., alias='timestamp-ms')
 
 
 class MetadataLog(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     __root__: List[MetadataLogItem]
 
 
 class BaseUpdate(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     action: Literal[
         'upgrade-format-version',
         'add-schema',
@@ -209,10 +270,16 @@ class BaseUpdate(BaseModel):
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -221,10 +288,16 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -233,10 +306,16 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -245,26 +324,44 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
+    class Config:
+        allow_population_by_field_name = True
+
     ref_name: str = Field(..., alias='ref-name')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     snapshot_ids: List[int] = Field(..., alias='snapshot-ids')
 
 
 class SetLocationUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     updates: Dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     removals: List[str]
 
 
@@ -280,6 +377,9 @@ class TableRequirement(BaseModel):
     - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
     - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
     """
+
+    class Config:
+        allow_population_by_field_name = True
 
     requirement: Literal[
         'assert-create',
@@ -331,6 +431,9 @@ class OAuthClientCredentialsRequest(BaseModel):
     See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
     """
 
+    class Config:
+        allow_population_by_field_name = True
+
     grant_type: Literal['client_credentials']
     scope: Optional[str] = None
     client_id: str = Field(
@@ -350,6 +453,9 @@ class OAuthTokenExchangeRequest(BaseModel):
     See https://datatracker.ietf.org/doc/html/rfc8693
     """
 
+    class Config:
+        allow_population_by_field_name = True
+
     grant_type: Literal['urn:ietf:params:oauth:grant-type:token-exchange']
     scope: Optional[str] = None
     requested_token_type: Optional[TokenType] = None
@@ -364,10 +470,16 @@ class OAuthTokenExchangeRequest(BaseModel):
 
 
 class OAuthTokenRequest(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest]
 
 
 class CreateNamespaceRequest(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     namespace: Namespace
     properties: Optional[Dict[str, Any]] = Field(
         {},
@@ -377,11 +489,17 @@ class CreateNamespaceRequest(BaseModel):
 
 
 class RenameTableRequest(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     source: Optional[TableIdentifier] = None
     destination: Optional[TableIdentifier] = None
 
 
 class StructField(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     id: int
     name: str
     required: bool
@@ -390,11 +508,17 @@ class StructField(BaseModel):
 
 
 class StructType(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     type: Optional[Literal['struct']] = None
     fields: List[StructField]
 
 
 class ListType(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     type: Literal['list']
     element_id: int = Field(..., alias='element-id')
     element_required: bool = Field(..., alias='element-required')
@@ -402,6 +526,9 @@ class ListType(BaseModel):
 
 
 class MapType(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     type: Literal['map']
     key_id: int = Field(..., alias='key-id')
     key: Type
@@ -411,10 +538,16 @@ class MapType(BaseModel):
 
 
 class Type(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     __root__: Union[PrimitiveType, StructType, ListType, MapType]
 
 
 class TableMetadata(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     format_version: int = Field(..., alias='format-version', ge=1, le=2)
     table_uuid: str = Field(..., alias='table-uuid')
     location: Optional[str] = None
@@ -438,10 +571,16 @@ class TableMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
+    class Config:
+        allow_population_by_field_name = True
+
     schema_: Schema = Field(..., alias='schema')
 
 
 class TableUpdate(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     __root__: Union[
         UpgradeFormatVersionUpdate,
         AddSchemaUpdate,
@@ -468,17 +607,26 @@ class LoadTableResult(BaseModel):
     The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
     """
 
+    class Config:
+        allow_population_by_field_name = True
+
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: TableMetadata
     config: Optional[Dict[str, str]] = None
 
 
 class CommitTableRequest(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     requirements: List[TableRequirement]
     updates: List[TableUpdate]
 
 
 class CreateTableRequest(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
     name: str
     location: Optional[str] = None
     schema_: Schema = Field(..., alias='schema')
@@ -489,6 +637,9 @@ class CreateTableRequest(BaseModel):
 
 
 class Schema(StructType):
+    class Config:
+        allow_population_by_field_name = True
+
     schema_id: Optional[int] = Field(None, alias='schema-id')
     identifier_field_ids: Optional[List[int]] = Field(
         None, alias='identifier-field-ids'
