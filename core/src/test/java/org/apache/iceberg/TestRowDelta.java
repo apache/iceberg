@@ -55,17 +55,17 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
     Assert.assertEquals("Delta commit should use operation 'overwrite'", DataOperations.OVERWRITE, snap.operation());
 
-    Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests().size());
+    Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests(table.io()).size());
     validateManifest(
-        snap.dataManifests().get(0),
+        snap.dataManifests(table.io()).get(0),
         seqs(1),
         ids(snap.snapshotId()),
         files(FILE_A),
         statuses(Status.ADDED));
 
-    Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests().size());
+    Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        snap.deleteManifests().get(0),
+        snap.deleteManifests(table.io()).get(0),
         seqs(1, 1),
         ids(snap.snapshotId(), snap.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
@@ -107,7 +107,7 @@ public class TestRowDelta extends V2TableTestBase {
         deleteSnapshotId, table.currentSnapshot().snapshotId());
 
     Assert.assertEquals("Table should not have any delete manifests",
-        0, table.currentSnapshot().deleteManifests().size());
+        0, table.currentSnapshot().deleteManifests(table.io()).size());
 
     table.newRowDelta()
         .addDeletes(FILE_B_DELETES)
@@ -116,8 +116,8 @@ public class TestRowDelta extends V2TableTestBase {
         .commit();
 
     Assert.assertEquals("Table should have one new delete manifest",
-        1, table.currentSnapshot().deleteManifests().size());
-    ManifestFile deletes = table.currentSnapshot().deleteManifests().get(0);
+        1, table.currentSnapshot().deleteManifests(table.io()).size());
+    ManifestFile deletes = table.currentSnapshot().deleteManifests(table.io()).get(0);
     validateDeleteManifest(deletes,
         seqs(4),
         ids(table.currentSnapshot().snapshotId()),
@@ -155,7 +155,7 @@ public class TestRowDelta extends V2TableTestBase {
         deleteSnapshotId, table.currentSnapshot().snapshotId());
 
     Assert.assertEquals("Table should not have any delete manifests",
-        0, table.currentSnapshot().deleteManifests().size());
+        0, table.currentSnapshot().deleteManifests(table.io()).size());
   }
 
   @Test
@@ -187,7 +187,7 @@ public class TestRowDelta extends V2TableTestBase {
         deleteSnapshotId, table.currentSnapshot().snapshotId());
 
     Assert.assertEquals("Table should not have any delete manifests",
-        0, table.currentSnapshot().deleteManifests().size());
+        0, table.currentSnapshot().deleteManifests(table.io()).size());
   }
 
   @Test
@@ -219,10 +219,10 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Commit should produce sequence number 2", 3, snap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should have 2 data manifests", 2, snap.dataManifests().size());
+    Assert.assertEquals("Should have 2 data manifests", 2, snap.dataManifests(table.io()).size());
     // manifest with FILE_A2 added
     validateManifest(
-        snap.dataManifests().get(0),
+        snap.dataManifests(table.io()).get(0),
         seqs(2),
         ids(replaceSnapshotId),
         files(FILE_A2),
@@ -230,15 +230,15 @@ public class TestRowDelta extends V2TableTestBase {
 
     // manifest with FILE_A deleted
     validateManifest(
-        snap.dataManifests().get(1),
+        snap.dataManifests(table.io()).get(1),
         seqs(2, 1),
         ids(replaceSnapshotId, appendSnapshotId),
         files(FILE_A, FILE_B),
         statuses(Status.DELETED, Status.EXISTING));
 
-    Assert.assertEquals("Should have 1 delete manifest", 1, snap.deleteManifests().size());
+    Assert.assertEquals("Should have 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        snap.deleteManifests().get(0),
+        snap.deleteManifests(table.io()).get(0),
         seqs(3),
         ids(snap.snapshotId()),
         files(FILE_A_DELETES),
@@ -274,7 +274,7 @@ public class TestRowDelta extends V2TableTestBase {
         deleteSnapshotId, table.currentSnapshot().snapshotId());
 
     Assert.assertEquals("Table should not have any delete manifests",
-        0, table.currentSnapshot().deleteManifests().size());
+        0, table.currentSnapshot().deleteManifests(table.io()).size());
   }
 
   @Test
@@ -307,7 +307,7 @@ public class TestRowDelta extends V2TableTestBase {
         deleteSnapshotId, table.currentSnapshot().snapshotId());
 
     Assert.assertEquals("Table should not have any delete manifests",
-        0, table.currentSnapshot().deleteManifests().size());
+        0, table.currentSnapshot().deleteManifests(table.io()).size());
   }
 
   @Test
@@ -338,7 +338,7 @@ public class TestRowDelta extends V2TableTestBase {
         appendSnapshotId, table.currentSnapshot().snapshotId());
 
     Assert.assertEquals("Table should not have any delete manifests",
-        0, table.currentSnapshot().deleteManifests().size());
+        0, table.currentSnapshot().deleteManifests(table.io()).size());
   }
 
   @Test
@@ -369,10 +369,10 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Commit should produce sequence number 2", 3, snap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should have 2 data manifests", 2, snap.dataManifests().size());
+    Assert.assertEquals("Should have 2 data manifests", 2, snap.dataManifests(table.io()).size());
     // manifest with FILE_A2 added
     validateManifest(
-        snap.dataManifests().get(0),
+        snap.dataManifests(table.io()).get(0),
         seqs(2),
         ids(validateFromSnapshotId),
         files(FILE_A2),
@@ -380,15 +380,15 @@ public class TestRowDelta extends V2TableTestBase {
 
     // manifest with FILE_A added
     validateManifest(
-        snap.dataManifests().get(1),
+        snap.dataManifests(table.io()).get(1),
         seqs(1),
         ids(appendSnapshotId),
         files(FILE_A),
         statuses(Status.ADDED));
 
-    Assert.assertEquals("Should have 1 delete manifest", 1, snap.deleteManifests().size());
+    Assert.assertEquals("Should have 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        snap.deleteManifests().get(0),
+        snap.deleteManifests(table.io()).get(0),
         seqs(3),
         ids(snap.snapshotId()),
         files(FILE_A_DELETES),
@@ -416,17 +416,17 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Commit should produce sequence number 2", 2, snap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 2", 2, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests().size());
+    Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests(table.io()).size());
     validateManifest(
-        snap.dataManifests().get(0),
+        snap.dataManifests(table.io()).get(0),
         seqs(2),
         ids(snap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
 
-    Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests().size());
+    Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        snap.deleteManifests().get(0),
+        snap.deleteManifests(table.io()).get(0),
         seqs(2, 1),
         ids(snap.snapshotId(), deltaSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
@@ -454,25 +454,25 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Commit should produce sequence number 2", 2, snap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 2", 2, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should produce 2 data manifests", 2, snap.dataManifests().size());
-    int deleteManifestPos = snap.dataManifests().get(0).deletedFilesCount() > 0 ? 0 : 1;
+    Assert.assertEquals("Should produce 2 data manifests", 2, snap.dataManifests(table.io()).size());
+    int deleteManifestPos = snap.dataManifests(table.io()).get(0).deletedFilesCount() > 0 ? 0 : 1;
     validateManifest(
-        snap.dataManifests().get(deleteManifestPos),
+        snap.dataManifests(table.io()).get(deleteManifestPos),
         seqs(2),
         ids(snap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
     int appendManifestPos = deleteManifestPos == 0 ? 1 : 0;
     validateManifest(
-        snap.dataManifests().get(appendManifestPos),
+        snap.dataManifests(table.io()).get(appendManifestPos),
         seqs(2),
         ids(snap.snapshotId()),
         files(FILE_A2),
         statuses(Status.ADDED));
 
-    Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests().size());
+    Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        snap.deleteManifests().get(0),
+        snap.deleteManifests(table.io()).get(0),
         seqs(2, 1),
         ids(snap.snapshotId(), deltaSnapshotId),
         files(FILE_A_DELETES, FILE_B_DELETES),
@@ -500,17 +500,17 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Commit should produce sequence number 2", 2, snap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 2", 2, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests().size());
+    Assert.assertEquals("Should produce 1 data manifest", 1, snap.dataManifests(table.io()).size());
     validateManifest(
-        snap.dataManifests().get(0),
+        snap.dataManifests(table.io()).get(0),
         seqs(2),
         ids(snap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
 
-    Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests().size());
+    Assert.assertEquals("Should produce 1 delete manifest", 1, snap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        snap.deleteManifests().get(0),
+        snap.deleteManifests(table.io()).get(0),
         seqs(2, 2),
         ids(snap.snapshotId(), snap.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
@@ -537,17 +537,17 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Commit should produce sequence number 2", 2, deleteSnap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 2", 2, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should produce 1 data manifest", 1, deleteSnap.dataManifests().size());
+    Assert.assertEquals("Should produce 1 data manifest", 1, deleteSnap.dataManifests(table.io()).size());
     validateManifest(
-        deleteSnap.dataManifests().get(0),
+        deleteSnap.dataManifests(table.io()).get(0),
         seqs(2),
         ids(deleteSnap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
 
-    Assert.assertEquals("Should produce 1 delete manifest", 1, deleteSnap.deleteManifests().size());
+    Assert.assertEquals("Should produce 1 delete manifest", 1, deleteSnap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        deleteSnap.deleteManifests().get(0),
+        deleteSnap.deleteManifests(table.io()).get(0),
         seqs(1),
         ids(deltaSnapshotId),
         files(FILE_A_DELETES),
@@ -564,10 +564,10 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Append should produce sequence number 3", 3, nextSnap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should have 0 data manifests", 0, nextSnap.dataManifests().size());
-    Assert.assertEquals("Should produce 1 delete manifest", 1, nextSnap.deleteManifests().size());
+    Assert.assertEquals("Should have 0 data manifests", 0, nextSnap.dataManifests(table.io()).size());
+    Assert.assertEquals("Should produce 1 delete manifest", 1, nextSnap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        nextSnap.deleteManifests().get(0),
+        nextSnap.deleteManifests(table.io()).get(0),
         seqs(3),
         ids(nextSnap.snapshotId()),
         files(FILE_A_DELETES),
@@ -594,17 +594,17 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Commit should produce sequence number 2", 2, deleteSnap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 2", 2, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should produce 1 data manifest", 1, deleteSnap.dataManifests().size());
+    Assert.assertEquals("Should produce 1 data manifest", 1, deleteSnap.dataManifests(table.io()).size());
     validateManifest(
-        deleteSnap.dataManifests().get(0),
+        deleteSnap.dataManifests(table.io()).get(0),
         seqs(2),
         ids(deleteSnap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
 
-    Assert.assertEquals("Should produce 1 delete manifest", 1, deleteSnap.deleteManifests().size());
+    Assert.assertEquals("Should produce 1 delete manifest", 1, deleteSnap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        deleteSnap.deleteManifests().get(0),
+        deleteSnap.deleteManifests(table.io()).get(0),
         seqs(1),
         ids(deltaSnapshotId),
         files(FILE_A_DELETES),
@@ -619,25 +619,25 @@ public class TestRowDelta extends V2TableTestBase {
     Assert.assertEquals("Append should produce sequence number 3", 3, nextSnap.sequenceNumber());
     Assert.assertEquals("Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
 
-    Assert.assertEquals("Should have 2 data manifests", 2, nextSnap.dataManifests().size());
-    int deleteManifestPos = nextSnap.dataManifests().get(0).deletedFilesCount() > 0 ? 0 : 1;
+    Assert.assertEquals("Should have 2 data manifests", 2, nextSnap.dataManifests(table.io()).size());
+    int deleteManifestPos = nextSnap.dataManifests(table.io()).get(0).deletedFilesCount() > 0 ? 0 : 1;
     validateManifest(
-        nextSnap.dataManifests().get(deleteManifestPos),
+        nextSnap.dataManifests(table.io()).get(deleteManifestPos),
         seqs(2),
         ids(deleteSnap.snapshotId()),
         files(FILE_A),
         statuses(Status.DELETED));
     int appendManifestPos = deleteManifestPos == 0 ? 1 : 0;
     validateManifest(
-        nextSnap.dataManifests().get(appendManifestPos),
+        nextSnap.dataManifests(table.io()).get(appendManifestPos),
         seqs(3),
         ids(nextSnap.snapshotId()),
         files(FILE_B),
         statuses(Status.ADDED));
 
-    Assert.assertEquals("Should produce 1 delete manifest", 1, nextSnap.deleteManifests().size());
+    Assert.assertEquals("Should produce 1 delete manifest", 1, nextSnap.deleteManifests(table.io()).size());
     validateDeleteManifest(
-        nextSnap.deleteManifests().get(0),
+        nextSnap.deleteManifests(table.io()).get(0),
         seqs(1),
         ids(deltaSnapshotId),
         files(FILE_A_DELETES),
@@ -705,8 +705,8 @@ public class TestRowDelta extends V2TableTestBase {
     rowDelta.commit();
 
     Assert.assertEquals("Table should have one new delete manifest",
-        1, table.currentSnapshot().deleteManifests().size());
-    ManifestFile deletes = table.currentSnapshot().deleteManifests().get(0);
+        1, table.currentSnapshot().deleteManifests(table.io()).size());
+    ManifestFile deletes = table.currentSnapshot().deleteManifests(table.io()).get(0);
     validateDeleteManifest(deletes,
         seqs(4),
         ids(table.currentSnapshot().snapshotId()),
@@ -841,18 +841,18 @@ public class TestRowDelta extends V2TableTestBase {
         summary.get(CHANGED_PARTITION_PREFIX + "data=xyz").contains(ADDED_FILES_PROP + "=1"));
 
     // 3 appends + 1 row delta
-    Assert.assertEquals("Should have 4 data manifest", 4, snapshot.dataManifests().size());
+    Assert.assertEquals("Should have 4 data manifest", 4, snapshot.dataManifests(table.io()).size());
     validateManifest(
-        snapshot.dataManifests().get(0),
+        snapshot.dataManifests(table.io()).get(0),
         seqs(4),
         ids(snapshot.snapshotId()),
         files(dataFile),
         statuses(Status.ADDED));
 
     // each delete file goes into a separate manifest as the specs are different
-    Assert.assertEquals("Should produce 3 delete manifest", 3, snapshot.deleteManifests().size());
+    Assert.assertEquals("Should produce 3 delete manifest", 3, snapshot.deleteManifests(table.io()).size());
 
-    ManifestFile firstDeleteManifest = snapshot.deleteManifests().get(2);
+    ManifestFile firstDeleteManifest = snapshot.deleteManifests(table.io()).get(2);
     Assert.assertEquals("Spec must match", firstSnapshotDataFile.specId(), firstDeleteManifest.partitionSpecId());
     validateDeleteManifest(
         firstDeleteManifest,
@@ -861,7 +861,7 @@ public class TestRowDelta extends V2TableTestBase {
         files(firstDeleteFile),
         statuses(Status.ADDED));
 
-    ManifestFile secondDeleteManifest = snapshot.deleteManifests().get(1);
+    ManifestFile secondDeleteManifest = snapshot.deleteManifests(table.io()).get(1);
     Assert.assertEquals("Spec must match", secondSnapshotDataFile.specId(), secondDeleteManifest.partitionSpecId());
     validateDeleteManifest(
         secondDeleteManifest,
@@ -870,7 +870,7 @@ public class TestRowDelta extends V2TableTestBase {
         files(secondDeleteFile),
         statuses(Status.ADDED));
 
-    ManifestFile thirdDeleteManifest = snapshot.deleteManifests().get(0);
+    ManifestFile thirdDeleteManifest = snapshot.deleteManifests(table.io()).get(0);
     Assert.assertEquals("Spec must match", thirdSnapshotDataFile.specId(), thirdDeleteManifest.partitionSpecId());
     validateDeleteManifest(
         thirdDeleteManifest,
@@ -919,8 +919,8 @@ public class TestRowDelta extends V2TableTestBase {
     Snapshot thirdSnapshot = table.currentSnapshot();
 
     // 2 appends and 1 row delta where delete files belong to different specs
-    Assert.assertEquals("Should have 2 data manifest", 2, thirdSnapshot.dataManifests().size());
-    Assert.assertEquals("Should have 2 delete manifest", 2, thirdSnapshot.deleteManifests().size());
+    Assert.assertEquals("Should have 2 data manifest", 2, thirdSnapshot.dataManifests(table.io()).size());
+    Assert.assertEquals("Should have 2 delete manifest", 2, thirdSnapshot.deleteManifests(table.io()).size());
 
     // commit two more delete files to the same specs to trigger merging
     DeleteFile thirdDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
@@ -934,10 +934,10 @@ public class TestRowDelta extends V2TableTestBase {
     Snapshot fourthSnapshot = table.currentSnapshot();
 
     // make sure merging respects spec boundaries
-    Assert.assertEquals("Should have 2 data manifest", 2, fourthSnapshot.dataManifests().size());
-    Assert.assertEquals("Should have 2 delete manifest", 2, fourthSnapshot.deleteManifests().size());
+    Assert.assertEquals("Should have 2 data manifest", 2, fourthSnapshot.dataManifests(table.io()).size());
+    Assert.assertEquals("Should have 2 delete manifest", 2, fourthSnapshot.deleteManifests(table.io()).size());
 
-    ManifestFile firstDeleteManifest = fourthSnapshot.deleteManifests().get(1);
+    ManifestFile firstDeleteManifest = fourthSnapshot.deleteManifests(table.io()).get(1);
     Assert.assertEquals("Spec must match", firstSnapshotDataFile.specId(), firstDeleteManifest.partitionSpecId());
     validateDeleteManifest(
         firstDeleteManifest,
@@ -946,7 +946,7 @@ public class TestRowDelta extends V2TableTestBase {
         files(thirdDeleteFile, firstDeleteFile),
         statuses(Status.ADDED, Status.EXISTING));
 
-    ManifestFile secondDeleteManifest = fourthSnapshot.deleteManifests().get(0);
+    ManifestFile secondDeleteManifest = fourthSnapshot.deleteManifests(table.io()).get(0);
     Assert.assertEquals("Spec must match", secondSnapshotDataFile.specId(), secondDeleteManifest.partitionSpecId());
     validateDeleteManifest(
         secondDeleteManifest,
@@ -1219,7 +1219,7 @@ public class TestRowDelta extends V2TableTestBase {
     rewriteFiles.commit();
 
     table.refresh();
-    List<ManifestFile> dataManifests = table.currentSnapshot().dataManifests();
+    List<ManifestFile> dataManifests = table.currentSnapshot().dataManifests(table.io());
     Assert.assertEquals("should have 1 data manifest", 1, dataManifests.size());
     ManifestFile mergedDataManifest = dataManifests.get(0);
 

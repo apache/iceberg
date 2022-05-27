@@ -160,7 +160,7 @@ public class ScanSummary {
       removeTimeFilters(filters, Expressions.rewriteNot(scan.filter()));
       Expression rowFilter = joinFilters(filters);
 
-      Iterable<ManifestFile> manifests = table.currentSnapshot().dataManifests();
+      Iterable<ManifestFile> manifests = table.currentSnapshot().dataManifests(ops.io());
 
       boolean filterByTimestamp = !timeFilters.isEmpty();
       Set<Long> snapshotsInTimeRange = Sets.newHashSet();

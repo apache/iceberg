@@ -637,6 +637,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
   private static <T extends ContentFile<T>> void deleteFiles(FileIO io, List<T> files) {
     Tasks.foreach(files)
+        .executeWith(ThreadPools.getWorkerPool())
         .throwFailureWhenFinished()
         .noRetry()
         .run(file -> io.deleteFile(file.path().toString()));

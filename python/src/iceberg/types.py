@@ -146,6 +146,14 @@ class NestedField(IcebergType):
         ...     is_optional=False,
         ... ))
         '1: foo: required fixed[22]'
+        >>> str(NestedField(
+        ...     field_id=2,
+        ...     name='bar',
+        ...     field_type=LongType(),
+        ...     is_optional=False,
+        ...     doc="Just a long"
+        ... ))
+        '2: bar: required long (Just a long)'
     """
 
     field_id: int = field()
@@ -174,11 +182,9 @@ class NestedField(IcebergType):
 
     @property
     def string_type(self) -> str:
-        return (
-            f"{self.field_id}: {self.name}: {'optional' if self.is_optional else 'required'} {self.field_type}"
-            if self.doc is None
-            else f" ({self.doc})"
-        )
+        doc = "" if not self.doc else f" ({self.doc})"
+        req = "optional" if self.is_optional else "required"
+        return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
 
 
 @dataclass(frozen=True, init=False)

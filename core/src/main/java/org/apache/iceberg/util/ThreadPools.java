@@ -21,6 +21,9 @@ package org.apache.iceberg.util;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.iceberg.SystemProperties;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -61,12 +64,20 @@ public class ThreadPools {
 
   public static ExecutorService newWorkerPool(String namePrefix, int poolSize) {
     return MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(
-            poolSize,
-            new ThreadFactoryBuilder()
-                .setDaemon(true)
-                .setNameFormat(namePrefix + "-%d")
-                .build()));
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(poolSize, newDaemonThreadFactory(namePrefix)));
+  }
+
+  /**
+   * Create a new {@link ScheduledExecutorService} with the given name and pool size.
+   * <p>
+   * Threads used by this service will be daemon threads.
+   *
+   * @param namePrefix a base name for threads in the executor service's thread pool
+   * @param poolSize max number of threads to use
+   * @return an executor service
+   */
+  public static ScheduledExecutorService newScheduledPool(String namePrefix, int poolSize) {
+    return new ScheduledThreadPoolExecutor(poolSize, newDaemonThreadFactory(namePrefix));
   }
 
   private static int getPoolSize(String systemProperty, int defaultSize) {
@@ -79,5 +90,12 @@ public class ThreadPools {
       }
     }
     return defaultSize;
+  }
+
+  private static ThreadFactory newDaemonThreadFactory(String namePrefix) {
+    return new ThreadFactoryBuilder()
+        .setDaemon(true)
+        .setNameFormat(namePrefix + "-%d")
+        .build();
   }
 }

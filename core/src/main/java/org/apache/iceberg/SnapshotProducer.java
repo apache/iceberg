@@ -330,7 +330,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       // id in case another commit was added between this commit and the refresh.
       Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
       if (saved != null) {
-        cleanUncommitted(Sets.newHashSet(saved.allManifests()));
+        cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
         // also clean up unused manifest lists created by multiple attempts
         for (String manifestList : manifestLists) {
           if (!saved.manifestListLocation().equals(manifestList)) {
