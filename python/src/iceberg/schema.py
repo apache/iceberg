@@ -21,7 +21,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import singledispatch
-from typing import Any, Dict, Generic, Iterable, List, Optional, TypeVar
+from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar
 
 from iceberg.files import StructProtocol
 from iceberg.types import (
@@ -66,15 +66,19 @@ class Schema:
         if not other:
             return False
 
-        columns = list(self.columns)
-
-        if len(columns) != len(other.columns):
+        if not isinstance(other, Schema):
             return False
 
-        return all([lhs == rhs for lhs, rhs in zip(columns, other.columns)])
+        if len(self.columns) != len(other.columns):
+            return False
+
+        identifier_field_ids_is_equal = self.identifier_field_ids == other.identifier_field_ids
+        schema_is_equal = all([lhs == rhs for lhs, rhs in zip(self.columns, other.columns)])
+
+        return identifier_field_ids_is_equal and schema_is_equal
 
     @property
-    def columns(self) -> Iterable[NestedField]:
+    def columns(self) -> Tuple[NestedField]:
         """A list of the top-level fields in the underlying struct"""
         return self._struct.fields
 

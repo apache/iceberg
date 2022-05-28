@@ -31,7 +31,7 @@ Notes:
 """
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import ClassVar, Dict, List, Optional, Tuple
+from typing import ClassVar, Dict, Optional, Tuple
 
 
 class Singleton:
@@ -193,7 +193,7 @@ class StructType(IcebergType):
         'struct<1: required_field: optional string, 2: optional_field: optional int>'
     """
 
-    fields: List[NestedField] = field()
+    fields: Tuple[NestedField] = field()
 
     _instances: ClassVar[Dict[Tuple[NestedField, ...], "StructType"]] = {}
 
