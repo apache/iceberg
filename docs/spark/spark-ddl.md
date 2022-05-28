@@ -134,11 +134,15 @@ To delete a table, run:
 DROP TABLE prod.db.sample
 ```
 
-To delete an empty table use `PURGE`, run:
+To delete a table and its underlying data, use the `PURGE` keyword:
 
 ```sql
 DROP TABLE prod.db.sample PURGE
 ```
+
+{{< hint info >}}
+The `PURGE` flag can also be used to remove an empty table from its corresponding catalog if the table's metadata files have been removed by some other process and cannot be recovered.
+{{< /hint >}}
 
 ## `ALTER TABLE`
 
