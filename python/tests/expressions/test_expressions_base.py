@@ -19,6 +19,7 @@ import uuid
 from decimal import Decimal
 from typing import List
 
+import iceberg.expressions.literals as literals
 import pytest
 
 from pyiceberg.expressions import base
@@ -139,45 +140,47 @@ def test_strs(op, string):
 
 
 @pytest.mark.parametrize(
-    "a, col_idx, schema, ignore_case, success",
+    "a,  schema, case_sensitive, success",
     [
         (
             base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
-            0,
             "table_schema_simple",
             True,
             True,
         ),
         (
             base.UnboundIn(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
-            0,
             "table_schema_simple",
-            True,
+            False,
             False,
         ),
         (
             base.UnboundIn(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
-            1,
             "table_schema_simple",
             False,
             True,
         ),
         (
             base.UnboundIn(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
-            1,
             "table_schema_simple",
+            True,
             False,
-            False,
+        ),
+        (
+            base.UnboundIn(base.UnboundReference("location.latitude"), [literals.DecimalLiteral(Decimal('3'))]),
+            "table_schema_nested",
+            True,
+            True,
         ),
     ],
 )
-def test_bind_simple(a, col_idx, schema, success, ignore_case, request):
+def test_bind(a, schema, case_sensitive, success, request):
     schema = request.getfixturevalue(schema)
     if success:
-        assert a.bind(schema, ignore_case).term.field == [c for i, c in enumerate(schema.columns) if i == col_idx][0]
+        assert a.bind(schema, case_sensitive).term == schema.find_field(a.term.name)
     else:
         with pytest.raises(ValueError):
-            a.bind(schema, ignore_case)
+            a.bind(schema, case_sensitive)
 
 
 @pytest.mark.parametrize(
@@ -215,19 +218,10 @@ def test_eq(exp, testexpra, testexprb):
 @pytest.mark.parametrize(
     "lhs, rhs, raises",
     [
-        (
-            base.And(TestExpressionA(), TestExpressionB()),
-            base.Or(TestExpressionB(), TestExpressionA()), False
-        ),
-        (
-            base.Or(TestExpressionA(), TestExpressionB()),
-            base.And(TestExpressionB(), TestExpressionA()), False
-        ),
+        (base.And(TestExpressionA(), TestExpressionB()), base.Or(TestExpressionB(), TestExpressionA()), False),
+        (base.Or(TestExpressionA(), TestExpressionB()), base.And(TestExpressionB(), TestExpressionA()), False),
         (base.Not(TestExpressionA()), TestExpressionA(), False),
-        (
-            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
-            None, True
-        ),
+        (base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]), None, True),
         (TestExpressionA(), TestExpressionB(), False),
     ],
 )
@@ -237,6 +231,7 @@ def test_negate(lhs, rhs, raises):
     else:
         with pytest.raises(TypeError):
             ~lhs
+
 
 @pytest.mark.parametrize(
     "lhs, rhs",

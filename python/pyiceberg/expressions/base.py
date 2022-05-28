@@ -46,7 +46,7 @@ class Literal(Generic[T], ABC):
         return self._value  # type: ignore
 
     @abstractmethod
-    def to(self, type_var):
+    def to(self, type_var) -> "Literal":
         ...  # pragma: no cover
 
     def __repr__(self):
@@ -243,12 +243,12 @@ class UnboundIn(BooleanExpression, UnboundPredicate):
         raise TypeError("In expressions do not support negation.")
 
     def bind(self, schema: Schema, case_sensitive: bool) -> "In":
-        return In(self.term.bind(schema, case_sensitive), self.literal)
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return In(bound_ref, [lit.to(bound_ref.field.field_type) for lit in self.literal])
 
 
+@dataclass
 class In(BooleanExpression, BoundPredicate):
-    """IN operation expression"""
-
     term: "BoundReference"
     literal: List[Literal]
 
