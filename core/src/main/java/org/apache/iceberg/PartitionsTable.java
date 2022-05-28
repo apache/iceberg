@@ -111,7 +111,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
     // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
     Expression partitionFilter = Projections
-        .inclusive(transformSpec(scan.schema(), table.spec()), caseSensitive)
+        .inclusive(transformSpec(scan.tableSchema(), table.spec()), caseSensitive)
         .project(scan.filter());
 
     ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), snapshot.deleteManifests())
