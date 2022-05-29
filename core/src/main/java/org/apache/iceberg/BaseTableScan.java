@@ -62,6 +62,10 @@ abstract class BaseTableScan implements TableScan {
     this.context = context;
   }
 
+  protected Schema tableSchema() {
+    return schema;
+  }
+
   protected TableOperations tableOps() {
     return ops;
   }
