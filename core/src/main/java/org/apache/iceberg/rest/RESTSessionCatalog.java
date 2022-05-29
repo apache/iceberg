@@ -611,7 +611,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   private long expiresInMs(Map<String, String> properties) {
     return PropertyUtil.propertyAsLong(
-        properties, OAuth2Properties.EXCHANGE_TOKEN_MS, OAuth2Properties.EXCHANGE_TOKEN_MS_DEFAULT);
+        properties, OAuth2Properties.TOKEN_EXPIRES_IN_MS, OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
   }
 
   private static Map<String, String> configHeaders(Map<String, String> properties) {
