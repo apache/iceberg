@@ -571,14 +571,13 @@ RewriteDataFilesActionResult result = Actions.forTable(table)
 
 For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
 
-## Type compatibility
+## Type conversion
 
-Iceberg's type system is mapped to Flink's type system. This type conversion can be done by Iceberg automatically, though the following cases need to be considered.
-See the notes section below for compatibility concerns and how to overcome them.
+Iceberg's integration for Flink automatically converts between Flink and Iceberg types. When writing to a table with types that are not supported by Flink, like UUID, Iceberg will accept and convert values from the Flink type.
 
-### Flink type to Iceberg type
+### Flink to Iceberg
 
-This type conversion table describes how Flink types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Flink.
+Flink types are converted to Iceberg types according to the following table:
 
 | Flink               | Iceberg                    | Notes         |
 |-----------------    |----------------------------|---------------|
@@ -614,7 +613,7 @@ This type conversion table describes how Flink types are converted to the Iceber
 
 ### Iceberg type to Flink type
 
-This type conversion table describes how Iceberg types are converted to the Flink types. The conversion applies on reading from Iceberg table via Flink.
+Iceberg types are converted to Flink types according to the following table:
 
 | Iceberg                    | Flink         | Notes                                            |
 |----------------------------|---------------|--------------------------------------------------|
