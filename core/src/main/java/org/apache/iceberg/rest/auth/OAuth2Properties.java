@@ -37,8 +37,8 @@ public class OAuth2Properties {
    * Interval in milliseconds to wait before attempting to exchange the configured catalog Bearer token.
    * By default, token exchange will be attempted after 1 hour.
    */
-  public static final String EXCHANGE_TOKEN_MS = "exchange-token-in-ms";
-  public static final long EXCHANGE_TOKEN_MS_DEFAULT = 3_600_000; // 1 hour
+  public static final String TOKEN_EXPIRES_IN_MS = "token-expires-in-ms";
+  public static final long TOKEN_EXPIRES_IN_MS_DEFAULT = 3_600_000; // 1 hour
 
   /**
    * Additional scope for OAuth2.

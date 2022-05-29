@@ -21,9 +21,11 @@ package org.apache.iceberg.rest;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,8 +87,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       OAuth2Properties.SAML2_TOKEN_TYPE, OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
-  private final Cache<String, AuthSession> sessions = Caffeine.newBuilder().build();
+  private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
+  private boolean refreshAuthByDefault = false;
   private RESTClient client = null;
   private ResourcePaths paths = null;
   private Object conf = null;
@@ -138,6 +141,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       this.catalogAuth = newSession(initToken, expiresInMs(mergedProps), catalogAuth);
     }
 
+    this.sessions = newSessionCache(mergedProps);
+    this.refreshAuthByDefault = PropertyUtil.propertyAsBoolean(mergedProps,
+        CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED, CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
@@ -578,9 +584,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return parent;
   }
 
-  private AuthSession newSession(String token, long expirationMs, AuthSession parent) {
+  private AuthSession newSession(String token, Long expirationMs, AuthSession parent) {
     AuthSession session = new AuthSession(parent.headers(), token, OAuth2Properties.ACCESS_TOKEN_TYPE);
-    scheduleTokenRefresh(session, System.currentTimeMillis(), expirationMs, TimeUnit.MILLISECONDS);
+    if (expirationMs != null) {
+      scheduleTokenRefresh(session, System.currentTimeMillis(), expirationMs, TimeUnit.MILLISECONDS);
+    }
     return session;
   }
 
@@ -606,12 +614,27 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return session;
   }
 
-  private long expiresInMs(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(
-        properties, OAuth2Properties.EXCHANGE_TOKEN_MS, OAuth2Properties.EXCHANGE_TOKEN_MS_DEFAULT);
+  private Long expiresInMs(Map<String, String> properties) {
+    if (refreshAuthByDefault || properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+      return PropertyUtil.propertyAsLong(
+          properties, OAuth2Properties.TOKEN_EXPIRES_IN_MS, OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+    } else {
+      return null;
+    }
   }
 
   private static Map<String, String> configHeaders(Map<String, String> properties) {
     return RESTUtil.extractPrefixMap(properties, "header.");
+  }
+
+  private static Cache<String, AuthSession> newSessionCache(Map<String, String> properties) {
+    long expirationIntervalMs = PropertyUtil.propertyAsLong(properties,
+        CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
+        CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
+
+    return Caffeine.newBuilder()
+        .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
+        .removalListener((RemovalListener<String, AuthSession>) (id, auth, cause) -> auth.stopRefreshing())
+        .build();
   }
 }

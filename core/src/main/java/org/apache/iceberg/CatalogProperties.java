@@ -83,4 +83,9 @@ public class CatalogProperties {
   public static final String APP_ID = "app-id";
   public static final String USER = "user";
 
+  public static final String AUTH_DEFAULT_REFRESH_ENABLED = "auth.default-refresh-enabled";
+  public static final boolean AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT = false;
+
+  public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
+  public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
 }
