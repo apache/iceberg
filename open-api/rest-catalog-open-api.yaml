@@ -924,6 +924,7 @@ components:
     StructType:
       type: object
       required:
+        - type
         - fields
       properties:
         type:
