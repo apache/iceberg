@@ -13,6 +13,8 @@
 accessor
 accessors
 Args
+Avro
+Nestedfield
 ASF
 BD
 bool
@@ -31,6 +33,8 @@ io
 namespace
 namespaces
 NativeFile
+NaN
+nan
 NestedField
 nullability
 pragma
