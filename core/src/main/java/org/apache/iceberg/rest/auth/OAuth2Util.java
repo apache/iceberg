@@ -23,6 +23,8 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,8 +66,10 @@ public class OAuth2Util {
 
   private static final String AUTHORIZATION_HEADER = "Authorization";
   private static final String BEARER_PREFIX = "Bearer ";
+  private static final String BASIC_PREFIX = "Basic ";
 
   private static final Splitter CREDENTIAL_SPLITTER = Splitter.on(":").limit(2).trimResults();
+  private static final Joiner CREDENTIAL_JOINER = Joiner.on(":");
   private static final String GRANT_TYPE = "grant_type";
   private static final String CLIENT_CREDENTIALS = "client_credentials";
   private static final String TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange";
@@ -144,8 +148,19 @@ public class OAuth2Util {
     Map<String, String> request = clientCredentialsRequest(
         credential, scope != null ? ImmutableList.of(scope) : ImmutableList.of());
 
+    Map<String, String> requestHeaders;
+    if (headers.containsKey(AUTHORIZATION_HEADER)) {
+      requestHeaders = headers;
+    } else {
+      String credentialAsBase64 = Base64.getEncoder().encodeToString(credential.getBytes(StandardCharsets.UTF_8));
+      requestHeaders = ImmutableMap.<String, String>builder()
+          .putAll(headers)
+          .put(AUTHORIZATION_HEADER, BASIC_PREFIX + credentialAsBase64)
+          .build();
+    }
+
     OAuthTokenResponse response = client.postForm(
-        ResourcePaths.tokens(), request, OAuthTokenResponse.class, headers, ErrorHandlers.defaultErrorHandler());
+        ResourcePaths.tokens(), request, OAuthTokenResponse.class, requestHeaders, ErrorHandlers.defaultErrorHandler());
     response.validate();
 
     return response;

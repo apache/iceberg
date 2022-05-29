@@ -261,7 +261,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCatalogCredential() {
-    Map<String, String> emptyHeaders = ImmutableMap.of();
+    Map<String, String> basicAuthHeaders = ImmutableMap.of(
+        "Authorization", "Basic Y2F0YWxvZzpzZWNyZXQ="); // catalog:secret base64 encoded
     Map<String, String> catalogHeaders = ImmutableMap.of(
         "Authorization", "Bearer client-credentials-token:sub=catalog");
 
@@ -276,7 +277,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // no token or credential for catalog token exchange
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(emptyHeaders), any());
+        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(basicAuthHeaders), any());
     // no token or credential for config
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
@@ -327,7 +328,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCatalogCredentialWithClientCredential() {
-    Map<String, String> emptyHeaders = ImmutableMap.of();
+    Map<String, String> basicAuthHeaders = ImmutableMap.of(
+        "Authorization", "Basic Y2F0YWxvZzpzZWNyZXQ="); // catalog:secret base64 encoded
     Map<String, String> contextHeaders = ImmutableMap.of(
         "Authorization", "Bearer client-credentials-token:sub=user");
     Map<String, String> catalogHeaders = ImmutableMap.of(
@@ -347,7 +349,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // call client credentials with no initial auth
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(emptyHeaders), any());
+        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(basicAuthHeaders), any());
     // use the client credential token for config
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
@@ -652,7 +654,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCatalogTokenRefresh() throws Exception {
-    Map<String, String> emptyHeaders = ImmutableMap.of();
+    Map<String, String> basicAuthHeaders = ImmutableMap.of(
+        "Authorization", "Basic Y2F0YWxvZzpzZWNyZXQ="); // catalog:secret base64 encoded
     Map<String, String> catalogHeaders = ImmutableMap.of(
         "Authorization", "Bearer client-credentials-token:sub=catalog");
 
@@ -688,7 +691,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // call client credentials with no initial auth
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(emptyHeaders), any());
+        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(basicAuthHeaders), any());
 
     // use the client credential token for config
     Mockito.verify(adapter).execute(
@@ -730,7 +733,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testCatalogRefreshedTokenIsUsed() throws Exception {
-    Map<String, String> emptyHeaders = ImmutableMap.of();
+    Map<String, String> basicAuthHeaders = ImmutableMap.of(
+        "Authorization", "Basic Y2F0YWxvZzpzZWNyZXQ="); // catalog:secret base64 encoded
     Map<String, String> catalogHeaders = ImmutableMap.of(
         "Authorization", "Bearer client-credentials-token:sub=catalog");
 
@@ -769,7 +773,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // call client credentials with no initial auth
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(emptyHeaders), any());
+        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(basicAuthHeaders), any());
 
     // use the client credential token for config
     Mockito.verify(adapter).execute(
