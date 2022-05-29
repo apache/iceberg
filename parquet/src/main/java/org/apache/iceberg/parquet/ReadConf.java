@@ -109,7 +109,7 @@ class ReadConf<T> {
       boolean shouldRead = filter == null || (
           statsFilter.shouldRead(typeWithIds, rowGroup) &&
               dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)) &&
-                  bloomFilter.shouldRead(typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
+              bloomFilter.shouldRead(typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
         computedTotalValues += rowGroup.getRowCount();

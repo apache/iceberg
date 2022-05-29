@@ -19,18 +19,22 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -38,16 +42,19 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SparkSession;
 import org.junit.After;
@@ -62,6 +69,11 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
 
 @RunWith(Parameterized.class)
 public class TestSparkReaderWithBloomFilter {
@@ -91,10 +103,9 @@ public class TestSparkReaderWithBloomFilter {
       Types.NestedField.required(5, "id_string", Types.StringType.get()),
       Types.NestedField.optional(6, "id_boolean", Types.BooleanType.get()),
       Types.NestedField.optional(7, "id_date", Types.DateType.get()),
-      Types.NestedField.optional(8, "id_timestamp", Types.TimestampType.withZone()),
-      Types.NestedField.optional(9, "id_int_decimal", Types.DecimalType.of(8, 2)),
-      Types.NestedField.optional(10, "id_long_decimal", Types.DecimalType.of(14, 2)),
-      Types.NestedField.optional(11, "id_fixed_decimal", Types.DecimalType.of(31, 2))
+      Types.NestedField.optional(8, "id_int_decimal", Types.DecimalType.of(8, 2)),
+      Types.NestedField.optional(9, "id_long_decimal", Types.DecimalType.of(14, 2)),
+      Types.NestedField.optional(10, "id_fixed_decimal", Types.DecimalType.of(31, 2))
   );
 
   private static final int INT_MIN_VALUE = 30;
@@ -117,9 +128,8 @@ public class TestSparkReaderWithBloomFilter {
     // records all use IDs that are in bucket id_bucket=0
     GenericRecord record = GenericRecord.create(table.schema());
 
-
     for (int i = 0; i < INT_VALUE_COUNT; i += 1) {
-      records.add(record.copy(
+      records.add(record.copy(ImmutableMap.of(
           "id", INT_MIN_VALUE + i,
           "id_long", LONG_BASE + INT_MIN_VALUE + i,
           "id_double", DOUBLE_BASE + INT_MIN_VALUE + i,
@@ -127,13 +137,12 @@ public class TestSparkReaderWithBloomFilter {
           "id_string", BINARY_PREFIX + (INT_MIN_VALUE + i),
           "id_boolean", (i % 2 == 0) ? true : false,
           "id_date",  LocalDate.parse("2021-09-05"),
-          "id_timestamp", Instant.ofEpochMilli(0L).atOffset(ZoneOffset.UTC),
           "id_int_decimal", new BigDecimal(String.valueOf(77.77)),
           "id_long_decimal", new BigDecimal(String.valueOf(88.88)),
-          "id_fixed_decimal", new BigDecimal(String.valueOf(99.99))));
+          "id_fixed_decimal", new BigDecimal(String.valueOf(99.99)))));
     }
 
-    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
+    this.dataFile = writeDataFile(Files.localOutput(temp.newFile()), Row.of(0), records);
 
     table.newAppend()
         .appendFile(dataFile)
@@ -191,7 +200,16 @@ public class TestSparkReaderWithBloomFilter {
 
     if (useBloomFilter) {
       table.updateProperties()
-          .set(TableProperties.DEFAULT_PARQUET_BLOOM_FILTER_ENABLED, String.valueOf(useBloomFilter))
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_double", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_float", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_string", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_boolean", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_date", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_int_decimal", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long_decimal", "true")
+          .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_fixed_decimal", "true")
           .commit();
     }
 
@@ -208,6 +226,66 @@ public class TestSparkReaderWithBloomFilter {
 
   protected void dropTable(String name) {
     catalog.dropTable(TableIdentifier.of("default", name));
+  }
+
+  private DataFile writeDataFile(OutputFile out, StructLike partition, List<Record> rows)
+      throws IOException {
+    FileFormat format = defaultFormat(table.properties());
+    GenericAppenderFactory factory = new GenericAppenderFactory(table.schema(), table.spec());
+
+    boolean useBloomFilterCol1 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id", Boolean.toString(useBloomFilterCol1));
+    boolean useBloomFilterCol2 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long", Boolean.toString(useBloomFilterCol2));
+    boolean useBloomFilterCol3 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_double", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_double", Boolean.toString(useBloomFilterCol3));
+    boolean useBloomFilterCol4 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_float", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_float", Boolean.toString(useBloomFilterCol4));
+    boolean useBloomFilterCol5 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_string", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_string", Boolean.toString(useBloomFilterCol5));
+    boolean useBloomFilterCol6 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_boolean", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_boolean", Boolean.toString(useBloomFilterCol6));
+    boolean useBloomFilterCol7 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_date", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_date", Boolean.toString(useBloomFilterCol7));
+    boolean useBloomFilterCol8 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_int_decimal", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_int_decimal", Boolean.toString(useBloomFilterCol8));
+    boolean useBloomFilterCol9 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long_decimal", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_long_decimal", Boolean.toString(useBloomFilterCol9));
+    boolean useBloomFilterCol10 = PropertyUtil.propertyAsBoolean(table.properties(),
+        PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_fixed_decimal", false);
+    factory.set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "id_fixed_decimal", Boolean.toString(useBloomFilterCol10));
+    int blockSize = PropertyUtil.propertyAsInt(table.properties(),
+        PARQUET_ROW_GROUP_SIZE_BYTES,
+        PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+    factory.set(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(blockSize));
+
+    FileAppender<Record> writer = factory.newAppender(out, format);
+    try (Closeable toClose = writer) {
+      writer.addAll(rows);
+    }
+
+    return DataFiles.builder(table.spec())
+        .withFormat(format)
+        .withPath(out.location())
+        .withPartition(partition)
+        .withFileSizeInBytes(writer.length())
+        .withSplitOffsets(writer.splitOffsets())
+        .withMetrics(writer.metrics())
+        .build();
+  }
+
+  private FileFormat defaultFormat(Map<String, String> properties) {
+    String formatString = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+    return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 
   @Test

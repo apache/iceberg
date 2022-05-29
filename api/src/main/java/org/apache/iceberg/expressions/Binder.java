@@ -96,7 +96,11 @@ public class Binder {
     }
     ReferenceVisitor visitor = new ReferenceVisitor();
     for (Expression expr : exprs) {
-      ExpressionVisitors.visit(bind(struct, expr, caseSensitive), visitor);
+      if (expr instanceof Unbound) {
+        ExpressionVisitors.visit(bind(struct, expr, caseSensitive), visitor);
+      } else {
+        ExpressionVisitors.visit(expr, visitor);
+      }
     }
     return visitor.references;
   }

@@ -47,7 +47,6 @@ import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_PARQUET_BLOOM_FILTER_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
@@ -133,8 +132,6 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     switch (fileFormat) {
       case "parquet":
         sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')", tableName, PARQUET_VECTORIZATION_ENABLED, vectorized);
-        sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName,
-            DEFAULT_PARQUET_BLOOM_FILTER_ENABLED, useBloomFilter);
         break;
       case "orc":
         Assert.assertTrue(vectorized);

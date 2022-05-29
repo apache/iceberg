@@ -32,6 +32,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -39,7 +40,6 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
-import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.values.bloomfilter.BloomFilter;
 import org.apache.parquet.hadoop.BloomFilterReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -52,6 +52,7 @@ import org.apache.parquet.schema.PrimitiveType;
 public class ParquetBloomRowGroupFilter {
   private final Schema schema;
   private final Expression expr;
+  private final boolean caseSensitive;
 
   public ParquetBloomRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -61,6 +62,7 @@ public class ParquetBloomRowGroupFilter {
     this.schema = schema;
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    this.caseSensitive = caseSensitive;
   }
 
   /**
@@ -80,44 +82,37 @@ public class ParquetBloomRowGroupFilter {
 
   private class BloomEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private BloomFilterReader bloomReader;
-    private Set<Integer> fieldsWithNoBloom = null;
-    private Map<Integer, ColumnDescriptor> cols = null;
+    private Set<Integer> fieldsWithBloomFilter = null;
     private Map<Integer, ColumnChunkMetaData> columnMetaMap = null;
     private Map<Integer, BloomFilter> bloomCache = null;
+    private Map<Integer, PrimitiveType> parquetPrimitiveTypes = null;
     private Map<Integer, Type> types = null;
-    private boolean hasBloom = false;
 
     private boolean eval(MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomFilterReader) {
       this.bloomReader = bloomFilterReader;
-      this.fieldsWithNoBloom = Sets.newHashSet();
-      this.cols = Maps.newHashMap();
+      this.fieldsWithBloomFilter = Sets.newHashSet();
       this.columnMetaMap = Maps.newHashMap();
+      this.bloomCache = Maps.newHashMap();
+      this.parquetPrimitiveTypes = Maps.newHashMap();
       this.types = Maps.newHashMap();
-
-      for (ColumnDescriptor desc : fileSchema.getColumns()) {
-        PrimitiveType colType = fileSchema.getType(desc.getPath()).asPrimitiveType();
-        if (colType.getId() != null) {
-          int id = colType.getId().intValue();
-          cols.put(id, desc);
-        }
-      }
 
       for (ColumnChunkMetaData meta : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
         if (colType.getId() != null) {
           int id = colType.getId().intValue();
           Type icebergType = schema.findType(id);
-          boolean noBloom = ParquetUtil.hasNoBloomFilterPages(meta);
-          if (!noBloom) {
-            hasBloom = true;
-          } else {
-            fieldsWithNoBloom.add(id);
+          if (!ParquetUtil.hasNoBloomFilterPages(meta)) {
+            fieldsWithBloomFilter.add(id);
           }
           columnMetaMap.put(id, meta);
+          parquetPrimitiveTypes.put(id, colType);
           types.put(id, icebergType);
         }
       }
-      if (!hasBloom) {
+
+      Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
+      //  If the filter's column set doesn't overlap with any bloom filter columns, exit early with ROWS_MIGHT_MATCH
+      if (filterRefs.size() > 0 && Sets.intersection(fieldsWithBloomFilter, filterRefs).isEmpty()) {
         return ROWS_MIGHT_MATCH;
       }
       return ExpressionVisitors.visitEvaluator(expr, this);
@@ -137,7 +132,7 @@ public class ParquetBloomRowGroupFilter {
     public Boolean not(Boolean result) {
       // not() should be rewritten by RewriteNot
       // bloom filter is based on hash and cannot eliminate based on not
-      return ROWS_MIGHT_MATCH;
+      throw new UnsupportedOperationException("This path shouldn't be reached.");
     }
 
     @Override
@@ -201,84 +196,13 @@ public class ParquetBloomRowGroupFilter {
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
-      ColumnDescriptor col = cols.get(id);
-      if (col == null) {
+      if (!fieldsWithBloomFilter.contains(id)) { // no bloom filter
         return ROWS_MIGHT_MATCH;
-      } else {
-        Boolean hasNoBloomFilter = fieldsWithNoBloom.contains(id);
-        if (hasNoBloomFilter) {
-          return ROWS_MIGHT_MATCH;
-        }
-        BloomFilter bloom = getBloomById(id);
-        Type type = types.get(id);
-        T value = lit.value();
-        return shouldRead(col, value, bloom, type);
       }
-    }
-
-    private BloomFilter getBloomById(int id) {
-      if (bloomCache == null) {
-        bloomCache = Maps.newHashMap();
-      }
-      if (bloomCache.containsKey(id)) {
-        return bloomCache.get(id);
-      } else {
-        ColumnChunkMetaData columnChunkMetaData = columnMetaMap.get(id);
-        BloomFilter bloomFilter = bloomReader.readBloomFilter(columnChunkMetaData);
-        if (bloomFilter == null) {
-          throw new IllegalStateException("Failed to read required bloom filter for id: " + id);
-        } else {
-          bloomCache.put(id, bloomFilter);
-        }
-
-        return bloomFilter;
-      }
-    }
-
-    private <T> boolean shouldRead(ColumnDescriptor col, T value, BloomFilter bloom, Type type) {
-      long hashValue = 0;
-      switch (type.typeId()) {
-        case INTEGER:
-        case LONG:
-        case FLOAT:
-        case DOUBLE:
-        case DATE:
-        case TIME:
-        case TIMESTAMP:
-          hashValue = bloom.hash(value);
-          return bloom.findHash(hashValue) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-        case STRING:
-          hashValue = bloom.hash(Binary.fromCharSequence((CharSequence) value));
-          return bloom.findHash(hashValue) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-        case BINARY:
-        case FIXED:
-          hashValue = bloom.hash(Binary.fromReusedByteBuffer((ByteBuffer) value));
-          return bloom.findHash(hashValue) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-        case DECIMAL:
-          BigDecimal decimalValue = (BigDecimal) value;
-          switch (col.getPrimitiveType().getPrimitiveTypeName()) {
-            case INT32:
-              hashValue = bloom.hash(decimalValue.unscaledValue().intValue());
-              return bloom.findHash(hashValue) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-            case INT64:
-              hashValue = bloom.hash(decimalValue.unscaledValue().longValue());
-              return bloom.findHash(hashValue) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-            case FIXED_LEN_BYTE_ARRAY:
-            case BINARY:
-              DecimalMetadata metadata = col.getPrimitiveType().getDecimalMetadata();
-              int scale = metadata.getScale();
-              int precision = metadata.getPrecision();
-              byte[] requiredBytes = new byte[TypeUtil.decimalRequiredBytes(precision)];
-              byte[] binary = DecimalUtil.toReusedFixLengthBytes(precision, scale, (BigDecimal) value, requiredBytes);
-              hashValue = bloom.hash(Binary.fromReusedByteArray(binary));
-              return bloom.findHash(hashValue) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-          }
-        case UUID:
-          hashValue = bloom.hash(Binary.fromReusedByteArray(UUIDUtil.convert((UUID) value)));
-          return bloom.findHash(hashValue) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-        default:
-          return ROWS_MIGHT_MATCH;
-      }
+      BloomFilter bloom = bloomById(id);
+      Type type = types.get(id);
+      T value = lit.value();
+      return shouldRead(parquetPrimitiveTypes.get(id), value, bloom, type);
     }
 
     @Override
@@ -290,23 +214,17 @@ public class ParquetBloomRowGroupFilter {
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
-      ColumnDescriptor col = cols.get(id);
-      if (col == null) {
+      if (!fieldsWithBloomFilter.contains(id)) { // no bloom filter
         return ROWS_MIGHT_MATCH;
-      } else {
-        Boolean hasNonBloomFilter = fieldsWithNoBloom.contains(id);
-        if (hasNonBloomFilter) {
+      }
+      BloomFilter bloom = bloomById(id);
+      Type type = types.get(id);
+      for (T e : literalSet) {
+        if (shouldRead(parquetPrimitiveTypes.get(id), e, bloom, type)) {
           return ROWS_MIGHT_MATCH;
         }
-        BloomFilter bloom = getBloomById(id);
-        Type type = types.get(id);
-        for (T e : literalSet) {
-          if (shouldRead(col, e, bloom, type)) {
-            return ROWS_MIGHT_MATCH;
-          }
-        }
-        return ROWS_CANNOT_MATCH;
       }
+      return ROWS_CANNOT_MATCH;
     }
 
     @Override
@@ -325,6 +243,74 @@ public class ParquetBloomRowGroupFilter {
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on startsWith
       return ROWS_MIGHT_MATCH;
+    }
+
+    private BloomFilter bloomById(int id) {
+      if (bloomCache.containsKey(id)) {
+        return bloomCache.get(id);
+      } else {
+        ColumnChunkMetaData columnChunkMetaData = columnMetaMap.get(id);
+        BloomFilter bloomFilter = bloomReader.readBloomFilter(columnChunkMetaData);
+        if (bloomFilter == null) {
+          throw new IllegalStateException("Failed to read required bloom filter for id: " + id);
+        } else {
+          bloomCache.put(id, bloomFilter);
+        }
+
+        return bloomFilter;
+      }
+    }
+
+    private <T> boolean shouldRead(PrimitiveType primitiveType, T value, BloomFilter bloom, Type type) {
+      long hashValue = 0;
+      switch (type.typeId()) {
+        case INTEGER:
+        case DATE:
+          hashValue = bloom.hash((int) value);
+          return bloom.findHash(hashValue);
+        case LONG:
+        case TIME:
+        case TIMESTAMP:
+          hashValue = bloom.hash((long) value);
+          return bloom.findHash(hashValue);
+        case FLOAT:
+          hashValue = bloom.hash((float) value);
+          return bloom.findHash(hashValue);
+        case DOUBLE:
+          hashValue = bloom.hash((double) value);
+          return bloom.findHash(hashValue);
+        case STRING:
+          hashValue = bloom.hash(Binary.fromCharSequence((CharSequence) value));
+          return bloom.findHash(hashValue);
+        case BINARY:
+        case FIXED:
+          hashValue = bloom.hash(Binary.fromConstantByteBuffer((ByteBuffer) value));
+          return bloom.findHash(hashValue);
+        case DECIMAL:
+          BigDecimal decimalValue = (BigDecimal) value;
+          switch (primitiveType.getPrimitiveTypeName()) {
+            case INT32:
+              hashValue = bloom.hash(decimalValue.unscaledValue().intValue());
+              return bloom.findHash(hashValue);
+            case INT64:
+              hashValue = bloom.hash(decimalValue.unscaledValue().longValue());
+              return bloom.findHash(hashValue);
+            case FIXED_LEN_BYTE_ARRAY:
+            case BINARY:
+              DecimalMetadata metadata = primitiveType.getDecimalMetadata();
+              int scale = metadata.getScale();
+              int precision = metadata.getPrecision();
+              byte[] requiredBytes = new byte[TypeUtil.decimalRequiredBytes(precision)];
+              byte[] binary = DecimalUtil.toReusedFixLengthBytes(precision, scale, (BigDecimal) value, requiredBytes);
+              hashValue = bloom.hash(Binary.fromConstantByteArray(binary));
+              return bloom.findHash(hashValue);
+          }
+        case UUID:
+          hashValue = bloom.hash(Binary.fromReusedByteArray(UUIDUtil.convert((UUID) value)));
+          return bloom.findHash(hashValue);
+        default:
+          return ROWS_MIGHT_MATCH;
+      }
     }
   }
 }
