@@ -89,6 +89,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
+  private boolean refreshAuthByDefault = false;
   private RESTClient client = null;
   private ResourcePaths paths = null;
   private Object conf = null;
@@ -141,6 +142,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     }
 
     this.sessions = newSessionCache(mergedProps);
+    this.refreshAuthByDefault = PropertyUtil.propertyAsBoolean(mergedProps,
+        CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED, CatalogProperties.AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
@@ -581,9 +584,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return parent;
   }
 
-  private AuthSession newSession(String token, long expirationMs, AuthSession parent) {
+  private AuthSession newSession(String token, Long expirationMs, AuthSession parent) {
     AuthSession session = new AuthSession(parent.headers(), token, OAuth2Properties.ACCESS_TOKEN_TYPE);
-    scheduleTokenRefresh(session, System.currentTimeMillis(), expirationMs, TimeUnit.MILLISECONDS);
+    if (expirationMs != null) {
+      scheduleTokenRefresh(session, System.currentTimeMillis(), expirationMs, TimeUnit.MILLISECONDS);
+    }
     return session;
   }
 
@@ -609,9 +614,13 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return session;
   }
 
-  private long expiresInMs(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(
-        properties, OAuth2Properties.TOKEN_EXPIRES_IN_MS, OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+  private Long expiresInMs(Map<String, String> properties) {
+    if (refreshAuthByDefault || properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+      return PropertyUtil.propertyAsLong(
+          properties, OAuth2Properties.TOKEN_EXPIRES_IN_MS, OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+    } else {
+      return null;
+    }
   }
 
   private static Map<String, String> configHeaders(Map<String, String> properties) {
