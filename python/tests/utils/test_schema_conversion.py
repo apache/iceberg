@@ -141,6 +141,39 @@ def test_avro_list_required_primitive():
     assert expected_iceberg_schema == iceberg_schema
 
 
+def test_avro_list_wrapped_primitive():
+    avro_schema = {
+        "type": "record",
+        "name": "avro_schema",
+        "fields": [
+            {
+                "name": "array_with_string",
+                "type": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "default": [],
+                    "element-id": 101,
+                },
+                "field-id": 100,
+            },
+        ],
+    }
+
+    expected_iceberg_schema = Schema(
+        NestedField(
+            field_id=100,
+            name="array_with_string",
+            field_type=ListType(element_id=101, element_type=StringType(), element_is_optional=False),
+            is_optional=False,
+        ),
+        schema_id=1,
+    )
+
+    iceberg_schema = AvroSchemaConversion().avro_to_iceberg(avro_schema)
+
+    assert expected_iceberg_schema == iceberg_schema
+
+
 def test_avro_list_required_record():
     avro_schema = {
         "type": "record",

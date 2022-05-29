@@ -78,7 +78,7 @@ class Schema:
         return identifier_field_ids_is_equal and schema_is_equal
 
     @property
-    def columns(self) -> Tuple[NestedField]:
+    def columns(self) -> Tuple[NestedField, ...]:
         """A list of the top-level fields in the underlying struct"""
         return self._struct.fields
 

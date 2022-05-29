@@ -55,13 +55,16 @@ PRIMITIVE_FIELD_TYPE_MAPPING: Dict[str, PrimitiveType] = {
     "int": IntegerType(),
     "long": LongType(),
     "string": StringType(),
+    "enum": StringType(),
 }
 
-LOGICAL_FIELD_TYPE_MAPPING: Dict[str, PrimitiveType] = {
-    "date": DateType(),
-    "time-millis": TimeType(),
-    "timestamp-millis": TimestampType(),
-    "uuid": UUIDType(),
+LOGICAL_FIELD_TYPE_MAPPING: Dict[Tuple[str, str], PrimitiveType] = {
+    ("date", "int"): DateType(),
+    ("time-millis", "int"): TimeType(),
+    ("timestamp-millis", "long"): TimestampType(),
+    ("time-micros", "int"): TimeType(),
+    ("timestamp-micros", "long"): TimestampType(),
+    ("uuid", "string"): UUIDType(),
 }
 
 
@@ -152,25 +155,6 @@ class AvroSchemaConversion:
         # Filter the null value and return the type
         return list(filter(lambda t: t != "null", avro_types))[0], is_optional
 
-    def _resolve_inner_type(self, avro_type: Dict[str, Any], inner_field_name: str, id_field: str) -> Tuple[IcebergType, bool]:
-        """
-        Removes any unions inside an array or map, and appends the field-id downstream (if required)
-
-        Args:
-            avro_type: The parent Avro type
-            inner_field_name: For example 'items' in case of an array
-            id_field: Contains the element or key/value id, for example element-id, to be copied to the field-id
-
-        Returns:
-            The inner type and the nullability
-        """
-        plain_type, element_is_optional = self._resolve_union(avro_type[inner_field_name])
-        if isinstance(plain_type, dict):
-            # We need the element-id downstream
-            plain_type["field-id"] = avro_type[id_field]
-        inner_field = self._convert_schema(plain_type)
-        return inner_field, element_is_optional
-
     def _convert_schema(self, avro_type: str | Dict[str, Any]) -> IcebergType:
         """
         Resolves the Avro type
@@ -190,6 +174,9 @@ class AvroSchemaConversion:
             if "logicalType" in avro_type:
                 return self._convert_logical_type(avro_type)
             else:
+                # Resolve potential nested types
+                while "type" in avro_type and isinstance(avro_type["type"], dict):
+                    avro_type = avro_type["type"]
                 type_identifier = avro_type["type"]
                 if type_identifier == "record":
                     return self._convert_record_type(avro_type)
@@ -199,6 +186,8 @@ class AvroSchemaConversion:
                     return self._convert_map_type(avro_type)
                 elif type_identifier == "fixed":
                     return self._convert_fixed_type(avro_type)
+                elif isinstance(type_identifier, str):
+                    return PRIMITIVE_FIELD_TYPE_MAPPING[type_identifier]
                 else:
                     raise ValueError(f"Unknown type: {avro_type}")
         else:
@@ -213,7 +202,8 @@ class AvroSchemaConversion:
         Returns:
             The Iceberg equivalent field
         """
-        assert "field-id" in field, "Missing field-id in the Avro field, this is required for converting it to an Iceberg schema"
+        if "field-id" not in field:
+            raise ValueError(f"Cannot convert field, missing field-id: {field}")
 
         plain_type, is_optional = self._resolve_union(field["type"])
 
@@ -274,11 +264,22 @@ class AvroSchemaConversion:
 
         Returns:
         """
+        if record_type["type"] != "record":
+            raise ValueError(f"Expected type, got: {record_type}")
+
         return StructType(*[self._convert_field(field) for field in record_type["fields"]])
 
     def _convert_array_type(self, array_type: Dict[str, Any]) -> ListType:
-        element_type, element_is_optional = self._resolve_inner_type(array_type, "items", "element-id")
-        return ListType(element_id=array_type["element-id"], element_type=element_type, element_is_optional=element_is_optional)
+        if "element-id" not in array_type:
+            raise ValueError(f"Cannot convert array-type, missing element-id: {array_type}")
+
+        plain_type, element_is_optional = self._resolve_union(array_type["items"])
+
+        return ListType(
+            element_id=array_type["element-id"],
+            element_type=self._convert_schema(plain_type),
+            element_is_optional=element_is_optional,
+        )
 
     def _convert_map_type(self, map_type: Dict[str, Any]) -> MapType:
         """
@@ -318,7 +319,7 @@ class AvroSchemaConversion:
 
     def _convert_logical_type(self, avro_logical_type: Dict[str, Any]) -> IcebergType:
         """
-        When a logical type is found, we'll resolve it here. For the decimal and map
+        Convert a schema with a logical type annotation. For the decimal and map
         we need to fetch more keys from the dict, and for the simple ones we can just
         look it up in the mapping.
 
@@ -342,14 +343,15 @@ class AvroSchemaConversion:
             ValueError: When the logical type is unknown
         """
         logical_type = avro_logical_type["logicalType"]
+        physical_type = avro_logical_type["type"]
         if logical_type == "decimal":
             return self._convert_logical_decimal_type(avro_logical_type)
         elif logical_type == "map":
             return self._convert_logical_map_type(avro_logical_type)
-        elif logical_type in LOGICAL_FIELD_TYPE_MAPPING:
-            return LOGICAL_FIELD_TYPE_MAPPING[logical_type]
+        elif (logical_type, physical_type) in LOGICAL_FIELD_TYPE_MAPPING:
+            return LOGICAL_FIELD_TYPE_MAPPING[(logical_type, physical_type)]
         else:
-            raise ValueError(f"Unknown logical type: {avro_logical_type}")
+            raise ValueError(f"Unknown logical/physical type combination: {avro_logical_type}")
 
     def _convert_logical_decimal_type(self, avro_type: Dict[str, Any]) -> DecimalType:
         """
@@ -417,9 +419,10 @@ class AvroSchemaConversion:
             The logical map
         """
         fields = avro_type["items"]["fields"]
-        assert len(fields) == 2, f"Expected two fields in the logical map, but got: {fields}"
-        key = self._convert_field(fields[0])
-        value = self._convert_field(fields[1])
+        if len(fields) != 2:
+            raise ValueError(f'Invalid key-value pair schema: {avro_type["items"]}')
+        key = self._convert_field(list(filter(lambda f: f["name"] == "key", fields))[0])
+        value = self._convert_field(list(filter(lambda f: f["name"] == "value", fields))[0])
         return MapType(
             key_id=key.field_id,
             key_type=key.field_type,
