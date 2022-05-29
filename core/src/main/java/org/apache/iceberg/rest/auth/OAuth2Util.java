@@ -280,6 +280,7 @@ public class OAuth2Util {
     private Map<String, String> headers;
     private String token;
     private String tokenType;
+    private volatile boolean keepRefreshed = true;
 
     public AuthSession(Map<String, String> baseHeaders, String token, String tokenType) {
       this.headers = RESTUtil.merge(baseHeaders, authHeaders(token));
@@ -299,6 +300,10 @@ public class OAuth2Util {
       return tokenType;
     }
 
+    public void stopRefreshing() {
+      this.keepRefreshed = false;
+    }
+
     /**
      * Attempt to refresh the session token using the token exchange flow.
      *
@@ -306,7 +311,7 @@ public class OAuth2Util {
      * @return interval to wait before calling refresh again, or null if no refresh is needed
      */
     public Pair<Integer, TimeUnit> refresh(RESTClient client) {
-      if (token != null) {
+      if (token != null && keepRefreshed) {
         AtomicReference<OAuthTokenResponse> ref = new AtomicReference<>(null);
         boolean isSuccessful = Tasks.foreach(ref)
             .suppressFailureWhenFinished()

@@ -21,9 +21,11 @@ package org.apache.iceberg.rest;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,7 +87,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       OAuth2Properties.SAML2_TOKEN_TYPE, OAuth2Properties.SAML1_TOKEN_TYPE);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
-  private final Cache<String, AuthSession> sessions = Caffeine.newBuilder().build();
+  private Cache<String, AuthSession> sessions = null;
   private AuthSession catalogAuth = null;
   private RESTClient client = null;
   private ResourcePaths paths = null;
@@ -138,6 +140,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       this.catalogAuth = newSession(initToken, expiresInMs(mergedProps), catalogAuth);
     }
 
+    this.sessions = newSessionCache(mergedProps);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
@@ -613,5 +616,16 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   private static Map<String, String> configHeaders(Map<String, String> properties) {
     return RESTUtil.extractPrefixMap(properties, "header.");
+  }
+
+  private static Cache<String, AuthSession> newSessionCache(Map<String, String> properties) {
+    long expirationIntervalMs = PropertyUtil.propertyAsLong(properties,
+        CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
+        CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
+
+    return Caffeine.newBuilder()
+        .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
+        .removalListener((RemovalListener<String, AuthSession>) (id, auth, cause) -> auth.stopRefreshing())
+        .build();
   }
 }
