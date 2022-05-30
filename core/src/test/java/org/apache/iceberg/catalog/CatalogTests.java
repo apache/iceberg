@@ -47,6 +47,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -147,12 +148,24 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return true;
   }
 
+  protected boolean supportsNestedNamespaces() {
+    return false;
+  }
+
   protected boolean requiresNamespaceCreate() {
     return false;
   }
 
   protected boolean supportsServerSideRetry() {
     return false;
+  }
+
+  protected boolean overridesRequestedLocation() {
+    return false;
+  }
+
+  protected boolean supportsNamesWithSlashes() {
+    return true;
   }
 
   @Test
@@ -375,7 +388,56 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testListNestedNamespaces() {
+    Assume.assumeTrue("Only valid when the catalog supports nested namespaces", supportsNestedNamespaces());
+
+    C catalog = catalog();
+
+    // the catalog may automatically create a default namespace
+    List<Namespace> starting = catalog.listNamespaces();
+
+    Namespace parent = Namespace.of("parent");
+    Namespace child1 = Namespace.of("parent", "child1");
+    Namespace child2 = Namespace.of("parent", "child2");
+
+    catalog.createNamespace(parent);
+    Assertions.assertThat(catalog.listNamespaces())
+        .withFailMessage("Should include parent")
+        .hasSameElementsAs(concat(starting, parent));
+
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should have no children in newly created parent namespace")
+        .isEmpty();
+
+    catalog.createNamespace(child1);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include child1")
+        .hasSameElementsAs(ImmutableList.of(child1));
+
+    catalog.createNamespace(child2);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include child1 and child2")
+        .hasSameElementsAs(ImmutableList.of(child1, child2));
+
+    Assertions.assertThat(catalog.listNamespaces())
+        .withFailMessage("Should not change listing the root")
+        .hasSameElementsAs(concat(starting, parent));
+
+    catalog.dropNamespace(child1);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include only child2")
+        .hasSameElementsAs(ImmutableList.of(child2));
+
+    catalog.dropNamespace(child2);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should be empty")
+        .isEmpty();
+  }
+
+  @Test
   public void testNamespaceWithSlash() {
+    Assume.assumeTrue(supportsNamesWithSlashes());
+
     C catalog = catalog();
 
     Namespace withSlash = Namespace.of("new/db");
@@ -433,6 +495,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithSlash() {
+    Assume.assumeTrue(supportsNamesWithSlashes());
+
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
@@ -1129,7 +1193,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
   }
@@ -1217,7 +1283,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
   }
@@ -1309,7 +1377,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1432,7 +1502,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);

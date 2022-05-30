@@ -56,6 +56,7 @@ import org.apache.iceberg.util.Pair;
  */
 public class RESTCatalogAdapter implements RESTClient {
   private static final Splitter SLASH = Splitter.on('/');
+  private static final Splitter NULL = Splitter.on('\u0000');
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES = ImmutableMap
       .<Class<? extends Exception>, Integer>builder()
@@ -191,8 +192,14 @@ public class RESTCatalogAdapter implements RESTClient {
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {
-          // TODO: support parent namespace from query params
-          return castResponse(responseType, CatalogHandlers.listNamespaces(asNamespaceCatalog, Namespace.empty()));
+          Namespace ns;
+          if (vars.containsKey("parent")) {
+            ns = Namespace.of(NULL.splitToStream(vars.get("parent")).toArray(String[]::new));
+          } else {
+            ns = Namespace.empty();
+          }
+
+          return castResponse(responseType, CatalogHandlers.listNamespaces(asNamespaceCatalog, ns));
         }
         break;
 
@@ -270,13 +277,20 @@ public class RESTCatalogAdapter implements RESTClient {
     return null;
   }
 
-  public <T extends RESTResponse> T execute(HTTPMethod method, String path, Object body, Class<T> responseType,
-                                            Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+  public <T extends RESTResponse> T execute(HTTPMethod method, String path, Map<String, String> queryParams,
+                                            Object body, Class<T> responseType, Map<String, String> headers,
+                                            Consumer<ErrorResponse> errorHandler) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
       try {
-        return handleRequest(routeAndVars.first(), routeAndVars.second(), body, responseType);
+        ImmutableMap.Builder<String, String> vars = ImmutableMap.builder();
+        if (queryParams != null) {
+          vars.putAll(queryParams);
+        }
+        vars.putAll(routeAndVars.second());
+
+        return handleRequest(routeAndVars.first(), vars.build(), body, responseType);
 
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);
@@ -299,30 +313,30 @@ public class RESTCatalogAdapter implements RESTClient {
   @Override
   public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
                                            Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.DELETE, path, null, responseType, headers, errorHandler);
+    return execute(HTTPMethod.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
                                          Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.POST, path, body, responseType, headers, errorHandler);
+    return execute(HTTPMethod.POST, path, null, body, responseType, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
-                                        Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.GET, path, null, responseType, headers, errorHandler);
+  public <T extends RESTResponse> T get(String path, Map<String, String> queryParams, Class<T> responseType,
+                                        Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
   public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    execute(HTTPMethod.HEAD, path, null, null, headers, errorHandler);
+    execute(HTTPMethod.HEAD, path, null, null, null, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
                                              Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.POST, path, formData, responseType, headers, errorHandler);
+    return execute(HTTPMethod.POST, path, null, formData, responseType, headers, errorHandler);
   }
 
   @Override
