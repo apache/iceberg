@@ -86,7 +86,7 @@ class BotoOutputStream:
         s3_object(boto3.resources.factory.s3.Object): An s3 object
     """
 
-    def __init__(self, s3_object):
+    def __init__(self, s3_object: s3.Object):
         self._s3_object = s3_object
 
     def write(self, b: bytes) -> None:
