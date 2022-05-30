@@ -87,9 +87,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalogAdapter adaptor = new RESTCatalogAdapter(backendCatalog) {
       @Override
-      public <T extends RESTResponse> T execute(RESTCatalogAdapter.HTTPMethod method, String path, Object body,
-                                                Class<T> responseType, Map<String, String> headers,
-                                                Consumer<ErrorResponse> errorHandler) {
+      public <T extends RESTResponse> T execute(RESTCatalogAdapter.HTTPMethod method, String path,
+                                                Map<String, String> queryParams, Object body, Class<T> responseType,
+                                                Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
         // this doesn't use a Mockito spy because this is used for catalog tests, which have different method calls
         if (!"v1/oauth/tokens".equals(path)) {
           if ("v1/config".equals(path)) {
@@ -99,7 +99,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           }
         }
         Object request = roundTripSerialize(body, "request");
-        T response = super.execute(method, path, request, responseType, headers, errorHandler);
+        T response = super.execute(method, path, queryParams, request, responseType, headers, errorHandler);
         T responseAfterSerialization = roundTripSerialize(response, "response");
         return responseAfterSerialization;
       }
@@ -157,47 +157,27 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
   /* RESTCatalog specific tests */
 
   @Test
   public void testConfigRoute() throws IOException {
-    RESTClient testClient = new RESTClient() {
+    RESTClient testClient = new RESTCatalogAdapter(backendCatalog) {
       @Override
-      public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
-      }
-
-      @Override
-      public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
-                                               Consumer<ErrorResponse> errorHandler) {
-        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
-      }
-
-      @Override
-      @SuppressWarnings("unchecked")
-      public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
-                                            Consumer<ErrorResponse> errorHandler) {
-        return (T) ConfigResponse
-            .builder()
-            .withDefaults(ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))
-            .withOverrides(ImmutableMap.of(CatalogProperties.CACHE_ENABLED, "false"))
-            .build();
-      }
-
-      @Override
-      public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                             Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
-      }
-
-      @Override
-      public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
-                                                 Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-        throw new UnsupportedOperationException("Should not be called for testConfigRoute");
-      }
-
-      @Override
-      public void close() {
+      public <T extends RESTResponse> T get(String path, Map<String, String> queryParams, Class<T> responseType,
+                                            Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+        if ("v1/config".equals(path)) {
+          return castResponse(responseType, ConfigResponse
+              .builder()
+              .withDefaults(ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))
+              .withOverrides(ImmutableMap.of(CatalogProperties.CACHE_ENABLED, "false"))
+              .build());
+        }
+        return super.get(path, queryParams, responseType, headers, errorHandler);
       }
     };
 
@@ -249,10 +229,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // the bearer token should be used for all interactions
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(catalogHeaders),
@@ -276,14 +257,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // no token or credential for catalog token exchange
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(emptyHeaders), any());
+        eq(HTTPMethod.POST),
+        eq("v1/oauth/tokens"),
+        any(),
+        any(),
+        eq(OAuthTokenResponse.class),
+        eq(emptyHeaders),
+        any());
     // no token or credential for config
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
     // use the catalog token for all interactions
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(catalogHeaders),
@@ -311,14 +299,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // use the bearer token for config
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
     // use the bearer token to fetch the context token
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.POST),
+        eq("v1/oauth/tokens"),
+        any(),
+        any(),
+        eq(OAuthTokenResponse.class),
+        eq(catalogHeaders),
+        any());
     // use the context token for table load
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(contextHeaders),
@@ -347,17 +342,30 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // call client credentials with no initial auth
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(emptyHeaders), any());
+        eq(HTTPMethod.POST),
+        eq("v1/oauth/tokens"),
+        any(),
+        any(),
+        eq(OAuthTokenResponse.class),
+        eq(emptyHeaders),
+        any());
     // use the client credential token for config
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
     // use the client credential to fetch the context token
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.POST),
+        eq("v1/oauth/tokens"),
+        any(),
+        any(),
+        eq(OAuthTokenResponse.class),
+        eq(catalogHeaders),
+        any());
     // use the context token for table load
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(contextHeaders),
@@ -388,17 +396,24 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // use the bearer token for client credentials
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(initHeaders), any());
+        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), any(), eq(OAuthTokenResponse.class), eq(initHeaders), any());
     // use the client credential token for config
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
     // use the client credential to fetch the context token
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.POST),
+        eq("v1/oauth/tokens"),
+        any(),
+        any(),
+        eq(OAuthTokenResponse.class),
+        eq(catalogHeaders),
+        any());
     // use the context token for table load
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(contextHeaders),
@@ -497,17 +512,24 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Assertions.assertFalse(catalog.tableExists(TableIdentifier.of("ns", "table")));
 
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
 
     // token passes a static token. otherwise, validate a client credentials or token exchange request
     if (!credentials.containsKey("token")) {
       Mockito.verify(adapter).execute(
-          eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(catalogHeaders), any());
+          eq(HTTPMethod.POST),
+          eq("v1/oauth/tokens"),
+          any(),
+          any(),
+          eq(OAuthTokenResponse.class),
+          eq(catalogHeaders),
+          any());
     }
 
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(expectedHeaders),
@@ -564,6 +586,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         eq(HTTPMethod.POST),
         eq("v1/namespaces/ns/tables"),
         any(),
+        any(),
         eq(LoadTableResponse.class),
         eq(expectedContextHeaders),
         any());
@@ -571,6 +594,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.doAnswer(addTableConfig).when(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(expectedContextHeaders),
@@ -596,15 +620,22 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     loaded.refresh(); // refresh to force reload
 
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
     // session client credentials flow
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.POST),
+        eq("v1/oauth/tokens"),
+        any(),
+        any(),
+        eq(OAuthTokenResponse.class),
+        eq(catalogHeaders),
+        any());
 
     // create table request
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.POST),
         eq("v1/namespaces/ns/tables"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(expectedContextHeaders),
@@ -617,6 +648,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           eq(HTTPMethod.POST),
           eq("v1/oauth/tokens"),
           any(),
+          any(),
           eq(OAuthTokenResponse.class),
           eq(expectedContextHeaders),
           any());
@@ -627,6 +659,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
         any(),
+        any(),
         eq(LoadTableResponse.class),
         eq(expectedTableHeaders),
         any());
@@ -636,6 +669,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
         any(),
+        any(),
         eq(LoadTableResponse.class),
         eq(expectedContextHeaders),
         any());
@@ -644,6 +678,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(expectedTableHeaders),
@@ -673,6 +708,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         eq(HTTPMethod.POST),
         eq("v1/oauth/tokens"),
         any(),
+        any(),
         eq(OAuthTokenResponse.class),
         any(),
         any());
@@ -688,11 +724,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // call client credentials with no initial auth
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(emptyHeaders), any());
+        eq(HTTPMethod.POST),
+        eq("v1/oauth/tokens"),
+        any(),
+        any(),
+        eq(OAuthTokenResponse.class),
+        eq(emptyHeaders),
+        any());
 
     // use the client credential token for config
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
 
     // verify the first token exchange
     Map<String, String> firstRefreshRequest = ImmutableMap.of(
@@ -704,6 +746,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.POST),
         eq("v1/oauth/tokens"),
+        any(),
         Mockito.argThat(firstRefreshRequest::equals),
         eq(OAuthTokenResponse.class),
         eq(catalogHeaders),
@@ -722,6 +765,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.POST),
         eq("v1/oauth/tokens"),
+        any(),
         Mockito.argThat(secondRefreshRequest::equals),
         eq(OAuthTokenResponse.class),
         eq(secondRefreshHeaders),
@@ -751,6 +795,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         eq(HTTPMethod.POST),
         eq("v1/oauth/tokens"),
         any(),
+        any(),
         eq(OAuthTokenResponse.class),
         any(),
         any());
@@ -769,11 +814,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // call client credentials with no initial auth
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.POST), eq("v1/oauth/tokens"), any(), eq(OAuthTokenResponse.class), eq(emptyHeaders), any());
+        eq(HTTPMethod.POST),
+        eq("v1/oauth/tokens"),
+        any(),
+        any(),
+        eq(OAuthTokenResponse.class),
+        eq(emptyHeaders),
+        any());
 
     // use the client credential token for config
     Mockito.verify(adapter).execute(
-        eq(HTTPMethod.GET), eq("v1/config"), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
+        eq(HTTPMethod.GET), eq("v1/config"), any(), any(), eq(ConfigResponse.class), eq(catalogHeaders), any());
 
     // verify the first token exchange
     Map<String, String> firstRefreshRequest = ImmutableMap.of(
@@ -785,6 +836,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.POST),
         eq("v1/oauth/tokens"),
+        any(),
         Mockito.argThat(firstRefreshRequest::equals),
         eq(OAuthTokenResponse.class),
         eq(catalogHeaders),
@@ -797,6 +849,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter).execute(
         eq(HTTPMethod.GET),
         eq("v1/namespaces/ns/tables/table"),
+        any(),
         any(),
         eq(LoadTableResponse.class),
         eq(refreshedCatalogHeader),
