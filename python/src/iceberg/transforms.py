@@ -18,6 +18,7 @@
 import struct
 from abc import ABC, abstractmethod
 from decimal import Decimal
+from functools import singledispatchmethod
 from typing import Generic, Optional, TypeVar
 from uuid import UUID
 
@@ -37,6 +38,7 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
+from iceberg.utils import binary, datetime
 from iceberg.utils.decimal import decimal_to_bytes
 
 S = TypeVar("S")
@@ -224,6 +226,63 @@ class BucketUUIDTransform(BaseBucketTransform):
         )
 
 
+class IdentityTransform(Transform[S, S]):
+    """Transforms a value into itself.
+
+    Example:
+        >>> transform = IdentityTransform(StringType())
+        >>> transform.apply('hello-world')
+        'hello-world'
+    """
+
+    def __init__(self, source_type: IcebergType):
+        super().__init__(
+            "identity",
+            f"transforms.identity(source_type={repr(source_type)})",
+        )
+        self._type = source_type
+
+    def apply(self, value: Optional[S]) -> Optional[S]:
+        return value
+
+    def can_transform(self, target: IcebergType) -> bool:
+        return target.is_primitive
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return source
+
+    def preserves_order(self) -> bool:
+        return True
+
+    def satisfies_order_of(self, other: Transform) -> bool:
+        """ordering by value is the same as long as the other preserves order"""
+        return other.preserves_order
+
+    @singledispatchmethod
+    def to_human_string(self, value: Optional[S]) -> str:
+        return str(value) if value is not None else "null"
+
+    @to_human_string.register(int)
+    def _(self, value: int) -> str:
+        if isinstance(self._type, DateType):
+            return datetime.to_human_day(value)
+        elif isinstance(self._type, TimeType):
+            return datetime.to_human_time(value)
+        elif isinstance(self._type, TimestampType):
+            return datetime.to_human_timestamp(value)
+        elif isinstance(self._type, TimestamptzType):
+            return datetime.to_human_timestamptz(value)
+        else:
+            return str(value)
+
+    @to_human_string.register(bytes)
+    def _(self, value: bytes) -> str:
+        if type(self._type) in {FixedType, BinaryType}:
+            return binary.base64encode(value)
+        else:
+            return str(value)
+
+
 class UnknownTransform(Transform):
     """A transform that represents when an unknown transform is provided
     Args:
@@ -292,6 +351,10 @@ def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
         return BucketUUIDTransform(num_buckets)
     else:
         raise ValueError(f"Cannot bucket by type: {source_type}")
+
+
+def identity(source_type: IcebergType) -> IdentityTransform:
+    return IdentityTransform(source_type)
 
 
 def always_null() -> Transform:

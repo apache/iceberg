@@ -28,7 +28,9 @@ from iceberg.types import (
     BooleanType,
     DateType,
     DecimalType,
+    DoubleType,
     FixedType,
+    FloatType,
     IntegerType,
     LongType,
     StringType,
@@ -127,6 +129,52 @@ def test_string_with_surrogate_pair():
     as_bytes = bytes(string_with_surrogate_pair, "UTF-8")
     bucket_transform = transforms.bucket(StringType(), 100)
     assert bucket_transform.hash(string_with_surrogate_pair) == mmh3.hash(as_bytes)
+
+
+@pytest.mark.parametrize(
+    "type_var,value,expected",
+    [
+        (LongType(), None, "null"),
+        (DateType(), 17501, "2017-12-01"),
+        (TimeType(), 36775038194, "10:12:55.038194"),
+        (TimestamptzType(), 1512151975038194, "2017-12-01T18:12:55.038194Z"),
+        (TimestampType(), 1512151975038194, "2017-12-01T18:12:55.038194"),
+        (LongType(), -1234567890000, "-1234567890000"),
+        (StringType(), "a/b/c=d", "a/b/c=d"),
+        (DecimalType(9, 2), Decimal("-1.50"), "-1.50"),
+        (FixedType(100), b"foo", "Zm9v"),
+    ],
+)
+def test_identity_human_string(type_var, value, expected):
+    identity = transforms.identity(type_var)
+    assert identity.to_human_string(value) == expected
+
+
+@pytest.mark.parametrize(
+    "type_var",
+    [
+        BinaryType(),
+        BooleanType(),
+        DateType(),
+        DecimalType(8, 2),
+        DoubleType(),
+        FixedType(16),
+        FloatType(),
+        IntegerType(),
+        LongType(),
+        StringType(),
+        TimestampType(),
+        TimestamptzType(),
+        TimeType(),
+        UUIDType(),
+    ],
+)
+def test_identity_method(type_var):
+    identity_transform = transforms.identity(type_var)
+    assert str(identity_transform) == str(eval(repr(identity_transform)))
+    assert identity_transform.can_transform(type_var)
+    assert identity_transform.result_type(type_var) == type_var
+    assert identity_transform.apply("test") == "test"
 
 
 def test_unknown_transform():

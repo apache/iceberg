@@ -17,7 +17,9 @@
 """Helper methods for working with date/time representations
 """
 import re
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
+
+import pytz
 
 EPOCH_DATE = date.fromisoformat("1970-01-01")
 EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
@@ -63,3 +65,27 @@ def timestamptz_to_micros(timestamptz_str: str) -> int:
     if ISO_TIMESTAMPTZ.fullmatch(timestamptz_str):
         return datetime_to_micros(datetime.fromisoformat(timestamptz_str))
     raise ValueError(f"Invalid timestamp with zone: {timestamptz_str} (must be ISO-8601)")
+
+
+def to_human_day(day_ordinal: int) -> str:
+    """Converts a DateType value to human string"""
+    to_time = EPOCH_TIMESTAMP + timedelta(days=day_ordinal)
+    return "{0:0=4d}-{1:0=2d}-{2:0=2d}".format(to_time.year, to_time.month, to_time.day)
+
+
+def to_human_time(micros_from_midnight: int) -> str:
+    """Converts a TimeType value to human string"""
+    to_day = EPOCH_TIMESTAMP + timedelta(microseconds=micros_from_midnight)
+    return f"{to_day.time()}"
+
+
+def to_human_timestamptz(timestamp_micros: int) -> str:
+    """Converts a TimestamptzType value to human string"""
+    to_timestamptz = EPOCH_TIMESTAMP + timedelta(microseconds=timestamp_micros)
+    return pytz.timezone("UTC").localize(to_timestamptz).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def to_human_timestamp(timestamp_micros: int) -> str:
+    """Converts a TimestampType value to human string"""
+    to_timestamp = EPOCH_TIMESTAMP + timedelta(microseconds=timestamp_micros)
+    return to_timestamp.isoformat()
