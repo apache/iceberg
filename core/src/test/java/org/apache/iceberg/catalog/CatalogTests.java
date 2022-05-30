@@ -47,7 +47,6 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -163,7 +162,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
 
     catalog.createNamespace(NS);
-    Assert.assertEquals("Catalog should have the created namespace", ImmutableList.of(NS), catalog.listNamespaces());
+    Assert.assertTrue("Catalog should have the created namespace", catalog.listNamespaces().contains(NS));
     Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
   }
 
@@ -357,16 +356,22 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Namespace ns2 = Namespace.of("newdb_2");
 
     catalog.createNamespace(ns1);
-    Assert.assertEquals("Should include newdb_1", concat(starting, ns1), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_1")
+            .hasSameElementsAs(concat(starting, ns1));
 
     catalog.createNamespace(ns2);
-    Assert.assertEquals("Should include newdb_1 and newdb_2", concat(starting, ns1, ns2), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_1 and newdb_2")
+            .hasSameElementsAs(concat(starting, ns1, ns2));
 
     catalog.dropNamespace(ns1);
-    Assert.assertEquals("Should include newdb_2, not newdb_1", concat(starting, ns2), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_2, not newdb_1")
+            .hasSameElementsAs(concat(starting, ns2));
 
     catalog.dropNamespace(ns2);
-    Assert.assertEquals("Should include only starting namespaces", starting, catalog.listNamespaces());
+    Assert.assertTrue("Should include only starting namespaces", catalog.listNamespaces().containsAll(starting));
   }
 
   @Test
@@ -1146,8 +1151,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
     Assertions.setMaxStackTraceElementsDisplayed(Integer.MAX_VALUE);
+    String expectedMessage =
+        supportsServerSideRetry() ? "Requirement failed: table already exists" : "Table already exists";
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        AlreadyExistsException.class, "Table already exists", create::commitTransaction);
+        AlreadyExistsException.class, expectedMessage, create::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
@@ -1326,8 +1333,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
+    String expectedMessage =
+        supportsServerSideRetry() ? "Requirement failed: table already exists" : "Table already exists";
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        AlreadyExistsException.class, "Table already exists", createOrReplace::commitTransaction);
+        AlreadyExistsException.class, expectedMessage, createOrReplace::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
