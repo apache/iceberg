@@ -57,7 +57,7 @@ jobs:
         image: minio/mc
         container_name: mc
         environment:
-          - AWS_ACCESS_KEY_ID=demo
+          - AWS_ACCESS_KEY_ID=admin
           - AWS_SECRET_ACCESS_KEY=password
           - AWS_REGION=us-east-1
         entrypoint: >
