@@ -19,12 +19,9 @@
 
 package org.apache.iceberg.flink.sink;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.flink.table.annotation.DataTypeHint;
 import org.apache.flink.table.annotation.InputGroup;
 import org.apache.flink.table.functions.ScalarFunction;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Literals;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -32,53 +29,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 
 public class PartitionTransformUdf {
-
-  private final String funcName;
-  private final String srcColumn;
-  private final int width;
-
-  PartitionTransformUdf(String funcName, String srcColumn, int width) {
-    this.funcName = funcName;
-    this.srcColumn = srcColumn;
-    this.width = width;
-  }
-
-  public String getFuncName() {
-    return funcName;
-  }
-
-  public String getSrcColumn() {
-    return srcColumn;
-  }
-
-  public int getWidth() {
-    return width;
-  }
-
-  public static Builder newBuilder(String funcString) {
-    return new Builder(funcString);
-  }
-
-  public static class Builder {
-    private static final Pattern funcNamePattern =
-        Pattern.compile("^`\\w+`\\.`\\w+`\\.`(\\w+)`\\((?:(\\d+), )?`(\\w+)`\\)$");
-    private final String funcString;
-
-    Builder(String funcString) {
-      this.funcString = funcString;
-    }
-
-    public PartitionTransformUdf build() {
-      Matcher matcher = funcNamePattern.matcher(funcString);
-      ValidationException.check(matcher.matches(), "Invalid function format");
-
-      int width = 0;
-      if (matcher.group(2) != null) {
-        width = Integer.parseInt(matcher.group(2));
-      }
-      return new PartitionTransformUdf(matcher.group(1), matcher.group(3), width);
-    }
-  }
 
   public static class Truncate extends ScalarFunction {
     public String eval(int num, @DataTypeHint(inputGroup = InputGroup.ANY) Object obj) {

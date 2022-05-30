@@ -76,6 +76,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.flink.sink.PartitionTransformUdf;
+import org.apache.iceberg.flink.sink.PartitionTransformUdfProp;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -536,30 +537,30 @@ public class FlinkCatalog extends AbstractCatalog {
       if (computedColumn == null) {
         builder.identity(name);
       } else {
-        PartitionTransformUdf partitionFunc = PartitionTransformUdf
+        PartitionTransformUdfProp udfProp = PartitionTransformUdfProp
             .newBuilder(computedColumn.getExpression().asSerializableString())
             .build();
-        switch (partitionFunc.getFuncName()) {
+        switch (udfProp.getFuncName()) {
           case "years":
-            builder.year(partitionFunc.getSrcColumn());
+            builder.year(udfProp.getSrcColumn());
             break;
           case "months":
-            builder.month(partitionFunc.getSrcColumn());
+            builder.month(udfProp.getSrcColumn());
             break;
           case "days":
-            builder.day(partitionFunc.getSrcColumn());
+            builder.day(udfProp.getSrcColumn());
             break;
           case "hours":
-            builder.hour(partitionFunc.getSrcColumn());
+            builder.hour(udfProp.getSrcColumn());
             break;
           case "buckets":
-            builder.bucket(partitionFunc.getSrcColumn(), partitionFunc.getWidth());
+            builder.bucket(udfProp.getSrcColumn(), udfProp.getWidth());
             break;
           case "truncates":
-            builder.truncate(partitionFunc.getSrcColumn(), partitionFunc.getWidth());
+            builder.truncate(udfProp.getSrcColumn(), udfProp.getWidth());
             break;
           default:
-            throw new UnsupportedOperationException("Transform is not supported: " + partitionFunc.getFuncName());
+            throw new UnsupportedOperationException("Transform is not supported: " + udfProp.getFuncName());
         }
       }
     });
@@ -572,10 +573,7 @@ public class FlinkCatalog extends AbstractCatalog {
       if (field.transform().isIdentity()) {
         partitionKeysBuilder.add(icebergSchema.findColumnName(field.sourceId()));
       } else {
-        // Not created by Flink SQL.
-        // For compatibility with iceberg tables, return empty.
-        // TODO modify this after Flink support partition transform.
-        return Collections.emptyList();
+        partitionKeysBuilder.add(field.name());
       }
     }
     return partitionKeysBuilder.build();
