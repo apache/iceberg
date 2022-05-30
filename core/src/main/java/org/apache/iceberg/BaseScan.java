@@ -59,8 +59,8 @@ abstract class BaseScan<T extends Scan<T>> implements Scan<T> {
     return context;
   }
 
-  protected abstract T newRefinedScan(TableOperations newOps, Table newTable, Schema newSchema,
-                                      TableScanContext newContext);
+  protected abstract T newRefinedScan(
+      TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext);
 
   @Override
   public T option(String property, String value) {

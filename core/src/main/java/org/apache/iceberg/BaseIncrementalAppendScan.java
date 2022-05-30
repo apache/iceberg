@@ -43,8 +43,8 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
   }
 
   @Override
-  protected IncrementalAppendScan newRefinedScan(TableOperations newOps, Table newTable, Schema newSchema,
-                                                 TableScanContext newContext) {
+  protected IncrementalAppendScan newRefinedScan(
+      TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext) {
     return new BaseIncrementalAppendScan(newOps, newTable, newSchema, newContext);
   }
 
@@ -79,28 +79,10 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
       return CloseableIterable.empty();
     }
 
-    long toSnapshotIdInclusive = toSnapshotIdExclusive();
+    long toSnapshotIdInclusive = toSnapshotIdInclusive();
     // fromSnapshotIdExclusive can be null. appendsBetween handles null fromSnapshotIdExclusive properly
     // by finding the oldest ancestor of end snapshot.
-    Long fromSnapshotIdExclusive = fromSnapshotId;
-    if (fromSnapshotId != null) {
-      if (context().fromSnapshotInclusive()) {
-        // validate the fromSnapshotId is an ancestor of toSnapshotId
-        Preconditions.checkArgument(
-            SnapshotUtil.isAncestorOf(table(), toSnapshotIdInclusive, fromSnapshotId),
-            "Starting snapshot (inclusive) %s is not an ancestor of end snapshot %s",
-            fromSnapshotId, toSnapshotIdInclusive);
-        // for inclusive behavior fromSnapshotIdExclusive is set to the parent snapshot id, which can be null.
-        fromSnapshotIdExclusive = table().snapshot(fromSnapshotId).parentId();
-      } else {
-        // validate the parent snapshot id an ancestor of toSnapshotId
-        Preconditions.checkArgument(
-            SnapshotUtil.isParentAncestorOf(table(), toSnapshotIdInclusive, fromSnapshotId),
-            "Starting snapshot (exclusive) %s is not a parent ancestor of end snapshot %s",
-            fromSnapshotId, toSnapshotIdInclusive);
-      }
-    }
-
+    Long fromSnapshotIdExclusive = fromSnapshotIdExclusive(fromSnapshotId, toSnapshotIdInclusive);
     if (fromSnapshotIdExclusive != null) {
       Listeners.notifyAll(new IncrementalScanEvent(table().name(), fromSnapshotIdExclusive,
           toSnapshotIdInclusive, context().rowFilter(), table().schema(), false));
@@ -126,7 +108,30 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
     return TableScanUtil.planTasks(splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
   }
 
-  private long toSnapshotIdExclusive() {
+  private Long fromSnapshotIdExclusive(Long fromSnapshotId, long toSnapshotIdInclusive) {
+    if (fromSnapshotId != null) {
+      if (context().fromSnapshotInclusive()) {
+        // validate the fromSnapshotId is an ancestor of toSnapshotId
+        Preconditions.checkArgument(
+            SnapshotUtil.isAncestorOf(table(), toSnapshotIdInclusive, fromSnapshotId),
+            "Starting snapshot (inclusive) %s is not an ancestor of end snapshot %s",
+            fromSnapshotId, toSnapshotIdInclusive);
+        // for inclusive behavior fromSnapshotIdExclusive is set to the parent snapshot id, which can be null.
+        return table().snapshot(fromSnapshotId).parentId();
+      } else {
+        // validate the parent snapshot id an ancestor of toSnapshotId
+        Preconditions.checkArgument(
+            SnapshotUtil.isParentAncestorOf(table(), toSnapshotIdInclusive, fromSnapshotId),
+            "Starting snapshot (exclusive) %s is not a parent ancestor of end snapshot %s",
+            fromSnapshotId, toSnapshotIdInclusive);
+        return fromSnapshotId;
+      }
+    } else {
+      return null;
+    }
+  }
+
+  private long toSnapshotIdInclusive() {
     if (context().toSnapshotId() != null) {
       return context().toSnapshotId();
     } else {
