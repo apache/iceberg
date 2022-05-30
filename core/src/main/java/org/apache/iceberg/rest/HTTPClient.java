@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
@@ -40,6 +41,7 @@ import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.net.URIBuilder;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -130,10 +132,24 @@ public class HTTPClient implements RESTClient {
     throw new RESTException("Unhandled error: %s", errorResponse);
   }
 
+  private URI buildUri(String path, Map<String, String> params) {
+    String baseUri = String.format("%s/%s", uri, path);
+    try {
+      URIBuilder builder = new URIBuilder(baseUri);
+      if (params != null) {
+        params.forEach(builder::addParameter);
+      }
+      return builder.build();
+    } catch (URISyntaxException e) {
+      throw new RESTException("Failed to create request URI from base %s, params %s", baseUri, params);
+    }
+  }
+
   /**
    * Method to execute an HTTP request and process the corresponding response.
    *
    * @param method       - HTTP method, such as GET, POST, HEAD, etc.
+   * @param queryParams  - A map of query parameters
    * @param path         - URL path to send the request to
    * @param requestBody  - Content to place in the request body
    * @param responseType - Class of the Response type. Needs to have serializer registered with ObjectMapper
@@ -142,15 +158,14 @@ public class HTTPClient implements RESTClient {
    * @return The response entity, parsed and converted to its type T
    */
   private <T> T execute(
-      Method method, String path, Object requestBody, Class<T> responseType, Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
+      Method method, String path, Map<String, String> queryParams, Object requestBody, Class<T> responseType,
+      Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
     if (path.startsWith("/")) {
       throw new RESTException(
           "Received a malformed path for a REST request: %s. Paths should not start with /", path);
     }
 
-    String fullUri = String.format("%s/%s", uri, path);
-    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), URI.create(fullUri));
+    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), buildUri(path, queryParams));
 
     if (requestBody instanceof Map) {
       // encode maps as form data, application/x-www-form-urlencoded
@@ -198,31 +213,31 @@ public class HTTPClient implements RESTClient {
 
   @Override
   public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    execute(Method.HEAD, path, null, null, headers, errorHandler);
+    execute(Method.HEAD, path, null, null, null, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
-                                        Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.GET, path, null, responseType, headers, errorHandler);
+  public <T extends RESTResponse> T get(String path, Map<String, String> queryParams, Class<T> responseType,
+                                        Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
                                          Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, body, responseType, headers, errorHandler);
+    return execute(Method.POST, path, null, body, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
                                            Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, null, responseType, headers, errorHandler);
+    return execute(Method.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
                                              Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, formData, responseType, headers, errorHandler);
+    return execute(Method.POST, path, null, formData, responseType, headers, errorHandler);
   }
 
   private void addRequestHeaders(HttpUriRequest request, Map<String, String> requestHeaders, String bodyMimeType) {

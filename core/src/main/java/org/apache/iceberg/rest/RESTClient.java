@@ -23,6 +23,7 @@ import java.io.Closeable;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 
 /**
@@ -44,13 +45,23 @@ public interface RESTClient extends Closeable {
   <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
                                     Consumer<ErrorResponse> errorHandler);
 
-  default <T extends RESTResponse> T get(String path, Class<T> responseType, Supplier<Map<String, String>> headers,
-                                         Consumer<ErrorResponse> errorHandler) {
-    return get(path, responseType, headers.get(), errorHandler);
+  default <T extends RESTResponse> T get(String path, Class<T> responseType,
+                                         Supplier<Map<String, String>> headers, Consumer<ErrorResponse> errorHandler) {
+    return get(path, ImmutableMap.of(), responseType, headers, errorHandler);
   }
 
-  <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
-                                 Consumer<ErrorResponse> errorHandler);
+  default <T extends RESTResponse> T get(String path, Class<T> responseType, Map<String, String> headers,
+                                         Consumer<ErrorResponse> errorHandler) {
+    return get(path, ImmutableMap.of(), responseType, headers, errorHandler);
+  }
+
+  default <T extends RESTResponse> T get(String path, Map<String, String> queryParams, Class<T> responseType,
+                                         Supplier<Map<String, String>> headers, Consumer<ErrorResponse> errorHandler) {
+    return get(path, queryParams, responseType, headers.get(), errorHandler);
+  }
+
+  <T extends RESTResponse> T get(String path, Map<String, String> queryParams, Class<T> responseType,
+                                 Map<String, String> headers, Consumer<ErrorResponse> errorHandler);
 
   default <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
                                           Supplier<Map<String, String>> headers, Consumer<ErrorResponse> errorHandler) {

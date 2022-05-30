@@ -47,6 +47,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -145,6 +146,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   protected boolean supportsNamespaceProperties() {
     return true;
+  }
+
+  protected boolean supportsNestedNamespaces() {
+    return false;
   }
 
   protected boolean requiresNamespaceCreate() {
@@ -372,6 +377,53 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.dropNamespace(ns2);
     Assert.assertTrue("Should include only starting namespaces", catalog.listNamespaces().containsAll(starting));
+  }
+
+  @Test
+  public void testListNestedNamespaces() {
+    Assume.assumeTrue("Only valid when the catalog supports nested namespaces", supportsNestedNamespaces());
+
+    C catalog = catalog();
+
+    // the catalog may automatically create a default namespace
+    List<Namespace> starting = catalog.listNamespaces();
+
+    Namespace parent = Namespace.of("parent");
+    Namespace child1 = Namespace.of("parent", "child1");
+    Namespace child2 = Namespace.of("parent", "child2");
+
+    catalog.createNamespace(parent);
+    Assertions.assertThat(catalog.listNamespaces())
+        .withFailMessage("Should include parent")
+        .hasSameElementsAs(concat(starting, parent));
+
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should have no children in newly created parent namespace")
+        .isEmpty();
+
+    catalog.createNamespace(child1);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include child1")
+        .hasSameElementsAs(ImmutableList.of(child1));
+
+    catalog.createNamespace(child2);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include child1 and child2")
+        .hasSameElementsAs(ImmutableList.of(child1, child2));
+
+    Assertions.assertThat(catalog.listNamespaces())
+        .withFailMessage("Should not change listing the root")
+        .hasSameElementsAs(concat(starting, parent));
+
+    catalog.dropNamespace(child1);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include only child2")
+        .hasSameElementsAs(ImmutableList.of(child2));
+
+    catalog.dropNamespace(child2);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should be empty")
+        .isEmpty();
   }
 
   @Test
