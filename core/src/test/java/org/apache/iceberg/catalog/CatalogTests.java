@@ -155,7 +155,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return false;
   }
 
-  protected boolean supportsServerManagedLocation() {
+  protected boolean overridesRequestedLocation() {
     return false;
   }
 
@@ -1141,7 +1141,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    if (!supportsServerManagedLocation()) {
+    if (!overridesRequestedLocation()) {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A);
@@ -1231,7 +1231,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    if (!supportsServerManagedLocation()) {
+    if (!overridesRequestedLocation()) {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A);
@@ -1325,7 +1325,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    if (!supportsServerManagedLocation()) {
+    if (!overridesRequestedLocation()) {
       Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
     }
     assertUUIDsMatch(original, loaded);
@@ -1450,7 +1450,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    if (!supportsServerManagedLocation()) {
+    if (!overridesRequestedLocation()) {
       Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
     }
     assertUUIDsMatch(original, loaded);
