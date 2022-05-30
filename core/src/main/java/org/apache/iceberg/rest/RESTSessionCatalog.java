@@ -244,8 +244,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public List<Namespace> listNamespaces(SessionContext context, Namespace namespace) {
-    Preconditions.checkArgument(namespace.isEmpty(), "Cannot list namespaces under parent: %s", namespace);
-    // String joined = NULL.join(namespace.levels());
+    if (!namespace.isEmpty()) {
+      // some execution engines will attempt to list child namespaces before a drop, so
+      // return an empty list instead of throwing an exception here
+      return ImmutableList.of();
+    }
     ListNamespacesResponse response = client
         .get(paths.namespaces(), ListNamespacesResponse.class, headers(context), ErrorHandlers.namespaceErrorHandler());
     return response.namespaces();
