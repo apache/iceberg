@@ -384,22 +384,22 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithSlash() {
-    if (supportsNamesWithSlashes()) {
-      C catalog = catalog();
+    Assume.assumeTrue(supportsNamesWithSlashes());
 
-      Namespace withSlash = Namespace.of("new/db");
+    C catalog = catalog();
 
-      Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
+    Namespace withSlash = Namespace.of("new/db");
 
-      catalog.createNamespace(withSlash);
-      Assert.assertTrue("Namespace should exist", catalog.namespaceExists(withSlash));
+    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
 
-      Map<String, String> properties = catalog.loadNamespaceMetadata(withSlash);
-      Assert.assertNotNull("Properties should be accessible", properties);
+    catalog.createNamespace(withSlash);
+    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(withSlash));
 
-      Assert.assertTrue("Dropping the namespace should succeed", catalog.dropNamespace(withSlash));
-      Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
-    }
+    Map<String, String> properties = catalog.loadNamespaceMetadata(withSlash);
+    Assert.assertNotNull("Properties should be accessible", properties);
+
+    Assert.assertTrue("Dropping the namespace should succeed", catalog.dropNamespace(withSlash));
+    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
   }
 
   @Test
@@ -443,27 +443,27 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithSlash() {
-    if (supportsNamesWithSlashes()) {
-      C catalog = catalog();
+    Assume.assumeTrue(supportsNamesWithSlashes());
 
-      TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
-      if (requiresNamespaceCreate()) {
-        catalog.createNamespace(Namespace.of("ns"));
-      }
+    C catalog = catalog();
 
-      Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
-
-      catalog.buildTable(ident, SCHEMA).create();
-      Assert.assertTrue("Table should exist", catalog.tableExists(ident));
-
-      Table loaded = catalog.loadTable(ident);
-      Assert.assertEquals("Schema should match expected ID assignment",
-              TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
-
-      catalog.dropTable(ident);
-
-      Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+    TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(Namespace.of("ns"));
     }
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+    catalog.buildTable(ident, SCHEMA).create();
+    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+
+    Table loaded = catalog.loadTable(ident);
+    Assert.assertEquals("Schema should match expected ID assignment",
+            TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
+
+    catalog.dropTable(ident);
+
+    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
   }
 
   @Test
