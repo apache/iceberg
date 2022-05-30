@@ -459,7 +459,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table loaded = catalog.loadTable(ident);
     Assert.assertEquals("Schema should match expected ID assignment",
-            TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
+        TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
 
     catalog.dropTable(ident);
 
