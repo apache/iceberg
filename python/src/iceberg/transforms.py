@@ -245,12 +245,13 @@ class IdentityTransform(Transform[S, S]):
     def apply(self, value: Optional[S]) -> Optional[S]:
         return value
 
-    def can_transform(self, target: IcebergType) -> bool:
-        return target.is_primitive
+    def can_transform(self, source: IcebergType) -> bool:
+        return source.is_primitive
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
+    @property
     def preserves_order(self) -> bool:
         return True
 
@@ -258,11 +259,14 @@ class IdentityTransform(Transform[S, S]):
         """ordering by value is the same as long as the other preserves order"""
         return other.preserves_order
 
-    @singledispatchmethod
     def to_human_string(self, value: Optional[S]) -> str:
+        return self._human_string(value)
+
+    @singledispatchmethod
+    def _human_string(self, value: Optional[S]) -> str:
         return str(value) if value is not None else "null"
 
-    @to_human_string.register(int)
+    @_human_string.register(int)
     def _(self, value: int) -> str:
         if isinstance(self._type, DateType):
             return datetime.to_human_day(value)
@@ -275,7 +279,7 @@ class IdentityTransform(Transform[S, S]):
         else:
             return str(value)
 
-    @to_human_string.register(bytes)
+    @_human_string.register(bytes)
     def _(self, value: bytes) -> str:
         if type(self._type) in {FixedType, BinaryType}:
             return binary.base64encode(value)
