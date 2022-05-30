@@ -57,4 +57,5 @@ public interface Record extends StructLike {
     overwriteValues.put(field3, value3);
     return copy(overwriteValues);
   }
+
 }

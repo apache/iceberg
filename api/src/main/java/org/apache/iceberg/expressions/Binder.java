@@ -91,12 +91,17 @@ public class Binder {
   }
 
   public static Set<Integer> boundReferences(StructType struct, List<Expression> exprs, boolean caseSensitive) {
+    return boundReferences(struct, exprs, caseSensitive, false);
+  }
+
+  public static Set<Integer> boundReferences(
+      StructType struct, List<Expression> exprs, boolean caseSensitive, boolean alreadyBound) {
     if (exprs == null) {
       return ImmutableSet.of();
     }
     ReferenceVisitor visitor = new ReferenceVisitor();
     for (Expression expr : exprs) {
-      if (expr instanceof Unbound) {
+      if (!alreadyBound) {
         ExpressionVisitors.visit(bind(struct, expr, caseSensitive), visitor);
       } else {
         ExpressionVisitors.visit(expr, visitor);

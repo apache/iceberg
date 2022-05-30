@@ -110,8 +110,8 @@ public class ParquetBloomRowGroupFilter {
         }
       }
 
-      Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
-      //  If the filter's column set doesn't overlap with any bloom filter columns, exit early with ROWS_MIGHT_MATCH
+      Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive, true);
+      // If the filter's column set doesn't overlap with any bloom filter columns, exit early with ROWS_MIGHT_MATCH
       if (filterRefs.size() > 0 && Sets.intersection(fieldsWithBloomFilter, filterRefs).isEmpty()) {
         return ROWS_MIGHT_MATCH;
       }
@@ -266,18 +266,18 @@ public class ParquetBloomRowGroupFilter {
       switch (type.typeId()) {
         case INTEGER:
         case DATE:
-          hashValue = bloom.hash((int) value);
+          hashValue = bloom.hash(((Number) value).intValue());
           return bloom.findHash(hashValue);
         case LONG:
         case TIME:
         case TIMESTAMP:
-          hashValue = bloom.hash((long) value);
+          hashValue = bloom.hash(((Number) value).longValue());
           return bloom.findHash(hashValue);
         case FLOAT:
-          hashValue = bloom.hash((float) value);
+          hashValue = bloom.hash(((Number) value).floatValue());
           return bloom.findHash(hashValue);
         case DOUBLE:
-          hashValue = bloom.hash((double) value);
+          hashValue = bloom.hash(((Number) value).doubleValue());
           return bloom.findHash(hashValue);
         case STRING:
           hashValue = bloom.hash(Binary.fromCharSequence((CharSequence) value));
