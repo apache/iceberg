@@ -978,7 +978,7 @@ components:
           type: boolean
 
     Type:
-      anyOf:
+      oneOf:
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'

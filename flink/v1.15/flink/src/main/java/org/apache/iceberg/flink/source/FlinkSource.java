@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -175,6 +176,11 @@ public class FlinkSource {
 
     public Builder nameMapping(String nameMapping) {
       contextBuilder.nameMapping(nameMapping);
+      return this;
+    }
+
+    public Builder monitorInterval(Duration interval) {
+      contextBuilder.monitorInterval(interval);
       return this;
     }
 
