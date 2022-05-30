@@ -112,7 +112,7 @@ tarball=$tag.tar.gz
 git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$tarball
 
 echo "Signing the tarball..."
-[[ -z "$keyid" ]] && keyopt="-u $keyid"
+[[ -n "$keyid" ]] && keyopt="-u $keyid"
 gpg $keyopt --armor --output ${projectdir}/${tarball}.asc --detach-sig ${projectdir}/$tarball
 shasum -a 512 $tarball > ${projectdir}/${tarball}.sha512
 
