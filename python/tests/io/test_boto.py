@@ -30,7 +30,7 @@ def test_boto_new_input_file(boto_test_client_kwargs):
 
     fileio = boto.BotoFileIO(**boto_test_client_kwargs)
     input_file = fileio.new_input(f"s3://testbucket/{filename}")
-    
+
     assert isinstance(input_file, boto.BotoInputFile)
     assert input_file.location == f"s3://testbucket/{filename}"
 
@@ -42,7 +42,7 @@ def test_boto_new_output_file(boto_test_client_kwargs):
 
     fileio = boto.BotoFileIO(**boto_test_client_kwargs)
     output_file = fileio.new_output(f"s3://testbucket/{filename}")
-    
+
     assert isinstance(output_file, boto.BotoOutputFile)
     assert output_file.location == f"s3://testbucket/{filename}"
 
