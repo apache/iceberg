@@ -30,6 +30,7 @@ from typing import Any, Dict, Union
 from urllib.parse import urlparse
 
 import pytest
+from boto3.session import Session
 
 from iceberg import schema
 from iceberg.io.base import (
@@ -1042,4 +1043,14 @@ def iceberg_manifest_entry_schema() -> Schema:
         ),
         schema_id=1,
         identifier_field_ids=[],
+    )
+
+
+@pytest.fixture
+def boto_test_client_kwargs():
+    return dict(
+        session=Session(),
+        endpoint_url="http://localhost:9000",
+        aws_access_key_id="admin",
+        aws_secret_access_key="password",
     )
