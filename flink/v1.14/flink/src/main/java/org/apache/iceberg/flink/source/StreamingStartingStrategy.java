@@ -24,33 +24,35 @@ package org.apache.iceberg.flink.source;
  */
 public enum StreamingStartingStrategy {
   /**
-   * First do a regular table scan. Then switch to incremental mode after the table scan snapshot.
+   * Do a regular table scan then switch to the incremental mode.
+   * <p>
+   * The incremental mode starts from the current snapshot exclusive.
    */
   TABLE_SCAN_THEN_INCREMENTAL,
 
   /**
-   * Start incremental mode from the latest snapshot inclusive
-   *
-   * If it is an empty map, all future append snapshots should be discovered
+   * Start incremental mode from the latest snapshot inclusive.
+   * <p>
+   * If it is an empty map, all future append snapshots should be discovered.
    */
   INCREMENTAL_FROM_LATEST_SNAPSHOT,
 
   /**
-   * Start incremental mode from the earliest snapshot inclusive
-   *
+   * Start incremental mode from the earliest snapshot inclusive.
+   * <p>
    * If it is an empty map, all future append snapshots should be discovered.
    */
   INCREMENTAL_FROM_EARLIEST_SNAPSHOT,
 
   /**
-   * Start incremental mode from a snapshot with a specific id inclusive
+   * Start incremental mode from a snapshot with a specific id inclusive.
    */
   INCREMENTAL_FROM_SNAPSHOT_ID,
 
   /**
-   * Start incremental mode from a snapshot with a specific timestamp inclusive
-   *
-   * Starting snapshot has a timestamp lower than or equal to the specified timestamp
+   * Start incremental mode from a snapshot with a specific timestamp inclusive.
+   * <p>
+   * If the timestamp is between two snapshots, it should start from the snapshot after the timestamp.
    */
   INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP
 }

@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
@@ -68,15 +69,16 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     Snapshot currentSnapshot = table.currentSnapshot();
     if (currentSnapshot == null) {
       // empty table
-      IcebergEnumeratorPosition newPosition = new IcebergEnumeratorPosition(null, null);
+      Preconditions.checkArgument(lastPosition.snapshotId() == null,
+          "Invalid last enumerated position for an empty table: not null");
       LOG.info("Skip incremental scan because table is empty");
-      return new ContinuousEnumerationResult(Collections.emptyList(), lastPosition, newPosition);
+      return new ContinuousEnumerationResult(Collections.emptyList(), lastPosition, lastPosition);
     } else {
       if (lastPosition.snapshotId() != null && currentSnapshot.snapshotId() == lastPosition.snapshotId()) {
         LOG.info("Current table snapshot is already enumerated: {}", currentSnapshot.snapshotId());
         return new ContinuousEnumerationResult(Collections.emptyList(), lastPosition, lastPosition);
       } else {
-        IcebergEnumeratorPosition newPosition = new IcebergEnumeratorPosition(
+        IcebergEnumeratorPosition newPosition = IcebergEnumeratorPosition.of(
             currentSnapshot.snapshotId(), currentSnapshot.timestampMillis());
         ScanContext incrementalScan = scanContext
             .copyWithAppendsBetween(lastPosition.snapshotId(), currentSnapshot.snapshotId());
@@ -101,10 +103,10 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
    * in the next incremental scan.
    */
   private ContinuousEnumerationResult discoverInitialSplits() {
-    Optional<Snapshot> startSnapshotOptional = getStartSnapshot(table, scanContext);
+    Optional<Snapshot> startSnapshotOptional = startSnapshot(table, scanContext);
     if (!startSnapshotOptional.isPresent()) {
       return new ContinuousEnumerationResult(Collections.emptyList(), null,
-          new IcebergEnumeratorPosition(null, null));
+          IcebergEnumeratorPosition.empty());
     }
 
     Snapshot startSnapshot = startSnapshotOptional.get();
@@ -113,22 +115,25 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     List<IcebergSourceSplit> splits;
     IcebergEnumeratorPosition toPosition;
     if (scanContext.startingStrategy() == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
-      // do a full table scan first
+      // do a batch table scan first
       splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
-      LOG.info("Discovered {} splits from initial full table scan with snapshot Id {}",
+      LOG.info("Discovered {} splits from initial batch table scan with snapshot Id {}",
           splits.size(), startSnapshot.snapshotId());
-      toPosition = new IcebergEnumeratorPosition(startSnapshot.snapshotId(), startSnapshot.timestampMillis());
+      // For TABLE_SCAN_THEN_INCREMENTAL, incremental mode starts exclusive from the startSnapshot
+      toPosition = IcebergEnumeratorPosition.of(startSnapshot.snapshotId(), startSnapshot.timestampMillis());
     } else {
+      // For all other modes, starting snapshot should be consumed inclusively.
+      // Use parentId to achieve the inclusive behavior. It is fine if parentId is null.
       splits = Collections.emptyList();
-      // Use parentId to achieve the inclusive behavior.
-      // Note that it is fine if parentId is null.
       Long parentSnapshotId = startSnapshot.parentId();
-      Long parentSnapshotTimestampMs = null;
       if (parentSnapshotId != null) {
-        parentSnapshotTimestampMs = table.snapshot(parentSnapshotId).timestampMillis();
+        Snapshot parentSnapshot = table.snapshot(parentSnapshotId);
+        Long parentSnapshotTimestampMs = parentSnapshot != null ? parentSnapshot.timestampMillis() : null;
+        toPosition = IcebergEnumeratorPosition.of(parentSnapshotId, parentSnapshotTimestampMs);
+      } else {
+        toPosition = IcebergEnumeratorPosition.empty();
       }
 
-      toPosition = new IcebergEnumeratorPosition(parentSnapshotId, parentSnapshotTimestampMs);
       LOG.info("Start incremental scan with start snapshot (inclusive): id = {}, timestamp = {}",
           startSnapshot.snapshotId(), startSnapshot.timestampMillis());
     }
@@ -137,10 +142,13 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
   }
 
   /**
-   * Optional is used because table may be empty and has no snapshot
+   * Calculate the starting snapshot based on the {@link StreamingStartingStrategy} defined in {@code ScanContext}.
+   * <p>
+   * If the {@link StreamingStartingStrategy} is not {@link StreamingStartingStrategy#TABLE_SCAN_THEN_INCREMENTAL},
+   * the start snapshot should be consumed inclusively.
    */
   @VisibleForTesting
-  static Optional<Snapshot> getStartSnapshot(Table table, ScanContext scanContext) {
+  static Optional<Snapshot> startSnapshot(Table table, ScanContext scanContext) {
     switch (scanContext.startingStrategy()) {
       case TABLE_SCAN_THEN_INCREMENTAL:
       case INCREMENTAL_FROM_LATEST_SNAPSHOT:
@@ -156,12 +164,16 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
               "Start snapshot id not found in history: " + scanContext.startSnapshotId());
         }
       case INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP:
-        // snapshotIdAsOfTime returns valid snapshot id only.
-        // it throws IllegalArgumentException when a matching snapshot not found.
         long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(table, scanContext.startSnapshotTimestamp());
         Snapshot matchedSnapshotByTimestamp = table.snapshot(snapshotIdAsOfTime);
         if (matchedSnapshotByTimestamp != null) {
-          return Optional.of(matchedSnapshotByTimestamp);
+          if (matchedSnapshotByTimestamp.timestampMillis() == scanContext.startSnapshotTimestamp()) {
+            return Optional.of(matchedSnapshotByTimestamp);
+          } else {
+            // if the snapshotIdAsOfTime has the timestamp value smaller than the scanContext.startSnapshotTimestamp(),
+            // return the child snapshot whose timestamp value is larger
+            return Optional.of(SnapshotUtil.snapshotAfter(table, snapshotIdAsOfTime));
+          }
         } else {
           throw new IllegalArgumentException("Snapshot id not found in history: " + snapshotIdAsOfTime);
         }

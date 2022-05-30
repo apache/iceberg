@@ -169,6 +169,7 @@ public class TestContinuousSplitPlannerImpl {
   public void testIncrementalFromLatestSnapshotWithEmptyTable() throws Exception {
     ScanContext scanContext = ScanContext.builder()
         .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
+        .splitSize(1L)
         .build();
     ContinuousSplitPlannerImpl splitPlanner = new ContinuousSplitPlannerImpl(
         tableResource.table(), scanContext, testName.getMethodName());
@@ -187,8 +188,14 @@ public class TestContinuousSplitPlannerImpl {
     Assert.assertNull(emptyTableSecondDiscoveryResult.toPosition().snapshotId());
     Assert.assertNull(emptyTableSecondDiscoveryResult.toPosition().snapshotTimestampMs());
 
+    // latest mode should discover both snapshots, as latest position is marked by when job starts
+    appendTwoSnapshots();
+    ContinuousEnumerationResult afterTwoSnapshotsAppended = splitPlanner
+        .planSplits(emptyTableSecondDiscoveryResult.toPosition());
+    Assert.assertEquals(2, afterTwoSnapshotsAppended.splits().size());
+
     // next 3 snapshots
-    IcebergEnumeratorPosition lastPosition = emptyTableSecondDiscoveryResult.toPosition();
+    IcebergEnumeratorPosition lastPosition = afterTwoSnapshotsAppended.toPosition();
     for (int i = 0; i < 3; ++i) {
       lastPosition = verifyOneCycle(splitPlanner, lastPosition);
     }

@@ -21,26 +21,30 @@ package org.apache.iceberg.flink.source.enumerator;
 
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class IcebergEnumeratorPosition {
   private final Long snapshotId;
+  // Track snapshot timestamp mainly for info logging
   private final Long snapshotTimestampMs;
 
-  IcebergEnumeratorPosition(Long snapshotId, Long snapshotTimestampMs) {
-    // either both are null or both are not null
-    Preconditions.checkArgument((snapshotId == null && snapshotTimestampMs == null) ||
-            (snapshotId != null && snapshotTimestampMs != null),
-        "snapshot id and timestamp should be either both null or both not null");
+  static IcebergEnumeratorPosition empty() {
+    return new IcebergEnumeratorPosition(null, null);
+  }
+
+  static IcebergEnumeratorPosition of(long snapshotId, Long snapshotTimestampMs) {
+    return new IcebergEnumeratorPosition(snapshotId, snapshotTimestampMs);
+  }
+
+  private IcebergEnumeratorPosition(Long snapshotId, Long snapshotTimestampMs) {
     this.snapshotId = snapshotId;
     this.snapshotTimestampMs = snapshotTimestampMs;
   }
 
-  public Long snapshotId() {
+  Long snapshotId() {
     return snapshotId;
   }
 
-  public Long snapshotTimestampMs() {
+  Long snapshotTimestampMs() {
     return snapshotTimestampMs;
   }
 
