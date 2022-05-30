@@ -160,6 +160,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return false;
   }
 
+  protected boolean overridesRequestedLocation() {
+    return false;
+  }
+
+  protected boolean supportsNamesWithSlashes() {
+    return true;
+  }
+
   @Test
   public void testCreateNamespace() {
     C catalog = catalog();
@@ -428,6 +436,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithSlash() {
+    Assume.assumeTrue(supportsNamesWithSlashes());
+
     C catalog = catalog();
 
     Namespace withSlash = Namespace.of("new/db");
@@ -485,6 +495,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithSlash() {
+    Assume.assumeTrue(supportsNamesWithSlashes());
+
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
@@ -1181,7 +1193,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
   }
@@ -1269,7 +1283,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
   }
@@ -1361,7 +1377,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1484,7 +1502,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
