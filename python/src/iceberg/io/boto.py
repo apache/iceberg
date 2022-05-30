@@ -61,7 +61,7 @@ class BotoInputStream:
 
         return self._s3_object.get(Range=range_header)["Body"].read()
 
-    def seek(self, offset: int, whence: Literal[0, 1, 2] = 0) -> None:
+    def seek(self, offset: int, whence: Literal[0, 1, 2] = 0) -> int:
         position_new = offset if whence == 0 else self._position + offset if whence == 1 else self._s3_object.content_length + offset if whence == 2 else None
 
         if not position_new:
