@@ -268,7 +268,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
-| `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
+| `strategy`    |    | string | Name of the strategy - binpack, sort or zorder. Defaults to binpack strategy |
 | `sort_order`  |    | string | Comma separated sort_order_column. Where sort_order_column is a space separated sort order info per column (ColumnName SortDirection NullOrder). <br/> SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST |
 | `options`     | ️   | map<string, string> | Options to be used for actions|
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|

@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -142,7 +143,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   private RewriteDataFiles checkAndApplyStrategy(RewriteDataFiles action, String strategy, SortOrder sortOrder) {
     // caller of this function ensures that between strategy and sortOrder, at least one of them is not null.
-    if (strategy == null || strategy.equalsIgnoreCase("sort")) {
+    if (strategy == null || strategy.equalsIgnoreCase("sort") || strategy.equalsIgnoreCase("zorder")) {
+      if (strategy != null && strategy.equalsIgnoreCase("zorder")) {
+        return action.zOrder(columnNames(sortOrder));
+      }
       return action.sort(sortOrder);
     }
     if (strategy.equalsIgnoreCase("binpack")) {
@@ -153,8 +157,14 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       }
       return rewriteDataFiles;
     } else {
-      throw new IllegalArgumentException("unsupported strategy: " + strategy + ". Only binpack,sort is supported");
+      throw new IllegalArgumentException(
+          "unsupported strategy: " + strategy + ". Only binpack,sort or zorder is supported");
     }
+  }
+
+  private String[] columnNames(SortOrder sortOrder) {
+    Schema schema = sortOrder.schema();
+    return sortOrder.fields().stream().map(field -> schema.findColumnName(field.sourceId())).toArray(String[]::new);
   }
 
   private SortOrder collectSortOrders(Table table, String sortOrderStr) {

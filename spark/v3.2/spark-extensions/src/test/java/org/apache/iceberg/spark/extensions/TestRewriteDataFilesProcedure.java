@@ -134,6 +134,43 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRewriteDataFilesWithZOrder() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+
+    // set z_order = c1,c2
+    List<Object[]> output = sql(
+        "CALL %s.system.rewrite_data_files(table => '%s', " +
+        "strategy => 'zorder', sort_order => 'c1,c2')",
+        catalogName, tableIdent);
+
+    assertEquals("Action should rewrite 10 data files and add 1 data files",
+        ImmutableList.of(row(10, 1)),
+        output);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+
+    // Due to Z_order, the data written will be in the below order.
+    // As there is only one small output file, we can validate the query ordering (as it will not change).
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(2, "bar", null),
+        row(2, "bar", null),
+        row(2, "bar", null),
+        row(2, "bar", null),
+        row(2, "bar", null),
+        row(1, "foo", null),
+        row(1, "foo", null),
+        row(1, "foo", null),
+        row(1, "foo", null),
+        row(1, "foo", null)
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
+  }
+
+  @Test
   public void testRewriteDataFilesWithFilter() {
     createTable();
     // create 10 files under non-partitioned table
@@ -258,7 +295,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     // Test for invalid strategy
     AssertHelpers.assertThrows("Should reject calls with unsupported strategy error message",
-        IllegalArgumentException.class, "unsupported strategy: temp. Only binpack,sort is supported",
+        IllegalArgumentException.class, "unsupported strategy: temp. Only binpack,sort or zorder is supported",
         () -> sql("CALL %s.system.rewrite_data_files(table => '%s', options => map('min-input-files','2'), " +
             "strategy => 'temp')", catalogName, tableIdent));
 
@@ -292,6 +329,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         IllegalArgumentException.class, "Cannot parse predicates in where option: col1 = 3",
         () -> sql("CALL %s.system.rewrite_data_files(table => '%s', " +
             "where => 'col1 = 3')", catalogName, tableIdent));
+
+    // Test for z_order with invalid column name
+    AssertHelpers.assertThrows("Should reject calls with error message",
+        ValidationException.class, "Cannot find field 'col1' in struct:" +
+            " struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
+        () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'zorder', " +
+            "sort_order => 'col1')", catalogName, tableIdent));
   }
 
   @Test
