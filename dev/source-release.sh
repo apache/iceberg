@@ -36,7 +36,7 @@ usage () {
 }
 
 # Default repository remote name
-remote="origin"
+remote="apache"
 
 while getopts "v:r:k:g:d" opt; do
   case "${opt}" in
