@@ -91,10 +91,10 @@ public class Binder {
   }
 
   public static Set<Integer> boundReferences(StructType struct, List<Expression> exprs, boolean caseSensitive) {
-    return boundReferences(struct, exprs, caseSensitive, false);
+    return exprReferences(struct, exprs, caseSensitive, false);
   }
 
-  public static Set<Integer> boundReferences(
+  public static Set<Integer> exprReferences(
       StructType struct, List<Expression> exprs, boolean caseSensitive, boolean alreadyBound) {
     if (exprs == null) {
       return ImmutableSet.of();
