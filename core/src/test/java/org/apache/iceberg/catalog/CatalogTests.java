@@ -155,6 +155,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return false;
   }
 
+  protected boolean supportsServerManagedLocation() {
+    return false;
+  }
+
+  protected boolean supportsNamesWithSlashes() {
+    return true;
+  }
+
   @Test
   public void testCreateNamespace() {
     C catalog = catalog();
@@ -376,20 +384,22 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testNamespaceWithSlash() {
-    C catalog = catalog();
+    if (supportsNamesWithSlashes()) {
+      C catalog = catalog();
 
-    Namespace withSlash = Namespace.of("new/db");
+      Namespace withSlash = Namespace.of("new/db");
 
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
+      Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
 
-    catalog.createNamespace(withSlash);
-    Assert.assertTrue("Namespace should exist", catalog.namespaceExists(withSlash));
+      catalog.createNamespace(withSlash);
+      Assert.assertTrue("Namespace should exist", catalog.namespaceExists(withSlash));
 
-    Map<String, String> properties = catalog.loadNamespaceMetadata(withSlash);
-    Assert.assertNotNull("Properties should be accessible", properties);
+      Map<String, String> properties = catalog.loadNamespaceMetadata(withSlash);
+      Assert.assertNotNull("Properties should be accessible", properties);
 
-    Assert.assertTrue("Dropping the namespace should succeed", catalog.dropNamespace(withSlash));
-    Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
+      Assert.assertTrue("Dropping the namespace should succeed", catalog.dropNamespace(withSlash));
+      Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(withSlash));
+    }
   }
 
   @Test
@@ -433,25 +443,27 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithSlash() {
-    C catalog = catalog();
+    if (supportsNamesWithSlashes()) {
+      C catalog = catalog();
 
-    TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(Namespace.of("ns"));
+      TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
+      if (requiresNamespaceCreate()) {
+        catalog.createNamespace(Namespace.of("ns"));
+      }
+
+      Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
+
+      catalog.buildTable(ident, SCHEMA).create();
+      Assert.assertTrue("Table should exist", catalog.tableExists(ident));
+
+      Table loaded = catalog.loadTable(ident);
+      Assert.assertEquals("Schema should match expected ID assignment",
+              TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
+
+      catalog.dropTable(ident);
+
+      Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
     }
-
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
-
-    catalog.buildTable(ident, SCHEMA).create();
-    Assert.assertTrue("Table should exist", catalog.tableExists(ident));
-
-    Table loaded = catalog.loadTable(ident);
-    Assert.assertEquals("Schema should match expected ID assignment",
-        TABLE_SCHEMA.asStruct(), loaded.schema().asStruct());
-
-    catalog.dropTable(ident);
-
-    Assert.assertFalse("Table should not exist", catalog.tableExists(ident));
   }
 
   @Test
@@ -1129,7 +1141,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!supportsServerManagedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
   }
@@ -1217,7 +1231,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!supportsServerManagedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
   }
@@ -1309,7 +1325,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!supportsServerManagedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1432,7 +1450,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!supportsServerManagedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
