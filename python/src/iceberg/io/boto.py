@@ -28,7 +28,7 @@ from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputSt
 class BotoInputStream:
     """A seekable wrapper for reading an S3 Object that abides by the InputStream protocol
         
-        Args:
+    Args:
         s3_object(boto3.resources.factory.s3.Object): An s3 object
     """
 
