@@ -28,8 +28,8 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.RandomAvroData;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -70,7 +70,8 @@ public class TestScansAndSchemaEvolution {
   private DataFile createDataFile(String partValue) throws IOException {
     List<GenericData.Record> expected = RandomAvroData.generate(SCHEMA, 100, 0L);
 
-    OutputFile dataFile = new InMemoryOutputFile(FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
+    OutputFile dataFile =
+        new InMemoryFileIO().newOutputFile(FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
     try (FileAppender<GenericData.Record> writer = Avro.write(dataFile)
         .schema(SCHEMA)
         .named("test")

@@ -20,9 +20,13 @@
 package org.apache.iceberg.puffin;
 
 import java.nio.ByteBuffer;
-import org.apache.iceberg.io.InMemoryOutputFile;
+import java.util.UUID;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.io.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -36,11 +40,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 public class TestPuffinWriter {
   @Test
   public void testEmptyFooterCompressed() {
-    InMemoryOutputFile outputFile = new InMemoryOutputFile();
-
-    PuffinWriter writer = Puffin.write(outputFile)
-        .compressFooter()
-        .build();
+    PuffinWriter writer =
+        Puffin.write(new InMemoryFileIO().newOutputFile(UUID.randomUUID().toString()))
+            .compressFooter()
+            .build();
     assertThatThrownBy(writer::footerSize)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Footer not written yet");
@@ -54,7 +57,7 @@ public class TestPuffinWriter {
 
   @Test
   public void testEmptyFooterUncompressed() throws Exception {
-    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    OutputFile outputFile = new InMemoryFileIO().newOutputFile(UUID.randomUUID().toString());
     PuffinWriter writer = Puffin.write(outputFile)
         .build();
     assertThatThrownBy(writer::footerSize)
@@ -63,8 +66,13 @@ public class TestPuffinWriter {
     writer.finish();
     assertThat(writer.footerSize()).isEqualTo(EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE);
     writer.close();
-    assertThat(outputFile.toByteArray())
-        .isEqualTo(readTestResource("v1/empty-puffin-uncompressed.bin"));
+
+    byte[] expected = readTestResource("v1/empty-puffin-uncompressed.bin");
+    byte[] bytes = new byte[expected.length];
+    try (SeekableInputStream inputStream = outputFile.toInputFile().newStream()) {
+      Assertions.assertThat(inputStream.read(bytes)).isEqualTo(bytes.length);
+      Assertions.assertThat(bytes).isEqualTo(expected);
+    }
     // getFooterSize is still accessible after close()
     assertThat(writer.footerSize()).isEqualTo(EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE);
     assertThat(writer.writtenBlobsMetadata()).isEmpty();
@@ -72,12 +80,16 @@ public class TestPuffinWriter {
 
   @Test
   public void testImplicitFinish() throws Exception {
-    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    OutputFile outputFile = new InMemoryFileIO().newOutputFile(UUID.randomUUID().toString());
     PuffinWriter writer = Puffin.write(outputFile)
         .build();
     writer.close();
-    assertThat(outputFile.toByteArray())
-        .isEqualTo(readTestResource("v1/empty-puffin-uncompressed.bin"));
+    byte[] expected = readTestResource("v1/empty-puffin-uncompressed.bin");
+    byte[] bytes = new byte[expected.length];
+    try (SeekableInputStream inputStream = outputFile.toInputFile().newStream()) {
+      Assertions.assertThat(inputStream.read(bytes)).isEqualTo(bytes.length);
+      Assertions.assertThat(bytes).isEqualTo(expected);
+    }
     assertThat(writer.footerSize()).isEqualTo(EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE);
   }
 
@@ -92,7 +104,7 @@ public class TestPuffinWriter {
   }
 
   private void testWriteMetric(PuffinCompressionCodec compression, String expectedResource) throws Exception {
-    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    OutputFile outputFile = new InMemoryFileIO().newOutputFile(UUID.randomUUID().toString());
     try (PuffinWriter writer = Puffin.write(outputFile)
         .createdBy("Test 1234")
         .build()) {
@@ -118,7 +130,10 @@ public class TestPuffinWriter {
     }
 
     byte[] expected = readTestResource(expectedResource);
-    assertThat(outputFile.toByteArray())
-        .isEqualTo(expected);
+    byte[] readBytes = new byte[expected.length];
+    try (SeekableInputStream inputStream = outputFile.toInputFile().newStream()) {
+      Assertions.assertThat(inputStream.read(readBytes)).isEqualTo(readBytes.length);
+      Assertions.assertThat(readBytes).isEqualTo(expected);
+    }
   }
 }

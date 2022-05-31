@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.UUID;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.io.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -127,11 +129,14 @@ public class TestIOUtil {
   public void testWriteFully() throws Exception {
     byte[] input = Strings.repeat("Welcome to Warsaw!\n", 12345)
         .getBytes(StandardCharsets.UTF_8);
-    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    OutputFile outputFile = new InMemoryFileIO().newOutputFile(UUID.randomUUID().toString());
     try (PositionOutputStream outputStream = outputFile.create()) {
       IOUtil.writeFully(outputStream, ByteBuffer.wrap(input.clone()));
     }
-    Assertions.assertThat(outputFile.toByteArray())
-        .isEqualTo(input);
+    byte[] bytes = new byte[input.length];
+    try (SeekableInputStream inputStream = outputFile.toInputFile().newStream()) {
+      inputStream.read(bytes);
+      Assertions.assertThat(bytes).isEqualTo(input);
+    }
   }
 }

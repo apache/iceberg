@@ -21,11 +21,12 @@ package org.apache.iceberg.avro;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InMemoryOutputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class TestGenericAvro extends AvroDataTest {
@@ -33,7 +34,7 @@ public class TestGenericAvro extends AvroDataTest {
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomAvroData.generate(schema, 100, 0L);
 
-    OutputFile outputFile = new InMemoryOutputFile();
+    OutputFile outputFile = new InMemoryFileIO().newOutputFile(UUID.randomUUID().toString());
     try (FileAppender<Record> writer = Avro.write(outputFile)
         .schema(schema)
         .named("test")

@@ -20,8 +20,12 @@
 package org.apache.iceberg.puffin;
 
 import java.util.Map;
+import java.util.UUID;
 import javax.annotation.Nullable;
-import org.apache.iceberg.io.InMemoryInputFile;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -51,7 +55,7 @@ public class TestPuffinReader {
   }
 
   private void testEmpty(String resourceName, @Nullable Long footerSize) throws Exception {
-    InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource(resourceName));
+    InputFile inputFile = inputFileFrom(resourceName);
     Puffin.ReadBuilder readBuilder = Puffin.read(inputFile)
         .withFileSize(inputFile.getLength());
     if (footerSize != null) {
@@ -80,7 +84,7 @@ public class TestPuffinReader {
 
   private void testWrongFooterSize(String resourceName, long wrongFooterSize, String expectedMessagePrefix)
       throws Exception {
-    InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource(resourceName));
+    InputFile inputFile = inputFileFrom(resourceName);
     Puffin.ReadBuilder builder = Puffin.read(inputFile)
         .withFileSize(inputFile.getLength())
         .withFooterSize(wrongFooterSize);
@@ -104,7 +108,7 @@ public class TestPuffinReader {
   }
 
   private void testReadMetricData(String resourceName, PuffinCompressionCodec expectedCodec) throws Exception {
-    InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource(resourceName));
+    InputFile inputFile = inputFileFrom(resourceName);
     try (PuffinReader reader = Puffin.read(inputFile).build()) {
       FileMetadata fileMetadata = reader.fileMetadata();
       assertThat(fileMetadata.properties()).as("file properties")
@@ -139,10 +143,18 @@ public class TestPuffinReader {
     }
   }
 
+  private InputFile inputFileFrom(String resourceName) throws Exception {
+    OutputFile outputFile = new InMemoryFileIO().newOutputFile(UUID.randomUUID().toString());
+    try (PositionOutputStream outputStream = outputFile.create()) {
+      outputStream.write(readTestResource(resourceName));
+    }
+    return outputFile.toInputFile();
+  }
+
   @Test
   public void testValidateFooterSizeValue() throws Exception {
     // Ensure the definition of SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE remains accurate
-    InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource("v1/sample-metric-data-compressed-zstd.bin"));
+    InputFile inputFile = inputFileFrom("v1/sample-metric-data-compressed-zstd.bin");
     try (PuffinReader reader = Puffin.read(inputFile)
         .withFooterSize(SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE)
         .build()) {
