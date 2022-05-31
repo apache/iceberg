@@ -611,7 +611,7 @@ Flink types are converted to Iceberg types according to the following table:
 | symbol              |                            | Not supported |
 | logical             |                            | Not supported |
 
-### Iceberg type to Flink type
+### Iceberg to Flink
 
 Iceberg types are converted to Flink types according to the following table:
 
@@ -626,7 +626,7 @@ Iceberg types are converted to Flink types according to the following table:
 | float                      | float         |                                                  |
 | double                     | double        |                                                  |
 | date                       | date          |                                                  |
-| time                       | time          | precision is fixed at 0                          |
+| time                       | time          |                                                  |
 | timestamp without timezone | timestamp     | precision is fixed at 6                          |
 | timestamp with timezone    | timestamp_ltz | precision is fixed at 6                          |
 | string                     | varchar       | length is fixed at 2<sup>31</sup>-1              |
