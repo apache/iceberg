@@ -48,7 +48,7 @@ class BotoInputStream(InputStream):
         Returns:
             bytes: The byte content of the file
         """
-        if n == -1:  # Read the entire file from the current position
+        if n < 0:  # Read the entire file from the current position
             range_header = f"bytes={self._position}-"
             self.seek(offset=0, whence=2)
         else:
