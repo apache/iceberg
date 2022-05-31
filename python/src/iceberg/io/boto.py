@@ -67,7 +67,7 @@ class BotoInputStream(InputStream):
         if whence not in {SEEK_SET, SEEK_CUR, SEEK_END}:
             raise ValueError(f"Cannot seek to position {offset}, invalid whence: {whence}")
 
-        if whence == 0:
+        if whence == SEEK_SET:
             self._position = offset
         elif whence == 1:
             self._position = self._position + offset
