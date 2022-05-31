@@ -37,7 +37,7 @@ class InputStream(Protocol):
     """
 
     @abstractmethod
-    def read(self, size: int = 0) -> bytes:
+    def read(self, size: int = -1) -> bytes:
         ...
 
     @abstractmethod
