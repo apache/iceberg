@@ -59,7 +59,7 @@ from tests.io.test_io_base import LocalInputFile
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--endpoint-url", action="store", default="http://minio:9000", help="The S3 endpoint URL for tests marked as s3"
+        "--endpoint-url", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
     )
     parser.addoption("--aws-access-key-id", action="store", default="admin", help="The AWS access key ID for tests marked as s3")
     parser.addoption(
