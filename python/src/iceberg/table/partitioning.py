@@ -88,10 +88,8 @@ class PartitionSpec:
             Only include list of partition fields in the PartitionSpec's string representation
         """
         result_str = "["
-        for partition_field in self.fields:
-            result_str += f"\n  {str(partition_field)}"
-        if len(self.fields) > 0:
-            result_str += "\n"
+        if self.fields:
+            result_str += "\n  " + "\n  ".join([str(field) for field in self.fields]) + "\n"
         result_str += "]"
         return result_str
 
