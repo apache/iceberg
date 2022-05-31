@@ -62,12 +62,12 @@ public class TestDefaultValuesParsingAndUnParsing {
         {Types.TimestampType.withZone(), stringToJsonNode("\"2007-12-03T10:15:30+01:00\"")},
         {Types.StringType.get(), stringToJsonNode("\"foo\"")},
         {Types.UUIDType.get(), stringToJsonNode("\"eb26bdb1-a1d8-4aa6-990e-da940875492c\"")},
-        {Types.FixedType.ofLength(2), stringToJsonNode("\"0x111f\"")},
-        {Types.BinaryType.get(), stringToJsonNode("\"0x0000ff\"")},
+        {Types.FixedType.ofLength(2), stringToJsonNode("\"111f\"")},
+        {Types.BinaryType.get(), stringToJsonNode("\"0000ff\"")},
         {Types.DecimalType.of(9, 2), stringToJsonNode("123.45")},
         {Types.ListType.ofOptional(1, Types.IntegerType.get()), stringToJsonNode("[1, 2, 3]")},
         {Types.MapType.ofOptional(1, 2, Types.IntegerType.get(), Types.StringType.get()),
-         stringToJsonNode("[[1,2], [\"foo\", \"bar\"]]")},
+         stringToJsonNode("{\"keys\": [1, 2], \"values\": [\"foo\", \"bar\"]}")},
         {Types.StructType.of(
             required(1, "f1", Types.IntegerType.get(), "doc"),
             optional(2, "f2", Types.StringType.get(), "doc")),
@@ -95,7 +95,6 @@ public class TestDefaultValuesParsingAndUnParsing {
 
   @Test
   public void testTypeWithDefaultValue() throws JsonProcessingException {
-    Assert.assertTrue(DefaultValueParser.isValidDefault(type, defaultValue));
     String parseThenUnParseDefaultValue = defaultValueParseAndUnParseRoundTrip(type, defaultValue);
     // Only if the type is a timestampWithZone type, the round-trip default value will always be standardized to the
     // UTC time zone, which might be different in the original value, but they should represent the same instant
