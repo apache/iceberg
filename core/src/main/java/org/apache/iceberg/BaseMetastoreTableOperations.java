@@ -174,7 +174,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
                                              int numRetries) {
     refreshFromMetadataLocation(newLocation, shouldRetry, numRetries,
-        metadataLocation -> TableMetadataParser.read(io(), metadataLocation));
+        metadataLocation -> TableMetadata.buildFromLocation(io(), metadataLocation).build());
   }
 
   protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,

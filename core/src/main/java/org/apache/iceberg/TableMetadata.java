@@ -31,6 +31,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -755,6 +756,10 @@ public class TableMetadata implements Serializable {
     return new Builder(base);
   }
 
+  static Builder buildFromLocation(FileIO io, String location) {
+    return buildFrom(TableMetadataParser.read(io, location));
+  }
+
   public static class Builder {
     private static final int LAST_ADDED = -1;
 
@@ -1165,6 +1170,11 @@ public class TableMetadata implements Serializable {
     }
 
     public TableMetadata build() {
+      if (refs.isEmpty() && currentSnapshotId != -1) {
+        SnapshotRef main = SnapshotRef.branchBuilder(currentSnapshotId).build();
+        setRef(SnapshotRef.MAIN_BRANCH, main);
+      }
+
       if (!hasChanges()) {
         return base;
       }
