@@ -78,8 +78,7 @@ export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 ./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-xxx.jar shell
 ```
 
-By default, iceberg has included hadoop jars for hadoop catalog. If we want to use hive catalog, we will need to 
-load the hive jars when opening the flink sql client. Fortunately, apache flink has provided a [bundled hive jar](https://nightlies.apache.org/flink/flink-docs-release-1.14/docs/connectors/table/hive/overview/#using-bundled-hive-jar) for sql client. So we could open the sql client
+By default, iceberg has included hadoop jars for hadoop catalog. If we want to use hive catalog, we will need to load the hive jars when opening the flink sql client. Fortunately, apache flink has provided a [bundled hive jar](https://nightlies.apache.org/flink/flink-docs-release-1.14/docs/connectors/table/hive/overview/#using-bundled-hive-jar) for sql client. So we could open the sql client
 as the following:
 
 ```bash
