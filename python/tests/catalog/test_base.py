@@ -15,11 +15,18 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-from typing import Dict, List, Optional, Set, Union
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Set,
+    Union,
+)
 
 import pytest
 
-from iceberg.catalog.base import Catalog, Identifier, Properties
+from iceberg.catalog import Identifier, Properties
+from iceberg.catalog.base import Catalog
 from iceberg.exceptions import (
     AlreadyExistsError,
     NamespaceNotEmptyError,

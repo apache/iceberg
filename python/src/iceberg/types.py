@@ -34,11 +34,9 @@ from functools import cached_property
 from typing import (
     ClassVar,
     Dict,
-    List,
     Optional,
     Tuple,
 )
-from typing import ClassVar, Dict, Optional, Tuple
 
 
 class Singleton:

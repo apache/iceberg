@@ -21,19 +21,15 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import singledispatch
-<<<<<<< HEAD
 from typing import (
     Any,
     Dict,
     Generic,
-    Iterable,
     List,
     Optional,
+    Tuple,
     TypeVar,
 )
-=======
-from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar
->>>>>>> 8d7d32682d1d8f48ed657c44a7509c3605ca9b73
 
 from iceberg.files import StructProtocol
 from iceberg.types import (
@@ -57,11 +53,7 @@ class Schema:
     """
 
     def __init__(self, *columns: NestedField, schema_id: int, identifier_field_ids: Optional[List[int]] = None):
-<<<<<<< HEAD
-        self._struct = StructType(*columns)  # type: ignore
-=======
         self._struct = StructType(*columns)
->>>>>>> 8d7d32682d1d8f48ed657c44a7509c3605ca9b73
         self._schema_id = schema_id
         self._identifier_field_ids = identifier_field_ids or []
         self._name_to_id: Dict[str, int] = index_by_name(self)
