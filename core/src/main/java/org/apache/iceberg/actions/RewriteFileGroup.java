@@ -68,7 +68,7 @@ public class RewriteFileGroup {
         .count();
   }
 
-  public int referencedPositionalDeletes() {
+  public int referencedPosDeletes() {
     return (int) fileScans().stream().flatMap(f -> f.deletes().stream())
         .filter(d -> d.content().equals(FileContent.POSITION_DELETES))
         .distinct()
