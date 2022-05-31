@@ -416,12 +416,12 @@ public class BaseRewriteDataFilesSparkAction
     if (partition.size() > 0) {
       return String.format("Rewriting %d files (%s, file group %d/%d, %s (%d/%d), %d eq deletes, %d pos deletes) in %s",
           group.rewrittenFiles().size(), strategy.name(), group.info().globalIndex(), ctx.totalGroupCount(), partition,
-          group.info().partitionIndex(), ctx.groupsInPartition(partition), group.referencedEqDeletes(),
-          group.referencedPosDeletes(), table.name());
+          group.info().partitionIndex(), ctx.groupsInPartition(partition), group.referencedEqDeleteNumber(),
+          group.referencedPosDeleteNumber(), table.name());
     } else {
       return String.format("Rewriting %d files (%s, file group %d/%d, %d eq deletes, %d pos deletes) in %s",
           group.rewrittenFiles().size(), strategy.name(), group.info().globalIndex(), ctx.totalGroupCount(),
-          group.referencedEqDeletes(), group.referencedPosDeletes(), table.name());
+          group.referencedEqDeleteNumber(), group.referencedPosDeleteNumber(), table.name());
     }
   }
 
