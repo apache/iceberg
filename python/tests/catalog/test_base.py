@@ -15,11 +15,18 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-from typing import Dict, List, Optional, Set, Union
+from typing import (
+    Dict,
+    List,
+    Optional,
+    Set,
+    Union,
+)
 
 import pytest
 
-from iceberg.catalog.base import Catalog, Identifier, Properties
+from iceberg.catalog import Identifier, Properties
+from iceberg.catalog.base import Catalog
 from iceberg.exceptions import (
     AlreadyExistsError,
     NamespaceNotEmptyError,
@@ -136,13 +143,13 @@ class InMemoryCatalog(Catalog):
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
     ) -> None:
         namespace = Catalog.identifier_to_tuple(namespace)
-        removals = {} if not removals else removals
-        updates = [] if not updates else updates
         if namespace in self.__namespaces:
-            for key in removals:
-                if key in self.__namespaces[namespace]:
-                    del self.__namespaces[namespace][key]
-            self.__namespaces[namespace].update(updates)
+            if removals:
+                for key in removals:
+                    if key in self.__namespaces[namespace]:
+                        del self.__namespaces[namespace][key]
+            if updates:
+                self.__namespaces[namespace].update(updates)
         else:
             raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}")
 

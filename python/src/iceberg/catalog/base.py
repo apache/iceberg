@@ -15,14 +15,19 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Set, Tuple, Union
+from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from typing import (
+    List,
+    Optional,
+    Set,
+    Union,
+)
+
+from iceberg.catalog import Identifier, Properties
 from iceberg.schema import Schema
 from iceberg.table.base import PartitionSpec, Table
-
-Identifier = Tuple[str, ...]
-Properties = Dict[str, str]
 
 
 class Catalog(ABC):

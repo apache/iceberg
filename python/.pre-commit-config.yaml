@@ -14,36 +14,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+---
+files: ^python/
 
-[build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
-]
-build-backend = "setuptools.build_meta"
-
-[tool.black]
-line-length = 130
-target-version = ['py38']
-
-[tool.isort]
-src_paths = ["src/", "tests/"]
-multi_line_output = 3
-profile = 'black'
-line_length = 130
-force_grid_wrap = 4
-
-[tool.pycln]
-all = true
-
-[tool.mypy]
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unreachable = true
-
-[[tool.mypy.overrides]]
-module = "mypy-pyarrow.*"
-ignore_missing_imports = true
-
-[tool.coverage.run]
-source = ['src/']
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.2.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-docstring-first
+      - id: debug-statements
+      - id: check-yaml
+      - id: check-ast
+  - repo: https://github.com/ambv/black
+    rev: 22.3.0
+    hooks:
+      - id: black
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1
+    hooks:
+      - id: isort
+        args: [ --settings-path=python/pyproject.toml ]
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.950
+    hooks:
+      - id: mypy
+  -   repo: https://github.com/hadialqattan/pycln
+      rev: v1.3.2
+      hooks:
+        - id: pycln
+          args: [--config=python/pyproject.toml]
