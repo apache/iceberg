@@ -64,7 +64,7 @@ class BotoInputStream(InputStream):
         return self._s3_object.get(Range=range_header)["Body"].read()
 
     def seek(self, offset: int, whence: int = 0) -> int:
-        if whence not in (0, 1, 2):
+        if whence not in {SEEK_SET, SEEK_CUR, SEEK_END}:
             raise ValueError(f"Cannot seek to position {offset}, invalid whence: {whence}")
 
         if whence == 0:
