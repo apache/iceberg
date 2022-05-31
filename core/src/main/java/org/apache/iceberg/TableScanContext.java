@@ -172,7 +172,7 @@ final class TableScanContext {
   TableScanContext fromSnapshotIdExclusive(long id) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
         caseSensitive, colStats, projectedSchema, selectedColumns, options, id, toSnapshotId,
-        planExecutor, fromSnapshotInclusive);
+        planExecutor, false);
   }
 
   TableScanContext fromSnapshotIdInclusive(long id) {
