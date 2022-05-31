@@ -22,7 +22,9 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -63,14 +65,18 @@ public class Deletes {
     return equalityFilter.filter(rows);
   }
 
-  public static <T> CloseableIterable<T> filter(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                                PositionDeleteIndex deleteSet) {
-    if (deleteSet.isEmpty()) {
-      return rows;
-    }
+  public static <T> CloseableIterable<T> markDeleted(CloseableIterable<T> rows, Predicate<T> isDeleted,
+                                                     Consumer<T> deleteMarker) {
+    return CloseableIterable.transform(rows, row -> {
+      if (isDeleted.test(row)) {
+        deleteMarker.accept(row);
+      }
+      return row;
+    });
+  }
 
-    PositionSetDeleteFilter<T> filter = new PositionSetDeleteFilter<>(rowToPosition, deleteSet);
-    return filter.filter(rows);
+  public static <T> CloseableIterable<T> filterDeleted(CloseableIterable<T> rows, Predicate<T> isDeleted) {
+    return CloseableIterable.filter(rows, isDeleted.negate());
   }
 
   public static StructLikeSet toEqualitySet(CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
@@ -107,6 +113,13 @@ public class Deletes {
     return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
   }
 
+  public static <T> CloseableIterable<T> streamingMarker(CloseableIterable<T> rows,
+                                                         Function<T, Long> rowToPosition,
+                                                         CloseableIterable<Long> posDeletes,
+                                                         Consumer<T> markDeleted) {
+    return new PositionStreamDeleteMarker<>(rows, rowToPosition, posDeletes, markDeleted);
+  }
+
   public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
                                                         CloseableIterable<StructLike> deleteFile) {
     return deletePositions(dataLocation, ImmutableList.of(deleteFile));
@@ -137,93 +150,91 @@ public class Deletes {
     }
   }
 
-  private static class PositionSetDeleteFilter<T> extends Filter<T> {
-    private final Function<T, Long> rowToPosition;
-    private final PositionDeleteIndex deleteSet;
-
-    private PositionSetDeleteFilter(Function<T, Long> rowToPosition, PositionDeleteIndex deleteSet) {
-      this.rowToPosition = rowToPosition;
-      this.deleteSet = deleteSet;
-    }
-
-    @Override
-    protected boolean shouldKeep(T row) {
-      return !deleteSet.isDeleted(rowToPosition.apply(row));
-    }
-  }
-
-  private static class PositionStreamDeleteFilter<T> extends CloseableGroup implements CloseableIterable<T> {
+  private abstract static class PositionStreamDeleteIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     private final CloseableIterable<T> rows;
-    private final Function<T, Long> extractPos;
-    private final CloseableIterable<Long> deletePositions;
+    private final CloseableIterator<Long> deletePosIterator;
+    private final Function<T, Long> rowToPosition;
+    private long nextDeletePos;
 
-    private PositionStreamDeleteFilter(CloseableIterable<T> rows, Function<T, Long> extractPos,
-                                       CloseableIterable<Long> deletePositions) {
+    PositionStreamDeleteIterable(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
+                                 CloseableIterable<Long> deletePositions) {
       this.rows = rows;
-      this.extractPos = extractPos;
-      this.deletePositions = deletePositions;
+      this.rowToPosition = rowToPosition;
+      this.deletePosIterator = deletePositions.iterator();
     }
 
     @Override
     public CloseableIterator<T> iterator() {
-      CloseableIterator<Long> deletePosIterator = deletePositions.iterator();
-
       CloseableIterator<T> iter;
       if (deletePosIterator.hasNext()) {
-        iter = new PositionFilterIterator(rows.iterator(), deletePosIterator);
+        nextDeletePos = deletePosIterator.next();
+        iter = applyDelete(rows.iterator());
       } else {
         iter = rows.iterator();
-        try {
-          deletePosIterator.close();
-        } catch (IOException e) {
-          throw new UncheckedIOException("Failed to close delete positions iterator", e);
-        }
       }
 
       addCloseable(iter);
+      addCloseable(deletePosIterator);
 
       return iter;
     }
 
-    private class PositionFilterIterator extends FilterIterator<T> {
-      private final CloseableIterator<Long> deletePosIterator;
-      private long nextDeletePos;
+    boolean isDeleted(T row) {
+      long currentPos = rowToPosition.apply(row);
+      if (currentPos < nextDeletePos) {
+        return false;
+      }
 
-      protected PositionFilterIterator(CloseableIterator<T> items, CloseableIterator<Long> deletePositions) {
-        super(items);
-        this.deletePosIterator = deletePositions;
+      // consume delete positions until the next is past the current position
+      boolean isDeleted = currentPos == nextDeletePos;
+      while (deletePosIterator.hasNext() && nextDeletePos <= currentPos) {
         this.nextDeletePos = deletePosIterator.next();
-      }
-
-      @Override
-      protected boolean shouldKeep(T row) {
-        long currentPos = extractPos.apply(row);
-        if (currentPos < nextDeletePos) {
-          return true;
-        }
-
-        // consume delete positions until the next is past the current position
-        boolean keep = currentPos != nextDeletePos;
-        while (deletePosIterator.hasNext() && nextDeletePos <= currentPos) {
-          this.nextDeletePos = deletePosIterator.next();
-          if (keep && currentPos == nextDeletePos) {
-            // if any delete position matches the current position, discard
-            keep = false;
-          }
-        }
-
-        return keep;
-      }
-
-      @Override
-      public void close() {
-        super.close();
-        try {
-          deletePosIterator.close();
-        } catch (IOException e) {
-          throw new UncheckedIOException("Failed to close delete positions iterator", e);
+        if (!isDeleted && currentPos == nextDeletePos) {
+          // if any delete position matches the current position
+          isDeleted = true;
         }
       }
+
+      return isDeleted;
+    }
+
+    protected abstract CloseableIterator<T> applyDelete(CloseableIterator<T> items);
+  }
+
+  private static class PositionStreamDeleteFilter<T> extends PositionStreamDeleteIterable<T> {
+    private PositionStreamDeleteFilter(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
+                                       CloseableIterable<Long> deletePositions) {
+      super(rows, rowToPosition, deletePositions);
+    }
+
+    @Override
+    protected CloseableIterator<T> applyDelete(CloseableIterator<T> items) {
+      return new FilterIterator<T>(items) {
+        @Override
+        protected boolean shouldKeep(T item) {
+          return !isDeleted(item);
+        }
+      };
+    }
+  }
+
+  private static class PositionStreamDeleteMarker<T> extends PositionStreamDeleteIterable<T> {
+    private final Consumer<T> markDeleted;
+
+    PositionStreamDeleteMarker(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
+                               CloseableIterable<Long> deletePositions, Consumer<T> markDeleted) {
+      super(rows, rowToPosition, deletePositions);
+      this.markDeleted = markDeleted;
+    }
+
+    @Override
+    protected CloseableIterator<T> applyDelete(CloseableIterator<T> items) {
+      return CloseableIterator.transform(items, row -> {
+        if (isDeleted(row)) {
+          markDeleted.accept(row);
+        }
+        return row;
+      });
     }
   }
 

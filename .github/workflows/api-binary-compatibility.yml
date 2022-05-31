@@ -17,39 +17,39 @@
 # under the License.
 #
 
-name: "Python Legacy CI"
+name: "API Binary Compatibility Checks"
 on:
   push:
     branches:
-    - 'master'
-    - '0.**'
+      - 'master'
+      - '0.**'
     tags:
-    - 'apache-iceberg-**'
+      - 'apache-iceberg-**'
   pull_request:
     paths:
-    - '.github/workflows/python-legacy-ci.yml'
-    - 'python_legacy/**'
+      - 'api/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  tox:
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        python: [3.7, 3.8, 3.9]
-
+  revapi:
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python }}
-    - working-directory: ./python_legacy
-      run: |
-        pip install -e .[dev]
-        pip install -U tox-gh-actions
-    - working-directory: ./python_legacy
-      run: tox
-
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v1
+        with:
+          java-version: 11
+      - uses: actions/cache@v2
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          restore-keys: ${{ runner.os }}-gradle
+      - run: ./gradlew :iceberg-api:revapi
+      - uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: test logs
+          path: |
+            **/build/testlogs

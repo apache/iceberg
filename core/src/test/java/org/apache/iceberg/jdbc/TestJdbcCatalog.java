@@ -94,6 +94,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
   protected List<String> metadataVersionFiles(String location) {
     return Stream.of(new File(location).listFiles())
         .filter(file -> !file.isDirectory())

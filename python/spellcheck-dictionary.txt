@@ -13,6 +13,8 @@
 accessor
 accessors
 Args
+Avro
+Nestedfield
 ASF
 BD
 bool
@@ -28,7 +30,11 @@ fs
 func
 IcebergType
 io
+namespace
+namespaces
 NativeFile
+NaN
+nan
 NestedField
 nullability
 pragma

@@ -21,6 +21,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import singledispatch
+<<<<<<< HEAD
 from typing import (
     Any,
     Dict,
@@ -30,6 +31,9 @@ from typing import (
     Optional,
     TypeVar,
 )
+=======
+from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar
+>>>>>>> 8d7d32682d1d8f48ed657c44a7509c3605ca9b73
 
 from iceberg.files import StructProtocol
 from iceberg.types import (
@@ -53,7 +57,11 @@ class Schema:
     """
 
     def __init__(self, *columns: NestedField, schema_id: int, identifier_field_ids: Optional[List[int]] = None):
+<<<<<<< HEAD
         self._struct = StructType(*columns)  # type: ignore
+=======
+        self._struct = StructType(*columns)
+>>>>>>> 8d7d32682d1d8f48ed657c44a7509c3605ca9b73
         self._schema_id = schema_id
         self._identifier_field_ids = identifier_field_ids or []
         self._name_to_id: Dict[str, int] = index_by_name(self)
@@ -70,8 +78,23 @@ class Schema:
             f"Schema(fields={repr(self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
         )
 
+    def __eq__(self, other) -> bool:
+        if not other:
+            return False
+
+        if not isinstance(other, Schema):
+            return False
+
+        if len(self.columns) != len(other.columns):
+            return False
+
+        identifier_field_ids_is_equal = self.identifier_field_ids == other.identifier_field_ids
+        schema_is_equal = all([lhs == rhs for lhs, rhs in zip(self.columns, other.columns)])
+
+        return identifier_field_ids_is_equal and schema_is_equal
+
     @property
-    def columns(self) -> Iterable[NestedField]:
+    def columns(self) -> Tuple[NestedField, ...]:
         """A list of the top-level fields in the underlying struct"""
         return self._struct.fields
 

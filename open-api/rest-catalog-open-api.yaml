@@ -907,23 +907,24 @@ components:
       required:
         - id
         - name
-        - required
         - type
+        - required
       properties:
         id:
           type: integer
         name:
           type: string
-        required:
-          type: boolean
         type:
           $ref: '#/components/schemas/Type'
+        required:
+          type: boolean
         doc:
           type: string
 
     StructType:
       type: object
       required:
+        - type
         - fields
       properties:
         type:
@@ -939,18 +940,18 @@ components:
       required:
         - type
         - element-id
-        - element-required
         - element
+        - element-required
       properties:
         type:
           type: string
           enum: ["list"]
         element-id:
           type: integer
-        element-required:
-          type: boolean
         element:
           $ref: '#/components/schemas/Type'
+        element-required:
+          type: boolean
 
     MapType:
       type: object
@@ -959,8 +960,8 @@ components:
         - key-id
         - key
         - value-id
-        - value-required
         - value
+        - value-required
       properties:
         type:
           type: string
@@ -971,13 +972,13 @@ components:
           $ref: '#/components/schemas/Type'
         value-id:
           type: integer
-        value-required:
-          type: boolean
         value:
           $ref: '#/components/schemas/Type'
+        value-required:
+          type: boolean
 
     Type:
-      anyOf:
+      oneOf:
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
