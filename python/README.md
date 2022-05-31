@@ -48,6 +48,31 @@ For more information, please refer to the [Manage environments](https://python-p
 
 Testing is done using Poetry:
 
+#### `s3` Tests
+
+A subset of tests are decorated using `@pytest.mark.s3` and require an S3 protocol compliant object storage to use for testing. For the python CI, a local MinIO container is used. To run these tests, you can provide a pass-through argument to tox (using `--`) that will be passed to the `pytest` command.
+
+```
+tox -- -m "s3"
+```
+
+Additional arguments can be passed to configure the object storage.
+
+| Argument                | Default           | Description                                         |
+|-------------------------|-------------------|-----------------------------------------------------|
+| --endpoint-url          | http://minio:9000 | The S3 endpoint URL for tests marked as s3          |
+| --aws-access-key-id     | admin             | The AWS access key ID for tests marked as s3        |
+| --aws-secret-access-key | password          | The AWS secret access key ID for tests marked as s3 |
+
+For example, to run `s3` tests against an object store running locally on port 4000 with an access key ID of `foo` and an secret access key as `bar`, you would use the following command.
+
+```
+tox -- -m "s3" --endpoint-url=http://localhost:4000 --aws-access-key-id=foo --aws-secret-access-key=bar
+```
+
+## Solution for `InterpreterNotFound` Errors
+
+Currently, tests run against python `3.7.12`, `3.8.12`, and `3.9.10`. It's recommended to install and manage multiple interpreters using [pyenv](https://github.com/pyenv/pyenv).
 ```
 poetry install -E pyarrow
 poetry run pytest
