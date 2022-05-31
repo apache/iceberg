@@ -61,7 +61,7 @@ class PartitionSpec:
     spec_id: int
     fields: Tuple[PartitionField]
     last_assigned_field_id: int
-    source_id_to_fields_map: Dict[int, List[PartitionField]] = field(init=False)
+    source_id_to_fields_map: Dict[int, List[PartitionField]] = field(init=False, repr=False)
 
     def __post_init__(self):
         source_id_to_fields_map = dict()
@@ -82,7 +82,10 @@ class PartitionSpec:
 
     def __str__(self):
         """
-        PartitionSpec str method highlight the partition field only
+        Produce a human-readable string representation of PartitionSpec
+
+        Note:
+            Only include list of partition fields in the PartitionSpec's string representation
         """
         result_str = "["
         for partition_field in self.fields:
