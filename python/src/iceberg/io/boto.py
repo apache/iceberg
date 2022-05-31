@@ -71,7 +71,7 @@ class BotoInputStream(InputStream):
             self._position = offset
         elif whence == 1:
             self._position = self._position + offset
-        elif whence == 2:
+        elif whence == SEEK_END:
             self._position = self._s3_object.content_length - offset
 
         return self._position
