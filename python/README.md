@@ -58,11 +58,11 @@ tox -- -m "s3"
 
 Additional arguments can be passed to configure the object storage.
 
-| Argument                | Default           | Description                                         |
-|-------------------------|-------------------|-----------------------------------------------------|
-| --endpoint-url          | http://minio:9000 | The S3 endpoint URL for tests marked as s3          |
-| --aws-access-key-id     | admin             | The AWS access key ID for tests marked as s3        |
-| --aws-secret-access-key | password          | The AWS secret access key ID for tests marked as s3 |
+| Argument                | Default               | Description                                         |
+|-------------------------|-----------------------|-----------------------------------------------------|
+| --endpoint-url          | http://localhost:9000 | The S3 endpoint URL for tests marked as s3          |
+| --aws-access-key-id     | admin                 | The AWS access key ID for tests marked as s3        |
+| --aws-secret-access-key | password              | The AWS secret access key ID for tests marked as s3 |
 
 For example, to run `s3` tests against an object store running locally on port 4000 with an access key ID of `foo` and an secret access key as `bar`, you would use the following command.
 
