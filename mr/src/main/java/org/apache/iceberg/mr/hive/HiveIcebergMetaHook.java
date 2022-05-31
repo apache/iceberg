@@ -91,10 +91,12 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     try {
       this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
 
-      Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
-              "Iceberg table already created - can not use provided schema");
-      Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
-              "Iceberg table already created - can not use provided partition specification");
+      if (!Catalogs.hiveCatalog(conf, catalogProperties)) {
+        Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
+                "Iceberg table already created - can not use provided schema");
+        Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
+                "Iceberg table already created - can not use provided partition specification");
+      }
 
       LOG.info("Iceberg table already exists {}", icebergTable);
 
