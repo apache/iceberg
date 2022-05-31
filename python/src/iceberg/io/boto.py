@@ -59,7 +59,7 @@ class BotoInputStream(InputStream):
                 return self.read(size=-1)
 
             range_header = f"bytes={self._position}-{position_new -1}"
-            self.seek(offset=size, whence=1)
+            self.seek(offset=size, whence=SEEK_CUR)
 
         return self._s3_object.get(Range=range_header)["Body"].read()
 
