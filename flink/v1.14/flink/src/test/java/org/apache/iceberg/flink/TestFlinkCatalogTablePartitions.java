@@ -112,4 +112,27 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     expected.add(partitionSpec2);
     Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
   }
+
+  @Test
+  public void testTransformPartitionsWithPartitionedTable()
+      throws TableNotPartitionedException, TableNotExistException {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, p_data as truncates(2, data)) PARTITIONED BY (p_data) " +
+        "with ('write.format.default'='%s')", tableName, format.name());
+    sql("INSERT INTO %s SELECT 1,'abc'", tableName);
+    sql("INSERT INTO %s SELECT 2,'def'", tableName);
+    sql("INSERT INTO %s SELECT 3,'abd'", tableName);
+    sql("INSERT INTO %s SELECT 4,'deg'", tableName);
+
+    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
+    FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
+    List<CatalogPartitionSpec> list = flinkCatalog.listPartitions(objectPath);
+    Assert.assertEquals("Should have 2 partition", 2, list.size());
+
+    List<CatalogPartitionSpec> expected = Lists.newArrayList();
+    CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("p_data", "ab"));
+    CatalogPartitionSpec partitionSpec2 = new CatalogPartitionSpec(ImmutableMap.of("p_data", "de"));
+    expected.add(partitionSpec1);
+    expected.add(partitionSpec2);
+    Assert.assertTrue("Should produce the expected catalog partition specs.", list.containsAll(expected));
+  }
 }

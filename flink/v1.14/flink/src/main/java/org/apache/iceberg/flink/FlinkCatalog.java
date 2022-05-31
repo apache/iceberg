@@ -542,22 +542,22 @@ public class FlinkCatalog extends AbstractCatalog {
             .build();
         switch (udfProp.getFuncName()) {
           case "years":
-            builder.year(udfProp.getSrcColumn());
+            builder.year(udfProp.getSrcColumn(), computedColumn.getName());
             break;
           case "months":
-            builder.month(udfProp.getSrcColumn());
+            builder.month(udfProp.getSrcColumn(), computedColumn.getName());
             break;
           case "days":
-            builder.day(udfProp.getSrcColumn());
+            builder.day(udfProp.getSrcColumn(), computedColumn.getName());
             break;
           case "hours":
-            builder.hour(udfProp.getSrcColumn());
+            builder.hour(udfProp.getSrcColumn(), computedColumn.getName());
             break;
           case "buckets":
-            builder.bucket(udfProp.getSrcColumn(), udfProp.getWidth());
+            builder.bucket(udfProp.getSrcColumn(), udfProp.getWidth(), computedColumn.getName());
             break;
           case "truncates":
-            builder.truncate(udfProp.getSrcColumn(), udfProp.getWidth());
+            builder.truncate(udfProp.getSrcColumn(), udfProp.getWidth(), computedColumn.getName());
             break;
           default:
             throw new UnsupportedOperationException("Transform is not supported: " + udfProp.getFuncName());

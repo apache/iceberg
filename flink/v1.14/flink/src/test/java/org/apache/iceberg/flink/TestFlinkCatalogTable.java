@@ -436,20 +436,20 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "p6 AS truncates(10, c_binary), \n" +
         "p7 AS buckets(10, c_binary) \n" +
         ") PARTITIONED BY ( \n" +
-        " p1, p2, p3, p4, p5, p6, p7, c_date " +
+        " p1, p2, p3, p4, p5, p6, p7" +
         ") with (" +
         "'write.format.default'='parquet'," +
         "'format-version'='2'" +
         ")");
     Table table = table("tl");
     PartitionSpec spec = table.spec();
-    Assert.assertEquals("c_timestamp_year", spec.fields().get(0).name());
-    Assert.assertEquals("c_timestamptz_month", spec.fields().get(1).name());
-    Assert.assertEquals("c_date_day", spec.fields().get(2).name());
-    Assert.assertEquals("c_timestamp2_hour", spec.fields().get(3).name());
-    Assert.assertEquals("c_fixed_bucket", spec.fields().get(4).name());
-    Assert.assertEquals("c_binary_trunc", spec.fields().get(5).name());
-    Assert.assertEquals("c_binary_bucket", spec.fields().get(6).name());
+    Assert.assertEquals("p1", spec.fields().get(0).name());
+    Assert.assertEquals("p2", spec.fields().get(1).name());
+    Assert.assertEquals("p3", spec.fields().get(2).name());
+    Assert.assertEquals("p4", spec.fields().get(3).name());
+    Assert.assertEquals("p5", spec.fields().get(4).name());
+    Assert.assertEquals("p6", spec.fields().get(5).name());
+    Assert.assertEquals("p7", spec.fields().get(6).name());
   }
 
   private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
