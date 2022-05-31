@@ -16,6 +16,7 @@
 # under the License.
 """FileIO implementation for reading and writing table files that uses boto3"""
 
+from io import SEEK_CUR, SEEK_END, SEEK_SET
 from typing import Optional, Union
 from urllib.parse import urlparse
 
@@ -36,30 +37,30 @@ class BotoInputStream(InputStream):
         self._s3_object = s3_object
         self._position = 0
 
-    def read(self, size: int = -1) -> bytes:
+    def read(self, n: int = -1) -> bytes:
         """Read the byte content of the s3 object
 
         This uses the `Range` argument when reading the S3 Object that allows setting a range of bytes to the headers of the request to S3.
 
         Args:
-            size (int, optional): The number of bytes to read. Defaults to -1 which reads the entire file.
+            n (int, optional): The number of bytes to read. Defaults to -1 which reads the entire file.
 
         Returns:
             bytes: The byte content of the file
         """
-        if size == -1:  # Read the entire file from the current position
+        if n == -1:  # Read the entire file from the current position
             range_header = f"bytes={self._position}-"
             self.seek(offset=0, whence=2)
         else:
-            position_new = self._position + size
+            position_new = self._position + n
 
             if (
                 position_new >= self._s3_object.content_length
             ):  # If more bytes are requested than exists, just read the entire file from the current position
-                return self.read(size=-1)
+                return self.read(n=-1)
 
             range_header = f"bytes={self._position}-{position_new -1}"
-            self.seek(offset=size, whence=SEEK_CUR)
+            self.seek(offset=n, whence=SEEK_CUR)
 
         return self._s3_object.get(Range=range_header)["Body"].read()
 

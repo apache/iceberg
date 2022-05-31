@@ -113,7 +113,7 @@ def test_boto_tell(boto_test_client_kwargs):
 
 @pytest.mark.s3
 def test_boto_read_specified_bytes(boto_test_client_kwargs):
-    """Test reading a specified size from a BotoInputFile"""
+    """Test reading a specified number of bytes from a BotoInputFile"""
 
     filename = str(uuid.uuid4())
     output_file = boto.BotoOutputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
@@ -124,15 +124,15 @@ def test_boto_read_specified_bytes(boto_test_client_kwargs):
     f = input_file.open()
 
     f.seek(0)
-    assert b"f" == f.read(size=1)
+    assert b"f" == f.read(n=1)
     f.seek(0)
-    assert b"fo" == f.read(size=2)
+    assert b"fo" == f.read(n=2)
     f.seek(1)
-    assert b"o" == f.read(size=1)
+    assert b"o" == f.read(n=1)
     f.seek(1)
-    assert b"oo" == f.read(size=2)
+    assert b"oo" == f.read(n=2)
     f.seek(0)
-    assert b"foo" == f.read(size=999)  # test reading amount larger than entire content length
+    assert b"foo" == f.read(n=999)  # test reading amount larger than entire content length
 
     fileio = boto.BotoFileIO(**boto_test_client_kwargs)
     fileio.delete(input_file)
