@@ -36,6 +36,7 @@ class BotoInputStream(InputStream):
     def __init__(self, s3_object):
         self._s3_object = s3_object
         self._position = 0
+        self._closed = False
 
     def read(self, n: int = -1) -> bytes:
         """Read the byte content of the s3 object
@@ -48,9 +49,12 @@ class BotoInputStream(InputStream):
         Returns:
             bytes: The byte content of the file
         """
+        if self._closed:
+            raise ValueError("Cannot read, file closed")
+
         if n < 0:  # Read the entire file from the current position
             range_header = f"bytes={self._position}-"
-            self.seek(offset=0, whence=2)
+            self.seek(offset=0, whence=SEEK_END)
         else:
             position_new = self._position + n
 
@@ -65,6 +69,9 @@ class BotoInputStream(InputStream):
         return self._s3_object.get(Range=range_header)["Body"].read()
 
     def seek(self, offset: int, whence: int = 0) -> int:
+        if self._closed:
+            raise ValueError("Cannot seek, file closed")
+
         if whence not in {SEEK_SET, SEEK_CUR, SEEK_END}:
             raise ValueError(f"Cannot seek to position {offset}, invalid whence: {whence}")
 
@@ -81,10 +88,10 @@ class BotoInputStream(InputStream):
         return self._position
 
     def closed(self) -> bool:
-        return False
+        return self._closed
 
     def close(self) -> None:
-        pass
+        self._closed = True
 
 
 class BotoOutputStream(OutputStream):
@@ -96,6 +103,8 @@ class BotoOutputStream(OutputStream):
 
     def __init__(self, s3_object):
         self._s3_object = s3_object
+        self._content = bytes()
+        self._closed = False
 
     def write(self, b: bytes) -> None:
         """Write to the S3 Object
@@ -103,20 +112,18 @@ class BotoOutputStream(OutputStream):
         Args:
             b(bytes): The bytes to write to the S3 Object
         """
-        self._s3_object.put(Body=b)
+        if self._closed:
+            raise ValueError("Cannot write bytes, file closed")
+        self._content += b
 
     def closed(self) -> bool:
-        """Returns where the stream is closed or not
-
-        Since this is a wrapper for requests to S3, there is no concept of closing, therefore this always returns False
-        """
-        return False
+        """Returns whether the stream is closed or not"""
+        return self._closed
 
     def close(self) -> None:
-        """Closes the stream
-
-        Since this is a wrapper for requests to S3, there is no concept of closing, therefore this method does nothing
-        """
+        """Closes the stream and uploads the bytes to S3"""
+        self._s3_object.put(Body=self._content)
+        self._closed = True
 
 
 class BotoInputFile(InputFile):

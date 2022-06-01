@@ -54,6 +54,7 @@ def test_boto_write_and_read_file(boto_test_client_kwargs):
     output_file = boto.BotoOutputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     f = output_file.create()
     f.write(b"foo")
+    f.close()
 
     input_file = boto.BotoInputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     assert input_file.open().read() == b"foo"
@@ -69,9 +70,8 @@ def test_length_of_file(boto_test_client_kwargs):
 
     output_file = boto.BotoOutputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     f = output_file.create()
-    f.write(b"foo")
-    assert len(output_file) == 3
     f.write(b"foobar")
+    f.close()
     assert len(output_file) == 6
 
     input_file = boto.BotoInputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
@@ -119,6 +119,7 @@ def test_boto_read_specified_bytes(boto_test_client_kwargs):
     output_file = boto.BotoOutputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     f = output_file.create()
     f.write(b"foo")
+    f.close()
 
     input_file = boto.BotoInputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     f = input_file.open()
@@ -186,6 +187,7 @@ def test_raise_on_checking_if_file_exists(boto_test_client_kwargs):
     output_file = boto.BotoOutputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     f = output_file.create()
     f.write(b"foo")
+    f.close()
 
     existing_input_file = boto.BotoInputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     assert existing_input_file.exists()
@@ -204,13 +206,27 @@ def test_closing_a_file(boto_test_client_kwargs):
     output_file = boto.BotoOutputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     f = output_file.create()
     f.write(b"foo")
-    f.close()
     assert not f.closed()
+    f.close()
+    assert f.closed()
+
+    with pytest.raises(ValueError) as exc_info:
+        f.write(b"foo")
+    assert "Cannot write bytes, file closed" in str(exc_info.value)
 
     input_file = boto.BotoInputFile(location=f"s3://testbucket/{filename}", **boto_test_client_kwargs)
     f = input_file.open()
-    f.close()
     assert not f.closed()
+    f.close()
+    assert f.closed()
+
+    with pytest.raises(ValueError) as exc_info:
+        f.seek(0)
+    assert "Cannot seek, file closed" in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        f.read()
+    assert "Cannot read, file closed" in str(exc_info.value)
 
     fileio = boto.BotoFileIO(**boto_test_client_kwargs)
     fileio.delete(f"s3://testbucket/{filename}")
