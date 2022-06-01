@@ -19,8 +19,11 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -31,8 +34,18 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 
 public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces> extends SparkSessionCatalog<T> {
 
+  private static final Map<Identifier, Table> tableMap = Maps.newHashMap();
+
+  public static void setTable(Identifier ident, Table table) {
+    Preconditions.checkArgument(!tableMap.containsKey(ident), "Cannot set " + ident + ". It is already set");
+    tableMap.put(ident, table);
+  }
+
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
+    if (tableMap.containsKey(ident)) {
+      return tableMap.get(ident);
+    }
     TableIdentifier tableIdentifier = Spark3Util.identifierToTableIdentifier(ident);
     Namespace namespace = tableIdentifier.namespace();
 
@@ -42,5 +55,9 @@ public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces> exten
     }
 
     return new SparkTable(table, false);
+  }
+
+  public static void clearTables() {
+    tableMap.clear();
   }
 }
