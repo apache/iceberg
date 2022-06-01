@@ -116,6 +116,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return self();
   }
 
+  @Override
+  public ThisT toBranch(SnapshotRef branch){
+    throw new UnsupportedOperationException("Performing operations on a branch is currently not supported");
+  }
+
   protected ExecutorService workerPool() {
     return this.workerPool;
   }
