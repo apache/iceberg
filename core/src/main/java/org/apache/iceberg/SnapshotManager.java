@@ -131,6 +131,12 @@ public class SnapshotManager implements ManageSnapshots {
     return this;
   }
 
+  @Override
+  public ManageSnapshots renameTag(String name, String newName) {
+    updateSnapshotReferencesOperation().renameTag(name, newName);
+    return this;
+  }
+
   private UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation() {
     if (updateSnapshotReferencesOperation == null) {
       this.updateSnapshotReferencesOperation = transaction.updateSnapshotReferencesOperation();

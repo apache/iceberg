@@ -121,6 +121,16 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   ManageSnapshots renameBranch(String name, String newName);
 
   /**
+   * Rename a tag
+   *
+   * @param name name of tag to rename
+   * @param newName the desired new name of the tag
+   * @throws IllegalArgumentException if the tag to rename does not exist or if there is already a reference
+   * with the same name as the desired new name.
+   */
+  ManageSnapshots renameTag(String name, String newName);
+
+  /**
    * Remove the tag with the given name.
    *
    * @param name tag name

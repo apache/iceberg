@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -85,16 +86,30 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
   }
 
   public UpdateSnapshotReferencesOperation renameBranch(String name, String newName) {
-    Preconditions.checkNotNull(name, "Branch to rename cannot be null");
-    Preconditions.checkNotNull(newName, "New branch name cannot be null");
+    renameRef(name, newName, SnapshotRefType.BRANCH);
+    return this;
+  }
+
+  public UpdateSnapshotReferencesOperation renameTag(String name, String newName) {
+    renameRef(name, newName, SnapshotRefType.TAG);
+    return this;
+  }
+
+  private void renameRef(String name, String newName, SnapshotRefType type) {
     Preconditions.checkArgument(!name.equals(SnapshotRef.MAIN_BRANCH), "Cannot rename main branch");
+    String refTypeInMessage = type == SnapshotRefType.BRANCH ? "Branch" : "Tag";
+    Preconditions.checkNotNull(name, "%s to rename cannot be null", refTypeInMessage);
+    Preconditions.checkNotNull(newName, "New %s name cannot be null", refTypeInMessage.toLowerCase(Locale.ROOT));
     SnapshotRef ref = updatedRefs.get(name);
-    Preconditions.checkArgument(ref != null, "Branch does not exist: %s", name);
-    Preconditions.checkArgument(ref.isBranch(), "Ref %s is a tag not a branch", name);
+    Preconditions.checkArgument(ref != null, "%s does not exist: %s", refTypeInMessage, name);
+    boolean isExpectedType = type == SnapshotRefType.BRANCH ? ref.isBranch() : ref.isTag();
+    SnapshotRefType otherType = type == SnapshotRefType.BRANCH ? SnapshotRefType.TAG : SnapshotRefType.BRANCH;
+    Preconditions.checkArgument(isExpectedType,
+        "Ref %s is a %s not a %s",
+        name, otherType.name().toLowerCase(Locale.ROOT), refTypeInMessage.toLowerCase(Locale.ROOT));
     SnapshotRef existing = updatedRefs.put(newName, ref);
     Preconditions.checkArgument(existing == null, "Ref %s already exists", newName);
     updatedRefs.remove(name, ref);
-    return this;
   }
 
   public UpdateSnapshotReferencesOperation replaceBranch(String name, long snapshotId) {

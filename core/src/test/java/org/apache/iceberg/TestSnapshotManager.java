@@ -627,6 +627,37 @@ public class TestSnapshotManager extends TableTestBase {
   }
 
   @Test
+  public void testRenameTag() {
+    table.newAppend()
+         .appendFile(FILE_A)
+         .commit();
+    table.newAppend()
+         .appendFile(FILE_A)
+         .commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots()
+         .createTag("tag1", snapshotId)
+         .commit();
+    table.manageSnapshots()
+         .renameTag("tag1", "tag2")
+         .commit();
+    TableMetadata updated = table.ops().refresh();
+    Assert.assertNull(updated.ref("tag1"));
+    Assert.assertEquals(updated.ref("tag2"), SnapshotRef.tagBuilder(snapshotId).build());
+
+
+    table.manageSnapshots()
+         .createTag("tag3", snapshotId)
+         .renameTag("tag3", "tag4")
+         .commit();
+
+    updated = table.ops().refresh();
+    Assert.assertNull(updated.ref("tag3"));
+    Assert.assertEquals(updated.ref("tag4"), SnapshotRef.tagBuilder(snapshotId).build());
+  }
+
+  @Test
   public void testFailRenamingMainBranch() {
     AssertHelpers.assertThrows("Renaming main branch should fail",
         IllegalArgumentException.class, "Cannot rename main branch",
@@ -638,6 +669,13 @@ public class TestSnapshotManager extends TableTestBase {
     AssertHelpers.assertThrows("Renaming non-existent branch should fail",
         IllegalArgumentException.class, "Branch does not exist: some-missing-branch",
         () -> table.manageSnapshots().renameBranch("some-missing-branch", "some-branch").commit());
+  }
+
+  @Test
+  public void testRenamingNonExistingTagFails() {
+    AssertHelpers.assertThrows("Renaming non-existent tag should fail",
+        IllegalArgumentException.class, "Tag does not exist: some-missing-tag",
+        () -> table.manageSnapshots().renameTag("some-missing-tag", "some-tag").commit());
   }
 
   @Test
