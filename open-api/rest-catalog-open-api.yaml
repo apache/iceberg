@@ -126,11 +126,42 @@ paths:
 
     post:
       tags:
-        - Auth API
+        - OAuth2 API
       summary: Get a token using an OAuth2 flow
       operationId: getToken
       description:
         Exchange credentials for a token using the OAuth2 client credentials flow or token exchange.
+
+
+        This endpoint is used for three purposes -
+
+        1. To exchange client credentials (client ID and secret) for an access token
+           This uses the client credentials flow.
+
+        2. To exchange a client token and an identity token for a more specific access token
+           This uses the token exchange flow.
+
+        3. To exchange an access token for one with the same claims and a refreshed expiration period
+           This uses the token exchange flow.
+
+
+        For example, a catalog client may be configured with client credentials from the OAuth2
+        Authorization flow. This client would exchange its client ID and secret for an access token
+        using the client credentials request with this endpoint (1). Subsequent requests would then
+        use that access token.
+
+
+        Some clients may also handle sessions that have additional user context. These clients would
+        use the token exchange flow to exchange a user token (the "subject" token) from the session
+        for a more specific access token for that user, using the catalog's access token as the
+        "actor" token (2). The user ID token is the "subject" token and can be any token type
+        allowed by the OAuth2 token exchange flow, including a unsecured JWT token with a sub claim.
+        This request should use the catalog's bearer token in the "Authorization" header.
+
+
+        Clients may also use the token exchange flow to refresh a token that is about to expire by
+        sending a token exchange request (3). The request's "subject" token should be the expiring
+        token. This request should use the subject token in the "Authorization" header.
       requestBody:
         content:
           application/x-www-form-urlencoded:
@@ -468,11 +499,19 @@ paths:
       description:
         Load a table from the catalog.
 
+
         The response contains both configuration and table metadata. The configuration, if non-empty is used
         as additional configuration for the table that overrides catalog configuration. For example, this
         configuration may change the FileIO implemented used for the table.
 
+
         The response also contains the table's full metadata.
+
+
+        The catalog configuration may contain credentials that should be used for subsequent requests for the
+        table. The configuration key "token" is used to pass an access token to be used as a bearer token
+        for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
+        key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
@@ -868,23 +907,24 @@ components:
       required:
         - id
         - name
-        - required
         - type
+        - required
       properties:
         id:
           type: integer
         name:
           type: string
-        required:
-          type: boolean
         type:
           $ref: '#/components/schemas/Type'
+        required:
+          type: boolean
         doc:
           type: string
 
     StructType:
       type: object
       required:
+        - type
         - fields
       properties:
         type:
@@ -900,18 +940,18 @@ components:
       required:
         - type
         - element-id
-        - element-required
         - element
+        - element-required
       properties:
         type:
           type: string
           enum: ["list"]
         element-id:
           type: integer
-        element-required:
-          type: boolean
         element:
           $ref: '#/components/schemas/Type'
+        element-required:
+          type: boolean
 
     MapType:
       type: object
@@ -920,8 +960,8 @@ components:
         - key-id
         - key
         - value-id
-        - value-required
         - value
+        - value-required
       properties:
         type:
           type: string
@@ -932,13 +972,13 @@ components:
           $ref: '#/components/schemas/Type'
         value-id:
           type: integer
-        value-required:
-          type: boolean
         value:
           $ref: '#/components/schemas/Type'
+        value-required:
+          type: boolean
 
     Type:
-      anyOf:
+      oneOf:
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
@@ -1074,10 +1114,13 @@ components:
           enum: ["tag", "branch"]
         snapshot-id:
           type: integer
+          format: int64
         max-ref-age-ms:
           type: integer
+          format: int64
         max-snapshot-age-ms:
           type: integer
+          format: int64
         min-snapshots-to-keep:
           type: integer
 
@@ -1190,6 +1233,7 @@ components:
             - add-snapshot
             - set-snapshot-ref
             - remove-snapshots
+            - remove-snapshot-ref
             - set-location
             - set-properties
             - remove-properties
@@ -1261,9 +1305,9 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
           required:
-            - order-id
+            - sort-order-id
           properties:
-            order-id:
+            sort-order-id:
               type: integer
               description: Sort order ID to set as the default, or -1 to set last added sort order
 
@@ -1283,9 +1327,9 @@ components:
         - $ref: '#/components/schemas/SnapshotReference'
         - type: object
           required:
-            - ref
+            - ref-name
           properties:
-            ref:
+            ref-name:
               type: string
 
     RemoveSnapshotsUpdate:
@@ -1299,6 +1343,17 @@ components:
               type: array
               items:
                 type: integer
+                format: int64
+
+    RemoveSnapshotRefUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          required:
+            - ref-name
+          properties:
+            ref-name:
+              type: string
 
     SetLocationUpdate:
       allOf:
@@ -1346,6 +1401,7 @@ components:
         - $ref: '#/components/schemas/AddSnapshotUpdate'
         - $ref: '#/components/schemas/SetSnapshotRefUpdate'
         - $ref: '#/components/schemas/RemoveSnapshotsUpdate'
+        - $ref: '#/components/schemas/RemoveSnapshotRefUpdate'
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'

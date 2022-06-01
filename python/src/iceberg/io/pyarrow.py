@@ -28,7 +28,13 @@ from urllib.parse import urlparse
 
 from pyarrow.fs import FileInfo, FileSystem, FileType
 
-from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
+from iceberg.io.base import (
+    FileIO,
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 
 
 class PyArrowFile(InputFile, OutputFile):

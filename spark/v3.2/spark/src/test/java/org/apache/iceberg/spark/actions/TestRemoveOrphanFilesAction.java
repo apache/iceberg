@@ -303,7 +303,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     DeleteOrphanFiles.Result result = SparkActions.get().deleteOrphanFiles(table)
             .executeDeleteWith(executorService)
-            .olderThan(System.currentTimeMillis())
+            .olderThan(System.currentTimeMillis() + 5000)  // Ensure all orphan files are selected
             .deleteWith(file -> {
               deleteThreads.add(Thread.currentThread().getName());
               deletedFiles.add(file);

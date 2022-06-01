@@ -60,7 +60,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals("Must have 1 manifest", 1, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')", tableName);
 
@@ -72,7 +72,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Must have 4 manifests", 4, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test
@@ -88,7 +88,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals("Must have 4 manifest", 4, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Must have 4 manifest", 4, table.currentSnapshot().allManifests(table.io()).size());
 
     List<Object[]> output = sql(
         "CALL %s.system.rewrite_manifests(table => '%s')", catalogName, tableIdent);
@@ -98,7 +98,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Must have 1 manifests", 1, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test
@@ -110,7 +110,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals("Must have 2 manifest", 2, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Must have 2 manifest", 2, table.currentSnapshot().allManifests(table.io()).size());
 
     List<Object[]> output = sql(
         "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s')", catalogName, tableIdent);
@@ -120,7 +120,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Must have 1 manifests", 1, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test
@@ -132,7 +132,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals("Must have 2 manifest", 2, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Must have 2 manifest", 2, table.currentSnapshot().allManifests(table.io()).size());
 
     List<Object[]> output = sql(
         "CALL %s.system.rewrite_manifests(usE_cAcHiNg => false, tAbLe => '%s')", catalogName, tableIdent);
@@ -142,7 +142,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Must have 1 manifests", 1, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test

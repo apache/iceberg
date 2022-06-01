@@ -17,19 +17,18 @@
  * under the License.
  */
 
-package org.apache.iceberg.rest;
+package org.apache.iceberg.io;
 
 /**
- * Catalog properties which are specific to the RESTCatalog, which can be used in conjunction with
- * {@link org.apache.iceberg.CatalogProperties}
+ * Interface used to expose credentials held by a FileIO instance.
+ * <p>
+ * Tables supply a FileIO instance to use for file access that is configured with the credentials needed to access the
+ * table's files. Systems that do not use FileIO can use this interface to get the configured credential as a string,
+ * and use the credential for file access via other IO libraries.
  */
-public class RESTCatalogProperties {
-
-  private RESTCatalogProperties() {
-  }
-
+public interface CredentialSupplier {
   /**
-   * A Bearer authorization token which will be used to authenticate requests with the server.
+   * @return the credential string
    */
-  public static final String AUTH_TOKEN = "token";
+  String getCredential();
 }

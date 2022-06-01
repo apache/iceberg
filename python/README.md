@@ -17,7 +17,7 @@
 
 # Iceberg Python
 
-py-iceberg is a python library for programmatic access to iceberg table metadata as well as to table data in iceberg format. 
+py-iceberg is a python library for programmatic access to iceberg table metadata as well as to table data in iceberg format.
 It is an implementation of [iceberg table spec](https://iceberg.apache.org/spec/) in Python.
 
 ## Getting Started

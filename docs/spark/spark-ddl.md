@@ -46,7 +46,7 @@ Iceberg will convert the column type in Spark to corresponding Iceberg type. Ple
 
 Table create commands, including CTAS and RTAS, support the full range of Spark create clauses, including:
 
-* `PARTITION BY (partition-expressions)` to configure partitioning
+* `PARTITIONED BY (partition-expressions)` to configure partitioning
 * `LOCATION '(fully-qualified-uri)'` to set the table location
 * `COMMENT 'table documentation'` to set a table description
 * `TBLPROPERTIES ('key'='value', ...)` to set [table configuration](../configuration)
@@ -169,6 +169,14 @@ Iceberg uses table properties to control table behavior. For a list of available
 
 ```sql
 ALTER TABLE prod.db.sample UNSET TBLPROPERTIES ('read.split.target-size')
+```
+
+`SET TBLPROPERTIES` can also be used to set the table comment (description):
+
+```sql
+ALTER TABLE prod.db.sample SET TBLPROPERTIES (
+    'comment' = 'A table comment.'
+)
 ```
 
 ### `ALTER TABLE ... ADD COLUMN`

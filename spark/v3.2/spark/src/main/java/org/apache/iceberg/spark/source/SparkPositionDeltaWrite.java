@@ -39,6 +39,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BasePositionDeltaWriter;
@@ -59,6 +60,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -100,6 +102,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
 
+  private boolean cleanupOnAbort = true;
+
   SparkPositionDeltaWrite(SparkSession spark, Table table, Command command, SparkBatchQueryScan scan,
                           IsolationLevel isolationLevel, SparkWriteConf writeConf,
                           ExtendedLogicalWriteInfo info, Schema dataSchema,
@@ -135,6 +139,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
   private static <T extends ContentFile<T>> void cleanFiles(FileIO io, Iterable<T> files) {
     Tasks.foreach(files)
+        .executeWith(ThreadPools.getWorkerPool())
         .throwFailureWhenFinished()
         .noRetry()
         .run(file -> io.deleteFile(file.path().toString()));
@@ -223,6 +228,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public void abort(WriterCommitMessage[] messages) {
+      if (!cleanupOnAbort) {
+        return;
+      }
+
       for (WriterCommitMessage message : messages) {
         if (message != null) {
           DeltaTaskCommit taskCommit = (DeltaTaskCommit) message;
@@ -247,10 +256,15 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         operation.stageOnly();
       }
 
-      long start = System.currentTimeMillis();
-      operation.commit(); // abort is automatically called if this fails
-      long duration = System.currentTimeMillis() - start;
-      LOG.info("Committed in {} ms", duration);
+      try {
+        long start = System.currentTimeMillis();
+        operation.commit(); // abort is automatically called if this fails
+        long duration = System.currentTimeMillis() - start;
+        LOG.info("Committed in {} ms", duration);
+      } catch (CommitStateUnknownException commitStateUnknownException) {
+        cleanupOnAbort = false;
+        throw commitStateUnknownException;
+      }
     }
   }
 
