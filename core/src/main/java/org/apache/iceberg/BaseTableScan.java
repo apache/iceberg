@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.events.Listeners;
@@ -59,10 +58,6 @@ abstract class BaseTableScan extends BaseScan<TableScan> implements TableScan {
 
   protected boolean shouldIgnoreResiduals() {
     return context().ignoreResiduals();
-  }
-
-  protected Collection<String> selectedColumns() {
-    return context().selectedColumns();
   }
 
   protected ExecutorService planExecutor() {

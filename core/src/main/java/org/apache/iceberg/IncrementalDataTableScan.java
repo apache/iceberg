@@ -56,7 +56,7 @@ class IncrementalDataTableScan extends DataTableScan {
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
     validateSnapshotIdsRefinement(fromSnapshotId, toSnapshotId);
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
-        context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
+        context().fromSnapshotIdExclusive(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
 
   @Override
