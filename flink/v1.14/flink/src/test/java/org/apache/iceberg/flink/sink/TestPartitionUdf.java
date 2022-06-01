@@ -291,9 +291,4 @@ public class TestPartitionUdf {
     Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
   }
 
-  @Test
-  public void testCreatePartitionTable() {
-
-  }
-
 }

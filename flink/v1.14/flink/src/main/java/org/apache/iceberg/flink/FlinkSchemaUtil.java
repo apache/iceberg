@@ -59,7 +59,6 @@ public class FlinkSchemaUtil {
    * Convert the flink table schema to apache iceberg schema.
    */
   public static Schema convert(TableSchema schema) {
-//    LogicalType schemaType = schema.toRowDataType().getLogicalType();
     LogicalType schemaType = schema.toPhysicalRowDataType().getLogicalType();
     Preconditions.checkArgument(schemaType instanceof RowType, "Schema logical type should be RowType.");
 
