@@ -60,4 +60,10 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
    * @return this for method chaining
    */
   ThisT scanManifestsWith(ExecutorService executorService);
+
+  /**
+   * Perform operations on a particular branch
+   * @param branch which is name of SanshotRef of type branch.
+   */
+  ThisT toBranch(String branch);
 }
