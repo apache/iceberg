@@ -31,22 +31,22 @@ Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supported the following fea
 * Creating a table
 * Dropping a table
 * Reading a table
-* Inserting data by appending it to a table (MapReduce only)
+* Inserting into a table (will append rows) (MapReduce only)
 
 Iceberg compatibility with Hive 4.0.0-alpha-1
 (Using HiveCatalog) supports the following, additional features:
 
 * Creating an Iceberg identity-partitioned table
-* Creating an Iceberg identity-partitioned table from a spec
+* Creating an Iceberg table with any partition spec (including the various transforms Iceberg supports)
 * Creating a table from an existing table (CTAS table)
 * Altering a table while keeping Iceberg and Hive schemas in sync
 * Altering the partition schema (updating columns)
 * Altering the partition schema by specifying partition transforms
 * Truncating a table
-* Migrating tables in Avro, Parquet, or ORC format to Iceberg
+* Migrating tables in Avro, Parquet, or ORC (Non-ACID) format to Iceberg
 * Reading the schema of a table
 * Time travel applications
-* Inserting data by appending it into a table (Tez only)
+* Inserting into a table (will append rows) (Tez only)
 * Inserting data overwriting existing data
 
 ## Enabling Iceberg support in Hive
@@ -368,10 +368,15 @@ ALTER TABLE orders CHANGE COLUMN quantity quantity int AFTER price;
 ```sql
 ALTER TABLE orders CHANGE COLUMN price price long;
 ```
-* Drop column by using CHANGE COLUMN to remove the old column
+* Drop column by using REPLACE COLUMN to remove the old column
 ```sql
 ALTER TABLE orders REPLACE COLUMNS (remaining string);
 ```
+{{< hint info >}}
+Note, that dropping columns is only thing REPLACE COLUMNS can be used for
+i.e. if columns are specified out-of-order an error will be thrown signalling this limitation.
+{{< /hint >}}
+
 #### Partition evolution
 You change the partitioning schema using the following commands:
 * Change the partitioning schema to new identity partitions:
