@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
+import org.apache.iceberg.util.CommitMetadata;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -190,6 +191,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     if (!extraSnapshotMetadata.isEmpty()) {
       extraSnapshotMetadata.forEach(operation::set);
+    }
+
+    if (!CommitMetadata.commitProperties().isEmpty()) {
+      CommitMetadata.commitProperties().forEach(operation::set);
     }
 
     if (wapEnabled && wapId != null) {
