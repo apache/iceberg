@@ -242,13 +242,13 @@ class UnboundIn(BooleanExpression, UnboundPredicate):
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
 
-    def bind(self, schema: Schema, case_sensitive: bool) -> "In":
+    def bind(self, schema: Schema, case_sensitive: bool) -> "BoundIn":
         bound_ref = self.term.bind(schema, case_sensitive)
-        return In(bound_ref, [lit.to(bound_ref.field.field_type) for lit in self.literal])
+        return BoundIn(bound_ref, [lit.to(bound_ref.field.field_type) for lit in self.literal])
 
 
 @dataclass
-class In(BooleanExpression, BoundPredicate):
+class BoundIn(BooleanExpression, BoundPredicate):
     term: "BoundReference"
     literal: List[Literal]
 
@@ -259,6 +259,7 @@ class In(BooleanExpression, BoundPredicate):
         return self.term.eval(struct)
 
 
+@dataclass
 class BoundReference:
     """A reference bound to a field in a schema
 
@@ -267,36 +268,11 @@ class BoundReference:
         accessor (Accessor): An Accessor object to access the value at the field's position
     """
 
-    def __init__(self, field: NestedField, accessor: Accessor):
-        self._field = field
-        self._accessor = accessor
-
-    def __str__(self):
-        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
-
-    def __repr__(self):
-        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
-
-    def __eq__(self, other) -> bool:
-        return id(self) == id(other) or (self.field == other.field and self.accessor == other.accessor)
-
-    @property
-    def field(self) -> NestedField:
-        """The referenced field"""
-        return self._field
-
-    def eval(self, struct: StructProtocol) -> Any:
-        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
-
-        Args:
-            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
-
-        Returns:
-            Any: The value at the referenced field's position in `struct`
-        """
-        return self._accessor.get(struct)
+    field: NestedField
+    accessor: Accessor
 
 
+@dataclass
 class UnboundReference:
     """A reference not yet bound to a field in a schema
 
@@ -307,23 +283,7 @@ class UnboundReference:
         An unbound reference is sometimes referred to as a "named" reference
     """
 
-    def __init__(self, name: str):
-        if not name:
-            raise ValueError(f"Name cannot be null: {name}")
-        self._name = name
-
-    def __str__(self) -> str:
-        return f"UnboundReference(name={repr(self.name)})"
-
-    def __repr__(self) -> str:
-        return f"UnboundReference(name={repr(self.name)})"
-
-    def __eq__(self, other) -> bool:
-        return id(self) == id(other) or self.name == other.name
-
-    @property
-    def name(self) -> str:
-        return self._name
+    name: str
 
     def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
         """Bind the reference to an Iceberg schema

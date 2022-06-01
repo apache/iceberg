@@ -19,7 +19,6 @@ import uuid
 from decimal import Decimal
 from typing import List
 
-import iceberg.expressions.literals as literals
 import pytest
 
 from pyiceberg.expressions import base
@@ -167,7 +166,7 @@ def test_strs(op, string):
             False,
         ),
         (
-            base.UnboundIn(base.UnboundReference("location.latitude"), [literals.DecimalLiteral(Decimal('3'))]),
+            base.UnboundIn(base.UnboundReference("location.latitude"), [literals.DecimalLiteral(Decimal("3"))]),
             "table_schema_nested",
             True,
             True,
@@ -177,7 +176,7 @@ def test_strs(op, string):
 def test_bind(a, schema, case_sensitive, success, request):
     schema = request.getfixturevalue(schema)
     if success:
-        assert a.bind(schema, case_sensitive).term == schema.find_field(a.term.name)
+        assert a.bind(schema, case_sensitive).term.field == schema.find_field(a.term.name, case_sensitive)
     else:
         with pytest.raises(ValueError):
             a.bind(schema, case_sensitive)
