@@ -52,8 +52,8 @@ source = ['src/']
 install = "pip install -e \".[dev,arrow]\""
 lint = "pre-commit run --all-files"
 test = """
-    coverage run --source=src/ -m pytest tests/ &&
-    coverage report -m --fail-under=90 &&
-    coverage html &&
-    coverage xml
+coverage run --source=src/ -m pytest tests/ &&
+coverage report -m --fail-under=90 &&
+coverage html &&
+coverage xml
 """
