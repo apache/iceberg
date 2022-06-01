@@ -46,11 +46,12 @@ jobs:
     - uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python }}
-    - working-directory: ./python
-      run: pip3 install poetry && poetry install -E pyarrow
-    - name: Run linters
+    - name: Install
+      working-directory: ./python
+      run: make install
+    - name: Linters
       working-directory: ./python
       run: make lint
-    - name: Run tests
+    - name: Tests
       working-directory: ./python
       run: make test

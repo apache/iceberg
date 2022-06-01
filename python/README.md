@@ -30,7 +30,7 @@ cd iceberg/python
 pip install -e .
 ```
 
-Development is made easy using [Poetry](https://python-poetry.org/docs/#installation). 
+Development is made easy using [Poetry](https://python-poetry.org/docs/#installation).
 
 ## Development
 

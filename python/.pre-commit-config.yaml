@@ -45,8 +45,3 @@ repos:
     hooks:
       - id: pycln
         args: [ --config=python/pyproject.toml ]
-  - repo: https://github.com/python-poetry/poetry
-    rev: '1.2.0b1'
-    hooks:
-      - id: poetry-check
-      - id: poetry-lock
