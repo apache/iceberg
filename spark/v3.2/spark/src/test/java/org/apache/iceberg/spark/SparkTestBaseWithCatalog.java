@@ -89,6 +89,13 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
     this.tableName =
         (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
+    // "SHOW NAMESPACES IN <NAMESPACE>" command for HiveCatalog considers the catalog name as the first level in the
+    // namespace hierarchy. Thus, "SHOW NAMESPACES IN <hiveCatalogName>" returns a valid output.
+    // The same command "SHOW NAMESPACES IN <hadoopCatalogName>" fails for HadoopCatalog. This is because it expects
+    // "<hadoopCatalogName>" dir to exist and all its sub-dirs would be returned as the result. Since
+    // "<hadoopCatalogName>" dir does not exist, the command fails with
+    // "org.apache.iceberg.exceptions.NoSuchNamespaceException: Namespace does not exist" error. Thus skipping it for
+    // HadoopCatalog.
     boolean createNamespace = isHadoopCatalog || spark.sql("SHOW NAMESPACES IN " + catalogName)
         .filter("namespace = 'default'")
         .isEmpty();
