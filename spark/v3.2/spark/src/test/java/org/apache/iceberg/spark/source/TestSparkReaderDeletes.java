@@ -109,7 +109,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
     try {
-      catalog.createNamespace(Namespace.of("default"));
+      Namespace defaultNamespace = Namespace.of("default");
+      if (!catalog.namespaceExists(defaultNamespace)) {
+        catalog.createNamespace(defaultNamespace);
+      }
     } catch (AlreadyExistsException ignored) {
       // the default namespace already exists. ignore the create error
     }
