@@ -21,14 +21,17 @@ package org.apache.iceberg.hive;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
@@ -42,6 +45,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -49,8 +53,10 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.ConfigProperties;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -68,6 +74,7 @@ import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -402,6 +409,38 @@ public class HiveTableTest extends HiveTableBaseTest {
     Assert.assertEquals(originalParams.get(TABLE_TYPE_PROP), newTableParameters.get(TABLE_TYPE_PROP));
     Assert.assertEquals(originalParams.get(METADATA_LOCATION_PROP), newTableParameters.get(METADATA_LOCATION_PROP));
     Assert.assertEquals(originalTable.getSd(), newTable.getSd());
+  }
+
+  @Test
+  public void testRegisterHadoopTableToHiveCatalog() throws IOException, TException {
+    // create a hadoop catalog
+    String tableLocation = tempFolder.newFolder().toString();
+    HadoopCatalog hadoopCatalog = new HadoopCatalog(new Configuration(), tableLocation);
+    // create table using hadoop catalog
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "table1");
+    Table table = hadoopCatalog.createTable(identifier, schema, PartitionSpec.unpartitioned(), Maps.newHashMap());
+
+    // collect metadata file
+    List<String> metadataFiles =
+        Arrays.stream(new File(table.location() + "/metadata").listFiles())
+            .map(File::getAbsolutePath)
+            .filter(f -> f.endsWith(getFileExtension(TableMetadataParser.Codec.NONE)))
+            .collect(Collectors.toList());
+    Assert.assertEquals(1, metadataFiles.size());
+
+    AssertHelpers.assertThrows(
+            "Hive metastore should not have this table", NoSuchObjectException.class,
+            "table not found",
+            () -> metastoreClient.getTable(DB_NAME, "table1"));
+    AssertHelpers.assertThrows(
+            "Hive catalog should fail to load the table", NoSuchTableException.class,
+            "Table does not exist:",
+            () -> catalog.loadTable(identifier));
+    // register the table to hive catalog using the metadata file
+    catalog.registerTable(identifier, "file:" + metadataFiles.get(0));
+    Assert.assertNotNull(metastoreClient.getTable(DB_NAME, "table1"));
+    // load the table in hive catalog
+    Assert.assertNotNull(catalog.loadTable(identifier));
   }
 
   @Test

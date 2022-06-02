@@ -246,9 +246,24 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     TableOperations ops = newTableOps(identifier);
     InputFile metadataFile = fileIO.newInputFile(metadataFileLocation);
     TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
+
+    if (!isMetastoreTable(metadataFileLocation)) {
+      // Metastore table and filesystem tables will have different naming conventions as per the spec.
+      // So, to support importing filesystem tables to metastore catalog,
+      // create a new metadata file with contents of filesystem table but with a metastore table naming convention.
+      BaseMetastoreTableOperations baseOps = (BaseMetastoreTableOperations) ops;
+      String newFileName = baseOps.writeNewMetadata(metadata, baseOps.currentVersion() + 1);
+      metadataFile = fileIO.newInputFile(newFileName);
+      metadata = TableMetadataParser.read(ops.io(), metadataFile);
+    }
+
     ops.commit(null, metadata);
 
     return new BaseTable(ops, identifier.toString());
+  }
+
+  private boolean isMetastoreTable(String metadataFileLocation) {
+    return metadataFileLocation.substring(metadataFileLocation.lastIndexOf("/") + 1).contains("-");
   }
 
   @Override
