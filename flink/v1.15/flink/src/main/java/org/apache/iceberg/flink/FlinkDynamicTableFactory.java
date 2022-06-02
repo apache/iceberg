@@ -42,6 +42,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
   static final String FACTORY_IDENTIFIER = "iceberg";
@@ -113,7 +114,11 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
           objectPath.getObjectName());
     }
 
-    return new IcebergTableSink(tableLoader, tableSchema, context.getConfiguration());
+    boolean upsertEnabled = PropertyUtil.propertyAsBoolean(tableProps,
+        FlinkConfigOptions.TABLE_EXEC_ICEBERG_WRITE_UPSERT_ENABLED.key(),
+        FlinkConfigOptions.SINK_TABLE_WRITE_UPSERT_ENABLED_DEFAULT);
+
+    return new IcebergTableSink(tableLoader, tableSchema, context.getConfiguration(), upsertEnabled);
   }
 
   @Override

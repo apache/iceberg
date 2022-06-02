@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Snapshot;
@@ -136,7 +137,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     );
 
     testSqlChangeLog(TABLE_NAME, ImmutableList.of("id"), inputRowsPerCheckpoint,
-        expectedRecordsPerCheckpoint);
+        expectedRecordsPerCheckpoint, false);
   }
 
   @Test
@@ -167,7 +168,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
         ImmutableList.of(insertRow(1, "aaa"), insertRow(1, "ccc"), insertRow(2, "aaa"), insertRow(2, "ccc"))
     );
 
-    testSqlChangeLog(TABLE_NAME, ImmutableList.of("data"), elementsPerCheckpoint, expectedRecords);
+    testSqlChangeLog(TABLE_NAME, ImmutableList.of("data"), elementsPerCheckpoint, expectedRecords, false);
   }
 
   @Test
@@ -197,7 +198,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
         ImmutableList.of(insertRow(1, "aaa"), insertRow(1, "ccc"), insertRow(2, "aaa"), insertRow(2, "bbb"))
     );
 
-    testSqlChangeLog(TABLE_NAME, ImmutableList.of("data", "id"), elementsPerCheckpoint, expectedRecords);
+    testSqlChangeLog(TABLE_NAME, ImmutableList.of("data", "id"), elementsPerCheckpoint, expectedRecords, false);
   }
 
   @Test
@@ -238,17 +239,59 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
         )
     );
 
-    testSqlChangeLog(TABLE_NAME, ImmutableList.of("data"), elementsPerCheckpoint, expectedRecords);
+    testSqlChangeLog(TABLE_NAME, ImmutableList.of("data"), elementsPerCheckpoint, expectedRecords, false);
+  }
+
+  @Test
+  public void testUpsertOnIdKey() throws Exception {
+    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+        ImmutableList.of(
+            insertRow(1, "aaa")
+        ),
+        ImmutableList.of(
+            updateBeforeRow(1, "aaa"),
+            updateAfterRow(1, "bbb")
+        ),
+        ImmutableList.of(
+            updateBeforeRow(1, "bbb"),
+            updateAfterRow(1, "ccc")
+        ),
+        ImmutableList.of(
+            updateBeforeRow(1, "ccc"),
+            updateAfterRow(1, "ddd"),
+            updateBeforeRow(1, "ddd"),
+            updateAfterRow(1, "eee")
+        )
+    );
+
+    List<List<Row>> expectedRecords = ImmutableList.of(
+        ImmutableList.of(insertRow(1, "aaa")),
+        ImmutableList.of(insertRow(1, "bbb")),
+        ImmutableList.of(insertRow(1, "ccc")),
+        ImmutableList.of(insertRow(1, "eee"))
+    );
+
+    if (!partitioned) {
+      testSqlChangeLog(TABLE_NAME, ImmutableList.of("id"), elementsPerCheckpoint, expectedRecords, true);
+    } else {
+      AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
+          IllegalStateException.class, "should be included in equality fields",
+          () -> {
+            testSqlChangeLog(TABLE_NAME, ImmutableList.of("id"), elementsPerCheckpoint, expectedRecords, true);
+            return null;
+          });
+    }
   }
 
   private static Record record(int id, String data) {
     return SimpleDataUtil.createRecord(id, data);
   }
 
-  private Table createTable(String tableName, List<String> key, boolean isPartitioned) {
+  private Table createTable(String tableName, List<String> key, boolean isPartitioned, boolean upsertEnabled) {
     String partitionByCause = isPartitioned ? "PARTITIONED BY (data)" : "";
-    sql("CREATE TABLE %s(id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s",
-        tableName, Joiner.on(',').join(key), partitionByCause);
+    sql("CREATE TABLE %s(id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s" +
+            "WITH ('table.exec.iceberg.write-upsert-enabled'='%s')",
+        tableName, Joiner.on(',').join(key), partitionByCause, upsertEnabled ? "true" : "false");
 
     // Upgrade the iceberg table to format v2.
     CatalogLoader loader = CatalogLoader.hadoop("my_catalog", CONF, ImmutableMap.of(
@@ -265,7 +308,8 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   private void testSqlChangeLog(String tableName,
                                 List<String> key,
                                 List<List<Row>> inputRowsPerCheckpoint,
-                                List<List<Row>> expectedRecordsPerCheckpoint) throws Exception {
+                                List<List<Row>> expectedRecordsPerCheckpoint,
+                                boolean insertAsUpsert) throws Exception {
     String dataId = BoundedTableFactory.registerDataSet(inputRowsPerCheckpoint);
     sql("CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)" +
         " WITH ('connector'='BoundedSource', 'data-id'='%s')", SOURCE_TABLE, dataId);
@@ -274,7 +318,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
         listJoin(inputRowsPerCheckpoint),
         sql("SELECT * FROM %s", SOURCE_TABLE));
 
-    Table table = createTable(tableName, key, partitioned);
+    Table table = createTable(tableName, key, partitioned, insertAsUpsert);
     sql("INSERT INTO %s SELECT * FROM %s", tableName, SOURCE_TABLE);
 
     table.refresh();

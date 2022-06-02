@@ -51,6 +51,8 @@ public class FlinkConfigOptions {
   private FlinkConfigOptions() {
   }
 
+  public static final Boolean SINK_TABLE_WRITE_UPSERT_ENABLED_DEFAULT = false;
+
   public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM =
       ConfigOptions.key("table.exec.iceberg.infer-source-parallelism")
           .booleanType()
@@ -81,4 +83,10 @@ public class FlinkConfigOptions {
           .intType()
           .defaultValue(ThreadPools.WORKER_THREAD_POOL_SIZE)
           .withDescription("The size of workers pool used to plan or scan manifests.");
+
+  public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_WRITE_UPSERT_ENABLED =
+      ConfigOptions.key("table.exec.iceberg.write-upsert-enabled")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription("Whether to transform all INSERT/UPDATE_AFTER events to UPSERT.");
 }
