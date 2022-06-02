@@ -81,14 +81,20 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
     config.forEach(
         (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
 
-    if (config.get("type").equalsIgnoreCase("hadoop")) {
+    boolean isHadoopCatalog = config.get("type").equalsIgnoreCase("hadoop");
+    if (isHadoopCatalog) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 
     this.tableName =
         (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
-    sql("CREATE NAMESPACE IF NOT EXISTS " + catalogName + ".default");
+    boolean createNamespace = isHadoopCatalog || spark.sql("SHOW NAMESPACES IN " + catalogName)
+        .filter("namespace = 'default'")
+        .isEmpty();
+    if (createNamespace) {
+      sql("CREATE NAMESPACE IF NOT EXISTS " + catalogName + ".default");
+    }
   }
 
   protected String tableName(String name) {
