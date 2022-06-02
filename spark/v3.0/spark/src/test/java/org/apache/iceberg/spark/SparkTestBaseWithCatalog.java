@@ -85,18 +85,19 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
     this.tableName =
         (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
-    // "SHOW NAMESPACES IN <NAMESPACE>" command for HiveCatalog considers the catalog name as the first level in the
-    // namespace hierarchy. Thus, "SHOW NAMESPACES IN <hiveCatalogName>" returns a valid output.
-    // The same command "SHOW NAMESPACES IN <hadoopCatalogName>" fails for HadoopCatalog. This is because it expects
-    // "<hadoopCatalogName>" dir to exist and all its sub-dirs would be returned as the result. Since
-    // "<hadoopCatalogName>" dir does not exist, the command fails with
-    // "org.apache.iceberg.exceptions.NoSuchNamespaceException: Namespace does not exist" error. Thus skipping it for
-    // HadoopCatalog.
-    boolean createNamespace = isHadoopCatalog || spark.sql("SHOW NAMESPACES IN " + catalogName)
-        .filter("namespace = 'default'")
-        .isEmpty();
-    if (createNamespace) {
-      sql("CREATE NAMESPACE IF NOT EXISTS " + catalogName + ".default");
+    // When Hive API is invoked to create Namespace/Database using CREATE IF NOT EXISTS, the standalone HMS logs an
+    // AlreadyExistsException exception in the test logs thereby generating unwanted error logs. Thus checking if a
+    // namespace exists before creating one to keep the test logs noise-free.
+    // HMS is not involved in case HadoopCatalog, thus skipping the check for HadoopCatalog.
+    if (isHadoopCatalog) {
+      sql("CREATE NAMESPACE IF NOT EXISTS default");
+    } else {
+      boolean createNamespace = spark.sql("SHOW NAMESPACES IN " + catalogName)
+          .filter("namespace = 'default'")
+          .isEmpty();
+      if (createNamespace) {
+        sql("CREATE NAMESPACE IF NOT EXISTS " + catalogName + ".default");
+      }
     }
   }
 
