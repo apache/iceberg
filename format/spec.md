@@ -349,7 +349,7 @@ Notes:
 
 1. The remainder, `v % W`, must be positive. For languages where `%` can produce negative values, the correct truncate function is: `v - (((v % W) + W) % W)`
 2. The width, `W`, used to truncate decimal values is applied using the scale of the decimal column to avoid additional (and potentially conflicting) parameters.
-3. Strings are truncated a valid UTF-8 string with no more than `W` codepoints.
+3. Strings are truncated to a valid UTF-8 string with no more than `W` code points.
 
 
 #### Partition Evolution
