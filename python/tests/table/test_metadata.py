@@ -22,13 +22,14 @@ import tempfile
 
 import pytest
 
+from iceberg.schema import Schema
 from iceberg.serializers import (
     FromByteStream,
-    FromDict,
     FromInputFile,
-    ToDict,
     ToOutputFile,
 )
+from iceberg.table.metadata import TableMetadata, TableMetadataV2, TableMetadataV1
+from iceberg.types import StringType, NestedField
 
 EXAMPLE_TABLE_METADATA_V1 = {
     "format-version": 1,
@@ -37,7 +38,6 @@ EXAMPLE_TABLE_METADATA_V1 = {
     "last-updated-ms": 1600000000000,
     "last-column-id": 4,
     "schema": {
-        "type": "struct",
         "schema-id": 0,
         "fields": [
             {"id": 1, "name": "foo", "required": True, "type": "string"},
@@ -45,10 +45,10 @@ EXAMPLE_TABLE_METADATA_V1 = {
             {"id": 3, "name": "baz", "required": True, "type": "string"},
             {"id": 4, "name": "qux", "required": True, "type": "string"},
         ],
+        "identifier_field_ids": [],
     },
     "schemas": [
         {
-            "type": "struct",
             "schema-id": 0,
             "fields": [
                 {"id": 1, "name": "foo", "required": True, "type": "string"},
@@ -56,10 +56,11 @@ EXAMPLE_TABLE_METADATA_V1 = {
                 {"id": 3, "name": "baz", "required": True, "type": "string"},
                 {"id": 4, "name": "qux", "required": True, "type": "string"},
             ],
+            "identifier_field_ids": [],
         },
     ],
     "current-schema-id": 0,
-    "partition-spec": [],
+    "partition-spec": {},
     "default-spec-id": 0,
     "partition-specs": [{"spec-id": 0, "fields": []}],
     "last-partition-id": 999,
@@ -107,7 +108,6 @@ EXAMPLE_TABLE_METADATA_V2 = {
     "last-sequence-number": 1,
     "schemas": [
         {
-            "type": "struct",
             "schema-id": 0,
             "fields": [
                 {"id": 1, "name": "foo", "required": True, "type": "string"},
@@ -115,6 +115,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
                 {"id": 3, "name": "baz", "required": True, "type": "string"},
                 {"id": 4, "name": "qux", "required": True, "type": "string"},
             ],
+            "identifier_field_ids": [],
         }
     ],
     "current-schema-id": 0,
@@ -161,20 +162,20 @@ EXAMPLE_TABLE_METADATA_V2 = {
 @pytest.mark.parametrize(
     "metadata",
     [
-        (EXAMPLE_TABLE_METADATA_V1),
-        (EXAMPLE_TABLE_METADATA_V2),
+        EXAMPLE_TABLE_METADATA_V1,
+        EXAMPLE_TABLE_METADATA_V2,
     ],
 )
-def test_from_dict(metadata):
+def test_from_dict(metadata: dict):
     """Test initialization of a TableMetadata instance from a dictionary"""
-    FromDict.table_metadata(d=metadata)
+    TableMetadata.parse_obj(metadata)
 
 
 @pytest.mark.parametrize(
     "metadata",
     [
-        (EXAMPLE_TABLE_METADATA_V1),
-        (EXAMPLE_TABLE_METADATA_V2),
+        EXAMPLE_TABLE_METADATA_V1,
+        EXAMPLE_TABLE_METADATA_V2,
     ],
 )
 def test_from_input_file(metadata, LocalFileIOFixture):
@@ -199,14 +200,14 @@ def test_from_input_file(metadata, LocalFileIOFixture):
 @pytest.mark.parametrize(
     "metadata",
     [
-        (EXAMPLE_TABLE_METADATA_V1),
-        (EXAMPLE_TABLE_METADATA_V2),
+        EXAMPLE_TABLE_METADATA_V1,
+        EXAMPLE_TABLE_METADATA_V2,
     ],
 )
-def test_to_output_file(metadata, LocalFileIOFixture):
+def test_to_output_file(metadata: dict, LocalFileIOFixture):
     """Test writing a TableMetadata instance to a LocalOutputFile instance"""
     with tempfile.TemporaryDirectory() as tmpdirname:
-        table_metadata = FromDict.table_metadata(d=metadata)  # Create TableMetadata instance from dictionary
+        table_metadata = TableMetadata.parse_obj(metadata)  # Create TableMetadata instance from dictionary
         file_io = LocalFileIOFixture()  # Use LocalFileIO fixture defined in conftest.py
 
         # Create an output file in the temporary directory
@@ -231,7 +232,7 @@ def test_from_byte_stream():
 
 def test_v2_metadata_parsing():
     """Test retrieving values from a TableMetadata instance of version 2"""
-    table_metadata = FromDict.table_metadata(d=EXAMPLE_TABLE_METADATA_V2)
+    table_metadata = TableMetadata.parse_obj(EXAMPLE_TABLE_METADATA_V2)
 
     assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == "foo-table-uuid"
@@ -239,7 +240,7 @@ def test_v2_metadata_parsing():
     assert table_metadata.last_sequence_number == 1
     assert table_metadata.last_updated_ms == 1600000000000
     assert table_metadata.last_column_id == 4
-    assert table_metadata.schemas[0]["schema-id"] == 0
+    assert table_metadata.schemas[0].schema_id == 0
     assert table_metadata.current_schema_id == 0
     assert table_metadata.partition_specs[0]["spec-id"] == 0
     assert table_metadata.default_spec_id == 0
@@ -253,10 +254,63 @@ def test_v2_metadata_parsing():
     assert table_metadata.default_sort_order_id == 0
 
 
+def test_v1_metadata_parsing_directly():
+    """Test retrieving values from a TableMetadata instance of version 1"""
+    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
+
+    assert table_metadata.format_version == 1
+    assert table_metadata.table_uuid == "foo-table-uuid"
+    assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
+    assert table_metadata.last_updated_ms == 1600000000000
+    assert table_metadata.last_column_id == 4
+    assert table_metadata.schemas[0].schema_id == 0
+    assert table_metadata.current_schema_id == 0
+    assert table_metadata.partition_specs[0]["spec-id"] == 0
+    assert table_metadata.default_spec_id == 0
+    assert table_metadata.last_partition_id == 999
+    assert table_metadata.current_snapshot_id == 7681945274687743099
+    assert table_metadata.snapshots[0]["snapshot-id"] == 7681945274687743099
+    assert table_metadata.snapshot_log[0]["timestamp-ms"] == 1637943123188
+    assert table_metadata.metadata_log[0]["timestamp-ms"] == 1637943123331
+    assert table_metadata.sort_orders[0]["order-id"] == 0
+    assert table_metadata.default_sort_order_id == 0
+
+
+def test_v2_metadata_parsing_directly():
+    """Test retrieving values from a TableMetadata instance of version 2"""
+    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+
+    assert table_metadata.format_version == 2
+    assert table_metadata.table_uuid == "foo-table-uuid"
+    assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
+    assert table_metadata.last_sequence_number == 1
+    assert table_metadata.last_updated_ms == 1600000000000
+    assert table_metadata.last_column_id == 4
+    assert table_metadata.schemas[0].schema_id == 0
+    assert table_metadata.current_schema_id == 0
+    assert table_metadata.partition_specs[0]["spec-id"] == 0
+    assert table_metadata.default_spec_id == 0
+    assert table_metadata.last_partition_id == 999
+    assert table_metadata.properties["read.split.target.size"] == 134217728
+    assert table_metadata.current_snapshot_id == 7681945274687743099
+    assert table_metadata.snapshots[0]["snapshot-id"] == 7681945274687743099
+    assert table_metadata.snapshot_log[0]["timestamp-ms"] == 1637943123188
+    assert table_metadata.metadata_log[0]["timestamp-ms"] == 1637943123331
+    assert table_metadata.sort_orders[0]["order-id"] == 0
+    assert table_metadata.default_sort_order_id == 0
+
+
+def test_parsing_correct_types():
+    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+    assert isinstance(table_metadata.schemas[0], Schema)
+    assert isinstance(table_metadata.schemas[0].fields[0], NestedField)
+    assert isinstance(table_metadata.schemas[0].fields[0].field_type, StringType)
+
+
 def test_updating_metadata():
     """Test creating a new TableMetadata instance that's an updated version of
     an existing TableMetadata instance"""
-    table_metadata = FromDict.table_metadata(d=EXAMPLE_TABLE_METADATA_V2)
+    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
 
     new_schema = {
         "type": "struct",
@@ -268,11 +322,11 @@ def test_updating_metadata():
         ],
     }
 
-    mutable_table_metadata = ToDict.table_metadata(metadata=table_metadata)
+    mutable_table_metadata = table_metadata.dict()
     mutable_table_metadata["schemas"].append(new_schema)
     mutable_table_metadata["current-schema-id"] = 1
 
-    new_table_metadata = FromDict.table_metadata(d=mutable_table_metadata)
+    new_table_metadata = TableMetadataV2(**mutable_table_metadata)
 
     assert new_table_metadata.current_schema_id == 1
-    assert new_table_metadata.schemas[-1] == new_schema
+    assert new_table_metadata.schemas[-1] == Schema(**new_schema)

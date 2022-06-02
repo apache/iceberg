@@ -40,7 +40,7 @@ from iceberg.types import (
     MapType,
     NestedField,
     StringType,
-    StructType,
+    StructType, DoubleType,
 )
 
 
@@ -130,7 +130,8 @@ class LocalOutputFile(OutputFile):
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
         if not isinstance(output_file, OutputStream):
-            raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
+            raise TypeError(
+                "Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
         return output_file
 
 
@@ -144,11 +145,13 @@ class LocalFileIO(FileIO):
         return LocalOutputFile(location=location)
 
     def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
-        parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(location)
+        parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(
+            location)
         try:
             os.remove(parsed_location.path)
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e)) from e
+            raise FileNotFoundError(
+                f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e)) from e
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -156,68 +159,84 @@ def foo_struct():
     return FooStruct()
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def table_schema_simple():
     return schema.Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         schema_id=1,
         identifier_field_ids=[1],
     )
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def table_schema_nested():
     return schema.Schema(
-        NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
-        NestedField(field_id=2, name="bar", field_type=IntegerType(), is_optional=True),
-        NestedField(field_id=3, name="baz", field_type=BooleanType(), is_optional=False),
+        NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+        NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+        NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         NestedField(
             field_id=4,
             name="qux",
-            field_type=ListType(element_id=5, element_type=StringType(), element_is_optional=True),
-            is_optional=True,
+            field_type=ListType(element_id=5, element=StringType(), element_required=True),
+            required=True,
         ),
         NestedField(
             field_id=6,
             name="quux",
             field_type=MapType(
                 key_id=7,
-                key_type=StringType(),
+                key=StringType(),
                 value_id=8,
-                value_type=MapType(
-                    key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_is_optional=True
-                ),
-                value_is_optional=True,
+                value=MapType(key_id=9, key=StringType(), value_id=10, value=IntegerType(), value_required=True),
+                value_required=True,
             ),
-            is_optional=True,
+            required=True,
         ),
         NestedField(
             field_id=11,
             name="location",
             field_type=ListType(
                 element_id=12,
-                element_type=StructType(
-                    NestedField(field_id=13, name="latitude", field_type=FloatType(), is_optional=False),
-                    NestedField(field_id=14, name="longitude", field_type=FloatType(), is_optional=False),
+                element=StructType(
+                    NestedField(field_id=13, name="latitude", field_type=FloatType(), required=False),
+                    NestedField(field_id=14, name="longitude", field_type=FloatType(), required=False),
                 ),
-                element_is_optional=True,
+                element_required=True,
             ),
-            is_optional=True,
+            required=True,
         ),
         NestedField(
             field_id=15,
             name="person",
             field_type=StructType(
-                NestedField(field_id=16, name="name", field_type=StringType(), is_optional=False),
-                NestedField(field_id=17, name="age", field_type=IntegerType(), is_optional=True),
+                NestedField(field_id=16, name="name", field_type=StringType(), required=False),
+                NestedField(field_id=17, name="age", field_type=IntegerType(), required=True),
             ),
-            is_optional=False,
+            required=False,
         ),
         schema_id=1,
         identifier_field_ids=[1],
     )
+
+
+@pytest.fixture(scope="session")
+def simple_struct():
+    return StructType(
+        NestedField(1, "required_field", StringType(), True, "this is a doc"),
+        NestedField(2, "optional_field", IntegerType())
+    )
+
+
+@pytest.fixture(scope="session")
+def simple_list():
+    return ListType(element_id=22, element=StringType(), element_required=True)
+
+
+@pytest.fixture(scope="session")
+def simple_map():
+    return MapType(key_id=19, key=StringType(), value_id=25, value=DoubleType(), value_required=False)
 
 
 @pytest.fixture(scope="session", autouse=True)

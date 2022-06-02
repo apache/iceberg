@@ -498,7 +498,7 @@ def test_raise_on_unregistered_type():
         ),
     ],
 )
-def test_raise_on_incorrect_precision_or_scale(primitive_type, value, expected_error_message):
+def test_raise_on_incorrect_precision_or_scale(primitive_type: DecimalType, value: Decimal, expected_error_message: str):
     with pytest.raises(ValueError) as exc_info:
         conversions.to_bytes(primitive_type, value)
 
