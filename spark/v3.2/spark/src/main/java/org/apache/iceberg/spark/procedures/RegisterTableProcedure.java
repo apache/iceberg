@@ -43,7 +43,7 @@ class RegisterTableProcedure extends BaseProcedure {
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("Current Snapshot", DataTypes.LongType, true, Metadata.empty()),
+      new StructField("Current SnapshotId", DataTypes.LongType, true, Metadata.empty()),
       new StructField("Rows", DataTypes.LongType, true, Metadata.empty()),
       new StructField("Datafiles", DataTypes.LongType, true, Metadata.empty())
   });

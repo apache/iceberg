@@ -83,7 +83,7 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
     assertEquals("Registered table rows should match original table rows", original, registered);
     Assert.assertEquals("Should have the right row count in the procedure result",
         numRows, result.get(0)[1]);
-    Assert.assertEquals("Should have the right datafile count the procedure result",
+    Assert.assertEquals("Should have the right datafile count in the procedure result",
         originalFileCount, result.get(0)[2]);
   }
 }
