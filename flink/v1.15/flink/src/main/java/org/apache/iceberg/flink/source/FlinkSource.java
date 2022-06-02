@@ -184,6 +184,11 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder monitorSnapshotNumber(int newMonitorSnapshotNumber) {
+      contextBuilder.monitorSnapshotNumber(newMonitorSnapshotNumber);
+      return this;
+    }
+
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;

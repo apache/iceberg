@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ListState;
@@ -134,11 +135,17 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   public void run(SourceContext<FlinkInputSplit> ctx) throws Exception {
     this.sourceContext = ctx;
     while (isRunning) {
+      LOG.info("Start polling snapshots from snapshot id: {}, monitor snapshot number {}", lastSnapshotId,
+          scanContext.monitorSnapshotNumber());
+      long start = System.currentTimeMillis();
+      long startSnapshotId = lastSnapshotId;
       synchronized (sourceContext.getCheckpointLock()) {
         if (isRunning) {
           monitorAndForwardSplits();
         }
       }
+      LOG.info("Forwarded splits from {}(exclusive) to {}(inclusive), time elapsed {}ms",
+          startSnapshotId, lastSnapshotId, System.currentTimeMillis() - start);
       Thread.sleep(scanContext.monitorInterval().toMillis());
     }
   }
@@ -155,6 +162,12 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
+        List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastSnapshotId, snapshot.snapshotId());
+        if (snapshotIds.size() < scanContext.monitorSnapshotNumber()) {
+          snapshotId = snapshot.snapshotId();
+        } else {
+          snapshotId = snapshotIds.get(snapshotIds.size() - scanContext.monitorSnapshotNumber());
+        }
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 

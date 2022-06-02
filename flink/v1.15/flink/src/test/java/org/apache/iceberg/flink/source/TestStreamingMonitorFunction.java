@@ -208,6 +208,37 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     }
   }
 
+  @Test
+  public void testConsumeWithDifferentMonitorSnapshotNumbers() throws Exception {
+    List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
+
+    for (int monitorNumber = 1; monitorNumber < 11; monitorNumber = monitorNumber + 1) {
+      ScanContext scanContext = ScanContext.builder()
+          .monitorInterval(Duration.ofMillis(100))
+          .monitorSnapshotNumber(monitorNumber)
+          .build();
+
+      StreamingMonitorFunction function = createFunction(scanContext);
+      try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
+        harness.setup();
+        harness.open();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        TestSourceContext sourceContext = new TestSourceContext(latch);
+        runSourceFunctionInTask(sourceContext, function);
+
+        Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+        Thread.sleep(1000L);
+
+        // Stop the stream task.
+        function.close();
+
+        Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
+        TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+      }
+    }
+  }
+
   private List<List<Record>> generateRecordsAndCommitTxn(int commitTimes) throws IOException {
     List<List<Record>> expectedRecords = Lists.newArrayList();
     for (int i = 0; i < commitTimes; i++) {
