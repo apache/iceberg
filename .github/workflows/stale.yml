@@ -41,7 +41,8 @@ jobs:
           stale-issue-message: >
             This issue has been automatically marked as stale because it has been open for 180 days
             with no activity. It will be closed in next 14 days if no further activity occurs. To
-            prevent this issue from being closed as stale, add the label 'not-stale'.
+            permanently prevent this issue from being considered stale, add the label 'not-stale',
+            but commenting on the issue is preferred when possible.
           close-issue-message: >
             This issue has been closed because it has not received any activity in the last 14 days
             since being marked as 'stale'
