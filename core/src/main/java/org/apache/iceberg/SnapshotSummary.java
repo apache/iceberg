@@ -25,7 +25,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner.MapJoiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.CommitMetadata;
 
 public class SnapshotSummary {
   public static final String ADDED_FILES_PROP = "added-data-files";
@@ -184,7 +183,6 @@ public class SnapshotSummary {
 
       // copy custom summary properties
       builder.putAll(properties);
-      builder.putAll(CommitMetadata.commitProperties());
 
       metrics.addTo(builder);
       setIf(deletedDuplicateFiles > 0, builder, DELETED_DUPLICATE_FILES, deletedDuplicateFiles);
