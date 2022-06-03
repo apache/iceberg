@@ -77,11 +77,12 @@ public class ExpressionUtil {
    * @param left an unbound expression
    * @param right an unbound expression
    * @param struct a struct type for binding
+   * @param caseSensitive whether to bind expressions using case-sensitive matching
    * @return true if the expressions are equivalent
    */
-  public static boolean equivalent(Expression left, Expression right, Types.StructType struct) {
-    return Binder.bind(struct, Expressions.rewriteNot(left))
-        .isEquivalentTo(Binder.bind(struct, Expressions.rewriteNot(right)));
+  public static boolean equivalent(Expression left, Expression right, Types.StructType struct, boolean caseSensitive) {
+    return Binder.bind(struct, Expressions.rewriteNot(left), caseSensitive)
+        .isEquivalentTo(Binder.bind(struct, Expressions.rewriteNot(right), caseSensitive));
   }
 
   /**
@@ -94,11 +95,11 @@ public class ExpressionUtil {
    * @param spec a partition spec
    * @return true if the expression will select whole partitions in the given spec
    */
-  public static boolean selectsPartitions(Expression expr, PartitionSpec spec) {
+  public static boolean selectsPartitions(Expression expr, PartitionSpec spec, boolean caseSensitive) {
     return equivalent(
         Projections.inclusive(spec).project(expr),
         Projections.strict(spec).project(expr),
-        spec.partitionType());
+        spec.partitionType(), caseSensitive);
   }
 
   private static class ExpressionSanitizer extends ExpressionVisitors.ExpressionVisitor<Expression> {

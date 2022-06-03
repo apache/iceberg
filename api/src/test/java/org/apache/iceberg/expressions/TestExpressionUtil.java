@@ -262,11 +262,12 @@ public class TestExpressionUtil {
     };
 
     for (Expression expr : exprs) {
-      Assert.assertTrue("Should accept identical expression: " + expr, ExpressionUtil.equivalent(expr, expr, STRUCT));
+      Assert.assertTrue("Should accept identical expression: " + expr,
+          ExpressionUtil.equivalent(expr, expr, STRUCT, true));
 
       for (Expression other : exprs) {
         if (expr != other) {
-          Assert.assertFalse(ExpressionUtil.equivalent(expr, other, STRUCT));
+          Assert.assertFalse(ExpressionUtil.equivalent(expr, other, STRUCT, true));
         }
       }
     }
@@ -285,12 +286,12 @@ public class TestExpressionUtil {
     };
 
     for (UnboundTerm<?> term : terms) {
-      BoundTerm<?> bound = term.bind(STRUCT, false);
+      BoundTerm<?> bound = term.bind(STRUCT, true);
       Assert.assertTrue("Should accept identical expression: " + term, bound.isEquivalentTo(bound));
 
       for (UnboundTerm<?> other : terms) {
         if (term != other) {
-          Assert.assertFalse(bound.isEquivalentTo(other.bind(STRUCT, false)));
+          Assert.assertFalse(bound.isEquivalentTo(other.bind(STRUCT, true)));
         }
       }
     }
@@ -299,30 +300,33 @@ public class TestExpressionUtil {
   @Test
   public void testRefEquivalence() {
     Assert.assertFalse("Should not find different refs equivalent",
-        Expressions.ref("val").bind(STRUCT, false).isEquivalentTo(Expressions.ref("val2").bind(STRUCT, false)));
+        Expressions.ref("val").bind(STRUCT, true).isEquivalentTo(Expressions.ref("val2").bind(STRUCT, true)));
   }
 
   @Test
   public void testInEquivalence() {
     Assert.assertTrue("Should ignore duplicate longs (in)",
-        ExpressionUtil.equivalent(Expressions.in("id", 1, 2, 1), Expressions.in("id", 2, 1, 2), STRUCT));
+        ExpressionUtil.equivalent(Expressions.in("id", 1, 2, 1), Expressions.in("id", 2, 1, 2), STRUCT, true));
     Assert.assertTrue("Should ignore duplicate longs (notIn)",
-        ExpressionUtil.equivalent(Expressions.notIn("id", 1, 2, 1), Expressions.notIn("id", 2, 1, 2), STRUCT));
+        ExpressionUtil.equivalent(Expressions.notIn("id", 1, 2, 1), Expressions.notIn("id", 2, 1, 2), STRUCT, true));
 
     Assert.assertTrue("Should ignore duplicate strings (in)",
-        ExpressionUtil.equivalent(Expressions.in("data", "a", "b", "a"), Expressions.in("data", "b", "a"), STRUCT));
+        ExpressionUtil.equivalent(
+            Expressions.in("data", "a", "b", "a"),
+            Expressions.in("data", "b", "a"),
+            STRUCT, true));
     Assert.assertTrue("Should ignore duplicate strings (notIn)",
-        ExpressionUtil.equivalent(Expressions.notIn("data", "b", "b"), Expressions.notIn("data", "b"), STRUCT));
+        ExpressionUtil.equivalent(Expressions.notIn("data", "b", "b"), Expressions.notIn("data", "b"), STRUCT, true));
 
     Assert.assertTrue("Should detect equivalence with equal (in, string)",
-        ExpressionUtil.equivalent(Expressions.in("data", "a"), Expressions.equal("data", "a"), STRUCT));
+        ExpressionUtil.equivalent(Expressions.in("data", "a"), Expressions.equal("data", "a"), STRUCT, true));
     Assert.assertTrue("Should detect equivalence with notEqual (notIn, long)",
-        ExpressionUtil.equivalent(Expressions.notIn("id", 1), Expressions.notEqual("id", 1), STRUCT));
+        ExpressionUtil.equivalent(Expressions.notIn("id", 1), Expressions.notEqual("id", 1), STRUCT, true));
 
     Assert.assertFalse("Should detect different sets (in, long)",
-        ExpressionUtil.equivalent(Expressions.in("id", 1, 2, 3), Expressions.in("id", 1, 2), STRUCT));
+        ExpressionUtil.equivalent(Expressions.in("id", 1, 2, 3), Expressions.in("id", 1, 2), STRUCT, true));
     Assert.assertFalse("Should detect different sets (notIn, string)",
-        ExpressionUtil.equivalent(Expressions.notIn("data", "a", "b"), Expressions.notIn("data", "a"), STRUCT));
+        ExpressionUtil.equivalent(Expressions.notIn("data", "a", "b"), Expressions.notIn("data", "a"), STRUCT, true));
   }
 
   @Test
@@ -331,23 +335,37 @@ public class TestExpressionUtil {
 
     for (String col : cols) {
       Assert.assertTrue("Should detect < to <= equivalence: " + col,
-          ExpressionUtil.equivalent(Expressions.lessThan(col, 34L), Expressions.lessThanOrEqual(col, 33L), STRUCT));
+          ExpressionUtil.equivalent(
+              Expressions.lessThan(col, 34L),
+              Expressions.lessThanOrEqual(col, 33L),
+              STRUCT, true));
       Assert.assertTrue("Should detect <= to < equivalence: " + col,
-          ExpressionUtil.equivalent(Expressions.lessThanOrEqual(col, 34L), Expressions.lessThan(col, 35L), STRUCT));
+          ExpressionUtil.equivalent(
+              Expressions.lessThanOrEqual(col, 34L),
+              Expressions.lessThan(col, 35L),
+              STRUCT, true));
       Assert.assertTrue("Should detect > to >= equivalence: " + col,
           ExpressionUtil.equivalent(
               Expressions.greaterThan(col, 34L),
-              Expressions.greaterThanOrEqual(col, 35L), STRUCT));
+              Expressions.greaterThanOrEqual(col, 35L),
+              STRUCT, true));
       Assert.assertTrue("Should detect >= to > equivalence: " + col,
           ExpressionUtil.equivalent(
               Expressions.greaterThanOrEqual(col, 34L),
-              Expressions.greaterThan(col, 33L), STRUCT));
+              Expressions.greaterThan(col, 33L),
+              STRUCT, true));
     }
 
     Assert.assertFalse("Should not detect equivalence for different columns",
-        ExpressionUtil.equivalent(Expressions.lessThan("val", 34L), Expressions.lessThanOrEqual("val2", 33L), STRUCT));
+        ExpressionUtil.equivalent(
+            Expressions.lessThan("val", 34L),
+            Expressions.lessThanOrEqual("val2", 33L),
+            STRUCT, true));
     Assert.assertFalse("Should not detect equivalence for different types",
-        ExpressionUtil.equivalent(Expressions.lessThan("val", 34L), Expressions.lessThanOrEqual("id", 33L), STRUCT));
+        ExpressionUtil.equivalent(
+            Expressions.lessThan("val", 34L),
+            Expressions.lessThanOrEqual("id", 33L),
+            STRUCT, true));
   }
 
   @Test
@@ -356,7 +374,7 @@ public class TestExpressionUtil {
         ExpressionUtil.equivalent(
             Expressions.and(Expressions.lessThan("id", 34), Expressions.greaterThanOrEqual("id", 20)),
             Expressions.and(Expressions.greaterThan("id", 19L), Expressions.lessThanOrEqual("id", 33L)),
-            STRUCT));
+            STRUCT, true));
   }
 
   @Test
@@ -365,7 +383,7 @@ public class TestExpressionUtil {
         ExpressionUtil.equivalent(
             Expressions.or(Expressions.lessThan("id", 20), Expressions.greaterThanOrEqual("id", 34)),
             Expressions.or(Expressions.greaterThan("id", 33L), Expressions.lessThanOrEqual("id", 19L)),
-            STRUCT));
+            STRUCT, true));
   }
 
   @Test
@@ -374,7 +392,7 @@ public class TestExpressionUtil {
         ExpressionUtil.equivalent(
             Expressions.not(Expressions.or(Expressions.in("data", "a"), Expressions.greaterThanOrEqual("id", 34))),
             Expressions.and(Expressions.lessThan("id", 34L), Expressions.notEqual("data", "a")),
-            STRUCT));
+            STRUCT, true));
   }
 
   @Test
@@ -382,17 +400,17 @@ public class TestExpressionUtil {
     Assert.assertTrue("Should select partitions, on boundary",
         ExpressionUtil.selectsPartitions(
             Expressions.lessThan("ts", "2021-03-09T10:00:00.000000"),
-            PartitionSpec.builderFor(SCHEMA).hour("ts").build()));
+            PartitionSpec.builderFor(SCHEMA).hour("ts").build(), true));
 
     Assert.assertFalse("Should not select partitions, 1 ms off boundary",
         ExpressionUtil.selectsPartitions(
             Expressions.lessThanOrEqual("ts", "2021-03-09T10:00:00.000000"),
-            PartitionSpec.builderFor(SCHEMA).hour("ts").build()));
+            PartitionSpec.builderFor(SCHEMA).hour("ts").build(), true));
 
     Assert.assertFalse("Should not select partitions, on hour not day boundary",
         ExpressionUtil.selectsPartitions(
             Expressions.lessThan("ts", "2021-03-09T10:00:00.000000"),
-            PartitionSpec.builderFor(SCHEMA).day("ts").build()));
+            PartitionSpec.builderFor(SCHEMA).day("ts").build(), true));
   }
 
   private void assertEquals(Expression expected, Expression actual) {
