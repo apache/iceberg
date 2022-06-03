@@ -31,6 +31,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplaceSortOrder;
@@ -619,6 +620,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+  }
+
+  @Test
+  public void testLoadMetadataTable() {
+    C catalog = catalog();
+
+    TableIdentifier tableIdent = TableIdentifier.of("ns", "table");
+    TableIdentifier metaIdent = TableIdentifier.of("ns", "table", "files");
+
+    catalog.buildTable(tableIdent, SCHEMA).create();
+
+    Table table = catalog.loadTable(metaIdent);
+    Assertions.assertThat(table).isNotNull();
+    Assertions.assertThat(table).isInstanceOf(FilesTable.class);
   }
 
   @Test
