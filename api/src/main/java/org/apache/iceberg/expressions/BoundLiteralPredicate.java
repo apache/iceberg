@@ -122,7 +122,7 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
             break;
           case GT_EQ:
             if (other.op() == Operation.GT) {
-              // >= 5 is equivalent to > 5
+              // >= 5 is equivalent to > 4
               return toLong(literal()) == toLong(other.literal()) + 1L;
             }
             break;

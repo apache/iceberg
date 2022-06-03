@@ -61,7 +61,7 @@ public class BoundTransform<S, T> implements BoundTerm<T> {
   public boolean isEquivalentTo(BoundTerm<?> other) {
     if (other instanceof BoundTransform) {
       BoundTransform<?, ?> bound = (BoundTransform<?, ?>) other;
-      return ref.isEquivalentTo(bound.ref()) && transform.equals(((BoundTransform<?, ?>) other).transform());
+      return ref.isEquivalentTo(bound.ref()) && transform.equals(bound.transform());
     } else if (transform.isIdentity() && other instanceof BoundReference) {
       return ref.isEquivalentTo(other);
     }
