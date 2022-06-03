@@ -25,13 +25,7 @@ its location.
 
 from abc import ABC, abstractmethod
 from io import SEEK_SET
-from typing import Union
-
-try:
-    from typing import Protocol, runtime_checkable
-except ImportError:  # pragma: no cover
-    from typing_extensions import Protocol  # type: ignore
-    from typing_extensions import runtime_checkable
+from typing import Protocol, Union, runtime_checkable
 
 
 @runtime_checkable
