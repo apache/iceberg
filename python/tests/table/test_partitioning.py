@@ -45,6 +45,7 @@ def test_partition_spec_init(table_schema_simple: Schema):
     assert partition_spec1.spec_id == 0
     assert partition_spec1.schema == table_schema_simple
     assert partition_spec1 == partition_spec1
+    assert partition_spec1 != id_field1
     assert str(partition_spec1) == f"[\n  {str(id_field1)}\n]"
     assert not partition_spec1.is_unpartitioned()
     # only differ by PartitionField field_id
@@ -56,7 +57,7 @@ def test_partition_spec_init(table_schema_simple: Schema):
 
 
 def test_unpartitioned(table_schema_simple: Schema):
-    unpartitioned = PartitionSpec(table_schema_simple, 1, (), 1000)
+    unpartitioned = PartitionSpec(table_schema_simple, 1, tuple(), 1000)
 
     assert not unpartitioned.fields
     assert unpartitioned.is_unpartitioned()

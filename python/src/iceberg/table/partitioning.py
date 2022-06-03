@@ -59,7 +59,7 @@ class PartitionSpec:
 
     schema: Schema
     spec_id: int
-    fields: Tuple[PartitionField]
+    fields: Tuple[PartitionField, ...]
     last_assigned_field_id: int
     source_id_to_fields_map: Dict[int, List[PartitionField]] = field(init=False, repr=False)
 
@@ -76,8 +76,13 @@ class PartitionSpec:
 
     def __eq__(self, other):
         """
-        Equality check on spec_id and partition fields only
+        Produce a boolean to return True if two objects are considered equal
+
+        Note:
+            Equality of PartitionSpec is determined by spec_id and partition fields only
         """
+        if not isinstance(other, PartitionSpec):
+            return False
         return self.spec_id == other.spec_id and self.fields == other.fields
 
     def __str__(self):
@@ -101,8 +106,7 @@ class PartitionSpec:
 
     def compatible_with(self, other: "PartitionSpec") -> bool:
         """
-        Returns true if this partition spec is equivalent to the other, with partition field_id ignored.
-        That is, if both specs have the same number of fields, field order, field name, source column ids, and transforms.
+        Produce a boolean to return True if two PartitionSpec are considered compatible
         """
         return all(
             this_field.source_id == that_field.source_id
