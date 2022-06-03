@@ -60,7 +60,11 @@ public class AwsClientFactories {
   private static AwsClientFactory loadClientFactory(String impl, Map<String, String> properties) {
     DynConstructors.Ctor<AwsClientFactory> ctor;
     try {
-      ctor = DynConstructors.builder(AwsClientFactory.class).hiddenImpl(impl).buildChecked();
+      ctor =
+          DynConstructors.builder(AwsClientFactory.class)
+              .loader(AwsClientFactories.class.getClassLoader())
+              .hiddenImpl(impl)
+              .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
           "Cannot initialize AwsClientFactory, missing no-arg constructor: %s", impl), e);
