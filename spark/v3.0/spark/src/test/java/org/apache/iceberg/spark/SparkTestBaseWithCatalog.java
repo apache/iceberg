@@ -92,10 +92,7 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
     if (isHadoopCatalog) {
       sql("CREATE NAMESPACE IF NOT EXISTS default");
     } else {
-      boolean createNamespace = spark.sql("SHOW NAMESPACES IN " + catalogName)
-          .filter("namespace = 'default'")
-          .isEmpty();
-      if (createNamespace) {
+      if (!validationNamespaceCatalog.namespaceExists(Namespace.of("default"))) {
         sql("CREATE NAMESPACE IF NOT EXISTS " + catalogName + ".default");
       }
     }
