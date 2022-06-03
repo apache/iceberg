@@ -335,9 +335,13 @@ public class TestExpressionUtil {
       Assert.assertTrue("Should detect <= to < equivalence: " + col,
           ExpressionUtil.equivalent(Expressions.lessThanOrEqual(col, 34L), Expressions.lessThan(col, 35L), STRUCT));
       Assert.assertTrue("Should detect > to >= equivalence: " + col,
-          ExpressionUtil.equivalent(Expressions.greaterThan(col, 34L), Expressions.greaterThanOrEqual(col, 35L), STRUCT));
+          ExpressionUtil.equivalent(
+              Expressions.greaterThan(col, 34L),
+              Expressions.greaterThanOrEqual(col, 35L), STRUCT));
       Assert.assertTrue("Should detect >= to > equivalence: " + col,
-          ExpressionUtil.equivalent(Expressions.greaterThanOrEqual(col, 34L), Expressions.greaterThan(col, 33L), STRUCT));
+          ExpressionUtil.equivalent(
+              Expressions.greaterThanOrEqual(col, 34L),
+              Expressions.greaterThan(col, 33L), STRUCT));
     }
 
     Assert.assertFalse("Should not detect equivalence for different columns",
