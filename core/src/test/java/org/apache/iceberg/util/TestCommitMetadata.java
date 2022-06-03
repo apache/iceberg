@@ -16,50 +16,61 @@ package org.apache.iceberg.util;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopTableTestBase;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.rules.TemporaryFolder;
 
 import static junit.framework.TestCase.assertEquals;
+import static junit.framework.TestCase.assertTrue;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
-@RunWith(Parameterized.class)
-public class TestCommitMetadata extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] { 1, 2 };
-  }
+public class TestCommitMetadata {
 
-  static final DataFile FILE_A = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(1)
+  static final Schema TABLE_SCHEMA = new Schema(
+      required(1, "id", Types.IntegerType.get(), "unique ID"),
+      required(2, "data", Types.StringType.get())
+  );
+
+  // Partition spec used to create tables
+  static final PartitionSpec SPEC = PartitionSpec.builderFor(TABLE_SCHEMA)
+      .bucket("data", 16)
       .build();
 
-  public TestCommitMetadata(int formatVersion) {
-    super(formatVersion);
-  }
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testSetCommitMetadataConcurrently() throws IOException {
     File dir = temp.newFolder();
     dir.delete();
     int threadsCount = 3;
-    int numberOfCommitedFilesPerThread = 1;
+    Table table = new HadoopTables(new Configuration()).create(TABLE_SCHEMA, SPEC,
+        ImmutableMap.of(COMMIT_NUM_RETRIES, String.valueOf(threadsCount)), dir.toURI().toString());
 
     String fileName = UUID.randomUUID().toString();
     DataFile file = DataFiles.builder(table.spec())
@@ -67,36 +78,42 @@ public class TestCommitMetadata extends TableTestBase {
         .withRecordCount(2)
         .withFileSizeInBytes(0)
         .build();
-    ExecutorService executorService = Executors.newFixedThreadPool(threadsCount);
+    ExecutorService executorService = Executors.newFixedThreadPool(threadsCount, new ThreadFactory() {
 
-    AtomicInteger barrier = new AtomicInteger(0);
+      private AtomicInteger currentThreadCount = new AtomicInteger(0);
+
+      @Override
+      public Thread newThread(Runnable r) {
+        return new Thread(r, "thread-" + currentThreadCount.getAndIncrement());
+      }
+    });
+
     Tasks
         .range(threadsCount)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(executorService)
         .run(index -> {
-          for (int numCommittedFiles = 0; numCommittedFiles < numberOfCommitedFilesPerThread; numCommittedFiles++) {
-            while (barrier.get() < numCommittedFiles * threadsCount) {
+            Map<String, String> properties = Maps.newHashMap();
+              properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
               try {
-                Thread.sleep(10);
-              } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                CommitMetadata.withCommitProperties(properties, () -> {
+                  table.newFastAppend().appendFile(file).commit();
+                  return 0;
+                });
+              } catch (Exception e) {
+                e.printStackTrace();
               }
             }
-            Map<String, String> properties = Maps.newHashMap();
-            properties.put("writer-thread", String.valueOf(Thread.currentThread().getId()));
-            CommitMetadata.withCommitProperties(properties, () -> {
-              table.newFastAppend().appendFile(file).commit();
-              return 0;
-            });
-            barrier.incrementAndGet();
-          }
-        });
+        );
     table.refresh();
-    assertEquals(threadsCount * numberOfCommitedFilesPerThread, Lists.newArrayList(table.snapshots()).size());
+    assertEquals(threadsCount, Lists.newArrayList(table.snapshots()).size());
+    Set<String> threadNames = new HashSet<>();
     for (Snapshot snapshot : table.snapshots()) {
-      System.out.println(snapshot.summary().get("writer-thread"));
+      threadNames.add(snapshot.summary().get("writer-thread"));
     }
+    assertTrue(threadNames.contains("thread-0"));
+    assertTrue(threadNames.contains("thread-1"));
+    assertTrue(threadNames.contains("thread-2"));
   }
 }

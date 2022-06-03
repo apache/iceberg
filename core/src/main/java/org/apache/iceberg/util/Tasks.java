@@ -64,7 +64,7 @@ public class Tasks {
   }
 
   public interface Task<I, E extends Exception> {
-    void run(I item) throws Exception;
+    void run(I item) throws E;
   }
 
   public static class Builder<I> {
