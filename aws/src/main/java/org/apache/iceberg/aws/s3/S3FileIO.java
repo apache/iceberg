@@ -286,7 +286,10 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, CredentialSuppl
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
-          DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
+          DynConstructors.builder(MetricsContext.class)
+              .loader(S3FileIO.class.getClassLoader())
+              .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+              .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
       context.initialize(properties);
       this.metrics = context;
