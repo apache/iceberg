@@ -621,4 +621,9 @@ public class SparkCatalog extends BaseCatalog {
         tables.buildTable(((PathIdentifier) ident).location(), schema) :
         icebergCatalog.buildTable(buildIdentifier(ident), schema);
   }
+
+  @Override
+  public Catalog icebergCatalog() {
+    return icebergCatalog;
+  }
 }
