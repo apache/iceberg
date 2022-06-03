@@ -87,7 +87,7 @@ public class ExpressionUtil {
   /**
    * Returns whether an expression selects whole partitions for a partition spec.
    * <p>
-   * For example, ts < '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec, [hours(ts)], but does
+   * For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec, [hours(ts)], but does
    * not select whole partitions in a daily spec, [days(ts)].
    *
    * @param expr an unbound expression
