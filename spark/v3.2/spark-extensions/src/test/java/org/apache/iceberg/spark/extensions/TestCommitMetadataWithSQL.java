@@ -12,66 +12,58 @@
  * limitations under the License.
  */
 
-package org.apache.iceberg.util;
+package org.apache.iceberg.spark.extensions;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Types;
-import org.junit.Rule;
+import org.apache.iceberg.util.CommitMetadata;
+import org.apache.iceberg.util.Tasks;
+import org.junit.After;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
-import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertTrue;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestCommitMetadata {
+public class TestCommitMetadataWithSQL extends SparkRowLevelOperationsTestBase {
 
-  static final Schema TABLE_SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get(), "unique ID"),
-      required(2, "data", Types.StringType.get())
-  );
+  public TestCommitMetadataWithSQL(String catalogName, String implementation, Map<String, String> config,
+                                   String fileFormat, boolean vectorized, String distributionMode) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
+  }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @After
+  public void removeTables() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS source");
+  }
+
+  @Override
+  protected Map<String, String> extraTableProperties() {
+    return ImmutableMap.of(
+        TableProperties.FORMAT_VERSION, "2",
+        TableProperties.MERGE_MODE, "merge-on-read",
+        TableProperties.COMMIT_NUM_RETRIES, "4"
+    );
+  }
 
   @Test
-  public void testSetCommitMetadataConcurrently() throws IOException {
-    File dir = temp.newFolder();
-    dir.delete();
-    int threadsCount = 3;
-    Table table = new HadoopTables(new Configuration()).create(
-        TABLE_SCHEMA,
-        PartitionSpec.unpartitioned(),
-        ImmutableMap.of(COMMIT_NUM_RETRIES, String.valueOf(threadsCount)), dir.toURI().toString());
+  public void testExtraSnapshotMetadataWithSQL() throws IOException {
+    createAndInitTable("id BIGINT, dep STRING");
+    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
+    // add a data file to the 'software' partition
+    append(tableName, "{ \"id\": 0, \"dep\": \"software\" }");
 
-    String fileName = UUID.randomUUID().toString();
-    DataFile file = DataFiles.builder(table.spec())
-        .withPath(FileFormat.PARQUET.addExtension(fileName))
-        .withRecordCount(2)
-        .withFileSizeInBytes(0)
-        .build();
+    int threadsCount = 3;
     ExecutorService executorService = Executors.newFixedThreadPool(threadsCount, new ThreadFactory() {
 
       private AtomicInteger currentThreadCount = new AtomicInteger(0);
@@ -92,7 +84,11 @@ public class TestCommitMetadata {
               properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
               try {
                 CommitMetadata.withCommitProperties(properties, () -> {
-                  table.newFastAppend().appendFile(file).commit();
+                  createOrReplaceView("source",
+                      "{ \"id\": 1, \"dep\": \"finance\" }\n" +
+                          "{ \"id\": 2, \"dep\": \"hardware\" }");
+                  sql("MERGE INTO %s target USING source on target.id = source.id" +
+                      " WHEN MATCHED THEN UPDATE SET target.dep='product'", tableName);
                   return 0;
                 });
               } catch (Exception e) {
@@ -100,8 +96,7 @@ public class TestCommitMetadata {
               }
             }
         );
-    table.refresh();
-    assertEquals(threadsCount, Lists.newArrayList(table.snapshots()).size());
+    Table table = validationCatalog.loadTable(tableIdent);
     Set<String> threadNames = new HashSet<>();
     for (Snapshot snapshot : table.snapshots()) {
       threadNames.add(snapshot.summary().get("writer-thread"));

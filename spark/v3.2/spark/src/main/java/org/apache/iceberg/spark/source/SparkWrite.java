@@ -193,10 +193,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       extraSnapshotMetadata.forEach(operation::set);
     }
 
-    if (!CommitMetadata.commitProperties().isEmpty()) {
-      CommitMetadata.commitProperties().forEach(operation::set);
-    }
-
     if (wapEnabled && wapId != null) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
