@@ -20,7 +20,9 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -301,5 +303,12 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     Preconditions.checkNotNull(sessionCatalog, "Delegated SessionCatalog is missing. " +
         "Please make sure your are replacing Spark's default catalog, named 'spark_catalog'.");
     return sessionCatalog;
+  }
+
+  @Override
+  public Catalog icebergCatalog() {
+    Preconditions.checkArgument(icebergCatalog instanceof HasIcebergCatalog,
+        "Cannot return underlying Iceberg Catalog, wrapped catalog does not contain an Iceberg Catalog");
+    return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
   }
 }
