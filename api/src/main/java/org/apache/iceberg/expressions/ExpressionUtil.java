@@ -97,8 +97,8 @@ public class ExpressionUtil {
    */
   public static boolean selectsPartitions(Expression expr, PartitionSpec spec, boolean caseSensitive) {
     return equivalent(
-        Projections.inclusive(spec).project(expr),
-        Projections.strict(spec).project(expr),
+        Projections.inclusive(spec, caseSensitive).project(expr),
+        Projections.strict(spec, caseSensitive).project(expr),
         spec.partitionType(), caseSensitive);
   }
 
