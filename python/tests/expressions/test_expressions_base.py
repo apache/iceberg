@@ -142,31 +142,31 @@ def test_strs(op, string):
     "a,  schema, case_sensitive, success",
     [
         (
-            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
             "table_schema_simple",
             True,
             True,
         ),
         (
-            base.UnboundIn(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
             "table_schema_simple",
             False,
             False,
         ),
         (
-            base.UnboundIn(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
             "table_schema_simple",
             False,
             True,
         ),
         (
-            base.UnboundIn(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
             "table_schema_simple",
             True,
             False,
         ),
         (
-            base.UnboundIn(base.UnboundReference("location.latitude"), [literals.DecimalLiteral(Decimal("3"))]),
+            base.In(base.UnboundReference("location.latitude"), [literals.DecimalLiteral(Decimal("3"))]),
             "table_schema_nested",
             True,
             True,
@@ -199,14 +199,14 @@ def test_bind(a, schema, case_sensitive, success, request):
         (TestExpressionA(), TestExpressionA(), TestExpressionB()),
         (TestExpressionB(), TestExpressionB(), TestExpressionA()),
         (
-            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
-            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
-            base.UnboundIn(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
         ),
         (
-            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
-            base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
-            base.UnboundIn(base.UnboundReference("foo"), [literal("goodbye"), literal("world")]),
+            base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("foo"), [literal("goodbye"), literal("world")]),
         ),
     ],
 )
@@ -220,7 +220,7 @@ def test_eq(exp, testexpra, testexprb):
         (base.And(TestExpressionA(), TestExpressionB()), base.Or(TestExpressionB(), TestExpressionA()), False),
         (base.Or(TestExpressionA(), TestExpressionB()), base.And(TestExpressionB(), TestExpressionA()), False),
         (base.Not(TestExpressionA()), TestExpressionA(), False),
-        (base.UnboundIn(base.UnboundReference("foo"), [literal("hello"), literal("world")]), None, True),
+        (base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]), None, True),
         (TestExpressionA(), TestExpressionB(), False),
     ],
 )

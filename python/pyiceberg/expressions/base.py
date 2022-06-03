@@ -88,10 +88,6 @@ class BoundPredicate(ABC):
         self._left = left
         self._right = right
 
-    @abstractmethod
-    def eval(self, struct: StructProtocol) -> bool:
-        """Evaluate the bound predicate"""
-
 
 class UnboundPredicate:
     def __init__(self, left, right):
@@ -235,7 +231,7 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
 
 
 @dataclass
-class UnboundIn(BooleanExpression, UnboundPredicate):
+class In(BooleanExpression, UnboundPredicate):
     term: "UnboundReference"
     literal: List[Literal]
 
@@ -254,9 +250,6 @@ class BoundIn(BooleanExpression, BoundPredicate):
 
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
-
-    def eval(self, struct: StructProtocol):
-        return self.term.eval(struct)
 
 
 @dataclass
