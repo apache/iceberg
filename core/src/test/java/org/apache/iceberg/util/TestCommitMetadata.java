@@ -17,11 +17,9 @@ package org.apache.iceberg.util;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -34,7 +32,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopTableTestBase;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -56,11 +53,6 @@ public class TestCommitMetadata {
       required(2, "data", Types.StringType.get())
   );
 
-  // Partition spec used to create tables
-  static final PartitionSpec SPEC = PartitionSpec.builderFor(TABLE_SCHEMA)
-      .bucket("data", 16)
-      .build();
-
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -69,7 +61,11 @@ public class TestCommitMetadata {
     File dir = temp.newFolder();
     dir.delete();
     int threadsCount = 3;
-    Table table = new HadoopTables(new Configuration()).create(TABLE_SCHEMA, SPEC,
+    Table table = new HadoopTables(new Configuration()).create(
+        TABLE_SCHEMA,
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .bucket("data", 16)
+            .build(),
         ImmutableMap.of(COMMIT_NUM_RETRIES, String.valueOf(threadsCount)), dir.toURI().toString());
 
     String fileName = UUID.randomUUID().toString();
