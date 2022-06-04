@@ -31,7 +31,6 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -251,12 +250,8 @@ public abstract class SparkTestBase {
   }
 
   protected static void createNamespace(SupportsNamespaces catalog, Namespace namespace) {
-    try {
-      if (!catalog.namespaceExists(namespace)) {
-        catalog.createNamespace(namespace);
-      }
-    } catch (AlreadyExistsException ignored) {
-      // the namespace already exists. ignore the create error
+    if (!catalog.namespaceExists(namespace)) {
+      catalog.createNamespace(namespace);
     }
   }
 

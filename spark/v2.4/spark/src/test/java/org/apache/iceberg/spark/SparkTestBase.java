@@ -27,7 +27,6 @@ import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -69,13 +68,9 @@ public abstract class SparkTestBase {
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
-    try {
-      Namespace defaultNamespace = Namespace.of("default");
-      if (!catalog.namespaceExists(defaultNamespace)) {
-        catalog.createNamespace(defaultNamespace);
-      }
-    } catch (AlreadyExistsException ignored) {
-      // the default namespace already exists. ignore the create error
+    Namespace defaultNamespace = Namespace.of("default");
+    if (!catalog.namespaceExists(defaultNamespace)) {
+      catalog.createNamespace(defaultNamespace);
     }
   }
 

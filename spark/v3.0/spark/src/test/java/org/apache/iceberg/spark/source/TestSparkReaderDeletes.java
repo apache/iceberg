@@ -41,7 +41,6 @@ import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.CloseableIterable;
@@ -86,13 +85,9 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
-    try {
-      Namespace defaultNamespace = Namespace.of("default");
-      if (!catalog.namespaceExists(defaultNamespace)) {
-        catalog.createNamespace(defaultNamespace);
-      }
-    } catch (AlreadyExistsException ignored) {
-      // the default namespace already exists. ignore the create error
+    Namespace defaultNamespace = Namespace.of("default");
+    if (!catalog.namespaceExists(defaultNamespace)) {
+      catalog.createNamespace(defaultNamespace);
     }
   }
 
