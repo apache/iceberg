@@ -23,7 +23,19 @@ lint:
 	poetry run pre-commit run --all-files
 
 test:
-	poetry run coverage run --source=src/ -m pytest tests/
+	poetry run coverage run --source=src/ -m pytest tests/ -m "not s3"
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml
+
+test-s3:
+	poetry run coverage run --source=src/ -m pytest tests/ -m "s3"
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml
+
+test-all:
+	poetry run coverage run --source=src/ -m pytest tests/ -m "marked or not marked"
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
 	poetry run coverage xml
