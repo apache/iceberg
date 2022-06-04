@@ -21,14 +21,10 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.math.RoundingMode;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -45,17 +41,19 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
-import org.apache.iceberg.spark.CommitMetadata;
+import org.apache.iceberg.spark.CallerWithCommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.glassfish.jersey.internal.guava.Sets;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -420,55 +418,51 @@ public class TestDataSourceOptions {
     String tableLocation = temp.newFolder("iceberg-table").toString();
     HadoopTables tables = new HadoopTables(CONF);
     int threadsCount = 3;
-    ExecutorService executorService = Executors.newFixedThreadPool(threadsCount, new ThreadFactory() {
+    ExecutorService executorService = null;
+    try {
+      executorService = ThreadPools.newWorkerPool("thread", threadsCount);
 
-      private AtomicInteger currentThreadCount = new AtomicInteger(0);
+      Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
-      @Override
-      public Thread newThread(Runnable r) {
-        return new Thread(r, "thread-" + currentThreadCount.getAndIncrement());
-      }
-    });
+      List<SimpleRecord> expectedRecords = Lists.newArrayList(
+          new SimpleRecord(1, "a"),
+          new SimpleRecord(2, "b")
+      );
+      Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+      originalDf.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(tableLocation);
+      spark.read().format("iceberg").load(tableLocation).createOrReplaceTempView("target");
 
-    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
-
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b")
-    );
-    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX + ".extra-key", "someValue")
-        .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX + ".another-key", "anotherValue")
-        .save(tableLocation);
-    spark.read().format("iceberg").load(tableLocation).createOrReplaceTempView("target");
-    Tasks
-        .range(threadsCount)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(executorService)
-        .run(index -> {
-              Map<String, String> properties = Maps.newHashMap();
-              properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
-              try {
-                CommitMetadata.withCommitProperties(properties, () -> {
+      Tasks
+          .range(threadsCount)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(executorService)
+          .run(index -> {
+                Map<String, String> properties = Maps.newHashMap();
+                properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+                CallerWithCommitMetadata.withCommitProperties(properties, () -> {
                   spark.sql("INSERT INTO target VALUES (3, 'c'), (4, 'd')");
                   return 0;
                 });
-              } catch (Exception e) {
-                e.printStackTrace();
               }
-            }
-        );
-    Set<String> threadNames = new HashSet<>();
-    for (Snapshot snapshot : table.snapshots()) {
-      threadNames.add(snapshot.summary().get("writer-thread"));
+          );
+
+      Set<String> threadNames = Sets.newHashSet();
+      for (Snapshot snapshot : table.snapshots()) {
+        threadNames.add(snapshot.summary().get("writer-thread"));
+      }
+
+      assertTrue(threadNames.contains("thread-0"));
+      assertTrue(threadNames.contains("thread-1"));
+      assertTrue(threadNames.contains("thread-2"));
+    } finally {
+      if (executorService != null) {
+        executorService.shutdown();
+      }
     }
-    assertTrue(threadNames.contains("thread-0"));
-    assertTrue(threadNames.contains("thread-1"));
-    assertTrue(threadNames.contains("thread-2"));
 
   }
 }
