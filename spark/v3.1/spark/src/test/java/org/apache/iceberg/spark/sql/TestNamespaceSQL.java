@@ -142,20 +142,9 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     List<Object[]> namespaces = sql("SHOW NAMESPACES IN %s", catalogName);
 
-    if (isHadoopCatalog) {
-      Assert.assertEquals("Should have 1 namespace", 1, namespaces.size());
-      Set<String> namespaceNames =
-          namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
-      Assert.assertEquals("Should have only db namespace", ImmutableSet.of("db"), namespaceNames);
-    } else {
-      Assert.assertEquals("Should have 2 namespaces", 2, namespaces.size());
-      Set<String> namespaceNames =
-          namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
-      Assert.assertEquals(
-          "Should have default and db namespaces",
-          ImmutableSet.of("default", "db"),
-          namespaceNames);
-    }
+    Assert.assertEquals("Should have 2 namespaces", 2, namespaces.size());
+    Set<String> namespaceNames = namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
+    Assert.assertEquals("Should have default and db namespaces", ImmutableSet.of("default", "db"), namespaceNames);
 
     List<Object[]> nestedNamespaces = sql("SHOW NAMESPACES IN %s", fullNamespace);
 

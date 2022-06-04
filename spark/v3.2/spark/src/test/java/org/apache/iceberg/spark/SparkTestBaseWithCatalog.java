@@ -89,17 +89,7 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
     this.tableName =
         (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
-    // When Hive API is invoked to create Namespace/Database using CREATE IF NOT EXISTS, the standalone HMS logs an
-    // AlreadyExistsException exception in the test logs thereby generating unwanted error logs. Thus checking if a
-    // namespace exists before creating one to keep the test logs noise-free.
-    // HMS is not involved in case HadoopCatalog, thus skipping the check for HadoopCatalog.
-    if (isHadoopCatalog) {
-      sql("CREATE NAMESPACE IF NOT EXISTS default");
-    } else {
-      if (!validationNamespaceCatalog.namespaceExists(Namespace.of("default"))) {
-        sql("CREATE NAMESPACE IF NOT EXISTS " + catalogName + ".default");
-      }
-    }
+    createNamespace(validationNamespaceCatalog, Namespace.of("default"));
   }
 
   protected String tableName(String name) {

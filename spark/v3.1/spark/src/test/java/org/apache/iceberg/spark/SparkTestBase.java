@@ -30,6 +30,7 @@ import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
@@ -75,14 +76,7 @@ public abstract class SparkTestBase {
             CatalogUtil.loadCatalog(
                 HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
-    try {
-      Namespace defaultNamespace = Namespace.of("default");
-      if (!catalog.namespaceExists(defaultNamespace)) {
-        catalog.createNamespace(defaultNamespace);
-      }
-    } catch (AlreadyExistsException ignored) {
-      // the default namespace already exists. ignore the create error
-    }
+    createNamespace(catalog, Namespace.of("default"));
   }
 
   @AfterClass
@@ -254,6 +248,16 @@ public abstract class SparkTestBase {
             .filter(x -> metricsIds.containsKey(x.getKey()))
             .collect(Collectors.toMap(x -> metricsIds.get(x.getKey()), x -> x.getValue()));
     Assert.assertEquals("Expected metric value not match", expectedMetrics, currentMetrics);
+  }
+
+  protected static void createNamespace(SupportsNamespaces catalog, Namespace namespace) {
+    try {
+      if (!catalog.namespaceExists(namespace)) {
+        catalog.createNamespace(namespace);
+      }
+    } catch (AlreadyExistsException ignored) {
+      // the namespace already exists. ignore the create error
+    }
   }
 
   @FunctionalInterface
