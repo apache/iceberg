@@ -20,6 +20,8 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -38,9 +40,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.PropertyUtil;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Table table;
+  private final Map<String, String> properties;
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
@@ -59,7 +66,18 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   FileFormat format,
                                   List<Integer> equalityFieldIds,
                                   boolean upsert) {
+    this(table, table.properties(), flinkSchema, targetFileSizeBytes, format, equalityFieldIds, upsert);
+  }
+
+  public RowDataTaskWriterFactory(Table table,
+                                  Map<String, String> properties,
+                                  RowType flinkSchema,
+                                  long targetFileSizeBytes,
+                                  FileFormat format,
+                                  List<Integer> equalityFieldIds,
+                                  boolean upsert) {
     this.table = table;
+    this.properties = properties;
     this.schema = table.schema();
     this.flinkSchema = flinkSchema;
     this.spec = table.spec();
@@ -70,22 +88,26 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, properties, spec);
     } else if (upsert) {
       // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of the inserted row
       // may differ from the deleted row other than the primary key fields, and the delete file must contain values
       // that are correct for the deleted row. Therefore, only write the equality delete fields.
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, properties, spec,
           ArrayUtil.toIntArray(equalityFieldIds), TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)), null);
     } else {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, properties, spec,
           ArrayUtil.toIntArray(equalityFieldIds), schema, null);
     }
   }
 
   @Override
   public void initialize(int taskId, int attemptId) {
-    this.outputFileFactory = OutputFileFactory.builderFor(table, taskId, attemptId).build();
+    String formatAsString = PropertyUtil.propertyAsString(properties, DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+    FileFormat fileFormat = FileFormat.valueOf(formatAsString.toUpperCase(Locale.ROOT));
+    this.outputFileFactory = OutputFileFactory.builderFor(table, taskId, attemptId)
+        .format(fileFormat)
+        .build();
   }
 
   @Override

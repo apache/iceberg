@@ -140,6 +140,7 @@ public class FlinkSink {
     private String uidPrefix = null;
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
     private ReadableConfig readableConfig = new Configuration();
+    private Map<String, String> props = Maps.newHashMap();
 
     private Builder() {
     }
@@ -188,6 +189,24 @@ public class FlinkSink {
      */
     public Builder tableLoader(TableLoader newTableLoader) {
       this.tableLoader = newTableLoader;
+      return this;
+    }
+
+    /**
+     * Set the write properties for Flink sink. Write properties (with the same keys) defined in table properties
+     * will be overwritten by properties provided here.
+     */
+    public Builder set(String property, String value) {
+      props.put(property, value);
+      return this;
+    }
+
+    /**
+     * Set the write properties for Flink sink. Write properties (with the same keys) defined in table properties
+     * will be overwritten by properties provided here.
+     */
+    public Builder setAll(Map<String, String> properties) {
+      props.putAll(properties);
       return this;
     }
 
@@ -308,6 +327,10 @@ public class FlinkSink {
         }
       }
 
+      Map<String, String> mergedProps = Maps.newHashMap(table.properties());
+      mergedProps.putAll(props);
+      this.props = mergedProps;
+
       // Find out the equality field id list based on the user-provided equality field column names.
       List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds();
 
@@ -316,11 +339,11 @@ public class FlinkSink {
 
       // Distribute the records from input data stream based on the write.distribution-mode and equality fields.
       DataStream<RowData> distributeStream = distributeDataStream(
-          rowDataInput, table.properties(), equalityFieldIds, table.spec(), table.schema(), flinkRowType);
+          rowDataInput, props, equalityFieldIds, table.spec(), table.schema(), flinkRowType);
 
       // Add parallel writers that append rows to files
       SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(distributeStream, flinkRowType,
-          equalityFieldIds);
+          equalityFieldIds, props);
 
       // Add single-parallelism committer that commits files
       // after successful checkpoint or end of input
@@ -392,10 +415,11 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType,
-                                                                 List<Integer> equalityFieldIds) {
+                                                                 List<Integer> equalityFieldIds,
+                                                                 Map<String, String> properties) {
 
       // Fallback to use upsert mode parsed from table properties if don't specify in job level.
-      boolean upsertMode = upsert || PropertyUtil.propertyAsBoolean(table.properties(),
+      boolean upsertMode = upsert || PropertyUtil.propertyAsBoolean(properties,
           UPSERT_ENABLED, UPSERT_ENABLED_DEFAULT);
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
@@ -413,7 +437,8 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds, upsertMode);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, properties, flinkRowType, equalityFieldIds,
+          upsertMode);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream = input
@@ -511,18 +536,17 @@ public class FlinkSink {
   }
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table,
+                                                         Map<String, String> props,
                                                          RowType flinkRowType,
                                                          List<Integer> equalityFieldIds,
                                                          boolean upsert) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
-    Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
     Table serializableTable = SerializableTable.copyOf(table);
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
-        serializableTable, flinkRowType, targetFileSize,
-        fileFormat, equalityFieldIds, upsert);
+        serializableTable, props, flinkRowType, targetFileSize, fileFormat, equalityFieldIds, upsert);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
