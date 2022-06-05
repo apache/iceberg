@@ -369,6 +369,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       ScheduledExecutorService service = refreshExecutor;
       this.refreshExecutor = null;
 
+      service.shutdown();
       try {
         if (service.awaitTermination(1, TimeUnit.MINUTES)) {
           LOG.warn("Timed out waiting for refresh executor to terminate");
