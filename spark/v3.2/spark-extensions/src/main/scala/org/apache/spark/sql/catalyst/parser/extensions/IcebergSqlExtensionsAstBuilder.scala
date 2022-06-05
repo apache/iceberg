@@ -119,6 +119,11 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   /**
+   * passThrough
+   */
+  override def visitPassThrough(ctx: PassThroughContext): LogicalPlan = null
+
+  /**
    * Create a [[SetWriteDistributionAndOrdering]] for changing the write distribution and ordering.
    */
   override def visitSetWriteDistributionAndOrdering(

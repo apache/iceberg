@@ -117,17 +117,18 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
    */
   override def parsePlan(sqlText: String): LogicalPlan = {
     val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
-    if (isIcebergCommand(sqlTextAfterSubstitution)) {
-      parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
-    } else {
-      val parsedPlan = delegate.parsePlan(sqlText)
-      parsedPlan match {
-        case e: ExplainCommand =>
-          e.copy(logicalPlan = replaceRowLevelCommands(e.logicalPlan))
-        case p =>
-          replaceRowLevelCommands(p)
+    parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) match {
+      case plan: LogicalPlan => plan
+      case _ => {
+        val parsedPlan = delegate.parsePlan(sqlText)
+        parsedPlan match {
+          case e: ExplainCommand =>
+            e.copy(logicalPlan = replaceRowLevelCommands(e.logicalPlan))
+          case p =>
+            replaceRowLevelCommands(p)
+        }
       }
-    }
+    }}
   }
 
   private def replaceRowLevelCommands(plan: LogicalPlan): LogicalPlan = plan resolveOperatorsDown {
@@ -173,29 +174,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       case _: SparkTable => true
       case _ => false
     }
-  }
-
-  private def isIcebergCommand(sqlText: String): Boolean = {
-    val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
-      // Strip simple SQL comments that terminate a line, e.g. comments starting with `--` .
-      .replaceAll("--.*?\\n", " ")
-      // Strip newlines.
-      .replaceAll("\\s+", " ")
-      // Strip comments of the form  /* ... */. This must come after stripping newlines so that
-      // comments that span multiple lines are caught.
-      .replaceAll("/\\*.*?\\*/", " ")
-      .trim()
-    normalized.startsWith("call") || (
-        normalized.startsWith("alter table") && (
-            normalized.contains("add partition field") ||
-            normalized.contains("drop partition field") ||
-            normalized.contains("replace partition field") ||
-            normalized.contains("write ordered by") ||
-            normalized.contains("write locally ordered by") ||
-            normalized.contains("write distributed by") ||
-            normalized.contains("write unordered") ||
-            normalized.contains("set identifier fields") ||
-            normalized.contains("drop identifier fields")))
   }
 
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {
