@@ -58,7 +58,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestDataSourceOptions {

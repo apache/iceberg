@@ -1,5 +1,4 @@
 versionOverrides:
-  org.apache.iceberg:iceberg-api:release-base-0.12.0: "0.13.1"
   org.apache.iceberg:iceberg-api:release-base-0.13.0: "0.13.0"
 acceptedBreaks:
   release-base-0.13.0:
@@ -45,12 +44,10 @@ acceptedBreaks:
       justification: "Allow adding a new method to the interface - old method is deprecated"
     - code: "java.method.addedToInterface"
       new: "method long org.apache.iceberg.actions.ExpireSnapshots.Result::deletedEqualityDeleteFilesCount()"
-      justification: "Interface is backward compatible, very unlikely anyone implements\
-        \ this Result bean interface"
+      justification: "Interface is backward compatible, very unlikely anyone implements this Result bean interface"
     - code: "java.method.addedToInterface"
       new: "method long org.apache.iceberg.actions.ExpireSnapshots.Result::deletedPositionDeleteFilesCount()"
-      justification: "Interface is backward compatible, very unlikely anyone implements\
-        \ this Result bean interface"
+      justification: "Interface is backward compatible, very unlikely anyone implements this Result bean interface"
     - code: "java.method.addedToInterface"
       new: "method org.apache.iceberg.ExpireSnapshots org.apache.iceberg.ExpireSnapshots::planWith(java.util.concurrent.ExecutorService)"
       justification: "Accept all changes prior to introducing API compatibility checks"
