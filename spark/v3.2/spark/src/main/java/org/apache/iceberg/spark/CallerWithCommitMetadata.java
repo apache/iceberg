@@ -22,6 +22,7 @@ package org.apache.iceberg.spark;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.ExceptionUtil;
 
 /**
  * utility class to accept thread local commit properties
@@ -32,16 +33,16 @@ public class CallerWithCommitMetadata {
 
   private static final ThreadLocal<Map<String, String>> COMMIT_PROPERTIES = ThreadLocal.withInitial(ImmutableMap::of);
 
-  public static <R> R withCommitProperties(Map<String, String> properties, Callable<R> callable)
-      throws RuntimeException {
+  public static <R> R withCommitProperties(Map<String, String> properties, Callable<R> callable) {
     COMMIT_PROPERTIES.set(properties);
     try {
       return callable.call();
-    } catch (Exception e){
-      throw new RuntimeException(e);
+    } catch (Throwable e) {
+      ExceptionUtil.castAndThrow(e, RuntimeException.class);
     } finally {
       COMMIT_PROPERTIES.set(ImmutableMap.of());
     }
+    return null;
   }
 
   public static Map<String, String> commitProperties() {

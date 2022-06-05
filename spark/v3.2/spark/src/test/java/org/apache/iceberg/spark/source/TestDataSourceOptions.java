@@ -61,6 +61,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertTrue;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
@@ -414,55 +415,39 @@ public class TestDataSourceOptions {
   }
 
   @Test
-  public void testExtraSnapshotMetadataWithSQL() throws IOException {
+  public void testExtraSnapshotMetadataWithSQL() throws InterruptedException, IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
     HadoopTables tables = new HadoopTables(CONF);
-    int threadsCount = 3;
-    ExecutorService executorService = null;
-    try {
-      executorService = ThreadPools.newWorkerPool("thread", threadsCount);
 
-      Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
-      List<SimpleRecord> expectedRecords = Lists.newArrayList(
-          new SimpleRecord(1, "a"),
-          new SimpleRecord(2, "b")
-      );
-      Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-      originalDf.select("id", "data").write()
-          .format("iceberg")
-          .mode("append")
-          .save(tableLocation);
-      spark.read().format("iceberg").load(tableLocation).createOrReplaceTempView("target");
-
-      Tasks
-          .range(threadsCount)
-          .stopOnFailure()
-          .throwFailureWhenFinished()
-          .executeWith(executorService)
-          .run(index -> {
-                Map<String, String> properties = Maps.newHashMap();
-                properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
-                CallerWithCommitMetadata.withCommitProperties(properties, () -> {
-                  spark.sql("INSERT INTO target VALUES (3, 'c'), (4, 'd')");
-                  return 0;
-                });
-              }
-          );
-
-      Set<String> threadNames = Sets.newHashSet();
-      for (Snapshot snapshot : table.snapshots()) {
-        threadNames.add(snapshot.summary().get("writer-thread"));
-      }
-
-      assertTrue(threadNames.contains("thread-0"));
-      assertTrue(threadNames.contains("thread-1"));
-      assertTrue(threadNames.contains("thread-2"));
-    } finally {
-      if (executorService != null) {
-        executorService.shutdown();
-      }
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+    spark.read().format("iceberg").load(tableLocation).createOrReplaceTempView("target");
+    Thread writerThread = new Thread(() -> {
+      Map<String, String> properties = Maps.newHashMap();
+      properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+      CallerWithCommitMetadata.withCommitProperties(properties, () -> {
+        spark.sql("INSERT INTO target VALUES (3, 'c'), (4, 'd')");
+        return 0;
+      });
+    });
+    writerThread.setName("test-extra-commit-message-writer-thread");
+    writerThread.start();
+    writerThread.join();
+    Set<String> threadNames = Sets.newHashSet();
+    for (Snapshot snapshot: table.snapshots()) {
+      threadNames.add(snapshot.summary().get("writer-thread"));
     }
-
+    assertEquals(2, threadNames.size());
+    assertTrue(threadNames.contains(null));
+    assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
   }
 }
