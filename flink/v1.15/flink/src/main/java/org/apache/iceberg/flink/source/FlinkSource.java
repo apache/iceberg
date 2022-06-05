@@ -184,8 +184,8 @@ public class FlinkSource {
       return this;
     }
 
-    public Builder monitorSnapshotNumber(int newMonitorSnapshotNumber) {
-      contextBuilder.monitorSnapshotNumber(newMonitorSnapshotNumber);
+    public Builder maxSnapshotsPerMonitorInterval(int newMaxSnapshotsPerMonitorInterval) {
+      contextBuilder.maxSnapshotsPerMonitorInterval(newMaxSnapshotsPerMonitorInterval);
       return this;
     }
 

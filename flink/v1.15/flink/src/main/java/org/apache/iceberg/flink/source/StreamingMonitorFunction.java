@@ -83,6 +83,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "Cannot set as-of-timestamp option for streaming reader");
     Preconditions.checkArgument(scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
+    Preconditions.checkArgument(scanContext.maxSnapshotsPerMonitorInterval() > 0,
+        "The max snapshots per monitor interval must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
   }
@@ -135,8 +137,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   public void run(SourceContext<FlinkInputSplit> ctx) throws Exception {
     this.sourceContext = ctx;
     while (isRunning) {
-      LOG.info("Start polling snapshots from snapshot id: {}, monitor snapshot number {}", lastSnapshotId,
-          scanContext.monitorSnapshotNumber());
+      LOG.debug("Start polling snapshots from snapshot id: {}, max-snapshots-per-monitor-interval: {}", lastSnapshotId,
+          scanContext.maxSnapshotsPerMonitorInterval());
       long start = System.currentTimeMillis();
       long startSnapshotId = lastSnapshotId;
       synchronized (sourceContext.getCheckpointLock()) {
@@ -144,7 +146,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
           monitorAndForwardSplits();
         }
       }
-      LOG.info("Forwarded splits from {}(exclusive) to {}(inclusive), time elapsed {}ms",
+      LOG.debug("Forwarded splits from {}(exclusive) to {}(inclusive), time elapsed {}ms",
           startSnapshotId, lastSnapshotId, System.currentTimeMillis() - start);
       Thread.sleep(scanContext.monitorInterval().toMillis());
     }
@@ -163,10 +165,10 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
         List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastSnapshotId, snapshot.snapshotId());
-        if (snapshotIds.size() < scanContext.monitorSnapshotNumber()) {
+        if (snapshotIds.size() < scanContext.maxSnapshotsPerMonitorInterval()) {
           snapshotId = snapshot.snapshotId();
         } else {
-          snapshotId = snapshotIds.get(snapshotIds.size() - scanContext.monitorSnapshotNumber());
+          snapshotId = snapshotIds.get(snapshotIds.size() - scanContext.maxSnapshotsPerMonitorInterval());
         }
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }

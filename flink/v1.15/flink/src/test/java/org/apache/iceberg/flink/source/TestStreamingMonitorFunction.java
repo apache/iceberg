@@ -215,7 +215,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     for (int monitorNumber = 1; monitorNumber < 11; monitorNumber = monitorNumber + 1) {
       ScanContext scanContext = ScanContext.builder()
           .monitorInterval(Duration.ofMillis(100))
-          .monitorSnapshotNumber(monitorNumber)
+          .maxSnapshotsPerMonitorInterval(monitorNumber)
           .build();
 
       StreamingMonitorFunction function = createFunction(scanContext);
