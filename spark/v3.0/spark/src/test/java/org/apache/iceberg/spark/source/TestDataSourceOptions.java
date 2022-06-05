@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -31,6 +32,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -38,6 +40,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
+import org.apache.iceberg.spark.CallerWithCommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
@@ -47,6 +50,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
+import org.glassfish.jersey.internal.guava.Sets;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -54,6 +58,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static junit.framework.TestCase.assertEquals;
+import static junit.framework.TestCase.assertTrue;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestDataSourceOptions {
@@ -403,5 +409,42 @@ public class TestDataSourceOptions {
 
     Assert.assertTrue(table.currentSnapshot().summary().get("extra-key").equals("someValue"));
     Assert.assertTrue(table.currentSnapshot().summary().get("another-key").equals("anotherValue"));
+  }
+
+  @Test
+  public void testExtraSnapshotMetadataWithSQL() throws InterruptedException, IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+
+    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+            .format("iceberg")
+            .mode("append")
+            .save(tableLocation);
+    spark.read().format("iceberg").load(tableLocation).createOrReplaceTempView("target");
+    Thread writerThread = new Thread(() -> {
+      Map<String, String> properties = Maps.newHashMap();
+      properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+      CallerWithCommitMetadata.withCommitProperties(properties, () -> {
+        spark.sql("INSERT INTO target VALUES (3, 'c'), (4, 'd')");
+        return 0;
+      }, RuntimeException.class);
+    });
+    writerThread.setName("test-extra-commit-message-writer-thread");
+    writerThread.start();
+    writerThread.join();
+    Set<String> threadNames = Sets.newHashSet();
+    for (Snapshot snapshot: table.snapshots()) {
+      threadNames.add(snapshot.summary().get("writer-thread"));
+    }
+    assertEquals(2, threadNames.size());
+    assertTrue(threadNames.contains(null));
+    assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
   }
 }
