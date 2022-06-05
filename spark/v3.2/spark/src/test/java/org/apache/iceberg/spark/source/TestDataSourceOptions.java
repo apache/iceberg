@@ -437,7 +437,7 @@ public class TestDataSourceOptions {
       CallerWithCommitMetadata.withCommitProperties(properties, () -> {
         spark.sql("INSERT INTO target VALUES (3, 'c'), (4, 'd')");
         return 0;
-      });
+      }, RuntimeException.class);
     });
     writerThread.setName("test-extra-commit-message-writer-thread");
     writerThread.start();

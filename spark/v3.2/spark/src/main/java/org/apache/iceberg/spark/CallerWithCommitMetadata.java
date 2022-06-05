@@ -33,12 +33,20 @@ public class CallerWithCommitMetadata {
 
   private static final ThreadLocal<Map<String, String>> COMMIT_PROPERTIES = ThreadLocal.withInitial(ImmutableMap::of);
 
-  public static <R> R withCommitProperties(Map<String, String> properties, Callable<R> callable) {
+  /**
+   * running the code wrapped as a caller, and any snapshot committed within the callable object will be attached with
+   * the metadata defined in properties
+   * @param properties extra commit metadata to attach to the snapshot committed within callable
+   * @param callable the code to be executed
+   * @param exClass the expected type of exception which would be thrown from callable
+   */
+  public static <R, E extends Exception> R withCommitProperties(
+      Map<String, String> properties, Callable<R> callable, Class<E> exClass) throws E {
     COMMIT_PROPERTIES.set(properties);
     try {
       return callable.call();
     } catch (Throwable e) {
-      ExceptionUtil.castAndThrow(e, RuntimeException.class);
+      ExceptionUtil.castAndThrow(e, exClass);
     } finally {
       COMMIT_PROPERTIES.set(ImmutableMap.of());
     }
