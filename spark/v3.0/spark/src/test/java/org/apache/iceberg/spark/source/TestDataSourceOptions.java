@@ -39,6 +39,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.spark.CallerWithCommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -50,7 +51,6 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.glassfish.jersey.internal.guava.Sets;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -58,8 +58,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.assertTrue;
+
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestDataSourceOptions {
@@ -251,7 +250,7 @@ public class TestDataSourceOptions {
     AssertHelpers.assertThrows(
         "Check both start-snapshot-id and snapshot-id are configured",
         IllegalArgumentException.class,
-        "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan",
+        "Cannot set start-snapshot-id and end-snapshot-id for incremental scans",
         () -> {
           spark.read()
               .format("iceberg")
@@ -264,7 +263,7 @@ public class TestDataSourceOptions {
     AssertHelpers.assertThrows(
         "Check both start-snapshot-id and snapshot-id are configured",
         IllegalArgumentException.class,
-        "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan",
+        "Cannot set start-snapshot-id and end-snapshot-id for incremental scans",
         () -> {
           spark.read()
               .format("iceberg")
@@ -278,7 +277,7 @@ public class TestDataSourceOptions {
     AssertHelpers.assertThrows(
         "Check both start-snapshot-id and snapshot-id are configured",
         IllegalArgumentException.class,
-        "Cannot only specify option end-snapshot-id to do incremental scan",
+        "Cannot set only end-snapshot-id for incremental scans",
         () -> {
           spark.read()
               .format("iceberg")
@@ -419,14 +418,14 @@ public class TestDataSourceOptions {
     Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
     List<SimpleRecord> expectedRecords = Lists.newArrayList(
-            new SimpleRecord(1, "a"),
-            new SimpleRecord(2, "b")
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
     );
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
     originalDf.select("id", "data").write()
-            .format("iceberg")
-            .mode("append")
-            .save(tableLocation);
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
     spark.read().format("iceberg").load(tableLocation).createOrReplaceTempView("target");
     Thread writerThread = new Thread(() -> {
       Map<String, String> properties = Maps.newHashMap();
@@ -440,11 +439,11 @@ public class TestDataSourceOptions {
     writerThread.start();
     writerThread.join();
     Set<String> threadNames = Sets.newHashSet();
-    for (Snapshot snapshot: table.snapshots()) {
+    for (Snapshot snapshot : table.snapshots()) {
       threadNames.add(snapshot.summary().get("writer-thread"));
     }
-    assertEquals(2, threadNames.size());
-    assertTrue(threadNames.contains(null));
-    assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
+    Assert.assertEquals(2, threadNames.size());
+    Assert.assertTrue(threadNames.contains(null));
+    Assert.assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
   }
 }
