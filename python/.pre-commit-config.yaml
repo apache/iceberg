@@ -45,3 +45,8 @@ repos:
       hooks:
         - id: pycln
           args: [--config=python/pyproject.toml]
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v2.32.1
+    hooks:
+      - id: pyupgrade
+        args: [--py38-plus]
