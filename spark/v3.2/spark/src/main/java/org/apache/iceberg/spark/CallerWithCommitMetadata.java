@@ -49,10 +49,10 @@ public class CallerWithCommitMetadata {
       return callable.call();
     } catch (Throwable e) {
       ExceptionUtil.castAndThrow(e, exClass);
+      return null;
     } finally {
       COMMIT_PROPERTIES.set(ImmutableMap.of());
     }
-    return null;
   }
 
   public static Map<String, String> commitProperties() {
