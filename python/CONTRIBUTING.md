@@ -46,6 +46,8 @@ Pre-commit will automatically fix the violations such as import orders, formatti
 
 In contrast to the name suggest, it doesn't run the checks on the commit. If this is something that you like, you can set this up by running `pre-commit install`.
 
+You can bump the integrations to the latest version using `pre-commit autoupdate`. This will check if there is a newer version of `{black,mypy,isort,...}` and update the yaml.
+
 ## Testing
 
 For Python, we use pytest in combination with coverage to maintain 90% code coverage.

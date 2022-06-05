@@ -17,40 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.expressions;
+package org.apache.iceberg.spark.source;
 
-import java.io.ObjectStreamException;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 
-/**
- * An {@link Expression expression} that is always false.
- */
-public class False implements Expression {
-  static final False INSTANCE = new False();
+public interface HasIcebergCatalog extends TableCatalog {
 
-  private False() {
-  }
-
-  @Override
-  public Operation op() {
-    return Operation.FALSE;
-  }
-
-  @Override
-  public Expression negate() {
-    return True.INSTANCE;
-  }
-
-  @Override
-  public boolean isEquivalentTo(Expression other) {
-    return other.op() == Operation.FALSE;
-  }
-
-  @Override
-  public String toString() {
-    return "false";
-  }
-
-  Object writeReplace() throws ObjectStreamException {
-    return new SerializationProxies.ConstantExpressionProxy(false);
-  }
+  /**
+   * Returns the underlying {@link org.apache.iceberg.catalog.Catalog} backing this Spark Catalog
+   */
+  Catalog icebergCatalog();
 }
