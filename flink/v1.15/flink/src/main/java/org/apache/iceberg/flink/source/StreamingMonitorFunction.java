@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ListState;
@@ -36,6 +35,7 @@ import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -83,7 +83,9 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "Cannot set as-of-timestamp option for streaming reader");
     Preconditions.checkArgument(scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
-    Preconditions.checkArgument(scanContext.maxSnapshotsPerMonitorInterval() > 0,
+    Preconditions.checkArgument(scanContext.maxSnapshotsPerMonitorInterval() > 0 ||
+            scanContext.maxSnapshotsPerMonitorInterval() ==
+                FlinkConfigOptions.MAX_SNAPSHOTS_PER_MONITOR_INTERVAL_DEFAULT,
         "The max snapshots per monitor interval must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
@@ -152,6 +154,15 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     }
   }
 
+  private long maxReachableSnapshotId(long snapshotId, int maxSnapshotsPerMonitorInterval) {
+    long cur = snapshotId;
+    for (int i = 0; i < maxSnapshotsPerMonitorInterval; i = i + 1) {
+      cur = SnapshotUtil.snapshotAfter(table, cur).snapshotId();
+    }
+
+    return cur;
+  }
+
   private void monitorAndForwardSplits() {
     // Refresh the table to get the latest committed snapshot.
     table.refresh();
@@ -164,11 +175,11 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
-        List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastSnapshotId, snapshot.snapshotId());
-        if (snapshotIds.size() < scanContext.maxSnapshotsPerMonitorInterval()) {
+        if (scanContext.maxSnapshotsPerMonitorInterval() ==
+            FlinkConfigOptions.MAX_SNAPSHOTS_PER_MONITOR_INTERVAL_DEFAULT) {
           snapshotId = snapshot.snapshotId();
         } else {
-          snapshotId = snapshotIds.get(snapshotIds.size() - scanContext.maxSnapshotsPerMonitorInterval());
+          snapshotId = maxReachableSnapshotId(lastSnapshotId, scanContext.maxSnapshotsPerMonitorInterval());
         }
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }

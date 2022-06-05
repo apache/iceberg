@@ -32,6 +32,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -45,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -209,14 +211,47 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   }
 
   @Test
-  public void testConsumeWithDifferentMonitorSnapshotNumbers() throws Exception {
+  public void testConsumeWithInvalidMaxSnapshotsPerMonitorInterval() {
+    final ScanContext scanContext1 = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .maxSnapshotsPerMonitorInterval(0)
+        .build();
+
+    AssertHelpers.assertThrows("Should throw exception because of invalid config",
+        IllegalArgumentException.class, "must be greater than zero",
+        () -> {
+          createFunction(scanContext1);
+          return null;
+        }
+    );
+
+    final ScanContext scanContext2 = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .maxSnapshotsPerMonitorInterval(-10)
+        .build();
+
+    AssertHelpers.assertThrows("Should throw exception because of invalid config",
+        IllegalArgumentException.class, "must be greater than zero",
+        () -> {
+          createFunction(scanContext2);
+          return null;
+        }
+    );
+  }
+
+  @Test
+  public void testConsumeWithMaxSnapshotsPerMonitorInterval() throws Exception {
     List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
 
-    for (int monitorNumber = 1; monitorNumber < 11; monitorNumber = monitorNumber + 1) {
+    for (int maxSnapshotsNum = 1; maxSnapshotsNum < 11; maxSnapshotsNum = maxSnapshotsNum + 1) {
       ScanContext scanContext = ScanContext.builder()
           .monitorInterval(Duration.ofMillis(100))
-          .maxSnapshotsPerMonitorInterval(monitorNumber)
+          .splitSize(1000L)
+          .maxSnapshotsPerMonitorInterval(maxSnapshotsNum)
           .build();
+
+      FlinkInputSplit[] expectedSplits = FlinkSplitPlanner
+          .planInputSplits(table, scanContext, ThreadPools.getWorkerPool());
 
       StreamingMonitorFunction function = createFunction(scanContext);
       try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
@@ -233,7 +268,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         // Stop the stream task.
         function.close();
 
-        Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
+        Assert.assertEquals("Should produce the expected splits", expectedSplits.length, sourceContext.splits.size());
         TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
       }
     }
