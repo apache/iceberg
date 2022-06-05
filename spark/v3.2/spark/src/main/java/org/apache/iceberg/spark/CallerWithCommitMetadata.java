@@ -29,7 +29,9 @@ import org.apache.iceberg.util.ExceptionUtil;
  */
 public class CallerWithCommitMetadata {
 
-  private CallerWithCommitMetadata() {}
+  private CallerWithCommitMetadata() {
+
+  }
 
   private static final ThreadLocal<Map<String, String>> COMMIT_PROPERTIES = ThreadLocal.withInitial(ImmutableMap::of);
 
