@@ -73,7 +73,8 @@ class ScanContext implements Serializable {
       ConfigOptions.key("include-column-stats").booleanType().defaultValue(false);
 
   private static final ConfigOption<Integer> MAX_SNAPSHOTS_PER_MONITOR_INTERVAL =
-      ConfigOptions.key("max-snapshot-per-monitor-interval").intType().defaultValue(-1);
+      ConfigOptions.key("max-snapshot-per-monitor-interval").intType()
+          .defaultValue(FlinkConfigOptions.MAX_SNAPSHOTS_PER_MONITOR_INTERVAL_DEFAULT);
 
   private final boolean caseSensitive;
   private final boolean exposeLocality;

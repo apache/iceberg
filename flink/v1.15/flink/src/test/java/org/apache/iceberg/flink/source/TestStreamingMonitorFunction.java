@@ -211,7 +211,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   }
 
   @Test
-  public void testConsumeWithInvalidMaxSnapshotsPerMonitorInterval() {
+  public void testConsumeWithMaxSnapshotsPerMonitorInterval() throws Exception {
+    List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
+
     final ScanContext scanContext1 = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
         .maxSnapshotsPerMonitorInterval(0)
@@ -237,13 +239,8 @@ public class TestStreamingMonitorFunction extends TableTestBase {
           return null;
         }
     );
-  }
 
-  @Test
-  public void testConsumeWithMaxSnapshotsPerMonitorInterval() throws Exception {
-    List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
-
-    for (int maxSnapshotsNum = 1; maxSnapshotsNum < 11; maxSnapshotsNum = maxSnapshotsNum + 1) {
+    for (int maxSnapshotsNum = 1; maxSnapshotsNum < 15; maxSnapshotsNum = maxSnapshotsNum + 1) {
       ScanContext scanContext = ScanContext.builder()
           .monitorInterval(Duration.ofMillis(100))
           .splitSize(1000L)

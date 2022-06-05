@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ListState;
@@ -154,13 +155,16 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     }
   }
 
-  private long maxReachableSnapshotId(long snapshotId, int maxSnapshotsPerMonitorInterval) {
-    long cur = snapshotId;
-    for (int i = 0; i < maxSnapshotsPerMonitorInterval; i = i + 1) {
-      cur = SnapshotUtil.snapshotAfter(table, cur).snapshotId();
-    }
+  private long maxReachableSnapshotId(long lastConsumedSnapshotId, long latestSnapshotId,
+                                      int maxSnapshotsPerMonitorInterval) {
+    List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastConsumedSnapshotId, latestSnapshotId);
 
-    return cur;
+    if (snapshotIds.size() <= maxSnapshotsPerMonitorInterval) {
+      return latestSnapshotId;
+    } else {
+      // This doesn't consider snapshot inheritance since it is already checked in state initialization.
+      return snapshotIds.get(snapshotIds.size() - maxSnapshotsPerMonitorInterval);
+    }
   }
 
   private void monitorAndForwardSplits() {
@@ -179,7 +183,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
             FlinkConfigOptions.MAX_SNAPSHOTS_PER_MONITOR_INTERVAL_DEFAULT) {
           snapshotId = snapshot.snapshotId();
         } else {
-          snapshotId = maxReachableSnapshotId(lastSnapshotId, scanContext.maxSnapshotsPerMonitorInterval());
+          snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId, scanContext.maxSnapshotsPerMonitorInterval());
         }
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
