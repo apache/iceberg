@@ -24,8 +24,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -42,23 +44,27 @@ public class TestS3InputStream {
   @ClassRule
   public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
 
-  private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
+  private final S3Client s3Client = S3_MOCK_RULE.createS3ClientV2();
   private final Random random = new Random(1);
 
   @Before
   public void before() {
-    s3.createBucket(CreateBucketRequest.builder().bucket("bucket").build());
+    s3Client.createBucket(CreateBucketRequest.builder().bucket("bucket").build());
   }
 
   @Test
   public void testRead() throws Exception {
+    testRead(s3Client, new AwsProperties());
+  }
+
+  protected void testRead(S3Client s3, AwsProperties awsProperties) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
     int dataSize = 1024 * 1024 * 10;
     byte[] data = randomData(dataSize);
 
     writeS3Data(uri, data);
 
-    try (SeekableInputStream in = new S3InputStream(s3, uri)) {
+    try (SeekableInputStream in = new S3InputStream(s3, uri, awsProperties, MetricsContext.nullMetrics())) {
       int readSize = 1024;
       byte [] actual = new byte[readSize];
 
@@ -108,6 +114,10 @@ public class TestS3InputStream {
 
   @Test
   public void testRangeRead() throws Exception {
+    testRangeRead(s3Client, new AwsProperties());
+  }
+
+  protected void testRangeRead(S3Client s3, AwsProperties awsProperties) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/range-read.dat");
     int dataSize = 1024 * 1024 * 10;
     byte[] expected = randomData(dataSize);
@@ -119,7 +129,7 @@ public class TestS3InputStream {
 
     writeS3Data(uri, expected);
 
-    try (RangeReadable in = new S3InputStream(s3, uri)) {
+    try (RangeReadable in = new S3InputStream(s3, uri, awsProperties, MetricsContext.nullMetrics())) {
       // first 1k
       position = 0;
       offset = 0;
@@ -152,19 +162,23 @@ public class TestS3InputStream {
   @Test
   public void testClose() throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
-    SeekableInputStream closed = new S3InputStream(s3, uri);
+    SeekableInputStream closed = new S3InputStream(s3Client, uri);
     closed.close();
     assertThrows(IllegalStateException.class, () -> closed.seek(0));
   }
 
   @Test
   public void testSeek() throws Exception {
+    testSeek(s3Client, new AwsProperties());
+  }
+
+  protected void testSeek(S3Client s3, AwsProperties awsProperties) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/seek.dat");
     byte[] expected = randomData(1024 * 1024);
 
     writeS3Data(uri, expected);
 
-    try (SeekableInputStream in = new S3InputStream(s3, uri)) {
+    try (SeekableInputStream in = new S3InputStream(s3, uri, awsProperties, MetricsContext.nullMetrics())) {
       in.seek(expected.length / 2);
       byte[] actual = IOUtils.readFully(in, expected.length / 2);
       assertArrayEquals(Arrays.copyOfRange(expected, expected.length / 2, expected.length), actual);
@@ -178,12 +192,16 @@ public class TestS3InputStream {
   }
 
   private void writeS3Data(S3URI uri, byte[] data) throws IOException {
-    s3.putObject(
+    s3Client.putObject(
         PutObjectRequest.builder()
             .bucket(uri.bucket())
             .key(uri.key())
             .contentLength((long) data.length)
             .build(),
         RequestBody.fromBytes(data));
+  }
+
+  protected S3Client s3Client() {
+    return s3Client;
   }
 }

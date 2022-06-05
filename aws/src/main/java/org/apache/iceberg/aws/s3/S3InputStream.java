@@ -19,8 +19,11 @@
 
 package org.apache.iceberg.aws.s3;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.net.HttpURLConnection;
 import java.util.Arrays;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
@@ -33,11 +36,16 @@ import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.exception.AbortedException;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -88,23 +96,69 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
   @Override
   public int read() throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: already closed");
-    positionStream();
+    int[] byteRef = new int[1];
+    try {
+      Tasks.foreach(0)
+          .retry(awsProperties.s3ReadRetryNumRetries())
+          .exponentialBackoff(
+              awsProperties.s3ReadRetryMinWaitMs(),
+              awsProperties.s3ReadRetryMaxWaitMs(),
+              awsProperties.s3ReadRetryTotalTimeoutMs(),
+              2.0 /* exponential */)
+          .shouldRetryTest(S3InputStream::shouldRetry)
+          .throwFailureWhenFinished()
+          .run(ignored -> {
+            try {
+              Preconditions.checkState(!closed, "Cannot read: already closed");
+              positionStream();
+
+              byteRef[0] =  stream.read();
+            } catch (IOException e) {
+              closeStream();
+              throw new UncheckedIOException(e);
+            }
+          });
+    } catch (UncheckedIOException e) {
+      throw e.getCause();
+    }
 
     pos += 1;
     next += 1;
     readBytes.increment();
     readOperations.increment();
 
-    return stream.read();
+    return byteRef[0];
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: already closed");
-    positionStream();
+    int[] bytesReadRef = new int[1];
+    try {
+      Tasks.foreach(0)
+          .retry(awsProperties.s3ReadRetryNumRetries())
+          .exponentialBackoff(
+              awsProperties.s3ReadRetryMinWaitMs(),
+              awsProperties.s3ReadRetryMaxWaitMs(),
+              awsProperties.s3ReadRetryTotalTimeoutMs(),
+              2.0 /* exponential */)
+          .shouldRetryTest(S3InputStream::shouldRetry)
+          .throwFailureWhenFinished()
+          .run(ignored -> {
+            try {
+              Preconditions.checkState(!closed, "Cannot read: already closed");
+              positionStream();
 
-    int bytesRead = stream.read(b, off, len);
+              bytesReadRef[0] = stream.read(b, off, len);
+            } catch (IOException e) {
+              closeStream();
+              throw new UncheckedIOException(e);
+            }
+          });
+    } catch (UncheckedIOException e) {
+      throw e.getCause();
+    }
+
+    int bytesRead = bytesReadRef[0];
     pos += bytesRead;
     next += bytesRead;
     readBytes.increment((long) bytesRead);
@@ -118,8 +172,30 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
 
     String range = String.format("bytes=%s-%s", position, position + length - 1);
-
-    IOUtil.readFully(readRange(range), buffer, offset, length);
+    try {
+      Tasks.foreach(0)
+          .retry(awsProperties.s3ReadRetryNumRetries())
+          .exponentialBackoff(
+              awsProperties.s3ReadRetryMinWaitMs(),
+              awsProperties.s3ReadRetryMaxWaitMs(),
+              awsProperties.s3ReadRetryTotalTimeoutMs(),
+              2.0 /* exponential */)
+          .shouldRetryTest(S3InputStream::shouldRetry)
+          .throwFailureWhenFinished()
+          .run(ignored -> {
+            InputStream rangeStream = null;
+            try {
+              rangeStream = readRange(range);
+              IOUtil.readFully(rangeStream, buffer, offset, length);
+            } catch (IOException e) {
+              throw new UncheckedIOException(e);
+            } finally {
+              closeServerSideStream(rangeStream);
+            }
+          });
+    } catch (UncheckedIOException e) {
+      throw e.getCause();
+    }
   }
 
   @Override
@@ -127,8 +203,34 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
 
     String range = String.format("bytes=-%s", length);
+    int[] bytesReadRef = new int[1];
 
-    return IOUtil.readRemaining(readRange(range), buffer, offset, length);
+    try {
+      Tasks.foreach(0)
+          .retry(awsProperties.s3ReadRetryNumRetries())
+          .exponentialBackoff(
+              awsProperties.s3ReadRetryMinWaitMs(),
+              awsProperties.s3ReadRetryMaxWaitMs(),
+              awsProperties.s3ReadRetryTotalTimeoutMs(),
+              2.0 /* exponential */)
+          .shouldRetryTest(S3InputStream::shouldRetry)
+          .throwFailureWhenFinished()
+          .run(ignored -> {
+            InputStream rangeStream = null;
+            try {
+              rangeStream = readRange(range);
+              bytesReadRef[0] = IOUtil.readRemaining(rangeStream, buffer, offset, length);
+            } catch (IOException e) {
+              throw new UncheckedIOException(e);
+            } finally {
+              closeServerSideStream(rangeStream);
+            }
+          });
+    } catch (UncheckedIOException e) {
+      throw e.getCause();
+    }
+
+    return bytesReadRef[0];
   }
 
   private InputStream readRange(String range) {
@@ -172,31 +274,62 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     }
 
     // close the stream and open at desired position
-    LOG.debug("Seek with new stream for {} to offset {}", location, next);
+    LOG.warn("Seek with new stream for {} to offset {}", location, next);
     pos = next;
     openStream();
   }
 
-  private void openStream() throws IOException {
-    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
-        .bucket(location.bucket())
-        .key(location.key())
-        .range(String.format("bytes=%s-", pos));
-
-    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
-
+  private void openStream() {
     closeStream();
-    stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
+    stream = readRange(String.format("bytes=%s-", pos));
   }
 
-  private void closeStream() throws IOException {
-    if (stream != null) {
-      stream.close();
+  private void closeStream() {
+    closeServerSideStream(stream);
+    stream = null;
+  }
+
+  private static void closeServerSideStream(InputStream streamToClose) {
+    if (streamToClose != null) {
+      try {
+        if (streamToClose instanceof Abortable) {
+          // Stated in the ResponseInputStream javadoc:
+          // If it is not desired to read remaining data from the stream,
+          // you can explicitly abort the connection via abort().
+          ((Abortable) streamToClose).abort();
+        } else {
+          streamToClose.close();
+        }
+      } catch (IOException | AbortedException e) {
+        // ignore failure to abort or close stream
+      }
     }
   }
 
-  public void setSkipSize(int skipSize) {
-    this.skipSize = skipSize;
+  private static boolean shouldRetry(Exception exception) {
+    if (exception instanceof UncheckedIOException) {
+      if (exception.getCause() instanceof EOFException) {
+        return false;
+      }
+    }
+
+    if (exception instanceof AwsServiceException) {
+      switch (((AwsServiceException) exception).statusCode()) {
+        case HttpURLConnection.HTTP_FORBIDDEN:
+        case HttpURLConnection.HTTP_BAD_REQUEST:
+          return false;
+      }
+    }
+
+    if (exception instanceof S3Exception) {
+      switch (((S3Exception) exception).statusCode()) {
+        case HttpURLConnection.HTTP_NOT_FOUND:
+        case 416: // range not satisfied
+          return false;
+      }
+    }
+
+    return true;
   }
 
   @SuppressWarnings("checkstyle:NoFinalizer")

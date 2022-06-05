@@ -354,6 +354,30 @@ public class AwsProperties implements Serializable {
   public static final boolean CLIENT_ENABLE_ETAG_CHECK_DEFAULT = false;
 
   /**
+   * Number of times to retry S3 read operation.
+   */
+  public static final String S3_READ_RETRY_NUM_RETRIES = "s3.read.retry.num-retries";
+  public static final int S3_READ_RETRY_NUM_RETRIES_DEFAULT = 7;
+
+  /**
+   * Minimum wait time to retry a S3 read operation
+   */
+  public static final String S3_READ_RETRY_MIN_WAIT_MS = "s3.read.retry.min-wait-ms";
+  public static final long S3_READ_RETRY_MIN_WAIT_MS_DEFAULT = 500; // 0.5 seconds
+
+  /**
+   * Maximum wait time to retry a S3 read operation
+   */
+  public static final String S3_READ_RETRY_MAX_WAIT_MS = "s3.read.retry.max-wait-ms";
+  public static final long S3_READ_RETRY_MAX_WAIT_MS_DEFAULT = 2 * 60 * 1000; // 2 minute
+
+  /**
+   * Total retry time for a S3 read operation
+   */
+  public static final String S3_READ_RETRY_TOTAL_TIMEOUT_MS = "s3.read.retry.total-timeout-ms";
+  public static final long S3_READ_RETRY_TOTAL_TIMEOUT_MS_DEFAULT = 10 * 60 * 1000; // 10 minutes
+
+  /**
    * Used by {@link LakeFormationAwsClientFactory}.
    * The table name used as part of lake formation credentials request.
    */
@@ -380,6 +404,10 @@ public class AwsProperties implements Serializable {
   private int s3FileIoDeleteThreads;
   private boolean isS3DeleteEnabled;
   private final Map<String, String> s3BucketToAccessPointMapping;
+  private int s3ReadRetryNumRetries;
+  private long s3ReadRetryMinWaitMs;
+  private long s3ReadRetryMaxWaitMs;
+  private long s3ReadRetryTotalTimeoutMs;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -404,6 +432,10 @@ public class AwsProperties implements Serializable {
     this.s3FileIoDeleteThreads = Runtime.getRuntime().availableProcessors();
     this.isS3DeleteEnabled = S3_DELETE_ENABLED_DEFAULT;
     this.s3BucketToAccessPointMapping = ImmutableMap.of();
+    this.s3ReadRetryNumRetries = S3_READ_RETRY_NUM_RETRIES_DEFAULT;
+    this.s3ReadRetryMinWaitMs = S3_READ_RETRY_MIN_WAIT_MS_DEFAULT;
+    this.s3ReadRetryMaxWaitMs = S3_READ_RETRY_MAX_WAIT_MS_DEFAULT;
+    this.s3ReadRetryTotalTimeoutMs = S3_READ_RETRY_TOTAL_TIMEOUT_MS_DEFAULT;
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
@@ -472,6 +504,14 @@ public class AwsProperties implements Serializable {
             Runtime.getRuntime().availableProcessors());
     this.isS3DeleteEnabled = PropertyUtil.propertyAsBoolean(properties, S3_DELETE_ENABLED, S3_DELETE_ENABLED_DEFAULT);
     this.s3BucketToAccessPointMapping = PropertyUtil.propertiesWithPrefix(properties, S3_ACCESS_POINTS_PREFIX);
+    this.s3ReadRetryNumRetries = PropertyUtil.propertyAsInt(properties, S3_READ_RETRY_NUM_RETRIES,
+        S3_READ_RETRY_NUM_RETRIES_DEFAULT);
+    this.s3ReadRetryMinWaitMs = PropertyUtil.propertyAsLong(properties, S3_READ_RETRY_MIN_WAIT_MS,
+        S3_READ_RETRY_MIN_WAIT_MS_DEFAULT);
+    this.s3ReadRetryMaxWaitMs = PropertyUtil.propertyAsLong(properties, S3_READ_RETRY_MAX_WAIT_MS,
+        S3_READ_RETRY_MAX_WAIT_MS_DEFAULT);
+    this.s3ReadRetryTotalTimeoutMs = PropertyUtil.propertyAsLong(properties, S3_READ_RETRY_TOTAL_TIMEOUT_MS,
+        S3_READ_RETRY_TOTAL_TIMEOUT_MS_DEFAULT);
 
     this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
         DYNAMODB_TABLE_NAME_DEFAULT);
@@ -611,6 +651,38 @@ public class AwsProperties implements Serializable {
 
   public void setS3DeleteEnabled(boolean s3DeleteEnabled) {
     this.isS3DeleteEnabled = s3DeleteEnabled;
+  }
+
+  public int s3ReadRetryNumRetries() {
+    return s3ReadRetryNumRetries;
+  }
+
+  public void setS3ReadRetryNumRetries(int s3ReadRetryNumRetries) {
+    this.s3ReadRetryNumRetries = s3ReadRetryNumRetries;
+  }
+
+  public long s3ReadRetryMinWaitMs() {
+    return s3ReadRetryMinWaitMs;
+  }
+
+  public void setS3ReadRetryMinWaitMs(long s3ReadRetryMinWaitMs) {
+    this.s3ReadRetryMinWaitMs = s3ReadRetryMinWaitMs;
+  }
+
+  public long s3ReadRetryMaxWaitMs() {
+    return s3ReadRetryMaxWaitMs;
+  }
+
+  public void setS3ReadRetryMaxWaitMs(long s3ReadRetryMaxWaitMs) {
+    this.s3ReadRetryMaxWaitMs = s3ReadRetryMaxWaitMs;
+  }
+
+  public long s3ReadRetryTotalTimeoutMs() {
+    return s3ReadRetryTotalTimeoutMs;
+  }
+
+  public void setS3ReadRetryTotalTimeoutMs(long s3ReadRetryTotalTimeoutMs) {
+    this.s3ReadRetryTotalTimeoutMs = s3ReadRetryTotalTimeoutMs;
   }
 
   private Set<Tag> toTags(Map<String, String> properties, String prefix) {
