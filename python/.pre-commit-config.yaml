@@ -40,11 +40,11 @@ repos:
     rev: v0.960
     hooks:
       - id: mypy
-  -   repo: https://github.com/hadialqattan/pycln
-      rev: v1.3.3
-      hooks:
-        - id: pycln
-          args: [--config=python/pyproject.toml]
+  - repo: https://github.com/hadialqattan/pycln
+    rev: v1.3.3
+    hooks:
+      - id: pycln
+        args: [--config=python/pyproject.toml]
   - repo: https://github.com/asottile/pyupgrade
     rev: v2.32.1
     hooks:
