@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import base64
 import struct
 from abc import ABC, abstractmethod
 from decimal import Decimal
@@ -38,7 +39,7 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
-from iceberg.utils import binary, datetime
+from iceberg.utils import datetime
 from iceberg.utils.decimal import decimal_to_bytes
 
 S = TypeVar("S")
@@ -226,6 +227,11 @@ class BucketUUIDTransform(BaseBucketTransform):
         )
 
 
+def _base64encode(buffer: bytes) -> str:
+    """Converts bytes to base64 string"""
+    return base64.b64encode(buffer).decode("ISO-8859-1")
+
+
 class IdentityTransform(Transform[S, S]):
     """Transforms a value into itself.
 
@@ -266,25 +272,33 @@ class IdentityTransform(Transform[S, S]):
     def _human_string(self, value: Optional[S]) -> str:
         return str(value) if value is not None else "null"
 
-    @_human_string.register(int)
-    def _(self, value: int) -> str:
-        if isinstance(self._type, DateType):
-            return datetime.to_human_day(value)
-        elif isinstance(self._type, TimeType):
-            return datetime.to_human_time(value)
-        elif isinstance(self._type, TimestampType):
-            return datetime.to_human_timestamp(value)
-        elif isinstance(self._type, TimestamptzType):
-            return datetime.to_human_timestamptz(value)
-        else:
-            return str(value)
-
     @_human_string.register(bytes)
     def _(self, value: bytes) -> str:
-        if type(self._type) in {FixedType, BinaryType}:
-            return binary.base64encode(value)
-        else:
-            return str(value)
+        return _base64encode(value)
+
+    @_human_string.register(int)
+    def _(self, value: int) -> str:
+        return self._int_to_human_string(self._type, value)
+
+    @singledispatchmethod
+    def _int_to_human_string(self, valueType: IcebergType, value: int) -> str:
+        return str(value)
+
+    @_int_to_human_string.register(DateType)
+    def _(self, valueType: IcebergType, value: int) -> str:
+        return datetime.to_human_day(value)
+
+    @_int_to_human_string.register(TimeType)
+    def _(self, valueType: IcebergType, value: int) -> str:
+        return datetime.to_human_time(value)
+
+    @_int_to_human_string.register(TimestampType)
+    def _(self, valueType: IcebergType, value: int) -> str:
+        return datetime.to_human_timestamp(value)
+
+    @_int_to_human_string.register(TimestamptzType)
+    def _(self, valueType: IcebergType, value: int) -> str:
+        return datetime.to_human_timestamptz(value)
 
 
 class UnknownTransform(Transform):

@@ -137,7 +137,7 @@ def test_string_with_surrogate_pair():
         (LongType(), None, "null"),
         (DateType(), 17501, "2017-12-01"),
         (TimeType(), 36775038194, "10:12:55.038194"),
-        (TimestamptzType(), 1512151975038194, "2017-12-01T18:12:55.038194Z"),
+        (TimestamptzType(), 1512151975038194, "2017-12-01T18:12:55.038194+00:00"),
         (TimestampType(), 1512151975038194, "2017-12-01T18:12:55.038194"),
         (LongType(), -1234567890000, "-1234567890000"),
         (StringType(), "a/b/c=d", "a/b/c=d"),
