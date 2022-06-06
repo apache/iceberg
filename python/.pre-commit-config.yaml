@@ -49,4 +49,4 @@ repos:
     rev: v2.32.1
     hooks:
       - id: pyupgrade
-        args: [--py38-plus]
+        args: [--py38-plus, --keep-runtime-typing]
