@@ -197,7 +197,7 @@ paths:
           description:
             An optional namespace, underneath which to list namespaces.
             If not provided or empty, all top-level namespaces should be listed.
-            If parent is a multipart namespace, the parts must be separated by the null byte.
+            If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
           required: false
           allowEmptyValue: true
           schema:
@@ -773,7 +773,7 @@ components:
       required: true
       description:
         A namespace identifier as a single string.
-        Multipart namespace parts should be separated by the null byte.
+        Multipart namespace parts should be separated by the unit separator (`0x1F`) byte.
       schema:
         type: string
       examples:

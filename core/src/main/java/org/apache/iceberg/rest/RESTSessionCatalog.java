@@ -88,7 +88,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   private static final List<String> TOKEN_PREFERENCE_ORDER = ImmutableList.of(
       OAuth2Properties.ID_TOKEN_TYPE, OAuth2Properties.ACCESS_TOKEN_TYPE, OAuth2Properties.JWT_TOKEN_TYPE,
       OAuth2Properties.SAML2_TOKEN_TYPE, OAuth2Properties.SAML1_TOKEN_TYPE);
-  private static final Joiner NULL_BYTE = Joiner.on('\u0000');
+  private static final char NAMESPACE_SEPARATOR = '\u001f';
+  private static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private Cache<String, AuthSession> sessions = null;
@@ -281,7 +282,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       queryParams = ImmutableMap.of();
     } else {
       // query params should be unescaped
-      queryParams = ImmutableMap.of("parent", NULL_BYTE.join(namespace.levels()));
+      queryParams = ImmutableMap.of("parent", NAMESPACE_JOINER.join(namespace.levels()));
     }
 
     ListNamespacesResponse response = client.get(
