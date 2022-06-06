@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import javax.annotation.Nonnull;
 import org.apache.iceberg.expressions.Expression;
 
 /**
@@ -38,6 +39,7 @@ public interface FileScanTask extends ScanTask {
    *
    * @return a list of delete files to apply
    */
+  @Nonnull
   List<DeleteFile> deletes();
 
   /**
@@ -77,6 +79,7 @@ public interface FileScanTask extends ScanTask {
    * @param splitSize The size of a component scan task
    * @return an Iterable of {@link FileScanTask scan tasks}
    */
+  @Nonnull
   Iterable<FileScanTask> split(long splitSize);
 
   @Override
