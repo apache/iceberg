@@ -35,13 +35,13 @@ See [Dell ECS](https://www.dell.com/en-us/dt/storage/ecs/index.htm) for more inf
 
 When you try to connect Dell ECS with Iceberg, these connection parameters should be prepared:
 
-| Name                     | Description            |
-| ------------------------ | ---------------------- |
-| ecs.s3.endpoint          | ECS S3 service endpint |
-| ecs.s3.access-key-id     | User name              |
-| ecs.s3.secret-access-key | S3 Secret Key          |
+| Name                     | Description             |
+| ------------------------ | ----------------------- |
+| ecs.s3.endpoint          | ECS S3 service endpoint |
+| ecs.s3.access-key-id     | User name               |
+| ecs.s3.secret-access-key | S3 Secret Key           |
 
-And for the catalog, you should provide a `warehouse` location that will store all data and metadata.
+As for the catalog, you should provide a warehouse location where will store all data and metadata later.
 
 | Example                    | Description                                                     |
 | -------------------------- | --------------------------------------------------------------- |
@@ -52,13 +52,13 @@ When you provide the `warehouse`, the last / will be ignored. The `ecs://bucket-
 
 ### Dependencies of runtime
 
-The Iceberg `runtime` jar supports different versions of Spark and Flink. So if the version is not matched in the example, please check the related document of Spark and Flink.
+The Iceberg `runtime` jar supports different versions of Spark and Flink. If the version was not matched in the example, please check the related document of Spark and Flink.
 
-The [Dell ECS client](https://github.com/EMCECS/ecs-object-client-java) jar is backward compatible. But Dell EMC still recommends using the latest version of the client.
+Even though the [Dell ECS client](https://github.com/EMCECS/ecs-object-client-java) jar is backward compatible, Dell EMC still recommends using the latest version of the client.
 
 ### Spark
 
-For example, to use the Dell ECS catalog with Spark 3.2.1, you can create a Spark session like:
+For example, to use the Dell ECS catalog with Spark 3.2.1, you should create a Spark session like:
 
 ```sh
 spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:0.14.0,com.emc.ecs:object-client-bundle:3.3.2 \
@@ -89,12 +89,12 @@ Then, use `my_catalog` to access the data in ECS. You can use `SHOW NAMESPACES I
 
 The related problems of catalog usage:
 
-1. The [pyspark.sql.SparkSession.catalog](https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.sql.SparkSession.catalog.html#pyspark.sql.SparkSession.catalog) won't access the 3rd-party catalog of Spark. So please use DDL SQL to list all tables and namespaces.
+1. The [pyspark.sql.SparkSession.catalog](https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.sql.SparkSession.catalog.html#pyspark.sql.SparkSession.catalog) won't access the 3rd-party catalog of Spark, so please use DDL SQL to list all tables and namespaces.
 
 
 ### Flink
 
-For example, to use the Dell ECS catalog with Flink 1.14, you can create a Flink environment like:
+For example, to use the Dell ECS catalog with Flink 1.14, you should create a Flink environment like:
 
 ```sh
 wget https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/0.14.0/iceberg-flink-runtime-1.14-0.14.0.jar
@@ -145,6 +145,6 @@ Then, `USE CATALOG my_catalog`, `SHOW DATABASES`, and `SHOW TABLES` to fetch the
 
 When you use the catalog with Dell ECS only, you should care about these limitations:
 
-1. The rename operation is supported without other protection. When you try to rename a table, please guarantee all commits are finished in the original table.
-2. The rename operation only renames the table without moving any data file. The renamed table maybe store data objects in different paths even not in the `warehouse` that is configured in the catalog.
+1. The rename operation is supported without other protections. When you try to rename a table, you need to guarantee all commits are finished in the original table.
+2. The rename operation only renames the table without moving any data file. The renamed table maybe store data objects in different paths even not in the warehouse that is configured in the catalog.
 3. The CAS operations used by table commits are based on the checksum of the object. There is a very small probability of a checksum conflict.
