@@ -281,23 +281,23 @@ class IdentityTransform(Transform[S, S]):
         return self._int_to_human_string(self._type, value)
 
     @singledispatchmethod
-    def _int_to_human_string(self, valueType: IcebergType, value: int) -> str:
+    def _int_to_human_string(self, value_type: IcebergType, value: int) -> str:
         return str(value)
 
     @_int_to_human_string.register(DateType)
-    def _(self, valueType: IcebergType, value: int) -> str:
+    def _(self, value_type: IcebergType, value: int) -> str:
         return datetime.to_human_day(value)
 
     @_int_to_human_string.register(TimeType)
-    def _(self, valueType: IcebergType, value: int) -> str:
+    def _(self, value_type: IcebergType, value: int) -> str:
         return datetime.to_human_time(value)
 
     @_int_to_human_string.register(TimestampType)
-    def _(self, valueType: IcebergType, value: int) -> str:
+    def _(self, value_type: IcebergType, value: int) -> str:
         return datetime.to_human_timestamp(value)
 
     @_int_to_human_string.register(TimestamptzType)
-    def _(self, valueType: IcebergType, value: int) -> str:
+    def _(self, value_type: IcebergType, value: int) -> str:
         return datetime.to_human_timestamptz(value)
 
 
