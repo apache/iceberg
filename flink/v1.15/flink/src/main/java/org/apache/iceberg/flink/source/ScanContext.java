@@ -72,9 +72,9 @@ class ScanContext implements Serializable {
   private static final ConfigOption<Boolean> INCLUDE_COLUMN_STATS =
       ConfigOptions.key("include-column-stats").booleanType().defaultValue(false);
 
-  private static final ConfigOption<Integer> MAX_SNAPSHOTS_PER_MONITOR_INTERVAL =
-      ConfigOptions.key("max-snapshot-per-monitor-interval").intType()
-          .defaultValue(FlinkConfigOptions.MAX_SNAPSHOTS_PER_MONITOR_INTERVAL_DEFAULT);
+  private static final ConfigOption<Integer> MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL =
+      ConfigOptions.key("max-snapshot-count-per-monitor-interval").intType()
+          .defaultValue(FlinkConfigOptions.MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL_DEFAULT);
 
   private final boolean caseSensitive;
   private final boolean exposeLocality;
@@ -94,13 +94,13 @@ class ScanContext implements Serializable {
   private final long limit;
   private final boolean includeColumnStats;
   private final Integer planParallelism;
-  private final int maxSnapshotsPerMonitorInterval;
+  private final int maxSnapshotCountPerMonitorInterval;
 
   private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
                       Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
                       boolean isStreaming, Duration monitorInterval, String nameMapping, Schema schema,
                       List<Expression> filters, long limit, boolean includeColumnStats, boolean exposeLocality,
-                      Integer planParallelism, int maxSnapshotsPerMonitorInterval) {
+                      Integer planParallelism, int maxSnapshotCountPerMonitorInterval) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -119,7 +119,7 @@ class ScanContext implements Serializable {
     this.includeColumnStats = includeColumnStats;
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
-    this.maxSnapshotsPerMonitorInterval = maxSnapshotsPerMonitorInterval;
+    this.maxSnapshotCountPerMonitorInterval = maxSnapshotCountPerMonitorInterval;
   }
 
   boolean caseSensitive() {
@@ -190,8 +190,8 @@ class ScanContext implements Serializable {
     return planParallelism;
   }
 
-  int maxSnapshotsPerMonitorInterval() {
-    return maxSnapshotsPerMonitorInterval;
+  int maxSnapshotCountPerMonitorInterval() {
+    return maxSnapshotCountPerMonitorInterval;
   }
 
   ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
@@ -213,7 +213,7 @@ class ScanContext implements Serializable {
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
-        .maxSnapshotsPerMonitorInterval(maxSnapshotsPerMonitorInterval)
+        .maxSnapshotCountPerMonitorInterval(maxSnapshotCountPerMonitorInterval)
         .build();
   }
 
@@ -236,7 +236,7 @@ class ScanContext implements Serializable {
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
-        .maxSnapshotsPerMonitorInterval(maxSnapshotsPerMonitorInterval)
+        .maxSnapshotCountPerMonitorInterval(maxSnapshotCountPerMonitorInterval)
         .build();
   }
 
@@ -262,7 +262,7 @@ class ScanContext implements Serializable {
     private boolean includeColumnStats = INCLUDE_COLUMN_STATS.defaultValue();
     private boolean exposeLocality;
     private Integer planParallelism = FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
-    private int maxSnapshotsPerMonitorInterval = MAX_SNAPSHOTS_PER_MONITOR_INTERVAL.defaultValue();
+    private int maxSnapshotCountPerMonitorInterval = MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL.defaultValue();
 
     private Builder() {
     }
@@ -352,8 +352,8 @@ class ScanContext implements Serializable {
       return this;
     }
 
-    Builder maxSnapshotsPerMonitorInterval(int newMaxSnapshotsPerMonitorInterval) {
-      this.maxSnapshotsPerMonitorInterval = newMaxSnapshotsPerMonitorInterval;
+    Builder maxSnapshotCountPerMonitorInterval(int newMaxSnapshotsPerMonitorInterval) {
+      this.maxSnapshotCountPerMonitorInterval = newMaxSnapshotsPerMonitorInterval;
       return this;
     }
 
@@ -373,14 +373,14 @@ class ScanContext implements Serializable {
           .monitorInterval(config.get(MONITOR_INTERVAL))
           .nameMapping(properties.get(DEFAULT_NAME_MAPPING))
           .includeColumnStats(config.get(INCLUDE_COLUMN_STATS))
-          .maxSnapshotsPerMonitorInterval(config.get(MAX_SNAPSHOTS_PER_MONITOR_INTERVAL));
+          .maxSnapshotCountPerMonitorInterval(config.get(MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL));
     }
 
     public ScanContext build() {
       return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
           endSnapshotId, asOfTimestamp, splitSize, splitLookback,
           splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filters, limit, includeColumnStats, exposeLocality, planParallelism, maxSnapshotsPerMonitorInterval);
+          filters, limit, includeColumnStats, exposeLocality, planParallelism, maxSnapshotCountPerMonitorInterval);
     }
   }
 }

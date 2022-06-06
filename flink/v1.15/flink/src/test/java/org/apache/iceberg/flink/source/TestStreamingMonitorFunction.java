@@ -216,7 +216,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
     final ScanContext scanContext1 = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
-        .maxSnapshotsPerMonitorInterval(0)
+        .maxSnapshotCountPerMonitorInterval(0)
         .build();
 
     AssertHelpers.assertThrows("Should throw exception because of invalid config",
@@ -229,7 +229,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
     final ScanContext scanContext2 = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
-        .maxSnapshotsPerMonitorInterval(-10)
+        .maxSnapshotCountPerMonitorInterval(-10)
         .build();
 
     AssertHelpers.assertThrows("Should throw exception because of invalid config",
@@ -244,7 +244,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       ScanContext scanContext = ScanContext.builder()
           .monitorInterval(Duration.ofMillis(100))
           .splitSize(1000L)
-          .maxSnapshotsPerMonitorInterval(maxSnapshotsNum)
+          .maxSnapshotCountPerMonitorInterval(maxSnapshotsNum)
           .build();
 
       FlinkInputSplit[] expectedSplits = FlinkSplitPlanner

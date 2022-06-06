@@ -84,9 +84,9 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "Cannot set as-of-timestamp option for streaming reader");
     Preconditions.checkArgument(scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
-    Preconditions.checkArgument(scanContext.maxSnapshotsPerMonitorInterval() > 0 ||
-            scanContext.maxSnapshotsPerMonitorInterval() ==
-                FlinkConfigOptions.MAX_SNAPSHOTS_PER_MONITOR_INTERVAL_DEFAULT,
+    Preconditions.checkArgument(scanContext.maxSnapshotCountPerMonitorInterval() > 0 ||
+            scanContext.maxSnapshotCountPerMonitorInterval() ==
+                FlinkConfigOptions.MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL_DEFAULT,
         "The max snapshots per monitor interval must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
@@ -141,7 +141,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     this.sourceContext = ctx;
     while (isRunning) {
       LOG.debug("Start polling snapshots from snapshot id: {}, max-snapshots-per-monitor-interval: {}", lastSnapshotId,
-          scanContext.maxSnapshotsPerMonitorInterval());
+          scanContext.maxSnapshotCountPerMonitorInterval());
       long start = System.currentTimeMillis();
       long startSnapshotId = lastSnapshotId;
       synchronized (sourceContext.getCheckpointLock()) {
@@ -156,14 +156,15 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   }
 
   private long maxReachableSnapshotId(long lastConsumedSnapshotId, long latestSnapshotId,
-                                      int maxSnapshotsPerMonitorInterval) {
+                                      int maxSnapshotCountPerMonitorInterval) {
+    // This doesn't consider snapshot inheritance since it is already checked in state initialization.
     List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastConsumedSnapshotId, latestSnapshotId);
 
-    if (snapshotIds.size() <= maxSnapshotsPerMonitorInterval) {
+    if (snapshotIds.size() <= maxSnapshotCountPerMonitorInterval) {
       return latestSnapshotId;
     } else {
-      // This doesn't consider snapshot inheritance since it is already checked in state initialization.
-      return snapshotIds.get(snapshotIds.size() - maxSnapshotsPerMonitorInterval);
+      // It uses reverted index since snapshotIdsBetween returns Ids that are ordered by committed time descending.
+      return snapshotIds.get(snapshotIds.size() - maxSnapshotCountPerMonitorInterval);
     }
   }
 
@@ -179,11 +180,12 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
-        if (scanContext.maxSnapshotsPerMonitorInterval() ==
-            FlinkConfigOptions.MAX_SNAPSHOTS_PER_MONITOR_INTERVAL_DEFAULT) {
+        if (scanContext.maxSnapshotCountPerMonitorInterval() ==
+            FlinkConfigOptions.MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL_DEFAULT) {
           snapshotId = snapshot.snapshotId();
         } else {
-          snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId, scanContext.maxSnapshotsPerMonitorInterval());
+          snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId,
+              scanContext.maxSnapshotCountPerMonitorInterval());
         }
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
