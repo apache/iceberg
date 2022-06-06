@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from functools import singledispatchmethod
 from io import SEEK_SET
 from typing import (
     Any,
@@ -58,9 +59,24 @@ from iceberg.types import (
 )
 from iceberg.utils.schema_conversion import AvroSchemaConversion
 
+VERSION = 1
+MAGIC = bytes(b"Obj" + bytearray([VERSION]))
+MAGIC_SIZE = len(MAGIC)
+SYNC_SIZE = 16
+META_SCHEMA = StructType(
+    NestedField(name="magic", field_id=100, field_type=FixedType(length=MAGIC_SIZE), is_optional=False),
+    NestedField(
+        field_id=200,
+        name="meta",
+        field_type=MapType(key_id=201, key_type=StringType(), value_id=202, value_type=BinaryType()),
+        is_optional=False,
+    ),
+    NestedField(field_id=300, name="sync", field_type=FixedType(length=SYNC_SIZE), is_optional=False),
+)
+
 
 @dataclass(frozen=True)
-class AvroStructProtocol(StructProtocol):
+class AvroStruct(StructProtocol):
     _data: List[Union[Any, StructProtocol]] = field(default_factory=list)
 
     def set(self, pos: int, value: Any) -> None:
@@ -70,17 +86,17 @@ class AvroStructProtocol(StructProtocol):
         return self._data[pos]
 
 
-class _AvroReader(SchemaVisitor[Union[AvroStructProtocol, Any]]):
+class _AvroReader(SchemaVisitor[Union[AvroStruct, Any]]):
     _skip: bool = False
 
     def __init__(self, decoder: BinaryDecoder):
         self._decoder = decoder
 
-    def schema(self, schema: Schema, struct_result: Union[AvroStructProtocol, Any]) -> Union[AvroStructProtocol, Any]:
+    def schema(self, schema: Schema, struct_result: Union[AvroStruct, Any]) -> Union[AvroStruct, Any]:
         return struct_result
 
-    def struct(self, struct: StructType, field_results: List[Union[AvroStructProtocol, Any]]) -> Union[AvroStructProtocol, Any]:
-        return AvroStructProtocol(field_results)
+    def struct(self, struct: StructType, field_results: List[Union[AvroStruct, Any]]) -> Union[AvroStruct, Any]:
+        return AvroStruct(field_results)
 
     def before_field(self, field: NestedField) -> None:
         if field.is_optional:
@@ -89,13 +105,13 @@ class _AvroReader(SchemaVisitor[Union[AvroStructProtocol, Any]]):
             if int(pos) == 0:
                 self._skip = True
 
-    def field(self, field: NestedField, field_result: Union[AvroStructProtocol, Any]) -> Union[AvroStructProtocol, Any]:
+    def field(self, field: NestedField, field_result: Union[AvroStruct, Any]) -> Union[AvroStruct, Any]:
         return field_result
 
     def before_list_element(self, element: NestedField) -> None:
         self._skip = True
 
-    def list(self, list_type: ListType, element_result: Union[AvroStructProtocol, Any]) -> Union[AvroStructProtocol, Any]:
+    def list(self, list_type: ListType, element_result: Union[AvroStruct, Any]) -> Union[AvroStruct, Any]:
         read_items = []
         block_count = self._decoder.read_long()
         while block_count != 0:
@@ -115,8 +131,8 @@ class _AvroReader(SchemaVisitor[Union[AvroStructProtocol, Any]]):
         self._skip = True
 
     def map(
-        self, map_type: MapType, key_result: Union[AvroStructProtocol, Any], value_result: Union[AvroStructProtocol, Any]
-    ) -> Union[AvroStructProtocol, Any]:
+        self, map_type: MapType, key_result: Union[AvroStruct, Any], value_result: Union[AvroStruct, Any]
+    ) -> Union[AvroStruct, Any]:
         read_items = {}
 
         block_count = self._decoder.read_long()
@@ -134,55 +150,68 @@ class _AvroReader(SchemaVisitor[Union[AvroStructProtocol, Any]]):
 
         return read_items
 
-    def primitive(self, primitive: PrimitiveType) -> Union[AvroStructProtocol, Any]:
+    @singledispatchmethod
+    def read(self, primitive: PrimitiveType):
+        raise ValueError(f"Unknown type: {primitive}")
+
+    @read.register(FixedType)
+    def _(self, primitive: FixedType) -> Any:
+        return self._decoder.read(primitive.length)
+
+    @read.register(DecimalType)
+    def _(self, primitive: DecimalType) -> Any:
+        return self._decoder.read_decimal_from_bytes(primitive.scale, primitive.precision)
+
+    @read.register(BooleanType)
+    def _(self, primitive: BooleanType) -> Any:
+        return self._decoder.read_boolean()
+
+    @read.register(IntegerType)
+    def _(self, primitive: IntegerType) -> Any:
+        return self._decoder.read_int()
+
+    @read.register(LongType)
+    def _(self, primitive: LongType) -> Any:
+        return self._decoder.read_long()
+
+    @read.register(FloatType)
+    def _(self, primitive: FloatType) -> Any:
+        return self._decoder.read_float()
+
+    @read.register(DoubleType)
+    def _(self, primitive: DoubleType) -> Any:
+        return self._decoder.read_double()
+
+    @read.register(DateType)
+    def _(self, primitive: DateType) -> Any:
+        return self._decoder.read_date_from_int()
+
+    @read.register(TimeType)
+    def _(self, primitive: TimeType) -> Any:
+        return self._decoder.read_time_micros_from_long()
+
+    @read.register(TimestampType)
+    def _(self, primitive: TimestampType) -> Any:
+        return self._decoder.read_timestamp_micros_from_long()
+
+    @read.register(TimestamptzType)
+    def _(self, primitive: TimestamptzType) -> Any:
+        return self._decoder.read_timestamp_micros_from_long()
+
+    @read.register(StringType)
+    def _(self, primitive: StringType) -> Any:
+        return self._decoder.read_utf8()
+
+    @read.register(BinaryType)
+    def _(self, primitive: StringType) -> Any:
+        return self._decoder.read_bytes()
+
+    def primitive(self, primitive: PrimitiveType) -> Union[AvroStruct, Any]:
         if self._skip:
             self._skip = False
             return None
-
-        if isinstance(primitive, FixedType):
-            return self._decoder.read(primitive.length)
-        elif isinstance(primitive, DecimalType):
-            return self._decoder.read_decimal_from_bytes(primitive.scale, primitive.precision)
-        elif isinstance(primitive, BooleanType):
-            return self._decoder.read_boolean()
-        elif isinstance(primitive, IntegerType):
-            return self._decoder.read_int()
-        elif isinstance(primitive, LongType):
-            return self._decoder.read_long()
-        elif isinstance(primitive, FloatType):
-            return self._decoder.read_float()
-        elif isinstance(primitive, DoubleType):
-            return self._decoder.read_double()
-        elif isinstance(primitive, DateType):
-            return self._decoder.read_date_from_int()
-        elif isinstance(primitive, TimeType):
-            return self._decoder.read_time_micros_from_long()
-        elif isinstance(primitive, TimestampType):
-            return self._decoder.read_timestamp_micros_from_long()
-        elif isinstance(primitive, TimestamptzType):
-            return self._decoder.read_timestamp_micros_from_long()
-        elif isinstance(primitive, StringType):
-            return self._decoder.read_utf8()
-        elif isinstance(primitive, BinaryType):
-            return self._decoder.read_bytes()
         else:
-            raise ValueError(f"Unknown type: {primitive}")
-
-
-VERSION = 1
-MAGIC = bytes(b"Obj" + bytearray([VERSION]))
-MAGIC_SIZE = len(MAGIC)
-SYNC_SIZE = 16
-META_SCHEMA = StructType(
-    NestedField(name="magic", field_id=100, field_type=FixedType(length=MAGIC_SIZE), is_optional=False),
-    NestedField(
-        field_id=200,
-        name="meta",
-        field_type=MapType(key_id=201, key_type=StringType(), value_id=202, value_type=BinaryType()),
-        is_optional=False,
-    ),
-    NestedField(field_id=300, name="sync", field_type=FixedType(length=SYNC_SIZE), is_optional=False),
-)
+            return self.read(primitive)
 
 
 @dataclass(frozen=True)
@@ -262,7 +291,7 @@ class DataFileReader:
         self.block_position = 0
         return self.block_records
 
-    def __next__(self) -> AvroStructProtocol:
+    def __next__(self) -> AvroStruct:
         if self.block_position < self.block_records:
             self.block_position = self.block_position + 1
             return visit(self.schema, _AvroReader(self.block_decoder))

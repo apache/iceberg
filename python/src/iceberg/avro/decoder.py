@@ -20,8 +20,8 @@ import struct
 
 from iceberg.io.base import InputStream
 
-STRUCT_FLOAT = struct.Struct("<f")  # big-endian float
-STRUCT_DOUBLE = struct.Struct("<d")  # big-endian double
+STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
+STRUCT_DOUBLE = struct.Struct("<d")  # little-endian double
 STRUCT_SIGNED_SHORT = struct.Struct(">h")  # big-endian signed short
 STRUCT_SIGNED_INT = struct.Struct(">i")  # big-endian signed int
 STRUCT_SIGNED_LONG = struct.Struct(">q")  # big-endian signed long
@@ -57,15 +57,11 @@ class BinaryDecoder:
         return ord(self.read(1)) == 1
 
     def read_int(self) -> int:
-        """
-        int and long values are written using variable-length, zigzag coding.
-        """
+        """int values are written using variable-length, zigzag coding."""
         return self.read_long()
 
     def read_long(self) -> int:
-        """
-        int and long values are written using variable-length, zigzag coding.
-        """
+        """long values are written using variable-length, zigzag coding."""
         b = ord(self.read(1))
         n = b & 0x7F
         shift = 7

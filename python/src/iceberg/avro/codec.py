@@ -25,59 +25,76 @@ so don't confuse it with the Python's "codecs", which is a package mainly for
 converting character sets (https://docs.python.org/3/library/codecs.html).
 """
 
-import abc
 import binascii
 import io
+import logging
 import struct
 import zlib
+from abc import ABC, abstractmethod
 from typing import Dict, Tuple, Type
 
 from iceberg.avro.decoder import BinaryDecoder
 from iceberg.io.memory import MemoryInputStream
 
+logger = logging.getLogger(__name__)
+
 STRUCT_CRC32 = struct.Struct(">I")  # big-endian unsigned int
 
-
-def _check_crc32(bytes_: bytes, checksum: bytes) -> None:
-    if binascii.crc32(bytes_) & 0xFFFFFFFF != STRUCT_CRC32.unpack(checksum)[0]:
-        raise ValueError("Checksum failure")
-
-
-# bzip2
+has_bzip2 = False
 try:
     import bz2
 
     has_bzip2 = True
 except ImportError:
-    has_bzip2 = False
+    logger.info("bzip2 compression not available, install python with bz2 headers available")
+except Exception as e:
+    logger.exception(f"snappy compression not available; {e}")
 
-# snappy
+has_snappy = False
 try:
     import snappy
 
     has_snappy = True
 except ImportError:
-    has_snappy = False
+    logger.info("snappy compression not available, please install with python-snappy")
+except Exception as e:
+    logger.exception(f"snappy compression not available; {e}")
 
-# z-standard
+has_zstandard = False
 try:
     import zstandard as zstd
 
     has_zstandard = True
 except ImportError:
-    has_zstandard = False
+    logger.info("zstandard compression not available, please install with zstandard")
+except Exception as e:
+    logger.exception(f"zstandard compression not available; {e}")
 
 
-class Codec(abc.ABC):
+def _check_crc32(bytes_: bytes, checksum: bytes) -> None:
+    """Incrementally compute CRC-32 from bytes and compare to a checksum
+
+    Args:
+      bytes_ (bytes): The bytes to check against `checksum`
+      checksum (bytes): Byte representation of a checksum
+
+    Raises:
+      ValueError: If the computed CRC-32 does not match the checksum
+    """
+    if binascii.crc32(bytes_) & 0xFFFFFFFF != STRUCT_CRC32.unpack(checksum)[0]:
+        raise ValueError("Checksum failure")
+
+
+class Codec(ABC):
     """Abstract base class for all Avro codec classes."""
 
     @staticmethod
-    @abc.abstractmethod
+    @abstractmethod
     def compress(data: bytes) -> Tuple[bytes, int]:
         ...
 
     @staticmethod
-    @abc.abstractmethod
+    @abstractmethod
     def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
         ...
 

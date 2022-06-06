@@ -167,19 +167,13 @@ class AvroSchemaConversion:
         Args:
             avro_type: The Avro type, can be simple or complex
 
-        Examples:
-            >>> AvroSchemaConversion()._convert_schema("string")
-            StringType()
-            >>> AvroSchemaConversion()._convert_schema({"type": "string"})
-            StringType()
-
         Returns:
             The equivalent IcebergType
 
         Raises:
             ValueError: When there are unknown types
         """
-        if isinstance(avro_type, str) and avro_type in PRIMITIVE_FIELD_TYPE_MAPPING:
+        if isinstance(avro_type, str):
             return PRIMITIVE_FIELD_TYPE_MAPPING[avro_type]
         elif isinstance(avro_type, dict):
             if "logicalType" in avro_type:
@@ -197,12 +191,12 @@ class AvroSchemaConversion:
                     return self._convert_map_type(avro_type)
                 elif type_identifier == "fixed":
                     return self._convert_fixed_type(avro_type)
-                elif isinstance(type_identifier, str) and type_identifier in PRIMITIVE_FIELD_TYPE_MAPPING:
+                elif isinstance(type_identifier, str):
                     return PRIMITIVE_FIELD_TYPE_MAPPING[type_identifier]
                 else:
-                    raise TypeError(f"Unknown type: {avro_type}")
+                    raise ValueError(f"Unknown type: {avro_type}")
         else:
-            raise TypeError(f"Unknown type: {avro_type}")
+            raise ValueError(f"Unknown type: {avro_type}")
 
     def _convert_field(self, field: Dict[str, Any]) -> NestedField:
         """
@@ -276,7 +270,7 @@ class AvroSchemaConversion:
         Returns:
         """
         if record_type["type"] != "record":
-            raise ValueError(f"Expected record type, got: {record_type}")
+            raise ValueError(f"Expected type, got: {record_type}")
 
         return StructType(*[self._convert_field(field) for field in record_type["fields"]])
 
