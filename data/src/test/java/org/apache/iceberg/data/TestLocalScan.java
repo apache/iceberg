@@ -34,6 +34,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -294,8 +295,10 @@ public class TestLocalScan {
 
   @Test
   public void testProject() {
-    Iterable<Record> results = IcebergGenerics.read(sharedTable).select("id").build();
+    verifyProjectIdColumn(IcebergGenerics.read(sharedTable).select("id").build());
+  }
 
+  private void verifyProjectIdColumn(Iterable<Record> results) {
     Set<Long> expected = Sets.newHashSet();
     expected.addAll(Lists.transform(file1FirstSnapshotRecords, record -> (Long) record.getField("id")));
     expected.addAll(Lists.transform(file2FirstSnapshotRecords, record -> (Long) record.getField("id")));
@@ -306,6 +309,49 @@ public class TestLocalScan {
 
     Assert.assertEquals("Should project only id columns",
         expected, Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))));
+  }
+
+  @Test
+  public void testProjectWithSchema() {
+    // Test with table schema
+    Iterable<Record> results = IcebergGenerics.read(sharedTable).project(SCHEMA).build();
+
+    Set<Record> expected = Sets.newHashSet();
+    expected.addAll(file1FirstSnapshotRecords);
+    expected.addAll(file2FirstSnapshotRecords);
+    expected.addAll(file3FirstSnapshotRecords);
+
+    results.forEach(record -> expected.remove(record));
+    Assert.assertTrue(expected.isEmpty());
+
+    // Test with projected schema
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    verifyProjectIdColumn(IcebergGenerics.read(sharedTable).project(schema).build());
+
+    // Test with unknown field
+    schema = new Schema(optional(999, "unknown", Types.LongType.get()));
+    IcebergGenerics.read(sharedTable).project(schema).build().forEach(r -> Assert.assertNull(r.get(0)));
+
+    // Test with reading some metadata columns
+    schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        MetadataColumns.metadataColumn(sharedTable, MetadataColumns.PARTITION_COLUMN_NAME),
+        optional(2, "data", Types.StringType.get()),
+        MetadataColumns.SPEC_ID,
+        MetadataColumns.ROW_POSITION
+        );
+
+    Iterator<Record> iterator =
+        IcebergGenerics.read(sharedTable).project(schema).where(equal("data", "falafel")).build().iterator();
+
+    GenericRecord expectedRecord = GenericRecord.create(schema).copy(
+        ImmutableMap.of("id", 2L,
+                        "data", "falafel",
+                        "_spec_id", 0,
+                        "_pos", 2L));
+    expectedRecord.setField("_partition", null);
+    Assert.assertEquals(expectedRecord, iterator.next());
+    Assert.assertFalse(iterator.hasNext());
   }
 
   @Test

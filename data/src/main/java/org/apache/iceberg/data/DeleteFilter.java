@@ -51,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 
@@ -67,6 +66,8 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
+  private final boolean hasIsDeletedColumn;
+  private final int isDeletedColumnPosition;
 
   private PositionDeleteIndex deleteRowPositions = null;
   private Predicate<T> eqDeleteRows = null;
@@ -94,6 +95,12 @@ public abstract class DeleteFilter<T> {
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
+    this.hasIsDeletedColumn = requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
+    this.isDeletedColumnPosition = requiredSchema.columns().indexOf(MetadataColumns.IS_DELETED);
+  }
+
+  protected int columnIsDeletedPosition() {
+    return isDeletedColumnPosition;
   }
 
   public Schema requiredSchema() {
@@ -169,30 +176,19 @@ public abstract class DeleteFilter<T> {
         .reduce(Predicate::or)
         .orElse(t -> false);
 
-    Filter<T> deletedRowsFilter = new Filter<T>() {
-      @Override
-      protected boolean shouldKeep(T item) {
-        return deletedRows.test(item);
-      }
-    };
-    return deletedRowsFilter.filter(records);
+    return CloseableIterable.filter(records, deletedRows);
   }
 
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
-    // Predicate to test whether a row should be visible to user after applying equality deletions.
-    Predicate<T> remainingRows = applyEqDeletes().stream()
-        .map(Predicate::negate)
-        .reduce(Predicate::and)
-        .orElse(t -> true);
+    Predicate<T> isEqDeleted = applyEqDeletes().stream()
+        .reduce(Predicate::or)
+        .orElse(t -> false);
 
-    Filter<T> remainingRowsFilter = new Filter<T>() {
-      @Override
-      protected boolean shouldKeep(T item) {
-        return remainingRows.test(item);
-      }
-    };
+    return createDeleteIterable(records, isEqDeleted);
+  }
 
-    return remainingRowsFilter.filter(records);
+  protected void markRowDeleted(T item) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement markRowDeleted");
   }
 
   public Predicate<T> eqDeletedRowFilter() {
@@ -226,10 +222,20 @@ public abstract class DeleteFilter<T> {
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      return Deletes.filter(records, this::pos, Deletes.toPositionIndex(filePath, deletes));
+      PositionDeleteIndex positionIndex = Deletes.toPositionIndex(filePath, deletes);
+      Predicate<T> isDeleted = record -> positionIndex.isDeleted(pos(record));
+      return createDeleteIterable(records, isDeleted);
     }
 
-    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
+    return hasIsDeletedColumn ?
+        Deletes.streamingMarker(records, this::pos, Deletes.deletePositions(filePath, deletes), this::markRowDeleted) :
+        Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
+  }
+
+  private CloseableIterable<T> createDeleteIterable(CloseableIterable<T> records, Predicate<T> isDeleted) {
+    return hasIsDeletedColumn ?
+        Deletes.markDeleted(records, isDeleted, this::markRowDeleted) :
+        Deletes.filterDeleted(records, isDeleted);
   }
 
   private CloseableIterable<Record> openPosDeletes(DeleteFile file) {
@@ -289,8 +295,6 @@ public abstract class DeleteFilter<T> {
     for (DeleteFile eqDelete : eqDeletes) {
       requiredIds.addAll(eqDelete.equalityFieldIds());
     }
-
-    requiredIds.add(MetadataColumns.IS_DELETED.fieldId());
 
     Set<Integer> missingIds = Sets.newLinkedHashSet(
         Sets.difference(requiredIds, TypeUtil.getProjectedIds(requestedSchema)));

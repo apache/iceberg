@@ -156,7 +156,7 @@ public class TestNessieTable extends BaseTestIceberg {
           .describedAs("on-reference-state must not be equal on both branches")
           .isEqualTo(contentsAfter1Branch.getSchemaId());
       // verify manifests
-      Assertions.assertThat(tableAfter1Main.currentSnapshot().allManifests())
+      Assertions.assertThat(tableAfter1Main.currentSnapshot().allManifests(tableAfter1Main.io()))
           .describedAs("verify number of manifests on 'main'")
           .hasSize(1);
 
@@ -178,7 +178,7 @@ public class TestNessieTable extends BaseTestIceberg {
           .describedAs("on-reference-state must not change on %s", testCaseBranch)
           .isEqualTo(contentsAfter1Branch.getMetadataLocation());
       // verify manifests
-      Assertions.assertThat(tableAfter2Main.currentSnapshot().allManifests())
+      Assertions.assertThat(tableAfter2Main.currentSnapshot().allManifests(tableAfter2Main.io()))
           .describedAs("verify number of manifests on 'main'")
           .hasSize(2);
     }
@@ -290,7 +290,7 @@ public class TestNessieTable extends BaseTestIceberg {
     String manifestListLocation =
         table.currentSnapshot().manifestListLocation().replace("file:", "");
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER)).isTrue();
     Assertions.assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isFalse();

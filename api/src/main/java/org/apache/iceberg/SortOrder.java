@@ -135,7 +135,7 @@ public class SortOrder implements Serializable {
     return fieldList;
   }
 
-  UnboundSortOrder toUnbound() {
+  public UnboundSortOrder toUnbound() {
     UnboundSortOrder.Builder builder = UnboundSortOrder.builder().withOrderId(orderId);
 
     for (SortField field : fields) {

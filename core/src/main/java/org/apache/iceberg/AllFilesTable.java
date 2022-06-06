@@ -66,7 +66,7 @@ public class AllFilesTable extends BaseFilesTable {
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return reachableManifests(Snapshot::allManifests);
+      return reachableManifests(snapshot -> snapshot.allManifests(tableOps().io()));
     }
   }
 }

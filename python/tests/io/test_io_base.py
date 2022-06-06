@@ -28,7 +28,8 @@ def test_custom_local_input_file(CustomInputFileFixture, request):
     """Test initializing an InputFile implementation to read a local file"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a InputFile class was passed directly
     CustomInputFile = (
-        request.getfixturevalue(CustomInputFileFixture) if isinstance(CustomInputFileFixture, str) else CustomInputFileFixture
+        request.getfixturevalue(CustomInputFileFixture) if isinstance(CustomInputFileFixture,
+                                                                      str) else CustomInputFileFixture
     )
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -55,7 +56,8 @@ def test_custom_local_output_file(CustomOutputFileFixture, request):
     """Test initializing an OutputFile implementation to write to a local file"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a OutputFile class was passed directly
     CustomOutputFile = (
-        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture, str) else CustomOutputFileFixture
+        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture,
+                                                                       str) else CustomOutputFileFixture
     )
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -81,7 +83,8 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFileFixture, reques
     """Test initializing an OutputFile implementation to overwrite a local file"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a OutputFile class was passed directly
     CustomOutputFile = (
-        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture, str) else CustomOutputFileFixture
+        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture,
+                                                                       str) else CustomOutputFileFixture
     )
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -106,7 +109,8 @@ def test_custom_local_output_file_with_overwrite(CustomOutputFileFixture, reques
             assert f.read() == b"bar"
 
 
-@pytest.mark.parametrize("CustomFileFixture", ["LocalInputFileFixture", "LocalOutputFileFixture", PyArrowFile, PyArrowFile])
+@pytest.mark.parametrize("CustomFileFixture",
+                         ["LocalInputFileFixture", "LocalOutputFileFixture", PyArrowFile, PyArrowFile])
 def test_custom_file_exists(CustomFileFixture, request):
     """Test that the exists property returns the proper value for existing and non-existing files"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a file class was passed directly
@@ -140,7 +144,8 @@ def test_output_file_to_input_file(CustomOutputFileFixture, request):
     """Test initializing an InputFile using the `to_input_file()` method on an OutputFile instance"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a OutputFile class was passed directly
     CustomOutputFile = (
-        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture, str) else CustomOutputFileFixture
+        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture,
+                                                                       str) else CustomOutputFileFixture
     )
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -173,7 +178,8 @@ def test_output_file_to_input_file(CustomOutputFileFixture, request):
 def test_custom_file_io_locations(CustomFileIOFixture, string_uri, request):
     """Test that the location property is maintained as the value of the location argument"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
-    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture,
+                                                                              str) else CustomFileIOFixture
 
     # Instantiate the file-io and create a new input and output file
     file_io = CustomFileIO()
@@ -214,7 +220,8 @@ def test_raise_on_network_location_in_output_file(string_uri_w_netloc, request):
 def test_deleting_local_file_using_file_io(CustomFileIOFixture, request):
     """Test deleting a local file using FileIO.delete(...)"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
-    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture,
+                                                                              str) else CustomFileIOFixture
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -239,7 +246,8 @@ def test_deleting_local_file_using_file_io(CustomFileIOFixture, request):
 def test_raise_file_not_found_error_for_fileio_delete(CustomFileIOFixture, request):
     """Test raising a FileNotFound error when trying to delete a non-existent file"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
-    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture,
+                                                                              str) else CustomFileIOFixture
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         # Write to the temporary file
@@ -259,16 +267,19 @@ def test_raise_file_not_found_error_for_fileio_delete(CustomFileIOFixture, reque
 
 
 @pytest.mark.parametrize(
-    "CustomFileIOFixture, CustomInputFileFixture", [("LocalFileIOFixture", "LocalInputFileFixture"), (PyArrowFileIO, PyArrowFile)]
+    "CustomFileIOFixture, CustomInputFileFixture",
+    [("LocalFileIOFixture", "LocalInputFileFixture"), (PyArrowFileIO, PyArrowFile)]
 )
 def test_deleting_local_file_using_file_io_input_file(CustomFileIOFixture, CustomInputFileFixture, request):
     """Test deleting a local file by passing an InputFile instance to FileIO.delete(...)"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
-    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture,
+                                                                              str) else CustomFileIOFixture
 
     # If a fixture name is used, retrieve the fixture, otherwise assume that a InputFile class was passed directly
     CustomInputFile = (
-        request.getfixturevalue(CustomInputFileFixture) if isinstance(CustomInputFileFixture, str) else CustomInputFileFixture
+        request.getfixturevalue(CustomInputFileFixture) if isinstance(CustomInputFileFixture,
+                                                                      str) else CustomInputFileFixture
     )
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -300,11 +311,13 @@ def test_deleting_local_file_using_file_io_input_file(CustomFileIOFixture, Custo
 def test_deleting_local_file_using_file_io_output_file(CustomFileIOFixture, CustomOutputFileFixture, request):
     """Test deleting a local file by passing an OutputFile instance to FileIO.delete(...)"""
     # If a fixture name is used, retrieve the fixture, otherwise assume that a FileIO class was passed directly
-    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture, str) else CustomFileIOFixture
+    CustomFileIO = request.getfixturevalue(CustomFileIOFixture) if isinstance(CustomFileIOFixture,
+                                                                              str) else CustomFileIOFixture
 
     # If a fixture name is used, retrieve the fixture, otherwise assume that a OutputFile class was passed directly
     CustomOutputFile = (
-        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture, str) else CustomOutputFileFixture
+        request.getfixturevalue(CustomOutputFileFixture) if isinstance(CustomOutputFileFixture,
+                                                                       str) else CustomOutputFileFixture
     )
 
     with tempfile.TemporaryDirectory() as tmpdirname:

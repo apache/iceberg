@@ -36,6 +36,10 @@ public class ResourcePaths {
     return "v1/config";
   }
 
+  public static String tokens() {
+    return "v1/oauth/tokens";
+  }
+
   private final String prefix;
 
   public ResourcePaths(String prefix) {

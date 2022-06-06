@@ -27,9 +27,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.CredentialSupplier;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -65,11 +67,12 @@ import software.amazon.awssdk.services.s3.model.Tagging;
  * URIs with schemes s3a, s3n, https are also treated as s3 file paths.
  * Using this FileIO with other schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
-public class S3FileIO implements FileIO, SupportsBulkOperations {
+public class S3FileIO implements FileIO, SupportsBulkOperations, CredentialSupplier {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
   private static volatile ExecutorService executorService;
 
+  private String credential = null;
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
   private transient volatile S3Client client;
@@ -263,18 +266,30 @@ public class S3FileIO implements FileIO, SupportsBulkOperations {
   }
 
   @Override
+  public String getCredential() {
+    return credential;
+  }
+
+  @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      this.s3 = AwsClientFactories.from(properties)::s3;
+      AwsClientFactory clientFactory = AwsClientFactories.from(properties);
+      if (clientFactory instanceof CredentialSupplier) {
+        this.credential = ((CredentialSupplier) clientFactory).getCredential();
+      }
+      this.s3 = clientFactory::s3;
     }
 
     // Report Hadoop metrics if Hadoop is available
     try {
       DynConstructors.Ctor<MetricsContext> ctor =
-          DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
+          DynConstructors.builder(MetricsContext.class)
+              .loader(S3FileIO.class.getClassLoader())
+              .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+              .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
       context.initialize(properties);
       this.metrics = context;

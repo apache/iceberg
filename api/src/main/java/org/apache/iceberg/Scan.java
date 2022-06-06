@@ -29,7 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
  * Scan objects are immutable and can be shared between threads. Refinement methods, like
  * {@link #select(Collection)} and {@link #filter(Expression)}, create new TableScan instances.
  */
-interface Scan<T extends Scan<T>> {
+public interface Scan<T extends Scan<T>> {
   /**
    * Create a new scan from this scan's configuration that will override the {@link Table}'s behavior based
    * on the incoming pair. Unknown properties will be ignored.
@@ -85,6 +85,13 @@ interface Scan<T extends Scan<T>> {
   T filter(Expression expr);
 
   /**
+   * Create a new scan from this that applies data filtering to files but not to rows in those files.
+   *
+   * @return a new scan based on this that does not filter rows in files.
+   */
+  T ignoreResiduals();
+
+  /**
    * Create a new scan to use a particular executor to plan. The default worker pool will be
    * used by default.
    *
@@ -92,6 +99,18 @@ interface Scan<T extends Scan<T>> {
    * @return a table scan that uses the provided executor to access manifests
    */
   T planWith(ExecutorService executorService);
+
+  /**
+   * Returns this scan's projection {@link Schema}.
+   * <p>
+   * If the projection schema was set directly using {@link #project(Schema)}, returns that schema.
+   * <p>
+   * If the projection schema was set by calling {@link #select(Collection)}, returns a projection
+   * schema that includes the selected data fields and any fields used in the filter expression.
+   *
+   * @return this scan's projection schema
+   */
+  Schema schema();
 
   /**
    * Plan the {@link FileScanTask files} that will be read by this scan.
@@ -114,4 +133,19 @@ interface Scan<T extends Scan<T>> {
    * @return an Iterable of tasks for this scan
    */
   CloseableIterable<CombinedScanTask> planTasks();
+
+  /**
+   * Returns the target split size for this scan.
+   */
+  long targetSplitSize();
+
+  /**
+   * Returns the split lookback for this scan.
+   */
+  int splitLookback();
+
+  /**
+   * Returns the split open file cost for this scan.
+   */
+  long splitOpenFileCost();
 }

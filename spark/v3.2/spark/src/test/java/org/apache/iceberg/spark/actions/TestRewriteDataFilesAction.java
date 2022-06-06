@@ -302,14 +302,14 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertEquals(
         "Data manifest should not have existing data file",
         0,
-        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
+        (long) table.currentSnapshot().dataManifests(table.io()).get(0).existingFilesCount());
     Assert.assertEquals("Data manifest should have 1 delete data file",
         1L,
-        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
+        (long) table.currentSnapshot().dataManifests(table.io()).get(0).deletedFilesCount());
     Assert.assertEquals(
         "Delete manifest added row count should equal total count",
         total,
-        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
+        (long) table.currentSnapshot().deleteManifests(table.io()).get(0).addedRowsCount());
   }
 
   @Test
@@ -995,7 +995,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", result.rewriteResults().size(), 1);
-    Assert.assertTrue("Should have written 40+ files", Iterables.size(table.currentSnapshot().addedFiles()) >= 40);
+    Assert.assertTrue("Should have written 40+ files",
+        Iterables.size(table.currentSnapshot().addedFiles(table.io())) >= 40);
 
     table.refresh();
 
@@ -1062,7 +1063,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
-    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedFiles());
+    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedFiles(table.io()));
     Assert.assertTrue("Should have written 40+ files", zOrderedFilesTotal >= 40);
 
     table.refresh();
@@ -1103,7 +1104,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", 1, result.rewriteResults().size());
-    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedFiles());
+    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedFiles(table.io()));
     Assert.assertEquals("Should have written 1 file", 1, zOrderedFilesTotal);
 
     table.refresh();
@@ -1336,7 +1337,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     NestedField field = table.schema().caseInsensitiveFindField(column);
     Class<T> javaClass = (Class<T>) field.type().typeId().javaClass();
 
-    Map<StructLike, List<DataFile>> filesByPartition = Streams.stream(table.currentSnapshot().addedFiles())
+    Map<StructLike, List<DataFile>> filesByPartition = Streams.stream(table.currentSnapshot().addedFiles(table.io()))
         .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

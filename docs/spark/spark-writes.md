@@ -290,6 +290,13 @@ val data: DataFrame = ...
 data.writeTo("prod.db.table").create()
 ```
 
+If you have replaced the default Spark catalog (`spark_catalog`) with Iceberg's `SparkSessionCatalog`, do:
+
+```scala
+val data: DataFrame = ...
+data.writeTo("db.table").using("iceberg").create()
+```
+
 Create and replace operations support table configuration methods, like `partitionedBy` and `tableProperty`:
 
 ```scala

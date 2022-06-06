@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.PartitionSpec;
@@ -168,11 +169,24 @@ public class CatalogHandlers {
     properties.put("created-at", OffsetDateTime.now().toString());
     properties.putAll(request.properties());
 
+    String location;
+    if (request.location() != null) {
+      location = request.location();
+    } else {
+      location = catalog.buildTable(ident, request.schema())
+          .withPartitionSpec(request.spec())
+          .withSortOrder(request.writeOrder())
+          .withProperties(properties)
+          .createTransaction()
+          .table()
+          .location();
+    }
+
     TableMetadata metadata = TableMetadata.newTableMetadata(
         request.schema(),
         request.spec() != null ? request.spec() : PartitionSpec.unpartitioned(),
         request.writeOrder() != null ? request.writeOrder() : SortOrder.unsorted(),
-        request.location(),
+        location,
         properties);
 
     return LoadTableResponse.builder()
@@ -214,6 +228,9 @@ public class CatalogHandlers {
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())
           .build();
+    } else if (table instanceof BaseMetadataTable) {
+      // metadata tables are loaded on the client side, return NoSuchTableException for now
+      throw new NoSuchTableException("Table does not exist: %s", ident.toString());
     }
 
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
@@ -266,9 +283,10 @@ public class CatalogHandlers {
   }
 
   private static TableMetadata create(TableOperations ops, TableMetadata start, UpdateTableRequest request) {
-    TableMetadata.Builder builder = TableMetadata.buildFrom(start);
-
     // the only valid requirement is that the table will be created
+    request.requirements().forEach(requirement -> requirement.validate(ops.current()));
+
+    TableMetadata.Builder builder = TableMetadata.buildFrom(start);
     request.updates().forEach(update -> update.applyTo(builder));
 
     // create transactions do not retry. if the table exists, retrying is not a solution

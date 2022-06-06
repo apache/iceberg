@@ -59,6 +59,13 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
   public abstract T deserialize(String json) throws JsonProcessingException;
 
   /**
+   * Serialize T to a String.
+   */
+  public String serialize(T object) throws JsonProcessingException {
+    return MAPPER.writeValueAsString(object);
+  }
+
+  /**
    * This test ensures that only the fields that are expected, e.g. from the spec, are found on the class.
    * If new fields are added to the spec, they should be added to the function
    * {@link RequestResponseTestBase#allFieldsFromSpec()}
@@ -67,8 +74,7 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
   public void testHasOnlyKnownFields() {
     T value = createExampleInstance();
 
-    Assertions.assertThat(value)
-        .hasOnlyFields(allFieldsFromSpec());
+    Assertions.assertThat(value).hasOnlyFields(allFieldsFromSpec());
   }
 
   /**
@@ -81,7 +87,6 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
     assertEquals(actual, expected);
 
     // Check that the deserialized value serializes back into the original JSON
-    Assertions.assertThat(MAPPER.writeValueAsString(actual))
-        .isEqualTo(json);
+    Assertions.assertThat(serialize(expected)).isEqualTo(json);
   }
 }

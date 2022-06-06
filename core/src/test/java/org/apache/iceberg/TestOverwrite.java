@@ -136,9 +136,9 @@ public class TestOverwrite extends TableTestBase {
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals("Table should have one manifest",
-        1, table.currentSnapshot().allManifests().size());
+        1, table.currentSnapshot().allManifests(table.io()).size());
 
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(overwriteId, baseId),
         files(FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.DELETED, Status.EXISTING));
@@ -174,15 +174,15 @@ public class TestOverwrite extends TableTestBase {
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals("Table should have 2 manifests",
-        2, table.currentSnapshot().allManifests().size());
+        2, table.currentSnapshot().allManifests(table.io()).size());
 
     // manifest is not merged because it is less than the minimum
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(overwriteId),
         files(FILE_10_TO_14),
         statuses(Status.ADDED));
 
-    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(1),
         ids(overwriteId, baseId),
         files(FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.DELETED, Status.EXISTING));
@@ -205,9 +205,9 @@ public class TestOverwrite extends TableTestBase {
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals("Table should have one merged manifest",
-        1, table.currentSnapshot().allManifests().size());
+        1, table.currentSnapshot().allManifests(table.io()).size());
 
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(overwriteId, overwriteId, baseId),
         files(FILE_10_TO_14, FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.ADDED, Status.DELETED, Status.EXISTING));

@@ -30,7 +30,13 @@ Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
 import re
-from typing import ClassVar, Dict, List, Optional, Tuple, Literal
+from typing import (
+    ClassVar,
+    Dict,
+    Optional,
+    Tuple,
+)
+from typing import Literal
 
 from pydantic import Field, PrivateAttr
 
@@ -42,7 +48,7 @@ class Singleton:
 
     def __new__(cls):
         if not isinstance(cls._instance, cls):
-            cls._instance = super(Singleton, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
 
@@ -198,6 +204,17 @@ class NestedField(IcebergType):
         ...     required=True,
         ...     doc="Just a long"
         ... ))
+<<<<<<< HEAD
+=======
+        '1: foo: required fixed[22]'
+        >>> str(NestedField(
+        ...     field_id=2,
+        ...     name='bar',
+        ...     field_type=LongType(),
+        ...     is_optional=False,
+        ...     doc="Just a long"
+        ... ))
+>>>>>>> b06a89cebd5099b40b188c4c40ea7b1a23d3427a
         '2: bar: required long (Just a long)'
     """
 
@@ -263,9 +280,8 @@ class StructType(IcebergType):
         ... ))
         'struct<1: required_field: optional string, 2: optional_field: optional int>'
     """
-
     type: Literal["struct"] = "struct"
-    fields: List[NestedField] = Field()
+    fields: Tuple[NestedField] = Field()
 
     _instances: ClassVar[Dict[Tuple[NestedField, ...], "StructType"]] = {}
 

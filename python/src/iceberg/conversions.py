@@ -27,10 +27,10 @@ Note:
     implementation, a concrete function is registered for each generic conversion function. For PrimitiveType
     implementations that share the same conversion logic, registrations can be stacked.
 """
-import struct
 import uuid
 from decimal import Decimal
 from functools import singledispatch
+from struct import Struct
 from typing import Union
 
 from iceberg.types import (
@@ -51,6 +51,13 @@ from iceberg.types import (
     UUIDType,
 )
 from iceberg.utils.decimal import decimal_to_bytes, unscaled_to_decimal
+
+_BOOL_STRUCT = Struct("<?")
+_INT_STRUCT = Struct("<i")
+_LONG_STRUCT = Struct("<q")
+_FLOAT_STRUCT = Struct("<f")
+_DOUBLE_STRUCT = Struct("<d")
+_UUID_STRUCT = Struct(">QQ")
 
 
 def handle_none(func):
@@ -154,13 +161,13 @@ def to_bytes(primitive_type: PrimitiveType, value: Union[bool, bytes, Decimal, f
 
 @to_bytes.register(BooleanType)
 def _(primitive_type, value: bool) -> bytes:
-    return struct.pack("<?", 1 if value else 0)
+    return _BOOL_STRUCT.pack(1 if value else 0)
 
 
 @to_bytes.register(IntegerType)
 @to_bytes.register(DateType)
 def _(primitive_type, value: int) -> bytes:
-    return struct.pack("<i", value)
+    return _INT_STRUCT.pack(value)
 
 
 @to_bytes.register(LongType)
@@ -168,7 +175,7 @@ def _(primitive_type, value: int) -> bytes:
 @to_bytes.register(TimestampType)
 @to_bytes.register(TimestamptzType)
 def _(primitive_type, value: int) -> bytes:
-    return struct.pack("<q", value)
+    return _LONG_STRUCT.pack(value)
 
 
 @to_bytes.register(FloatType)
@@ -177,12 +184,12 @@ def _(primitive_type, value: float) -> bytes:
     Note: float in python is implemented using a double in C. Therefore this involves a conversion of a 32-bit (single precision)
     float to a 64-bit (double precision) float which introduces some imprecision.
     """
-    return struct.pack("<f", value)
+    return _FLOAT_STRUCT.pack(value)
 
 
 @to_bytes.register(DoubleType)
 def _(primitive_type, value: float) -> bytes:
-    return struct.pack("<d", value)
+    return _DOUBLE_STRUCT.pack(value)
 
 
 @to_bytes.register(StringType)
@@ -192,7 +199,7 @@ def _(primitive_type, value: str) -> bytes:
 
 @to_bytes.register(UUIDType)
 def _(primitive_type, value: uuid.UUID) -> bytes:
-    return struct.pack(">QQ", (value.int >> 64) & 0xFFFFFFFFFFFFFFFF, value.int & 0xFFFFFFFFFFFFFFFF)
+    return _UUID_STRUCT.pack((value.int >> 64) & 0xFFFFFFFFFFFFFFFF, value.int & 0xFFFFFFFFFFFFFFFF)
 
 
 @to_bytes.register(BinaryType)
@@ -241,13 +248,13 @@ def from_bytes(primitive_type: PrimitiveType, b: bytes) -> Union[bool, bytes, De
 
 @from_bytes.register(BooleanType)
 def _(primitive_type, b: bytes) -> bool:
-    return struct.unpack("<?", b)[0] != 0
+    return _BOOL_STRUCT.unpack(b)[0] != 0
 
 
 @from_bytes.register(IntegerType)
 @from_bytes.register(DateType)
 def _(primitive_type, b: bytes) -> int:
-    return struct.unpack("<i", b)[0]
+    return _INT_STRUCT.unpack(b)[0]
 
 
 @from_bytes.register(LongType)
@@ -255,17 +262,17 @@ def _(primitive_type, b: bytes) -> int:
 @from_bytes.register(TimestampType)
 @from_bytes.register(TimestamptzType)
 def _(primitive_type, b: bytes) -> int:
-    return struct.unpack("<q", b)[0]
+    return _LONG_STRUCT.unpack(b)[0]
 
 
 @from_bytes.register(FloatType)
-def _(primitive_type, b: bytes):
-    return struct.unpack("<f", b)[0]
+def _(primitive_type, b: bytes) -> float:
+    return _FLOAT_STRUCT.unpack(b)[0]
 
 
 @from_bytes.register(DoubleType)
 def _(primitive_type, b: bytes) -> float:
-    return struct.unpack("<d", b)[0]
+    return _DOUBLE_STRUCT.unpack(b)[0]
 
 
 @from_bytes.register(StringType)
@@ -275,7 +282,7 @@ def _(primitive_type: PrimitiveType, b: bytes) -> str:
 
 @from_bytes.register(UUIDType)
 def _(primitive_type, b: bytes) -> uuid.UUID:
-    unpacked_bytes = struct.unpack(">QQ", b)
+    unpacked_bytes = _UUID_STRUCT.unpack(b)
     return uuid.UUID(int=unpacked_bytes[0] << 64 | unpacked_bytes[1])
 
 

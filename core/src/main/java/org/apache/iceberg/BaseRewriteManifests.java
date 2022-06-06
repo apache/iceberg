@@ -162,7 +162,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
   @Override
   public List<ManifestFile> apply(TableMetadata base) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests();
+    List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests(ops.io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
     validateDeletedManifests(currentManifestSet);
@@ -183,7 +183,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     List<ManifestFile> apply = Lists.newArrayList();
     Iterables.addAll(apply, newManifestsWithMetadata);
     apply.addAll(keptManifests);
-    apply.addAll(base.currentSnapshot().deleteManifests());
+    apply.addAll(base.currentSnapshot().deleteManifests(ops.io()));
 
     return apply;
   }
