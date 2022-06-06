@@ -34,12 +34,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class RESTUtil {
-  public static final char NAMESPACE_SEPARATOR = '\u001f';
+  private static final char NAMESPACE_SEPARATOR = '\u001f';
   public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
   public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
-  public static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
-  public static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
-  public static final Splitter NAMESPACE_ESCAPED_SPLITTER = Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
+  private static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
+  private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
+  private static final Splitter NAMESPACE_ESCAPED_SPLITTER = Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
 
   private RESTUtil() {
   }
