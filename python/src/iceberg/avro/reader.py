@@ -24,13 +24,7 @@ import json
 from dataclasses import dataclass, field
 from functools import singledispatchmethod
 from io import SEEK_SET
-from typing import (
-    Any,
-    Dict,
-    List,
-    Type,
-    Union,
-)
+from typing import Any, Union
 
 from iceberg.avro.codec import KNOWN_CODECS, Codec, NullCodec
 from iceberg.avro.decoder import BinaryDecoder
@@ -77,7 +71,7 @@ META_SCHEMA = StructType(
 
 @dataclass(frozen=True)
 class AvroStruct(StructProtocol):
-    _data: List[Union[Any, StructProtocol]] = field(default_factory=list)
+    _data: list[Any | StructProtocol] = field(default_factory=list)
 
     def set(self, pos: int, value: Any) -> None:
         self._data[pos] = value
@@ -92,10 +86,10 @@ class _AvroReader(SchemaVisitor[Union[AvroStruct, Any]]):
     def __init__(self, decoder: BinaryDecoder):
         self._decoder = decoder
 
-    def schema(self, schema: Schema, struct_result: Union[AvroStruct, Any]) -> Union[AvroStruct, Any]:
+    def schema(self, schema: Schema, struct_result: AvroStruct | Any) -> AvroStruct | Any:
         return struct_result
 
-    def struct(self, struct: StructType, field_results: List[Union[AvroStruct, Any]]) -> Union[AvroStruct, Any]:
+    def struct(self, struct: StructType, field_results: list[AvroStruct | Any]) -> AvroStruct | Any:
         return AvroStruct(field_results)
 
     def before_field(self, field: NestedField) -> None:
@@ -105,13 +99,13 @@ class _AvroReader(SchemaVisitor[Union[AvroStruct, Any]]):
             if int(pos) == 0:
                 self._skip = True
 
-    def field(self, field: NestedField, field_result: Union[AvroStruct, Any]) -> Union[AvroStruct, Any]:
+    def field(self, field: NestedField, field_result: AvroStruct | Any) -> AvroStruct | Any:
         return field_result
 
     def before_list_element(self, element: NestedField) -> None:
         self._skip = True
 
-    def list(self, list_type: ListType, element_result: Union[AvroStruct, Any]) -> Union[AvroStruct, Any]:
+    def list(self, list_type: ListType, element_result: AvroStruct | Any) -> AvroStruct | Any:
         read_items = []
         block_count = self._decoder.read_long()
         while block_count != 0:
@@ -130,9 +124,7 @@ class _AvroReader(SchemaVisitor[Union[AvroStruct, Any]]):
     def before_map_value(self, value: NestedField) -> None:
         self._skip = True
 
-    def map(
-        self, map_type: MapType, key_result: Union[AvroStruct, Any], value_result: Union[AvroStruct, Any]
-    ) -> Union[AvroStruct, Any]:
+    def map(self, map_type: MapType, key_result: AvroStruct | Any, value_result: AvroStruct | Any) -> AvroStruct | Any:
         read_items = {}
 
         block_count = self._decoder.read_long()
@@ -206,7 +198,7 @@ class _AvroReader(SchemaVisitor[Union[AvroStruct, Any]]):
     def _(self, primitive: StringType) -> Any:
         return self._decoder.read_bytes()
 
-    def primitive(self, primitive: PrimitiveType) -> Union[AvroStruct, Any]:
+    def primitive(self, primitive: PrimitiveType) -> AvroStruct | Any:
         if self._skip:
             self._skip = False
             return None
@@ -217,10 +209,10 @@ class _AvroReader(SchemaVisitor[Union[AvroStruct, Any]]):
 @dataclass(frozen=True)
 class AvroHeader:
     magic: bytes
-    meta: Dict[str, str]
+    meta: dict[str, str]
     sync: bytes
 
-    def get_compression_codec(self) -> Type[Codec]:
+    def get_compression_codec(self) -> type[Codec]:
         """Get the file's compression codec algorithm from the file's metadata."""
         codec_key = "avro.codec"
         if codec_key in self.meta:
