@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink.source.enumerator;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.List;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -48,5 +49,9 @@ class ManualContinuousSplitPlanner implements ContinuousSplitPlanner {
    */
   public void clearSplits() {
     splits.clear();
+  }
+
+  @Override
+  public void close() throws IOException {
   }
 }

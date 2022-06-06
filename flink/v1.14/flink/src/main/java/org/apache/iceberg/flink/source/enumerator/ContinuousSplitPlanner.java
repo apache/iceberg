@@ -19,13 +19,14 @@
 
 package org.apache.iceberg.flink.source.enumerator;
 
+import java.io.Closeable;
 import org.apache.flink.annotation.Internal;
 
 /**
  * This interface is introduced so that we can plug in different split planner for unit test
  */
 @Internal
-public interface ContinuousSplitPlanner {
+public interface ContinuousSplitPlanner extends Closeable {
 
   /**
    * Discover the files appended between {@code lastPosition} and current table snapshot

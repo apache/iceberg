@@ -40,6 +40,10 @@ class IcebergEnumeratorPosition {
     this.snapshotTimestampMs = snapshotTimestampMs;
   }
 
+  boolean isEmpty() {
+    return snapshotId == null;
+  }
+
   Long snapshotId() {
     return snapshotId;
   }
