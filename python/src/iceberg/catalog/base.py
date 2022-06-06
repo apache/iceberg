@@ -18,12 +18,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import (
-    List,
-    Optional,
-    Set,
-    Union,
-)
 
 from iceberg.catalog import Identifier, Properties
 from iceberg.schema import Schema
@@ -59,11 +53,11 @@ class Catalog(ABC):
     @abstractmethod
     def create_table(
         self,
-        identifier: Union[str, Identifier],
+        identifier: str | Identifier,
         schema: Schema,
-        location: Optional[str] = None,
-        partition_spec: Optional[PartitionSpec] = None,
-        properties: Optional[Properties] = None,
+        location: str | None = None,
+        partition_spec: PartitionSpec | None = None,
+        properties: Properties | None = None,
     ) -> Table:
         """Create a table
 
@@ -82,7 +76,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def load_table(self, identifier: Union[str, Identifier]) -> Table:
+    def load_table(self, identifier: str | Identifier) -> Table:
         """Loads the table's metadata and returns the table instance.
 
         You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
@@ -99,7 +93,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def drop_table(self, identifier: Union[str, Identifier]) -> None:
+    def drop_table(self, identifier: str | Identifier) -> None:
         """Drop a table.
 
         Args:
@@ -110,7 +104,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def purge_table(self, identifier: Union[str, Identifier]) -> None:
+    def purge_table(self, identifier: str | Identifier) -> None:
         """Drop a table and purge all data and metadata files.
 
         Args:
@@ -121,7 +115,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
+    def rename_table(self, from_identifier: str | Identifier, to_identifier: str | Identifier) -> Table:
         """Rename a fully classified table name
 
         Args:
@@ -136,7 +130,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
+    def create_namespace(self, namespace: str | Identifier, properties: Properties | None = None) -> None:
         """Create a namespace in the catalog.
 
         Args:
@@ -148,7 +142,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
+    def drop_namespace(self, namespace: str | Identifier) -> None:
         """Drop a namespace.
 
         Args:
@@ -160,7 +154,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
+    def list_tables(self, namespace: str | Identifier | None = None) -> list[Identifier]:
         """List tables under the given namespace in the catalog.
 
         If namespace not provided, will list all tables in the catalog.
@@ -176,7 +170,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_namespaces(self) -> List[Identifier]:
+    def list_namespaces(self) -> list[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
 
         Returns:
@@ -184,7 +178,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
+    def load_namespace_properties(self, namespace: str | Identifier) -> Properties:
         """Get properties for a namespace.
 
         Args:
@@ -199,7 +193,7 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
+        self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties | None = None
     ) -> None:
         """Removes provided property keys and updates properties for a namespace.
 
@@ -214,7 +208,7 @@ class Catalog(ABC):
         """
 
     @staticmethod
-    def identifier_to_tuple(identifier: Union[str, Identifier]) -> Identifier:
+    def identifier_to_tuple(identifier: str | Identifier) -> Identifier:
         """Parses an identifier to a tuple.
 
         If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
@@ -228,7 +222,7 @@ class Catalog(ABC):
         return identifier if isinstance(identifier, tuple) else tuple(str.split(identifier, "."))
 
     @staticmethod
-    def table_name_from(identifier: Union[str, Identifier]) -> str:
+    def table_name_from(identifier: str | Identifier) -> str:
         """Extracts table name from a table identifier
 
         Args:
@@ -240,7 +234,7 @@ class Catalog(ABC):
         return Catalog.identifier_to_tuple(identifier)[-1]
 
     @staticmethod
-    def namespace_from(identifier: Union[str, Identifier]) -> Identifier:
+    def namespace_from(identifier: str | Identifier) -> Identifier:
         """Extracts table namespace from a table identifier
 
         Args:
