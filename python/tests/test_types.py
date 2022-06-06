@@ -27,6 +27,7 @@ from iceberg.types import (
     DoubleType,
     FixedType,
     FloatType,
+    IcebergType,
     IntegerType,
     ListType,
     LongType,
@@ -37,7 +38,7 @@ from iceberg.types import (
     TimestampType,
     TimestamptzType,
     TimeType,
-    UUIDType, IcebergType,
+    UUIDType,
 )
 
 non_parameterized_types = [
@@ -61,6 +62,12 @@ def test_repr_primitive_types(input_index, input_type):
     assert isinstance(eval(repr(input_type())), input_type)
 
 
+StructType(
+    NestedField(1, "required_field", StringType(), is_optional=False),
+    NestedField(2, "optional_field", IntegerType(), is_optional=True),
+)
+
+
 @pytest.mark.parametrize(
     "input_type, result",
     [
@@ -80,15 +87,15 @@ def test_repr_primitive_types(input_index, input_type):
         (FixedType(8), True),
         (ListType(1, StringType(), True), False),
         (
-                MapType(1, StringType(), 2, IntegerType(), False),
-                False,
+            MapType(1, StringType(), 2, IntegerType(), False),
+            False,
         ),
         (
-                StructType(
-                    NestedField(1, "required_field", StringType(), is_optional=False),
-                    NestedField(2, "optional_field", IntegerType(), is_optional=True),
-                ),
-                False,
+            StructType(
+                NestedField(1, "required_field", StringType(), is_optional=False),
+                NestedField(2, "optional_field", IntegerType(), is_optional=True),
+            ),
+            False,
         ),
         (NestedField(1, "required_field", StringType(), is_optional=False), False),
     ],
@@ -209,6 +216,7 @@ def test_non_parameterized_type_equality(input_index, input_type, check_index, c
 
 # Examples based on https://iceberg.apache.org/spec/#appendix-c-json-serialization
 
+
 class TestType(BaseModel):
     __root__: IcebergType
 
@@ -222,11 +230,11 @@ def test_deserialization_boolean():
 
 
 def test_str_boolean():
-    assert str(BooleanType()) == 'boolean'
+    assert str(BooleanType()) == "boolean"
 
 
 def test_repr_boolean():
-    assert repr(BooleanType()) == 'BooleanType()'
+    assert repr(BooleanType()) == "BooleanType()"
 
 
 def test_serialization_int():
@@ -238,11 +246,11 @@ def test_deserialization_int():
 
 
 def test_str_int():
-    assert str(IntegerType()) == 'int'
+    assert str(IntegerType()) == "int"
 
 
 def test_repr_int():
-    assert repr(IntegerType()) == 'IntegerType()'
+    assert repr(IntegerType()) == "IntegerType()"
 
 
 def test_serialization_long():
@@ -254,11 +262,11 @@ def test_deserialization_long():
 
 
 def test_str_long():
-    assert str(LongType()) == 'long'
+    assert str(LongType()) == "long"
 
 
 def test_repr_long():
-    assert repr(LongType()) == 'LongType()'
+    assert repr(LongType()) == "LongType()"
 
 
 def test_serialization_float():
@@ -270,11 +278,11 @@ def test_deserialization_float():
 
 
 def test_str_float():
-    assert str(FloatType()) == 'float'
+    assert str(FloatType()) == "float"
 
 
 def test_repr_float():
-    assert repr(FloatType()) == 'FloatType()'
+    assert repr(FloatType()) == "FloatType()"
 
 
 def test_serialization_double():
@@ -286,11 +294,11 @@ def test_deserialization_double():
 
 
 def test_str_double():
-    assert str(DoubleType()) == 'double'
+    assert str(DoubleType()) == "double"
 
 
 def test_repr_double():
-    assert repr(DoubleType()) == 'DoubleType()'
+    assert repr(DoubleType()) == "DoubleType()"
 
 
 def test_serialization_date():
@@ -302,11 +310,11 @@ def test_deserialization_date():
 
 
 def test_str_date():
-    assert str(DateType()) == 'date'
+    assert str(DateType()) == "date"
 
 
 def test_repr_date():
-    assert repr(DateType()) == 'DateType()'
+    assert repr(DateType()) == "DateType()"
 
 
 def test_serialization_time():
@@ -318,11 +326,11 @@ def test_deserialization_time():
 
 
 def test_str_time():
-    assert str(TimeType()) == 'time'
+    assert str(TimeType()) == "time"
 
 
 def test_repr_time():
-    assert repr(TimeType()) == 'TimeType()'
+    assert repr(TimeType()) == "TimeType()"
 
 
 def test_serialization_timestamp():
@@ -334,11 +342,11 @@ def test_deserialization_timestamp():
 
 
 def test_str_timestamp():
-    assert str(TimestampType()) == 'timestamp'
+    assert str(TimestampType()) == "timestamp"
 
 
 def test_repr_timestamp():
-    assert repr(TimestampType()) == 'TimestampType()'
+    assert repr(TimestampType()) == "TimestampType()"
 
 
 def test_serialization_timestamptz():
@@ -350,11 +358,11 @@ def test_deserialization_timestamptz():
 
 
 def test_str_timestamptz():
-    assert str(TimestamptzType()) == 'timestamptz'
+    assert str(TimestamptzType()) == "timestamptz"
 
 
 def test_repr_timestamptz():
-    assert repr(TimestamptzType()) == 'TimestamptzType()'
+    assert repr(TimestamptzType()) == "TimestamptzType()"
 
 
 def test_serialization_string():
@@ -366,11 +374,11 @@ def test_deserialization_string():
 
 
 def test_str_string():
-    assert str(StringType()) == 'string'
+    assert str(StringType()) == "string"
 
 
 def test_repr_string():
-    assert repr(StringType()) == 'StringType()'
+    assert repr(StringType()) == "StringType()"
 
 
 def test_serialization_uuid():
@@ -382,11 +390,11 @@ def test_deserialization_uuid():
 
 
 def test_str_uuid():
-    assert str(UUIDType()) == 'uuid'
+    assert str(UUIDType()) == "uuid"
 
 
 def test_repr_uuid():
-    assert repr(UUIDType()) == 'UUIDType()'
+    assert repr(UUIDType()) == "UUIDType()"
 
 
 def test_serialization_fixed():
@@ -403,11 +411,11 @@ def test_deserialization_fixed():
 
 
 def test_str_fixed():
-    assert str(FixedType(22)) == 'fixed[22]'
+    assert str(FixedType(22)) == "fixed[22]"
 
 
 def test_repr_fixed():
-    assert repr(FixedType(22)) == 'FixedType(length=22)'
+    assert repr(FixedType(22)) == "FixedType(length=22)"
 
 
 def test_serialization_binary():
@@ -419,11 +427,11 @@ def test_deserialization_binary():
 
 
 def test_str_binary():
-    assert str(BinaryType()) == 'binary'
+    assert str(BinaryType()) == "binary"
 
 
 def test_repr_binary():
-    assert repr(BinaryType()) == 'BinaryType()'
+    assert repr(BinaryType()) == "BinaryType()"
 
 
 def test_serialization_decimal():
@@ -441,11 +449,11 @@ def test_deserialization_decimal():
 
 
 def test_str_decimal():
-    assert str(DecimalType(19, 25)) == 'decimal(19, 25)'
+    assert str(DecimalType(19, 25)) == "decimal(19, 25)"
 
 
 def test_repr_decimal():
-    assert repr(DecimalType(19, 25)) == 'DecimalType(precision=19, scale=25)'
+    assert repr(DecimalType(19, 25)) == "DecimalType(precision=19, scale=25)"
 
 
 def test_serialization_nestedfield():
@@ -461,19 +469,20 @@ def test_serialization_nestedfield_no_doc():
 
 
 def test_str_nestedfield():
-    assert str(NestedField(1, "required_field", StringType(), True)) == '1: required_field: required string'
+    assert str(NestedField(1, "required_field", StringType(), True)) == "1: required_field: required string"
 
 
 def test_repr_nestedfield():
-    assert repr(NestedField(1, "required_field", StringType(),
-                            True)) == "NestedField(field_id=1, name='required_field', field_type=StringType(), required=True, doc=None)"
+    assert (
+        repr(NestedField(1, "required_field", StringType(), True))
+        == "NestedField(field_id=1, name='required_field', field_type=StringType(), required=True, doc=None)"
+    )
 
 
 def test_nestedfield_by_alias():
     # We should be able to initialize a NestedField by alias
     expected = NestedField(1, "required_field", StringType(), True, "this is a doc")
-    actual = NestedField(
-        **{"id": 1, "name": "required_field", "type": "string", "required": True, "doc": "this is a doc"})
+    actual = NestedField(**{"id": 1, "name": "required_field", "type": "string", "required": True, "doc": "this is a doc"})
     assert expected == actual
 
 
@@ -487,16 +496,13 @@ def test_deserialization_nestedfield():
 
 def test_deserialization_nestedfield_inner():
     expected = NestedField(1, "required_field", StringType(), True, "this is a doc")
-    actual = TestType.parse_raw(
-        '{"id": 1, "name": "required_field", "type": "string", "required": true, "doc": "this is a doc"}'
-    )
+    actual = TestType.parse_raw('{"id": 1, "name": "required_field", "type": "string", "required": true, "doc": "this is a doc"}')
     assert expected == actual.__root__
 
 
 def test_serialization_struct():
     actual = StructType(
-        NestedField(1, "required_field", StringType(), True, "this is a doc"),
-        NestedField(2, "optional_field", IntegerType())
+        NestedField(1, "required_field", StringType(), True, "this is a doc"), NestedField(2, "optional_field", IntegerType())
     ).json()
     expected = (
         '{"type": "struct", "fields": ['
@@ -532,8 +538,7 @@ def test_deserialization_struct():
     )
 
     expected = StructType(
-        NestedField(1, "required_field", StringType(), True, "this is a doc"),
-        NestedField(2, "optional_field", IntegerType())
+        NestedField(1, "required_field", StringType(), True, "this is a doc"), NestedField(2, "optional_field", IntegerType())
     )
 
     assert actual == expected
@@ -544,8 +549,10 @@ def test_str_struct(simple_struct: StructType):
 
 
 def test_repr_struct(simple_struct: StructType):
-    assert repr(
-        simple_struct) == "StructType(fields=[NestedField(field_id=1, name='required_field', field_type=StringType(), required=True, doc='this is a doc'), NestedField(field_id=2, name='optional_field', field_type=IntegerType(), required=True, doc=None)])"
+    assert (
+        repr(simple_struct)
+        == "StructType(fields=[NestedField(field_id=1, name='required_field', field_type=StringType(), required=True, doc='this is a doc'), NestedField(field_id=2, name='optional_field', field_type=IntegerType(), required=True, doc=None)])"
+    )
 
 
 def test_serialization_list(simple_list: ListType):
@@ -564,8 +571,7 @@ def test_str_list(simple_list: ListType):
 
 
 def test_repr_list(simple_list: ListType):
-    assert repr(
-        simple_list) == "ListType(type='list', element_id=22, element=StringType(), element_required=True)"
+    assert repr(simple_list) == "ListType(type='list', element_id=22, element=StringType(), element_required=True)"
 
 
 def test_serialization_map(simple_map: MapType):
@@ -587,5 +593,7 @@ def test_str_map(simple_map: MapType):
 
 
 def test_repr_map(simple_map: MapType):
-    assert repr(simple_map) == "MapType(type='map', key_id=19, key=StringType(), value_id=25, value=DoubleType(), value_required=False)"
-
+    assert (
+        repr(simple_map)
+        == "MapType(type='map', key_id=19, key=StringType(), value_id=25, value=DoubleType(), value_required=False)"
+    )

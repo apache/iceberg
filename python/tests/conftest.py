@@ -16,7 +16,6 @@
 # under the License.
 """This contains global pytest configurations.
 
-<<<<<<< HEAD
 Fixtures contained in this file will be automatically used if provided as an argument
 to any pytest function.
 
@@ -27,24 +26,30 @@ retrieved using `request.getfixturevalue(fixture_name)`.
 
 import os
 from typing import Any, Dict
-from typing import Union
 from urllib.parse import ParseResult, urlparse
 
 import pytest
 
 from iceberg import schema
-from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
+from iceberg.io.base import (
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 from iceberg.types import (
     BooleanType,
+    DoubleType,
     FloatType,
     IntegerType,
     ListType,
     MapType,
     NestedField,
     StringType,
-    StructType, DoubleType,
+    StructType,
 )
 from tests.catalog.test_base import InMemoryCatalog
+from tests.fs.test_io_base import LocalFileIO
 
 
 class FooStruct:
@@ -133,28 +138,8 @@ class LocalOutputFile(OutputFile):
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
         if not isinstance(output_file, OutputStream):
-            raise TypeError(
-                "Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
+            raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
         return output_file
-
-
-class LocalFileIO(FileIO):
-    """A FileIO implementation for local files (for test use only)"""
-
-    def new_input(self, location: str):
-        return LocalInputFile(location=location)
-
-    def new_output(self, location: str):
-        return LocalOutputFile(location=location)
-
-    def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
-        parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(
-            location)
-        try:
-            os.remove(parsed_location.path)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(
-                f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e)) from e
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -227,8 +212,7 @@ def table_schema_nested():
 @pytest.fixture(scope="session")
 def simple_struct():
     return StructType(
-        NestedField(1, "required_field", StringType(), True, "this is a doc"),
-        NestedField(2, "optional_field", IntegerType())
+        NestedField(1, "required_field", StringType(), True, "this is a doc"), NestedField(2, "optional_field", IntegerType())
     )
 
 
@@ -240,26 +224,6 @@ def simple_list():
 @pytest.fixture(scope="session")
 def simple_map():
     return MapType(key_id=19, key=StringType(), value_id=25, value=DoubleType(), value_required=False)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def foo_struct():
-    return FooStruct()
-
-
-@pytest.fixture(scope="session", autouse=True)
-def LocalInputFileFixture():
-    return LocalInputFile
-
-
-@pytest.fixture(scope="session", autouse=True)
-def LocalOutputFileFixture():
-    return LocalOutputFile
-
-
-@pytest.fixture(scope="session", autouse=True)
-def LocalFileIOFixture():
-    return LocalFileIO
 
 
 @pytest.fixture(scope="session")
@@ -345,8 +309,7 @@ def manifest_schema() -> Dict[str, Any]:
                 "default": None,
                 "field-id": 507,
             },
-            {"name": "added_rows_count", "type": ["null", "long"], "doc": "Added rows count", "default": None,
-             "field-id": 512},
+            {"name": "added_rows_count", "type": ["null", "long"], "doc": "Added rows count", "default": None, "field-id": 512},
             {
                 "name": "existing_rows_count",
                 "type": ["null", "long"],
@@ -451,3 +414,18 @@ def all_avro_types() -> Dict[str, Any]:
 @pytest.fixture
 def catalog() -> InMemoryCatalog:
     return InMemoryCatalog("test.in.memory.catalog", {"test.key": "test.value"})
+
+
+@pytest.fixture(scope="session", autouse=True)
+def LocalInputFileFixture():
+    return LocalInputFile
+
+
+@pytest.fixture(scope="session", autouse=True)
+def LocalOutputFileFixture():
+    return LocalOutputFile
+
+
+@pytest.fixture(scope="session", autouse=True)
+def LocalFileIOFixture():
+    return LocalFileIO

@@ -19,8 +19,8 @@ import codecs
 import json
 from typing import Union
 
-from iceberg.io.base import InputFile, OutputFile, InputStream
-from iceberg.table.metadata import TableMetadata, TableMetadataV2, TableMetadataV1
+from iceberg.io.base import InputFile, InputStream, OutputFile
+from iceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
 
 
 class FromByteStream:
@@ -35,8 +35,8 @@ class FromByteStream:
             encoding (default "utf-8"): The byte encoder to use for the reader
         """
         reader = codecs.getreader(encoding)
-        metadata = json.load(reader(byte_stream))
-        return TableMetadata.parse_obj(metadata)
+        metadata = json.load(reader(byte_stream))  # type: ignore
+        return TableMetadata.parse_obj(metadata)  # type: ignore
 
 
 class FromInputFile:
@@ -61,7 +61,9 @@ class ToOutputFile:
     """A collection of methods that serialize Iceberg objects into files given an OutputFile instance"""
 
     @staticmethod
-    def table_metadata(metadata: Union[TableMetadataV1, TableMetadataV2], output_file: OutputFile, overwrite: bool = False) -> None:
+    def table_metadata(
+        metadata: Union[TableMetadataV1, TableMetadataV2], output_file: OutputFile, overwrite: bool = False
+    ) -> None:
         """Write a TableMetadata instance to an output file
 
         Args:

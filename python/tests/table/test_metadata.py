@@ -23,13 +23,9 @@ import tempfile
 import pytest
 
 from iceberg.schema import Schema
-from iceberg.serializers import (
-    FromByteStream,
-    FromInputFile,
-    ToOutputFile,
-)
-from iceberg.table.metadata import TableMetadata, TableMetadataV2, TableMetadataV1
-from iceberg.types import StringType, NestedField
+from iceberg.serializers import FromByteStream, FromInputFile, ToOutputFile
+from iceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
+from iceberg.types import NestedField, StringType
 
 EXAMPLE_TABLE_METADATA_V1 = {
     "format-version": 1,
@@ -45,7 +41,7 @@ EXAMPLE_TABLE_METADATA_V1 = {
             {"id": 3, "name": "baz", "required": True, "type": "string"},
             {"id": 4, "name": "qux", "required": True, "type": "string"},
         ],
-        "identifier_field_ids": [],
+        "identifier-field-ids": [],
     },
     "schemas": [
         {
@@ -56,7 +52,7 @@ EXAMPLE_TABLE_METADATA_V1 = {
                 {"id": 3, "name": "baz", "required": True, "type": "string"},
                 {"id": 4, "name": "qux", "required": True, "type": "string"},
             ],
-            "identifier_field_ids": [],
+            "identifier-field-ids": [],
         },
     ],
     "current-schema-id": 0,
@@ -115,7 +111,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
                 {"id": 3, "name": "baz", "required": True, "type": "string"},
                 {"id": 4, "name": "qux", "required": True, "type": "string"},
             ],
-            "identifier_field_ids": [],
+            "identifier-field-ids": [],
         }
     ],
     "current-schema-id": 0,
@@ -219,7 +215,7 @@ def test_to_output_file(metadata: dict, LocalFileIOFixture):
         ToOutputFile.table_metadata(metadata=table_metadata, output_file=output_file)
 
         # Read the raw json file and compare to metadata dictionary
-        table_metadata_dict = json.load(open(file_location, "r", encoding="utf-8"))
+        table_metadata_dict = json.load(open(file_location, encoding="utf-8"))
         assert table_metadata_dict == metadata
 
 

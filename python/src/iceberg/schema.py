@@ -25,7 +25,7 @@ from typing import (
     Any,
     Dict,
     Generic,
-    TypeVar, List, Iterable,
+    TypeVar,
 )
 
 from pydantic import Field, PrivateAttr
@@ -52,21 +52,21 @@ class Schema(IcebergBaseModel):
         >>> from iceberg import types
     """
 
-    fields: List[NestedField]
+    fields: tuple[NestedField, ...] = Field()
     schema_id: int = Field(alias="schema-id")
-    identifier_field_ids: List[int] = Field(alias="identifier_field_ids", default_factory=list)
+    identifier_field_ids: list[int] = Field(alias="identifier-field-ids", default_factory=list)
 
-    _name_to_id: Dict[str, int] = PrivateAttr()
+    _name_to_id: dict[str, int] = PrivateAttr()
     # Should be accessed through self._lazy_name_to_id_lower()
-    _name_to_id_lower: Dict[str, int] = PrivateAttr(default_factory=dict)
+    _name_to_id_lower: dict[str, int] = PrivateAttr(default_factory=dict)
     # Should be accessed through self._lazy_id_to_field()
-    _id_to_field: Dict[int, NestedField] = PrivateAttr(default_factory=dict)
+    _id_to_field: dict[int, NestedField] = PrivateAttr(default_factory=dict)
     # Should be accessed through self._lazy_id_to_name()
-    _id_to_name: Dict[int, str] = PrivateAttr(default_factory=dict)
+    _id_to_name: dict[int, str] = PrivateAttr(default_factory=dict)
     # Should be accessed through self._lazy_id_to_accessor()
-    _id_to_accessor: Dict[int, Accessor] = PrivateAttr(default_factory=dict)
+    _id_to_accessor: dict[int, Accessor] = PrivateAttr(default_factory=dict)
 
-    def __init__(self, *fields: Iterable[NestedField], **data):
+    def __init__(self, *fields: NestedField, **data):
         if fields:
             data["fields"] = fields
         super().__init__(**data)
@@ -358,11 +358,11 @@ def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
 def _(obj: MapType, visitor: SchemaVisitor[T]) -> T:
     """Visit a MapType with a concrete SchemaVisitor"""
     visitor.before_map_key(obj.key_field)
-    key_result = visit(obj.key_field.field_type, visitor)
+    key_result = visit(obj.key, visitor)
     visitor.after_map_key(obj.key_field)
 
     visitor.before_map_value(obj.value_field)
-    value_result = visit(obj.value_field.field_type, visitor)
+    value_result = visit(obj.value, visitor)
     visitor.after_list_element(obj.value_field)
 
     return visitor.map(obj, key_result, value_result)
@@ -441,8 +441,6 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
 
     def before_field(self, field: NestedField) -> None:
         """Store the field name"""
-        if not field:
-            vo = True
         self._field_names.append(field.name)
         self._short_field_names.append(field.name)
 

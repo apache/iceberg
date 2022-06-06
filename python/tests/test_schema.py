@@ -16,15 +16,14 @@
 # under the License.
 
 from textwrap import dedent
-from typing import Any, Dict, TypeVar, Type
+from typing import Any, Dict
 
 import pytest
-from pydantic import BaseModel
 
 from iceberg import schema
 from iceberg.expressions.base import Accessor
 from iceberg.files import StructProtocol
-from iceberg.schema import build_position_accessors, Schema
+from iceberg.schema import Schema, build_position_accessors
 from iceberg.types import (
     BooleanType,
     FloatType,
@@ -34,17 +33,6 @@ from iceberg.types import (
     NestedField,
     StringType,
     StructType,
-    LongType,
-    DoubleType,
-    DateType,
-    TimeType,
-    TimestampType,
-    TimestamptzType,
-    UUIDType,
-    FixedType,
-    BinaryType,
-    DecimalType,
-    IcebergType,
 )
 
 
@@ -346,44 +334,44 @@ def test_index_by_id_schema_visitor_raise_on_unregistered_type():
 def test_schema_find_field(table_schema_simple):
     """Test finding a field in a schema"""
     assert (
-            table_schema_simple.find_field(1)
-            == table_schema_simple.find_field("foo")
-            == table_schema_simple.find_field("FOO", case_sensitive=False)
-            == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
+        table_schema_simple.find_field(1)
+        == table_schema_simple.find_field("foo")
+        == table_schema_simple.find_field("FOO", case_sensitive=False)
+        == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     )
     assert (
-            table_schema_simple.find_field(2)
-            == table_schema_simple.find_field("bar")
-            == table_schema_simple.find_field("BAR", case_sensitive=False)
-            == NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True)
+        table_schema_simple.find_field(2)
+        == table_schema_simple.find_field("bar")
+        == table_schema_simple.find_field("BAR", case_sensitive=False)
+        == NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True)
     )
     assert (
-            table_schema_simple.find_field(3)
-            == table_schema_simple.find_field("baz")
-            == table_schema_simple.find_field("BAZ", case_sensitive=False)
-            == NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False)
+        table_schema_simple.find_field(3)
+        == table_schema_simple.find_field("baz")
+        == table_schema_simple.find_field("BAZ", case_sensitive=False)
+        == NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False)
     )
 
 
 def test_schema_find_type(table_schema_simple):
     """Test finding the type of a column given its field ID"""
     assert (
-            table_schema_simple.find_type(1)
-            == table_schema_simple.find_type("foo")
-            == table_schema_simple.find_type("FOO", case_sensitive=False)
-            == StringType()
+        table_schema_simple.find_type(1)
+        == table_schema_simple.find_type("foo")
+        == table_schema_simple.find_type("FOO", case_sensitive=False)
+        == StringType()
     )
     assert (
-            table_schema_simple.find_type(2)
-            == table_schema_simple.find_type("bar")
-            == table_schema_simple.find_type("BAR", case_sensitive=False)
-            == IntegerType()
+        table_schema_simple.find_type(2)
+        == table_schema_simple.find_type("bar")
+        == table_schema_simple.find_type("BAR", case_sensitive=False)
+        == IntegerType()
     )
     assert (
-            table_schema_simple.find_type(3)
-            == table_schema_simple.find_type("baz")
-            == table_schema_simple.find_type("BAZ", case_sensitive=False)
-            == BooleanType()
+        table_schema_simple.find_type(3)
+        == table_schema_simple.find_type("baz")
+        == table_schema_simple.find_type("BAZ", case_sensitive=False)
+        == BooleanType()
     )
 
 
@@ -414,16 +402,20 @@ def test_build_position_accessors_with_struct(table_schema_nested: Schema):
 
     accessors = build_position_accessors(table_schema_nested)
     container = TestStruct({6: TestStruct({0: "name"})})
-    assert accessors.get(16).get(container) == "name"
+    inner_accessor = accessors.get(16)
+    assert inner_accessor
+    assert inner_accessor.get(container) == "name"
 
 
 def test_serialize_schema(table_schema_simple: Schema):
     actual = table_schema_simple.json()
-    expected = """{"fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier_field_ids": [1]}"""
+    expected = """{"fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [1]}"""
     assert actual == expected
 
 
 def test_deserialize_schema(table_schema_simple: Schema):
-    actual = Schema.parse_raw("""{"fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier_field_ids": [1]}""")
+    actual = Schema.parse_raw(
+        """{"fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [1]}"""
+    )
     expected = table_schema_simple
     assert actual == expected

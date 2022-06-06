@@ -33,10 +33,10 @@ import re
 from typing import (
     ClassVar,
     Dict,
+    Literal,
     Optional,
     Tuple,
 )
-from typing import Literal
 
 from pydantic import Field, PrivateAttr
 
@@ -61,16 +61,6 @@ class IcebergType(IcebergBaseModel):
         >>> repr(IcebergType())
         'IcebergType()'
     """
-
-    class Config:
-        allow_population_by_field_name = True
-
-    @property
-    def string_type(self) -> str:
-        return self.__repr__()
-
-    def __str__(self) -> str:
-        return self.string_type
 
     @classmethod
     def __get_validators__(cls):
@@ -118,6 +108,7 @@ class IcebergType(IcebergBaseModel):
 
 class PrimitiveType(IcebergType):
     """Base class for all Iceberg Primitive Types"""
+
     __root__: str = Field()
 
     def __repr__(self) -> str:
@@ -201,20 +192,9 @@ class NestedField(IcebergType):
         ...     field_id=2,
         ...     name='bar',
         ...     field_type=LongType(),
-        ...     required=True,
-        ...     doc="Just a long"
-        ... ))
-<<<<<<< HEAD
-=======
-        '1: foo: required fixed[22]'
-        >>> str(NestedField(
-        ...     field_id=2,
-        ...     name='bar',
-        ...     field_type=LongType(),
         ...     is_optional=False,
         ...     doc="Just a long"
         ... ))
->>>>>>> b06a89cebd5099b40b188c4c40ea7b1a23d3427a
         '2: bar: required long (Just a long)'
     """
 
@@ -230,13 +210,13 @@ class NestedField(IcebergType):
     doc: Optional[str] = Field(default=None)
 
     def __init__(
-            self,
-            field_id: Optional[int] = None,
-            name: Optional[str] = None,
-            field_type: Optional[IcebergType] = None,
-            required: bool = True,
-            doc: Optional[str] = None,
-            **data,
+        self,
+        field_id: Optional[int] = None,
+        name: Optional[str] = None,
+        field_type: Optional[IcebergType] = None,
+        required: bool = True,
+        doc: Optional[str] = None,
+        **data,
     ):
         # We need an init when we want to use positional arguments, but
         # need also to support the aliases.
@@ -247,20 +227,7 @@ class NestedField(IcebergType):
         data["doc"] = doc
         super().__init__(**data)
 
-    # def __new__(
-    #         cls,
-    #         field_id: int,
-    #         name: str,
-    #         field_type: IcebergType,
-    #         required: bool = True,
-    #         doc: Optional[str] = None,
-    # ):
-    #     key = (field_id, name, field_type, required, doc)
-    #     cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
-    #     return cls._instances[key]
-
-    @property
-    def string_type(self) -> str:
+    def __str__(self) -> str:
         doc = "" if not self.doc else f" ({self.doc})"
         req = "required" if self.required else "optional"
         return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
@@ -280,27 +247,19 @@ class StructType(IcebergType):
         ... ))
         'struct<1: required_field: optional string, 2: optional_field: optional int>'
     """
+
     type: Literal["struct"] = "struct"
-    fields: Tuple[NestedField] = Field()
+    fields: Tuple[NestedField, ...] = Field()
 
-    _instances: ClassVar[Dict[Tuple[NestedField, ...], "StructType"]] = {}
-
-    # def __new__(cls, *fields: NestedField, **kwargs):
-    #     if not fields and "fields" in kwargs:
-    #         fields = kwargs["fields"]
-    #     cls._instances[fields] = cls._instances.get(fields) or object.__new__(cls)
-    #     return cls._instances[fields]
-
-    def __init__(self, *fields: NestedField, **kwargs):
+    def __init__(self, *fields: NestedField, **data):
         # In case we use positional arguments, instead of keyword args
         if fields:
-            kwargs["fields"] = fields
-        super().__init__(**kwargs)
+            data["fields"] = fields
+        super().__init__(**data)
 
     def __str__(self) -> str:
         return f"struct<{', '.join(map(str, self.fields))}>"
 
-    # @cached_property
     def __repr__(self) -> str:
         return f"StructType(fields=[{', '.join(map(repr, self.fields))}])"
 
@@ -320,35 +279,25 @@ class ListType(IcebergType):
     element_id: int = Field(alias="element-id")
     element: IcebergType = Field()
     element_required: bool = Field(alias="element-required", default=True)
-    element_field: Optional[NestedField] = Field(init=False, repr=False, default=None)
+    element_field: NestedField = Field(init=False, repr=False)
 
     _instances: ClassVar[Dict[Tuple[bool, int, IcebergType], "ListType"]] = {}
 
-    def __init__(self, element_id: Optional[int] = None, element: Optional[IcebergType] = None,
-                 element_required: bool = True, **data):
-        data['element_id'] = data['element-id'] if 'element-id' in data else element_id
-        data['element'] = element or data['element']
-        data['element_required'] = data['element-required'] if 'element-required' in data else element_required
+    def __init__(
+        self, element_id: Optional[int] = None, element: Optional[IcebergType] = None, element_required: bool = True, **data
+    ):
+        data["element_id"] = data["element-id"] if "element-id" in data else element_id
+        data["element"] = element or data["element"]
+        data["element_required"] = data["element-required"] if "element-required" in data else element_required
         data["element_field"] = NestedField(
             name="element",
-            required=data.get("element_required"),
-            field_id=data.get("element_id"),
+            required=data["element_required"],
+            field_id=data["element_id"],
             field_type=data["element"],
         )
         super().__init__(**data)
 
-    # def __new__(
-    #         cls,
-    #         element_id: int,
-    #         element_type: IcebergType,
-    #         element_required: bool = False,
-    # ):
-    #     key = (element_required, element_id, element_type)
-    #     cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
-    #     return cls._instances[key]
-
-    @property
-    def string_type(self) -> str:
+    def __str__(self) -> str:
         return f"list<{self.element}>"
 
 
@@ -366,39 +315,34 @@ class MapType(IcebergType):
     value_id: int = Field(alias="value-id")
     value: IcebergType = Field()
     value_required: bool = Field(alias="value-required", default=True)
-    key_field: Optional[NestedField] = Field(init=False, repr=False, default=None)
-    value_field: Optional[NestedField] = Field(init=False, repr=False, default=None)
+    key_field: NestedField = Field(init=False, repr=False)
+    value_field: NestedField = Field(init=False, repr=False)
 
     class Config:
         fields = {"key_field": {"exclude": True}, "value_field": {"exclude": True}}
 
     _instances: ClassVar[Dict[Tuple[int, IcebergType, int, IcebergType, bool], "MapType"]] = {}
 
-    def __init__(self, key_id: Optional[int] = None, key: Optional[IcebergType] = None, value_id: Optional[int] = None,
-                 value: Optional[IcebergType] = None, value_required: bool = True, **data):
-        data['key_id'] = key_id or data['key-id']
-        data['key'] = key or data['key']
-        data['value_id'] = value_id or data['value-id']
-        data['value'] = value or data['value']
-        data['value_required'] = value_required if value_required is not None else data['value_required']
+    def __init__(
+        self,
+        key_id: Optional[int] = None,
+        key: Optional[IcebergType] = None,
+        value_id: Optional[int] = None,
+        value: Optional[IcebergType] = None,
+        value_required: bool = True,
+        **data,
+    ):
+        data["key_id"] = key_id or data["key-id"]
+        data["key"] = key or data["key"]
+        data["value_id"] = value_id or data["value-id"]
+        data["value"] = value or data["value"]
+        data["value_required"] = value_required if value_required is not None else data["value_required"]
 
         data["key_field"] = NestedField(name="key", field_id=data["key_id"], field_type=data["key"], required=True)
         data["value_field"] = NestedField(
             name="value", field_id=data["value_id"], field_type=data["value"], required=data["value_required"]
         )
         super().__init__(**data)
-
-    # def __new__(
-    #         cls,
-    #         key_id: int,
-    #         key_type: IcebergType,
-    #         value_id: int,
-    #         value_type: IcebergType,
-    #         value_required: bool = False,
-    # ):
-    #     impl_key = (key_id, key_type, value_id, value_type, value_required)
-    #     cls._instances[impl_key] = cls._instances.get(impl_key) or object.__new__(cls)
-    #     return cls._instances[impl_key]
 
     def __str__(self) -> str:
         return f"map<{self.key}, {self.value}>"
@@ -611,16 +555,16 @@ class BinaryType(PrimitiveType, Singleton):
 
 
 PRIMITIVE_TYPES: Dict[str, PrimitiveType] = {
-    'boolean': BooleanType(),
-    'int': IntegerType(),
-    'long': LongType(),
-    'float': FloatType(),
-    'double': DoubleType(),
-    'date': DateType(),
-    'time': TimeType(),
-    'timestamp': TimestampType(),
-    'timestamptz': TimestamptzType(),
-    'string': StringType(),
-    'uuid': UUIDType(),
-    'binary': BinaryType(),
+    "boolean": BooleanType(),
+    "int": IntegerType(),
+    "long": LongType(),
+    "float": FloatType(),
+    "double": DoubleType(),
+    "date": DateType(),
+    "time": TimeType(),
+    "timestamp": TimestampType(),
+    "timestamptz": TimestamptzType(),
+    "string": StringType(),
+    "uuid": UUIDType(),
+    "binary": BinaryType(),
 }
