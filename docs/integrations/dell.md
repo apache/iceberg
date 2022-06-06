@@ -35,11 +35,11 @@ See [Dell ECS](https://www.dell.com/en-us/dt/storage/ecs/index.htm) for more inf
 
 When you try to connect Dell ECS with Iceberg, these connection parameters should be prepared:
 
-| Name                     | Description             |
-| ------------------------ | ----------------------- |
+| Name                     | Description            |
+| ------------------------ | ---------------------- |
 | ecs.s3.endpoint          | ECS S3 service endpoint |
-| ecs.s3.access-key-id     | User name               |
-| ecs.s3.secret-access-key | S3 Secret Key           |
+| ecs.s3.access-key-id     | Username               |
+| ecs.s3.secret-access-key | S3 Secret Key          |
 
 As for the catalog, you should provide a warehouse location where will store all data and metadata later.
 
@@ -54,7 +54,7 @@ When you provide the `warehouse`, the last / will be ignored. The `ecs://bucket-
 
 The Iceberg `runtime` jar supports different versions of Spark and Flink. If the version was not matched in the example, please check the related document of Spark and Flink.
 
-Even though the [Dell ECS client](https://github.com/EMCECS/ecs-object-client-java) jar is backward compatible, Dell EMC still recommends using the latest version of the client.
+Even though the [Dell ECS client](https://github.com/EMCECS/ecs-object-client-java) jar is backward compatible, Dell ECS still recommends using the latest version of the client.
 
 ### Spark
 
