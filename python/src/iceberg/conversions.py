@@ -209,11 +209,11 @@ def _(primitive_type, value: bytes) -> bytes:
 
 
 @to_bytes.register(DecimalType)
-def _(primitive_type, value: Decimal) -> bytes:
+def _(primitive_type: DecimalType, value: Decimal) -> bytes:
     """Convert a Decimal value to bytes given a DecimalType instance with defined precision and scale
 
     Args:
-        primitive_type (Decimal): A DecimalType instance with precision and scale
+        primitive_type (DecimalType): A DecimalType instance with precision and scale
         value (Decimal): A Decimal instance
 
     Raises:
@@ -293,6 +293,6 @@ def _(primitive_type, b: bytes) -> bytes:
 
 
 @from_bytes.register(DecimalType)
-def _(primitive_type, buf: bytes) -> Decimal:
+def _(primitive_type: DecimalType, buf: bytes) -> Decimal:
     unscaled = int.from_bytes(buf, "big", signed=True)
     return unscaled_to_decimal(unscaled, primitive_type.scale)
