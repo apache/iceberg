@@ -66,6 +66,9 @@ class ScanContext implements Serializable {
   private static final ConfigOption<Boolean> STREAMING =
       ConfigOptions.key("streaming").booleanType().defaultValue(false);
 
+  private static final ConfigOption<Boolean> INCLUDE_OVERWRITE =
+      ConfigOptions.key("include-overwrite").booleanType().defaultValue(false);
+
   private static final ConfigOption<Duration> MONITOR_INTERVAL =
       ConfigOptions.key("monitor-interval").durationType().defaultValue(Duration.ofSeconds(10));
 
@@ -82,6 +85,7 @@ class ScanContext implements Serializable {
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
   private final boolean isStreaming;
+  private final boolean includeOverwrite;
   private final Duration monitorInterval;
 
   private final String nameMapping;
@@ -95,7 +99,7 @@ class ScanContext implements Serializable {
                       Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
                       boolean isStreaming, Duration monitorInterval, String nameMapping, Schema schema,
                       List<Expression> filters, long limit, boolean includeColumnStats, boolean exposeLocality,
-                      Integer planParallelism) {
+                      Integer planParallelism, boolean includeOverwrite) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -105,6 +109,7 @@ class ScanContext implements Serializable {
     this.splitLookback = splitLookback;
     this.splitOpenFileCost = splitOpenFileCost;
     this.isStreaming = isStreaming;
+    this.includeOverwrite = includeOverwrite;
     this.monitorInterval = monitorInterval;
 
     this.nameMapping = nameMapping;
@@ -152,6 +157,10 @@ class ScanContext implements Serializable {
     return isStreaming;
   }
 
+  boolean includeOverwrite() {
+    return includeOverwrite;
+  }
+
   Duration monitorInterval() {
     return monitorInterval;
   }
@@ -195,6 +204,7 @@ class ScanContext implements Serializable {
         .splitLookback(splitLookback)
         .splitOpenFileCost(splitOpenFileCost)
         .streaming(isStreaming)
+        .includeOverwrite(includeOverwrite)
         .monitorInterval(monitorInterval)
         .nameMapping(nameMapping)
         .project(schema)
@@ -217,6 +227,7 @@ class ScanContext implements Serializable {
         .splitLookback(splitLookback)
         .splitOpenFileCost(splitOpenFileCost)
         .streaming(isStreaming)
+        .includeOverwrite(includeOverwrite)
         .monitorInterval(monitorInterval)
         .nameMapping(nameMapping)
         .project(schema)
@@ -242,6 +253,7 @@ class ScanContext implements Serializable {
     private Integer splitLookback = SPLIT_LOOKBACK.defaultValue();
     private Long splitOpenFileCost = SPLIT_FILE_OPEN_COST.defaultValue();
     private boolean isStreaming = STREAMING.defaultValue();
+    private boolean includeOverwrite = INCLUDE_OVERWRITE.defaultValue();
     private Duration monitorInterval = MONITOR_INTERVAL.defaultValue();
     private String nameMapping;
     private Schema projectedSchema;
@@ -299,6 +311,11 @@ class ScanContext implements Serializable {
       return this;
     }
 
+    Builder includeOverwrite(boolean newIncludeOverwrite) {
+      this.includeOverwrite = newIncludeOverwrite;
+      return this;
+    }
+
     Builder monitorInterval(Duration newMonitorInterval) {
       this.monitorInterval = newMonitorInterval;
       return this;
@@ -352,6 +369,7 @@ class ScanContext implements Serializable {
           .splitLookback(config.get(SPLIT_LOOKBACK))
           .splitOpenFileCost(config.get(SPLIT_FILE_OPEN_COST))
           .streaming(config.get(STREAMING))
+          .includeOverwrite(config.get(INCLUDE_OVERWRITE))
           .monitorInterval(config.get(MONITOR_INTERVAL))
           .nameMapping(properties.get(DEFAULT_NAME_MAPPING))
           .includeColumnStats(config.get(INCLUDE_COLUMN_STATS));
@@ -361,7 +379,7 @@ class ScanContext implements Serializable {
       return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
           endSnapshotId, asOfTimestamp, splitSize, splitLookback,
           splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filters, limit, includeColumnStats, exposeLocality, planParallelism);
+          filters, limit, includeColumnStats, exposeLocality, planParallelism, includeOverwrite);
     }
   }
 }

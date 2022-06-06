@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 class IncrementalDataTableScan extends DataTableScan {
@@ -72,7 +73,15 @@ class IncrementalDataTableScan extends DataTableScan {
     Long fromSnapshotId = context().fromSnapshotId();
     Long toSnapshotId = context().toSnapshotId();
 
-    List<Snapshot> snapshots = snapshotsWithin(table(), fromSnapshotId, toSnapshotId);
+    boolean upsert =
+        PropertyUtil.propertyAsBoolean(table().properties(), TableProperties.UPSERT_ENABLED,
+            TableProperties.UPSERT_ENABLED_DEFAULT);
+
+    boolean includeOverwrite =
+        PropertyUtil.propertyAsBoolean(context().options(), "include-overwrite", false);
+
+    List<Snapshot> snapshots = snapshotsWithin(table(), fromSnapshotId, toSnapshotId,
+        upsert || includeOverwrite);
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
         .from(snapshots)
@@ -111,16 +120,22 @@ class IncrementalDataTableScan extends DataTableScan {
     return new IncrementalDataTableScan(ops, table, schema, context);
   }
 
-  private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId) {
+  private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId,
+                                                boolean includeOverwrite) {
     List<Snapshot> snapshots = Lists.newArrayList();
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(toSnapshotId, fromSnapshotId, table::snapshot)) {
       // for now, incremental scan supports only appends
       if (snapshot.operation().equals(DataOperations.APPEND)) {
         snapshots.add(snapshot);
       } else if (snapshot.operation().equals(DataOperations.OVERWRITE)) {
-        throw new UnsupportedOperationException(
-            String.format("Found %s operation, cannot support incremental data in snapshots (%s, %s]",
-                DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
+        if (includeOverwrite) {
+          snapshots.add(snapshot);
+        } else {
+          throw new UnsupportedOperationException(
+              String.format("Found %s operation, cannot support incremental data in snapshots (%s, %s], " +
+                      "to support OVERWRITE, set include-overwrite=true",
+                  DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
+        }
       }
     }
     return snapshots;

@@ -169,6 +169,11 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder includeOverwrite(boolean includeOverwrite) {
+      contextBuilder.includeOverwrite(includeOverwrite);
+      return this;
+    }
+
     public Builder exposeLocality(boolean newExposeLocality) {
       this.exposeLocality = newExposeLocality;
       return this;

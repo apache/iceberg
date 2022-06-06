@@ -96,7 +96,8 @@ public class FlinkSplitPlanner {
 
     if (context.startSnapshotId() != null) {
       if (context.endSnapshotId() != null) {
-        scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
+        scan = scan.option("include-overwrite", Boolean.toString(context.includeOverwrite()))
+            .appendsBetween(context.startSnapshotId(), context.endSnapshotId());
       } else {
         scan = scan.appendsAfter(context.startSnapshotId());
       }
