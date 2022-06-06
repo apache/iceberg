@@ -104,7 +104,8 @@ public class TestContinuousSplitPlannerImpl {
     Assert.assertEquals(1, result.splits().size());
     IcebergSourceSplit split = Iterables.getOnlyElement(result.splits());
     Assert.assertEquals(1, split.task().files().size());
-    Assert.assertEquals(dataFile.path().toString(), Iterables.getOnlyElement(split.task().files()).file().path().toString());
+    Assert.assertEquals(dataFile.path().toString(),
+        Iterables.getOnlyElement(split.task().files()).file().path().toString());
     return result.toPosition();
   }
 
