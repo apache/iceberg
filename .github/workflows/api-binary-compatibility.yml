@@ -46,7 +46,7 @@ jobs:
           path: ~/.gradle/caches
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
           restore-keys: ${{ runner.os }}-gradle
-      - run: ./gradlew :iceberg-api:revapi
+      - run: ./gradlew clean :iceberg-api:revapi -x test -x integrationTest -x javadoc
       - uses: actions/upload-artifact@v2
         if: failure()
         with:
