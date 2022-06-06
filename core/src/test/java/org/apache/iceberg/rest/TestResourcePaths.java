@@ -59,8 +59,8 @@ public class TestResourcePaths {
   @Test
   public void testNamespaceWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    Assert.assertEquals("v1/ws/catalog/namespaces/n%00s", withPrefix.namespace(ns));
-    Assert.assertEquals("v1/namespaces/n%00s", withoutPrefix.namespace(ns));
+    Assert.assertEquals("v1/ws/catalog/namespaces/n%1Fs", withPrefix.namespace(ns));
+    Assert.assertEquals("v1/namespaces/n%1Fs", withoutPrefix.namespace(ns));
   }
 
   @Test
@@ -80,8 +80,8 @@ public class TestResourcePaths {
   @Test
   public void testNamespacePropertiesWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    Assert.assertEquals("v1/ws/catalog/namespaces/n%00s/properties", withPrefix.namespaceProperties(ns));
-    Assert.assertEquals("v1/namespaces/n%00s/properties", withoutPrefix.namespaceProperties(ns));
+    Assert.assertEquals("v1/ws/catalog/namespaces/n%1Fs/properties", withPrefix.namespaceProperties(ns));
+    Assert.assertEquals("v1/namespaces/n%1Fs/properties", withoutPrefix.namespaceProperties(ns));
   }
 
   @Test
@@ -101,8 +101,8 @@ public class TestResourcePaths {
   @Test
   public void testTablesWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    Assert.assertEquals("v1/ws/catalog/namespaces/n%00s/tables", withPrefix.tables(ns));
-    Assert.assertEquals("v1/namespaces/n%00s/tables", withoutPrefix.tables(ns));
+    Assert.assertEquals("v1/ws/catalog/namespaces/n%1Fs/tables", withPrefix.tables(ns));
+    Assert.assertEquals("v1/namespaces/n%1Fs/tables", withoutPrefix.tables(ns));
   }
 
   @Test
@@ -122,7 +122,7 @@ public class TestResourcePaths {
   @Test
   public void testTableWithMultipartNamespace() {
     TableIdentifier ident = TableIdentifier.of("n", "s", "table");
-    Assert.assertEquals("v1/ws/catalog/namespaces/n%00s/tables/table", withPrefix.table(ident));
-    Assert.assertEquals("v1/namespaces/n%00s/tables/table", withoutPrefix.table(ident));
+    Assert.assertEquals("v1/ws/catalog/namespaces/n%1Fs/tables/table", withPrefix.table(ident));
+    Assert.assertEquals("v1/namespaces/n%1Fs/tables/table", withoutPrefix.table(ident));
   }
 }

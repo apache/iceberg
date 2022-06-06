@@ -71,10 +71,10 @@ public class TestRESTUtil {
         new Object[] {new String[] {"dogs"}, "dogs"},
         new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
         new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
-        new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%00named%00hank"},
+        new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%1Fnamed%1Fhank"},
         new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
-            "dogs.and.cats%00named%00hank.or.james-westfall"
+            "dogs.and.cats%1Fnamed%1Fhank.or.james-westfall"
         }
     };
 

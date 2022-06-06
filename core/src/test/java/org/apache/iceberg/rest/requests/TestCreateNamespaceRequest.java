@@ -72,7 +72,7 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
 
   @Test
   public void testDeserializeInvalidRequest() {
-    String jsonIncorrectTypeForNamespace = "{\"namespace\":\"accounting%00tax\",\"properties\":null}";
+    String jsonIncorrectTypeForNamespace = "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
     AssertHelpers.assertThrows(
         "A JSON request with incorrect types for fields should fail to deserialize and validate",
         JsonProcessingException.class,
