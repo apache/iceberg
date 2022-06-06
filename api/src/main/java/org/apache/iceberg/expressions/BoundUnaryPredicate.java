@@ -60,7 +60,7 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
   @Override
   public boolean isEquivalentTo(Expression other) {
     if (op() == other.op()) {
-      return term().isEquivalentTo(((BoundUnaryPredicate<?>) other).term());
+      return term().isEquivalentToTempChange(((BoundUnaryPredicate<?>) other).term());
     }
 
     return false;

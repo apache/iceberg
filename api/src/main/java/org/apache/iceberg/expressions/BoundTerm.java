@@ -46,5 +46,5 @@ public interface BoundTerm<T> extends Bound<T>, Term {
    * @param other a term
    * @return true if this term returns the same values as the other, false otherwise
    */
-  boolean isEquivalentTo(BoundTerm<?> other);
+  boolean isEquivalentToTempChange(BoundTerm<?> other);
 }

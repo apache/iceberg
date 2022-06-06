@@ -54,7 +54,7 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
   }
 
   @Override
-  public boolean isEquivalentTo(BoundTerm<?> other) {
+  public boolean isEquivalentToTempChange(BoundTerm<?> other) {
     if (other instanceof BoundReference) {
       Types.NestedField otherField = ((BoundReference<?>) other).field();
       // equivalence only depends on the field ID, type, and optional. name and accessor are ignored
@@ -63,7 +63,7 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
           field.isOptional() == otherField.isOptional();
     }
 
-    return other.isEquivalentTo(this);
+    return other.isEquivalentToTempChange(this);
   }
 
   public int fieldId() {

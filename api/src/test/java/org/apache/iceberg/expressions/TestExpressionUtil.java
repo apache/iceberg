@@ -287,11 +287,11 @@ public class TestExpressionUtil {
 
     for (UnboundTerm<?> term : terms) {
       BoundTerm<?> bound = term.bind(STRUCT, true);
-      Assert.assertTrue("Should accept identical expression: " + term, bound.isEquivalentTo(bound));
+      Assert.assertTrue("Should accept identical expression: " + term, bound.isEquivalentToTempChange(bound));
 
       for (UnboundTerm<?> other : terms) {
         if (term != other) {
-          Assert.assertFalse(bound.isEquivalentTo(other.bind(STRUCT, true)));
+          Assert.assertFalse(bound.isEquivalentToTempChange(other.bind(STRUCT, true)));
         }
       }
     }
@@ -300,7 +300,7 @@ public class TestExpressionUtil {
   @Test
   public void testRefEquivalence() {
     Assert.assertFalse("Should not find different refs equivalent",
-        Expressions.ref("val").bind(STRUCT, true).isEquivalentTo(Expressions.ref("val2").bind(STRUCT, true)));
+        Expressions.ref("val").bind(STRUCT, true).isEquivalentToTempChange(Expressions.ref("val2").bind(STRUCT, true)));
   }
 
   @Test

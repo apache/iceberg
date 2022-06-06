@@ -35,19 +35,21 @@ concurrency:
 
 jobs:
   revapi:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-java@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
         with:
+          distribution: zulu
           java-version: 11
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: ~/.gradle/caches
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
           restore-keys: ${{ runner.os }}-gradle
-      - run: ./gradlew :iceberg-api:revapi
-      - uses: actions/upload-artifact@v2
+          #      - run: ./gradlew :iceberg-api:revapi
+          - run: ./gradlew build -x test -x integrationTest
+      - uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: test logs

@@ -91,7 +91,7 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   public boolean isEquivalentTo(Expression expr) {
     if (op() == expr.op()) {
       BoundLiteralPredicate<?> other = (BoundLiteralPredicate<?>) expr;
-      if (term().isEquivalentTo(other.term())) {
+      if (term().isEquivalentToTempChange(other.term())) {
         // because the term is equivalent, the literal must have the same type, T
         Literal<T> otherLiteral = (Literal<T>) other.literal();
         Comparator<T> cmp = literal.comparator();
@@ -100,7 +100,7 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
 
     } else if (expr instanceof BoundLiteralPredicate) {
       BoundLiteralPredicate<?> other = (BoundLiteralPredicate<?>) expr;
-      if (INTEGRAL_TYPES.contains(term().type().typeId()) && term().isEquivalentTo(other.term())) {
+      if (INTEGRAL_TYPES.contains(term().type().typeId()) && term().isEquivalentToTempChange(other.term())) {
         switch (op()) {
           case LT:
             if (other.op() == Operation.LT_EQ) {
