@@ -39,6 +39,7 @@ import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -144,30 +145,7 @@ public class HiveTableTest extends HiveTableBaseTest {
   public void testDropWithoutPurgeLeavesTableData() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
-    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
-    List<GenericData.Record> records = Lists.newArrayList(
-        recordBuilder.set("id", 1L).build(),
-        recordBuilder.set("id", 2L).build(),
-        recordBuilder.set("id", 3L).build()
-    );
-
-    String fileLocation = table.location().replace("file:", "") + "/data/file.avro";
-    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
-        .schema(schema)
-        .named("test")
-        .build()) {
-      for (GenericData.Record rec : records) {
-        writer.add(rec);
-      }
-    }
-
-    DataFile file = DataFiles.builder(table.spec())
-        .withRecordCount(3)
-        .withPath(fileLocation)
-        .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
-        .build();
-
-    table.newAppend().appendFile(file).commit();
+    String fileLocation = appendData(table, "file");
 
     String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
 
@@ -419,6 +397,10 @@ public class HiveTableTest extends HiveTableBaseTest {
     // create table using hadoop catalog
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, "table1");
     Table table = hadoopCatalog.createTable(identifier, schema, PartitionSpec.unpartitioned(), Maps.newHashMap());
+    // insert some data
+    appendData(table, "file1");
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
+    Assert.assertEquals("Should scan 1 file", 1, tasks.size());
 
     // collect metadata file
     List<String> metadataFiles =
@@ -426,7 +408,7 @@ public class HiveTableTest extends HiveTableBaseTest {
             .map(File::getAbsolutePath)
             .filter(f -> f.endsWith(getFileExtension(TableMetadataParser.Codec.NONE)))
             .collect(Collectors.toList());
-    Assert.assertEquals(1, metadataFiles.size());
+    Assert.assertEquals(2, metadataFiles.size());
 
     AssertHelpers.assertThrows(
             "Hive metastore should not have this table", NoSuchObjectException.class,
@@ -436,11 +418,49 @@ public class HiveTableTest extends HiveTableBaseTest {
             "Hive catalog should fail to load the table", NoSuchTableException.class,
             "Table does not exist:",
             () -> catalog.loadTable(identifier));
-    // register the table to hive catalog using the metadata file
+
+    // register the table to hive catalog using the latest metadata file
+    metadataFiles.sort(Collections.reverseOrder());
     catalog.registerTable(identifier, "file:" + metadataFiles.get(0));
     Assert.assertNotNull(metastoreClient.getTable(DB_NAME, "table1"));
+
     // load the table in hive catalog
-    Assert.assertNotNull(catalog.loadTable(identifier));
+    table = catalog.loadTable(identifier);
+    Assert.assertNotNull(table);
+
+    // insert some data
+    appendData(table, "file2");
+    tasks = Lists.newArrayList(table.newScan().planFiles());
+    Assert.assertEquals("Should scan 2 files", 2, tasks.size());
+  }
+
+  private String appendData(Table table, String fileName) throws IOException {
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+    List<GenericData.Record> records = Lists.newArrayList(
+            recordBuilder.set("id", 1L).build(),
+            recordBuilder.set("id", 2L).build(),
+            recordBuilder.set("id", 3L).build()
+    );
+
+    String fileLocation = table.location().replace("file:", "") + "/data/" + fileName + ".avro";
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
+            .schema(schema)
+            .named("test")
+            .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+
+    DataFile file = DataFiles.builder(table.spec())
+            .withRecordCount(3)
+            .withPath(fileLocation)
+            .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
+            .build();
+
+    table.newAppend().appendFile(file).commit();
+
+    return fileLocation;
   }
 
   @Test

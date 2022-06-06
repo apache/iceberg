@@ -151,7 +151,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     this.shouldRefresh = false;
   }
 
-  public String writeNewMetadata(TableMetadata metadata, int newVersion) {
+  protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
     String newTableMetadataFilePath = newTableMetadataFilePath(metadata, newVersion);
     OutputFile newMetadataLocation = io().newOutputFile(newTableMetadataFilePath);
 
@@ -336,7 +336,10 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     int versionEnd = metadataLocation.indexOf('-', versionStart);
     try {
       return Integer.valueOf(metadataLocation.substring(versionStart, versionEnd));
-    } catch (NumberFormatException e) {
+    } catch (NumberFormatException | StringIndexOutOfBoundsException e) {
+      // As per the spec, metastore tables and filesystem tables
+      // will have different representation for metadata file names.
+      // So, StringIndexOutOfBoundsException can happen when parsing a filesystem based metadata file name.
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;
     }
