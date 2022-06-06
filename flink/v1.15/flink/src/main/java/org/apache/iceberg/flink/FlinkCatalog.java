@@ -60,6 +60,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.catalog.Catalog;
@@ -77,6 +78,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
+
+import static org.apache.iceberg.TableProperties.UPSERT_ENABLED;
+import static org.apache.iceberg.TableProperties.UPSERT_ENABLED_DEFAULT;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -385,6 +390,11 @@ public class FlinkCatalog extends AbstractCatalog {
       } else {
         properties.put(entry.getKey(), entry.getValue());
       }
+    }
+
+    if (PropertyUtil.propertyAsBoolean(table.getOptions(), UPSERT_ENABLED, UPSERT_ENABLED_DEFAULT) &&
+        PropertyUtil.propertyAsInt(table.getOptions(), TableProperties.FORMAT_VERSION, 1) < 2) {
+      properties.put(TableProperties.FORMAT_VERSION, "2");
     }
 
     try {
