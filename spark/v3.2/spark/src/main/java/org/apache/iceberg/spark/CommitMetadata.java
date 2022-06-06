@@ -27,9 +27,9 @@ import org.apache.iceberg.util.ExceptionUtil;
 /**
  * utility class to accept thread local commit properties
  */
-public class CallerWithCommitMetadata {
+public class CommitMetadata {
 
-  private CallerWithCommitMetadata() {
+  private CommitMetadata() {
 
   }
 

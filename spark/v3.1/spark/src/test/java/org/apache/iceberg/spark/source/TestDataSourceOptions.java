@@ -41,7 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
-import org.apache.iceberg.spark.CallerWithCommitMetadata;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
@@ -429,7 +429,7 @@ public class TestDataSourceOptions {
     Thread writerThread = new Thread(() -> {
       Map<String, String> properties = Maps.newHashMap();
       properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
-      CallerWithCommitMetadata.withCommitProperties(properties, () -> {
+      CommitMetadata.withCommitProperties(properties, () -> {
         spark.sql("INSERT INTO target VALUES (3, 'c'), (4, 'd')");
         return 0;
       }, RuntimeException.class);
