@@ -46,7 +46,7 @@ class FooStruct:
         self.content[pos] = value
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def table_schema_simple():
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
@@ -57,7 +57,7 @@ def table_schema_simple():
     )
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def table_schema_nested():
     return schema.Schema(
         NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False),
@@ -110,7 +110,7 @@ def table_schema_nested():
     )
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def foo_struct():
     return FooStruct()
 
