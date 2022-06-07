@@ -26,18 +26,22 @@ weight: 400
 Iceberg supports reading and writing Iceberg tables through [Hive](https://hive.apache.org) by using a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandlers).
 
 ## Feature support
-Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supported the following features:
+Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supports the following features:
 
 * Creating a table
 * Dropping a table
 * Reading a table
-* Inserting into a table (will append rows) (MapReduce only)
+* Inserting into a table (INSERT INTO)
 
-Iceberg compatibility with Hive 4.0.0-alpha-1
-(Using HiveCatalog) supports the following, additional features:
+{{< hint warning >}}
+DML operations work only with MapReduce execution engine.
+{{< /hint >}}
+
+With Hive version 4.0.0-alpha-1 and above,
+the Iceberg integration when using HiveCatalog supports the following additional features:
 
 * Creating an Iceberg identity-partitioned table
-* Creating an Iceberg table with any partition spec (including the various transforms Iceberg supports)
+* Creating an Iceberg table with any partition spec, including the various transforms supported by Iceberg
 * Creating a table from an existing table (CTAS table)
 * Altering a table while keeping Iceberg and Hive schemas in sync
 * Altering the partition schema (updating columns)
@@ -46,14 +50,18 @@ Iceberg compatibility with Hive 4.0.0-alpha-1
 * Migrating tables in Avro, Parquet, or ORC (Non-ACID) format to Iceberg
 * Reading the schema of a table
 * Time travel applications
-* Inserting into a table (will append rows) (Tez only)
-* Inserting data overwriting existing data
+* Inserting into a table (INSERT INTO)
+* Inserting data overwriting existing data (INSERT OVERWRITE)
+
+{{< hint warning >}}
+DML operations work only with Tez execution engine.
+{{< /hint >}}
 
 ## Enabling Iceberg support in Hive
 
 ### Hive 4.0.0-alpha-1
 
-Hive 4.0.0-alpha-1 comes with the Iceberg 0.13.1 included, no additional downloads or jars are needed.
+Hive 4.0.0-alpha-1 comes with the Iceberg 0.13.1 included. No additional downloads or jars are needed.
 
 ### Hive 2.3.x, Hive 3.1.x
 
