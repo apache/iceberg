@@ -331,15 +331,24 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return metadataFileLocation(meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
 
+  /**
+   * Parse the version from table metadata file name.
+   *
+   * @param metadataLocation table metadata file location
+   * @return version of the table metadata file in success case and
+   * -1 if the version is not parsable (as a sign that the metadata is not part of this catalog)
+   */
   private static int parseVersion(String metadataLocation) {
     int versionStart = metadataLocation.lastIndexOf('/') + 1; // if '/' isn't found, this will be 0
     int versionEnd = metadataLocation.indexOf('-', versionStart);
+    if (versionEnd < 0) {
+      // found filesystem table's metadata
+      return -1;
+    }
+
     try {
       return Integer.valueOf(metadataLocation.substring(versionStart, versionEnd));
-    } catch (NumberFormatException | StringIndexOutOfBoundsException e) {
-      // As per the spec, metastore tables and filesystem tables
-      // will have different representation for metadata file names.
-      // So, StringIndexOutOfBoundsException can happen when parsing a filesystem based metadata file name.
+    } catch (NumberFormatException e) {
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;
     }
