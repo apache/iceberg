@@ -733,7 +733,7 @@ Position-based delete files store `file_position_delete`, a struct with the foll
 
 | Field id, name              | Type                       | Description |
 |-----------------------------|----------------------------|-------------|
-| **`2147483546  file_path`** | `string`                   | Full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry |
+| **`2147483546  file_path`** | `string`                   | Full URI of a data file with FS scheme. This must match a `file_path` of a target data file in a manifest entry with a sequence number less than or equal to the manifest entry containing this delete file. |
 | **`2147483545  pos`**       | `long`                     | Ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0` |
 | **`2147483544  row`**       | `required struct<...>` [1] | Deleted row values. Omit the column when not storing deleted rows. |
 
