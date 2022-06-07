@@ -202,7 +202,7 @@ paths:
           allowEmptyValue: true
           schema:
             type: string
-          example: "accounting%00tax"
+          example: "accounting%1Ftax"
       responses:
         200:
           $ref: '#/components/responses/ListNamespacesResponse'
@@ -780,7 +780,7 @@ components:
         singlepart_namespace:
           value: "accounting"
         multipart_namespace:
-          value: "accounting%00tax"
+          value: "accounting%1Ftax"
 
     table:
       name: table
@@ -1995,7 +1995,7 @@ components:
 
     MultipartNamespaceAsPathVariable:
       summary: A multi-part namespace, as represented in a path parameter
-      value: "accounting%00tax"
+      value: "accounting%1Ftax"
 
     NamespaceAsPathVariable:
       summary: A single part namespace, as represented in a path paremeter
