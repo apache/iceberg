@@ -3,13 +3,6 @@ name: Iceberg Bug report 🐞
 description: Problems, bugs and issues with Apache Iceberg
 labels: ["kind:bug"]
 body:
-  - type: markdown
-    attributes:
-      value: "
-        <img src='https://iceberg.apache.org/docs/latest/img/Iceberg-logo.png' align='center'>
-        Thank you for finding the time to report the problem!
-
-        We really appreciate the community's efforts to improve Iceberg."
   - type: dropdown
     attributes:
       label: Apache Iceberg version
@@ -28,68 +21,15 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: What happened
-      description: Describe what happened.
-      placeholder: >
-        Please provide the context in which the problem occurred and explain what happened. When using acronyms, please define them at least once.
-        Feel free to include stacktraces. You can include files by dragging and dropping them here.
+      label: Query engine
+      description: Which query engine (Flink, Spark, EMR, etc) are you using? What version?
     validations:
       required: true
   - type: textarea
     attributes:
-      label: What you think should happen instead
-      description: What do you think went wrong?
-      placeholder: >
-        Please explain why you think the behaviour is erroneous.
-  - type: textarea
-    attributes:
-      label: How to reproduce
+      label: Please describe the bug 🐞
       description: >
-        What should we do to reproduce the problem?
-      placeholder: >
-        Please make sure you provide a reproducible step-by-step case of how to reproduce the problem
-        as minimally and precisely as possible. Keep in mind we do not have access to your cluster.
-        Remember that non-reproducible issues will be closed!
-  - type: dropdown
-    attributes:
-      label: Query engine
-      description: What query engine are you using?
-      multiple: false
-      options:
-        - "Apache Spark"
-        - "Apache Flink"
-        - "Apache Hive"
-        - "Trino"
-        - "Presto"
-        - "Dremio"
-        - "Amazon Athena"
-        - "Amazon EMR"
-        - "Other"
-  - type: textarea
-    attributes:
-      label: Version of Query Engine
-      description: Which version of the query engine are you using?
-      placeholder: >
-        To reproduce the issue, we need to know which version of the Query Engine you're using.
-  - type: textarea
-    attributes:
-      label: Anything else
-      description: Anything else we need to know?
-      placeholder: >
-        How often does this problem occur? (Once? Every time? Only when certain conditions are met?)
-        Any relevant logs to include? Put them here inside fenced
-        ``` ``` blocks or inside a foldable details tag if it's long:
-        <details><summary>x.log</summary> lots of stuff </details>
-  - type: checkboxes
-    attributes:
-      label: Are you willing to submit PR?
-      description: >
-        This is not required, but we are happy to guide you in the contribution process
-        especially if you already have a good understanding of how to implement the fix.
-        Iceberg is a community-managed project and we love to bring new contributors in.
-        Find us in #iceberg-how-to-pr on Slack!
-      options:
-        - label: Yes I am willing to submit a PR!
-  - type: markdown
-    attributes:
-      value: "Thanks for completing our form!"
+        Please describe the problem, what to expect, and how to reproduce.
+        Feel free to include stacktraces. You can include files by dragging and dropping them here.
+    validations:
+      required: true
