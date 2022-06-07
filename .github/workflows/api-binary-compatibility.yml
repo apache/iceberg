@@ -43,6 +43,8 @@ jobs:
           # fetch-depth of zero ensures that the tags are pulled in and we're not in a detached HEAD state
           # revapi depends on the tags, specifically the tag from git describe, to find the relevant override
           # in the .palantir/revapi.yml file
+          #
+          # See https://github.com/actions/checkout/issues/124
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
       - uses: actions/checkout@v2
