@@ -40,6 +40,9 @@ jobs:
       - uses: actions/checkout@v2
         if: github.event_name == 'pull_request'
         with:
+          # fetch-depth of zero ensures that the tags are pulled in and we're not in a detached HEAD state
+          # revapi depends on the tags, specifically the tag from git describe, to find the relevant override
+          # in the .palantir/revapi.yml file
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
       - uses: actions/checkout@v2
@@ -51,7 +54,7 @@ jobs:
           java-version: 11
       - run: |
           echo "Using the old version tag, as per git describe, of $(git describe)";
-      - run: ./gradlew :iceberg-api:revapi --rerun-tasks --no-build-cache --no-daemon
+      - run: ./gradlew :iceberg-api:revapi --rerun-tasks
       - uses: actions/upload-artifact@v2
         if: failure()
         with:
