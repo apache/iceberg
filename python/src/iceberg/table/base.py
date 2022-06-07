@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Union
 
 from iceberg.catalog.base import Identifier
 
@@ -29,7 +28,7 @@ class Table(ABC):
     To be implemented by https://github.com/apache/iceberg/issues/3227
     """
 
-    identifier: Union[str, Identifier]
+    identifier: str | Identifier
 
 
 class PartitionSpec:
