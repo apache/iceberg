@@ -49,6 +49,7 @@ the Iceberg integration when using HiveCatalog supports the following additional
 * Truncating a table
 * Migrating tables in Avro, Parquet, or ORC (Non-ACID) format to Iceberg
 * Reading the schema of a table
+* Querying Iceberg metadata tables
 * Time travel applications
 * Inserting into a table (INSERT INTO)
 * Inserting data overwriting existing data (INSERT OVERWRITE)
@@ -461,6 +462,32 @@ For nonpartitioned tables the content of the table is always removed. For partit
 that have rows produced by the SELECT query will be replaced.
 ```sql
 INSERT OVERWRITE TABLE target SELECT * FROM source;
+```
+
+### QUERYING METADATA TABLES
+Hive supports querying of the Iceberg Metadata tables. The tables could be used as normal
+Hive tables, so it is possible to use projections / joins / filters / etc.
+To reference a metadata table the full name of the table should be used, like:
+<DB_NAME>.<TABLE_NAME>.<METADATA_TABLE_NAME>.
+
+Currently the following metadata tables are available in Hive:
+* files
+* entries
+* snapshots
+* manifests
+* partitions
+
+```sql
+SELECT * FROM default.table_a.files;
+```
+
+### TIMETARAVEL
+Hive supports snapshot id based and time base timetravel queries.
+For these views it is possible to use projections / joins / filters / etc.
+The function is available with the following syntax:
+```sql
+SELECT * FROM table_a FOR SYSTEM_TIME AS OF '2021-08-09 10:35:57';
+SELECT * FROM table_a FOR SYSTEM_VERSION AS OF 1234567;
 ```
 
 ## Type compatibility
