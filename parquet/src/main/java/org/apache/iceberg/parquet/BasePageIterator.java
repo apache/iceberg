@@ -163,7 +163,7 @@ public abstract class BasePageIterator {
   IntIterator newRLEIterator(int maxLevel, BytesInput bytes) {
     try {
       if (maxLevel == 0) {
-        return new PageIterator.NullIntIterator();
+        return new NullIntIterator();
       }
       return new RLEIntIterator(
           new RunLengthBitPackingHybridDecoder(
