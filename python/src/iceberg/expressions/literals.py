@@ -27,7 +27,7 @@ from typing import Optional, Union
 from uuid import UUID
 
 from iceberg.expressions.base import Literal
-from iceberg.types import (
+from iceberg.type import (
     BinaryType,
     BooleanType,
     DateType,

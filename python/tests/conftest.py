@@ -20,7 +20,7 @@ from typing import Any, Dict
 import pytest
 
 from iceberg import schema
-from iceberg.types import (
+from iceberg.type import (
     BooleanType,
     FloatType,
     IntegerType,

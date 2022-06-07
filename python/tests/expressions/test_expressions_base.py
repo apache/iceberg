@@ -22,7 +22,7 @@ from typing import List
 import pytest
 
 from iceberg.expressions import base
-from iceberg.types import NestedField, Singleton, StringType
+from iceberg.type import NestedField, Singleton, StringType
 
 
 @pytest.mark.parametrize(

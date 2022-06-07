@@ -36,7 +36,7 @@ from iceberg.expressions.literals import (
     TimestampLiteral,
     literal,
 )
-from iceberg.types import (
+from iceberg.type import (
     BinaryType,
     BooleanType,
     DateType,

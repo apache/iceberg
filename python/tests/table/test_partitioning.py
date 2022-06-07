@@ -17,7 +17,7 @@
 
 from iceberg.table.partitioning import PartitionField
 from iceberg.transforms import bucket
-from iceberg.types import IntegerType
+from iceberg.type import IntegerType
 
 
 def test_partition_field_init():

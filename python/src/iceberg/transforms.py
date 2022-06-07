@@ -23,7 +23,7 @@ from uuid import UUID
 
 import mmh3  # type: ignore
 
-from iceberg.types import (
+from iceberg.type import (
     BinaryType,
     DateType,
     DecimalType,

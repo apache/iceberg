@@ -79,7 +79,7 @@ import pytest
 
 import iceberg.utils.decimal as decimal_util
 from iceberg import conversions
-from iceberg.types import (
+from iceberg.type import (
     BinaryType,
     BooleanType,
     DateType,

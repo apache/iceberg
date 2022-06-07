@@ -24,7 +24,7 @@ from iceberg import schema
 from iceberg.expressions.base import Accessor
 from iceberg.files import StructProtocol
 from iceberg.schema import build_position_accessors
-from iceberg.types import (
+from iceberg.type import (
     BooleanType,
     FloatType,
     IntegerType,

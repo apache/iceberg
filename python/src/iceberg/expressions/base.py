@@ -21,7 +21,7 @@ from typing import Any, Generic, TypeVar
 
 from iceberg.files import StructProtocol
 from iceberg.schema import Accessor, Schema
-from iceberg.types import NestedField, Singleton
+from iceberg.type import NestedField, Singleton
 
 T = TypeVar("T")
 

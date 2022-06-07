@@ -29,7 +29,7 @@ from typing import (
 )
 
 from iceberg.files import StructProtocol
-from iceberg.types import (
+from iceberg.type import (
     IcebergType,
     ListType,
     MapType,
@@ -46,7 +46,7 @@ class Schema:
 
     Example:
         >>> from iceberg import schema
-        >>> from iceberg import types
+        >>> from iceberg import type
     """
 
     def __init__(self, *columns: NestedField, schema_id: int, identifier_field_ids: list[int] | None = None):

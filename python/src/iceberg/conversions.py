@@ -33,7 +33,7 @@ from functools import singledispatch
 from struct import Struct
 from typing import Union
 
-from iceberg.types import (
+from iceberg.type import (
     BinaryType,
     BooleanType,
     DateType,
