@@ -19,10 +19,12 @@
 
 package org.apache.iceberg.spark;
 
+import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -90,6 +92,14 @@ public class TestSpark3Util extends SparkTestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, tableFullName);
     Assert.assertTrue(table.name().equals(tableFullName));
+  }
+
+  @Test
+  public void testLoadIcebergCatalog() throws Exception {
+    spark.conf().set("spark.sql.catalog.test_cat", SparkCatalog.class.getName());
+    spark.conf().set("spark.sql.catalog.test_cat.type", "hive");
+    Catalog catalog = Spark3Util.loadIcebergCatalog(spark, "test_cat");
+    Assert.assertTrue("Should retrieve underlying catalog class", catalog instanceof CachingCatalog);
   }
 
   private SortOrder buildSortOrder(String transform, Schema schema, int sourceId) {

@@ -16,13 +16,7 @@
 # under the License.
 from abc import abstractmethod
 from enum import Enum, auto
-from typing import Any
-
-try:
-    from typing import Protocol, runtime_checkable
-except ImportError:  # pragma: no cover
-    from typing_extensions import Protocol  # type: ignore
-    from typing_extensions import runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 class FileContentType(Enum):

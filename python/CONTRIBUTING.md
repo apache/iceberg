@@ -17,28 +17,41 @@
   - under the License.
   -->
 
-# Contributing to the Iceberg Python libary
+# Contributing to the Iceberg Python library
+
+For the development, we use poetry for packing and dependency management. You can install this using:
+
+```bash
+pip install poetry
+```
+
+If you have an older version of pip and virtualenv you need to update these:
+```bash
+pip install --upgrade virtualenv pip
+```
+
+To get started, you can run `make install`, which will install poetry and it will install all the dependencies of the Iceberg library. This will also install the development dependencies. If you don't want to do this, you need to install using `poetry install --no-dev`.
+
+If you want to install the library on the host, you can simply run `pip3 install -e .`. If you wish to use a virtual environment, you can run `poetry shell`. Poetry will open up a virtual environment with all the dependencies set.
 
 ## Linting
 
 We rely on `pre-commit` to apply autoformatting and linting:
 
 ```bash
-make install
 make lint
 ```
 
-By default, it only runs on the files known by git.
-
 Pre-commit will automatically fix the violations such as import orders, formatting etc. Pylint errors you need to fix yourself.
 
-In contrast to the name, it doesn't run on the git pre-commit hook by default. If this is something that you like, you can set this up by running `pre-commit install`.
+In contrast to the name suggest, it doesn't run the checks on the commit. If this is something that you like, you can set this up by running `pre-commit install`.
+
+You can bump the integrations to the latest version using `pre-commit autoupdate`. This will check if there is a newer version of `{black,mypy,isort,...}` and update the yaml.
 
 ## Testing
 
-For Python, we use pytest in combination with coverage to maintain 90% code coverage
+For Python, we use pytest in combination with coverage to maintain 90% code coverage.
 
 ```bash
-make install
 make test
 ```
