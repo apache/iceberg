@@ -29,6 +29,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -83,7 +84,7 @@ import org.slf4j.LoggerFactory;
 
 public class RESTSessionCatalog extends BaseSessionCatalog implements Configurable<Configuration>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
-  private static final long MAX_REFRESH_WINDOW_MILLIS = 60_000; // 1 minute
+  private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
   private static final long MIN_REFRESH_WAIT_MILLIS = 10;
   private static final List<String> TOKEN_PREFERENCE_ORDER = ImmutableList.of(
       OAuth2Properties.ID_TOKEN_TYPE, OAuth2Properties.ACCESS_TOKEN_TYPE, OAuth2Properties.JWT_TOKEN_TYPE,
@@ -361,15 +362,25 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public void close() throws IOException {
+    shutdownRefreshExecutor();
+
     if (client != null) {
       client.close();
     }
+  }
 
+  private void shutdownRefreshExecutor() {
     if (refreshExecutor != null) {
       ScheduledExecutorService service = refreshExecutor;
       this.refreshExecutor = null;
 
-      service.shutdown();
+      List<Runnable> tasks = service.shutdownNow();
+      tasks.forEach(task -> {
+        if (task instanceof Future) {
+          ((Future<?>) task).cancel(true);
+        }
+      });
+
       try {
         if (service.awaitTermination(1, TimeUnit.MINUTES)) {
           LOG.warn("Timed out waiting for refresh executor to terminate");
