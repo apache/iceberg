@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.Before;
@@ -211,7 +212,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   }
 
   @Test
-  public void testConsumeWithMaxSnapshotsPerMonitorInterval() throws Exception {
+  public void testConsumeWithMaxSnapshotCountPerMonitorInterval() throws Exception {
     List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
 
     final ScanContext scanContext1 = ScanContext.builder()
@@ -240,33 +241,60 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         }
     );
 
+    List<List<Record>> expectedRecords = recordsList.subList(1, recordsList.size());
+
+    // Use the oldest snapshot as starting to avoid the initial case.
+    long oldestSnapshotId = SnapshotUtil.oldestAncestor(table).snapshotId();
+
+    ScanContext scanContext3 = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .splitSize(1000L)
+        .startSnapshotId(oldestSnapshotId)
+        .maxSnapshotCountPerMonitorInterval(Integer.MAX_VALUE)
+        .build();
+
+    FlinkInputSplit[] expectedSplits = FlinkSplitPlanner
+        .planInputSplits(table, scanContext3, ThreadPools.getWorkerPool());
+
+    Assert.assertEquals("should produce 9 splits", 9, expectedSplits.length);
+
     for (int maxSnapshotsNum = 1; maxSnapshotsNum < 15; maxSnapshotsNum = maxSnapshotsNum + 1) {
       ScanContext scanContext = ScanContext.builder()
-          .monitorInterval(Duration.ofMillis(100))
+          .monitorInterval(Duration.ofMillis(500))
+          .startSnapshotId(oldestSnapshotId)
           .splitSize(1000L)
           .maxSnapshotCountPerMonitorInterval(maxSnapshotsNum)
           .build();
-
-      FlinkInputSplit[] expectedSplits = FlinkSplitPlanner
-          .planInputSplits(table, scanContext, ThreadPools.getWorkerPool());
 
       StreamingMonitorFunction function = createFunction(scanContext);
       try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
         harness.setup();
         harness.open();
 
-        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch latch = new CountDownLatch(9);
         TestSourceContext sourceContext = new TestSourceContext(latch);
         runSourceFunctionInTask(sourceContext, function);
+        // Ensure the first loop in monitoring finished
+        Thread.sleep(100);
 
-        Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
-        Thread.sleep(1000L);
+        // Take lock to prevent monitoring loop
+        synchronized (sourceContext.getCheckpointLock()) {
+          if (maxSnapshotsNum < 10) {
+            // it produces one split for one snapshot.
+            Assert.assertEquals("Should produce same splits as max-snapshot-count-per-monitor-interval",
+                maxSnapshotsNum, sourceContext.splits.size());
+          }
+        }
+
+        Assert.assertTrue("Should have expected elements.",
+            latch.await(WAIT_TIME_MILLIS * 2, TimeUnit.MILLISECONDS));
 
         // Stop the stream task.
         function.close();
 
         Assert.assertEquals("Should produce the expected splits", expectedSplits.length, sourceContext.splits.size());
-        TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+        TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(expectedRecords)),
+            SCHEMA);
       }
     }
   }

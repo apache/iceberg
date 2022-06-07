@@ -140,8 +140,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   public void run(SourceContext<FlinkInputSplit> ctx) throws Exception {
     this.sourceContext = ctx;
     while (isRunning) {
-      LOG.debug("Start polling snapshots from snapshot id: {}, max-snapshots-per-monitor-interval: {}", lastSnapshotId,
-          scanContext.maxSnapshotCountPerMonitorInterval());
+      LOG.debug("Start polling snapshots from snapshot id: {}, max-snapshot-count-per-monitor-interval: {}",
+          lastSnapshotId, scanContext.maxSnapshotCountPerMonitorInterval());
       long start = System.currentTimeMillis();
       long startSnapshotId = lastSnapshotId;
       synchronized (sourceContext.getCheckpointLock()) {
