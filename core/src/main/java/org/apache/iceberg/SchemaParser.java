@@ -51,6 +51,7 @@ public class SchemaParser {
   private static final String KEY = "key";
   private static final String VALUE = "value";
   private static final String DOC = "doc";
+  private static final String EXPR = "expr";
   private static final String NAME = "name";
   private static final String ID = "id";
   private static final String ELEMENT_ID = "element-id";
@@ -91,6 +92,9 @@ public class SchemaParser {
       toJson(field.type(), generator);
       if (field.doc() != null) {
         generator.writeStringField(DOC, field.doc());
+      }
+      if (field.expr() != null) {
+        generator.writeStringField(EXPR, field.expr());
       }
       generator.writeEndObject();
     }
@@ -213,11 +217,12 @@ public class SchemaParser {
       Type type = typeFromJson(field.get(TYPE));
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
+      String expr = JsonUtil.getStringOrNull(EXPR, field);
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
       if (isRequired) {
-        fields.add(Types.NestedField.required(id, name, type, doc));
+        fields.add(Types.NestedField.required(id, name, type, doc, expr));
       } else {
-        fields.add(Types.NestedField.optional(id, name, type, doc));
+        fields.add(Types.NestedField.optional(id, name, type, doc, expr));
       }
     }
 
