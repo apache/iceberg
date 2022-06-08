@@ -56,7 +56,7 @@ class IncrementalDataTableScan extends DataTableScan {
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
     validateSnapshotIdsRefinement(fromSnapshotId, toSnapshotId);
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
-        context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
+        context().fromSnapshotIdExclusive(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
 
   @Override
@@ -69,16 +69,18 @@ class IncrementalDataTableScan extends DataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    List<Snapshot> snapshots = snapshotsWithin(table(),
-        context().fromSnapshotId(), context().toSnapshotId());
+    Long fromSnapshotId = context().fromSnapshotId();
+    Long toSnapshotId = context().toSnapshotId();
+
+    List<Snapshot> snapshots = snapshotsWithin(table(), fromSnapshotId, toSnapshotId);
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
         .from(snapshots)
-        .transformAndConcat(Snapshot::dataManifests)
+        .transformAndConcat(snapshot -> snapshot.dataManifests(tableOps().io()))
         .filter(manifestFile -> snapshotIds.contains(manifestFile.snapshotId()))
         .toSet();
 
-    ManifestGroup manifestGroup = new ManifestGroup(tableOps().io(), manifests)
+    ManifestGroup manifestGroup = new ManifestGroup(table().io(), manifests)
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())
@@ -86,19 +88,18 @@ class IncrementalDataTableScan extends DataTableScan {
             manifestEntry ->
                 snapshotIds.contains(manifestEntry.snapshotId()) &&
                 manifestEntry.status() == ManifestEntry.Status.ADDED)
-        .specsById(tableOps().current().specsById())
+        .specsById(table().specs())
         .ignoreDeleted();
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    Listeners.notifyAll(new IncrementalScanEvent(table().name(), context().fromSnapshotId(),
-        context().toSnapshotId(), context().rowFilter(), schema()));
+    Listeners.notifyAll(new IncrementalScanEvent(table().name(), fromSnapshotId, toSnapshotId,
+        filter(), schema(), false));
 
-    if (manifests.size() > 1 &&
-        (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
-      manifestGroup = manifestGroup.planWith(context().planExecutor());
+    if (manifests.size() > 1 && (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
+      manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
     return manifestGroup.planFiles();

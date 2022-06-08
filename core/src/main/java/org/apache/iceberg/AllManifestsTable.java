@@ -44,6 +44,7 @@ import org.apache.iceberg.util.StructProjection;
  */
 public class AllManifestsTable extends BaseMetadataTable {
   private static final Schema MANIFEST_FILE_SCHEMA = new Schema(
+      Types.NestedField.required(14, "content", Types.IntegerType.get()),
       Types.NestedField.required(1, "path", Types.StringType.get()),
       Types.NestedField.required(2, "length", Types.LongType.get()),
       Types.NestedField.optional(3, "partition_spec_id", Types.IntegerType.get()),
@@ -51,6 +52,9 @@ public class AllManifestsTable extends BaseMetadataTable {
       Types.NestedField.optional(5, "added_data_files_count", Types.IntegerType.get()),
       Types.NestedField.optional(6, "existing_data_files_count", Types.IntegerType.get()),
       Types.NestedField.optional(7, "deleted_data_files_count", Types.IntegerType.get()),
+      Types.NestedField.required(15, "added_delete_files_count", Types.IntegerType.get()),
+      Types.NestedField.required(16, "existing_delete_files_count", Types.IntegerType.get()),
+      Types.NestedField.required(17, "deleted_delete_files_count", Types.IntegerType.get()),
       Types.NestedField.optional(8, "partition_summaries", Types.ListType.ofRequired(9, Types.StructType.of(
           Types.NestedField.required(10, "contains_null", Types.BooleanType.get()),
           Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
@@ -85,12 +89,12 @@ public class AllManifestsTable extends BaseMetadataTable {
   public static class AllManifestsTableScan extends BaseAllMetadataTableScan {
 
     AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema);
+      super(ops, table, fileSchema, MetadataTableType.ALL_MANIFESTS);
     }
 
     private AllManifestsTableScan(TableOperations ops, Table table, Schema schema,
                                   TableScanContext context) {
-      super(ops, table, schema, context);
+      super(ops, table, schema, MetadataTableType.ALL_MANIFESTS, context);
     }
 
     @Override
@@ -100,44 +104,28 @@ public class AllManifestsTable extends BaseMetadataTable {
     }
 
     @Override
-    public TableScan useSnapshot(long scanSnapshotId) {
-      throw new UnsupportedOperationException("Cannot select snapshot: all_manifests is for all snapshots");
-    }
-
-    @Override
-    public TableScan asOfTime(long timestampMillis) {
-      throw new UnsupportedOperationException("Cannot select snapshot: all_manifests is for all snapshots");
-    }
-
-    @Override
-    protected String tableType() {
-      return MetadataTableType.ALL_MANIFESTS.name();
-    }
-
-    @Override
-    protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
+      FileIO io = table().io();
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
+      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      return CloseableIterable.withNoopClose(Iterables.transform(ops.current().snapshots(), snap -> {
+      return CloseableIterable.withNoopClose(Iterables.transform(table().snapshots(), snap -> {
         if (snap.manifestListLocation() != null) {
-          Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
-          ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
           DataFile manifestListAsDataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-              .withInputFile(ops.io().newInputFile(snap.manifestListLocation()))
+              .withInputFile(io.newInputFile(snap.manifestListLocation()))
               .withRecordCount(1)
               .withFormat(FileFormat.AVRO)
               .build();
-          return new ManifestListReadTask(ops.io(), schema(), specs, new BaseFileScanTask(
+          return new ManifestListReadTask(io, schema(), specs, new BaseFileScanTask(
               manifestListAsDataFile, null,
               schemaString, specString, residuals));
         } else {
           return StaticDataTask.of(
-              ops.io().newInputFile(ops.current().metadataFileLocation()),
-              MANIFEST_FILE_SCHEMA, schema(), snap.allManifests(),
+              io.newInputFile(tableOps().current().metadataFileLocation()),
+              MANIFEST_FILE_SCHEMA, schema(), snap.allManifests(io),
               manifest -> ManifestsTable.manifestFileToRow(specs.get(manifest.partitionSpecId()), manifest)
           );
         }

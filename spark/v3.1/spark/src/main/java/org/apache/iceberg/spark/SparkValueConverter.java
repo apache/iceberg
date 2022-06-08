@@ -95,6 +95,10 @@ public class SparkValueConverter {
   }
 
   private static Record convert(Types.StructType struct, Row row) {
+    if (row == null) {
+      return null;
+    }
+
     Record record = GenericRecord.create(struct);
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
@@ -107,7 +111,12 @@ public class SparkValueConverter {
           record.set(i, convert(fieldType.asStructType(), row.getStruct(i)));
           break;
         case LIST:
-          record.set(i, convert(fieldType.asListType(), row.getList(i)));
+          try {
+            record.set(i, convert(fieldType.asListType(), row.getList(i)));
+          } catch (NullPointerException npe) {
+            // Handle https://issues.apache.org/jira/browse/SPARK-37654
+            record.set(i, convert(fieldType.asListType(), null));
+          }
           break;
         case MAP:
           record.set(i, convert(fieldType.asMapType(), row.getJavaMap(i)));

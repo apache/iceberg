@@ -9,6 +9,7 @@ build
 .rat-excludes
 LICENSE
 NOTICE
+revapi.yml
 gradlew
 examples/*
 gradle/*

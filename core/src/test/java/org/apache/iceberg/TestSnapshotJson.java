@@ -47,7 +47,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Snapshot ID should match",
         expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals("Files should match",
-        expected.allManifests(), snapshot.allManifests());
+        expected.allManifests(ops.io()), snapshot.allManifests(ops.io()));
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
     Assert.assertEquals("Schema ID should match", Integer.valueOf(1), snapshot.schemaId());
@@ -63,7 +63,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Snapshot ID should match",
         expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals("Files should match",
-        expected.allManifests(), snapshot.allManifests());
+        expected.allManifests(ops.io()), snapshot.allManifests(ops.io()));
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
     Assert.assertNull("Schema ID should be null", snapshot.schemaId());
@@ -95,7 +95,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Manifest list should match",
         expected.manifestListLocation(), snapshot.manifestListLocation());
     Assert.assertEquals("Files should match",
-        expected.allManifests(), snapshot.allManifests());
+        expected.allManifests(ops.io()), snapshot.allManifests(ops.io()));
     Assert.assertEquals("Operation should match",
         expected.operation(), snapshot.operation());
     Assert.assertEquals("Summary should match",
@@ -127,7 +127,7 @@ public class TestSnapshotJson {
         ops.io(), id, parentId, expected.timestampMillis(), null, null, 4, manifests);
 
     Assert.assertEquals("Files should match in memory list",
-        inMemory.allManifests(), expected.allManifests());
+        inMemory.allManifests(ops.io()), expected.allManifests(ops.io()));
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
@@ -143,7 +143,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Manifest list should match",
         expected.manifestListLocation(), snapshot.manifestListLocation());
     Assert.assertEquals("Files should match",
-        expected.allManifests(), snapshot.allManifests());
+        expected.allManifests(ops.io()), snapshot.allManifests(ops.io()));
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
     Assert.assertEquals("Schema ID should match", expected.schemaId(), snapshot.schemaId());

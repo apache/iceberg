@@ -59,7 +59,7 @@ public class JsonUtil {
   }
 
   public static Integer getIntOrNull(String property, JsonNode node) {
-    if (!node.has(property)) {
+    if (!node.hasNonNull(property)) {
       return null;
     }
     JsonNode pNode = node.get(property);
@@ -69,7 +69,7 @@ public class JsonUtil {
   }
 
   public static Long getLongOrNull(String property, JsonNode node) {
-    if (!node.has(property)) {
+    if (!node.hasNonNull(property)) {
       return null;
     }
     JsonNode pNode = node.get(property);
@@ -148,6 +148,14 @@ public class JsonUtil {
         .build();
   }
 
+  public static Set<String> getStringSet(String property, JsonNode node) {
+    Preconditions.checkArgument(node.hasNonNull(property), "Cannot parse missing set %s", property);
+
+    return ImmutableSet.<String>builder()
+        .addAll(new JsonStringArrayIterator(property, node))
+        .build();
+  }
+
   public static List<String> getStringListOrNull(String property, JsonNode node) {
     if (!node.has(property) || node.get(property).isNull()) {
       return null;
@@ -165,6 +173,16 @@ public class JsonUtil {
 
     return ImmutableSet.<Integer>builder()
         .addAll(new JsonIntegerArrayIterator(property, node))
+        .build();
+  }
+
+  public static Set<Long> getLongSetOrNull(String property, JsonNode node) {
+    if (!node.hasNonNull(property)) {
+      return null;
+    }
+
+    return ImmutableSet.<Long>builder()
+        .addAll(new JsonLongArrayIterator(property, node))
         .build();
   }
 
@@ -241,6 +259,24 @@ public class JsonUtil {
     @Override
     void validate(JsonNode element) {
       Preconditions.checkArgument(element.isInt(), "Cannot parse integer from non-int value: %s", element);
+    }
+  }
+
+  static class JsonLongArrayIterator extends JsonArrayIterator<Long> {
+
+    JsonLongArrayIterator(String property, JsonNode node) {
+      super(property, node);
+    }
+
+    @Override
+    Long convert(JsonNode element) {
+      return element.asLong();
+    }
+
+    @Override
+    void validate(JsonNode element) {
+      Preconditions.checkArgument(element.isIntegralNumber() && element.canConvertToLong(),
+          "Cannot parse long from  non-long value: %s", element);
     }
   }
 }

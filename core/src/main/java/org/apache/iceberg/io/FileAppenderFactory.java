@@ -67,7 +67,7 @@ public interface FileAppenderFactory<T> {
    * @param outputFile an OutputFile used to create an output stream.
    * @param format     a file format
    * @param partition  a tuple of partition values
-   * @return a newly created {@link EqualityDeleteWriter} for position deletes
+   * @return a newly created {@link PositionDeleteWriter} for position deletes
    */
   PositionDeleteWriter<T> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format, StructLike partition);
 }

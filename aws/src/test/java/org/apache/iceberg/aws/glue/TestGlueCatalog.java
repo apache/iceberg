@@ -83,7 +83,7 @@ public class TestGlueCatalog {
   public void testConstructorEmptyWarehousePath() {
     AssertHelpers.assertThrows("warehouse path cannot be null",
         IllegalArgumentException.class,
-        "Cannot initialize GlueCatalog because warehousePath must not be null",
+        "Cannot initialize GlueCatalog because warehousePath must not be null or empty",
         () -> {
             GlueCatalog catalog = new GlueCatalog();
             catalog.initialize(CATALOG_NAME, null, new AwsProperties(), glue,
@@ -454,5 +454,29 @@ public class TestGlueCatalog {
     Mockito.doReturn(UpdateDatabaseResponse.builder().build())
         .when(glue).updateDatabase(Mockito.any(UpdateDatabaseRequest.class));
     glueCatalog.removeProperties(Namespace.of("db1"), Sets.newHashSet("key"));
+  }
+
+  @Test
+  public void testTablePropsDefinedAtCatalogLevel() {
+    ImmutableMap<String, String> catalogProps = ImmutableMap.of(
+        "table-default.key1", "catalog-default-key1",
+        "table-default.key2", "catalog-default-key2",
+        "table-default.key3", "catalog-default-key3",
+        "table-override.key3", "catalog-override-key3",
+        "table-override.key4", "catalog-override-key4");
+    glueCatalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), glue,
+        LockManagers.defaultLockManager(), null, catalogProps);
+    Map<String, String> properties = glueCatalog.properties();
+    Assert.assertFalse(properties.isEmpty());
+    Assert.assertTrue(properties.containsKey("table-default.key1"));
+    Assert.assertEquals("catalog-default-key1", properties.get("table-default.key1"));
+    Assert.assertTrue(properties.containsKey("table-default.key2"));
+    Assert.assertEquals("catalog-default-key2", properties.get("table-default.key2"));
+    Assert.assertTrue(properties.containsKey("table-default.key3"));
+    Assert.assertEquals("catalog-default-key3", properties.get("table-default.key3"));
+    Assert.assertTrue(properties.containsKey("table-override.key3"));
+    Assert.assertEquals("catalog-override-key3", properties.get("table-override.key3"));
+    Assert.assertTrue(properties.containsKey("table-override.key4"));
+    Assert.assertEquals("catalog-override-key4", properties.get("table-override.key4"));
   }
 }

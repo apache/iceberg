@@ -75,12 +75,11 @@ public class HistoryTable extends BaseMetadataTable {
 
   private class HistoryScan extends StaticTableScan {
     HistoryScan(TableOperations ops, Table table) {
-      super(ops, table, HISTORY_SCHEMA, HistoryTable.this.metadataTableType().name(), HistoryTable.this::task);
+      super(ops, table, HISTORY_SCHEMA, MetadataTableType.HISTORY, HistoryTable.this::task);
     }
 
     HistoryScan(TableOperations ops, Table table, TableScanContext context) {
-      super(ops, table, HISTORY_SCHEMA, HistoryTable.this.metadataTableType().name(),
-              HistoryTable.this::task, context);
+      super(ops, table, HISTORY_SCHEMA, MetadataTableType.HISTORY, HistoryTable.this::task, context);
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -215,43 +216,72 @@ public interface MetadataUpdate extends Serializable {
   }
 
   class RemoveSnapshotRef implements MetadataUpdate {
-    private final String name;
+    private final String refName;
 
-    public RemoveSnapshotRef(String name) {
-      this.name = name;
+    public RemoveSnapshotRef(String refName) {
+      this.refName = refName;
     }
 
     public String name() {
-      return name;
+      return refName;
     }
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      // TODO: this should be generalized when tagging is supported
-      metadataBuilder.removeBranch(name);
+      metadataBuilder.removeRef(refName);
     }
   }
 
   class SetSnapshotRef implements MetadataUpdate {
-    private final String name;
-    private final long snapshotId;
+    private final String refName;
+    private final Long snapshotId;
+    private final SnapshotRefType type;
+    private Integer minSnapshotsToKeep;
+    private Long maxSnapshotAgeMs;
+    private Long maxRefAgeMs;
 
-    public SetSnapshotRef(String name, long snapshotId) {
-      this.name = name;
+    public SetSnapshotRef(String refName, Long snapshotId, SnapshotRefType type, Integer minSnapshotsToKeep,
+                          Long maxSnapshotAgeMs, Long maxRefAgeMs) {
+      this.refName = refName;
       this.snapshotId = snapshotId;
+      this.type = type;
+      this.minSnapshotsToKeep = minSnapshotsToKeep;
+      this.maxSnapshotAgeMs = maxSnapshotAgeMs;
+      this.maxRefAgeMs = maxRefAgeMs;
     }
 
     public String name() {
-      return name;
+      return refName;
+    }
+
+    public String type() {
+      return type.name().toLowerCase(Locale.ROOT);
     }
 
     public long snapshotId() {
       return snapshotId;
     }
 
+    public Integer minSnapshotsToKeep() {
+      return minSnapshotsToKeep;
+    }
+
+    public Long maxSnapshotAgeMs() {
+      return maxSnapshotAgeMs;
+    }
+
+    public Long maxRefAgeMs() {
+      return maxRefAgeMs;
+    }
+
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.setBranchSnapshot(snapshotId, name);
+      SnapshotRef ref = SnapshotRef.builderFor(snapshotId, type)
+          .minSnapshotsToKeep(minSnapshotsToKeep)
+          .maxSnapshotAgeMs(maxSnapshotAgeMs)
+          .maxRefAgeMs(maxRefAgeMs)
+          .build();
+      metadataBuilder.setRef(refName, ref);
     }
   }
 

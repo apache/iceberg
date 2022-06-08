@@ -304,7 +304,7 @@ public class PartitionSpec implements Serializable {
   }
 
   private static final PartitionSpec UNPARTITIONED_SPEC =
-      new PartitionSpec(new Schema(), 0, ImmutableList.of(), PARTITION_DATA_ID_START - 1);
+      new PartitionSpec(new Schema(), 0, ImmutableList.of(), unpartitionedLastAssignedId());
 
   /**
    * Returns a spec for unpartitioned tables.
@@ -313,6 +313,10 @@ public class PartitionSpec implements Serializable {
    */
   public static PartitionSpec unpartitioned() {
     return UNPARTITIONED_SPEC;
+  }
+
+  private static int unpartitionedLastAssignedId() {
+    return PARTITION_DATA_ID_START - 1;
   }
 
   /**
@@ -336,7 +340,7 @@ public class PartitionSpec implements Serializable {
     private final Set<String> partitionNames = Sets.newHashSet();
     private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
-    private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
+    private final AtomicInteger lastAssignedFieldId = new AtomicInteger(unpartitionedLastAssignedId());
     // check if there are conflicts between partition and schema field name
     private boolean checkConflicts = true;
 

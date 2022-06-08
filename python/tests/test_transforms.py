@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=W0123
 
 from decimal import Decimal
 from uuid import UUID
@@ -24,6 +25,7 @@ import pytest
 from iceberg import transforms
 from iceberg.types import (
     BinaryType,
+    BooleanType,
     DateType,
     DecimalType,
     FixedType,
@@ -125,3 +127,27 @@ def test_string_with_surrogate_pair():
     as_bytes = bytes(string_with_surrogate_pair, "UTF-8")
     bucket_transform = transforms.bucket(StringType(), 100)
     assert bucket_transform.hash(string_with_surrogate_pair) == mmh3.hash(as_bytes)
+
+
+def test_unknown_transform():
+    unknown_transform = transforms.UnknownTransform(FixedType(8), "unknown")
+    assert str(unknown_transform) == str(eval(repr(unknown_transform)))
+    with pytest.raises(AttributeError):
+        unknown_transform.apply("test")
+    assert unknown_transform.can_transform(FixedType(8))
+    assert not unknown_transform.can_transform(FixedType(5))
+    assert isinstance(unknown_transform.result_type(BooleanType()), StringType)
+
+
+def test_void_transform():
+    void_transform = transforms.always_null()
+    assert void_transform is transforms.always_null()
+    assert void_transform == eval(repr(void_transform))
+    assert void_transform.apply("test") is None
+    assert void_transform.can_transform(BooleanType())
+    assert isinstance(void_transform.result_type(BooleanType()), BooleanType)
+    assert not void_transform.preserves_order
+    assert void_transform.satisfies_order_of(transforms.always_null())
+    assert not void_transform.satisfies_order_of(transforms.bucket(DateType(), 100))
+    assert void_transform.to_human_string("test") == "null"
+    assert void_transform.dedup_name == "void"

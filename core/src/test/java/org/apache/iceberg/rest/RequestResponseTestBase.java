@@ -19,28 +19,14 @@
 
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.assertj.core.api.Assertions;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public abstract class RequestResponseTestBase<T extends RESTMessage> {
 
-  private static final JsonFactory FACTORY = new JsonFactory();
-  private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
-
-  @BeforeClass
-  public static void beforeClass() {
-    RESTSerializers.registerAll(MAPPER);
-    // This is a workaround for Jackson since Iceberg doesn't use the standard get/set bean notation.
-    // This allows Jackson to work with the fields directly (both public and private) and not require
-    // custom serializers for all the request/response objects.
-    MAPPER.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
-  }
+  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
   public static ObjectMapper mapper() {
     return MAPPER;
@@ -73,6 +59,13 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
   public abstract T deserialize(String json) throws JsonProcessingException;
 
   /**
+   * Serialize T to a String.
+   */
+  public String serialize(T object) throws JsonProcessingException {
+    return MAPPER.writeValueAsString(object);
+  }
+
+  /**
    * This test ensures that only the fields that are expected, e.g. from the spec, are found on the class.
    * If new fields are added to the spec, they should be added to the function
    * {@link RequestResponseTestBase#allFieldsFromSpec()}
@@ -81,8 +74,7 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
   public void testHasOnlyKnownFields() {
     T value = createExampleInstance();
 
-    Assertions.assertThat(value)
-        .hasOnlyFields(allFieldsFromSpec());
+    Assertions.assertThat(value).hasOnlyFields(allFieldsFromSpec());
   }
 
   /**
@@ -95,7 +87,6 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
     assertEquals(actual, expected);
 
     // Check that the deserialized value serializes back into the original JSON
-    Assertions.assertThat(MAPPER.writeValueAsString(actual))
-        .isEqualTo(json);
+    Assertions.assertThat(serialize(expected)).isEqualTo(json);
   }
 }

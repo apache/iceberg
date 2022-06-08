@@ -161,6 +161,14 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_ENDPOINT = "s3.endpoint";
 
   /**
+   * If set {@code true}, requests to S3FileIO will use Path-Style, otherwise, Virtual Hosted-Style will be used.
+   * <p>
+   * For more details: https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html
+   */
+  public static final String S3FILEIO_PATH_STYLE_ACCESS = "s3.path-style-access";
+  public static final boolean S3FILEIO_PATH_STYLE_ACCESS_DEFAULT = false;
+
+  /**
    * Configure the static access key ID used to access S3FileIO.
    * <p>
    * When set, the default client factory will use the basic or session credentials provided instead of

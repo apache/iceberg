@@ -98,10 +98,17 @@ public class SnapshotParser {
   }
 
   public static String toJson(Snapshot snapshot) {
+    // Use true as default value of pretty for backwards compatibility
+    return toJson(snapshot, true);
+  }
+
+  public static String toJson(Snapshot snapshot, boolean pretty) {
     try {
       StringWriter writer = new StringWriter();
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
       toJson(snapshot, generator);
       generator.flush();
       return writer.toString();

@@ -64,8 +64,12 @@ project(':iceberg-spark:iceberg-spark-3.1_2.12') {
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
       exclude group: 'org.roaringbitmap'
     }
+
+    implementation("org.apache.parquet:parquet-column")
+    implementation("org.apache.parquet:parquet-hadoop")
 
     implementation("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'
@@ -136,6 +140,7 @@ project(":iceberg-spark:iceberg-spark-extensions-3.1_2.12") {
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'org.apache.parquet'
       exclude group: 'org.roaringbitmap'
     }
 

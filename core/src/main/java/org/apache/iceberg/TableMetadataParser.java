@@ -155,7 +155,7 @@ public class TableMetadataParser {
     }
   }
 
-  private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
+  public static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
@@ -301,6 +301,10 @@ public class TableMetadataParser {
     return fromJson(io, file.location(), node);
   }
 
+  public static TableMetadata fromJson(JsonNode node) {
+    return fromJson(null, (String) null, node);
+  }
+
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   static TableMetadata fromJson(FileIO io, String metadataLocation, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
@@ -386,7 +390,8 @@ public class TableMetadataParser {
     if (lastAssignedPartitionId == null) {
       Preconditions.checkArgument(formatVersion == 1,
           "%s must exist in format v%s", LAST_PARTITION_ID, formatVersion);
-      lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999);
+      lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max()
+          .orElse(PartitionSpec.unpartitioned().lastAssignedFieldId());
     }
 
     // parse the sort orders

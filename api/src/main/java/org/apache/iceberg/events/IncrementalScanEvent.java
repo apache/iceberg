@@ -31,14 +31,16 @@ public final class IncrementalScanEvent {
   private final long toSnapshotId;
   private final Expression filter;
   private final Schema projection;
+  private final boolean fromSnapshotInclusive;
 
   public IncrementalScanEvent(String tableName, long fromSnapshotId, long toSnapshotId, Expression filter,
-                              Schema projection) {
+                              Schema projection, boolean fromSnapshotInclusive) {
     this.tableName = tableName;
     this.fromSnapshotId = fromSnapshotId;
     this.toSnapshotId = toSnapshotId;
     this.filter = filter;
     this.projection = projection;
+    this.fromSnapshotInclusive = fromSnapshotInclusive;
   }
 
   public String tableName() {
@@ -59,5 +61,9 @@ public final class IncrementalScanEvent {
 
   public Schema projection() {
     return projection;
+  }
+
+  public boolean isFromSnapshotInclusive() {
+    return fromSnapshotInclusive;
   }
 }

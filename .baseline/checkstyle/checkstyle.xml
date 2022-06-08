@@ -107,7 +107,6 @@
         <module name="AvoidStarImport"/> <!-- Java Style Guide: No wildcard imports -->
         <module name="AvoidStaticImport"> <!-- Java Style Guide: No static imports -->
             <property name="excludes" value="
-                com.google.common.base.Preconditions.*,
                 com.palantir.logsafe.Preconditions.*,
                 java.util.Collections.*,
                 java.util.stream.Collectors.*,
@@ -338,6 +337,10 @@
             <property name="format" value="Preconditions\.checkNotNull\((?!.*,)([^()]*(\(([^()]*|\(([^()]*|\([^()]*\))*\))*\)[^()]*)*)\)"/>
             <property name="message" value="Use Preconditions.checkNotNull(Object, String)."/>
         </module>
+        <module name="RegexpSinglelineJava">
+            <property name="format" value="Objects\.(require|)[Nn]onNull.*\(.*\)"/>
+            <property name="message" value="Prefer using Preconditions.checkNotNull(Object, String)."/>
+        </module>
         <module name="RegexpSinglelineJava"> <!-- Java Coding Guidelines: Check parameters for validity -->
             <property name="format" value="Validate\.notNull\((?!.*,)([^()]*(\(([^()]*|\(([^()]*|\([^()]*\))*\))*\)[^()]*)*)\)"/>
             <property name="message" value="Use Validate.notNull(Object, String)."/>
@@ -373,7 +376,7 @@
         <module name="RegexpSinglelineJava">
             <property name="id" value="BanSystemErr"/>
             <property name="format" value="System\.err\."/>
-            <property name="message" value="Logging with System.err is not allowed because it has no metadata and can't be configured at runtime. Please use an SLF4J logger instead, e.g. log.info(&quot;Message&quot;)."/>
+            <property name="message" value="Logging with System.err is not allowed because it has no metadata and can't be configured at runtime. Please use an SLF4J logger instead, e.g. log.error(&quot;Message&quot;)."/>
             <property name="ignoreComments" value="true"/>
         </module>
         <module name="RegexpSinglelineJava">

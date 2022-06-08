@@ -180,7 +180,7 @@ def test_raise_on_creating_a_local_file_no_permission():
         assert "Cannot get file info, access denied:" in str(exc_info.value)
 
 
-def test_raise_on_checking_if_local_file_exists_no_permission():
+def test_raise_on_delete_file_with_no_permission():
     """Test that a PyArrowFile raises when deleting a local file without permission"""
 
     with tempfile.TemporaryDirectory() as tmpdirname:

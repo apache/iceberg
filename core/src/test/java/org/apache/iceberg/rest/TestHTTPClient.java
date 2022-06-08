@@ -19,17 +19,16 @@
 
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.AfterClass;
@@ -52,22 +51,15 @@ public class TestHTTPClient {
   private static final int PORT = 1080;
   private static final String BEARER_AUTH_TOKEN = "auth_token";
   private static final String URI = String.format("http://127.0.0.1:%d", PORT);
-  private static final JsonFactory FACTORY = new JsonFactory();
-  private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
+  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
   private static ClientAndServer mockServer;
   private static RESTClient restClient;
 
   @BeforeClass
   public static void beforeClass() {
-    MAPPER.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
     mockServer = startClientAndServer(PORT);
-    restClient = HTTPClient
-        .builder()
-        .uri(URI)
-        .mapper(MAPPER)
-        .withBearerAuth(BEARER_AUTH_TOKEN)
-        .build();
+    restClient = HTTPClient.builder().uri(URI).build();
   }
 
   @AfterClass
@@ -202,16 +194,17 @@ public class TestHTTPClient {
   }
 
   private static Item doExecuteRequest(HttpMethod method, String path, Item body, Consumer<ErrorResponse> onError) {
+    Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
     switch (method) {
       case POST:
-        return restClient.post(path, body, Item.class, onError);
+        return restClient.post(path, body, Item.class, headers, onError);
       case GET:
-        return restClient.get(path, Item.class, onError);
+        return restClient.get(path, Item.class, headers, onError);
       case HEAD:
-        restClient.head(path, onError);
+        restClient.head(path, headers, onError);
         return null;
       case DELETE:
-        return restClient.delete(path, Item.class, onError);
+        return restClient.delete(path, Item.class, headers, onError);
       default:
         throw new IllegalArgumentException(String.format("Invalid method: %s", method));
     }

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -103,6 +104,49 @@ public class TestS3InputStream {
 
     assertEquals(rangeEnd, in.getPos());
     assertArrayEquals(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd), actual);
+  }
+
+  @Test
+  public void testRangeRead() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/range-read.dat");
+    int dataSize = 1024 * 1024 * 10;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize];
+
+    long position;
+    int offset;
+    int length;
+
+    writeS3Data(uri, expected);
+
+    try (RangeReadable in = new S3InputStream(s3, uri)) {
+      // first 1k
+      position = 0;
+      offset = 0;
+      length = 1024;
+      readAndCheckRanges(in, expected, position, actual, offset, length);
+
+      // last 1k
+      position = dataSize - 1024;
+      offset = dataSize - 1024;
+      readAndCheckRanges(in, expected, position, actual, offset, length);
+
+      // middle 2k
+      position = dataSize / 2 - 1024;
+      offset = dataSize / 2 - 1024;
+      length = 1024 * 2;
+      readAndCheckRanges(in, expected, position, actual, offset, length);
+    }
+  }
+
+  private void readAndCheckRanges(
+      RangeReadable in, byte [] original, long position, byte [] buffer, int offset,
+      int length) throws IOException {
+    in.readFully(position, buffer, offset, length);
+
+    assertArrayEquals(
+        Arrays.copyOfRange(original, offset, offset + length),
+        Arrays.copyOfRange(buffer, offset, offset + length));
   }
 
   @Test

@@ -54,6 +54,17 @@ public interface Table {
   TableScan newScan();
 
   /**
+   * Create a new {@link IncrementalAppendScan scan} for this table.
+   * <p>
+   * Once a scan is created, it can be refined to project columns and filter data.
+   *
+   * @return an incremental scan for appends only snapshots
+   */
+  default IncrementalAppendScan newIncrementalAppendScan() {
+    throw new UnsupportedOperationException("Incremental append scan is not supported");
+  }
+
+  /**
    * Return the {@link Schema schema} for this table.
    *
    * @return this table's schema

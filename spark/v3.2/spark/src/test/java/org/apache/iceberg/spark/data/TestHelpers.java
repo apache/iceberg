@@ -45,6 +45,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -77,6 +78,10 @@ import static scala.collection.JavaConverters.seqAsJavaListConverter;
 public class TestHelpers {
 
   private TestHelpers() {
+  }
+
+  public static void assertEqualsSafe(Types.StructType struct, List<Record> recs, List<Row> rows) {
+    Streams.forEachPair(recs.stream(), rows.stream(), (rec, row) -> assertEqualsSafe(struct, rec, row));
   }
 
   public static void assertEqualsSafe(Types.StructType struct, Record rec, Row row) {
@@ -702,11 +707,11 @@ public class TestHelpers {
   }
 
   public static List<ManifestFile> dataManifests(Table table) {
-    return table.currentSnapshot().dataManifests();
+    return table.currentSnapshot().dataManifests(table.io());
   }
 
   public static List<ManifestFile> deleteManifests(Table table) {
-    return table.currentSnapshot().deleteManifests();
+    return table.currentSnapshot().deleteManifests(table.io());
   }
 
   public static Set<DataFile> dataFiles(Table table) {

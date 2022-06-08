@@ -15,9 +15,69 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
+[tool.poetry]
+name = "apache-iceberg"
+version = "0.0.1rc1"
+readme = "README.md"
+homepage = "https://iceberg.apache.org/"
+repository = "https://github.com/apache/iceberg/"
+description = "Apache Iceberg is an open table format for huge analytic datasets"
+authors = ["Apache Software Foundation <dev@iceberg.apache.org>"]
+license = "Apache License 2.0"
+
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10"
 ]
-build-backend = "setuptools.build_meta"
+
+packages = [
+    { include = "iceberg", from = "src" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+mmh3 = "^3.0.0"
+
+pyarrow = { version = "^8.0.0", optional = true }
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.0.0"
+pytest-checkdocs = "^2.0.0"
+pre-commit = "^2.0.0"
+coverage = { version = "^6.0.0", extras = ["toml"] }
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.extras]
+pyarrow = ["pyarrow"]
+
+[tool.black]
+line-length = 130
+target-version = ['py38']
+
+[tool.isort]
+src_paths = ["src/", "tests/"]
+multi_line_output = 3
+profile = 'black'
+line_length = 130
+force_grid_wrap = 4
+
+[tool.pycln]
+all = true
+
+[tool.mypy]
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "mypy-pyarrow.*"
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ['src/']

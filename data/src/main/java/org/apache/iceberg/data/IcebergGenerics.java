@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.data;
 
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
@@ -64,6 +65,11 @@ public class IcebergGenerics {
 
     public ScanBuilder select(String... selectedColumns) {
       this.tableScan = tableScan.select(ImmutableList.copyOf(selectedColumns));
+      return this;
+    }
+
+    public ScanBuilder project(Schema schema) {
+      this.tableScan = tableScan.project(schema);
       return this;
     }
 

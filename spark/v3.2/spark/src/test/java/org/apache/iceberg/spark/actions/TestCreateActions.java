@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
@@ -37,6 +36,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.actions.SnapshotTable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -490,6 +490,11 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assert.assertEquals("Unexpected format", "iceberg/parquet", table.properties().get("format"));
     Assert.assertNotEquals("No current-snapshot-id found", "none", table.properties().get("current-snapshot-id"));
     Assert.assertTrue("Location isn't correct", table.properties().get("location").endsWith(destTableName));
+
+    Assert.assertEquals("Unexpected format-version", "1", table.properties().get("format-version"));
+    table.table().updateProperties().set("format-version", "2").commit();
+    Assert.assertEquals("Unexpected format-version", "2", table.properties().get("format-version"));
+
     Assert.assertEquals("Sort-order isn't correct", "id ASC NULLS FIRST, data DESC NULLS LAST",
         table.properties().get("sort-order"));
     Assert.assertNull("Identifier fields should be null", table.properties().get("identifier-fields"));
@@ -666,7 +671,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
             JavaSparkContext.fromSparkContext(spark.sparkContext()).parallelize(testData))
         .coalesce(1).write().format("parquet").mode(SaveMode.Append).save(location.getPath());
 
-    File parquetFile = Arrays.stream(Objects.requireNonNull(location.listFiles(new FilenameFilter() {
+    File parquetFile = Arrays.stream(Preconditions.checkNotNull(location.listFiles(new FilenameFilter() {
       @Override
       public boolean accept(File dir, String name) {
         return name.endsWith("parquet");

@@ -19,11 +19,10 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 public class DataTableScan extends BaseTableScan {
@@ -48,11 +47,10 @@ public class DataTableScan extends BaseTableScan {
 
   @Override
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
-    Long scanSnapshotId = snapshotId();
-    Preconditions.checkState(scanSnapshotId == null,
-        "Cannot enable incremental scan, scan-snapshot set to id=%s", scanSnapshotId);
+    Preconditions.checkState(snapshotId() == null,
+        "Cannot enable incremental scan, scan-snapshot set to id=%s", snapshotId());
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
-        context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
+        context().fromSnapshotIdExclusive(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
 
   @Override
@@ -78,33 +76,26 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
-  public CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot,
-                                                   Expression rowFilter, boolean ignoreResiduals,
-                                                   boolean caseSensitive, boolean colStats) {
-    ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.dataManifests(), snapshot.deleteManifests())
-        .caseSensitive(caseSensitive)
-        .select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
-        .filterData(rowFilter)
-        .specsById(ops.current().specsById())
+  public CloseableIterable<FileScanTask> doPlanFiles() {
+    Snapshot snapshot = snapshot();
+
+    FileIO io = table().io();
+    ManifestGroup manifestGroup = new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
+        .caseSensitive(isCaseSensitive())
+        .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
+        .filterData(filter())
+        .specsById(table().specs())
         .ignoreDeleted();
 
-    if (ignoreResiduals) {
+    if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (snapshot.dataManifests().size() > 1 &&
+    if (snapshot.dataManifests(io).size() > 1 &&
         (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
-      manifestGroup = manifestGroup.planWith(context().planExecutor());
+      manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
     return manifestGroup.planFiles();
-  }
-
-  @Override
-  public long targetSplitSize() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
-    return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 }

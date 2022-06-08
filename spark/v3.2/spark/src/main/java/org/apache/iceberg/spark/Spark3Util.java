@@ -28,8 +28,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -37,6 +35,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -52,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.SortOrderVisitor;
@@ -60,8 +60,6 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.CatalystTypeConverters;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -81,13 +79,11 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.execution.datasources.FileStatusCache;
 import org.apache.spark.sql.execution.datasources.InMemoryFileIndex;
 import org.apache.spark.sql.execution.datasources.PartitionDirectory;
-import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
-import scala.Some;
 import scala.collection.JavaConverters;
 import scala.collection.immutable.Seq;
 
@@ -618,20 +614,6 @@ public class Spark3Util {
   }
 
   /**
-   * Returns a metadata table as a Dataset based on the given Iceberg table.
-   *
-   * @param spark SparkSession where the Dataset will be created
-   * @param table an Iceberg table
-   * @param type the type of metadata table
-   * @return a Dataset that will read the metadata table
-   */
-  private static Dataset<Row> loadMetadataTable(SparkSession spark, org.apache.iceberg.Table table,
-                                                MetadataTableType type) {
-    Table metadataTable = new SparkTable(MetadataTableUtils.createMetadataTableInstance(table, type), false);
-    return Dataset.ofRows(spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty()));
-  }
-
-  /**
    * Returns an Iceberg Table by its name from a Spark V2 Catalog. If cache is enabled in {@link SparkCatalog},
    * the {@link TableOperations} of the table may be stale, please refresh the table to get the latest one.
    *
@@ -647,6 +629,22 @@ public class Spark3Util {
     Table sparkTable = catalog.loadTable(catalogAndIdentifier.identifier);
     return toIcebergTable(sparkTable);
   }
+
+  /**
+   * Returns the underlying Iceberg Catalog object represented by a Spark Catalog
+   * @param spark SparkSession used for looking up catalog reference
+   * @param catalogName The name of the Spark Catalog being referenced
+   * @return the Iceberg catalog class being wrapped by the Spark Catalog
+   */
+  public static Catalog loadIcebergCatalog(SparkSession spark, String catalogName) {
+    CatalogPlugin catalogPlugin = spark.sessionState().catalogManager().catalog(catalogName);
+    Preconditions.checkArgument(catalogPlugin instanceof HasIcebergCatalog,
+        String.format("Cannot load Iceberg catalog from catalog %s because it does not contain an Iceberg Catalog. " +
+                          "Actual Class: %s",
+            catalogName, catalogPlugin.getClass().getName()));
+    return ((HasIcebergCatalog) catalogPlugin).icebergCatalog();
+  }
+
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
     return catalogAndIdentifier(spark, name, spark.sessionState().catalogManager().currentCatalog());

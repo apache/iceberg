@@ -564,19 +564,4 @@ public class ParquetMetricsRowGroupFilter {
   private static boolean mayContainNull(Statistics statistics) {
     return !statistics.isNumNullsSet() || statistics.getNumNulls() > 0;
   }
-
-  private static Function<Object, Object> converterFor(PrimitiveType parquetType, Type icebergType) {
-    Function<Object, Object> fromParquet = ParquetConversions.converterFromParquet(parquetType);
-    if (icebergType != null) {
-      if (icebergType.typeId() == Type.TypeID.LONG &&
-          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
-        return value -> ((Integer) fromParquet.apply(value)).longValue();
-      } else if (icebergType.typeId() == Type.TypeID.DOUBLE &&
-          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
-        return value -> ((Float) fromParquet.apply(value)).doubleValue();
-      }
-    }
-
-    return fromParquet;
-  }
 }

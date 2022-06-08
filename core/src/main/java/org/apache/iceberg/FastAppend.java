@@ -141,7 +141,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     Iterables.addAll(newManifests, appendManifestsWithMetadata);
 
     if (base.currentSnapshot() != null) {
-      newManifests.addAll(base.currentSnapshot().allManifests());
+      newManifests.addAll(base.currentSnapshot().allManifests(ops.io()));
     }
 
     return newManifests;

@@ -33,6 +33,7 @@ buildscript {
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
+    classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
   }
 }
 
@@ -191,6 +192,8 @@ project(':iceberg-bundled-guava') {
 }
 
 project(':iceberg-api') {
+  apply plugin: 'com.palantir.revapi'
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
@@ -588,6 +591,8 @@ project(':iceberg-nessie') {
     implementation project(':iceberg-core')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation "org.projectnessie:nessie-client"
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
 
     testImplementation "org.projectnessie:nessie-jaxrs-testextension"
     // Need to "pull in" el-api explicitly :(
@@ -598,6 +603,10 @@ project(':iceberg-nessie') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+
+    // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
+    compileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.0"
+    testCompileOnly "org.eclipse.microprofile.openapi:microprofile-openapi-api:3.0"
   }
 }
 

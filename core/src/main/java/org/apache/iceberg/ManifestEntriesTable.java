@@ -26,6 +26,7 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -73,23 +74,11 @@ public class ManifestEntriesTable extends BaseMetadataTable {
   private static class EntriesTableScan extends BaseMetadataTableScan {
 
     EntriesTableScan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema);
+      super(ops, table, schema, MetadataTableType.ENTRIES);
     }
 
     private EntriesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, context);
-    }
-
-    @Override
-    public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
-      throw new UnsupportedOperationException(
-          String.format("Cannot incrementally scan table of type %s", MetadataTableType.ENTRIES.name()));
-    }
-
-    @Override
-    public TableScan appendsAfter(long fromSnapshotId) {
-      throw new UnsupportedOperationException(
-          String.format("Cannot incrementally scan table of type %s", MetadataTableType.ENTRIES.name()));
+      super(ops, table, schema, MetadataTableType.ENTRIES, context);
     }
 
     @Override
@@ -99,19 +88,17 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     }
 
     @Override
-    protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
       // return entries from both data and delete manifests
-      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.allManifests());
+      CloseableIterable<ManifestFile> manifests =
+          CloseableIterable.withNoopClose(snapshot().allManifests(tableOps().io()));
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals,
-              ops.current().specsById()));
+          new ManifestReadTask(table(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 
@@ -122,13 +109,13 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
-    ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
-                     String specString, ResidualEvaluator residuals, Map<Integer, PartitionSpec> specsById) {
+    ManifestReadTask(Table table, ManifestFile manifest, Schema schema, String schemaString,
+                     String specString, ResidualEvaluator residuals) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.schema = schema;
-      this.io = io;
+      this.io = table.io();
       this.manifest = manifest;
-      this.specsById = specsById;
+      this.specsById = Maps.newHashMap(table.specs());
 
       Type fileProjection = schema.findType("data_file");
       this.fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();

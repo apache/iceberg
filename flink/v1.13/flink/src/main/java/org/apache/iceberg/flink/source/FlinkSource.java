@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -178,6 +179,11 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder monitorInterval(Duration interval) {
+      contextBuilder.monitorInterval(interval);
+      return this;
+    }
+
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
@@ -225,6 +231,9 @@ public class FlinkSource {
 
       if (!context.isStreaming()) {
         int parallelism = inferParallelism(format, context);
+        if (env.getMaxParallelism() > 0) {
+          parallelism = Math.min(parallelism, env.getMaxParallelism());
+        }
         return env.createInput(format, typeInfo).setParallelism(parallelism);
       } else {
         StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, context);

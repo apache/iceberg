@@ -29,70 +29,83 @@ Example:
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
-
-from typing import Dict, Optional, Tuple
+from dataclasses import dataclass, field
+from functools import cached_property
+from typing import (
+    ClassVar,
+    Dict,
+    Optional,
+    Tuple,
+)
 
 
 class Singleton:
     _instance = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls):
         if not isinstance(cls._instance, cls):
-            cls._instance = super(Singleton, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
 
+@dataclass(frozen=True)
 class IcebergType:
-    """Base type for all Iceberg Types"""
+    """Base type for all Iceberg Types
 
-    _initialized = False
+    Example:
+        >>> str(IcebergType())
+        'IcebergType()'
+        >>> repr(IcebergType())
+        'IcebergType()'
+    """
 
-    def __init__(self, type_string: str, repr_string: str):
-        self._type_string = type_string
-        self._repr_string = repr_string
-        self._initialized = True
+    @property
+    def string_type(self) -> str:
+        return self.__repr__()
 
-    def __repr__(self):
-        return self._repr_string
-
-    def __str__(self):
-        return self._type_string
+    def __str__(self) -> str:
+        return self.string_type
 
     @property
     def is_primitive(self) -> bool:
         return isinstance(self, PrimitiveType)
 
 
+@dataclass(frozen=True, eq=True)
 class PrimitiveType(IcebergType):
-    """Base class for all Iceberg Primitive Types"""
+    """Base class for all Iceberg Primitive Types
+
+    Example:
+        >>> str(PrimitiveType())
+        'PrimitiveType()'
+    """
 
 
+@dataclass(frozen=True)
 class FixedType(PrimitiveType):
     """A fixed data type in Iceberg.
 
     Example:
         >>> FixedType(8)
         FixedType(length=8)
-        >>> FixedType(8)==FixedType(8)
+        >>> FixedType(8) == FixedType(8)
         True
     """
 
-    _instances: Dict[int, "FixedType"] = {}
+    length: int = field()
+
+    _instances: ClassVar[Dict[int, "FixedType"]] = {}
 
     def __new__(cls, length: int):
         cls._instances[length] = cls._instances.get(length) or object.__new__(cls)
         return cls._instances[length]
 
-    def __init__(self, length: int):
-        if not self._initialized:
-            super().__init__(f"fixed[{length}]", f"FixedType(length={length})")
-            self._length = length
-
     @property
-    def length(self) -> int:
-        return self._length
+    def string_type(self) -> str:
+        return f"fixed[{self.length}]"
 
 
+@dataclass(frozen=True, eq=True)
 class DecimalType(PrimitiveType):
     """A fixed data type in Iceberg.
 
@@ -103,38 +116,52 @@ class DecimalType(PrimitiveType):
         True
     """
 
-    _instances: Dict[Tuple[int, int], "DecimalType"] = {}
+    precision: int = field()
+    scale: int = field()
+
+    _instances: ClassVar[Dict[Tuple[int, int], "DecimalType"]] = {}
 
     def __new__(cls, precision: int, scale: int):
         key = (precision, scale)
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
-    def __init__(self, precision: int, scale: int):
-        if not self._initialized:
-            super().__init__(
-                f"decimal({precision}, {scale})",
-                f"DecimalType(precision={precision}, scale={scale})",
-            )
-            self._precision = precision
-            self._scale = scale
-
     @property
-    def precision(self) -> int:
-        return self._precision
-
-    @property
-    def scale(self) -> int:
-        return self._scale
+    def string_type(self) -> str:
+        return f"decimal({self.precision}, {self.scale})"
 
 
+@dataclass(frozen=True)
 class NestedField(IcebergType):
     """Represents a field of a struct, a map key, a map value, or a list element.
 
     This is where field IDs, names, docs, and nullability are tracked.
+
+    Example:
+        >>> str(NestedField(
+        ...     field_id=1,
+        ...     name='foo',
+        ...     field_type=FixedType(22),
+        ...     is_optional=False,
+        ... ))
+        '1: foo: required fixed[22]'
+        >>> str(NestedField(
+        ...     field_id=2,
+        ...     name='bar',
+        ...     field_type=LongType(),
+        ...     is_optional=False,
+        ...     doc="Just a long"
+        ... ))
+        '2: bar: required long (Just a long)'
     """
 
-    _instances: Dict[Tuple[bool, int, str, IcebergType, Optional[str]], "NestedField"] = {}
+    field_id: int = field()
+    name: str = field()
+    field_type: IcebergType = field()
+    is_optional: bool = field(default=True)
+    doc: Optional[str] = field(default=None, repr=False)
+
+    _instances: ClassVar[Dict[Tuple[bool, int, str, IcebergType, Optional[str]], "NestedField"]] = {}
 
     def __new__(
         cls,
@@ -148,56 +175,18 @@ class NestedField(IcebergType):
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
-    def __init__(
-        self,
-        field_id: int,
-        name: str,
-        field_type: IcebergType,
-        is_optional: bool = True,
-        doc: Optional[str] = None,
-    ):
-        if not self._initialized:
-            docString = "" if doc is None else f", doc={repr(doc)}"
-            super().__init__(
-                (
-                    f"{field_id}: {name}: {'optional' if is_optional else 'required'} {field_type}" ""
-                    if doc is None
-                    else f" ({doc})"
-                ),
-                f"NestedField(field_id={field_id}, name={repr(name)}, field_type={repr(field_type)}, is_optional={is_optional}"
-                f"{docString})",
-            )
-            self._is_optional = is_optional
-            self._id = field_id
-            self._name = name
-            self._type = field_type
-            self._doc = doc
-
-    @property
-    def is_optional(self) -> bool:
-        return self._is_optional
-
     @property
     def is_required(self) -> bool:
-        return not self._is_optional
+        return not self.is_optional
 
     @property
-    def field_id(self) -> int:
-        return self._id
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def doc(self) -> Optional[str]:
-        return self._doc
-
-    @property
-    def type(self) -> IcebergType:
-        return self._type
+    def string_type(self) -> str:
+        doc = "" if not self.doc else f" ({self.doc})"
+        req = "optional" if self.is_optional else "required"
+        return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
 
 
+@dataclass(frozen=True, init=False)
 class StructType(IcebergType):
     """A struct type in Iceberg
 
@@ -209,25 +198,27 @@ class StructType(IcebergType):
         'struct<1: required_field: optional string, 2: optional_field: optional int>'
     """
 
-    _instances: Dict[Tuple[NestedField, ...], "StructType"] = {}
+    fields: Tuple[NestedField] = field()
 
-    def __new__(cls, *fields: NestedField):
+    _instances: ClassVar[Dict[Tuple[NestedField, ...], "StructType"]] = {}
+
+    def __new__(cls, *fields: NestedField, **kwargs):
+        if not fields and "fields" in kwargs:
+            fields = kwargs["fields"]
         cls._instances[fields] = cls._instances.get(fields) or object.__new__(cls)
         return cls._instances[fields]
 
-    def __init__(self, *fields: NestedField):
-        if not self._initialized:
-            super().__init__(
-                f"struct<{', '.join(map(str, fields))}>",
-                f"StructType{repr(fields)}",
-            )
-            self._fields = fields
+    def __init__(self, *fields: NestedField, **kwargs):  # pylint: disable=super-init-not-called
+        if not fields and "fields" in kwargs:
+            fields = kwargs["fields"]
+        object.__setattr__(self, "fields", fields)
 
-    @property
-    def fields(self) -> Tuple[NestedField, ...]:
-        return self._fields
+    @cached_property
+    def string_type(self) -> str:
+        return f"struct<{', '.join(map(str, self.fields))}>"
 
 
+@dataclass(frozen=True)
 class ListType(IcebergType):
     """A list type in Iceberg
 
@@ -236,7 +227,12 @@ class ListType(IcebergType):
         ListType(element_id=3, element_type=StringType(), element_is_optional=True)
     """
 
-    _instances: Dict[Tuple[bool, int, IcebergType], "ListType"] = {}
+    element_id: int = field()
+    element_type: IcebergType = field()
+    element_is_optional: bool = field(default=True)
+    element: NestedField = field(init=False, repr=False)
+
+    _instances: ClassVar[Dict[Tuple[bool, int, IcebergType], "ListType"]] = {}
 
     def __new__(
         cls,
@@ -248,30 +244,24 @@ class ListType(IcebergType):
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
-    def __init__(
-        self,
-        element_id: int,
-        element_type: IcebergType,
-        element_is_optional: bool = True,
-    ):
-        if not self._initialized:
-            super().__init__(
-                f"list<{element_type}>",
-                f"ListType(element_id={element_id}, element_type={repr(element_type)}, "
-                f"element_is_optional={element_is_optional})",
-            )
-            self._element_field = NestedField(
+    def __post_init__(self):
+        object.__setattr__(
+            self,
+            "element",
+            NestedField(
                 name="element",
-                is_optional=element_is_optional,
-                field_id=element_id,
-                field_type=element_type,
-            )
+                is_optional=self.element_is_optional,
+                field_id=self.element_id,
+                field_type=self.element_type,
+            ),
+        )
 
     @property
-    def element(self) -> NestedField:
-        return self._element_field
+    def string_type(self) -> str:
+        return f"list<{self.element_type}>"
 
 
+@dataclass(frozen=True)
 class MapType(IcebergType):
     """A map type in Iceberg
 
@@ -280,7 +270,16 @@ class MapType(IcebergType):
         MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_is_optional=True)
     """
 
-    _instances: Dict[Tuple[int, IcebergType, int, IcebergType, bool], "MapType"] = {}
+    key_id: int = field()
+    key_type: IcebergType = field()
+    value_id: int = field()
+    value_type: IcebergType = field()
+    value_is_optional: bool = field(default=True)
+    key: NestedField = field(init=False, repr=False)
+    value: NestedField = field(init=False, repr=False)
+
+    # _type_string_def = lambda self: f"map<{self.key_type}, {self.value_type}>"
+    _instances: ClassVar[Dict[Tuple[int, IcebergType, int, IcebergType, bool], "MapType"]] = {}
 
     def __new__(
         cls,
@@ -294,37 +293,23 @@ class MapType(IcebergType):
         cls._instances[impl_key] = cls._instances.get(impl_key) or object.__new__(cls)
         return cls._instances[impl_key]
 
-    def __init__(
-        self,
-        key_id: int,
-        key_type: IcebergType,
-        value_id: int,
-        value_type: IcebergType,
-        value_is_optional: bool = True,
-    ):
-        if not self._initialized:
-            super().__init__(
-                f"map<{key_type}, {value_type}>",
-                f"MapType(key_id={key_id}, key_type={repr(key_type)}, value_id={value_id}, value_type={repr(value_type)}, "
-                f"value_is_optional={value_is_optional})",
-            )
-            self._key_field = NestedField(name="key", field_id=key_id, field_type=key_type, is_optional=False)
-            self._value_field = NestedField(
+    def __post_init__(self):
+        object.__setattr__(
+            self, "key", NestedField(name="key", field_id=self.key_id, field_type=self.key_type, is_optional=False)
+        )
+        object.__setattr__(
+            self,
+            "value",
+            NestedField(
                 name="value",
-                field_id=value_id,
-                field_type=value_type,
-                is_optional=value_is_optional,
-            )
-
-    @property
-    def key(self) -> NestedField:
-        return self._key_field
-
-    @property
-    def value(self) -> NestedField:
-        return self._value_field
+                field_id=self.value_id,
+                field_type=self.value_type,
+                is_optional=self.value_is_optional,
+            ),
+        )
 
 
+@dataclass(frozen=True)
 class BooleanType(PrimitiveType, Singleton):
     """A boolean data type in Iceberg can be represented using an instance of this class.
 
@@ -332,13 +317,16 @@ class BooleanType(PrimitiveType, Singleton):
         >>> column_foo = BooleanType()
         >>> isinstance(column_foo, BooleanType)
         True
+        >>> column_foo
+        BooleanType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("boolean", "BooleanType()")
+    @property
+    def string_type(self) -> str:
+        return "boolean"
 
 
+@dataclass(frozen=True)
 class IntegerType(PrimitiveType, Singleton):
     """An Integer data type in Iceberg can be represented using an instance of this class. Integers in Iceberg are
     32-bit signed and can be promoted to Longs.
@@ -355,15 +343,15 @@ class IntegerType(PrimitiveType, Singleton):
           in Java (returns `-2147483648`)
     """
 
-    max: int = 2147483647
+    max: ClassVar[int] = 2147483647
+    min: ClassVar[int] = -2147483648
 
-    min: int = -2147483648
-
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("int", "IntegerType()")
+    @property
+    def string_type(self) -> str:
+        return "int"
 
 
+@dataclass(frozen=True)
 class LongType(PrimitiveType, Singleton):
     """A Long data type in Iceberg can be represented using an instance of this class. Longs in Iceberg are
     64-bit signed integers.
@@ -372,6 +360,10 @@ class LongType(PrimitiveType, Singleton):
         >>> column_foo = LongType()
         >>> isinstance(column_foo, LongType)
         True
+        >>> column_foo
+        LongType()
+        >>> str(column_foo)
+        'long'
 
     Attributes:
         max (int): The maximum allowed value for Longs, inherited from the canonical Iceberg implementation
@@ -380,15 +372,15 @@ class LongType(PrimitiveType, Singleton):
           in Java (returns `-9223372036854775808`)
     """
 
-    max: int = 9223372036854775807
+    max: ClassVar[int] = 9223372036854775807
+    min: ClassVar[int] = -9223372036854775808
 
-    min: int = -9223372036854775808
-
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("long", "LongType()")
+    @property
+    def string_type(self) -> str:
+        return "long"
 
 
+@dataclass(frozen=True)
 class FloatType(PrimitiveType, Singleton):
     """A Float data type in Iceberg can be represented using an instance of this class. Floats in Iceberg are
     32-bit IEEE 754 floating points and can be promoted to Doubles.
@@ -397,6 +389,8 @@ class FloatType(PrimitiveType, Singleton):
         >>> column_foo = FloatType()
         >>> isinstance(column_foo, FloatType)
         True
+        >>> column_foo
+        FloatType()
 
     Attributes:
         max (float): The maximum allowed value for Floats, inherited from the canonical Iceberg implementation
@@ -405,15 +399,15 @@ class FloatType(PrimitiveType, Singleton):
           in Java (returns `-3.4028235e38`)
     """
 
-    max: float = 3.4028235e38
+    max: ClassVar[float] = 3.4028235e38
+    min: ClassVar[float] = -3.4028235e38
 
-    min: float = -3.4028235e38
-
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("float", "FloatType()")
+    @property
+    def string_type(self) -> str:
+        return "float"
 
 
+@dataclass(frozen=True)
 class DoubleType(PrimitiveType, Singleton):
     """A Double data type in Iceberg can be represented using an instance of this class. Doubles in Iceberg are
     64-bit IEEE 754 floating points.
@@ -422,13 +416,16 @@ class DoubleType(PrimitiveType, Singleton):
         >>> column_foo = DoubleType()
         >>> isinstance(column_foo, DoubleType)
         True
+        >>> column_foo
+        DoubleType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("double", "DoubleType()")
+    @property
+    def string_type(self) -> str:
+        return "double"
 
 
+@dataclass(frozen=True)
 class DateType(PrimitiveType, Singleton):
     """A Date data type in Iceberg can be represented using an instance of this class. Dates in Iceberg are
     calendar dates without a timezone or time.
@@ -437,13 +434,16 @@ class DateType(PrimitiveType, Singleton):
         >>> column_foo = DateType()
         >>> isinstance(column_foo, DateType)
         True
+        >>> column_foo
+        DateType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("date", "DateType()")
+    @property
+    def string_type(self) -> str:
+        return "date"
 
 
+@dataclass(frozen=True)
 class TimeType(PrimitiveType, Singleton):
     """A Time data type in Iceberg can be represented using an instance of this class. Times in Iceberg
     have microsecond precision and are a time of day without a date or timezone.
@@ -452,13 +452,16 @@ class TimeType(PrimitiveType, Singleton):
         >>> column_foo = TimeType()
         >>> isinstance(column_foo, TimeType)
         True
+        >>> column_foo
+        TimeType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("time", "TimeType()")
+    @property
+    def string_type(self) -> str:
+        return "time"
 
 
+@dataclass(frozen=True)
 class TimestampType(PrimitiveType, Singleton):
     """A Timestamp data type in Iceberg can be represented using an instance of this class. Timestamps in
     Iceberg have microsecond precision and include a date and a time of day without a timezone.
@@ -467,13 +470,16 @@ class TimestampType(PrimitiveType, Singleton):
         >>> column_foo = TimestampType()
         >>> isinstance(column_foo, TimestampType)
         True
+        >>> column_foo
+        TimestampType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("timestamp", "TimestampType()")
+    @property
+    def string_type(self) -> str:
+        return "timestamp"
 
 
+@dataclass(frozen=True)
 class TimestamptzType(PrimitiveType, Singleton):
     """A Timestamptz data type in Iceberg can be represented using an instance of this class. Timestamptzs in
     Iceberg are stored as UTC and include a date and a time of day with a timezone.
@@ -482,13 +488,16 @@ class TimestamptzType(PrimitiveType, Singleton):
         >>> column_foo = TimestamptzType()
         >>> isinstance(column_foo, TimestamptzType)
         True
+        >>> column_foo
+        TimestamptzType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("timestamptz", "TimestamptzType()")
+    @property
+    def string_type(self) -> str:
+        return "timestamptz"
 
 
+@dataclass(frozen=True)
 class StringType(PrimitiveType, Singleton):
     """A String data type in Iceberg can be represented using an instance of this class. Strings in
     Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
@@ -497,13 +506,16 @@ class StringType(PrimitiveType, Singleton):
         >>> column_foo = StringType()
         >>> isinstance(column_foo, StringType)
         True
+        >>> column_foo
+        StringType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("string", "StringType()")
+    @property
+    def string_type(self) -> str:
+        return "string"
 
 
+@dataclass(frozen=True)
 class UUIDType(PrimitiveType, Singleton):
     """A UUID data type in Iceberg can be represented using an instance of this class. UUIDs in
     Iceberg are universally unique identifiers.
@@ -512,23 +524,28 @@ class UUIDType(PrimitiveType, Singleton):
         >>> column_foo = UUIDType()
         >>> isinstance(column_foo, UUIDType)
         True
+        >>> column_foo
+        UUIDType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("uuid", "UUIDType()")
+    @property
+    def string_type(self) -> str:
+        return "uuid"
 
 
+@dataclass(frozen=True)
 class BinaryType(PrimitiveType, Singleton):
-    """A Binary data type in Iceberg can be represented using an instance of this class. Binarys in
+    """A Binary data type in Iceberg can be represented using an instance of this class. Binaries in
     Iceberg are arbitrary-length byte arrays.
 
     Example:
         >>> column_foo = BinaryType()
         >>> isinstance(column_foo, BinaryType)
         True
+        >>> column_foo
+        BinaryType()
     """
 
-    def __init__(self):
-        if not self._initialized:
-            super().__init__("binary", "BinaryType()")
+    @property
+    def string_type(self) -> str:
+        return "binary"

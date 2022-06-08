@@ -198,7 +198,6 @@ public class TestSchemaUnionByFieldName {
     Schema newSchema = new Schema(optional(1, "aMap",
         Types.MapType.ofOptional(2, 3, StringType.get(), LongType.get())));
     Schema apply = new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply();
-    System.out.println(apply.toString());
   }
 
   @Test

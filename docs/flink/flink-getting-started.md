@@ -22,8 +22,7 @@ url: flink
 
 # Flink
 
-Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. Currently,
-Iceberg integration for Apache Flink is available for Flink versions 1.12, 1.13, and 1.14. Previous versions of Iceberg also support Flink 1.11.
+Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. See the [Multi-Engine Support#apache-flink](https://iceberg.apache.org/multi-engine-support/#apache-flink) page for the integration of Apache Flink.
 
 | Feature support                                             | Flink  | Notes                                                        |
 | ----------------------------------------------------------- | -----  | ------------------------------------------------------------ |
@@ -365,10 +364,10 @@ Iceberg support both streaming and batch read in flink now. we could execute the
 
 ```sql
 -- Execute the flink job in streaming mode for current session context
-SET execution.type = streaming
+SET execution.runtime-mode = streaming;
 
 -- Execute the flink job in batch mode for current session context
-SET execution.type = batch
+SET execution.runtime-mode = batch;
 ```
 
 ### Flink batch read
@@ -377,7 +376,7 @@ If want to check all the rows in iceberg table by submitting a flink __batch__ j
 
 ```sql
 -- Execute the flink job in batch mode for current session context
-SET execution.type = batch ;
+SET execution.runtime-mode = batch;
 SELECT * FROM sample       ;
 ```
 
@@ -387,7 +386,7 @@ Iceberg supports processing incremental data in flink streaming jobs which start
 
 ```sql
 -- Submit the flink job in streaming mode for current session.
-SET execution.type = streaming ;
+SET execution.runtime-mode = streaming;
 
 -- Enable this switch because streaming read SQL will provide few job options in flink SQL hint options.
 SET table.dynamic-table-options.enabled=true;

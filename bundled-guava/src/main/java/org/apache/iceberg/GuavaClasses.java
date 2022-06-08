@@ -25,6 +25,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
+import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.FluentIterable;
@@ -92,6 +93,7 @@ public class GuavaClasses {
     ThreadFactoryBuilder.class.getName();
     Iterables.class.getName();
     CountingOutputStream.class.getName();
+    Suppliers.class.getName();
   }
 
 }

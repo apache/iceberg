@@ -36,6 +36,10 @@ public class ResourcePaths {
     return "v1/config";
   }
 
+  public static String tokens() {
+    return "v1/oauth/tokens";
+  }
+
   private final String prefix;
 
   public ResourcePaths(String prefix) {
@@ -62,5 +66,9 @@ public class ResourcePaths {
     return SLASH.join(
         "v1", prefix, "namespaces", RESTUtil.encodeNamespace(ident.namespace()), "tables",
         RESTUtil.encodeString(ident.name()));
+  }
+
+  public String rename() {
+    return SLASH.join("v1", prefix, "tables", "rename");
   }
 }

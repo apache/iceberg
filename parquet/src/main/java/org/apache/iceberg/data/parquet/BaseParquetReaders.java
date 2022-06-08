@@ -291,7 +291,11 @@ public abstract class BaseParquetReaders<T> {
         case FIXED_LEN_BYTE_ARRAY:
           return new FixedReader(desc);
         case BINARY:
-          return new ParquetValueReaders.BytesReader(desc);
+          if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.STRING) {
+            return new ParquetValueReaders.StringReader(desc);
+          } else {
+            return new ParquetValueReaders.BytesReader(desc);
+          }
         case INT32:
           if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
             return new ParquetValueReaders.IntAsLongReader(desc);

@@ -94,6 +94,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsNestedNamespaces() {
+    return true;
+  }
+
   protected List<String> metadataVersionFiles(String location) {
     return Stream.of(new File(location).listFiles())
         .filter(file -> !file.isDirectory())
@@ -385,8 +390,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // rename table to existing table name!
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
-    AssertHelpers.assertThrows("should throw exception", UncheckedSQLException.class,
-        "Failed to execute", () -> catalog.renameTable(from2, to)
+    AssertHelpers.assertThrows("should throw exception", AlreadyExistsException.class,
+        "Table already exists", () -> catalog.renameTable(from2, to)
     );
   }
 
@@ -486,7 +491,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(Namespace::toString).iterator());
-    System.out.println(tblSet2.toString());
     Assert.assertEquals(tblSet2.size(), 3);
     Assert.assertTrue(tblSet2.contains("db"));
     Assert.assertTrue(tblSet2.contains("db2"));

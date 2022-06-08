@@ -238,6 +238,14 @@ public class BaseTransaction implements Transaction {
     return set;
   }
 
+  UpdateSnapshotReferencesOperation updateSnapshotReferencesOperation() {
+    checkLastOperationCommitted("UpdateSnapshotReferencesOperation");
+    UpdateSnapshotReferencesOperation manageSnapshotRefOperation =
+        new UpdateSnapshotReferencesOperation(transactionOps);
+    updates.add(manageSnapshotRefOperation);
+    return manageSnapshotRefOperation;
+  }
+
   @Override
   public void commitTransaction() {
     Preconditions.checkState(hasLastOpCommitted,
@@ -368,14 +376,7 @@ public class BaseTransaction implements Transaction {
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
           .run(underlyingOps -> {
-            if (base != underlyingOps.refresh()) {
-              this.base = underlyingOps.current(); // just refreshed
-              this.current = base;
-              for (PendingUpdate update : updates) {
-                // re-commit each update in the chain to apply it and update current
-                update.commit();
-              }
-            }
+            applyUpdates(underlyingOps);
 
             if (current.currentSnapshot() != null) {
               currentSnapshotId.set(current.currentSnapshot().snapshotId());
@@ -388,22 +389,11 @@ public class BaseTransaction implements Transaction {
     } catch (CommitStateUnknownException e) {
       throw e;
 
+    } catch (PendingUpdateFailedException e) {
+      cleanUpOnCommitFailure();
+      throw e.wrapped();
     } catch (RuntimeException e) {
-      // the commit failed and no files were committed. clean up each update.
-      Tasks.foreach(updates)
-          .suppressFailureWhenFinished()
-          .run(update -> {
-            if (update instanceof SnapshotProducer) {
-              ((SnapshotProducer) update).cleanAll();
-            }
-          });
-
-      // delete all files that were cleaned up
-      Tasks.foreach(deletedFiles)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-          .run(ops.io()::deleteFile);
-
+      cleanUpOnCommitFailure();
       throw e;
     }
 
@@ -437,6 +427,40 @@ public class BaseTransaction implements Transaction {
     }
   }
 
+  private void cleanUpOnCommitFailure() {
+    // the commit failed and no files were committed. clean up each update.
+    Tasks.foreach(updates)
+        .suppressFailureWhenFinished()
+        .run(update -> {
+          if (update instanceof SnapshotProducer) {
+            ((SnapshotProducer) update).cleanAll();
+          }
+        });
+
+    // delete all files that were cleaned up
+    Tasks.foreach(deletedFiles)
+        .suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
+        .run(ops.io()::deleteFile);
+  }
+
+  private void applyUpdates(TableOperations underlyingOps) {
+    if (base != underlyingOps.refresh()) {
+      // use refreshed the metadata
+      this.base = underlyingOps.current();
+      this.current = underlyingOps.current();
+      for (PendingUpdate update : updates) {
+        // re-commit each update in the chain to apply it and update current
+        try {
+          update.commit();
+        } catch (CommitFailedException e) {
+          // Cannot pass even with retry due to conflicting metadata changes. So, break the retry-loop.
+          throw new PendingUpdateFailedException(e);
+        }
+      }
+    }
+  }
+
   private static Set<String> committedFiles(TableOperations ops, Set<Long> snapshotIds) {
     if (snapshotIds.isEmpty()) {
       return null;
@@ -448,7 +472,7 @@ public class BaseTransaction implements Transaction {
       Snapshot snap = ops.current().snapshot(snapshotId);
       if (snap != null) {
         committedFiles.add(snap.manifestListLocation());
-        snap.allManifests()
+        snap.allManifests(ops.io())
             .forEach(manifest -> committedFiles.add(manifest.path()));
       } else {
         return null;
@@ -727,5 +751,21 @@ public class BaseTransaction implements Transaction {
   @VisibleForTesting
   Set<String> deletedFiles() {
     return deletedFiles;
+  }
+
+  /**
+   * Exception used to avoid retrying {@link PendingUpdate} when it is failed with {@link CommitFailedException}.
+   */
+  private static class PendingUpdateFailedException extends RuntimeException {
+    private final CommitFailedException wrapped;
+
+    private PendingUpdateFailedException(CommitFailedException cause) {
+      super(cause);
+      this.wrapped = cause;
+    }
+
+    public CommitFailedException wrapped() {
+      return wrapped;
+    }
   }
 }

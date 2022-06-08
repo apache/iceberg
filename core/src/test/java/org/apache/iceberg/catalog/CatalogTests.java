@@ -31,6 +31,8 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.FilesTable;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplaceSortOrder;
 import org.apache.iceberg.Schema;
@@ -65,6 +67,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   private static final Namespace NS = Namespace.of("newdb");
   private static final TableIdentifier TABLE = TableIdentifier.of(NS, "table");
+  private static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
 
   // Schema passed to create tables
   private static final Schema SCHEMA = new Schema(
@@ -146,12 +149,24 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return true;
   }
 
+  protected boolean supportsNestedNamespaces() {
+    return false;
+  }
+
   protected boolean requiresNamespaceCreate() {
     return false;
   }
 
   protected boolean supportsServerSideRetry() {
     return false;
+  }
+
+  protected boolean overridesRequestedLocation() {
+    return false;
+  }
+
+  protected boolean supportsNamesWithSlashes() {
+    return true;
   }
 
   @Test
@@ -161,7 +176,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
 
     catalog.createNamespace(NS);
-    Assert.assertEquals("Catalog should have the created namespace", ImmutableList.of(NS), catalog.listNamespaces());
+    Assert.assertTrue("Catalog should have the created namespace", catalog.listNamespaces().contains(NS));
     Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
   }
 
@@ -355,20 +370,75 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Namespace ns2 = Namespace.of("newdb_2");
 
     catalog.createNamespace(ns1);
-    Assert.assertEquals("Should include newdb_1", concat(starting, ns1), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_1")
+            .hasSameElementsAs(concat(starting, ns1));
 
     catalog.createNamespace(ns2);
-    Assert.assertEquals("Should include newdb_1 and newdb_2", concat(starting, ns1, ns2), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_1 and newdb_2")
+            .hasSameElementsAs(concat(starting, ns1, ns2));
 
     catalog.dropNamespace(ns1);
-    Assert.assertEquals("Should include newdb_2, not newdb_1", concat(starting, ns2), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_2, not newdb_1")
+            .hasSameElementsAs(concat(starting, ns2));
 
     catalog.dropNamespace(ns2);
-    Assert.assertEquals("Should include only starting namespaces", starting, catalog.listNamespaces());
+    Assert.assertTrue("Should include only starting namespaces", catalog.listNamespaces().containsAll(starting));
+  }
+
+  @Test
+  public void testListNestedNamespaces() {
+    Assume.assumeTrue("Only valid when the catalog supports nested namespaces", supportsNestedNamespaces());
+
+    C catalog = catalog();
+
+    // the catalog may automatically create a default namespace
+    List<Namespace> starting = catalog.listNamespaces();
+
+    Namespace parent = Namespace.of("parent");
+    Namespace child1 = Namespace.of("parent", "child1");
+    Namespace child2 = Namespace.of("parent", "child2");
+
+    catalog.createNamespace(parent);
+    Assertions.assertThat(catalog.listNamespaces())
+        .withFailMessage("Should include parent")
+        .hasSameElementsAs(concat(starting, parent));
+
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should have no children in newly created parent namespace")
+        .isEmpty();
+
+    catalog.createNamespace(child1);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include child1")
+        .hasSameElementsAs(ImmutableList.of(child1));
+
+    catalog.createNamespace(child2);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include child1 and child2")
+        .hasSameElementsAs(ImmutableList.of(child1, child2));
+
+    Assertions.assertThat(catalog.listNamespaces())
+        .withFailMessage("Should not change listing the root")
+        .hasSameElementsAs(concat(starting, parent));
+
+    catalog.dropNamespace(child1);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include only child2")
+        .hasSameElementsAs(ImmutableList.of(child2));
+
+    catalog.dropNamespace(child2);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should be empty")
+        .isEmpty();
   }
 
   @Test
   public void testNamespaceWithSlash() {
+    Assume.assumeTrue(supportsNamesWithSlashes());
+
     C catalog = catalog();
 
     Namespace withSlash = Namespace.of("new/db");
@@ -426,6 +496,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithSlash() {
+    Assume.assumeTrue(supportsNamesWithSlashes());
+
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
@@ -551,6 +623,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testLoadMetadataTable() {
+    C catalog = catalog();
+
+    TableIdentifier tableIdent = TableIdentifier.of("ns", "table");
+    TableIdentifier metaIdent = TableIdentifier.of("ns", "table", "files");
+
+    catalog.buildTable(tableIdent, SCHEMA).create();
+
+    Table table = catalog.loadTable(metaIdent);
+    Assertions.assertThat(table).isNotNull();
+    Assertions.assertThat(table).isInstanceOf(FilesTable.class);
+  }
+
+  @Test
   public void testLoadMissingTable() {
     C catalog = catalog();
 
@@ -560,6 +646,78 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     AssertHelpers.assertThrows("Should fail to load a nonexistent table",
         NoSuchTableException.class, ident.toString(),
         () -> catalog.loadTable(ident));
+  }
+
+  @Test
+  public void testRenameTable() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Assert.assertFalse("Source table should not exist before create", catalog.tableExists(TABLE));
+
+    catalog.buildTable(TABLE, SCHEMA).create();
+    Assert.assertTrue("Table should exist after create", catalog.tableExists(TABLE));
+
+    Assert.assertFalse("Destination table should not exist before rename", catalog.tableExists(RENAMED_TABLE));
+
+    catalog.renameTable(TABLE, RENAMED_TABLE);
+    Assert.assertTrue("Table should exist with new name", catalog.tableExists(RENAMED_TABLE));
+    Assert.assertFalse("Original table should no longer exist", catalog.tableExists(TABLE));
+
+    catalog.dropTable(RENAMED_TABLE);
+    assertEmpty("Should not contain table after drop", catalog, NS);
+  }
+
+  @Test
+  public void testRenameTableMissingSourceTable() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Assert.assertFalse("Source table should not exist before rename", catalog.tableExists(TABLE));
+    Assert.assertFalse("Destination table should not exist before rename", catalog.tableExists(RENAMED_TABLE));
+
+    AssertHelpers.assertThrows("Should reject renaming a table that does not exist",
+        NoSuchTableException.class,
+        "Table does not exist",
+        () -> catalog.renameTable(TABLE, RENAMED_TABLE));
+
+    Assert.assertFalse("Destination table should not exist after failed rename", catalog.tableExists(RENAMED_TABLE));
+  }
+
+  @Test
+  public void testRenameTableDestinationTableAlreadyExists() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Assert.assertFalse("Source table should not exist before create", catalog.tableExists(TABLE));
+    catalog.buildTable(TABLE, SCHEMA).create();
+    Assert.assertTrue("Source table should exist after create", catalog.tableExists(TABLE));
+
+    Assert.assertFalse("Destination table should not exist before create", catalog.tableExists(RENAMED_TABLE));
+    catalog.buildTable(RENAMED_TABLE, SCHEMA).create();
+    Assert.assertTrue("Destination table should exist after create", catalog.tableExists(RENAMED_TABLE));
+
+    AssertHelpers.assertThrows("Should reject renaming a table if the new name already exists",
+        AlreadyExistsException.class,
+        "Table already exists",
+        () -> catalog.renameTable(TABLE, RENAMED_TABLE));
+
+    Assert.assertTrue("Source table should still exist after failed rename", catalog.tableExists(TABLE));
+    Assert.assertTrue("Destination table should still exist after failed rename", catalog.tableExists(RENAMED_TABLE));
+
+    String sourceTableUUID = ((HasTableOperations) catalog.loadTable(TABLE)).operations().current().uuid();
+    String destinationTableUUID = ((HasTableOperations) catalog.loadTable(RENAMED_TABLE)).operations().current().uuid();
+    Assert.assertNotEquals("Source and destination table should remain distinct after failed rename",
+        sourceTableUUID, destinationTableUUID);
   }
 
   @Test
@@ -1050,7 +1208,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
   }
@@ -1072,8 +1232,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
     Assertions.setMaxStackTraceElementsDisplayed(Integer.MAX_VALUE);
+    String expectedMessage =
+        supportsServerSideRetry() ? "Requirement failed: table already exists" : "Table already exists";
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        AlreadyExistsException.class, "Table already exists", create::commitTransaction);
+        AlreadyExistsException.class, expectedMessage, create::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
@@ -1136,7 +1298,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
     assertPreviousMetadataFileCount(table, 0);
   }
@@ -1228,7 +1392,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1252,8 +1418,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
+    String expectedMessage =
+        supportsServerSideRetry() ? "Requirement failed: table already exists" : "Table already exists";
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        AlreadyExistsException.class, "Table already exists", createOrReplace::commitTransaction);
+        AlreadyExistsException.class, expectedMessage, createOrReplace::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
@@ -1349,7 +1517,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
