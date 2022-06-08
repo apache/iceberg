@@ -96,4 +96,13 @@ public class TestSnapshotSummary extends TableTestBase {
     Assert.assertEquals("1", summary.get(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP));
     Assert.assertEquals("1", summary.get(SnapshotSummary.ADD_POS_DELETE_FILES_PROP));
   }
+
+  @Test
+  public void testSnapshotSummaryIsNotGeneratedForUnpartitionedTable() {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+
+    // Enabled partition summaries
+//    table.updateProperties().set("write.summary.partition-limit", "100");
+  }
 }
