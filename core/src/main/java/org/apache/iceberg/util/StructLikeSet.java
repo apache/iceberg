@@ -176,6 +176,6 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
 
   @Override
   public int hashCode() {
-    return Objects.hash(type) + wrapperSet.stream().mapToInt(StructLikeWrapper::hashCode).sum();
+    return Objects.hashCode(type) + wrapperSet.stream().mapToInt(StructLikeWrapper::hashCode).sum();
   }
 }
