@@ -38,6 +38,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -140,17 +141,11 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   public void run(SourceContext<FlinkInputSplit> ctx) throws Exception {
     this.sourceContext = ctx;
     while (isRunning) {
-      LOG.debug("Start polling snapshots from snapshot id: {}, max-snapshot-count-per-monitor-interval: {}",
-          lastSnapshotId, scanContext.maxSnapshotCountPerMonitorInterval());
-      long start = System.currentTimeMillis();
-      long startSnapshotId = lastSnapshotId;
       synchronized (sourceContext.getCheckpointLock()) {
         if (isRunning) {
           monitorAndForwardSplits();
         }
       }
-      LOG.debug("Forwarded splits from {}(exclusive) to {}(inclusive), time elapsed {}ms",
-          startSnapshotId, lastSnapshotId, System.currentTimeMillis() - start);
       Thread.sleep(scanContext.monitorInterval().toMillis());
     }
   }
@@ -168,7 +163,12 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     }
   }
 
-  private void monitorAndForwardSplits() {
+  @VisibleForTesting
+  void sourceContext(SourceContext<FlinkInputSplit> ctx) {
+    this.sourceContext = ctx;
+  }
+
+  void monitorAndForwardSplits() {
     // Refresh the table to get the latest committed snapshot.
     table.refresh();
 
@@ -179,6 +179,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       ScanContext newScanContext;
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
+        LOG.debug("Start generating splits for {}", snapshotId);
       } else {
         if (scanContext.maxSnapshotCountPerMonitorInterval() ==
             FlinkConfigOptions.MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL_DEFAULT) {
@@ -188,12 +189,18 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
               scanContext.maxSnapshotCountPerMonitorInterval());
         }
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
+        LOG.debug("Start generating splits from {}(exclusive) to {}(inclusive),", lastSnapshotId, snapshotId);
       }
 
+      long start = System.currentTimeMillis();
       FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
+      LOG.debug("Generated {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
+
+      start = System.currentTimeMillis();
       for (FlinkInputSplit split : splits) {
         sourceContext.collect(split);
       }
+      LOG.debug("Forwarded {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
 
       lastSnapshotId = snapshotId;
     }

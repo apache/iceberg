@@ -212,9 +212,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   }
 
   @Test
-  public void testConsumeWithMaxSnapshotCountPerMonitorInterval() throws Exception {
-    List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
-
+  public void testInvalidMaxSnapshotCountPerMonitorInterval() {
     final ScanContext scanContext1 = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
         .maxSnapshotCountPerMonitorInterval(0)
@@ -240,8 +238,11 @@ public class TestStreamingMonitorFunction extends TableTestBase {
           return null;
         }
     );
+  }
 
-    List<List<Record>> expectedRecords = recordsList.subList(1, recordsList.size());
+  @Test
+  public void testConsumeWithMaxSnapshotCountPerMonitorInterval() throws Exception {
+    generateRecordsAndCommitTxn(10);
 
     // Use the oldest snapshot as starting to avoid the initial case.
     long oldestSnapshotId = SnapshotUtil.oldestAncestor(table).snapshotId();
@@ -271,30 +272,15 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         harness.setup();
         harness.open();
 
-        CountDownLatch latch = new CountDownLatch(9);
+        CountDownLatch latch = new CountDownLatch(1);
         TestSourceContext sourceContext = new TestSourceContext(latch);
-        runSourceFunctionInTask(sourceContext, function);
-        // Ensure the first loop in monitoring finished
-        Thread.sleep(100);
+        function.sourceContext(sourceContext);
+        function.monitorAndForwardSplits();
 
-        // Take lock to prevent monitoring loop
-        synchronized (sourceContext.getCheckpointLock()) {
-          if (maxSnapshotsNum < 10) {
-            // it produces one split for one snapshot.
-            Assert.assertEquals("Should produce same splits as max-snapshot-count-per-monitor-interval",
-                maxSnapshotsNum, sourceContext.splits.size());
-          }
+        if (maxSnapshotsNum < 10) {
+          Assert.assertEquals("Should produce same splits as max-snapshot-count-per-monitor-interval",
+              maxSnapshotsNum, sourceContext.splits.size());
         }
-
-        Assert.assertTrue("Should have expected elements.",
-            latch.await(WAIT_TIME_MILLIS * 2, TimeUnit.MILLISECONDS));
-
-        // Stop the stream task.
-        function.close();
-
-        Assert.assertEquals("Should produce the expected splits", expectedSplits.length, sourceContext.splits.size());
-        TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(expectedRecords)),
-            SCHEMA);
       }
     }
   }
