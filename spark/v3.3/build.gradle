@@ -32,8 +32,10 @@ configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
-        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:2.12.3"
-        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.12.3'
+//        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:2.12.3"
+//        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.12.3'
+//        force 'com.fasterxml.jackson.core:jackson-databind:2.12.7'
+        force 'com.fasterxml.jackson.*:*:2.12.3'
       }
     }
   }
@@ -70,6 +72,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       // to make sure io.netty.buffer only comes from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'org.roaringbitmap'
+      exclude group: 'com.fasterxml'
     }
 
     implementation("org.apache.parquet:parquet-column")
