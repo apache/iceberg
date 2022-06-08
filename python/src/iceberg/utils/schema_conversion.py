@@ -168,7 +168,7 @@ class AvroSchemaConversion:
         Raises:
             ValueError: When there are unknown types
         """
-        if isinstance(avro_type, str):
+        if isinstance(avro_type, str) and avro_type in PRIMITIVE_FIELD_TYPE_MAPPING:
             return PRIMITIVE_FIELD_TYPE_MAPPING[avro_type]
         elif isinstance(avro_type, dict):
             if "logicalType" in avro_type:
@@ -186,12 +186,12 @@ class AvroSchemaConversion:
                     return self._convert_map_type(avro_type)
                 elif type_identifier == "fixed":
                     return self._convert_fixed_type(avro_type)
-                elif isinstance(type_identifier, str):
+                elif isinstance(type_identifier, str) and type_identifier in PRIMITIVE_FIELD_TYPE_MAPPING:
                     return PRIMITIVE_FIELD_TYPE_MAPPING[type_identifier]
                 else:
-                    raise ValueError(f"Unknown type: {avro_type}")
+                    raise TypeError(f"Unknown type: {avro_type}")
         else:
-            raise ValueError(f"Unknown type: {avro_type}")
+            raise TypeError(f"Unknown type: {avro_type}")
 
     def _convert_field(self, field: dict[str, Any]) -> NestedField:
         """
@@ -265,7 +265,7 @@ class AvroSchemaConversion:
         Returns:
         """
         if record_type["type"] != "record":
-            raise ValueError(f"Expected type, got: {record_type}")
+            raise ValueError(f"Expected record type, got: {record_type}")
 
         return StructType(*[self._convert_field(field) for field in record_type["fields"]])
 
