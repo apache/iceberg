@@ -34,8 +34,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class RESTUtil {
-  private static final Joiner NULL_JOINER = Joiner.on("%00");
-  private static final Splitter NULL_SPLITTER = Splitter.on("%00");
+  private static final char NAMESPACE_SEPARATOR = '\u001f';
+  public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
+  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
+  private static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
+  private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
+  private static final Splitter NAMESPACE_ESCAPED_SPLITTER = Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
 
   private RESTUtil() {
   }
@@ -169,7 +173,7 @@ public class RESTUtil {
       encodedLevels[i] = encodeString(levels[i]);
     }
 
-    return NULL_JOINER.join(encodedLevels);
+    return NAMESPACE_ESCAPED_JOINER.join(encodedLevels);
   }
 
   /**
@@ -183,7 +187,7 @@ public class RESTUtil {
    */
   public static Namespace decodeNamespace(String encodedNs) {
     Preconditions.checkArgument(encodedNs != null, "Invalid namespace: null");
-    String[] levels = Iterables.toArray(NULL_SPLITTER.split(encodedNs), String.class);
+    String[] levels = Iterables.toArray(NAMESPACE_ESCAPED_SPLITTER.split(encodedNs), String.class);
 
     // Decode levels in place
     for (int i = 0; i < levels.length; i++) {
