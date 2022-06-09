@@ -20,7 +20,9 @@
 package org.apache.iceberg.spark;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
@@ -147,6 +149,18 @@ public class SmokeTest extends SparkExtensionsTestBase {
         "PARTITIONED BY (bucket(16, id), days(ts), category)", tableName("third"));
     Table third = getTable("third");
     Assert.assertEquals("Should be partitioned on 3 columns", 3, third.spec().fields().size());
+  }
+
+  @Test
+  public void testDescribeTable() {
+    // create table
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+    List<Object[]> tblPropRows = sql("DESC TABLE EXTENDED %s", tableName)
+            .stream().filter(tblPropRow -> tblPropRow[0].equals("Table Properties")).collect(Collectors.toList());
+
+    Assert.assertEquals(1, tblPropRows.size());
+    Assert.assertTrue(String.valueOf(tblPropRows.get(0)[1]).contains("metadata_location="));
   }
 
   private Table getTable(String name) {
