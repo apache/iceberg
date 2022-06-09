@@ -99,10 +99,65 @@ public class TestSnapshotSummary extends TableTestBase {
 
   @Test
   public void testSnapshotSummaryIsNotGeneratedForUnpartitionedTable() {
+    // Drop table and then recreate as unpartitioned
+    cleanupTables();
+    this.table = create(SCHEMA, PartitionSpec.unpartitioned());
+
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
     Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
 
-    // Enabled partition summaries
-//    table.updateProperties().set("write.summary.partition-limit", "100");
+    // Ensure snapshot properties would be added if table was partitioned.
+    table.updateProperties()
+        .set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "100")
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(UNPARTITIONED_FILE_WITH_STATS)
+        .commit();
+
+    Map<String, String> summary = table.currentSnapshot().summary();
+
+    Assert.assertEquals("Snapshot summary for unpartitioned table should have changed partition count of zero",
+        summary.get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP), "0");
+    // TODO - For backwards compatibility we might want to explicitly set this field to false in case people use it?
+    //  Presently this just removes it from the summary map entirely.
+    Assert.assertNull("Summary for unpartitioned tables shouldn't have the partition summary included field",
+        summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP));
+
+    // Ensure writes did happen.
+    Assert.assertEquals(String.valueOf(UNPARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
+        summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
+    Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
+    Assert.assertEquals(String.valueOf(UNPARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
+        summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
+  }
+
+  @Test
+  public void testSnapshotSummaryIsGeneratdForPartitionedTable() {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    Assert.assertFalse("Table should start partitioned", table.spec().isUnpartitioned());
+
+    // Enable partition summaries
+    table.updateProperties()
+        .set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "100")
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(UNPARTITIONED_FILE_WITH_STATS)
+        .commit();
+
+    Map<String, String> summary = table.currentSnapshot().summary();
+
+    Assert.assertEquals("Summary changed partition count should be non-zero",
+        summary.get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP), "1");
+    Assert.assertEquals("Summary for partitioned tables should have the partition summary included field",
+        summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP), "true");
+
+    // Ensure writes did happen.
+    Assert.assertEquals(String.valueOf(UNPARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
+        summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
+    Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
+    Assert.assertEquals(String.valueOf(UNPARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
+        summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
   }
 }

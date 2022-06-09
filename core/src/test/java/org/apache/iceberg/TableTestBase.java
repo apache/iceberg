@@ -142,6 +142,22 @@ public class TableTestBase {
       .withFileSizeInBytes(350)
       .build();
 
+  static final DataFile UNPARTITIONED_FILE_WITH_STATS = DataFiles.builder(PartitionSpec.unpartitioned())
+      .withPath("/path/to/unpartitioned-data-with-stats.parquet")
+      .withMetrics(new Metrics(10L,
+          ImmutableMap.of(3, 100L, 4, 200L), // column sizes
+          ImmutableMap.of(3, 90L, 4, 180L), // value counts
+          ImmutableMap.of(3, 10L, 4, 20L), // null value counts
+          ImmutableMap.of(3, 0L, 4, 0L), // nan value counts
+          ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 1),
+              4, Conversions.toByteBuffer(Types.IntegerType.get(), 2)),  // lower bounds
+          ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 5),
+              4, Conversions.toByteBuffer(Types.IntegerType.get(), 10))  // upperbounds
+      ))
+      .withRecordCount(10)
+      .withFileSizeInBytes(350)
+      .build();
+
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
   @Rule
