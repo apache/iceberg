@@ -28,6 +28,8 @@ from typing import (
     TypeVar,
 )
 
+from pydantic import Field, PrivateAttr
+
 from iceberg.files import StructProtocol
 from iceberg.types import (
     IcebergType,
@@ -37,11 +39,12 @@ from iceberg.types import (
     PrimitiveType,
     StructType,
 )
+from iceberg.utils.iceberg_base_model import IcebergBaseModel
 
 T = TypeVar("T")
 
 
-class Schema:
+class Schema(IcebergBaseModel):
     """A table Schema
 
     Example:
@@ -49,15 +52,25 @@ class Schema:
         >>> from iceberg import types
     """
 
-    def __init__(self, *columns: NestedField, schema_id: int, identifier_field_ids: list[int] | None = None):
-        self._struct = StructType(*columns)
-        self._schema_id = schema_id
-        self._identifier_field_ids = identifier_field_ids or []
-        self._name_to_id: dict[str, int] = index_by_name(self)
-        self._name_to_id_lower: dict[str, int] = {}  # Should be accessed through self._lazy_name_to_id_lower()
-        self._id_to_field: dict[int, NestedField] = {}  # Should be accessed through self._lazy_id_to_field()
-        self._id_to_name: dict[int, str] = {}  # Should be accessed through self._lazy_id_to_name()
-        self._id_to_accessor: dict[int, Accessor] = {}  # Should be accessed through self._lazy_id_to_accessor()
+    fields: tuple[NestedField, ...] = Field()
+    schema_id: int = Field(alias="schema-id")
+    identifier_field_ids: list[int] = Field(alias="identifier-field-ids", default_factory=list)
+
+    _name_to_id: dict[str, int] = PrivateAttr()
+    # Should be accessed through self._lazy_name_to_id_lower()
+    _name_to_id_lower: dict[str, int] = PrivateAttr(default_factory=dict)
+    # Should be accessed through self._lazy_id_to_field()
+    _id_to_field: dict[int, NestedField] = PrivateAttr(default_factory=dict)
+    # Should be accessed through self._lazy_id_to_name()
+    _id_to_name: dict[int, str] = PrivateAttr(default_factory=dict)
+    # Should be accessed through self._lazy_id_to_accessor()
+    _id_to_accessor: dict[int, Accessor] = PrivateAttr(default_factory=dict)
+
+    def __init__(self, *fields: NestedField, **data):
+        if fields:
+            data["fields"] = fields
+        super().__init__(**data)
+        self._name_to_id = index_by_name(self)
 
     def __str__(self):
         return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
@@ -85,16 +98,7 @@ class Schema:
     @property
     def columns(self) -> tuple[NestedField, ...]:
         """A list of the top-level fields in the underlying struct"""
-        return self._struct.fields
-
-    @property
-    def schema_id(self) -> int:
-        """The ID of this Schema"""
-        return self._schema_id
-
-    @property
-    def identifier_field_ids(self) -> list[int]:
-        return self._identifier_field_ids
+        return self.fields
 
     def _lazy_id_to_field(self) -> dict[int, NestedField]:
         """Returns an index of field ID to NestedField instance
@@ -134,7 +138,7 @@ class Schema:
 
     def as_struct(self) -> StructType:
         """Returns the underlying struct"""
-        return self._struct
+        return StructType(*self.fields)
 
     def find_field(self, name_or_id: str | int, case_sensitive: bool = True) -> NestedField:
         """Find a field using a field name or field ID
@@ -343,9 +347,9 @@ def _(obj: StructType, visitor: SchemaVisitor[T]) -> T:
 def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
     """Visit a ListType with a concrete SchemaVisitor"""
 
-    visitor.before_list_element(obj.element)
-    result = visit(obj.element.field_type, visitor)
-    visitor.after_list_element(obj.element)
+    visitor.before_list_element(obj.element_field)
+    result = visit(obj.element_type, visitor)
+    visitor.after_list_element(obj.element_field)
 
     return visitor.list(obj, result)
 
@@ -353,13 +357,13 @@ def _(obj: ListType, visitor: SchemaVisitor[T]) -> T:
 @visit.register(MapType)
 def _(obj: MapType, visitor: SchemaVisitor[T]) -> T:
     """Visit a MapType with a concrete SchemaVisitor"""
-    visitor.before_map_key(obj.key)
-    key_result = visit(obj.key.field_type, visitor)
-    visitor.after_map_key(obj.key)
+    visitor.before_map_key(obj.key_field)
+    key_result = visit(obj.key_type, visitor)
+    visitor.after_map_key(obj.key_field)
 
-    visitor.before_map_value(obj.value)
-    value_result = visit(obj.value.field_type, visitor)
-    visitor.after_list_element(obj.value)
+    visitor.before_map_value(obj.value_field)
+    value_result = visit(obj.value_type, visitor)
+    visitor.after_list_element(obj.value_field)
 
     return visitor.map(obj, key_result, value_result)
 
@@ -389,13 +393,13 @@ class _IndexById(SchemaVisitor[Dict[int, NestedField]]):
 
     def list(self, list_type: ListType, element_result) -> dict[int, NestedField]:
         """Add the list element ID to the index"""
-        self._index[list_type.element.field_id] = list_type.element
+        self._index[list_type.element_field.field_id] = list_type.element_field
         return self._index
 
     def map(self, map_type: MapType, key_result, value_result) -> dict[int, NestedField]:
         """Add the key ID and value ID as individual items in the index"""
-        self._index[map_type.key.field_id] = map_type.key
-        self._index[map_type.value.field_id] = map_type.value
+        self._index[map_type.key_field.field_id] = map_type.key_field
+        self._index[map_type.value_field.field_id] = map_type.value_field
         return self._index
 
     def primitive(self, primitive) -> dict[int, NestedField]:
@@ -458,13 +462,13 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
 
     def list(self, list_type: ListType, element_result: dict[str, int]) -> dict[str, int]:
         """Add the list element name to the index"""
-        self._add_field(list_type.element.name, list_type.element.field_id)
+        self._add_field(list_type.element_field.name, list_type.element_field.field_id)
         return self._index
 
     def map(self, map_type: MapType, key_result: dict[str, int], value_result: dict[str, int]) -> dict[str, int]:
         """Add the key name and value name as individual items in the index"""
-        self._add_field(map_type.key.name, map_type.key.field_id)
-        self._add_field(map_type.value.name, map_type.value.field_id)
+        self._add_field(map_type.key_field.name, map_type.key_field.field_id)
+        self._add_field(map_type.value_field.name, map_type.value_field.field_id)
         return self._index
 
     def _add_field(self, name: str, field_id: int):

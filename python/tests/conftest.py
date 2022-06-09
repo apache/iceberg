@@ -14,6 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""This contains global pytest configurations.
+
+Fixtures contained in this file will be automatically used if provided as an argument
+to any pytest function.
+
+In the case where the fixture must be used in a pytest.mark.parametrize decorator, the string representation can be used
+and the built-in pytest fixture request should be used as an additional argument in the function. The fixture can then be
+retrieved using `request.getfixturevalue(fixture_name)`.
+"""
 
 from typing import Any, Dict
 
@@ -22,6 +31,7 @@ import pytest
 from iceberg import schema
 from iceberg.types import (
     BooleanType,
+    DoubleType,
     FloatType,
     IntegerType,
     ListType,
@@ -301,3 +311,20 @@ def all_avro_types() -> Dict[str, Any]:
 @pytest.fixture
 def catalog() -> InMemoryCatalog:
     return InMemoryCatalog("test.in.memory.catalog", {"test.key": "test.value"})
+
+
+@pytest.fixture(scope="session")
+def simple_struct():
+    return StructType(
+        NestedField(1, "required_field", StringType(), True, "this is a doc"), NestedField(2, "optional_field", IntegerType())
+    )
+
+
+@pytest.fixture(scope="session")
+def simple_list():
+    return ListType(element_id=22, element=StringType(), element_required=True)
+
+
+@pytest.fixture(scope="session")
+def simple_map():
+    return MapType(key_id=19, key_type=StringType(), value_id=25, value_type=DoubleType(), value_required=False)

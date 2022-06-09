@@ -41,6 +41,8 @@ packages = [
 python = "^3.8"
 mmh3 = "^3.0.0"
 
+pydantic = "^1.9.1"
+
 pyarrow = { version = "^8.0.0", optional = true }
 
 [tool.poetry.dev-dependencies]
