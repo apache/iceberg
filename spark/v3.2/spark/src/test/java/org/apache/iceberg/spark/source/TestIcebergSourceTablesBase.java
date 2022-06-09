@@ -801,7 +801,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("summary", ImmutableMap.of(
                 "added-records", "1",
                 "added-data-files", "1",
-                "changed-partition-count", "1",
+                "changed-partition-count", "0",
                 "total-data-files", "1",
                 "total-records", "1"
             ))
@@ -814,7 +814,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("summary", ImmutableMap.of(
                 "deleted-records", "1",
                 "deleted-data-files", "1",
-                "changed-partition-count", "1",
+                "changed-partition-count", "0",
                 "total-records", "0",
                 "total-data-files", "0"
             ))
