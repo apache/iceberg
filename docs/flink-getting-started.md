@@ -615,25 +615,25 @@ Flink types are converted to Iceberg types according to the following table:
 
 Iceberg types are converted to Flink types according to the following table:
 
-| Iceberg                    | Flink         | Notes                                            |
-|----------------------------|---------------|--------------------------------------------------|
-| boolean                    | boolean       |                                                  |
-| struct                     | row           |                                                  |
-| list                       | array         |                                                  |
-| map                        | map           |                                                  |
-| integer                    | integer       |                                                  |
-| long                       | bigint        |                                                  |
-| float                      | float         |                                                  |
-| double                     | double        |                                                  |
-| date                       | date          |                                                  |
-| time                       | time          |                                                  |
-| timestamp without timezone | timestamp     | precision is fixed at 6                          |
-| timestamp with timezone    | timestamp_ltz | precision is fixed at 6                          |
-| string                     | varchar       | length is fixed at 2<sup>31</sup>-1              |
-| uuid                       | binary        | length is fixed at 16                            |
-| fixed                      | binary        |                                                  |
-| binary                     | varbinary     | width is fixed at 2<sup>31</sup>-1               |
-| decimal                    | decimal       | precision and scale are the same as the original |
+| Iceberg                    | Flink                 |
+|----------------------------|-----------------------|
+| boolean                    | boolean               |
+| struct                     | row                   |
+| list                       | array                 |
+| map                        | map                   |
+| integer                    | integer               |
+| long                       | bigint                |
+| float                      | float                 |
+| double                     | double                |
+| date                       | date                  |
+| time                       | time                  |
+| timestamp without timezone | timestamp(6)          |
+| timestamp with timezone    | timestamp_ltz(6)      |
+| string                     | varchar(2147483647)   |
+| uuid                       | binary(16)            |
+| fixed(N)                   | binary(N)             |
+| binary                     | varbinary(2147483647) |
+| decimal(P, S)              | decimal(P, S)         |
 
 ## Future improvement.
 
