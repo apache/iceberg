@@ -142,14 +142,14 @@ class NestedField(IcebergType):
         ...     field_id=1,
         ...     name='foo',
         ...     field_type=FixedType(22),
-        ...     is_optional=False,
+        ...     required=False,
         ... ))
         '1: foo: required fixed[22]'
         >>> str(NestedField(
         ...     field_id=2,
         ...     name='bar',
         ...     field_type=LongType(),
-        ...     is_optional=False,
+        ...     required=False,
         ...     doc="Just a long"
         ... ))
         '2: bar: required long (Just a long)'
@@ -158,7 +158,7 @@ class NestedField(IcebergType):
     field_id: int = field()
     name: str = field()
     field_type: IcebergType = field()
-    is_optional: bool = field(default=True)
+    required: bool = field(default=True)
     doc: Optional[str] = field(default=None, repr=False)
 
     _instances: ClassVar[Dict[Tuple[bool, int, str, IcebergType, Optional[str]], "NestedField"]] = {}
@@ -168,21 +168,21 @@ class NestedField(IcebergType):
         field_id: int,
         name: str,
         field_type: IcebergType,
-        is_optional: bool = True,
+        required: bool = True,
         doc: Optional[str] = None,
     ):
-        key = (is_optional, field_id, name, field_type, doc)
+        key = (required, field_id, name, field_type, doc)
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
     @property
-    def is_required(self) -> bool:
-        return not self.is_optional
+    def optional(self) -> bool:
+        return not self.required
 
     @property
     def string_type(self) -> str:
         doc = "" if not self.doc else f" ({self.doc})"
-        req = "optional" if self.is_optional else "required"
+        req = "optional" if self.required else "required"
         return f"{self.field_id}: {self.name}: {req} {self.field_type}{doc}"
 
 
@@ -223,13 +223,13 @@ class ListType(IcebergType):
     """A list type in Iceberg
 
     Example:
-        >>> ListType(element_id=3, element_type=StringType(), element_is_optional=True)
-        ListType(element_id=3, element_type=StringType(), element_is_optional=True)
+        >>> ListType(element_id=3, element_type=StringType(), element_required=True)
+        ListType(element_id=3, element_type=StringType(), element_required=True)
     """
 
     element_id: int = field()
     element_type: IcebergType = field()
-    element_is_optional: bool = field(default=True)
+    element_required: bool = field(default=True)
     element: NestedField = field(init=False, repr=False)
 
     _instances: ClassVar[Dict[Tuple[bool, int, IcebergType], "ListType"]] = {}
@@ -238,9 +238,9 @@ class ListType(IcebergType):
         cls,
         element_id: int,
         element_type: IcebergType,
-        element_is_optional: bool = True,
+        element_required: bool = True,
     ):
-        key = (element_is_optional, element_id, element_type)
+        key = (element_required, element_id, element_type)
         cls._instances[key] = cls._instances.get(key) or object.__new__(cls)
         return cls._instances[key]
 
@@ -250,7 +250,7 @@ class ListType(IcebergType):
             "element",
             NestedField(
                 name="element",
-                is_optional=self.element_is_optional,
+                required=self.element_required,
                 field_id=self.element_id,
                 field_type=self.element_type,
             ),
@@ -266,15 +266,15 @@ class MapType(IcebergType):
     """A map type in Iceberg
 
     Example:
-        >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_is_optional=True)
-        MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_is_optional=True)
+        >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_required=True)
+        MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_required=True)
     """
 
     key_id: int = field()
     key_type: IcebergType = field()
     value_id: int = field()
     value_type: IcebergType = field()
-    value_is_optional: bool = field(default=True)
+    value_required: bool = field(default=True)
     key: NestedField = field(init=False, repr=False)
     value: NestedField = field(init=False, repr=False)
 
@@ -287,16 +287,14 @@ class MapType(IcebergType):
         key_type: IcebergType,
         value_id: int,
         value_type: IcebergType,
-        value_is_optional: bool = True,
+        value_required: bool = True,
     ):
-        impl_key = (key_id, key_type, value_id, value_type, value_is_optional)
+        impl_key = (key_id, key_type, value_id, value_type, value_required)
         cls._instances[impl_key] = cls._instances.get(impl_key) or object.__new__(cls)
         return cls._instances[impl_key]
 
     def __post_init__(self):
-        object.__setattr__(
-            self, "key", NestedField(name="key", field_id=self.key_id, field_type=self.key_type, is_optional=False)
-        )
+        object.__setattr__(self, "key", NestedField(name="key", field_id=self.key_id, field_type=self.key_type, required=False))
         object.__setattr__(
             self,
             "value",
@@ -304,7 +302,7 @@ class MapType(IcebergType):
                 name="value",
                 field_id=self.value_id,
                 field_type=self.value_type,
-                is_optional=self.value_is_optional,
+                required=self.value_required,
             ),
         )
 
