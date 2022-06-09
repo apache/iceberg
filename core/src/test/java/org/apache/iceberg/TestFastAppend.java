@@ -479,14 +479,17 @@ public class TestFastAppend extends TableTestBase {
     Assert.assertEquals("Should set changed partition count", "2", changedPartitions);
   }
 
-  @Test(expected = UnsupportedOperationException.class)
+  @Test
   public void testAppendToBranch() throws UnsupportedOperationException {
     table.newFastAppend()
             .appendFile(FILE_A)
             .commit();
 
+    Long currSnapshot = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
-    table.newDelete().toBranch("ref");
+    table.newFastAppend().toBranch("ref").appendFile(FILE_B).commit();
+    Snapshot branch = table.snapshot(table.ops().current().ref("ref").snapshotId());
+    Assert.assertEquals(currSnapshot, branch.parentId());
   }
 
   @Test(expected = IllegalArgumentException.class)
@@ -506,6 +509,6 @@ public class TestFastAppend extends TableTestBase {
             .commit();
 
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
-    table.newDelete().toBranch("newBranch").deleteFile(FILE_A);
+    table.newDelete().toBranch("newBranch").deleteFile(FILE_A).commit();
   }
 }
