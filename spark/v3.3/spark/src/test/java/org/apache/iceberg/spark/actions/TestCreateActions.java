@@ -659,8 +659,10 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String expectedParquetSchema =
         "message spark_schema {\n" +
             "  optional group col1 (LIST) {\n" +
-            "    repeated group array {\n" +
-            "      required int32 col2;\n" +
+            "    repeated group bag {\n" +
+            "      optional group array {\n" +
+            "         optional int32 col2;\n" +
+            "      }\n" +
             "    }\n" +
             "  }\n" +
             "}\n";
