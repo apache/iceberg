@@ -91,20 +91,19 @@ public class Binder {
   }
 
   public static Set<Integer> boundReferences(StructType struct, List<Expression> exprs, boolean caseSensitive) {
-    return references(struct, exprs, caseSensitive, false);
-  }
-
-  public static Set<Integer> references(
-      StructType struct, List<Expression> exprs, boolean caseSensitive, boolean alreadyBound) {
     if (exprs == null) {
       return ImmutableSet.of();
     }
     ReferenceVisitor visitor = new ReferenceVisitor();
     for (Expression expr : exprs) {
-      if (!alreadyBound) {
+      try {
         ExpressionVisitors.visit(bind(struct, expr, caseSensitive), visitor);
-      } else {
-        ExpressionVisitors.visit(expr, visitor);
+      } catch (IllegalStateException e) {
+        if (e.getMessage().contains("Found already bound predicate")) {
+          ExpressionVisitors.visit(expr, visitor);
+        } else {
+          throw e;
+        }
       }
     }
     return visitor.references;

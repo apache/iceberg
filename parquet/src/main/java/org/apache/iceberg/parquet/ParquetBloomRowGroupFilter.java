@@ -69,11 +69,11 @@ public class ParquetBloomRowGroupFilter {
    * Tests whether the bloom for a row group may contain records that match the expression.
    *
    * @param fileSchema  schema for the Parquet file
+   * @param rowGroup metadata for a row group
    * @param bloomReader a bloom filter reader
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup,
-      BloomFilterReader bloomReader) {
+  public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomReader) {
     return new BloomEvalVisitor().eval(fileSchema, rowGroup, bloomReader);
   }
 
@@ -110,7 +110,7 @@ public class ParquetBloomRowGroupFilter {
         }
       }
 
-      Set<Integer> filterRefs = Binder.references(schema.asStruct(), ImmutableList.of(expr), caseSensitive, true);
+      Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
       // If the filter's column set doesn't overlap with any bloom filter columns, exit early with ROWS_MIGHT_MATCH
       if (filterRefs.size() > 0 && Sets.intersection(fieldsWithBloomFilter, filterRefs).isEmpty()) {
         return ROWS_MIGHT_MATCH;
