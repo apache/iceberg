@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner.MapJoiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
