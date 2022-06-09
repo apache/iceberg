@@ -93,15 +93,28 @@ public class DateTimeUtil {
   }
 
   public static String formatEpochTimeMicros(long micros, boolean withUTCZone) {
-    String localDateTime = LocalDateTime.ofEpochSecond(micros / 1000000,
-        (int) (micros % 1000000) * 1000, ZoneOffset.UTC).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+    LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(micros / 1000000,
+        (int) (micros % 1000000) * 1000, ZoneOffset.UTC);
     if (withUTCZone) {
-      // We standardize the format by always using the UTC zone
-      return LocalDateTime.parse(localDateTime, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-          .atOffset(ZoneOffset.UTC)
-          .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+      return OffsetDateTime.of(localDateTime, ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     } else {
-      return localDateTime;
+      return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
+  }
+
+  public static int daysFromISODateString(String dateString) {
+    return daysFromDate(LocalDate.parse(dateString, DateTimeFormatter.ISO_LOCAL_DATE));
+  }
+
+  public static long microsFromISOTimeString(String timeString) {
+    return microsFromTime(LocalTime.parse(timeString, DateTimeFormatter.ISO_LOCAL_TIME));
+  }
+
+  public static long microsFromISOOffsetTsString(String timestampString) {
+    return microsFromTimestamptz(OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
+  }
+
+  public static long microsFromISOTsString(String timestampString) {
+    return microsFromTimestamp(LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
   }
 }
