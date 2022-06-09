@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -40,14 +39,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
-import org.apache.iceberg.util.PropertyUtil;
-
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Table table;
-  private final Map<String, String> properties;
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
@@ -77,7 +71,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   List<Integer> equalityFieldIds,
                                   boolean upsert) {
     this.table = table;
-    this.properties = properties;
     this.schema = table.schema();
     this.flinkSchema = flinkSchema;
     this.spec = table.spec();
@@ -103,10 +96,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   @Override
   public void initialize(int taskId, int attemptId) {
-    String formatAsString = PropertyUtil.propertyAsString(properties, DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-    FileFormat fileFormat = FileFormat.valueOf(formatAsString.toUpperCase(Locale.ROOT));
     this.outputFileFactory = OutputFileFactory.builderFor(table, taskId, attemptId)
-        .format(fileFormat)
+        .format(format)
         .build();
   }
 

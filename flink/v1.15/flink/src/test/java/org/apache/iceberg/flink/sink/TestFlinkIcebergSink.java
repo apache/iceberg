@@ -40,6 +40,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -329,7 +330,7 @@ public class TestFlinkIcebergSink {
   @Test
   public void testOverrideWriteConfigWithUnknownDistributionMode() {
     Map<String, String> newProps = Maps.newHashMap();
-    newProps.put(TableProperties.WRITE_DISTRIBUTION_MODE, "UNRECOGNIZED");
+    newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE, "UNRECOGNIZED");
 
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
@@ -354,7 +355,7 @@ public class TestFlinkIcebergSink {
   @Test
   public void testOverrideWriteConfigWithUnknownFileFormat() {
     Map<String, String> newProps = Maps.newHashMap();
-    newProps.put(TableProperties.DEFAULT_FILE_FORMAT, "UNRECOGNIZED");
+    newProps.put(FlinkWriteOptions.WRITE_FORMAT, "UNRECOGNIZED");
 
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
