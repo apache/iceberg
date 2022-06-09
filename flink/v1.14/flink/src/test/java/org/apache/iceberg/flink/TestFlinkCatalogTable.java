@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -291,7 +292,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         TableSchema.builder().field("id", DataTypes.BIGINT()).build(),
         catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
-    Assert.assertEquals(Collections.emptyList(), catalogTable.getPartitionKeys());
+    Assert.assertEquals(Lists.newArrayList("id_bucket"), catalogTable.getPartitionKeys());
   }
 
   @Test
