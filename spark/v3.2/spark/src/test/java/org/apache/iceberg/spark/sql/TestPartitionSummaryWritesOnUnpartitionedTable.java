@@ -19,18 +19,12 @@
 
 package org.apache.iceberg.spark.sql;
 
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.apache.iceberg.spark.source.SimpleRecord;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.functions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -43,7 +37,8 @@ public class TestPartitionSummaryWritesOnUnpartitionedTable extends SparkCatalog
 
   @Before
   public void createTables() {
-    sql("CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES('write.summary.partition-limit'=100)", tableName);
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES('write.summary.partition-limit'=100)",
+        tableName);
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
   }
 
@@ -54,7 +49,6 @@ public class TestPartitionSummaryWritesOnUnpartitionedTable extends SparkCatalog
 
   @Test
   public void testUnpartitionedTableDoesNotGeneratePartitionSummaries() {
-//    Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
     assertEquals("Rows in partition table must match", ImmutableList.of(), sql("SELECT * FROM %s", tableName + ".partitions"));
     Assert.assertEquals("Should have no partitions", 0L, scalarSql("SELECT count(*) FROM %s", tableName + ".partitions"));
 
@@ -64,17 +58,10 @@ public class TestPartitionSummaryWritesOnUnpartitionedTable extends SparkCatalog
 
     Snapshot currentSnapshot = table.currentSnapshot();
 
-//    Assert.assertEquals("Snapshot summary should be blah test", currentSnapshot.summary(), "{}");
     Assert.assertEquals("Snapshot summary for unpartitioned table should have changed partition count of zero",
         currentSnapshot.summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP), "0");
     // TODO - For backwards compatibility we might want to make this false.
     Assert.assertNull("Snapshot summary for unpartitioned tables shouldn't have the partition summary included field",
         currentSnapshot.summary().get(SnapshotSummary.PARTITION_SUMMARY_PROP));
-  }
-
-  @Test
-  public void testPartitionedTableDoesGenerateSnapshotSummary() {
-
-
   }
 }
