@@ -306,7 +306,7 @@ ALTER TABLE prod.db.sample ALTER COLUMN col FIRST
 ALTER TABLE prod.db.sample ALTER COLUMN nested.col AFTER other_col
 ```
 
-Nullability can be changed using `SET NOT NULL` and `DROP NOT NULL`:
+Non-nullable constraint can be dropped using `DROP NOT NULL`:
 
 ```sql
 ALTER TABLE prod.db.sample ALTER COLUMN id DROP NOT NULL
