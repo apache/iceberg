@@ -17,7 +17,8 @@
 # pylint: disable=W0212
 import pathlib
 
-from iceberg.avro.reader import AvroStruct, DataFileReader
+from iceberg.avro.file import AvroObjectContainerFile
+from iceberg.avro.reader import AvroStruct, BooleanReader, FixedReader
 from iceberg.schema import Schema
 from iceberg.types import (
     BinaryType,
@@ -200,7 +201,7 @@ test_file_path = str(pathlib.Path(__file__).parent.resolve()) + "/data/manifest.
 
 def test_read_header(manifest_schema):
     test_file = LocalInputFile(test_file_path)
-    with DataFileReader(test_file) as reader:
+    with AvroObjectContainerFile(test_file) as reader:
         header = reader._read_header()
 
     assert header.magic == b"Obj\x01"
@@ -219,7 +220,8 @@ def test_read_header(manifest_schema):
 
 def test_reader_data():
     test_file = LocalInputFile(test_file_path)
-    with DataFileReader(test_file) as reader:
+    with AvroObjectContainerFile(test_file) as reader:
+        # Consume the generator
         files = list(reader)
 
     assert len(files) == 3, f"Expected 3 records, got {len(files)}"
@@ -336,3 +338,10 @@ def test_reader_data():
             ),
         ]
     )
+
+
+def test_singleton():
+    """We want to reuse the readers to avoid creating a gazillion of them"""
+    assert id(BooleanReader()) == id(BooleanReader())
+    assert id(FixedReader(22)) == id(FixedReader(22))
+    assert id(FixedReader(19)) != id(FixedReader(25))

@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utility class for converting between Avro and Iceberg schemas
-
-"""
+"""Utility class for converting between Avro and Iceberg schemas"""
 from __future__ import annotations
 
 import logging
@@ -147,7 +145,14 @@ class AvroSchemaConversion:
         else:
             avro_types = type_union
 
-        is_optional = "null" in avro_types
+        # For the Iceberg spec it is required to set the default value to null
+        # From https://iceberg.apache.org/spec/#avro
+        # Optional fields must always set the Avro field default value to null.
+        #
+        # This means that null has to come first:
+        # https://avro.apache.org/docs/current/spec.html
+        # type of the default value must match the first element of the union.
+        is_optional = "null" == avro_types[0]
 
         if len(avro_types) > 2:
             raise TypeError("Non-optional types aren't part of the Iceberg specification")
@@ -290,7 +295,7 @@ class AvroSchemaConversion:
             >>> from iceberg.utils.schema_conversion import AvroSchemaConversion
             >>> avro_field = {
             ...     "type": "map",
-            ...     "values": ["long", "null"],
+            ...     "values": ["null", "long"],
             ...     "key-id": 101,
             ...     "value-id": 102,
             ... }

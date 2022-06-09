@@ -14,23 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=W0621
 """
-Avro reader for reading Avro files
+Classes for building the Reader tree
+
+Constructing a reader tree from the schema makes it easy
+to decouple the reader implementation from the schema.
+
+The reader tree can be changed in such a way that the
+read schema is different, while respecting the read schema
 """
 from __future__ import annotations
 
-import json
+from abc import abstractmethod
 from dataclasses import dataclass, field
-from functools import singledispatchmethod
-from io import SEEK_SET
-from typing import Any, Union
+from datetime import date, datetime, time
+from decimal import Decimal
+from functools import singledispatch
+from typing import Any
+from uuid import UUID
 
-from iceberg.avro.codec import KNOWN_CODECS, Codec, NullCodec
 from iceberg.avro.decoder import BinaryDecoder
 from iceberg.files import StructProtocol
-from iceberg.io.base import InputFile, InputStream
-from iceberg.schema import Schema, SchemaVisitor, visit
+from iceberg.schema import Schema, SchemaVisitor
 from iceberg.types import (
     BinaryType,
     BooleanType,
@@ -45,33 +50,18 @@ from iceberg.types import (
     MapType,
     NestedField,
     PrimitiveType,
+    Singleton,
     StringType,
     StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
 )
-from iceberg.utils.schema_conversion import AvroSchemaConversion
-
-VERSION = 1
-MAGIC = bytes(b"Obj" + bytearray([VERSION]))
-MAGIC_SIZE = len(MAGIC)
-SYNC_SIZE = 16
-META_SCHEMA = StructType(
-    NestedField(name="magic", field_id=100, field_type=FixedType(length=MAGIC_SIZE), is_optional=False),
-    NestedField(
-        field_id=200,
-        name="meta",
-        field_type=MapType(key_id=201, key_type=StringType(), value_id=202, value_type=BinaryType()),
-        is_optional=False,
-    ),
-    NestedField(field_id=300, name="sync", field_type=FixedType(length=SYNC_SIZE), is_optional=False),
-)
 
 
 @dataclass(frozen=True)
 class AvroStruct(StructProtocol):
-    _data: list[Any | StructProtocol] = field(default_factory=list)
+    _data: list[Any | StructProtocol] = field()
 
     def set(self, pos: int, value: Any) -> None:
         self._data[pos] = value
@@ -80,226 +70,249 @@ class AvroStruct(StructProtocol):
         return self._data[pos]
 
 
-class _AvroReader(SchemaVisitor[Union[AvroStruct, Any]]):
-    _skip: bool = False
+class Reader(metaclass=Singleton):
+    @abstractmethod
+    def read(self, decoder: BinaryDecoder) -> Any:
+        ...
 
-    def __init__(self, decoder: BinaryDecoder):
-        self._decoder = decoder
 
-    def schema(self, schema: Schema, struct_result: AvroStruct | Any) -> AvroStruct | Any:
-        return struct_result
+class NoneReader(Reader):
+    def read(self, _: BinaryDecoder) -> None:
+        return None
 
-    def struct(self, struct: StructType, field_results: list[AvroStruct | Any]) -> AvroStruct | Any:
-        return AvroStruct(field_results)
 
-    def before_field(self, field: NestedField) -> None:
-        if field.is_optional:
-            pos = self._decoder.read_long()
-            # We now assume that null is first (which is often the case)
-            if int(pos) == 0:
-                self._skip = True
+class BooleanReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> bool:
+        return decoder.read_boolean()
 
-    def field(self, field: NestedField, field_result: AvroStruct | Any) -> AvroStruct | Any:
-        return field_result
 
-    def before_list_element(self, element: NestedField) -> None:
-        self._skip = True
+class IntegerReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_int()
 
-    def list(self, list_type: ListType, element_result: AvroStruct | Any) -> AvroStruct | Any:
+
+class LongReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> int:
+        return decoder.read_long()
+
+
+class FloatReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> float:
+        return decoder.read_float()
+
+
+class DoubleReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> float:
+        return decoder.read_double()
+
+
+class DateReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> date:
+        return decoder.read_date_from_int()
+
+
+class TimeReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> time:
+        return decoder.read_time_micros_from_long()
+
+
+class TimestampReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> datetime:
+        return decoder.read_timestamp_micros_from_long()
+
+
+class TimestamptzReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> datetime:
+        return decoder.read_timestamp_micros_from_long()
+
+
+class StringReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> str:
+        return decoder.read_utf8()
+
+
+class UUIDReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> UUID:
+        return UUID(decoder.read_utf8())
+
+
+@dataclass(frozen=True)
+class FixedReader(Reader):
+    length: int = field()
+
+    def read(self, decoder: BinaryDecoder) -> bytes:
+        return decoder.read(self.length)
+
+
+class BinaryReader(Reader):
+    def read(self, decoder: BinaryDecoder) -> bytes:
+        return decoder.read_bytes()
+
+
+@dataclass(frozen=True)
+class DecimalReader(Reader):
+    precision: int = field()
+    scale: int = field()
+
+    def read(self, decoder: BinaryDecoder) -> Decimal:
+        return decoder.read_decimal_from_bytes(self.precision, self.scale)
+
+
+@dataclass(frozen=True)
+class OptionReader(Reader):
+    option: Reader = field()
+
+    def read(self, decoder: BinaryDecoder) -> Any | None:
+        # For the Iceberg spec it is required to set the default value to null
+        # From https://iceberg.apache.org/spec/#avro
+        # Optional fields must always set the Avro field default value to null.
+        #
+        # This means that null has to come first:
+        # https://avro.apache.org/docs/current/spec.html
+        # type of the default value must match the first element of the union.
+        # This is enforced in the schema conversion, which happens prior
+        # to building the reader tree
+        if decoder.read_int() > 0:
+            return self.option.read(decoder)
+        return None
+
+
+@dataclass(frozen=True)
+class StructReader(Reader):
+    fields: list[Reader] = field()
+
+    def read(self, decoder: BinaryDecoder) -> AvroStruct:
+        return AvroStruct([field.read(decoder) for field in self.fields])
+
+
+@dataclass(frozen=True)
+class ListReader(Reader):
+    element: Reader
+
+    def read(self, decoder: BinaryDecoder) -> list:
         read_items = []
-        block_count = self._decoder.read_long()
+        block_count = decoder.read_long()
         while block_count != 0:
             if block_count < 0:
                 block_count = -block_count
                 # We ignore the block size for now
-                _ = self._decoder.read_long()
+                _ = decoder.read_long()
             for _ in range(block_count):
-                read_items.append(visit(list_type.element_type, self))
-            block_count = self._decoder.read_long()
+                read_items.append(self.element.read(decoder))
+            block_count = decoder.read_long()
         return read_items
 
-    def before_map_key(self, key: NestedField) -> None:
-        self._skip = True
 
-    def before_map_value(self, value: NestedField) -> None:
-        self._skip = True
+@dataclass(frozen=True)
+class MapReader(Reader):
+    key: Reader
+    value: Reader
 
-    def map(self, map_type: MapType, key_result: AvroStruct | Any, value_result: AvroStruct | Any) -> AvroStruct | Any:
+    def read(self, decoder: BinaryDecoder) -> dict:
         read_items = {}
-
-        block_count = self._decoder.read_long()
+        block_count = decoder.read_long()
         if block_count < 0:
             block_count = -block_count
             # We ignore the block size for now
-            _ = self._decoder.read_long()
+            _ = decoder.read_long()
 
         # The Iceberg non-string implementation with an array of records:
         while block_count != 0:
             for _ in range(block_count):
-                key = visit(map_type.key_type, self)
-                read_items[key] = visit(map_type.value_type, self)
-            block_count = self._decoder.read_long()
+                key = self.key.read(decoder)
+                read_items[key] = self.value.read(decoder)
+            block_count = decoder.read_long()
 
         return read_items
 
-    @singledispatchmethod
-    def read(self, primitive: PrimitiveType):
-        raise ValueError(f"Unknown type: {primitive}")
 
-    @read.register(FixedType)
-    def _(self, primitive: FixedType) -> Any:
-        return self._decoder.read(primitive.length)
+class ConstructReader(SchemaVisitor[Reader]):
+    def schema(self, schema: Schema, struct_result: Reader) -> Reader:
+        return struct_result
 
-    @read.register(DecimalType)
-    def _(self, primitive: DecimalType) -> Any:
-        return self._decoder.read_decimal_from_bytes(primitive.scale, primitive.precision)
+    def struct(self, struct: StructType, field_results: list[Reader]) -> Reader:
+        return StructReader(fields=field_results)
 
-    @read.register(BooleanType)
-    def _(self, primitive: BooleanType) -> Any:
-        return self._decoder.read_boolean()
+    def field(self, field: NestedField, field_result: Reader) -> Reader:
+        return OptionReader(field_result) if field.is_optional else field_result
 
-    @read.register(IntegerType)
-    def _(self, primitive: IntegerType) -> Any:
-        return self._decoder.read_int()
+    def list(self, list_type: ListType, element_result: Reader) -> Reader:
+        element_reader = OptionReader(element_result) if list_type.element_is_optional else element_result
+        return ListReader(element=element_reader)
 
-    @read.register(LongType)
-    def _(self, primitive: LongType) -> Any:
-        return self._decoder.read_long()
+    def map(self, map_type: MapType, key_result: Reader, value_result: Reader) -> Reader:
+        value_reader = OptionReader(value_result) if map_type.value_is_optional else value_result
+        return MapReader(key=key_result, value=value_reader)
 
-    @read.register(FloatType)
-    def _(self, primitive: FloatType) -> Any:
-        return self._decoder.read_float()
-
-    @read.register(DoubleType)
-    def _(self, primitive: DoubleType) -> Any:
-        return self._decoder.read_double()
-
-    @read.register(DateType)
-    def _(self, primitive: DateType) -> Any:
-        return self._decoder.read_date_from_int()
-
-    @read.register(TimeType)
-    def _(self, primitive: TimeType) -> Any:
-        return self._decoder.read_time_micros_from_long()
-
-    @read.register(TimestampType)
-    def _(self, primitive: TimestampType) -> Any:
-        return self._decoder.read_timestamp_micros_from_long()
-
-    @read.register(TimestamptzType)
-    def _(self, primitive: TimestamptzType) -> Any:
-        return self._decoder.read_timestamp_micros_from_long()
-
-    @read.register(StringType)
-    def _(self, primitive: StringType) -> Any:
-        return self._decoder.read_utf8()
-
-    @read.register(BinaryType)
-    def _(self, primitive: StringType) -> Any:
-        return self._decoder.read_bytes()
-
-    def primitive(self, primitive: PrimitiveType) -> AvroStruct | Any:
-        if self._skip:
-            self._skip = False
-            return None
-        else:
-            return self.read(primitive)
+    def primitive(self, primitive: PrimitiveType) -> Reader:
+        return primitive_reader(primitive)
 
 
-@dataclass(frozen=True)
-class AvroHeader:
-    magic: bytes
-    meta: dict[str, str]
-    sync: bytes
-
-    def get_compression_codec(self) -> type[Codec]:
-        """Get the file's compression codec algorithm from the file's metadata."""
-        codec_key = "avro.codec"
-        if codec_key in self.meta:
-            codec_name = self.meta[codec_key]
-
-            if codec_name not in KNOWN_CODECS:
-                raise ValueError(f"Unsupported codec: {codec_name}. (Is it installed?)")
-
-            return KNOWN_CODECS[codec_name]
-        else:
-            return NullCodec
-
-    def get_schema(self) -> Schema:
-        schema_key = "avro.schema"
-        if schema_key in self.meta:
-            avro_schema_string = self.meta[schema_key]
-            avro_schema = json.loads(avro_schema_string)
-            return AvroSchemaConversion().avro_to_iceberg(avro_schema)
-        else:
-            raise ValueError("No schema found in Avro file headers")
+@singledispatch
+def primitive_reader(primitive: PrimitiveType) -> Reader:
+    raise ValueError(f"Unknown type: {primitive}")
 
 
-class DataFileReader:
-    input_file: InputFile
-    input_stream: InputStream
-    header: AvroHeader
-    schema: Schema
-    file_length: int
+@primitive_reader.register(FixedType)
+def _(primitive: FixedType) -> Reader:
+    return FixedReader(primitive.length)
 
-    decoder: BinaryDecoder
-    block_decoder: BinaryDecoder
 
-    block_records: int = -1
-    block_position: int = 0
-    block: int = 0
+@primitive_reader.register(DecimalType)
+def _(primitive: DecimalType) -> Reader:
+    return DecimalReader(primitive.precision, primitive.scale)
 
-    def __init__(self, input_file: InputFile) -> None:
-        """
-        Opens the file
-        """
-        self.input_file = input_file
 
-    def __enter__(self):
-        self.input_stream = self.input_file.open()
-        self.decoder = BinaryDecoder(self.input_stream)
-        self.header = self._read_header()
-        self.schema = self.header.get_schema()
-        self.file_length = len(self.input_file)
-        return self
+@primitive_reader.register(BooleanType)
+def _(_: BooleanType) -> Reader:
+    return BooleanReader()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.input_stream.close()
 
-    def __iter__(self) -> DataFileReader:
-        return self
+@primitive_reader.register(IntegerType)
+def _(_: IntegerType) -> Reader:
+    return IntegerReader()
 
-    def _read_block(self) -> int:
-        if self.block > 0:
-            sync_marker_len = len(self.header.sync)
-            sync_marker = self.decoder.read(sync_marker_len)
-            if sync_marker != self.header.sync:
-                raise ValueError(f"Expected sync bytes {self.header.sync!r}, but got {sync_marker!r}")
-            if self.is_EOF():
-                raise StopIteration
-        self.block = self.block + 1
-        self.block_records = self.decoder.read_long()
-        self.block_decoder = self.header.get_compression_codec().decompress(self.decoder)
-        self.block_position = 0
-        return self.block_records
 
-    def __next__(self) -> AvroStruct:
-        if self.block_position < self.block_records:
-            self.block_position = self.block_position + 1
-            return visit(self.schema, _AvroReader(self.block_decoder))
+@primitive_reader.register(LongType)
+def _(_: LongType) -> Reader:
+    return LongReader()
 
-        new_block = self._read_block()
 
-        if new_block > 0:
-            return self.__next__()
-        else:
-            raise StopIteration
+@primitive_reader.register(FloatType)
+def _(_: FloatType) -> Reader:
+    return FloatReader()
 
-    def _read_header(self) -> AvroHeader:
-        self.input_stream.seek(0, SEEK_SET)
-        _header = visit(META_SCHEMA, _AvroReader(self.decoder))
-        meta = {k: v.decode("utf-8") for k, v in _header.get(1).items()}
-        return AvroHeader(magic=_header.get(0), meta=meta, sync=_header.get(2))
 
-    def is_EOF(self) -> bool:
-        return self.input_stream.tell() == self.file_length
+@primitive_reader.register(DoubleType)
+def _(_: DoubleType) -> Reader:
+    return DoubleReader()
+
+
+@primitive_reader.register(DateType)
+def _(_: DateType) -> Reader:
+    return DateReader()
+
+
+@primitive_reader.register(TimeType)
+def _(_: TimeType) -> Reader:
+    return TimeReader()
+
+
+@primitive_reader.register(TimestampType)
+def _(_: TimestampType) -> Reader:
+    return TimestampReader()
+
+
+@primitive_reader.register(TimestamptzType)
+def _(_: TimestamptzType) -> Reader:
+    return TimestamptzReader()
+
+
+@primitive_reader.register(StringType)
+def _(_: StringType) -> Reader:
+    return StringReader()
+
+
+@primitive_reader.register(BinaryType)
+def _(_: StringType) -> Reader:
+    return BinaryReader()

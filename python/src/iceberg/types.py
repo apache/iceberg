@@ -39,7 +39,7 @@ from typing import (
 )
 
 
-class Singleton:
+class Singleton(type):
     _instance = None
 
     def __new__(cls):
