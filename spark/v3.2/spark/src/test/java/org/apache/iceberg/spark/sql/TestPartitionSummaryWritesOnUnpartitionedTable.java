@@ -49,8 +49,11 @@ public class TestPartitionSummaryWritesOnUnpartitionedTable extends SparkCatalog
 
   @Test
   public void testUnpartitionedTableDoesNotGeneratePartitionSummaries() {
-    assertEquals("Rows in partition table must match", ImmutableList.of(), sql("SELECT * FROM %s", tableName + ".partitions"));
-    Assert.assertEquals("Should have no partitions", 0L, scalarSql("SELECT count(*) FROM %s", tableName + ".partitions"));
+    String partitionsMetadataTable = String.format("%s.partitions", tableName);
+    assertEquals("Rows in partition table must match",
+        ImmutableList.of(row(3L, 2)), sql("SELECT * FROM %s", partitionsMetadataTable));
+    Assert.assertEquals("Should have one partition (the global partition)",
+        1L, scalarSql("SELECT count(*) FROM %s", partitionsMetadataTable));
 
     Table table = validationCatalog.loadTable(tableIdent);
 
