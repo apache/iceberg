@@ -260,8 +260,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     Assert.assertEquals("should produce 9 splits", 9, expectedSplits.length);
 
     // This covers three cases that maxSnapshotCount is less than, equal or greater than the total splits number.
-    List<Integer> maxSnapshotCounts = ImmutableList.of(1, 9, 15);
-    for (int maxSnapshotCount : maxSnapshotCounts) {
+    for (int maxSnapshotCount : ImmutableList.of(1, 9, 15)) {
       ScanContext scanContext = ScanContext.builder()
           .monitorInterval(Duration.ofMillis(500))
           .startSnapshotId(oldestSnapshotId)

@@ -165,6 +165,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     this.sourceContext = ctx;
   }
 
+  @VisibleForTesting
   void monitorAndForwardSplits() {
     // Refresh the table to get the latest committed snapshot.
     table.refresh();
