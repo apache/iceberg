@@ -119,8 +119,6 @@ public class TestSnapshotSummary extends TableTestBase {
 
     Assert.assertEquals("Snapshot summary for unpartitioned table should have changed partition count of zero",
         summary.get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP), "0");
-    // TODO - For backwards compatibility we might want to explicitly set this field to false in case people use it?
-    //  Presently this just removes it from the summary map entirely.
     Assert.assertNull("Summary for unpartitioned tables shouldn't have the partition summary included field",
         summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP));
 
@@ -133,7 +131,7 @@ public class TestSnapshotSummary extends TableTestBase {
   }
 
   @Test
-  public void testSnapshotSummaryIsGeneratdForPartitionedTable() {
+  public void testSnapshotSummaryIsGeneratedForPartitionedTable() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
     Assert.assertFalse("Table should start partitioned", table.spec().isUnpartitioned());
 
@@ -143,7 +141,7 @@ public class TestSnapshotSummary extends TableTestBase {
         .commit();
 
     table.newFastAppend()
-        .appendFile(UNPARTITIONED_FILE_WITH_STATS)
+        .appendFile(PARTITIONED_FILE_WITH_STATS)
         .commit();
 
     Map<String, String> summary = table.currentSnapshot().summary();
@@ -154,10 +152,10 @@ public class TestSnapshotSummary extends TableTestBase {
         summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP), "true");
 
     // Ensure writes did happen.
-    Assert.assertEquals(String.valueOf(UNPARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
+    Assert.assertEquals(String.valueOf(PARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
         summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
     Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
-    Assert.assertEquals(String.valueOf(UNPARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
+    Assert.assertEquals(String.valueOf(PARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
         summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
   }
 }
