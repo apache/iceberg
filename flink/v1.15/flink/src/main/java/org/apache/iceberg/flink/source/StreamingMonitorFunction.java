@@ -36,7 +36,6 @@ import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -85,9 +84,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "Cannot set as-of-timestamp option for streaming reader");
     Preconditions.checkArgument(scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
-    Preconditions.checkArgument(scanContext.maxSnapshotCountPerMonitorInterval() > 0 ||
-            scanContext.maxSnapshotCountPerMonitorInterval() ==
-                FlinkConfigOptions.MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL_DEFAULT,
+    Preconditions.checkArgument(scanContext.maxSnapshotCountPerMonitorInterval() > 0,
         "The max snapshots per monitor interval must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
@@ -179,22 +176,16 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       ScanContext newScanContext;
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
-        LOG.debug("Start generating splits for {}", snapshotId);
       } else {
-        if (scanContext.maxSnapshotCountPerMonitorInterval() ==
-            FlinkConfigOptions.MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL_DEFAULT) {
-          snapshotId = snapshot.snapshotId();
-        } else {
-          snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId,
-              scanContext.maxSnapshotCountPerMonitorInterval());
-        }
+        snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId,
+            scanContext.maxSnapshotCountPerMonitorInterval());
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
-        LOG.debug("Start generating splits from {}(exclusive) to {}(inclusive),", lastSnapshotId, snapshotId);
       }
 
+      LOG.debug("Start discovering splits from {}(exclusive) to {}(inclusive),", lastSnapshotId, snapshotId);
       long start = System.currentTimeMillis();
       FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
-      LOG.debug("Generated {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
+      LOG.debug("Discovered {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
 
       start = System.currentTimeMillis();
       for (FlinkInputSplit split : splits) {

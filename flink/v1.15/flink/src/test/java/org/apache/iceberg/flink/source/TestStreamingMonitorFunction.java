@@ -259,12 +259,14 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
     Assert.assertEquals("should produce 9 splits", 9, expectedSplits.length);
 
-    for (int maxSnapshotsNum = 1; maxSnapshotsNum < 15; maxSnapshotsNum = maxSnapshotsNum + 1) {
+    // This covers three cases that maxSnapshotCount is less than, equal or greater than the total splits number.
+    List<Integer> maxSnapshotCounts = ImmutableList.of(1, 9, 15);
+    for (int maxSnapshotCount : maxSnapshotCounts) {
       ScanContext scanContext = ScanContext.builder()
           .monitorInterval(Duration.ofMillis(500))
           .startSnapshotId(oldestSnapshotId)
           .splitSize(1000L)
-          .maxSnapshotCountPerMonitorInterval(maxSnapshotsNum)
+          .maxSnapshotCountPerMonitorInterval(maxSnapshotCount)
           .build();
 
       StreamingMonitorFunction function = createFunction(scanContext);
@@ -277,9 +279,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         function.sourceContext(sourceContext);
         function.monitorAndForwardSplits();
 
-        if (maxSnapshotsNum < 10) {
+        if (maxSnapshotCount < 10) {
           Assert.assertEquals("Should produce same splits as max-snapshot-count-per-monitor-interval",
-              maxSnapshotsNum, sourceContext.splits.size());
+              maxSnapshotCount, sourceContext.splits.size());
         }
       }
     }

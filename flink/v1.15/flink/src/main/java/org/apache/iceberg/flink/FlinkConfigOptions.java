@@ -48,8 +48,6 @@ import org.apache.iceberg.util.ThreadPools;
  */
 public class FlinkConfigOptions {
 
-  public static final int MAX_SNAPSHOT_COUNT_PER_MONITOR_INTERVAL_DEFAULT = -1;
-
   private FlinkConfigOptions() {
   }
 
