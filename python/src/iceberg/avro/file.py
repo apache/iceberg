@@ -84,7 +84,7 @@ class AvroFileHeader:
             raise ValueError("No schema found in Avro file headers")
 
 
-class AvroObjectContainerFile:
+class AvroFile:
     input_file: InputFile
     input_stream: InputStream
     header: AvroFileHeader
@@ -120,7 +120,7 @@ class AvroObjectContainerFile:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.input_stream.close()
 
-    def __iter__(self) -> AvroObjectContainerFile:
+    def __iter__(self) -> AvroFile:
         return self
 
     def _read_block(self) -> int:

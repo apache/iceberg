@@ -50,13 +50,13 @@ from iceberg.types import (
     MapType,
     NestedField,
     PrimitiveType,
-    Singleton,
     StringType,
     StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
 )
+from iceberg.utils.singleton import Singleton
 
 
 @dataclass(frozen=True)
@@ -231,18 +231,18 @@ class ConstructReader(SchemaVisitor[Reader]):
         return struct_result
 
     def struct(self, struct: StructType, field_results: list[Reader]) -> Reader:
-        return StructReader(fields=field_results)
+        return StructReader(field_results)
 
     def field(self, field: NestedField, field_result: Reader) -> Reader:
         return OptionReader(field_result) if field.is_optional else field_result
 
     def list(self, list_type: ListType, element_result: Reader) -> Reader:
         element_reader = OptionReader(element_result) if list_type.element_is_optional else element_result
-        return ListReader(element=element_reader)
+        return ListReader(element_reader)
 
     def map(self, map_type: MapType, key_result: Reader, value_result: Reader) -> Reader:
         value_reader = OptionReader(value_result) if map_type.value_is_optional else value_result
-        return MapReader(key=key_result, value=value_reader)
+        return MapReader(key_result, value_reader)
 
     def primitive(self, primitive: PrimitiveType) -> Reader:
         return primitive_reader(primitive)

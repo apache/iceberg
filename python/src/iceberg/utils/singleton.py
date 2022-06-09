@@ -24,7 +24,9 @@ class Singleton(type, metaclass=ABCMeta):
     def __call__(cls, *args, **kwargs):
         if kwargs:
             raise ValueError("Singleton does not support keyword arguments")
-        key = (cls, args)
+        # Remove any lists
+        args = tuple(tuple(arg) if isinstance(arg, list) else arg for arg in args)
+        key = (cls, tuple(args))
         if key not in cls._instances:
             cls._instances[key] = super().__call__(*args, **kwargs)
         return cls._instances[key]

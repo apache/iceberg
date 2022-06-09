@@ -251,7 +251,7 @@ def test_nested_type():
 def test_map_type():
     avro_type = {
         "type": "map",
-        "values": ["long", "null"],
+        "values": ["null", "long"],
         "key-id": 101,
         "value-id": 102,
     }

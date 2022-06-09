@@ -17,7 +17,7 @@
 # pylint: disable=W0212
 import pathlib
 
-from iceberg.avro.file import AvroObjectContainerFile
+from iceberg.avro.file import AvroFile
 from iceberg.avro.reader import AvroStruct, BooleanReader, FixedReader
 from iceberg.schema import Schema
 from iceberg.types import (
@@ -201,7 +201,7 @@ test_file_path = str(pathlib.Path(__file__).parent.resolve()) + "/data/manifest.
 
 def test_read_header(manifest_schema):
     test_file = LocalInputFile(test_file_path)
-    with AvroObjectContainerFile(test_file) as reader:
+    with AvroFile(test_file) as reader:
         header = reader._read_header()
 
     assert header.magic == b"Obj\x01"
@@ -220,7 +220,7 @@ def test_read_header(manifest_schema):
 
 def test_reader_data():
     test_file = LocalInputFile(test_file_path)
-    with AvroObjectContainerFile(test_file) as reader:
+    with AvroFile(test_file) as reader:
         # Consume the generator
         files = list(reader)
 
