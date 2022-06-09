@@ -546,16 +546,16 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
         >>> from iceberg.schema import Schema
         >>> from iceberg.types import *
         >>> schema = Schema(
-        ...     NestedField(field_id=2, name="id", field_type=IntegerType(), is_optional=False),
-        ...     NestedField(field_id=1, name="data", field_type=StringType(), is_optional=True),
+        ...     NestedField(field_id=2, name="id", field_type=IntegerType(), required=False),
+        ...     NestedField(field_id=1, name="data", field_type=StringType(), required=True),
         ...     NestedField(
         ...         field_id=3,
         ...         name="location",
         ...         field_type=StructType(
-        ...             NestedField(field_id=5, name="latitude", field_type=FloatType(), is_optional=False),
-        ...             NestedField(field_id=6, name="longitude", field_type=FloatType(), is_optional=False),
+        ...             NestedField(field_id=5, name="latitude", field_type=FloatType(), required=False),
+        ...             NestedField(field_id=6, name="longitude", field_type=FloatType(), required=False),
         ...         ),
-        ...         is_optional=True,
+        ...         required=True,
         ...     ),
         ...     schema_id=1,
         ...     identifier_field_ids=[1],
