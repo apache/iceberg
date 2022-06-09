@@ -279,6 +279,28 @@ catalogs:
     warehouse: hdfs://nn:8020/warehouse/path
 ```
 
+### Create through SQL Files
+
+Since the `sql-client-defaults.yaml` file was removed in flink 1.14, SQL Client supports the -i startup option to execute an initialization SQL file to setup environment when starting up the SQL Client.
+An example of such a file is presented below.
+```sql
+-- define available catalogs
+CREATE CATALOG hive_catalog WITH (
+  'type'='iceberg',
+  'catalog-type'='hive',
+  'uri'='thrift://localhost:9083',
+  'warehouse'='hdfs://nn:8020/warehouse/path'
+);
+
+USE CATALOG hive_catalog;
+```
+using -i <init.sql> option to initialize SQL Client session
+```bash
+/path/to/bin/sql-client.sh -i /path/to/init.sql
+```
+
+
+
 ## DDL commands
 
 ### `CREATE DATABASE`
