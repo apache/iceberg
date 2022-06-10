@@ -91,7 +91,7 @@ public class TestDefaultValuesParsingAndUnParsing {
   }
 
   // serialize to json and deserialize back should return the same result
-  private static String defaultValueParseAndUnParseRoundTrip(Type type, String defaultValue) throws IOException {
+  static String defaultValueParseAndUnParseRoundTrip(Type type, String defaultValue) throws IOException {
     Object javaDefaultValue = DefaultValueParser.fromJson(type, defaultValue);
     return DefaultValueParser.toJson(type, javaDefaultValue);
   }
