@@ -103,13 +103,19 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     this.lastAssignedPartitionId = lastAssignedPartitionId;
   }
 
+  private int assignFieldId() {
+    this.lastAssignedPartitionId += 1;
+    return lastAssignedPartitionId;
+  }
+
   /**
-   * Calculates a field ID to the newly added PartitionField.
-   * New field ID is assigned in every case for V1 tables, but for V2 we try to recycle a former ID if possible.
+   * In V2 it searches for a similar partition field in historical partition specs. Tries to match on source field
+   * ID, transform type and target name (optional). If not found or in V1 cases it creates a new PartitionField.
    * @param sourceTransform pair of source ID and transform for this PartitionField addition
-   * @return the calculated field ID
+   * @param name target partition field name, if specified
+   * @return the recycled or newly created partition field
    */
-  private int assignFieldId(Pair<Integer, Transform<?, ?>> sourceTransform) {
+  private PartitionField recycleOrCreatePartitionField(Pair<Integer, Transform<?, ?>> sourceTransform, String name) {
     if (formatVersion == 2 && base != null) {
       int sourceId = sourceTransform.first();
       Transform<?, ?> transform = sourceTransform.second();
@@ -121,13 +127,14 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
       for (PartitionField field : allHistoricalFields) {
         if (field.sourceId() == sourceId && field.transform().equals(transform)) {
-          return field.fieldId();
+          // if target name is specified then consider it too, otherwise not
+          if (name == null || field.name().equals(name)) {
+            return field;
+          }
         }
       }
     }
-
-    this.lastAssignedPartitionId += 1;
-    return lastAssignedPartitionId;
+    return new PartitionField(sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
   }
 
   @Override
@@ -179,8 +186,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     Preconditions.checkArgument(added == null,
         "Cannot add duplicate partition field %s=%s, already added: %s", name, term, added);
 
-    PartitionField newField = new PartitionField(
-        sourceTransform.first(), assignFieldId(sourceTransform), name, sourceTransform.second());
+    PartitionField newField = recycleOrCreatePartitionField(sourceTransform, name);
     if (newField.name() == null) {
       String partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
       newField = new PartitionField(newField.sourceId(), newField.fieldId(), partitionName, newField.transform());

@@ -514,7 +514,11 @@ public class TestMetadataTableScans extends TableTestBase {
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
     table.refresh();
 
-    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    // Here we need to specify target name as 'data_bucket_16'. If unspecified a default name will be generated. As per
+    // https://github.com/apache/iceberg/pull/4868 there's an inconsistency of doing this: in V2, the above removed
+    // data_bucket would be recycled in favor of data_bucket_16. By specifying the target name, we explicitly require
+    // data_bucket not to be recycled.
+    table.updateSpec().addField("data_bucket_16", Expressions.bucket("data", 16)).commit();
     table.refresh();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
