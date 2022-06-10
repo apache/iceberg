@@ -19,8 +19,10 @@
 
 package org.apache.iceberg;
 
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -29,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -185,61 +188,121 @@ public class DefaultValueParser {
     }
   }
 
-  public static String toJson(Type type, Object javaDefaultValue) throws IOException {
-    return JsonUtil.mapper().writeValueAsString(DefaultValueParser.convertJavaDefaultForSerialization(
-        type,
-        javaDefaultValue));
+  public static String toJson(Type type, Object defaultValue) {
+    return toJson(type, defaultValue, false);
   }
 
-  private static Object convertJavaDefaultForSerialization(Type type, Object javaDefaultValue) {
+  public static String toJson(Type type, Object defaultValue, boolean pretty) {
+    try {
+      StringWriter writer = new StringWriter();
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
+      toJson(type, defaultValue, generator);
+      generator.flush();
+      return writer.toString();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static void toJson(Type type, Object javaDefaultValue, JsonGenerator generator)
+      throws IOException {
     switch (type.typeId()) {
+      case BOOLEAN:
+        generator.writeBoolean((boolean) javaDefaultValue);
+        break;
+      case INTEGER:
+        generator.writeNumber((int) javaDefaultValue);
+        break;
+      case LONG:
+        generator.writeNumber((long) javaDefaultValue);
+        break;
+      case FLOAT:
+        generator.writeNumber((float) javaDefaultValue);
+        break;
+      case DOUBLE:
+        generator.writeNumber((double) javaDefaultValue);
+        break;
       case DATE:
-        return DateTimeUtil.formatEpochDays((int) javaDefaultValue);
+        generator.writeString(DateTimeUtil.formatEpochDays((int) javaDefaultValue));
+        break;
       case TIME:
-        return DateTimeUtil.formatTimeOfDayMicros((long) javaDefaultValue);
+        generator.writeString(DateTimeUtil.formatTimeOfDayMicros((long) javaDefaultValue));
+        break;
       case TIMESTAMP:
-        return DateTimeUtil.formatEpochTimeMicros(
+        generator.writeString(DateTimeUtil.formatEpochTimeMicros(
             (long) javaDefaultValue,
-            ((Types.TimestampType) type).shouldAdjustToUTC());
+            ((Types.TimestampType) type).shouldAdjustToUTC()));
+        break;
+      case STRING:
+        generator.writeString((String) javaDefaultValue);
+        break;
+      case UUID:
+        generator.writeString(javaDefaultValue.toString());
+        break;
       case FIXED:
       case BINARY:
-        return BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) javaDefaultValue)));
+        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) javaDefaultValue))));
+        break;
+      case DECIMAL:
+        generator.writeNumber((BigDecimal) javaDefaultValue);
+        break;
       case LIST:
         List<Object> defaultList = (List<Object>) javaDefaultValue;
-        List<Object> convertedList = Lists.newArrayListWithExpectedSize(defaultList.size());
-        for (Object element : defaultList) {
-          convertedList.add(convertJavaDefaultForSerialization(type.asListType().elementType(), element));
+        Type elementType = type.asListType().elementType();
+        generator.writeStartArray();
+        for (Object elementDefault : defaultList) {
+          toJson(elementType, elementDefault, generator);
         }
-        return convertedList;
+        generator.writeEndArray();
+        break;
       case MAP:
         Map<Object, Object> defaultMap = (Map<Object, Object>) javaDefaultValue;
-        Map<String, List<Object>> convertedDefault = Maps.newHashMapWithExpectedSize(2);
         List<Object> keyList = Lists.newArrayListWithExpectedSize(defaultMap.size());
         List<Object> valueList = Lists.newArrayListWithExpectedSize(defaultMap.size());
+        Type keyType = type.asMapType().keyType();
+        Type valueType = type.asMapType().valueType();
+
         for (Map.Entry<Object, Object> entry : defaultMap.entrySet()) {
-          keyList.add(convertJavaDefaultForSerialization(type.asMapType().keyType(), entry.getKey()));
-          valueList.add(convertJavaDefaultForSerialization(type.asMapType().valueType(), entry.getValue()));
+          keyList.add(entry.getKey());
+          valueList.add(entry.getValue());
         }
-        convertedDefault.put("keys", keyList);
-        convertedDefault.put("values", valueList);
-        return convertedDefault;
+        generator.writeStartObject();
+        generator.writeFieldName("keys");
+        generator.writeStartArray();
+        for (Object key : keyList) {
+          toJson(keyType, key, generator);
+        }
+        generator.writeEndArray();
+        generator.writeFieldName("values");
+        generator.writeStartArray();
+        for (Object value : valueList) {
+          toJson(valueType, value, generator);
+        }
+        generator.writeEndArray();
+        generator.writeEndObject();
+        break;
       case STRUCT:
         Types.StructType structType = type.asStructType();
         List<Types.NestedField> fields = structType.fields();
         StructLike defaultStruct = (StructLike) javaDefaultValue;
-        Map<Integer, Object> convertedStruct = Maps.newHashMap();
 
+        generator.writeStartObject();
         for (int i = 0; i < defaultStruct.size(); i++) {
           Types.NestedField field = fields.get(i);
           int fieldId = field.fieldId();
           Object fieldJavaDefaultValue = defaultStruct.get(i, Object.class);
           if (fieldJavaDefaultValue != null) {
-            convertedStruct.put(fieldId, convertJavaDefaultForSerialization(field.type(), fieldJavaDefaultValue));
+            generator.writeFieldName(String.valueOf(fieldId));
+            toJson(field.type(), fieldJavaDefaultValue, generator);
           }
         }
-        return convertedStruct;
+        generator.writeEndObject();
+        break;
       default:
-        return javaDefaultValue;
+        throw new IllegalArgumentException(String.format("Type: %s is not supported", type));
     }
   }
 }

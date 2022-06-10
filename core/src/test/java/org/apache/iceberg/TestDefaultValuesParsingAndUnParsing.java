@@ -87,7 +87,7 @@ public class TestDefaultValuesParsingAndUnParsing {
                 optional(5, "ff1", Types.StringType.get(), "doc"),
                 optional(6, "ff2", Types.IntegerType.get(), "doc")), "doc")),
          "{\"1\": {\"2\": 1, \"3\": \"bar\"}, \"4\": {\"5\": \"bar\", \"6\": 1}}"},
-    });
+        });
   }
 
   // serialize to json and deserialize back should return the same result
@@ -103,10 +103,9 @@ public class TestDefaultValuesParsingAndUnParsing {
     // UTC time zone, which might be different in the original value, but they should represent the same instant
     if (type.typeId() == Type.TypeID.TIMESTAMP && ((Types.TimestampType) type).shouldAdjustToUTC()) {
       Assert.assertTrue(OffsetDateTime.parse(JsonUtil.mapper().readTree(defaultValue).textValue())
-              .isEqual(OffsetDateTime.parse(JsonUtil.mapper().readTree(roundTripDefaultValue).textValue())));
+          .isEqual(OffsetDateTime.parse(JsonUtil.mapper().readTree(roundTripDefaultValue).textValue())));
     } else {
       jsonStringEquals(defaultValue.toLowerCase(Locale.ROOT), roundTripDefaultValue.toLowerCase(Locale.ROOT));
-      System.out.println(roundTripDefaultValue);
     }
   }
 
