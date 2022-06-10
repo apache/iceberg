@@ -213,7 +213,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
   @Test
   public void testInvalidMaxSnapshotCountPerMonitorInterval() {
-    final ScanContext scanContext1 = ScanContext.builder()
+    ScanContext scanContext1 = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
         .maxSnapshotCountPerMonitorInterval(0)
         .build();
@@ -226,7 +226,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         }
     );
 
-    final ScanContext scanContext2 = ScanContext.builder()
+    ScanContext scanContext2 = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
         .maxSnapshotCountPerMonitorInterval(-10)
         .build();
@@ -247,7 +247,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     // Use the oldest snapshot as starting to avoid the initial case.
     long oldestSnapshotId = SnapshotUtil.oldestAncestor(table).snapshotId();
 
-    ScanContext scanContext3 = ScanContext.builder()
+    ScanContext scanContext = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
         .splitSize(1000L)
         .startSnapshotId(oldestSnapshotId)
@@ -255,13 +255,13 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         .build();
 
     FlinkInputSplit[] expectedSplits = FlinkSplitPlanner
-        .planInputSplits(table, scanContext3, ThreadPools.getWorkerPool());
+        .planInputSplits(table, scanContext, ThreadPools.getWorkerPool());
 
     Assert.assertEquals("should produce 9 splits", 9, expectedSplits.length);
 
     // This covers three cases that maxSnapshotCount is less than, equal or greater than the total splits number.
     for (int maxSnapshotCount : ImmutableList.of(1, 9, 15)) {
-      ScanContext scanContext = ScanContext.builder()
+      scanContext = ScanContext.builder()
           .monitorInterval(Duration.ofMillis(500))
           .startSnapshotId(oldestSnapshotId)
           .splitSize(1000L)
