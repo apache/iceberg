@@ -129,7 +129,7 @@ CREATE TABLE flink_table (
 
 INSERT INTO flink_table VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC');
 
-SET execution.result-mode=tableau;
+SET sql-client.execution.result-mode=tableau;
 SELECT * FROM flink_table;
 
 +----+------+
