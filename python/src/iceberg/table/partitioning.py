@@ -48,7 +48,7 @@ class PartitionField:
 @dataclass(eq=False, frozen=True)
 class PartitionSpec:
     """
-    PartitionSpec capture the transformation from table data to partition values
+    PartitionSpec captures the transformation from table data to partition values
 
     Attributes:
         schema(Schema): the schema of data table
