@@ -93,7 +93,8 @@ public class DefaultValueParser {
         try {
           UUID.fromString(defaultValue.textValue());
         } catch (IllegalArgumentException e) {
-          Preconditions.checkArgument(false, "Cannot parse default as a %s value: %s", type, defaultValue);
+          throw new IllegalArgumentException(String.format("Cannot parse default as a %s value: %s", type,
+              defaultValue));
         }
         return UUID.fromString(defaultValue.textValue());
       case DATE:
