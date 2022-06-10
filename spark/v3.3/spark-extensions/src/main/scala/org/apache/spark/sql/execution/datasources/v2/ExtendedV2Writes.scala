@@ -98,7 +98,11 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
       o.copy(write = Some(write), query = newQuery)
 
     case rd @ ReplaceData(r: DataSourceV2Relation, _, query, _, None) =>
-      val rowSchema = StructType.fromAttributes(rd.dataInput)
+      val dataInput = {
+        val tableAttrNames = rd.table.output.map(_.name)
+        query.output.filter(attr => tableAttrNames.exists(conf.resolver(_, attr.name)))
+      }
+      val rowSchema = StructType.fromAttributes(dataInput)
       val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty)
       val write = writeBuilder.build()
       val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)

@@ -66,7 +66,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // - metadata deletes have to be attempted immediately after the operator optimization
     // - dynamic filters should be added before replacing commands with rewrite plans
     // - scans must be planned before building writes
-    extensions.injectPreCBORule { _ => OptimizeMetadataOnlyDeleteFromIcebergTable }
+   // extensions.injectPreCBORule { _ => OptimizeMetadataOnlyDeleteFromIcebergTable }
     extensions.injectPreCBORule { _ => GroupBasedRowLevelOperationScanPlanning }
     extensions.injectPreCBORule { _ => RowLevelCommandScanRelationPushDown }
     extensions.injectPreCBORule { _ => ExtendedV2Writes }
