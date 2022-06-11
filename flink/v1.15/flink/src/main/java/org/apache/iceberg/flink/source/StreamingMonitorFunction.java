@@ -84,7 +84,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "Cannot set as-of-timestamp option for streaming reader");
     Preconditions.checkArgument(scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
-    Preconditions.checkArgument(scanContext.maxSnapshotCountPerMonitorInterval() > 0,
+    Preconditions.checkArgument(scanContext.snapshotGroupLimit() > 0,
         "The max snapshots per monitor interval must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
@@ -143,16 +143,14 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     }
   }
 
-  private long maxReachableSnapshotId(long lastConsumedSnapshotId, long latestSnapshotId,
-                                      int maxSnapshotCountPerMonitorInterval) {
-    // This doesn't consider snapshot inheritance since it is already checked in state initialization.
+  private long maxReachableSnapshotId(long lastConsumedSnapshotId, long latestSnapshotId, int snapshotLimit) {
     List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastConsumedSnapshotId, latestSnapshotId);
 
-    if (snapshotIds.size() <= maxSnapshotCountPerMonitorInterval) {
+    if (snapshotIds.size() <= snapshotLimit) {
       return latestSnapshotId;
     } else {
       // It uses reverted index since snapshotIdsBetween returns Ids that are ordered by committed time descending.
-      return snapshotIds.get(snapshotIds.size() - maxSnapshotCountPerMonitorInterval);
+      return snapshotIds.get(snapshotIds.size() - snapshotLimit);
     }
   }
 
@@ -175,15 +173,14 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
         snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId,
-            scanContext.maxSnapshotCountPerMonitorInterval());
+            scanContext.snapshotGroupLimit());
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 
-      LOG.debug("Start discovering splits from {}(exclusive) to {}(inclusive),", lastSnapshotId, snapshotId);
+      LOG.debug("Start discovering splits from {} (exclusive) to {} (inclusive)", lastSnapshotId, snapshotId);
       long start = System.currentTimeMillis();
       FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
       LOG.debug("Discovered {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
-
 
       // only need to hold the checkpoint lock when emitting the splits and updating lastSnapshotId
       start = System.currentTimeMillis();
@@ -194,7 +191,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
         lastSnapshotId = snapshotId;
       }
-      
+
       LOG.debug("Forwarded {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
     }
   }
