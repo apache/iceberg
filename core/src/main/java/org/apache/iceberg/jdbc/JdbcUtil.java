@@ -149,7 +149,7 @@ final class JdbcUtil {
     StringBuilder sqlStatement = new StringBuilder("UPDATE " + NAMESPACE_PROPERTIES_TABLE_NAME +
             " SET " + NAMESPACE_PROPERTY_VALUE + " = CASE");
     for (int i = 0; i < size; i += 1) {
-      sqlStatement.append(" WHEN key = ? THEN ?");
+      sqlStatement.append(" WHEN " + NAMESPACE_PROPERTY_KEY + " = ? THEN ?");
     }
     sqlStatement.append(" END WHERE " +  CATALOG_NAME + " = ? AND " +
             NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ");
