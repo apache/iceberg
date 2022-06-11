@@ -56,6 +56,15 @@ def test_partition_spec_init(table_schema_simple: Schema):
     assert partition_spec1.fields_by_source_id(3) == [id_field1]
 
 
+def test_partition_compatible_with(table_schema_simple: Schema):
+    bucket_transform = bucket(IntegerType(), 4)
+    field1 = PartitionField(3, 100, bucket_transform, "id")
+    field2 = PartitionField(3, 102, bucket_transform, "id")
+    lhs = PartitionSpec(table_schema_simple, 0, (field1,), 1001)
+    rhs = PartitionSpec(table_schema_simple, 0, (field1, field2), 1001)
+    assert not lhs.compatible_with(rhs)
+
+
 def test_unpartitioned(table_schema_simple: Schema):
     unpartitioned = PartitionSpec(table_schema_simple, 1, tuple(), 1000)
 

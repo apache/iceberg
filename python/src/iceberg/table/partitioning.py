@@ -99,7 +99,7 @@ class PartitionSpec:
         return result_str
 
     def is_unpartitioned(self) -> bool:
-        return len(self.fields) < 1
+        return not self.fields
 
     def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
         return self.source_id_to_fields_map[field_id]
@@ -108,6 +108,10 @@ class PartitionSpec:
         """
         Produce a boolean to return True if two PartitionSpec are considered compatible
         """
+        if self == other:
+            return True
+        if len(self.fields) != len(other.fields):
+            return False
         return all(
             this_field.source_id == that_field.source_id
             and this_field.transform == that_field.transform
