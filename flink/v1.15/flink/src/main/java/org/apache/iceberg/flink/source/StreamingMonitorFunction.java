@@ -85,7 +85,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     Preconditions.checkArgument(scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
     Preconditions.checkArgument(scanContext.snapshotGroupLimit() > 0,
-        "The max snapshots per monitor interval must be greater than zero");
+        "The snapshot-group-limit must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
   }
@@ -172,8 +172,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
-        snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId,
-            scanContext.snapshotGroupLimit());
+        snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId, scanContext.snapshotGroupLimit());
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 
@@ -191,7 +190,6 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
         lastSnapshotId = snapshotId;
       }
-
       LOG.debug("Forwarded {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
     }
   }
