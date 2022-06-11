@@ -281,7 +281,7 @@ def test_accessor_base_class(foo_struct):
 
 def test_bound_reference_str_and_repr():
     """Test str and repr of BoundReference"""
-    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
     assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(position1_accessor)})"
@@ -290,10 +290,10 @@ def test_bound_reference_str_and_repr():
 
 def test_bound_reference_field_property():
     """Test str and repr of BoundReference"""
-    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
-    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
 
 
 def test_bound_reference(table_schema_simple, foo_struct):

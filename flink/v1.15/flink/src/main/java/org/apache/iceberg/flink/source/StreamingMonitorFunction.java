@@ -138,11 +138,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   public void run(SourceContext<FlinkInputSplit> ctx) throws Exception {
     this.sourceContext = ctx;
     while (isRunning) {
-      synchronized (sourceContext.getCheckpointLock()) {
-        if (isRunning) {
-          monitorAndForwardSplits();
-        }
-      }
+      monitorAndForwardSplits();
       Thread.sleep(scanContext.monitorInterval().toMillis());
     }
   }
@@ -188,13 +184,18 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
       LOG.debug("Discovered {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
 
-      start = System.currentTimeMillis();
-      for (FlinkInputSplit split : splits) {
-        sourceContext.collect(split);
-      }
-      LOG.debug("Forwarded {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
 
-      lastSnapshotId = snapshotId;
+      // only need to hold the checkpoint lock when emitting the splits and updating lastSnapshotId
+      start = System.currentTimeMillis();
+      synchronized (sourceContext.getCheckpointLock()) {
+        for (FlinkInputSplit split : splits) {
+          sourceContext.collect(split);
+        }
+
+        lastSnapshotId = snapshotId;
+      }
+      
+      LOG.debug("Forwarded {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
     }
   }
 

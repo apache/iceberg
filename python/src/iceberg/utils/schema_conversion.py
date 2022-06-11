@@ -96,10 +96,10 @@ class AvroSchemaConversion:
             ... })
             >>> iceberg_schema = Schema(
             ...     NestedField(
-            ...         field_id=500, name="manifest_path", field_type=StringType(), is_optional=False, doc="Location URI with FS scheme"
+            ...         field_id=500, name="manifest_path", field_type=StringType(), required=False, doc="Location URI with FS scheme"
             ...     ),
             ...     NestedField(
-            ...         field_id=501, name="manifest_length", field_type=LongType(), is_optional=False, doc="Total file size in bytes"
+            ...         field_id=501, name="manifest_length", field_type=LongType(), required=False, doc="Total file size in bytes"
             ...     ),
             ...     schema_id=1
             ... )
@@ -211,7 +211,7 @@ class AvroSchemaConversion:
             field_id=field["field-id"],
             name=field["name"],
             field_type=self._convert_schema(plain_type),
-            is_optional=is_optional,
+            required=is_optional,
             doc=field.get("doc"),
         )
 
@@ -244,14 +244,14 @@ class AvroSchemaConversion:
             ...             field_id=509,
             ...             name="contains_null",
             ...             field_type=BooleanType(),
-            ...             is_optional=False,
+            ...             required=False,
             ...             doc="True if any file has a null partition value",
             ...         ),
             ...         NestedField(
             ...             field_id=518,
             ...             name="contains_nan",
             ...             field_type=BooleanType(),
-            ...             is_optional=True,
+            ...             required=True,
             ...             doc="True if any file has a nan partition value",
             ...         ),
             ...     )
@@ -278,7 +278,7 @@ class AvroSchemaConversion:
         return ListType(
             element_id=array_type["element-id"],
             element_type=self._convert_schema(plain_type),
-            element_is_optional=element_is_optional,
+            element_required=element_is_optional,
         )
 
     def _convert_map_type(self, map_type: dict[str, Any]) -> MapType:
@@ -300,7 +300,7 @@ class AvroSchemaConversion:
             ...     key_type=StringType(),
             ...     value_id=102,
             ...     value_type=LongType(),
-            ...     value_is_optional=True
+            ...     value_required=True
             ... )
             >>> actual == expected
             True
@@ -314,7 +314,7 @@ class AvroSchemaConversion:
             key_type=StringType(),
             value_id=map_type["value-id"],
             value_type=self._convert_schema(value_type),
-            value_is_optional=value_is_optional,
+            value_required=value_is_optional,
         )
 
     def _convert_logical_type(self, avro_logical_type: dict[str, Any]) -> IcebergType:
@@ -407,7 +407,7 @@ class AvroSchemaConversion:
             ...         key_type=IntegerType(),
             ...         value_id=102,
             ...         value_type=StringType(),
-            ...         value_is_optional=False
+            ...         value_required=False
             ... )
             >>> actual == expected
             True
@@ -428,7 +428,7 @@ class AvroSchemaConversion:
             key_type=key.field_type,
             value_id=value.field_id,
             value_type=value.field_type,
-            value_is_optional=value.is_optional,
+            value_required=value.required,
         )
 
     def _convert_fixed_type(self, avro_type: dict[str, Any]) -> FixedType:
