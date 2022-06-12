@@ -74,6 +74,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -109,8 +110,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   }
 
   @Override
-  public void initialize(String name, Map<String, String> props) {
-    Preconditions.checkArgument(props != null, "Invalid configuration: null");
+  public void initialize(String name, Map<String, String> unresolved) {
+    Preconditions.checkArgument(unresolved != null, "Invalid configuration: null");
+    // resolve any configuration that is supplied by environment variables
+    // note that this is only done for local config properties and not for properties from the catalog service
+    Map<String, String> props = EnvironmentUtil.resolveAll(unresolved);
 
     long startTimeMillis = System.currentTimeMillis(); // keep track of the init start time for token refresh
     String initToken = props.get(OAuth2Properties.TOKEN);
