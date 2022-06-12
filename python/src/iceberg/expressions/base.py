@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 from enum import Enum, auto
 from functools import reduce, singledispatch
 from typing import Any, Generic, TypeVar
 
 from iceberg.files import StructProtocol
 from iceberg.schema import Accessor, Schema
-from iceberg.types import NestedField, Singleton
+from iceberg.types import NestedField
+from iceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
 
@@ -88,7 +89,7 @@ OPERATION_NEGATIONS = {
 }
 
 
-class Literal(Generic[T], ABC):
+class Literal(Generic[T], metaclass=ABCMeta):
     """Literal which has a value and can be converted between types"""
 
     def __init__(self, value: T, value_type: type):
@@ -129,7 +130,7 @@ class Literal(Generic[T], ABC):
         return self.value >= other.value
 
 
-class BooleanExpression(ABC):
+class BooleanExpression(metaclass=ABCMeta):
     """base class for all boolean expressions"""
 
     @abstractmethod
@@ -241,7 +242,7 @@ class Not(BooleanExpression):
         return f"(not {self.child})"
 
 
-class AlwaysTrue(BooleanExpression, Singleton):
+class AlwaysTrue(BooleanExpression, metaclass=Singleton):
     """TRUE expression"""
 
     def __invert__(self) -> "AlwaysFalse":
@@ -254,7 +255,7 @@ class AlwaysTrue(BooleanExpression, Singleton):
         return "true"
 
 
-class AlwaysFalse(BooleanExpression, Singleton):
+class AlwaysFalse(BooleanExpression, metaclass=Singleton):
     """FALSE expression"""
 
     def __invert__(self) -> "AlwaysTrue":
@@ -348,7 +349,7 @@ class UnboundReference:
         return BoundReference(field=field, accessor=schema.accessor_for_field(field.field_id))
 
 
-class BooleanExpressionVisitor(Generic[T], ABC):
+class BooleanExpressionVisitor(Generic[T], metaclass=ABCMeta):
     @abstractmethod
     def visit_true(self) -> T:
         """Visit method for an AlwaysTrue boolean expression
