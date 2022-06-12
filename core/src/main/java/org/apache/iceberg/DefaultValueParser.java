@@ -218,6 +218,7 @@ public class DefaultValueParser {
       throws IOException {
     if (defaultValue == null) {
       generator.writeNull();
+      return;
     }
     switch (type.typeId()) {
       case BOOLEAN:
