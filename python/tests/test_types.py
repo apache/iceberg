@@ -204,3 +204,10 @@ def test_non_parameterized_type_equality(input_index, input_type, check_index, c
         assert input_type() == check_type()
     else:
         assert input_type() != check_type()
+
+
+def test_types_singleton():
+    """The types are immutable so we can return the same instance multiple times"""
+    assert id(BooleanType()) == id(BooleanType())
+    assert id(FixedType(22)) == id(FixedType(22))
+    assert id(FixedType(19)) != id(FixedType(25))

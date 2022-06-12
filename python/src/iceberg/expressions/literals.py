@@ -37,7 +37,6 @@ from iceberg.types import (
     FloatType,
     IntegerType,
     LongType,
-    Singleton,
     StringType,
     TimestampType,
     TimestamptzType,
@@ -51,6 +50,7 @@ from iceberg.utils.datetime import (
     timestamp_to_micros,
     timestamptz_to_micros,
 )
+from iceberg.utils.singleton import Singleton
 
 
 @singledispatch
@@ -112,7 +112,7 @@ def _(value: Decimal) -> Literal[Decimal]:
     return DecimalLiteral(value)
 
 
-class AboveMax(Singleton):
+class AboveMax(metaclass=Singleton):
     @property
     def value(self):
         raise ValueError("AboveMax has no value")
@@ -127,7 +127,7 @@ class AboveMax(Singleton):
         return "AboveMax"
 
 
-class BelowMin(Singleton):
+class BelowMin(metaclass=Singleton):
     def __init__(self):
         pass
 
