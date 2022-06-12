@@ -216,6 +216,9 @@ public class DefaultValueParser {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(Type type, Object defaultValue, JsonGenerator generator)
       throws IOException {
+    if (defaultValue == null) {
+      generator.writeNull();
+    }
     switch (type.typeId()) {
       case BOOLEAN:
         Preconditions.checkArgument(
@@ -304,24 +307,18 @@ public class DefaultValueParser {
       case MAP:
         Preconditions.checkArgument(defaultValue instanceof Map, "Invalid default %s value: %s", type, defaultValue);
         Map<Object, Object> defaultMap = (Map<Object, Object>) defaultValue;
-        List<Object> keyList = Lists.newArrayListWithExpectedSize(defaultMap.size());
-        List<Object> valueList = Lists.newArrayListWithExpectedSize(defaultMap.size());
         Type keyType = type.asMapType().keyType();
         Type valueType = type.asMapType().valueType();
 
+        List<Object> valueList = Lists.newArrayListWithExpectedSize(defaultMap.size());
+        generator.writeStartObject();
+        generator.writeArrayFieldStart(KEYS);
         for (Map.Entry<Object, Object> entry : defaultMap.entrySet()) {
-          keyList.add(entry.getKey());
+          toJson(keyType, entry.getKey(), generator);
           valueList.add(entry.getValue());
         }
-        generator.writeStartObject();
-        generator.writeFieldName(KEYS);
-        generator.writeStartArray();
-        for (Object key : keyList) {
-          toJson(keyType, key, generator);
-        }
         generator.writeEndArray();
-        generator.writeFieldName(VALUES);
-        generator.writeStartArray();
+        generator.writeArrayFieldStart(VALUES);
         for (Object value : valueList) {
           toJson(valueType, value, generator);
         }
