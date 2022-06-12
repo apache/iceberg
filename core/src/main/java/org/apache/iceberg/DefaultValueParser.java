@@ -46,6 +46,10 @@ public class DefaultValueParser {
   private DefaultValueParser() {
   }
 
+  private static final String KEYS = "keys";
+
+  private static final String VALUES = "values";
+
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Object fromJson(Type type, JsonNode defaultValue) {
 
@@ -100,18 +104,18 @@ public class DefaultValueParser {
       case DATE:
         Preconditions.checkArgument(defaultValue.isTextual(),
             "Cannot parse default as a %s value: %s", type, defaultValue);
-        return DateTimeUtil.daysFromISODateString(defaultValue.textValue());
+        return DateTimeUtil.isoDateToDays(defaultValue.textValue());
       case TIME:
         Preconditions.checkArgument(defaultValue.isTextual(),
             "Cannot parse default as a %s value: %s", type, defaultValue);
-        return DateTimeUtil.microsFromISOTimeString(defaultValue.textValue());
+        return DateTimeUtil.isoTimeToMicros(defaultValue.textValue());
       case TIMESTAMP:
         Preconditions.checkArgument(defaultValue.isTextual(),
             "Cannot parse default as a %s value: %s", type, defaultValue);
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return DateTimeUtil.microsFromISOOffsetTsString(defaultValue.textValue());
+          return DateTimeUtil.isoDateTimeTzToMicros(defaultValue.textValue());
         } else {
-          return DateTimeUtil.microsFromISOTsString(defaultValue.textValue());
+          return DateTimeUtil.isoDateTimeToMicros(defaultValue.textValue());
         }
       case FIXED:
         Preconditions.checkArgument(
@@ -137,13 +141,16 @@ public class DefaultValueParser {
         return Lists.newArrayList(Iterables.transform(defaultValue, e -> fromJson(elementType, e)));
       case MAP:
         Preconditions.checkArgument(
-            defaultValue.isObject() && defaultValue.has("keys") && defaultValue.has("values") &&
-                defaultValue.get("keys").isArray() && defaultValue.get("values").isArray(),
+            defaultValue.isObject() && defaultValue.has(KEYS) && defaultValue.has(VALUES) &&
+                defaultValue.get(KEYS).isArray() && defaultValue.get(VALUES).isArray(),
             "Cannot parse %s to a %s value",
             defaultValue, type);
-        JsonNode keys = defaultValue.get("keys");
-        JsonNode values = defaultValue.get("values");
-        Preconditions.checkArgument(keys.size() == values.size(), "Cannot parse default as a %s value: %s", type,
+        JsonNode keys = defaultValue.get(KEYS);
+        JsonNode values = defaultValue.get(VALUES);
+        Preconditions.checkArgument(
+            keys.size() == values.size(),
+            "Cannot parse default as a %s value: %s",
+            type,
             defaultValue);
 
         ImmutableMap.Builder<Object, Object> mapBuilder = ImmutableMap.builder();
@@ -206,59 +213,97 @@ public class DefaultValueParser {
     }
   }
 
-  public static void toJson(Type type, Object javaDefaultValue, JsonGenerator generator)
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static void toJson(Type type, Object defaultValue, JsonGenerator generator)
       throws IOException {
     switch (type.typeId()) {
       case BOOLEAN:
-        generator.writeBoolean((boolean) javaDefaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof Boolean, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeBoolean((Boolean) defaultValue);
         break;
       case INTEGER:
-        generator.writeNumber((int) javaDefaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof Integer, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeNumber((Integer) defaultValue);
         break;
       case LONG:
-        generator.writeNumber((long) javaDefaultValue);
+        Preconditions.checkArgument(defaultValue instanceof Long, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeNumber((Long) defaultValue);
         break;
       case FLOAT:
-        generator.writeNumber((float) javaDefaultValue);
+        Preconditions.checkArgument(defaultValue instanceof Float, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeNumber((Float) defaultValue);
         break;
       case DOUBLE:
-        generator.writeNumber((double) javaDefaultValue);
+        Preconditions.checkArgument(defaultValue instanceof Double, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeNumber((Double) defaultValue);
         break;
       case DATE:
-        generator.writeString(DateTimeUtil.formatEpochDays((int) javaDefaultValue));
+        Preconditions.checkArgument(
+            defaultValue instanceof Integer && (Integer) defaultValue >= 0,
+            "Invalid default %s value: %s",
+            type,
+            defaultValue);
+        generator.writeString(DateTimeUtil.daysToIsoDate((Integer) defaultValue));
         break;
       case TIME:
-        generator.writeString(DateTimeUtil.formatTimeOfDayMicros((long) javaDefaultValue));
+        Preconditions.checkArgument(
+            defaultValue instanceof Long && (Long) defaultValue >= 0,
+            "Invalid default %s value: %s",
+            type,
+            defaultValue);
+        generator.writeString(DateTimeUtil.microsToIsoTime((Long) defaultValue));
         break;
       case TIMESTAMP:
-        generator.writeString(DateTimeUtil.formatEpochTimeMicros(
-            (long) javaDefaultValue,
-            ((Types.TimestampType) type).shouldAdjustToUTC()));
+        Preconditions.checkArgument(
+            defaultValue instanceof Long && (Long) defaultValue >= 0,
+            "Invalid default %s value: %s",
+            type,
+            defaultValue);
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          generator.writeString(DateTimeUtil.microsToIsoDateTimeTz((Long) defaultValue));
+        } else {
+          generator.writeString(DateTimeUtil.microsToIsoDateTime((Long) defaultValue));
+        }
         break;
       case STRING:
-        generator.writeString((String) javaDefaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof CharSequence, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeString(((CharSequence) defaultValue).toString());
         break;
       case UUID:
-        generator.writeString(javaDefaultValue.toString());
+        Preconditions.checkArgument(defaultValue instanceof UUID, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeString(defaultValue.toString());
         break;
       case FIXED:
       case BINARY:
-        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) javaDefaultValue))));
+        Preconditions.checkArgument(
+            defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) defaultValue))));
         break;
       case DECIMAL:
-        generator.writeNumber((BigDecimal) javaDefaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof BigDecimal &&
+                ((BigDecimal) defaultValue).scale() == ((Types.DecimalType) type).scale(),
+            "Invalid default %s value: %s",
+            type,
+            defaultValue);
+        generator.writeNumber((BigDecimal) defaultValue);
         break;
       case LIST:
-        List<Object> defaultList = (List<Object>) javaDefaultValue;
+        Preconditions.checkArgument(defaultValue instanceof List, "Invalid default %s value: %s", type, defaultValue);
+        List<Object> defaultList = (List<Object>) defaultValue;
         Type elementType = type.asListType().elementType();
         generator.writeStartArray();
-        for (Object elementDefault : defaultList) {
-          toJson(elementType, elementDefault, generator);
+        for (Object element : defaultList) {
+          toJson(elementType, element, generator);
         }
         generator.writeEndArray();
         break;
       case MAP:
-        Map<Object, Object> defaultMap = (Map<Object, Object>) javaDefaultValue;
+        Preconditions.checkArgument(defaultValue instanceof Map, "Invalid default %s value: %s", type, defaultValue);
+        Map<Object, Object> defaultMap = (Map<Object, Object>) defaultValue;
         List<Object> keyList = Lists.newArrayListWithExpectedSize(defaultMap.size());
         List<Object> valueList = Lists.newArrayListWithExpectedSize(defaultMap.size());
         Type keyType = type.asMapType().keyType();
@@ -269,13 +314,13 @@ public class DefaultValueParser {
           valueList.add(entry.getValue());
         }
         generator.writeStartObject();
-        generator.writeFieldName("keys");
+        generator.writeFieldName(KEYS);
         generator.writeStartArray();
         for (Object key : keyList) {
           toJson(keyType, key, generator);
         }
         generator.writeEndArray();
-        generator.writeFieldName("values");
+        generator.writeFieldName(VALUES);
         generator.writeStartArray();
         for (Object value : valueList) {
           toJson(valueType, value, generator);
@@ -284,9 +329,11 @@ public class DefaultValueParser {
         generator.writeEndObject();
         break;
       case STRUCT:
+        Preconditions.checkArgument(
+            defaultValue instanceof StructLike, "Invalid default %s value: %s", type, defaultValue);
         Types.StructType structType = type.asStructType();
         List<Types.NestedField> fields = structType.fields();
-        StructLike defaultStruct = (StructLike) javaDefaultValue;
+        StructLike defaultStruct = (StructLike) defaultValue;
 
         generator.writeStartObject();
         for (int i = 0; i < defaultStruct.size(); i++) {

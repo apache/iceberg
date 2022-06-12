@@ -84,37 +84,39 @@ public class DateTimeUtil {
     return Instant.ofEpochMilli(millis).toString().replace("Z", "+00:00");
   }
 
-  public static String formatEpochDays(int days) {
+  public static String daysToIsoDate(int days) {
     return LocalDate.ofEpochDay(days).format(DateTimeFormatter.ISO_LOCAL_DATE);
   }
 
-  public static String formatTimeOfDayMicros(long micros) {
+  public static String microsToIsoTime(long micros) {
     return LocalTime.ofNanoOfDay(micros * 1000).format(DateTimeFormatter.ISO_LOCAL_TIME);
   }
 
-  public static String formatEpochTimeMicros(long micros, boolean withUTCZone) {
+  public static String microsToIsoDateTimeTz(long micros) {
     LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(micros / 1000000,
         (int) (micros % 1000000) * 1000, ZoneOffset.UTC);
-    if (withUTCZone) {
-      return OffsetDateTime.of(localDateTime, ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-    } else {
-      return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-    }
+    return OffsetDateTime.of(localDateTime, ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
   }
 
-  public static int daysFromISODateString(String dateString) {
+  public static String microsToIsoDateTime(long micros) {
+    LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(micros / 1000000,
+        (int) (micros % 1000000) * 1000, ZoneOffset.UTC);
+    return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+  }
+
+  public static int isoDateToDays(String dateString) {
     return daysFromDate(LocalDate.parse(dateString, DateTimeFormatter.ISO_LOCAL_DATE));
   }
 
-  public static long microsFromISOTimeString(String timeString) {
+  public static long isoTimeToMicros(String timeString) {
     return microsFromTime(LocalTime.parse(timeString, DateTimeFormatter.ISO_LOCAL_TIME));
   }
 
-  public static long microsFromISOOffsetTsString(String timestampString) {
+  public static long isoDateTimeTzToMicros(String timestampString) {
     return microsFromTimestamptz(OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
   }
 
-  public static long microsFromISOTsString(String timestampString) {
+  public static long isoDateTimeToMicros(String timestampString) {
     return microsFromTimestamp(LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
   }
 }
