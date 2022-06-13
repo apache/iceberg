@@ -122,6 +122,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public ThisT toBranch(String branch){
       Preconditions.checkArgument(branch != null,"branch cannot be null");
       Preconditions.checkArgument(ops.current().ref(branch) != null, "%s is not a valid ref", branch);
+      Preconditions.checkArgument(ops.current().ref(branch).type() != SnapshotRefType.BRANCH, "%s is not a ref to type branch", branch);
       this.toBranch = branch;
       return self();
   }
@@ -177,11 +178,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public Snapshot apply() {
     refresh();
-    Long parentSnapshotId = null;
+    Long parentSnapshotId = base.currentSnapshot() != null ? base.currentSnapshot().snapshotId() : null;
     if(toBranch != null){
       parentSnapshotId = base.ref(toBranch).snapshotId();
-    } else {
-      parentSnapshotId = base.currentSnapshot() != null ? base.currentSnapshot().snapshotId() : null;
     }
     long sequenceNumber = base.nextSequenceNumber();
 
