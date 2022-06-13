@@ -17,7 +17,14 @@
 """Helper methods for working with date/time representations
 """
 import re
-from datetime import date, datetime, time
+from datetime import (
+    date,
+    datetime,
+    time,
+    timedelta,
+    timezone,
+)
+from typing import Optional
 
 EPOCH_DATE = date.fromisoformat("1970-01-01")
 EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
@@ -29,6 +36,15 @@ ISO_TIMESTAMPTZ = re.compile(r"\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d{1,6})?[-+]\
 def micros_to_days(timestamp: int) -> int:
     """Converts a timestamp in microseconds to a date in days"""
     return (datetime.fromtimestamp(timestamp / 1_000_000) - EPOCH_TIMESTAMP).days
+
+
+def micros_to_time(micros: int) -> time:
+    """Converts a timestamp in microseconds to a time"""
+    micros, microseconds = divmod(micros, 1000000)
+    micros, seconds = divmod(micros, 60)
+    micros, minutes = divmod(micros, 60)
+    hours = micros
+    return time(hour=hours, minute=minutes, second=seconds, microsecond=microseconds)
 
 
 def date_to_days(date_str: str) -> int:
@@ -63,3 +79,9 @@ def timestamptz_to_micros(timestamptz_str: str) -> int:
     if ISO_TIMESTAMPTZ.fullmatch(timestamptz_str):
         return datetime_to_micros(datetime.fromisoformat(timestamptz_str))
     raise ValueError(f"Invalid timestamp with zone: {timestamptz_str} (must be ISO-8601)")
+
+
+def micros_to_timestamp(micros: int, tzinfo: Optional[timezone] = None):
+    dt = timedelta(microseconds=micros)
+    unix_epoch_datetime = datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=tzinfo)
+    return unix_epoch_datetime + dt

@@ -123,7 +123,7 @@ class TimestampReader(Reader):
 
 class TimestamptzReader(Reader):
     def read(self, decoder: BinaryDecoder) -> datetime:
-        return decoder.read_timestamp_micros_from_long()
+        return decoder.read_timestamptz_micros_from_long()
 
 
 class StringReader(Reader):
@@ -179,7 +179,7 @@ class OptionReader(Reader):
 
 @dataclass(frozen=True)
 class StructReader(Reader):
-    fields: list[Reader] = field()
+    fields: tuple[Reader, ...] = field()
 
     def read(self, decoder: BinaryDecoder) -> AvroStruct:
         return AvroStruct([field.read(decoder) for field in self.fields])
@@ -211,13 +211,11 @@ class MapReader(Reader):
     def read(self, decoder: BinaryDecoder) -> dict:
         read_items = {}
         block_count = decoder.read_long()
-        if block_count < 0:
-            block_count = -block_count
-            # We ignore the block size for now
-            _ = decoder.read_long()
-
-        # The Iceberg non-string implementation with an array of records:
         while block_count != 0:
+            if block_count < 0:
+                block_count = -block_count
+                # We ignore the block size for now
+                _ = decoder.read_long()
             for _ in range(block_count):
                 key = self.key.read(decoder)
                 read_items[key] = self.value.read(decoder)
@@ -231,7 +229,7 @@ class ConstructReader(SchemaVisitor[Reader]):
         return struct_result
 
     def struct(self, struct: StructType, field_results: list[Reader]) -> Reader:
-        return StructReader(field_results)
+        return StructReader(tuple(field_results))
 
     def field(self, field: NestedField, field_result: Reader) -> Reader:
         return field_result if field.required else OptionReader(field_result)

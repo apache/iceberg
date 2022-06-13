@@ -24,13 +24,12 @@ import json
 from dataclasses import dataclass
 from io import SEEK_SET
 
-from iceberg.avro.codec import KNOWN_CODECS, Codec, NullCodec
+from iceberg.avro.codecs import KNOWN_CODECS, Codec
 from iceberg.avro.decoder import BinaryDecoder
-from iceberg.avro.reader import AvroStruct, ConstructReader
+from iceberg.avro.reader import AvroStruct, ConstructReader, StructReader
 from iceberg.io.base import InputFile, InputStream
 from iceberg.schema import Schema, visit
 from iceberg.types import (
-    BinaryType,
     FixedType,
     MapType,
     NestedField,
@@ -48,11 +47,14 @@ META_SCHEMA = StructType(
     NestedField(
         field_id=200,
         name="meta",
-        field_type=MapType(key_id=201, key_type=StringType(), value_id=202, value_type=BinaryType(), value_required=True),
+        field_type=MapType(key_id=201, key_type=StringType(), value_id=202, value_type=StringType(), value_required=True),
         required=True,
     ),
     NestedField(field_id=300, name="sync", field_type=FixedType(length=SYNC_SIZE), required=True),
 )
+
+_CODEC_KEY = "avro.codec"
+_SCHEMA_KEY = "avro.schema"
 
 
 @dataclass(frozen=True)
@@ -61,27 +63,41 @@ class AvroFileHeader:
     meta: dict[str, str]
     sync: bytes
 
-    def get_compression_codec(self) -> type[Codec]:
+    def compression_codec(self) -> type[Codec]:
         """Get the file's compression codec algorithm from the file's metadata."""
-        codec_key = "avro.codec"
-        if codec_key in self.meta:
-            codec_name = self.meta[codec_key]
+        codec_name = self.meta.get(_CODEC_KEY, "null")
+        if codec_name not in KNOWN_CODECS:
+            raise ValueError(f"Unsupported codec: {codec_name}")
 
-            if codec_name not in KNOWN_CODECS:
-                raise ValueError(f"Unsupported codec: {codec_name}. (Is it installed?)")
-
-            return KNOWN_CODECS[codec_name]
-        else:
-            return NullCodec
+        return KNOWN_CODECS[codec_name]
 
     def get_schema(self) -> Schema:
-        schema_key = "avro.schema"
-        if schema_key in self.meta:
-            avro_schema_string = self.meta[schema_key]
+        if _SCHEMA_KEY in self.meta:
+            avro_schema_string = self.meta[_SCHEMA_KEY]
             avro_schema = json.loads(avro_schema_string)
             return AvroSchemaConversion().avro_to_iceberg(avro_schema)
         else:
             raise ValueError("No schema found in Avro file headers")
+
+
+@dataclass
+class Block:
+    reader: StructReader
+    block_records: int
+    block_decoder: BinaryDecoder
+    position: int = 0
+
+    def __iter__(self):
+        return self
+
+    def has_next(self) -> bool:
+        return self.position < self.block_records
+
+    def __next__(self) -> AvroStruct:
+        if self.has_next():
+            self.position += 1
+            return self.reader.read(self.block_decoder)
+        raise StopIteration
 
 
 class AvroFile:
@@ -90,13 +106,10 @@ class AvroFile:
     header: AvroFileHeader
     schema: Schema
     file_length: int
+    reader: StructReader
 
     decoder: BinaryDecoder
-    block_decoder: BinaryDecoder
-
-    block_records: int = -1
-    block_position: int = 0
-    block: int = 0
+    block: Block | None = None
 
     def __init__(self, input_file: InputFile) -> None:
         self.input_file = input_file
@@ -124,23 +137,24 @@ class AvroFile:
         return self
 
     def _read_block(self) -> int:
-        if self.block > 0:
-            sync_marker_len = len(self.header.sync)
-            sync_marker = self.decoder.read(sync_marker_len)
+        # If there is already a block, we'll have the sync bytes
+        if self.block:
+            sync_marker = self.decoder.read(SYNC_SIZE)
             if sync_marker != self.header.sync:
                 raise ValueError(f"Expected sync bytes {self.header.sync!r}, but got {sync_marker!r}")
             if self.is_EOF():
                 raise StopIteration
-        self.block = self.block + 1
-        self.block_records = self.decoder.read_long()
-        self.block_decoder = self.header.get_compression_codec().decompress(self.decoder)
-        self.block_position = 0
-        return self.block_records
+        block_records = self.decoder.read_long()
+        self.block = Block(
+            reader=self.reader,
+            block_records=block_records,
+            block_decoder=self.header.compression_codec().decompress(self.decoder),
+        )
+        return block_records
 
     def __next__(self) -> AvroStruct:
-        if self.block_position < self.block_records:
-            self.block_position = self.block_position + 1
-            return self.reader.read(self.block_decoder)
+        if self.block and self.block.has_next():
+            return next(self.block)
 
         new_block = self._read_block()
 
@@ -153,8 +167,7 @@ class AvroFile:
         self.input_stream.seek(0, SEEK_SET)
         reader = visit(META_SCHEMA, ConstructReader())
         _header = reader.read(self.decoder)
-        meta = {k: v.decode("utf-8") for k, v in _header.get(1).items()}
-        return AvroFileHeader(magic=_header.get(0), meta=meta, sync=_header.get(2))
+        return AvroFileHeader(magic=_header.get(0), meta=_header.get(1), sync=_header.get(2))
 
     def is_EOF(self) -> bool:
         return self.input_stream.tell() == self.file_length

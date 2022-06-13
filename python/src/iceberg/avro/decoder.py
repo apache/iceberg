@@ -14,11 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import datetime
 import decimal
 import struct
+from datetime import (
+    date,
+    datetime,
+    time,
+    timedelta,
+    timezone,
+)
 
 from iceberg.io.base import InputStream
+from iceberg.utils.datetime import micros_to_time, micros_to_timestamp
+from iceberg.utils.decimal import unscaled_to_decimal
 
 STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
 STRUCT_DOUBLE = struct.Struct("<d")  # little-endian double
@@ -101,29 +109,9 @@ class BinaryDecoder:
         Decimal is encoded as fixed. Fixed instances are encoded using the
         number of bytes declared in the schema.
         """
-        datum = self.read(size)
-        unscaled_datum = 0
-        msb = struct.unpack("!b", datum[0:1])[0]
-        leftmost_bit = (msb >> 7) & 1
-        if leftmost_bit == 1:
-            modified_first_byte = ord(datum[0:1]) ^ (1 << 7)
-            datum = bytearray([modified_first_byte]) + datum[1:]
-            for offset in range(size):
-                unscaled_datum <<= 8
-                unscaled_datum += ord(datum[offset : 1 + offset])
-            unscaled_datum += pow(-2, (size * 8) - 1)
-        else:
-            for offset in range(size):
-                unscaled_datum <<= 8
-                unscaled_datum += ord(datum[offset : 1 + offset])
-
-        original_prec = decimal.getcontext().prec
-        try:
-            decimal.getcontext().prec = precision
-            scaled_datum = decimal.Decimal(unscaled_datum).scaleb(-scale)
-        finally:
-            decimal.getcontext().prec = original_prec
-        return scaled_datum
+        data = self.read(size)
+        unscaled_datum = int.from_bytes(data, byteorder="big", signed=True)
+        return unscaled_to_decimal(unscaled_datum, scale)
 
     def read_bytes(self) -> bytes:
         """
@@ -138,56 +126,42 @@ class BinaryDecoder:
         """
         return self.read_bytes().decode("utf-8")
 
-    def read_date_from_int(self) -> datetime.date:
+    def read_date_from_int(self) -> date:
         """
         int is decoded as python date object.
         int stores the number of days from
         the unix epoch, 1 January 1970 (ISO calendar).
         """
         days_since_epoch = self.read_int()
-        return datetime.date(1970, 1, 1) + datetime.timedelta(days_since_epoch)
+        return date(1970, 1, 1) + timedelta(days_since_epoch)
 
-    def _build_time_object(self, value: int, scale_to_micro: int) -> datetime.time:
-        value = value * scale_to_micro
-        value, microseconds = divmod(value, 1000000)
-        value, seconds = divmod(value, 60)
-        value, minutes = divmod(value, 60)
-        hours = value
-
-        return datetime.time(hour=hours, minute=minutes, second=seconds, microsecond=microseconds)
-
-    def read_time_millis_from_int(self) -> datetime.time:
+    def read_time_millis_from_int(self) -> time:
         """
         int is decoded as python time object which represents
         the number of milliseconds after midnight, 00:00:00.000.
         """
-        milliseconds = self.read_int()
-        return self._build_time_object(milliseconds, 1000)
+        millis = self.read_int()
+        return micros_to_time(millis * 1000)
 
-    def read_time_micros_from_long(self) -> datetime.time:
+    def read_time_micros_from_long(self) -> time:
         """
         long is decoded as python time object which represents
         the number of microseconds after midnight, 00:00:00.000000.
         """
-        microseconds = self.read_long()
-        return self._build_time_object(microseconds, 1)
+        return micros_to_time(self.read_long())
 
-    def read_timestamp_millis_from_long(self) -> datetime.datetime:
-        """
-        long is decoded as python datetime object which represents
-        the number of milliseconds from the unix epoch, 1 January 1970.
-        """
-        timestamp_millis = self.read_long()
-        timedelta = datetime.timedelta(microseconds=timestamp_millis * 1000)
-        unix_epoch_datetime = datetime.datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone.utc)
-        return unix_epoch_datetime + timedelta
-
-    def read_timestamp_micros_from_long(self) -> datetime.datetime:
+    def read_timestamp_micros_from_long(self) -> datetime:
         """
         long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
         """
-        timestamp_micros = self.read_long()
-        timedelta = datetime.timedelta(microseconds=timestamp_micros)
-        unix_epoch_datetime = datetime.datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone.utc)
-        return unix_epoch_datetime + timedelta
+        return micros_to_timestamp(self.read_long())
+
+    def read_timestamptz_micros_from_long(self):
+        """
+        long is decoded as python datetime object which represents
+        the number of microseconds from the unix epoch, 1 January 1970.
+
+        Adjusted to UTC
+        """
+        return micros_to_timestamp(self.read_long(), timezone.utc)
