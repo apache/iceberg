@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.RowKind;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
@@ -31,6 +32,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.RowDataProjection;
+import org.apache.iceberg.flink.util.BloomFilterManager;
 import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
@@ -68,19 +70,43 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
   abstract RowDataDeltaWriter route(RowData row);
 
+  abstract BloomFilterManager getBloomFilter(RowData row);
+
   RowDataWrapper wrapper() {
     return wrapper;
   }
 
   @Override
   public void write(RowData row) throws IOException {
+    boolean isContain = false;
     RowDataDeltaWriter writer = route(row);
+    BloomFilterManager filterManager = getBloomFilter(row);
+    RowKind rowKind = row.getRowKind();
 
-    switch (row.getRowKind()) {
+    if (filterManager != null) {
+      switch (rowKind) {
+        case INSERT:
+        case UPDATE_AFTER:
+          String keys = writer.getKey(row);
+          isContain = filterManager.isKeyInFilter(keys);
+          if (!isContain) {
+            filterManager.setKeyToFilter(keys);
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    switch (rowKind) {
       case INSERT:
       case UPDATE_AFTER:
         if (upsert) {
-          writer.deleteKey(keyProjection.wrap(row));
+          if (filterManager == null) {
+            writer.deleteKey(keyProjection.wrap(row));
+          }  else if (isContain) {
+            writer.deleteKey(keyProjection.wrap(row));
+          }
         }
         writer.write(row);
         break;

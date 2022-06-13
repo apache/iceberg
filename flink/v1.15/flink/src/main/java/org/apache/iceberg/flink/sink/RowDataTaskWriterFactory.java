@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -38,6 +39,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Table table;
@@ -50,8 +53,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final List<Integer> equalityFieldIds;
   private final boolean upsert;
   private final FileAppenderFactory<RowData> appenderFactory;
+  private final Map<String, Object> bloomFilterParam;
 
   private transient OutputFileFactory outputFileFactory;
+  private static final Logger LOG = LoggerFactory.getLogger(RowDataTaskWriterFactory.class);
 
   public RowDataTaskWriterFactory(Table table,
                                   RowType flinkSchema,
@@ -59,6 +64,17 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   FileFormat format,
                                   List<Integer> equalityFieldIds,
                                   boolean upsert) {
+    this(table, flinkSchema, targetFileSizeBytes, format,
+            equalityFieldIds, upsert, null);
+  }
+
+  public RowDataTaskWriterFactory(Table table,
+                                  RowType flinkSchema,
+                                  long targetFileSizeBytes,
+                                  FileFormat format,
+                                  List<Integer> equalityFieldIds,
+                                  boolean upsert,
+                                  Map<String, Object> bloomFilterParam) {
     this.table = table;
     this.schema = table.schema();
     this.flinkSchema = flinkSchema;
@@ -68,6 +84,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.format = format;
     this.equalityFieldIds = equalityFieldIds;
     this.upsert = upsert;
+    this.bloomFilterParam = bloomFilterParam;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
@@ -107,8 +124,12 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         return new UnpartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
             targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert);
       } else {
-        return new PartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds, upsert);
+        PartitionedDeltaWriter partitionedDeltaWriter = new PartitionedDeltaWriter(spec, format, appenderFactory,
+                outputFileFactory, io, targetFileSizeBytes, schema,
+                flinkSchema, equalityFieldIds, upsert, bloomFilterParam, table);
+        partitionedDeltaWriter.initBloomFilter();
+
+        return partitionedDeltaWriter;
       }
     }
   }

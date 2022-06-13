@@ -28,10 +28,12 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     implements OneInputStreamOperator<T, WriteResult>, BoundedOneInput {
-
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergStreamWriter.class);
   private static final long serialVersionUID = 1L;
 
   private final String fullTableName;
@@ -76,6 +78,9 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   public void close() throws Exception {
     super.close();
     if (writer != null) {
+      if (writer instanceof PartitionedDeltaWriter) {
+        ((PartitionedDeltaWriter) writer).freeResource();
+      }
       writer.close();
       writer = null;
     }

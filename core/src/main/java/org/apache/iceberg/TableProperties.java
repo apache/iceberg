@@ -296,6 +296,15 @@ public class TableProperties {
   public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
   public static final String WRITE_DISTRIBUTION_MODE_RANGE = "range";
 
+  public static final String RECORDS_EACH_PARTITION = "records.each.partition";
+  public static final long RECORDS_EACH_PARTITION_DEFAULT = 0;
+
+  public static final String FALSE_POSITIVE_PROBABILITY = "false.positive.probability";
+  public static final double FALSE_POSITIVE_PROBABILITY_DEFAULT = 0.01;
+
+  public static final String BLOOM_FILTER_LIFESPAN = "bloom.filter.lifespan";
+  public static final int BLOOM_FILTER_LIFESPAN_DEFAULT = 1;   // unit day : default is one day
+
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;
 

@@ -26,6 +26,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.flink.util.BloomFilterManager;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -51,6 +52,11 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   @Override
   RowDataDeltaWriter route(RowData row) {
     return writer;
+  }
+
+  @Override
+  BloomFilterManager getBloomFilter(RowData row) {
+    return null;
   }
 
   @Override
