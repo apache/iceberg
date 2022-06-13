@@ -47,6 +47,13 @@ def time_to_micros(time_str: str) -> int:
     return (((t.hour * 60 + t.minute) * 60) + t.second) * 1_000_000 + t.microsecond
 
 
+def time_from_micros(micros: int) -> time:
+    seconds = micros // 1_000_000
+    minutes = seconds // 60
+    hours = minutes // 60
+    return time(hour=hours, minute=minutes % 60, second=seconds % 60, microsecond=micros % 1_000_000)
+
+
 def datetime_to_micros(dt: datetime) -> int:
     """Converts a datetime to microseconds from 1970-01-01T00:00:00.000000"""
     if dt.tzinfo:
@@ -77,8 +84,7 @@ def to_human_day(day_ordinal: int) -> str:
 
 def to_human_time(micros_from_midnight: int) -> str:
     """Converts a TimeType value to human string"""
-    to_day = EPOCH_TIMESTAMP + timedelta(microseconds=micros_from_midnight)
-    return to_day.time().isoformat()
+    return time_from_micros(micros_from_midnight).isoformat()
 
 
 def to_human_timestamptz(timestamp_micros: int) -> str:
