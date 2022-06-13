@@ -44,14 +44,14 @@ MAGIC = bytes(b"Obj" + bytearray([VERSION]))
 MAGIC_SIZE = len(MAGIC)
 SYNC_SIZE = 16
 META_SCHEMA = StructType(
-    NestedField(name="magic", field_id=100, field_type=FixedType(length=MAGIC_SIZE), is_optional=False),
+    NestedField(name="magic", field_id=100, field_type=FixedType(length=MAGIC_SIZE), required=True),
     NestedField(
         field_id=200,
         name="meta",
-        field_type=MapType(key_id=201, key_type=StringType(), value_id=202, value_type=BinaryType(), value_is_optional=False),
-        is_optional=False,
+        field_type=MapType(key_id=201, key_type=StringType(), value_id=202, value_type=BinaryType(), value_required=True),
+        required=True,
     ),
-    NestedField(field_id=300, name="sync", field_type=FixedType(length=SYNC_SIZE), is_optional=False),
+    NestedField(field_id=300, name="sync", field_type=FixedType(length=SYNC_SIZE), required=True),
 )
 
 

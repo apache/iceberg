@@ -29,6 +29,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -56,7 +57,6 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -75,6 +75,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -83,12 +84,11 @@ import org.slf4j.LoggerFactory;
 
 public class RESTSessionCatalog extends BaseSessionCatalog implements Configurable<Configuration>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
-  private static final long MAX_REFRESH_WINDOW_MILLIS = 60_000; // 1 minute
+  private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
   private static final long MIN_REFRESH_WAIT_MILLIS = 10;
   private static final List<String> TOKEN_PREFERENCE_ORDER = ImmutableList.of(
       OAuth2Properties.ID_TOKEN_TYPE, OAuth2Properties.ACCESS_TOKEN_TYPE, OAuth2Properties.JWT_TOKEN_TYPE,
       OAuth2Properties.SAML2_TOKEN_TYPE, OAuth2Properties.SAML1_TOKEN_TYPE);
-  private static final Joiner NULL_BYTE = Joiner.on('\u0000');
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private Cache<String, AuthSession> sessions = null;
@@ -111,8 +111,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   }
 
   @Override
-  public void initialize(String name, Map<String, String> props) {
-    Preconditions.checkArgument(props != null, "Invalid configuration: null");
+  public void initialize(String name, Map<String, String> unresolved) {
+    Preconditions.checkArgument(unresolved != null, "Invalid configuration: null");
+    // resolve any configuration that is supplied by environment variables
+    // note that this is only done for local config properties and not for properties from the catalog service
+    Map<String, String> props = EnvironmentUtil.resolveAll(unresolved);
 
     long startTimeMillis = System.currentTimeMillis(); // keep track of the init start time for token refresh
     String initToken = props.get(OAuth2Properties.TOKEN);
@@ -281,7 +284,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       queryParams = ImmutableMap.of();
     } else {
       // query params should be unescaped
-      queryParams = ImmutableMap.of("parent", NULL_BYTE.join(namespace.levels()));
+      queryParams = ImmutableMap.of("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
     }
 
     ListNamespacesResponse response = client.get(
@@ -361,15 +364,25 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public void close() throws IOException {
+    shutdownRefreshExecutor();
+
     if (client != null) {
       client.close();
     }
+  }
 
+  private void shutdownRefreshExecutor() {
     if (refreshExecutor != null) {
       ScheduledExecutorService service = refreshExecutor;
       this.refreshExecutor = null;
 
-      service.shutdown();
+      List<Runnable> tasks = service.shutdownNow();
+      tasks.forEach(task -> {
+        if (task instanceof Future) {
+          ((Future<?>) task).cancel(true);
+        }
+      });
+
       try {
         if (service.awaitTermination(1, TimeUnit.MINUTES)) {
           LOG.warn("Timed out waiting for refresh executor to terminate");

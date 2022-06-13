@@ -133,4 +133,46 @@ public class TestPruneColumns {
     MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
     Assert.assertEquals("Pruned schema should not rename repeated struct", expected, actual);
   }
+
+  @Test
+  public void testStructElementName() {
+    MessageType fileSchema = Types.buildMessage()
+        .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(1).named("id"))
+        .addField(Types.buildGroup(Type.Repetition.OPTIONAL)
+            .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(3).named("x"))
+            .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(4).named("y"))
+            .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(5).named("z"))
+            .id(2)
+            .named("struct_name_1"))
+        .addField(Types.buildGroup(Type.Repetition.OPTIONAL)
+            .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(7).named("x"))
+            .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(8).named("y"))
+            .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(9).named("z"))
+            .id(6)
+            .named("struct_name_2"))
+        .named("table");
+
+    // project map.value.x and map.value.y
+    Schema projection = new Schema(
+        NestedField.optional(2, "struct_name_1", StructType.of(
+            NestedField.required(4, "y", DoubleType.get()),
+            NestedField.required(5, "z", DoubleType.get())
+        )),
+        NestedField.optional(6, "struct_name_2", StructType.of())
+    );
+
+    MessageType expected = Types.buildMessage()
+        .addField(Types.buildGroup(Type.Repetition.OPTIONAL)
+            .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(4).named("y"))
+            .addField(Types.primitive(PrimitiveTypeName.DOUBLE, Type.Repetition.REQUIRED).id(5).named("z"))
+            .id(2)
+            .named("struct_name_1"))
+        .addField(Types.buildGroup(Type.Repetition.OPTIONAL)
+            .id(6)
+            .named("struct_name_2"))
+        .named("table");
+
+    MessageType actual = ParquetSchemaUtil.pruneColumns(fileSchema, projection);
+    Assert.assertEquals("Pruned schema should be matched", expected, actual);
+  }
 }

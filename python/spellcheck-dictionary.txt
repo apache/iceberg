@@ -37,6 +37,7 @@ NaN
 nan
 NestedField
 nullability
+PartitionField
 pragma
 PrimitiveType
 pyarrow

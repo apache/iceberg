@@ -325,7 +325,7 @@ public class OAuth2Util {
             .run(holder ->
                 holder.set(refreshToken(client, headers(), token, tokenType, OAuth2Properties.CATALOG_SCOPE)));
 
-        if (!isSuccessful) {
+        if (!isSuccessful || ref.get() == null) {
           return null;
         }
 

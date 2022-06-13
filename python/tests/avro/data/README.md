@@ -17,7 +17,7 @@
 
 # Avro tests
 
-This directory contains a manifest file to running tests against.
+This directory contains a manifest file for running tests against.
 
 ## Data
 

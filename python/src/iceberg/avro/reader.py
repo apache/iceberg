@@ -234,14 +234,14 @@ class ConstructReader(SchemaVisitor[Reader]):
         return StructReader(field_results)
 
     def field(self, field: NestedField, field_result: Reader) -> Reader:
-        return OptionReader(field_result) if field.is_optional else field_result
+        return field_result if field.required else OptionReader(field_result)
 
     def list(self, list_type: ListType, element_result: Reader) -> Reader:
-        element_reader = OptionReader(element_result) if list_type.element_is_optional else element_result
+        element_reader = element_result if list_type.element_required else OptionReader(element_result)
         return ListReader(element_reader)
 
     def map(self, map_type: MapType, key_result: Reader, value_result: Reader) -> Reader:
-        value_reader = OptionReader(value_result) if map_type.value_is_optional else value_result
+        value_reader = value_result if map_type.value_required else OptionReader(value_result)
         return MapReader(key_result, value_reader)
 
     def primitive(self, primitive: PrimitiveType) -> Reader:

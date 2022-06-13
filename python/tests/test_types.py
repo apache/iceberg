@@ -84,12 +84,12 @@ def test_repr_primitive_types(input_index, input_type):
         ),
         (
             StructType(
-                NestedField(1, "required_field", StringType(), is_optional=False),
-                NestedField(2, "optional_field", IntegerType(), is_optional=True),
+                NestedField(1, "required_field", StringType(), required=False),
+                NestedField(2, "optional_field", IntegerType(), required=True),
             ),
             False,
         ),
-        (NestedField(1, "required_field", StringType(), is_optional=False), False),
+        (NestedField(1, "required_field", StringType(), required=False), False),
     ],
 )
 def test_is_primitive(input_type, result):
@@ -119,30 +119,30 @@ def test_decimal_type():
 
 def test_struct_type():
     type_var = StructType(
-        NestedField(1, "optional_field", IntegerType(), is_optional=True),
-        NestedField(2, "required_field", FixedType(5), is_optional=False),
+        NestedField(1, "optional_field", IntegerType(), required=True),
+        NestedField(2, "required_field", FixedType(5), required=False),
         NestedField(
             3,
             "required_field",
             StructType(
-                NestedField(4, "optional_field", DecimalType(8, 2), is_optional=True),
-                NestedField(5, "required_field", LongType(), is_optional=False),
+                NestedField(4, "optional_field", DecimalType(8, 2), required=True),
+                NestedField(5, "required_field", LongType(), required=False),
             ),
-            is_optional=False,
+            required=False,
         ),
     )
     assert len(type_var.fields) == 3
     assert str(type_var) == str(eval(repr(type_var)))
     assert type_var == eval(repr(type_var))
-    assert type_var != StructType(NestedField(1, "optional_field", IntegerType(), is_optional=True))
+    assert type_var != StructType(NestedField(1, "optional_field", IntegerType(), required=True))
 
 
 def test_list_type():
     type_var = ListType(
         1,
         StructType(
-            NestedField(2, "optional_field", DecimalType(8, 2), is_optional=True),
-            NestedField(3, "required_field", LongType(), is_optional=False),
+            NestedField(2, "optional_field", DecimalType(8, 2), required=True),
+            NestedField(3, "required_field", LongType(), required=False),
         ),
         False,
     )
@@ -154,7 +154,7 @@ def test_list_type():
     assert type_var != ListType(
         1,
         StructType(
-            NestedField(2, "optional_field", DecimalType(8, 2), is_optional=True),
+            NestedField(2, "optional_field", DecimalType(8, 2), required=True),
         ),
         True,
     )
@@ -183,15 +183,15 @@ def test_nested_field():
                 ListType(
                     3,
                     DoubleType(),
-                    element_is_optional=False,
+                    element_required=False,
                 ),
-                is_optional=True,
+                required=True,
             ),
         ),
-        is_optional=True,
+        required=True,
     )
-    assert field_var.is_optional
-    assert not field_var.is_required
+    assert field_var.required
+    assert not field_var.optional
     assert field_var.field_id == 1
     assert isinstance(field_var.field_type, StructType)
     assert str(field_var) == str(eval(repr(field_var)))
@@ -204,3 +204,10 @@ def test_non_parameterized_type_equality(input_index, input_type, check_index, c
         assert input_type() == check_type()
     else:
         assert input_type() != check_type()
+
+
+def test_types_singleton():
+    """The types are immutable so we can return the same instance multiple times"""
+    assert id(BooleanType()) == id(BooleanType())
+    assert id(FixedType(22)) == id(FixedType(22))
+    assert id(FixedType(19)) != id(FixedType(25))
