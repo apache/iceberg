@@ -281,6 +281,17 @@ public class DefaultValueParser {
         generator.writeString(defaultValue.toString());
         break;
       case FIXED:
+        Preconditions.checkArgument(
+            defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
+        String fixedString = BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) defaultValue)));
+        int valueLength = fixedString.length();
+        int expectedLength = ((Types.FixedType) type).length();
+        Preconditions.checkArgument(valueLength == expectedLength * 2,
+            "Default value %s is not compatible with the expected fixed type, the fixed type is expected to store " +
+                "exactly %s bytes, which means the default value should be of exactly 2 * %s length hex string",
+            fixedString, expectedLength, expectedLength);
+        generator.writeString(fixedString);
+        break;
       case BINARY:
         Preconditions.checkArgument(
             defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);

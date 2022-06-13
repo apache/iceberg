@@ -49,6 +49,7 @@ public class TestDefaultValuesParsingAndUnParsing {
   @Parameterized.Parameters
   public static Collection<Object[]> data() {
     return Arrays.asList(new Object[][] {
+        {Types.BooleanType.get(), "null"},
         {Types.BooleanType.get(), "true"},
         {Types.IntegerType.get(), "1"},
         {Types.LongType.get(), "9999999"},
