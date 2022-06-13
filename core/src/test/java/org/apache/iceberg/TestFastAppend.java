@@ -482,8 +482,8 @@ public class TestFastAppend extends TableTestBase {
   @Test
   public void testAppendToBranch() throws UnsupportedOperationException {
     table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
+        .appendFile(FILE_A)
+        .commit();
 
     Long currSnapshot = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
@@ -495,20 +495,21 @@ public class TestFastAppend extends TableTestBase {
   @Test(expected = IllegalArgumentException.class)
   public void testAppendToNullBranch() {
     table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
+        .appendFile(FILE_A)
+        .commit();
 
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
     table.newDelete().toBranch(null).deleteFile(FILE_A);
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testAppendToInValidBranch() {
     table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
+        .appendFile(FILE_A)
+        .commit();
 
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
     table.newDelete().toBranch("newBranch").deleteFile(FILE_A).commit();
+    Assert.assertNotNull(table.ops().current().ref("newBranch"));
   }
 }
