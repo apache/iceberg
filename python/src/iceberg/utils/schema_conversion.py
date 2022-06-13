@@ -145,6 +145,9 @@ class AvroSchemaConversion:
         else:
             avro_types = type_union
 
+        if len(avro_types) > 2:
+            raise TypeError(f"Non-optional types aren't part of the Iceberg specification: {avro_types}")
+
         # For the Iceberg spec it is required to set the default value to null
         # From https://iceberg.apache.org/spec/#avro
         # Optional fields must always set the Avro field default value to null.
