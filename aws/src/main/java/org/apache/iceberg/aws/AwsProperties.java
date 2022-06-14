@@ -104,6 +104,12 @@ public class AwsProperties implements Serializable {
   public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
 
   /**
+   * If Glue should skip name validations
+   */
+  public static final String GLUE_CATALOG_SKIP_NAME_VALIDATION = "glue.skip-archive";
+  public static final boolean GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT = false;
+
+  /**
    * If set, GlueCatalog will use Lake Formation for access control.
    * For more credential vending details, see: https://docs.aws.amazon.com/lake-formation/latest/dg/api-overview.html.
    * If enabled, the {@link AwsClientFactory} implementation must be {@link LakeFormationAwsClientFactory}
@@ -375,6 +381,7 @@ public class AwsProperties implements Serializable {
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
+  private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
 
   private String dynamoDbTableName;
@@ -399,8 +406,8 @@ public class AwsProperties implements Serializable {
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
+    this.glueCatalogSkipNameValidation = GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT;
     this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
-
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
   }
 
@@ -417,6 +424,8 @@ public class AwsProperties implements Serializable {
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
     this.glueCatalogSkipArchive = PropertyUtil.propertyAsBoolean(properties,
         AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE, AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
+    this.glueCatalogSkipNameValidation = PropertyUtil.propertyAsBoolean(properties,
+        AwsProperties.GLUE_CATALOG_SKIP_NAME_VALIDATION, AwsProperties.GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT);
     this.glueLakeFormationEnabled = PropertyUtil.propertyAsBoolean(properties,
         GLUE_LAKEFORMATION_ENABLED,
         GLUE_LAKEFORMATION_ENABLED_DEFAULT);
@@ -512,9 +521,16 @@ public class AwsProperties implements Serializable {
   public boolean glueCatalogSkipArchive() {
     return glueCatalogSkipArchive;
   }
-
   public void setGlueCatalogSkipArchive(boolean skipArchive) {
     this.glueCatalogSkipArchive = skipArchive;
+  }
+
+  public boolean glueCatalogSkipNameValidation() {
+    return glueCatalogSkipNameValidation;
+  }
+
+  public void setGlueCatalogSkipNameValidation(boolean glueCatalogSkipNameValidation) {
+    this.glueCatalogSkipNameValidation = glueCatalogSkipNameValidation;
   }
 
   public boolean glueLakeFormationEnabled() {

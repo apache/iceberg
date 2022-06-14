@@ -105,31 +105,41 @@ class IcebergToGlueConverter {
 
   /**
    * Validate and convert Iceberg namespace to Glue database name
-   * @param namespace Iceberg namespace
+   *
+   * @param namespace                Iceberg namespace
+   * @param shouldSkipNameValidation should skip name validation
    * @return database name
    */
-  static String toDatabaseName(Namespace namespace) {
-    validateNamespace(namespace);
+  static String toDatabaseName(Namespace namespace, boolean shouldSkipNameValidation) {
+    if (!shouldSkipNameValidation) {
+      validateNamespace(namespace);
+    }
     return namespace.level(0);
   }
 
   /**
    * Validate and get Glue database name from Iceberg TableIdentifier
-   * @param tableIdentifier Iceberg table identifier
+   *
+   * @param tableIdentifier          Iceberg table identifier
+   * @param shouldSkipNameValidation should skip name validation
    * @return database name
    */
-  static String getDatabaseName(TableIdentifier tableIdentifier) {
-    return toDatabaseName(tableIdentifier.namespace());
+  static String getDatabaseName(TableIdentifier tableIdentifier, boolean shouldSkipNameValidation) {
+    return toDatabaseName(tableIdentifier.namespace(), shouldSkipNameValidation);
   }
 
   /**
    * Validate and convert Iceberg name to Glue DatabaseInput
-   * @param namespace Iceberg namespace
-   * @param metadata metadata map
+   *
+   * @param namespace                Iceberg namespace
+   * @param metadata                 metadata map
+   * @param shouldSkipNameValidation should skip name validation
    * @return Glue DatabaseInput
    */
-  static DatabaseInput toDatabaseInput(Namespace namespace, Map<String, String> metadata) {
-    DatabaseInput.Builder builder = DatabaseInput.builder().name(toDatabaseName(namespace));
+  static DatabaseInput toDatabaseInput(Namespace namespace, Map<String, String> metadata,
+      boolean shouldSkipNameValidation) {
+    DatabaseInput.Builder builder = DatabaseInput.builder().name(toDatabaseName(namespace,
+        shouldSkipNameValidation));
     Map<String, String> parameters = Maps.newHashMap();
     metadata.forEach((k, v) -> {
       if (GLUE_DB_DESCRIPTION_KEY.equals(k)) {
