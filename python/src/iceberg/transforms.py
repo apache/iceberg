@@ -40,8 +40,8 @@ from iceberg.types import (
     UUIDType,
 )
 from iceberg.utils import datetime
-from iceberg.utils.decimal import decimal_to_bytes
 from src.iceberg.utils.singleton import Singleton
+from iceberg.utils.decimal import decimal_to_bytes, truncate_decimal
 
 S = TypeVar("S")
 T = TypeVar("T")
@@ -302,6 +302,86 @@ class IdentityTransform(Transform[S, S]):
         return datetime.to_human_timestamptz(value)
 
 
+class TruncateTransform(Transform[S, S]):
+    """A transform for truncating a value to a specified width.
+    Args:
+      source_type (Type): An Iceberg Type of IntegerType, LongType, StringType, BinaryType or DecimalType
+      width (int): The truncate width
+    Raises:
+      ValueError: If a type is provided that is incompatible with a Truncate transform
+    """
+
+    def __init__(self, source_type: IcebergType, width: int):
+        super().__init__(
+            f"truncate[{width}]",
+            f"transforms.truncate(source_type={repr(source_type)}, width={width})",
+        )
+        self._type = source_type
+        self._width = width
+
+    @property
+    def width(self):
+        return self._width
+
+    def apply(self, value: Optional[S]) -> Optional[S]:
+        return self._truncate_value(value) if value is not None else None
+
+    @singledispatchmethod
+    def _truncate_value(self, value: S) -> S:
+        raise ValueError(f"Cannot truncate value: {value}")
+
+    @_truncate_value.register(int)
+    def _(self, value):
+        """Truncate a given int value into a given width if feasible."""
+        if type(self._type) in {IntegerType, LongType}:
+            return value - value % self._width
+        else:
+            raise ValueError(f"Cannot truncate type: {self._type} for value: {value}")
+
+    @_truncate_value.register(str)
+    def _(self, value):
+        """Truncate a given string to a given width."""
+        return value[0 : min(self._width, len(value))]
+
+    @_truncate_value.register(bytes)
+    def _(self, value):
+        """Truncate a given binary bytes into a given width."""
+        if isinstance(self._type, BinaryType):
+            return value[0 : min(self._width, len(value))]
+        else:
+            raise ValueError(f"Cannot truncate type: {self._type}")
+
+    @_truncate_value.register(Decimal)
+    def _(self, value):
+        """Truncate a given decimal value into a given width."""
+        return truncate_decimal(value, self._width)
+
+    def can_transform(self, source: IcebergType) -> bool:
+        return self._type == source
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return source
+
+    def preserves_order(self) -> bool:
+        return True
+
+    def satisfies_order_of(self, other: Transform) -> bool:
+        if self == other:
+            return True
+        elif isinstance(self._type, StringType) and isinstance(other, TruncateTransform) and isinstance(other._type, StringType):
+            return self._width >= other._width
+
+        return False
+
+    def to_human_string(self, value: Optional[S]) -> str:
+        if value is None:
+            return "null"
+        elif isinstance(value, bytes):
+            return _base64encode(value)
+        else:
+            return str(value)
+
+
 class UnknownTransform(Transform):
     """A transform that represents when an unknown transform is provided
     Args:
@@ -367,6 +447,10 @@ def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
 
 def identity(source_type: IcebergType) -> IdentityTransform:
     return IdentityTransform(source_type)
+
+
+def truncate(source_type: IcebergType, width: int) -> TruncateTransform:
+    return TruncateTransform(source_type, width)
 
 
 def always_null() -> Transform:

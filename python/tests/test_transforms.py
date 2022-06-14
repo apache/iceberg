@@ -177,6 +177,61 @@ def test_identity_method(type_var):
     assert identity_transform.apply("test") == "test"
 
 
+@pytest.mark.parametrize("type_var", [IntegerType(), LongType()])
+@pytest.mark.parametrize(
+    "input_var,expected",
+    [(1, 0), (5, 0), (9, 0), (10, 10), (11, 10), (-1, -10), (-10, -10), (-12, -20)],
+)
+def test_truncate_integer(type_var, input_var, expected):
+    trunc = transforms.truncate(type_var, 10)
+    assert trunc.apply(input_var) == expected
+
+
+@pytest.mark.parametrize(
+    "input_var,expected",
+    [
+        (Decimal("12.34"), Decimal("12.30")),
+        (Decimal("12.30"), Decimal("12.30")),
+        (Decimal("12.29"), Decimal("12.20")),
+        (Decimal("0.05"), Decimal("0.00")),
+        (Decimal("-0.05"), Decimal("-0.10")),
+    ],
+)
+def test_truncate_decimal(input_var, expected):
+    trunc = transforms.truncate(DecimalType(9, 2), 10)
+    assert trunc.apply(input_var) == expected
+
+
+@pytest.mark.parametrize("input_var,expected", [("abcdefg", "abcde"), ("abc", "abc")])
+def test_truncate_string(input_var, expected):
+    trunc = transforms.truncate(StringType(), 5)
+    assert trunc.apply(input_var) == expected
+
+
+@pytest.mark.parametrize(
+    "type_var,value,expected_human_str,expected",
+    [
+        (BinaryType(), b"\x00\x01\x02\x03", "AAECAw==", b"\x00"),
+        (DecimalType(8, 5), Decimal("14.21"), "14.21", Decimal("14.21")),
+        (IntegerType(), 123, "123", 123),
+        (LongType(), 123, "123", 123),
+        (StringType(), "foo", "foo", "f"),
+    ],
+)
+def test_truncate_method(type_var, value, expected_human_str, expected):
+    truncate_transform = transforms.truncate(type_var, 1)
+    assert str(truncate_transform) == str(eval(repr(truncate_transform)))
+    assert truncate_transform.can_transform(type_var)
+    assert truncate_transform.result_type(type_var) == type_var
+    assert truncate_transform.to_human_string(value) == expected_human_str
+    assert truncate_transform.apply(value) == expected
+    assert truncate_transform.to_human_string(None) == "null"
+    assert truncate_transform.width == 1
+    assert truncate_transform.apply(None) is None
+    assert truncate_transform.preserves_order()
+    assert truncate_transform.satisfies_order_of(truncate_transform)
+
+
 def test_unknown_transform():
     unknown_transform = transforms.UnknownTransform(FixedType(8), "unknown")
     assert str(unknown_transform) == str(eval(repr(unknown_transform)))

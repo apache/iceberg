@@ -75,3 +75,16 @@ def decimal_to_bytes(value: Decimal) -> bytes:
     """
     unscaled_value = decimal_to_unscaled(value)
     return unscaled_value.to_bytes(bytes_required(unscaled_value), byteorder="big", signed=True)
+
+
+def truncate_decimal(value: Decimal, width: int) -> Decimal:
+    """Get a truncated Decimal value given a decimal value and a width
+    Args:
+        value (Decimal): a decimal value
+        width (int): A width for the returned Decimal instance
+    Returns:
+        Decimal: A truncated Decimal instance
+    """
+    unscaled_value = decimal_to_unscaled(value)
+    applied_value = unscaled_value - (((unscaled_value % width) + width) % width)
+    return Decimal(f"{applied_value}e{value.as_tuple().exponent}")
