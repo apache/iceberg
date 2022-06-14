@@ -20,13 +20,13 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -35,7 +35,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -180,16 +179,8 @@ class RemoveSnapshots implements ExpireSnapshots {
     }
 
     Set<Long> idsToRetain = Sets.newHashSet();
-
-    // Compute the snapshots for each reference
-    Map<String, Set<Long>> refSnapshots = computeRefSnapshots(base.refs());
-
-    // Identify unreferenced snapshots which should be retained
-    Set<Long> unreferencedSnapshotsToRetain = computeUnreferencedSnapshotsToRetain(refSnapshots);
-    idsToRetain.addAll(unreferencedSnapshotsToRetain);
-
     // Identify refs that should be removed
-    Map<String, SnapshotRef> retainedRefs  = computeRetainedRefs(base.refs());
+    Map<String, SnapshotRef> retainedRefs = computeRetainedRefs(base.refs());
     Map<Long, List<String>> retainedIdToRefs = Maps.newHashMap();
     for (Map.Entry<String, SnapshotRef> retainedRefEntry : retainedRefs.entrySet()) {
       long snapshotId = retainedRefEntry.getValue().snapshotId();
@@ -204,9 +195,14 @@ class RemoveSnapshots implements ExpireSnapshots {
           "Cannot expire %s. Still referenced by refs: %s", idToRemove, refsForId);
     }
 
-    Set<Long> branchSnapshotsToRetain = computeAllBranchSnapshotsToRetain(retainedRefs, refSnapshots);
-    idsToRetain.addAll(branchSnapshotsToRetain);
+    idsToRetain.addAll(computeAllBranchSnapshotsToRetain(retainedRefs.values()));
+    idsToRetain.addAll(unreferencedSnapshotsToRetain(retainedRefs.values()));
+
     TableMetadata.Builder updatedMetaBuilder = TableMetadata.buildFrom(base);
+
+    base.refs().keySet().stream()
+        .filter(ref -> !retainedRefs.containsKey(ref))
+        .forEach(updatedMetaBuilder::removeRef);
 
     base.snapshots().stream()
         .map(Snapshot::snapshotId)
@@ -214,33 +210,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .forEach(idsToRemove::add);
     updatedMetaBuilder.removeSnapshots(idsToRemove);
 
-    base.refs().keySet().stream()
-        .filter(ref -> !retainedRefs.containsKey(ref))
-        .forEach(updatedMetaBuilder::removeRef);
-
     return updatedMetaBuilder.build();
-  }
-
-  /**
-   * Helper to compute the mapping of a ref to its snapshots. If it's a branch, the snapshots is an ordered set
-   * of all the snapshots on the branch. If it's a tag, the snapshot is a set of the single snapshot the tag refers to
-   */
-  private Map<String, Set<Long>> computeRefSnapshots(Map<String, SnapshotRef> refs) {
-    Map<String, Set<Long>> refSnapshots = Maps.newHashMap();
-    for (Map.Entry<String, SnapshotRef> refEntry : refs.entrySet()) {
-      String name = refEntry.getKey();
-      SnapshotRef ref = refEntry.getValue();
-      if (ref.isBranch()) {
-        Set<Long> branchAncestors = Sets.newLinkedHashSet();
-        Iterable<Snapshot> snapshots = SnapshotUtil.ancestorsOf(ref.snapshotId(), base::snapshot);
-        snapshots.forEach(snapshot -> branchAncestors.add(snapshot.snapshotId()));
-        refSnapshots.put(name, branchAncestors);
-      } else {
-        refSnapshots.put(name, ImmutableSet.of(ref.snapshotId()));
-      }
-    }
-
-    return refSnapshots;
   }
 
   private Map<String, SnapshotRef> computeRetainedRefs(Map<String, SnapshotRef> refs) {
@@ -268,34 +238,16 @@ class RemoveSnapshots implements ExpireSnapshots {
     return retainedRefs;
   }
 
-  private Set<Long> computeUnreferencedSnapshotsToRetain(Map<String, Set<Long>> refSnapshots) {
-    Set<Long> referencedSnapshots = Sets.newHashSet();
-    refSnapshots.values().forEach(referencedSnapshots::addAll);
-
-    return base.snapshots().stream()
-        .filter(snapshot -> !referencedSnapshots.contains(snapshot.snapshotId()))
-        .filter(snapshot -> snapshot.timestampMillis() >= defaultExpireOlderThan)
-        .map(Snapshot::snapshotId)
-        .collect(Collectors.toSet());
-  }
-
-  private Set<Long> computeAllBranchSnapshotsToRetain(
-      Map<String, SnapshotRef> refs,
-      Map<String, Set<Long>> refSnapshots) {
-
+  private Set<Long> computeAllBranchSnapshotsToRetain(Collection<SnapshotRef> refs) {
     Set<Long> branchSnapshotsToRetain = Sets.newHashSet();
-    for (Map.Entry<String, SnapshotRef> refEntry : refs.entrySet()) {
-      final String name = refEntry.getKey();
-      final SnapshotRef ref = refEntry.getValue();
-
+    for (SnapshotRef ref : refs) {
       if (ref.isBranch()) {
         long expireSnapshotsOlderThan = ref.maxSnapshotAgeMs() != null ? now - ref.maxSnapshotAgeMs() :
             defaultExpireOlderThan;
         int minSnapshotsToKeep = ref.minSnapshotsToKeep() != null ? ref.minSnapshotsToKeep() :
             defaultMinNumSnapshots;
-        Set<Long> branchAncestors = refSnapshots.get(name);
         branchSnapshotsToRetain.addAll(
-            computeBranchSnapshotsToRetain(branchAncestors, expireSnapshotsOlderThan, minSnapshotsToKeep));
+            computeBranchSnapshotsToRetain(ref.snapshotId(), expireSnapshotsOlderThan, minSnapshotsToKeep));
       }
     }
 
@@ -303,12 +255,11 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   private Set<Long> computeBranchSnapshotsToRetain(
-      Set<Long> branchSnapshots,
+      long snapshot,
       long expireSnapshotsOlderThan,
       int minSnapshotsToKeep) {
     Set<Long> idsToRetain = Sets.newHashSet();
-    for (long snapshot : branchSnapshots) {
-      Snapshot ancestor = base.snapshot(snapshot);
+    for (Snapshot ancestor : SnapshotUtil.ancestorsOf(snapshot, base::snapshot)) {
       if (idsToRetain.size() < minSnapshotsToKeep || ancestor.timestampMillis() >= expireSnapshotsOlderThan) {
         idsToRetain.add(ancestor.snapshotId());
       } else {
@@ -317,6 +268,25 @@ class RemoveSnapshots implements ExpireSnapshots {
     }
 
     return idsToRetain;
+  }
+
+  private Set<Long> unreferencedSnapshotsToRetain(Collection<SnapshotRef> refs) {
+    Set<Long> referencedSnapshots = Sets.newHashSet();
+    for (SnapshotRef ref : refs) {
+      for (Snapshot snapshot : SnapshotUtil.ancestorsOf(ref.snapshotId(), base::snapshot)) {
+        referencedSnapshots.add(snapshot.snapshotId());
+      }
+    }
+
+    Set<Long> snapshotsToRetain = Sets.newHashSet();
+    for (Snapshot snapshot : base.snapshots()) {
+      if (!referencedSnapshots.contains(snapshot.snapshotId()) && // unreferenced
+          snapshot.timestampMillis() >= defaultExpireOlderThan) { // not old enough to expire
+        snapshotsToRetain.add(snapshot.snapshotId());
+      }
+    }
+
+    return snapshotsToRetain;
   }
 
   @Override

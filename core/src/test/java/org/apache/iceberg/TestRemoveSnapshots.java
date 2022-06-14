@@ -1206,30 +1206,66 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   @Test
-  public void testRefExpiration() {
+  public void testTagExpiration() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
+
     long now = System.currentTimeMillis();
-    long tagARefAgeMs = 100;
+    long maxAgeMs = 100;
+    long expirationTime = now + maxAgeMs;
+
     table.manageSnapshots()
-        .createTag("TagA", table.currentSnapshot().snapshotId())
-        .setMaxRefAgeMs("TagA", tagARefAgeMs)
+        .createTag("tag", table.currentSnapshot().snapshotId())
+        .setMaxRefAgeMs("tag", maxAgeMs)
         .commit();
-    long expirationTime = now + tagARefAgeMs;
+
     table.newAppend()
         .appendFile(FILE_B)
         .commit();
+
     table.manageSnapshots()
-        .createBranch("BranchB", table.currentSnapshot().snapshotId())
+        .createBranch("branch", table.currentSnapshot().snapshotId())
         .commit();
 
     waitUntilAfter(expirationTime);
 
     table.expireSnapshots().cleanExpiredFiles(false).commit();
 
-    Assert.assertNull(table.ops().current().ref("TagA"));
-    Assert.assertNotNull(table.ops().current().ref("BranchB"));
+    Assert.assertNull(table.ops().current().ref("tag"));
+    Assert.assertNotNull(table.ops().current().ref("branch"));
+    Assert.assertNotNull(table.ops().current().ref(SnapshotRef.MAIN_BRANCH));
+  }
+
+  @Test
+  public void testBranchExpiration() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    long now = System.currentTimeMillis();
+    long maxAgeMs = 100;
+    long expirationTime = now + maxAgeMs;
+
+    table.manageSnapshots()
+        .createBranch("branch", table.currentSnapshot().snapshotId())
+        .setMaxRefAgeMs("branch", maxAgeMs)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    table.manageSnapshots()
+        .createTag("tag", table.currentSnapshot().snapshotId())
+        .commit();
+
+    waitUntilAfter(expirationTime);
+
+    table.expireSnapshots().cleanExpiredFiles(false).commit();
+
+    Assert.assertNull(table.ops().current().ref("branch"));
+    Assert.assertNotNull(table.ops().current().ref("tag"));
     Assert.assertNotNull(table.ops().current().ref(SnapshotRef.MAIN_BRANCH));
   }
 
@@ -1238,6 +1274,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
+
     table.manageSnapshots()
         .createTag("TagA", table.currentSnapshot().snapshotId())
         .commit();
@@ -1250,29 +1287,63 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   @Test
-  public void testFailRemovingSnapshotWhenStillReferenced() {
+  public void testFailRemovingSnapshotWhenStillReferencedByBranch() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
+
+    AppendFiles append = table.newAppend()
+        .appendFile(FILE_B)
+        .stageOnly();
+
+    long snapshotId = append.apply().snapshotId();
+
+    append.commit();
+
+    table.manageSnapshots()
+        .createBranch("branch", snapshotId)
+        .commit();
+
+    AssertHelpers.assertThrows(
+        "Should fail removing snapshot when it is still referenced",
+        IllegalArgumentException.class,
+        "Cannot expire 2. Still referenced by refs: [branch]",
+        () -> table.expireSnapshots().expireSnapshotId(snapshotId).commit());
+  }
+
+  @Test
+  public void testFailRemovingSnapshotWhenStillReferencedByTag() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots()
+        .createTag("tag", snapshotId)
+        .commit();
+
+    // commit another snapshot so the first one isn't referenced by main
     table.newAppend()
         .appendFile(FILE_B)
-        .stageOnly()
         .commit();
-    table.manageSnapshots().createTag("stagedB", 2).commit();
 
     AssertHelpers.assertThrows(
         "Should fail removing snapshot when it is still referenced",
           IllegalArgumentException.class,
-        "Cannot expire 2. Still referenced by refs: [stagedB]",
-        () -> table.expireSnapshots().expireSnapshotId(2).commit());
+        "Cannot expire 1. Still referenced by refs: [tag]",
+        () -> table.expireSnapshots().expireSnapshotId(snapshotId).commit());
   }
 
   @Test
-  public void testRetainStagedSnapshotsWithinExpirationAge() {
+  public void testRetainUnreferencedSnapshotsWithinExpirationAge() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
+
     long expireTimestampSnapshotA = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    waitUntilAfter(expireTimestampSnapshotA);
+
     table.newAppend()
         .appendFile(FILE_B)
         .stageOnly()
@@ -1282,7 +1353,9 @@ public class TestRemoveSnapshots extends TableTestBase {
         .appendFile(FILE_C)
         .commit();
 
-    table.expireSnapshots().expireOlderThan(expireTimestampSnapshotA).commit();
+    table.expireSnapshots()
+        .expireOlderThan(expireTimestampSnapshotA)
+        .commit();
 
     Assert.assertEquals(2, table.ops().current().snapshots().size());
   }
@@ -1292,71 +1365,92 @@ public class TestRemoveSnapshots extends TableTestBase {
   @Test
   public void testMinSnapshotsToKeepMultipleBranches() {
     table.newAppend().appendFile(FILE_A).commit();
+    long initialSnapshotId = table.currentSnapshot().snapshotId();
     table.newAppend().appendFile(FILE_B).commit();
-    table.newAppend().appendFile(FILE_C).stageOnly().commit();
-    int branchSnapshot = 3;
-    String branchName = "branchC";
+
+    // stage a snapshot and get its id
+    AppendFiles append = table.newAppend().appendFile(FILE_C).stageOnly();
+    long branchSnapshotId = append.apply().snapshotId();
+    append.commit();
+
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
     long maxSnapshotAgeMs = 1;
     long expirationTime = System.currentTimeMillis() + maxSnapshotAgeMs;
 
-    // Retain 1 snapshot on main
+    // configure main so that the initial snapshot will expire
     table.manageSnapshots()
         .setMinSnapshotsToKeep(SnapshotRef.MAIN_BRANCH, 1)
         .setMaxSnapshotAgeMs(SnapshotRef.MAIN_BRANCH, 1)
         .commit();
 
-    // Retain all snapshots on branchC
+    // retain 3 snapshots on branch (including the initial snapshot)
     table.manageSnapshots()
-        .createBranch(branchName, branchSnapshot)
-        .setMinSnapshotsToKeep(branchName, 3)
-        .setMaxSnapshotAgeMs(branchName, 1)
+        .createBranch("branch", branchSnapshotId)
+        .setMinSnapshotsToKeep("branch", 3)
+        .setMaxSnapshotAgeMs("branch", maxSnapshotAgeMs)
         .commit();
 
     waitUntilAfter(expirationTime);
     table.expireSnapshots().cleanExpiredFiles(false).commit();
 
-    Assert.assertEquals(3, table.ops().current().snapshots().size());
+    Assert.assertEquals("Should have 3 snapshots (none removed)", 3, Iterables.size(table.snapshots()));
 
-    table.manageSnapshots().setMinSnapshotsToKeep(branchName, 1).commit();
+    // stop retaining snapshots from the branch
+    table.manageSnapshots()
+        .setMinSnapshotsToKeep("branch", 1)
+        .commit();
+
     table.expireSnapshots().cleanExpiredFiles(false).commit();
 
-    Assert.assertEquals(2, table.ops().current().snapshots().size());
-    Assert.assertNull(table.ops().current().snapshot(1));
+    Assert.assertEquals("Should have 2 snapshots (initial removed)", 2, Iterables.size(table.snapshots()));
+    Assert.assertNull(table.ops().current().snapshot(initialSnapshotId));
   }
 
   @Test
   public void testMaxSnapshotAgeMultipleBranches() {
     table.newAppend().appendFile(FILE_A).commit();
-    long ageFirstSnapshot = 10;
-    long expirationTime = System.currentTimeMillis() + ageFirstSnapshot;
-    table.manageSnapshots()
-        .setMaxSnapshotAgeMs(SnapshotRef.MAIN_BRANCH, ageFirstSnapshot)
-        .setMinSnapshotsToKeep(SnapshotRef.MAIN_BRANCH, 1)
-        .commit();
-    String branchName = "branchC";
+    long initialSnapshotId = table.currentSnapshot().snapshotId();
+
+    long ageMs = 10;
+    long expirationTime = System.currentTimeMillis() + ageMs;
 
     waitUntilAfter(expirationTime);
 
     table.newAppend().appendFile(FILE_B).commit();
-    table.newAppend().appendFile(FILE_C).stageOnly().commit();
 
+    // configure main so that the initial snapshot will expire
     table.manageSnapshots()
-        .createBranch(branchName, 3)
-        .setMinSnapshotsToKeep(branchName, 1)
-        .setMaxSnapshotAgeMs(branchName, Long.MAX_VALUE)
+        .setMaxSnapshotAgeMs(SnapshotRef.MAIN_BRANCH, ageMs)
+        .setMinSnapshotsToKeep(SnapshotRef.MAIN_BRANCH, 1)
+        .commit();
+
+    // stage a snapshot and get its id
+    AppendFiles append = table.newAppend().appendFile(FILE_C).stageOnly();
+    long branchSnapshotId = append.apply().snapshotId();
+    append.commit();
+
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    // retain all snapshots on branch (including the initial snapshot)
+    table.manageSnapshots()
+        .createBranch("branch", branchSnapshotId)
+        .setMinSnapshotsToKeep("branch", 1)
+        .setMaxSnapshotAgeMs("branch", Long.MAX_VALUE)
         .commit();
 
     table.expireSnapshots().cleanExpiredFiles(false).commit();
 
-    Assert.assertEquals(3, table.ops().current().snapshots().size());
+    Assert.assertEquals("Should have 3 snapshots (none removed)", 3, Iterables.size(table.snapshots()));
 
+    // allow the initial snapshot to age off from branch
     table.manageSnapshots()
-        .setMaxSnapshotAgeMs(branchName, ageFirstSnapshot)
+        .setMaxSnapshotAgeMs("branch", ageMs)
         .commit();
 
     table.expireSnapshots().cleanExpiredFiles(false).commit();
 
-    Assert.assertEquals(2, table.ops().current().snapshots().size());
-    Assert.assertNull(table.ops().current().snapshot(1));
+    Assert.assertEquals("Should have 2 snapshots (initial removed)", 2, Iterables.size(table.snapshots()));
+    Assert.assertNull(table.ops().current().snapshot(initialSnapshotId));
   }
 }
