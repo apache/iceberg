@@ -19,8 +19,6 @@ from __future__ import annotations
 from io import BytesIO
 
 from iceberg.avro.codecs.codec import Codec
-from iceberg.avro.decoder import BinaryDecoder
-from iceberg.io.memory import MemoryInputStream
 
 try:
     from zstandard import ZstdCompressor, ZstdDecompressor
@@ -32,9 +30,7 @@ try:
             return compressed_data, len(compressed_data)
 
         @staticmethod
-        def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
-            length = readers_decoder.read_long()
-            data = readers_decoder.read(length)
+        def decompress(data: bytes) -> bytes:
             uncompressed = bytearray()
             dctx = ZstdDecompressor()
             with dctx.stream_reader(BytesIO(data)) as reader:
@@ -43,7 +39,7 @@ try:
                     if not chunk:
                         break
                     uncompressed.extend(chunk)
-            return BinaryDecoder(MemoryInputStream(uncompressed))
+            return uncompressed
 
 except ImportError as ex:
 
@@ -53,5 +49,5 @@ except ImportError as ex:
             raise ImportError("Zstandard support not installed, please install using `pip install pyiceberg[zstandard]`")
 
         @staticmethod
-        def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
+        def decompress(data: bytes) -> bytes:
             raise ImportError("Zstandard support not installed, please install using `pip install pyiceberg[zstandard]`")

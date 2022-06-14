@@ -19,8 +19,6 @@ from __future__ import annotations
 import zlib
 
 from iceberg.avro.codecs.codec import Codec
-from iceberg.avro.decoder import BinaryDecoder
-from iceberg.io.memory import MemoryInputStream
 
 
 class DeflateCodec(Codec):
@@ -32,11 +30,7 @@ class DeflateCodec(Codec):
         return compressed_data, len(compressed_data)
 
     @staticmethod
-    def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
-        # Compressed data is stored as (length, data), which
-        # corresponds to how the "bytes" type is encoded.
-        data = readers_decoder.read_bytes()
+    def decompress(data: bytes) -> bytes:
         # -15 is the log of the window size; negative indicates
         # "raw" (no zlib headers) decompression.  See zlib.h.
-        uncompressed = zlib.decompress(data, -15)
-        return BinaryDecoder(MemoryInputStream(uncompressed))
+        return zlib.decompress(data, -15)

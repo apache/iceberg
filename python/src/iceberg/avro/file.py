@@ -28,6 +28,7 @@ from iceberg.avro.codecs import KNOWN_CODECS, Codec
 from iceberg.avro.decoder import BinaryDecoder
 from iceberg.avro.reader import AvroStruct, ConstructReader, StructReader
 from iceberg.io.base import InputFile, InputStream
+from iceberg.io.memory import MemoryInputStream
 from iceberg.schema import Schema, visit
 from iceberg.types import (
     FixedType,
@@ -63,8 +64,12 @@ class AvroFileHeader:
     meta: dict[str, str]
     sync: bytes
 
-    def compression_codec(self) -> type[Codec]:
-        """Get the file's compression codec algorithm from the file's metadata."""
+    def compression_codec(self) -> type[Codec] | None:
+        """Get the file's compression codec algorithm from the file's metadata.
+
+        In the case of a null codec, we return a None indicating that we
+        don't need to compress/decompress
+        """
         codec_name = self.meta.get(_CODEC_KEY, "null")
         if codec_name not in KNOWN_CODECS:
             raise ValueError(f"Unsupported codec: {codec_name}")
@@ -145,10 +150,14 @@ class AvroFile:
             if self.is_EOF():
                 raise StopIteration
         block_records = self.decoder.read_long()
+
+        block_bytes_len = self.decoder.read_long()
+        block_bytes = self.decoder.read(block_bytes_len)
+        if codec := self.header.compression_codec():
+            block_bytes = codec.decompress(block_bytes)
+
         self.block = Block(
-            reader=self.reader,
-            block_records=block_records,
-            block_decoder=self.header.compression_codec().decompress(self.decoder),
+            reader=self.reader, block_records=block_records, block_decoder=BinaryDecoder(MemoryInputStream(block_bytes))
         )
         return block_records
 
@@ -160,8 +169,7 @@ class AvroFile:
 
         if new_block > 0:
             return self.__next__()
-        else:
-            raise StopIteration
+        raise StopIteration
 
     def _read_header(self) -> AvroFileHeader:
         self.input_stream.seek(0, SEEK_SET)

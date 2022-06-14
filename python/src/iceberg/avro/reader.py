@@ -113,17 +113,17 @@ class DateReader(Reader):
 
 class TimeReader(Reader):
     def read(self, decoder: BinaryDecoder) -> time:
-        return decoder.read_time_micros_from_long()
+        return decoder.read_time_micros()
 
 
 class TimestampReader(Reader):
     def read(self, decoder: BinaryDecoder) -> datetime:
-        return decoder.read_timestamp_micros_from_long()
+        return decoder.read_timestamp_micros()
 
 
 class TimestamptzReader(Reader):
     def read(self, decoder: BinaryDecoder) -> datetime:
-        return decoder.read_timestamptz_micros_from_long()
+        return decoder.read_timestamptz_micros()
 
 
 class StringReader(Reader):

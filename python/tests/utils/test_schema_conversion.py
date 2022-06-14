@@ -36,8 +36,8 @@ from iceberg.types import (
 from iceberg.utils.schema_conversion import AvroSchemaConversion
 
 
-def test_iceberg_to_avro(manifest_schema: Dict[str, Any]):
-    iceberg_schema = AvroSchemaConversion().avro_to_iceberg(manifest_schema)
+def test_iceberg_to_avro(avro_schema_manifest_file: Dict[str, Any]):
+    iceberg_schema = AvroSchemaConversion().avro_to_iceberg(avro_schema_manifest_file)
     expected_iceberg_schema = Schema(
         NestedField(
             field_id=500, name="manifest_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"

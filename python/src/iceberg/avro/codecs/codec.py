@@ -18,8 +18,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from iceberg.avro.decoder import BinaryDecoder
-
 
 class Codec(ABC):
     """Abstract base class for all Avro codec classes."""
@@ -31,5 +29,5 @@ class Codec(ABC):
 
     @staticmethod
     @abstractmethod
-    def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
+    def decompress(data: bytes) -> bytes:
         ...

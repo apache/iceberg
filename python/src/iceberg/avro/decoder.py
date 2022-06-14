@@ -21,11 +21,10 @@ from datetime import (
     datetime,
     time,
     timedelta,
-    timezone,
 )
 
 from iceberg.io.base import InputStream
-from iceberg.utils.datetime import micros_to_time, micros_to_timestamp
+from iceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
 from iceberg.utils.decimal import unscaled_to_decimal
 
 STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
@@ -132,10 +131,10 @@ class BinaryDecoder:
         int stores the number of days from
         the unix epoch, 1 January 1970 (ISO calendar).
         """
-        days_since_epoch = self.read_int()
-        return date(1970, 1, 1) + timedelta(days_since_epoch)
+        days_to_date = self.read_int()
+        return date(1970, 1, 1) + timedelta(days_to_date)
 
-    def read_time_millis_from_int(self) -> time:
+    def read_time_millis(self) -> time:
         """
         int is decoded as python time object which represents
         the number of milliseconds after midnight, 00:00:00.000.
@@ -143,25 +142,25 @@ class BinaryDecoder:
         millis = self.read_int()
         return micros_to_time(millis * 1000)
 
-    def read_time_micros_from_long(self) -> time:
+    def read_time_micros(self) -> time:
         """
         long is decoded as python time object which represents
         the number of microseconds after midnight, 00:00:00.000000.
         """
         return micros_to_time(self.read_long())
 
-    def read_timestamp_micros_from_long(self) -> datetime:
+    def read_timestamp_micros(self) -> datetime:
         """
         long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
         """
         return micros_to_timestamp(self.read_long())
 
-    def read_timestamptz_micros_from_long(self):
+    def read_timestamptz_micros(self):
         """
         long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
 
         Adjusted to UTC
         """
-        return micros_to_timestamp(self.read_long(), timezone.utc)
+        return micros_to_timestamptz(self.read_long())

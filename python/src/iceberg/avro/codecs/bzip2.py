@@ -17,8 +17,6 @@
 from __future__ import annotations
 
 from iceberg.avro.codecs.codec import Codec
-from iceberg.avro.decoder import BinaryDecoder
-from iceberg.io.memory import MemoryInputStream
 
 try:
     import bz2
@@ -30,11 +28,8 @@ try:
             return compressed_data, len(compressed_data)
 
         @staticmethod
-        def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
-            length = readers_decoder.read_long()
-            data = readers_decoder.read(length)
-            uncompressed = bz2.decompress(data)
-            return BinaryDecoder(MemoryInputStream(uncompressed))
+        def decompress(data: bytes) -> bytes:
+            return bz2.decompress(data)
 
 except ImportError as ex:
 
@@ -44,5 +39,5 @@ except ImportError as ex:
             raise ImportError("Python bzip2 support not installed, please install the extension")
 
         @staticmethod
-        def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
+        def decompress(data: bytes) -> bytes:
             raise ImportError("Python bzip2 support not installed, please install the extension")

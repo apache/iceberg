@@ -20,8 +20,6 @@ import binascii
 import struct
 
 from iceberg.avro.codecs.codec import Codec
-from iceberg.avro.decoder import BinaryDecoder
-from iceberg.io.memory import MemoryInputStream
 
 STRUCT_CRC32 = struct.Struct(">I")  # big-endian unsigned int
 
@@ -51,14 +49,13 @@ try:
             return compressed_data, len(compressed_data)
 
         @staticmethod
-        def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
+        def decompress(data: bytes) -> bytes:
             # Compressed data includes a 4-byte CRC32 checksum
-            length = readers_decoder.read_long()
-            data = readers_decoder.read(length - 4)
+            data = data[0:-4]
             uncompressed = snappy.decompress(data)
-            checksum = readers_decoder.read(4)
+            checksum = data[-4:]
             SnappyCodec._check_crc32(uncompressed, checksum)
-            return BinaryDecoder(MemoryInputStream(uncompressed))
+            return uncompressed
 
 except ImportError as ex:
 
@@ -68,5 +65,5 @@ except ImportError as ex:
             raise ImportError("Snappy support not installed, please install using `pip install pyiceberg[snappy]`")
 
         @staticmethod
-        def decompress(readers_decoder: BinaryDecoder) -> BinaryDecoder:
+        def decompress(data: bytes) -> bytes:
             raise ImportError("Snappy support not installed, please install using `pip install pyiceberg[snappy]`")

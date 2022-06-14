@@ -29,7 +29,7 @@ from typing import Protocol, Union, runtime_checkable
 
 
 @runtime_checkable
-class InputStream(Protocol):  # pragma: no cover
+class InputStream(Protocol):
     """A protocol for the file-like object returned by InputFile.open(...)
 
     This outlines the minimally required methods for a seekable input stream returned from an InputFile

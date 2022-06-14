@@ -24,7 +24,6 @@ from datetime import (
     datetime,
     time,
     timedelta,
-    timezone,
 )
 
 EPOCH_DATE = date.fromisoformat("1970-01-01")
@@ -59,13 +58,6 @@ def time_to_micros(time_str: str) -> int:
     return (((t.hour * 60 + t.minute) * 60) + t.second) * 1_000_000 + t.microsecond
 
 
-def time_from_micros(micros: int) -> time:
-    seconds = micros // 1_000_000
-    minutes = seconds // 60
-    hours = minutes // 60
-    return time(hour=hours, minute=minutes % 60, second=seconds % 60, microsecond=micros % 1_000_000)
-
-
 def datetime_to_micros(dt: datetime) -> int:
     """Converts a datetime to microseconds from 1970-01-01T00:00:00.000000"""
     if dt.tzinfo:
@@ -89,10 +81,16 @@ def timestamptz_to_micros(timestamptz_str: str) -> int:
     raise ValueError(f"Invalid timestamp with zone: {timestamptz_str} (must be ISO-8601)")
 
 
-def micros_to_timestamp(micros: int, tzinfo: timezone | None = None):
+def micros_to_timestamp(micros: int):
+    """Converts microseconds from epoch to a timestamp"""
     dt = timedelta(microseconds=micros)
-    unix_epoch_datetime = datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=tzinfo)
-    return unix_epoch_datetime + dt
+    return EPOCH_TIMESTAMP + dt
+
+
+def micros_to_timestamptz(micros: int):
+    """Converts microseconds from epoch to an utc timestamp"""
+    dt = timedelta(microseconds=micros)
+    return EPOCH_TIMESTAMPTZ + dt
 
 
 def to_human_day(day_ordinal: int) -> str:
@@ -102,7 +100,7 @@ def to_human_day(day_ordinal: int) -> str:
 
 def to_human_time(micros_from_midnight: int) -> str:
     """Converts a TimeType value to human string"""
-    return time_from_micros(micros_from_midnight).isoformat()
+    return micros_to_time(micros_from_midnight).isoformat()
 
 
 def to_human_timestamptz(timestamp_micros: int) -> str:
