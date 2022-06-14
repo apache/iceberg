@@ -409,7 +409,7 @@ def index_by_id(schema_or_type) -> dict[int, NestedField]:
         schema_or_type (Schema | IcebergType): A schema or type to index
 
     Returns:
-        Dict[int, NestedField]: An index of field IDs to NestedField instances
+        dict[int, NestedField]: An index of field IDs to NestedField instances
     """
     return visit(schema_or_type, _IndexById())
 
@@ -515,7 +515,7 @@ def index_by_name(schema_or_type: Schema | IcebergType) -> dict[str, int]:
         schema_or_type (Schema | IcebergType): A schema or type to index
 
     Returns:
-        Dict[str, int]: An index of field names to field IDs
+        dict[str, int]: An index of field names to field IDs
     """
     indexer = _IndexByName()
     visit(schema_or_type, indexer)
@@ -529,7 +529,7 @@ def index_name_by_id(schema_or_type: Schema | IcebergType) -> dict[int, str]:
         schema_or_type (Schema | IcebergType): A schema or type to index
 
     Returns:
-        Dict[str, int]: An index of field IDs to full names
+        dict[str, int]: An index of field IDs to full names
     """
     indexer = _IndexByName()
     visit(schema_or_type, indexer)
@@ -612,6 +612,6 @@ def build_position_accessors(schema_or_type: Schema | IcebergType) -> dict[int, 
         schema_or_type (Schema | IcebergType): A schema or type to index
 
     Returns:
-        Dict[int, Accessor]: An index of field IDs to accessors
+        dict[int, Accessor]: An index of field IDs to accessors
     """
     return visit(schema_or_type, _BuildPositionAccessors())

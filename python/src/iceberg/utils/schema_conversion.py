@@ -107,7 +107,7 @@ class AvroSchemaConversion:
             True
 
         Args:
-            avro_schema (Dict[str, Any]): The JSON decoded Avro schema
+            avro_schema (dict[str, Any]): The JSON decoded Avro schema
 
         Returns:
             Equivalent Iceberg schema

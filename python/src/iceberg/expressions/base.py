@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from enum import Enum, auto
 from functools import reduce, singledispatch
@@ -62,7 +64,7 @@ class Operation(Enum):
     AND = auto()
     OR = auto()
 
-    def negate(self) -> "Operation":
+    def negate(self) -> Operation:
         """Returns the operation used when this is negated."""
 
         try:
@@ -134,7 +136,7 @@ class BooleanExpression(metaclass=ABCMeta):
     """base class for all boolean expressions"""
 
     @abstractmethod
-    def __invert__(self) -> "BooleanExpression":
+    def __invert__(self) -> BooleanExpression:
         ...
 
 
@@ -166,7 +168,7 @@ class And(BooleanExpression):
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (isinstance(other, And) and self.left == other.left and self.right == other.right)
 
-    def __invert__(self) -> "Or":
+    def __invert__(self) -> Or:
         return Or(~self.left, ~self.right)
 
     def __repr__(self) -> str:
@@ -204,7 +206,7 @@ class Or(BooleanExpression):
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (isinstance(other, Or) and self.left == other.left and self.right == other.right)
 
-    def __invert__(self) -> "And":
+    def __invert__(self) -> And:
         return And(~self.left, ~self.right)
 
     def __repr__(self) -> str:
@@ -245,7 +247,7 @@ class Not(BooleanExpression):
 class AlwaysTrue(BooleanExpression, metaclass=Singleton):
     """TRUE expression"""
 
-    def __invert__(self) -> "AlwaysFalse":
+    def __invert__(self) -> AlwaysFalse:
         return AlwaysFalse()
 
     def __repr__(self) -> str:
@@ -258,7 +260,7 @@ class AlwaysTrue(BooleanExpression, metaclass=Singleton):
 class AlwaysFalse(BooleanExpression, metaclass=Singleton):
     """FALSE expression"""
 
-    def __invert__(self) -> "AlwaysTrue":
+    def __invert__(self) -> AlwaysTrue:
         return AlwaysTrue()
 
     def __repr__(self) -> str:

@@ -14,11 +14,11 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-
 """Helper methods for working with Python Decimals
 """
+from __future__ import annotations
+
 from decimal import Decimal
-from typing import Union
 
 
 def decimal_to_unscaled(value: Decimal) -> int:
@@ -48,7 +48,7 @@ def unscaled_to_decimal(unscaled: int, scale: int) -> Decimal:
     return Decimal((sign, digits, -scale))
 
 
-def bytes_required(value: Union[int, Decimal]) -> int:
+def bytes_required(value: int | Decimal) -> int:
     """Returns the minimum number of bytes needed to serialize a decimal or unscaled value
 
     Args:

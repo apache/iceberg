@@ -21,9 +21,9 @@ by PyArrow. It relies on PyArrow's `from_uri` method that infers the correct fil
 type to use. Theoretically, this allows the supported storage types to grow naturally
 with the pyarrow library.
 """
+from __future__ import annotations
 
 import os
-from typing import Union
 from urllib.parse import urlparse
 
 from pyarrow.fs import FileInfo, FileSystem, FileType
@@ -154,7 +154,7 @@ class PyArrowFile(InputFile, OutputFile):
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return output_file
 
-    def to_input_file(self) -> "PyArrowFile":
+    def to_input_file(self) -> PyArrowFile:
         """Returns a new PyArrowFile for the location of an existing PyArrowFile instance
 
         This method is included to abide by the OutputFile abstract base class. Since this implementation uses a single
@@ -187,7 +187,7 @@ class PyArrowFileIO(FileIO):
         """
         return PyArrowFile(location)
 
-    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
+    def delete(self, location: str | InputFile | OutputFile) -> None:
         """Delete the file at the given location
 
         Args:

@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
 
 from iceberg.schema import Schema
 from iceberg.transforms import Transform
@@ -59,9 +60,9 @@ class PartitionSpec:
 
     schema: Schema
     spec_id: int
-    fields: Tuple[PartitionField, ...]
+    fields: tuple[PartitionField, ...]
     last_assigned_field_id: int
-    source_id_to_fields_map: Dict[int, List[PartitionField]] = field(init=False, repr=False)
+    source_id_to_fields_map: dict[int, list[PartitionField]] = field(init=False, repr=False)
 
     def __post_init__(self):
         source_id_to_fields_map = dict()
@@ -101,10 +102,10 @@ class PartitionSpec:
     def is_unpartitioned(self) -> bool:
         return not self.fields
 
-    def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
+    def fields_by_source_id(self, field_id: int) -> list[PartitionField]:
         return self.source_id_to_fields_map[field_id]
 
-    def compatible_with(self, other: "PartitionSpec") -> bool:
+    def compatible_with(self, other: PartitionSpec) -> bool:
         """
         Produce a boolean to return True if two PartitionSpec are considered compatible
         """

@@ -29,9 +29,11 @@ Example:
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import ClassVar, Optional, Tuple
+from typing import ClassVar
 
 from iceberg.utils.singleton import Singleton
 
@@ -134,7 +136,7 @@ class NestedField(IcebergType):
     name: str = field()
     field_type: IcebergType = field()
     required: bool = field(default=True)
-    doc: Optional[str] = field(default=None, repr=False)
+    doc: str | None = field(default=None, repr=False)
 
     @property
     def optional(self) -> bool:
@@ -159,7 +161,7 @@ class StructType(IcebergType):
         'struct<1: required_field: optional string, 2: optional_field: optional int>'
     """
 
-    fields: Tuple[NestedField] = field()
+    fields: tuple[NestedField] = field()
 
     def __init__(self, *fields: NestedField, **kwargs):  # pylint: disable=super-init-not-called
         if not fields and "fields" in kwargs:

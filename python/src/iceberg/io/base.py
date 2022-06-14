@@ -22,9 +22,10 @@ as check if a file exists. An implementation of the FileIO abstract base class i
 for returning an InputFile instance, an OutputFile instance, and deleting a file given
 its location.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Protocol, Union, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -187,7 +188,7 @@ class FileIO(ABC):
         """
 
     @abstractmethod
-    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
+    def delete(self, location: str | InputFile | OutputFile) -> None:
         """Delete the file at the given path
 
         Args:

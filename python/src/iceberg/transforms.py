@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import base64
 import struct
 from abc import ABC, abstractmethod
 from decimal import Decimal
 from functools import singledispatchmethod
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 from uuid import UUID
 
 import mmh3  # type: ignore
@@ -67,11 +68,11 @@ class Transform(ABC, Generic[S, T]):
     def __str__(self):
         return self._transform_string
 
-    def __call__(self, value: Optional[S]) -> Optional[T]:
+    def __call__(self, value: S | None) -> T | None:
         return self.apply(value)
 
     @abstractmethod
-    def apply(self, value: Optional[S]) -> Optional[T]:
+    def apply(self, value: S | None) -> T | None:
         ...
 
     @abstractmethod
@@ -89,7 +90,7 @@ class Transform(ABC, Generic[S, T]):
     def satisfies_order_of(self, other) -> bool:
         return self == other
 
-    def to_human_string(self, value: Optional[S]) -> str:
+    def to_human_string(self, value: S | None) -> str:
         return str(value) if value is not None else "null"
 
     @property
@@ -123,7 +124,7 @@ class BaseBucketTransform(Transform[S, int]):
     def hash(self, value: S) -> int:
         raise NotImplementedError()
 
-    def apply(self, value: Optional[S]) -> Optional[int]:
+    def apply(self, value: S | None) -> int | None:
         return (self.hash(value) & IntegerType.max) % self._num_buckets if value else None
 
     def result_type(self, source: IcebergType) -> IcebergType:
@@ -248,7 +249,7 @@ class IdentityTransform(Transform[S, S]):
         )
         self._type = source_type
 
-    def apply(self, value: Optional[S]) -> Optional[S]:
+    def apply(self, value: S | None) -> S | None:
         return value
 
     def can_transform(self, source: IcebergType) -> bool:
@@ -265,11 +266,11 @@ class IdentityTransform(Transform[S, S]):
         """ordering by value is the same as long as the other preserves order"""
         return other.preserves_order
 
-    def to_human_string(self, value: Optional[S]) -> str:
+    def to_human_string(self, value: S | None) -> str:
         return self._human_string(value)
 
     @singledispatchmethod
-    def _human_string(self, value: Optional[S]) -> str:
+    def _human_string(self, value: S | None) -> str:
         return str(value) if value is not None else "null"
 
     @_human_string.register(bytes)
@@ -318,7 +319,7 @@ class UnknownTransform(Transform):
         self._type = source_type
         self._transform = transform
 
-    def apply(self, value: Optional[S]):
+    def apply(self, value: S | None):
         raise AttributeError(f"Cannot apply unsupported transform: {self}")
 
     def can_transform(self, source: IcebergType) -> bool:
@@ -341,7 +342,7 @@ class VoidTransform(Transform):
     def __init__(self):
         super().__init__("void", "transforms.always_null()")
 
-    def apply(self, value: Optional[S]) -> None:
+    def apply(self, value: S | None) -> None:
         return None
 
     def can_transform(self, _: IcebergType) -> bool:
@@ -350,7 +351,7 @@ class VoidTransform(Transform):
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
-    def to_human_string(self, value: Optional[S]) -> str:
+    def to_human_string(self, value: S | None) -> str:
         return "null"
 
 

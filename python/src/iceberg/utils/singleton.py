@@ -14,12 +14,14 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
+from __future__ import annotations
+
 from abc import ABCMeta
-from typing import ClassVar, Dict
+from typing import ClassVar
 
 
 class Singleton(ABCMeta):
-    _instances: ClassVar[Dict] = {}
+    _instances: ClassVar[dict] = {}
 
     def __call__(cls, *args, **kwargs):
         key = (cls, args, tuple(sorted(kwargs.items())))

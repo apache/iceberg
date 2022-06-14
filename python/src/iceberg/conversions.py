@@ -27,11 +27,12 @@ Note:
     implementation, a concrete function is registered for each generic conversion function. For PrimitiveType
     implementations that share the same conversion logic, registrations can be stacked.
 """
+from __future__ import annotations
+
 import uuid
 from decimal import Decimal
 from functools import singledispatch
 from struct import Struct
-from typing import Union
 
 from iceberg.types import (
     BinaryType,
@@ -90,7 +91,7 @@ def partition_to_py(primitive_type, value_str: str):
 
 @partition_to_py.register(BooleanType)
 @handle_none
-def _(primitive_type, value_str: str) -> Union[int, float, str, uuid.UUID]:
+def _(primitive_type, value_str: str) -> int | float | str | uuid.UUID:
     return value_str.lower() == "true"
 
 
@@ -145,7 +146,7 @@ def _(primitive_type, value_str: str) -> Decimal:
 
 
 @singledispatch
-def to_bytes(primitive_type: PrimitiveType, value: Union[bool, bytes, Decimal, float, int, str, uuid.UUID]) -> bytes:
+def to_bytes(primitive_type: PrimitiveType, value: bool | bytes | Decimal | float | int | str | uuid.UUID) -> bytes:
     """A generic function which converts a built-in python value to bytes
 
     This conversion follows the serialization scheme for storing single values as individual binary values defined in the Iceberg specification that
@@ -236,7 +237,7 @@ def _(primitive_type: DecimalType, value: Decimal) -> bytes:
 
 
 @singledispatch
-def from_bytes(primitive_type: PrimitiveType, b: bytes) -> Union[bool, bytes, Decimal, float, int, str, uuid.UUID]:
+def from_bytes(primitive_type: PrimitiveType, b: bytes) -> bool | bytes | Decimal | float | int | str | uuid.UUID:
     """A generic function which converts bytes to a built-in python value
 
     Args:
