@@ -316,18 +316,6 @@ public class Parquet {
       }
     }
 
-    private static Map<String, String> bloomColumnConfigMap(String prefix, Map<String, String> config) {
-      Map<String, String> columnBloomFilterConfig = Maps.newHashMap();
-      config.keySet().stream()
-          .filter(key -> key.startsWith(prefix))
-          .forEach(key -> {
-            String columnPath = key.replaceFirst(prefix, "");
-            String bloomFilterMode = config.get(key);
-            columnBloomFilterConfig.put(columnPath, bloomFilterMode);
-          });
-      return columnBloomFilterConfig;
-    }
-
     private static class Context {
       private final int rowGroupSize;
       private final int pageSize;
@@ -390,7 +378,7 @@ public class Parquet {
         Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
 
         Map<String, String> columnBloomFilterEnabled =
-            bloomColumnConfigMap(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX, config);
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
 
         return new Context(rowGroupSize, pageSize, dictionaryPageSize, codec, compressionLevel,
             rowGroupCheckMinRecordCount, rowGroupCheckMaxRecordCount, bloomFilterMaxBytes,
@@ -435,7 +423,7 @@ public class Parquet {
         Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
 
         Map<String, String> columnBloomFilterEnabled =
-            bloomColumnConfigMap(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX, config);
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
 
         return new Context(rowGroupSize, pageSize, dictionaryPageSize, codec, compressionLevel,
             rowGroupCheckMinRecordCount, rowGroupCheckMaxRecordCount, bloomFilterMaxBytes,
