@@ -360,8 +360,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     try {
       glue.createDatabase(CreateDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
-          .databaseInput(IcebergToGlueConverter.toDatabaseInput(namespace, metadata,
-              awsProperties.glueCatalogSkipNameValidation()))
+          .databaseInput(IcebergToGlueConverter.toDatabaseInput(namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
           .build());
       LOG.info("Created namespace: {}", namespace);
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
@@ -402,8 +401,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    String databaseName = IcebergToGlueConverter.toDatabaseName(namespace,
-        awsProperties.glueCatalogSkipNameValidation());
+    String databaseName = IcebergToGlueConverter.toDatabaseName(
+            namespace, awsProperties.glueCatalogSkipNameValidation());
     try {
       Database database = glue.getDatabase(GetDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
