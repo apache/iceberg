@@ -125,6 +125,16 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder tag(String tag) {
+      contextBuilder.useTag(tag);
+      return this;
+    }
+
+    public Builder branch(String branch) {
+      contextBuilder.useBranch(branch);
+      return this;
+    }
+
     public Builder startSnapshotId(Long startSnapshotId) {
       contextBuilder.startSnapshotId(startSnapshotId);
       return this;
@@ -132,6 +142,16 @@ public class FlinkSource {
 
     public Builder endSnapshotId(Long endSnapshotId) {
       contextBuilder.endSnapshotId(endSnapshotId);
+      return this;
+    }
+
+    public Builder startTag(String startTag) {
+      contextBuilder.startTag(startTag);
+      return this;
+    }
+
+    public Builder endTag(String endTag) {
+      contextBuilder.endTag(endTag);
       return this;
     }
 

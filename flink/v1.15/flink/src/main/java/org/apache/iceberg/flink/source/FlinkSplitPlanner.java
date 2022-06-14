@@ -27,6 +27,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.Scan;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -86,8 +87,22 @@ public class FlinkSplitPlanner {
       IncrementalAppendScan scan = table.newIncrementalAppendScan();
       scan = refineScanWithBaseConfigs(scan, context, workerPool);
 
+      if (context.startTag() != null) {
+        Snapshot snapshot = table.snapshot(context.startTag());
+        if (snapshot != null) {
+          scan = scan.fromSnapshotExclusive(snapshot.snapshotId());
+        }
+      }
+
       if (context.startSnapshotId() != null) {
         scan = scan.fromSnapshotExclusive(context.startSnapshotId());
+      }
+
+      if (context.endTag() != null) {
+        Snapshot snapshot = table.snapshot(context.endTag());
+        if (snapshot != null) {
+          scan = scan.toSnapshot(snapshot.snapshotId());
+        }
       }
 
       if (context.endSnapshotId() != null) {
@@ -101,6 +116,13 @@ public class FlinkSplitPlanner {
 
       if (context.snapshotId() != null) {
         scan = scan.useSnapshot(context.snapshotId());
+      } else if (context.tag() != null) {
+        Snapshot snapshot = table.snapshot(context.tag());
+        if (snapshot != null) {
+          scan = scan.useSnapshot(snapshot.snapshotId());
+        }
+      } else {
+        scan = scan.useSnapshot(table.snapshot(context.branch()).snapshotId());
       }
 
       if (context.asOfTimestamp() != null) {

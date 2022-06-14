@@ -248,4 +248,76 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     }
     result.getJobClient().ifPresent(JobClient::cancel);
   }
+
+  @Test
+  public void testConsumeFromStartTag() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+
+    // Produce two snapshots.
+    Row row1 = Row.of(1, "aaa", "2021-01-01");
+    Row row2 = Row.of(2, "bbb", "2021-01-01");
+    insertRows(table, row1);
+    insertRows(table, row2);
+
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag("t1", startSnapshotId).commit();
+
+    Row row3 = Row.of(3, "ccc", "2021-01-01");
+    Row row4 = Row.of(4, "ddd", "2021-01-01");
+    insertRows(table, row3, row4);
+
+    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', " +
+        "'start-tag'='%s')*/", TABLE, "t1");
+    try (CloseableIterator<Row> iterator = result.collect()) {
+      // The row2 in start snapshot will be excluded.
+      assertRows(ImmutableList.of(row3, row4), iterator);
+
+      Row row5 = Row.of(5, "eee", "2021-01-01");
+      Row row6 = Row.of(6, "fff", "2021-01-01");
+      insertRows(table, row5, row6);
+      assertRows(ImmutableList.of(row5, row6), iterator);
+
+      Row row7 = Row.of(7, "ggg", "2021-01-01");
+      insertRows(table, row7);
+      assertRows(ImmutableList.of(row7), iterator);
+    }
+    result.getJobClient().ifPresent(JobClient::cancel);
+  }
+
+  @Test
+  public void testConsumeFromBranch() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+
+    // Produce two snapshots.
+    Row row1 = Row.of(1, "aaa", "2021-01-01");
+    Row row2 = Row.of(2, "bbb", "2021-01-01");
+    insertRows(table, row1);
+    insertRows(table, row2);
+
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("m1", startSnapshotId);
+
+    Row row3 = Row.of(3, "ccc", "2021-01-01");
+    Row row4 = Row.of(4, "ddd", "2021-01-01");
+    insertRows(table, row3, row4);
+
+    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', " +
+        "'start-tag'='%s')*/", TABLE, "t1");
+    try (CloseableIterator<Row> iterator = result.collect()) {
+      // The row2 in start snapshot will be excluded.
+      assertRows(ImmutableList.of(row3, row4), iterator);
+
+      Row row5 = Row.of(5, "eee", "2021-01-01");
+      Row row6 = Row.of(6, "fff", "2021-01-01");
+      insertRows(table, row5, row6);
+      assertRows(ImmutableList.of(row5, row6), iterator);
+
+      Row row7 = Row.of(7, "ggg", "2021-01-01");
+      insertRows(table, row7);
+      assertRows(ImmutableList.of(row7), iterator);
+    }
+    result.getJobClient().ifPresent(JobClient::cancel);
+  }
 }

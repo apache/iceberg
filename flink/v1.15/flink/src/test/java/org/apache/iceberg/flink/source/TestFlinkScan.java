@@ -231,6 +231,65 @@ public abstract class TestFlinkScan {
   }
 
   @Test
+  public void testTagReads() throws Exception {
+    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    List<Record> expectedRecords1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecords1);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().createTag("t1", snapshotId).commit();
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("tag", "t1")),
+        expectedRecords1, TestFixtures.SCHEMA);
+
+    List<Record> expectedRecords2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecords2);
+    snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().replaceTag("t1", snapshotId).commit();
+
+    List<Record> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(expectedRecords1);
+    expectedRecords.addAll(expectedRecords2);
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("tag", "t1")),
+        expectedRecords, TestFixtures.SCHEMA);
+  }
+
+  @Test
+  public void testBranchReads() throws Exception {
+    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    List<Record> expectedRecords1 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecords1);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().createBranch("b1", snapshotId).commit();
+
+    List<Record> expectedRecords2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    helper.appendToTable(expectedRecords2);
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("branch", "b1")),
+        expectedRecords1, TestFixtures.SCHEMA);
+
+    table.manageSnapshots().fastForwardBranch("b1", "main").commit();
+
+    List<Record> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(expectedRecords1);
+    expectedRecords.addAll(expectedRecords2);
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("branch", "b1")),
+        expectedRecords, TestFixtures.SCHEMA);
+  }
+
+  @Test
   public void testIncrementalRead() throws Exception {
     Table table =
         catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);

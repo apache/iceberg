@@ -30,6 +30,7 @@ import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 
@@ -41,6 +42,12 @@ public class ScanContext implements Serializable {
 
   private static final ConfigOption<Long> SNAPSHOT_ID =
       ConfigOptions.key("snapshot-id").longType().defaultValue(null);
+
+  private static final ConfigOption<String> TAG =
+      ConfigOptions.key("tag").stringType().noDefaultValue();
+
+  private static final ConfigOption<String> BRANCH =
+      ConfigOptions.key("branch").stringType().defaultValue(SnapshotRef.MAIN_BRANCH);
 
   private static final ConfigOption<Boolean> CASE_SENSITIVE =
       ConfigOptions.key("case-sensitive").booleanType().defaultValue(false);
@@ -61,6 +68,12 @@ public class ScanContext implements Serializable {
 
   private static final ConfigOption<Long> END_SNAPSHOT_ID =
       ConfigOptions.key("end-snapshot-id").longType().defaultValue(null);
+
+  private static final ConfigOption<String> START_TAG =
+      ConfigOptions.key("start-tag").stringType().noDefaultValue();
+
+  private static final ConfigOption<String> END_TAG =
+      ConfigOptions.key("end-tag").stringType().noDefaultValue();
 
   private static final ConfigOption<Long> SPLIT_SIZE =
       ConfigOptions.key("split-size").longType().defaultValue(null);
@@ -86,11 +99,15 @@ public class ScanContext implements Serializable {
   private final boolean caseSensitive;
   private final boolean exposeLocality;
   private final Long snapshotId;
+  private final String branch;
+  private final String tag;
   private final StreamingStartingStrategy startingStrategy;
   private final Long startSnapshotId;
   private final Long startSnapshotTimestamp;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
+  private final String startTag;
+  private final String endTag;
   private final Long splitSize;
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
@@ -125,14 +142,19 @@ public class ScanContext implements Serializable {
       boolean includeColumnStats,
       boolean exposeLocality,
       Integer planParallelism,
-      int maxPlanningSnapshotCount) {
+      int maxPlanningSnapshotCount,
+      String branch, String tag, String startTag, String endTag) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
+    this.tag = tag;
+    this.branch = branch;
     this.startingStrategy = startingStrategy;
     this.startSnapshotTimestamp = startSnapshotTimestamp;
     this.startSnapshotId = startSnapshotId;
     this.endSnapshotId = endSnapshotId;
     this.asOfTimestamp = asOfTimestamp;
+    this.startTag = startTag;
+    this.endTag = endTag;
     this.splitSize = splitSize;
     this.splitLookback = splitLookback;
     this.splitOpenFileCost = splitOpenFileCost;
@@ -178,6 +200,22 @@ public class ScanContext implements Serializable {
 
   public Long snapshotId() {
     return snapshotId;
+  }
+
+  public String branch() {
+    return branch;
+  }
+
+  public String tag() {
+    return tag;
+  }
+
+  public String startTag() {
+    return startTag;
+  }
+
+  public String endTag() {
+    return endTag;
   }
 
   public StreamingStartingStrategy streamingStartingStrategy() {
@@ -256,8 +294,11 @@ public class ScanContext implements Serializable {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(null)
+        .useTag(null)
         .startSnapshotId(newStartSnapshotId)
         .endSnapshotId(newEndSnapshotId)
+        .startTag(startTag)
+        .endTag(endTag)
         .asOfTimestamp(null)
         .splitSize(splitSize)
         .splitLookback(splitLookback)
@@ -279,8 +320,11 @@ public class ScanContext implements Serializable {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(newSnapshotId)
+        .useTag(tag)
         .startSnapshotId(null)
         .endSnapshotId(null)
+        .startTag(null)
+        .endTag(null)
         .asOfTimestamp(null)
         .splitSize(splitSize)
         .splitLookback(splitLookback)
@@ -305,6 +349,10 @@ public class ScanContext implements Serializable {
   public static class Builder {
     private boolean caseSensitive = CASE_SENSITIVE.defaultValue();
     private Long snapshotId = SNAPSHOT_ID.defaultValue();
+    private String branch = BRANCH.defaultValue();
+    private String tag = TAG.defaultValue();
+    private String startTag = TAG.defaultValue();
+    private String endTag = TAG.defaultValue();
     private StreamingStartingStrategy startingStrategy = STARTING_STRATEGY.defaultValue();
     private Long startSnapshotTimestamp = START_SNAPSHOT_TIMESTAMP.defaultValue();
     private Long startSnapshotId = START_SNAPSHOT_ID.defaultValue();
@@ -332,8 +380,18 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder useTag(String newTag) {
+      this.tag = newTag;
+      return this;
+    }
+
     public Builder useSnapshotId(Long newSnapshotId) {
       this.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    public Builder useBranch(String newBranch) {
+      this.branch = newBranch;
       return this;
     }
 
@@ -354,6 +412,16 @@ public class ScanContext implements Serializable {
 
     public Builder endSnapshotId(Long newEndSnapshotId) {
       this.endSnapshotId = newEndSnapshotId;
+      return this;
+    }
+
+    public Builder startTag(String newStartTag) {
+      this.startTag = newStartTag;
+      return this;
+    }
+
+    public Builder endTag(String newEndTag) {
+      this.endTag = newEndTag;
       return this;
     }
 
@@ -432,6 +500,10 @@ public class ScanContext implements Serializable {
       properties.forEach(config::setString);
 
       return this.useSnapshotId(config.get(SNAPSHOT_ID))
+          .useTag(config.get(TAG))
+          .useBranch(config.get(BRANCH))
+          .startTag(config.get(START_TAG))
+          .endTag(config.get(END_TAG))
           .caseSensitive(config.get(CASE_SENSITIVE))
           .asOfTimestamp(config.get(AS_OF_TIMESTAMP))
           .startingStrategy(config.get(STARTING_STRATEGY))
@@ -469,7 +541,8 @@ public class ScanContext implements Serializable {
           includeColumnStats,
           exposeLocality,
           planParallelism,
-          maxPlanningSnapshotCount);
+          maxPlanningSnapshotCount,
+          branch, tag, startTag, endTag);
     }
   }
 }
