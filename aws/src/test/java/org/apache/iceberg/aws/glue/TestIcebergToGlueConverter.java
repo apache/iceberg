@@ -50,8 +50,7 @@ public class TestIcebergToGlueConverter {
 
   @Test
   public void testToDatabaseName() {
-    Assert.assertEquals("db", IcebergToGlueConverter.toDatabaseName(Namespace.of("db"),
-        false));
+    Assert.assertEquals("db", IcebergToGlueConverter.toDatabaseName(Namespace.of("db"), false));
   }
 
   @Test
@@ -100,8 +99,7 @@ public class TestIcebergToGlueConverter {
         IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description",
         IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location",
         "key", "val");
-    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties,
-        false);
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
     Assert.assertEquals("Location should be set", "s3://location", databaseInput.locationUri());
     Assert.assertEquals("Description should be set", "description", databaseInput.description());
     Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
@@ -115,8 +113,7 @@ public class TestIcebergToGlueConverter {
         .parameters(ImmutableMap.of())
         .build();
     Namespace namespace = Namespace.of("db");
-    Assert.assertEquals(input, IcebergToGlueConverter.toDatabaseInput(namespace, ImmutableMap.of(),
-        false));
+    Assert.assertEquals(input, IcebergToGlueConverter.toDatabaseInput(namespace, ImmutableMap.of(), false));
   }
 
   @Test
@@ -124,8 +121,7 @@ public class TestIcebergToGlueConverter {
     Map<String, String> properties = ImmutableMap.of(
         IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description",
         "key", "val");
-    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties,
-        false);
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
     Assert.assertNull("Location should not be set", databaseInput.locationUri());
     Assert.assertEquals("Description should be set", "description", databaseInput.description());
     Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
@@ -137,8 +133,7 @@ public class TestIcebergToGlueConverter {
     Map<String, String> properties = ImmutableMap.of(
         IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location",
         "key", "val");
-    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties,
-        false);
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
     Assert.assertEquals("Location should be set", "s3://location", databaseInput.locationUri());
     Assert.assertNull("Description should not be set", databaseInput.description());
     Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
