@@ -20,68 +20,55 @@ url: dell
  -->
 
 
-# Iceberg Dell Integrations
+# Iceberg Dell Implementation
 
-## Dell ECS Integrations
+## Dell ECS Implementation
 
-This session will show you how to use Iceberg with Dell ECS. Dell ECS provides several features that are more appropriate for Iceberg:
+Iceberg can be used with Dell's Enterprise Object Storage (ECS) by using the ECS catalog since 0.14.0.
 
-1. Append operation for file writer.
-2. CAS operation for Table commit.
-
-See [Dell ECS](https://www.dell.com/en-us/dt/storage/ecs/index.htm) for more information on Dell ECS.
+Dell ECS has many features that make Iceberg a highly compatible table format, such as append operations for file writers and content addressable storage (CAS) for table commits. See [Dell ECS](https://www.dell.com/en-us/dt/storage/ecs/index.htm) for more information on Dell ECS.
 
 ### Connection parameters
 
-When you try to connect Dell ECS with Iceberg, these connection parameters should be prepared:
+When using Dell ECS with Iceberg, these configuration parameters are required:
 
-| Name                     | Description            |
-| ------------------------ | ---------------------- |
+| Name                     | Description             |
+| ------------------------ | ----------------------- |
 | ecs.s3.endpoint          | ECS S3 service endpoint |
-| ecs.s3.access-key-id     | Username               |
-| ecs.s3.secret-access-key | S3 Secret Key          |
+| ecs.s3.access-key-id     | ECS Username            |
+| ecs.s3.secret-access-key | S3 Secret Key           |
 
-As for the catalog, you should provide a warehouse location where will store all data and metadata later.
+An ECS catalog requires that you configure a warehouse location where all data and metadata will be created.
 
 | Example                    | Description                                                     |
 | -------------------------- | --------------------------------------------------------------- |
 | ecs://bucket-a             | Use the whole bucket as the data                                |
 | ecs://bucket-a/namespace-a | Use a prefix to access the data only in this specific namespace |
 
-When you provide the `warehouse`, the last / will be ignored. The `ecs://bucket-a` is same with `ecs://bucket-a/`.
+When you provide the `warehouse`, the last `/` will be ignored. The `ecs://bucket-a` is same with `ecs://bucket-a/`.
 
-### Dependencies of runtime
+### Runtime dependencies
 
 The Iceberg `runtime` jar supports different versions of Spark and Flink. If the version was not matched in the example, please check the related document of Spark and Flink.
 
-Even though the [Dell ECS client](https://github.com/EMCECS/ecs-object-client-java) jar is backward compatible, Dell ECS still recommends using the latest version of the client.
+Even though the [Dell ECS client](https://github.com/EMCECS/ecs-object-client-java) jar is backward compatible, Dell EMC still recommends using the latest version of the client.
 
 ### Spark
 
 For example, to use the Dell ECS catalog with Spark 3.2.1, you should create a Spark session like:
 
-```sh
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:0.14.0,com.emc.ecs:object-client-bundle:3.3.2 \
-    --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.my_catalog.warehouse=ecs://bucket-a/namespace-a \
-    --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.dell.ecs.EcsCatalog \
-    --conf spark.sql.catalog.my_catalog.ecs.s3.endpoint=http://10.x.x.x:9020 \
-    --conf spark.sql.catalog.my_catalog.ecs.s3.access-key-id=test \
-    --conf spark.sql.catalog.my_catalog.ecs.s3.secret-access-key=xxxxxxxxxxxxxxxx
-```
-
 ```python
 from pyspark.sql import SparkSession
 
-spark = SparkSession.builder\
-    .config("spark.jars.packages", "org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:0.14.0,com.emc.ecs:object-client-bundle:3.3.2")\
-    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")\
-    .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")\
-    .config("spark.sql.catalog.my_catalog.warehouse", "ecs://bucket-a/namespace-a")\
-    .config("spark.sql.catalog.my_catalog.catalog-impl", "org.apache.iceberg.dell.ecs.EcsCatalog")\
-    .config("spark.sql.catalog.my_catalog.ecs.s3.endpoint", "http://10.x.x.x:9020")\
-    .config("spark.sql.catalog.my_catalog.ecs.s3.access-key-id", "test")\
-    .config("spark.sql.catalog.my_catalog.ecs.s3.secret-access-key", "xxxxxxxxxxxxxxxx")\
+spark = SparkSession.builder
+    .config("spark.jars.packages", "org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:0.14.0,com.emc.ecs:object-client-bundle:3.3.2")
+    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+    .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")
+    .config("spark.sql.catalog.my_catalog.warehouse", "ecs://bucket-a/namespace-a")
+    .config("spark.sql.catalog.my_catalog.catalog-impl", "org.apache.iceberg.dell.ecs.EcsCatalog")
+    .config("spark.sql.catalog.my_catalog.ecs.s3.endpoint", "http://10.x.x.x:9020")
+    .config("spark.sql.catalog.my_catalog.ecs.s3.access-key-id", "<Your-ecs-s3-access-key>")
+    .config("spark.sql.catalog.my_catalog.ecs.s3.secret-access-key", "<Your-ecs-s3-secret-access-key>")
     .getOrCreate()
 ```
 
@@ -94,14 +81,7 @@ The related problems of catalog usage:
 
 ### Flink
 
-For example, to use the Dell ECS catalog with Flink 1.14, you should create a Flink environment like:
-
-```sh
-wget https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/0.14.0/iceberg-flink-runtime-1.14-0.14.0.jar
-wget https://repo1.maven.org/maven2/com/emc/ecs/object-client-bundle/3.3.2/object-client-bundle-3.3.2.jar
-
-sql-client.sh embedded -j iceberg-flink-runtime-1.14-0.14.0.jar -j object-client-bundle-3.3.2.jar shell
-```
+Use the Dell ECS catalog with Flink, you first must create a Flink environment.
 
 ```python
 import requests
@@ -109,16 +89,18 @@ from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment
 
 # Set your workspace
-work_space = "/"
+work_space = "<your_work_space>"
+
+jars = {
+    "iceberg-flink-runtime-1.14-0.14.0.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/0.14.0/iceberg-flink-runtime-1.14-0.14.0.jar", 
+    "object-client-bundle-3.3.2.jar" : "https://repo1.maven.org/maven2/com/emc/ecs/object-client-bundle/3.3.2/object-client-bundle-3.3.2.jar",
+}
 
 # Download libraries
-maven_url="https://repo1.maven.org/maven2"
-with open(f"{work_space}/iceberg-flink-runtime-1.14-0.14.0.jar", "wb") as f:
-  f.write(requests.get(f"{maven_url}/org/apache/iceberg/iceberg-flink-runtime-1.14/0.14.0/iceberg-flink-runtime-1.14-0.14.0.jar").content)
-with open(f"{work_space}/object-client-bundle-3.3.2.jar", "wb") as f:
-  f.write(requests.get(f"{maven_url}/com/emc/ecs/object-client-bundle/3.3.2/object-client-bundle-3.3.2.jar").content)
+for jar, link in jars.items():
+    with open(f"{work_space}/{jar}", "wb") as f:
+      f.write(requests.get(link).content)
 
-jars = ["iceberg-flink-runtime-1.14-0.14.0.jar", "object-client-bundle-3.3.2.jar"]
 pipeline_jars = [f"file://{work_space}/{jar}" for jar in jars]
 
 # Setup Flink session
@@ -135,16 +117,16 @@ CREATE CATALOG my_catalog WITH (
     'warehouse' = 'ecs://bucket-a/namespace-a',
     'catalog-impl'='org.apache.iceberg.dell.ecs.EcsCatalog',
     'ecs.s3.endpoint' = 'http://10.x.x.x:9020',
-    'ecs.s3.access-key-id' = 'test',
-    'ecs.s3.secret-access-key' = 'xxxxxxxxxxxxxxxx')
+    'ecs.s3.access-key-id' = '<Your-ecs-s3-access-key>',
+    'ecs.s3.secret-access-key' = '<Your-ecs-s3-secret-access-key>')
 ```
 
-Then, `USE CATALOG my_catalog`, `SHOW DATABASES`, and `SHOW TABLES` to fetch the namespaces and tables of the catalog.
+Then, you can run `USE CATALOG my_catalog`, `SHOW DATABASES`, and `SHOW TABLES` to fetch the namespaces and tables of the catalog.
 
 ### Limitations
 
 When you use the catalog with Dell ECS only, you should care about these limitations:
 
-1. The rename operation is supported without other protections. When you try to rename a table, you need to guarantee all commits are finished in the original table.
-2. The rename operation only renames the table without moving any data file. The renamed table maybe store data objects in different paths even not in the warehouse that is configured in the catalog.
+1. `RENAME` statements are supported without other protections. When you try to rename a table, you need to guarantee all commits are finished in the original table.
+2. `RENAME` statements only rename the table without moving any data files. This can lead to a table's data being stored in a path outside of the configured warehouse path.
 3. The CAS operations used by table commits are based on the checksum of the object. There is a very small probability of a checksum conflict.
