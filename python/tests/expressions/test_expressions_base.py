@@ -22,7 +22,8 @@ from typing import List
 import pytest
 
 from iceberg.expressions import base
-from iceberg.types import NestedField, Singleton, StringType
+from iceberg.types import NestedField, StringType
+from iceberg.utils.singleton import Singleton
 
 
 @pytest.mark.parametrize(
@@ -63,7 +64,7 @@ def test_raise_on_no_negation_for_operation(operation):
     assert str(exc_info.value) == f"No negation defined for operation {operation}"
 
 
-class TestExpressionA(base.BooleanExpression, Singleton):
+class TestExpressionA(base.BooleanExpression, metaclass=Singleton):
     def __invert__(self):
         return TestExpressionB()
 
@@ -74,7 +75,7 @@ class TestExpressionA(base.BooleanExpression, Singleton):
         return "testexpra"
 
 
-class TestExpressionB(base.BooleanExpression, Singleton):
+class TestExpressionB(base.BooleanExpression, metaclass=Singleton):
     def __invert__(self):
         return TestExpressionA()
 

@@ -41,6 +41,8 @@ on:
     - '.gitattributes'
     - 'README.md'
     - 'CONTRIBUTING.md'
+    - 'LICENSE'
+    - 'NOTICE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

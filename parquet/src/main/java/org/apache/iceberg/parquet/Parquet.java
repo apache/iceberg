@@ -85,6 +85,7 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
@@ -281,7 +282,7 @@ public class Parquet {
             conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec,
             parquetProperties, metricsConfig, writeMode);
       } else {
-        return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
+        ParquetWriteBuilder<D> parquetWriteBuilder = new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
             .setType(type)
             .setConfig(config)
@@ -291,9 +292,17 @@ public class Parquet {
             .withWriteMode(writeMode)
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
-            .withDictionaryPageSize(dictionaryPageSize)
-            .build(),
-            metricsConfig);
+            .withDictionaryPageSize(dictionaryPageSize);
+        // Todo: The following code needs to be improved in the bloom filter write path PR.
+        for (Map.Entry<String, String> entry : config.entrySet()) {
+          String key = entry.getKey();
+          if (key.startsWith(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX)) {
+            String columnPath = key.replaceFirst(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX, "");
+            String value = entry.getValue();
+            parquetWriteBuilder.withBloomFilterEnabled(columnPath, Boolean.valueOf(value));
+          }
+        }
+        return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
     }
 

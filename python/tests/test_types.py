@@ -591,3 +591,10 @@ def test_repr_map(simple_map: MapType):
         repr(simple_map)
         == "MapType(type='map', key_id=19, key_type=StringType(), value_id=25, value_type=DoubleType(), value_required=False)"
     )
+
+
+def test_types_singleton():
+    """The types are immutable so we can return the same instance multiple times"""
+    assert id(BooleanType()) == id(BooleanType())
+    assert id(FixedType(22)) == id(FixedType(22))
+    assert id(FixedType(19)) != id(FixedType(25))

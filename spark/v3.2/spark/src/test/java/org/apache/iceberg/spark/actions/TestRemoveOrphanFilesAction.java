@@ -420,7 +420,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     long timestamp = System.currentTimeMillis();
 
-    waitUntilAfter(System.currentTimeMillis());
+    waitUntilAfter(System.currentTimeMillis() + 1000L);
 
     df.write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA/c3=AAAA");
 

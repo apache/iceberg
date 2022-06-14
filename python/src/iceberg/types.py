@@ -41,16 +41,9 @@ from typing import (
 from pydantic import Field, PrivateAttr
 
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
+from iceberg.utils.singleton import Singleton
 
-
-class Singleton:
-    _instance = None
-
-    def __new__(cls):
-        if not isinstance(cls._instance, cls):
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
+#class IcebergType(IcebergBaseModel, metaclass=Singleton):
 
 class IcebergType(IcebergBaseModel):
     """Base type for all Iceberg Types
@@ -316,8 +309,6 @@ class MapType(IcebergType):
     class Config:
         fields = {"key_field": {"exclude": True}, "value_field": {"exclude": True}}
 
-    _instances: ClassVar[Dict[Tuple[int, IcebergType, int, IcebergType, bool], "MapType"]] = {}
-
     def __init__(
         self,
         key_id: Optional[int] = None,
@@ -343,7 +334,7 @@ class MapType(IcebergType):
         return f"map<{self.key_type}, {self.value_type}>"
 
 
-class BooleanType(PrimitiveType, Singleton):
+class BooleanType(PrimitiveType):
     """A boolean data type in Iceberg can be represented using an instance of this class.
 
     Example:
@@ -357,7 +348,7 @@ class BooleanType(PrimitiveType, Singleton):
     __root__ = "boolean"
 
 
-class IntegerType(PrimitiveType, Singleton):
+class IntegerType(PrimitiveType):
     """An Integer data type in Iceberg can be represented using an instance of this class. Integers in Iceberg are
     32-bit signed and can be promoted to Longs.
 
@@ -379,7 +370,7 @@ class IntegerType(PrimitiveType, Singleton):
     __root__ = "int"
 
 
-class LongType(PrimitiveType, Singleton):
+class LongType(PrimitiveType):
     """A Long data type in Iceberg can be represented using an instance of this class. Longs in Iceberg are
     64-bit signed integers.
 
@@ -405,7 +396,7 @@ class LongType(PrimitiveType, Singleton):
     __root__ = "long"
 
 
-class FloatType(PrimitiveType, Singleton):
+class FloatType(PrimitiveType):
     """A Float data type in Iceberg can be represented using an instance of this class. Floats in Iceberg are
     32-bit IEEE 754 floating points and can be promoted to Doubles.
 
@@ -429,7 +420,7 @@ class FloatType(PrimitiveType, Singleton):
     __root__ = "float"
 
 
-class DoubleType(PrimitiveType, Singleton):
+class DoubleType(PrimitiveType):
     """A Double data type in Iceberg can be represented using an instance of this class. Doubles in Iceberg are
     64-bit IEEE 754 floating points.
 
@@ -444,7 +435,7 @@ class DoubleType(PrimitiveType, Singleton):
     __root__ = "double"
 
 
-class DateType(PrimitiveType, Singleton):
+class DateType(PrimitiveType):
     """A Date data type in Iceberg can be represented using an instance of this class. Dates in Iceberg are
     calendar dates without a timezone or time.
 
@@ -459,7 +450,7 @@ class DateType(PrimitiveType, Singleton):
     __root__ = "date"
 
 
-class TimeType(PrimitiveType, Singleton):
+class TimeType(PrimitiveType):
     """A Time data type in Iceberg can be represented using an instance of this class. Times in Iceberg
     have microsecond precision and are a time of day without a date or timezone.
 
@@ -474,7 +465,7 @@ class TimeType(PrimitiveType, Singleton):
     __root__ = "time"
 
 
-class TimestampType(PrimitiveType, Singleton):
+class TimestampType(PrimitiveType):
     """A Timestamp data type in Iceberg can be represented using an instance of this class. Timestamps in
     Iceberg have microsecond precision and include a date and a time of day without a timezone.
 
@@ -489,7 +480,7 @@ class TimestampType(PrimitiveType, Singleton):
     __root__ = "timestamp"
 
 
-class TimestamptzType(PrimitiveType, Singleton):
+class TimestamptzType(PrimitiveType):
     """A Timestamptz data type in Iceberg can be represented using an instance of this class. Timestamptzs in
     Iceberg are stored as UTC and include a date and a time of day with a timezone.
 
@@ -504,7 +495,7 @@ class TimestamptzType(PrimitiveType, Singleton):
     __root__ = "timestamptz"
 
 
-class StringType(PrimitiveType, Singleton):
+class StringType(PrimitiveType):
     """A String data type in Iceberg can be represented using an instance of this class. Strings in
     Iceberg are arbitrary-length character sequences and are encoded with UTF-8.
 
@@ -519,7 +510,7 @@ class StringType(PrimitiveType, Singleton):
     __root__ = "string"
 
 
-class UUIDType(PrimitiveType, Singleton):
+class UUIDType(PrimitiveType):
     """A UUID data type in Iceberg can be represented using an instance of this class. UUIDs in
     Iceberg are universally unique identifiers.
 
@@ -534,7 +525,7 @@ class UUIDType(PrimitiveType, Singleton):
     __root__ = "uuid"
 
 
-class BinaryType(PrimitiveType, Singleton):
+class BinaryType(PrimitiveType):
     """A Binary data type in Iceberg can be represented using an instance of this class. Binaries in
     Iceberg are arbitrary-length byte arrays.
 

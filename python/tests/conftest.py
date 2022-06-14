@@ -23,12 +23,14 @@ In the case where the fixture must be used in a pytest.mark.parametrize decorato
 and the built-in pytest fixture request should be used as an additional argument in the function. The fixture can then be
 retrieved using `request.getfixturevalue(fixture_name)`.
 """
-
-from typing import Any, Dict
+import os
+from typing import Any, Dict, Union
+from urllib.parse import ParseResult, urlparse
 
 import pytest
 
 from iceberg import schema
+from iceberg.io.base import OutputFile, OutputStream, FileIO, InputFile
 from iceberg.types import (
     BooleanType,
     DoubleType,
@@ -41,6 +43,7 @@ from iceberg.types import (
     StructType,
 )
 from tests.catalog.test_base import InMemoryCatalog
+from tests.io.test_io_base import LocalInputFile
 
 
 class FooStruct:
@@ -86,7 +89,8 @@ def table_schema_nested():
                 key_id=7,
                 key_type=StringType(),
                 value_id=8,
-                value_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
+                value_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(),
+                                   value_required=True),
                 value_required=True,
             ),
             required=True,
@@ -206,7 +210,8 @@ def manifest_schema() -> Dict[str, Any]:
                 "default": None,
                 "field-id": 507,
             },
-            {"name": "added_rows_count", "type": ["null", "long"], "doc": "Added rows count", "default": None, "field-id": 512},
+            {"name": "added_rows_count", "type": ["null", "long"], "doc": "Added rows count", "default": None,
+             "field-id": 512},
             {
                 "name": "existing_rows_count",
                 "type": ["null", "long"],
@@ -316,7 +321,8 @@ def catalog() -> InMemoryCatalog:
 @pytest.fixture(scope="session")
 def simple_struct():
     return StructType(
-        NestedField(1, "required_field", StringType(), True, "this is a doc"), NestedField(2, "optional_field", IntegerType())
+        NestedField(1, "required_field", StringType(), True, "this is a doc"),
+        NestedField(2, "optional_field", IntegerType())
     )
 
 
@@ -328,3 +334,67 @@ def simple_list():
 @pytest.fixture(scope="session")
 def simple_map():
     return MapType(key_id=19, key_type=StringType(), value_id=25, value_type=DoubleType(), value_required=False)
+
+
+class LocalOutputFile(OutputFile):
+    """An OutputFile implementation for local files (for test use only)"""
+
+    def __init__(self, location: str):
+
+        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
+            raise ValueError("LocalOutputFile location must have a scheme of `file`")
+        elif parsed_location.netloc:
+            raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
+
+        super().__init__(location=location)
+        self._parsed_location = parsed_location
+
+    @property
+    def parsed_location(self) -> ParseResult:
+        """The parsed location
+        Returns:
+            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
+            `params`, `query`, and `fragments`.
+        """
+        return self._parsed_location
+
+    def __len__(self):
+        return os.path.getsize(self.parsed_location.path)
+
+    def exists(self):
+        return os.path.exists(self.parsed_location.path)
+
+    def to_input_file(self):
+        return LocalInputFile(location=self.location)
+
+    def create(self, overwrite: bool = False) -> OutputStream:
+        output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
+        if not isinstance(output_file, OutputStream):
+            raise TypeError(
+                "Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
+        return output_file
+
+
+class LocalFileIO(FileIO):
+    """A FileIO implementation for local files (for test use only)"""
+
+    def new_input(self, location: str):
+        return LocalInputFile(location=location)
+
+    def new_output(self, location: str):
+        return LocalOutputFile(location=location)
+
+    def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
+        parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(
+            location)
+        try:
+            os.remove(parsed_location.path)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e)) from e
+
+
+@pytest.fixture(scope="session", autouse=True)
+def LocalFileIOFixture():
+    return LocalFileIO
