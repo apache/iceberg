@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -77,6 +78,18 @@ public class TestIcebergToGlueConverter {
         Namespace.of("db-1-1-1"));
     for (Namespace name : acceptableNames) {
       Assert.assertEquals(name.toString(), IcebergToGlueConverter.toDatabaseName(name, true)
+      );
+    }
+  }
+
+  @Test
+  public void testSkipTableNameValidation() {
+    List<TableIdentifier> acceptableIdentifiers = Lists.newArrayList(
+            TableIdentifier.parse("db.a-1"),
+            TableIdentifier.parse("db.a-1-1"),
+            TableIdentifier.parse("db.a#1"));
+    for (TableIdentifier identifier : acceptableIdentifiers) {
+      Assert.assertEquals(identifier.name(), IcebergToGlueConverter.getTableName(identifier, true)
       );
     }
   }
