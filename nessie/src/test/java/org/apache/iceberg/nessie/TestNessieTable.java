@@ -53,6 +53,7 @@ import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
+import org.projectnessie.model.ImmutableTableReference;
 import org.projectnessie.model.LogResponse.LogEntry;
 import org.projectnessie.model.Operation;
 
@@ -248,6 +249,17 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER)).isTrue();
     Assertions.assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isFalse();
+    verifyCommitMetadata();
+  }
+
+  @Test
+  public void testDropWithTableReference() throws NessieNotFoundException {
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder().reference(catalog.currentRefName()).name(TABLE_IDENTIFIER.name()).build();
+    TableIdentifier identifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), tableReference.toString());
+    Assertions.assertThat(catalog.tableExists(identifier)).isTrue();
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
+    Assertions.assertThat(catalog.tableExists(identifier)).isFalse();
     verifyCommitMetadata();
   }
 

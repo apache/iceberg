@@ -171,9 +171,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    TableReference tr = TableReference.parse(tableIdentifier.name());
-    Preconditions.checkArgument(!tr.hasTimestamp(), "Invalid table name: # is only allowed for hashes (reference by " +
-        "timestamp is not supported)");
+    TableReference tr = parseTableReference(tableIdentifier);
     return new NessieTableOperations(
         ContentKey.of(org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()), tr.getName()),
         client.withReference(tr.getReference(), tr.getHash()),
@@ -196,7 +194,16 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    return client.dropTable(identifier, purge);
+    TableReference tableReference = parseTableReference(identifier);
+    TableIdentifier tableIdentifier;
+    if (tableReference.hasReference()) {
+      tableIdentifier = TableIdentifier.of(identifier.namespace(), tableReference.getName());
+    } else {
+      tableIdentifier = identifier;
+    }
+
+    return client.withReference(tableReference.getReference(), tableReference.getHash())
+        .dropTable(tableIdentifier, purge);
   }
 
   @Override
@@ -264,5 +271,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   @VisibleForTesting
   FileIO fileIO() {
     return fileIO;
+  }
+
+  private TableReference parseTableReference(TableIdentifier tableIdentifier) {
+    TableReference tr = TableReference.parse(tableIdentifier.name());
+    Preconditions.checkArgument(!tr.hasTimestamp(), "Invalid table name: # is only allowed for hashes (reference by " +
+            "timestamp is not supported)");
+    return tr;
   }
 }
