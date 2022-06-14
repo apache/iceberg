@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.hive;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
@@ -41,8 +44,19 @@ public abstract class HiveMetastoreTest {
 
   @BeforeClass
   public static void startMetastore() throws Exception {
+    startMetastore(Collections.emptyMap());
+  }
+
+  public static void startMetastore(Map<String, String> hiveConfOverride) throws Exception {
     HiveMetastoreTest.metastore = new TestHiveMetastore();
-    metastore.start();
+    HiveConf hiveConf = new HiveConf(new Configuration(), TestHiveMetastore.class);
+    if (hiveConfOverride != null) {
+      for (Map.Entry<String, String> kv : hiveConfOverride.entrySet()) {
+        hiveConf.set(kv.getKey(), kv.getValue());
+      }
+    }
+
+    metastore.start(hiveConf);
     HiveMetastoreTest.hiveConf = metastore.hiveConf();
     HiveMetastoreTest.metastoreClient = new HiveMetaStoreClient(hiveConf);
     String dbPath = metastore.getDatabasePath(DB_NAME);
