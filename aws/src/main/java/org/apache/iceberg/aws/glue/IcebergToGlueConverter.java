@@ -107,13 +107,14 @@ class IcebergToGlueConverter {
    * Validate and convert Iceberg namespace to Glue database name
    *
    * @param namespace                Iceberg namespace
-   * @param shouldSkipNameValidation should skip name validation
+   * @param skipNameValidation should skip name validation
    * @return database name
    */
-  static String toDatabaseName(Namespace namespace, boolean shouldSkipNameValidation) {
-    if (!shouldSkipNameValidation) {
+  static String toDatabaseName(Namespace namespace, boolean skipNameValidation) {
+    if (!skipNameValidation) {
       validateNamespace(namespace);
     }
+
     return namespace.level(0);
   }
 
@@ -121,11 +122,11 @@ class IcebergToGlueConverter {
    * Validate and get Glue database name from Iceberg TableIdentifier
    *
    * @param tableIdentifier          Iceberg table identifier
-   * @param shouldSkipNameValidation should skip name validation
+   * @param skipNameValidation should skip name validation
    * @return database name
    */
-  static String getDatabaseName(TableIdentifier tableIdentifier, boolean shouldSkipNameValidation) {
-    return toDatabaseName(tableIdentifier.namespace(), shouldSkipNameValidation);
+  static String getDatabaseName(TableIdentifier tableIdentifier, boolean skipNameValidation) {
+    return toDatabaseName(tableIdentifier.namespace(), skipNameValidation);
   }
 
   /**
@@ -133,13 +134,12 @@ class IcebergToGlueConverter {
    *
    * @param namespace                Iceberg namespace
    * @param metadata                 metadata map
-   * @param shouldSkipNameValidation should skip name validation
+   * @param skipNameValidation should skip name validation
    * @return Glue DatabaseInput
    */
-  static DatabaseInput toDatabaseInput(Namespace namespace, Map<String, String> metadata,
-      boolean shouldSkipNameValidation) {
+  static DatabaseInput toDatabaseInput(Namespace namespace, Map<String, String> metadata, boolean skipNameValidation) {
     DatabaseInput.Builder builder = DatabaseInput.builder().name(toDatabaseName(namespace,
-        shouldSkipNameValidation));
+        skipNameValidation));
     Map<String, String> parameters = Maps.newHashMap();
     metadata.forEach((k, v) -> {
       if (GLUE_DB_DESCRIPTION_KEY.equals(k)) {
@@ -177,11 +177,16 @@ class IcebergToGlueConverter {
 
   /**
    * Validate and get Glue table name from Iceberg TableIdentifier
-   * @param tableIdentifier table identifier
+   *
+   * @param tableIdentifier    table identifier
+   * @param skipNameValidation  should skip name validation
    * @return table name
    */
-  static String getTableName(TableIdentifier tableIdentifier) {
-    validateTableName(tableIdentifier.name());
+  static String getTableName(TableIdentifier tableIdentifier, boolean skipNameValidation) {
+    if (!skipNameValidation) {
+      validateTableName(tableIdentifier.name());
+    }
+
     return tableIdentifier.name();
   }
 

@@ -105,8 +105,12 @@ public class AwsProperties implements Serializable {
 
   /**
    * If Glue should skip name validations
+   * It is recommended to stick to Glue best practice in
+   * https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html to make sure operations are Hive compatible.
+   * This is only added for services that have existing conventions using non-standard characters. When database name
+   * and table name validation is skipped, there is no guarantee that downstream systems would all support the names.
    */
-  public static final String GLUE_CATALOG_SKIP_NAME_VALIDATION = "glue.skip-archive";
+  public static final String GLUE_CATALOG_SKIP_NAME_VALIDATION = "glue.skip-name-validation";
   public static final boolean GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT = false;
 
   /**
