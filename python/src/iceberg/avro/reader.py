@@ -70,7 +70,7 @@ class AvroStruct(StructProtocol):
         return self._data[pos]
 
 
-class Reader(metaclass=Singleton):
+class Reader(Singleton):
     @abstractmethod
     def read(self, decoder: BinaryDecoder) -> Any:
         ...
