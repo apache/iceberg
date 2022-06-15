@@ -310,7 +310,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
     }
     // keep metadata
     Table fromTable = null;
-    String fromTableDbName = IcebergToGlueConverter.getDatabaseName(from, awsProperties.glueCatalogSkipNameValidation());
+    String fromTableDbName = IcebergToGlueConverter.getDatabaseName(
+            from, awsProperties.glueCatalogSkipNameValidation());
     String fromTableName = IcebergToGlueConverter.getTableName(from, awsProperties.glueCatalogSkipNameValidation());
     String toTableDbName = IcebergToGlueConverter.getDatabaseName(to, awsProperties.glueCatalogSkipNameValidation());
     String toTableName = IcebergToGlueConverter.getTableName(to, awsProperties.glueCatalogSkipNameValidation());
@@ -360,7 +361,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
     try {
       glue.createDatabase(CreateDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
-          .databaseInput(IcebergToGlueConverter.toDatabaseInput(namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
+          .databaseInput(IcebergToGlueConverter.toDatabaseInput(
+                  namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
           .build());
       LOG.info("Created namespace: {}", namespace);
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
