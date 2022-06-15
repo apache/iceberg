@@ -273,21 +273,12 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
   public void assertEquals(CreateTableRequest actual, CreateTableRequest expected) {
     Assert.assertEquals("Name should be the same", expected.name(), actual.name());
     Assert.assertEquals("Location should be the same if provided", expected.location(), actual.location());
-    Assert.assertTrue("Schemas should be equivalent", expected.schema().sameSchema(actual.schema()));
-    // schemaId is ignored in sameSchema
-    Assert.assertEquals("Schema ID should be equal", expected.schema().schemaId(), actual.schema().schemaId());
+    Assert.assertTrue("Schemas should be equivalent and have same schema id",
+        expected.schema().sameSchema(actual.schema()) && expected.schema().schemaId() == actual.schema().schemaId());
     Assert.assertEquals("Partition spec should be equal", expected.spec(), actual.spec());
     Assert.assertEquals("Write [sort] order should be the same", expected.writeOrder(), actual.writeOrder());
     Assert.assertEquals("Properties should be the same", expected.properties(), actual.properties());
     Assert.assertEquals("Stage create should be equal", expected.stageCreate(), actual.stageCreate());
-    // For printing JSON values
-    // TODO - Remove me.
-//    try {
-//      Assert.assertEquals("Objects should have same represenation via object mapper",
-//          mapper().writeValueAsString(expected), mapper().writeValueAsString(actual));
-//    } catch (JsonProcessingException e) {
-//      Assert.assertEquals("Some random stuff to suppress warnings", e.getMessage(), "fake message");
-//    }
   }
 
   @Override
