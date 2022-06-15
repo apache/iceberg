@@ -166,6 +166,7 @@ just like what is shown in the [enabling AWS integration](#enabling-aws-integrat
 More details about loading the catalog can be found in individual engine pages, such as [Spark](../spark-configuration/#loading-a-custom-catalog) and [Flink](../flink/#creating-catalogs-and-using-catalogs).
 
 #### Glue Catalog ID
+
 There is a unique Glue metastore in each AWS account and each AWS region.
 By default, `GlueCatalog` chooses the Glue metastore to use based on the user's default AWS client credential and region setup.
 You can specify the Glue catalog ID through `glue.id` catalog property to point to a Glue catalog in a different AWS account.
@@ -179,6 +180,14 @@ By default, Glue stores all the table versions created and user can rollback a t
 However, if you are streaming data to Iceberg, this will easily create a lot of Glue table versions.
 Therefore, it is recommended to turn off the archive feature in Glue by setting `glue.skip-archive` to `true`.
 For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/latest/gr/glue.html) and the [UpdateTable API](https://docs.aws.amazon.com/glue/latest/webapi/API_UpdateTable.html).
+
+#### Skip Name Validation
+
+Allow user to skip name validation for table name and namespaces.
+It is recommended to stick to Glue best practice in
+https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html to make sure operations are Hive compatible.
+This is only added for users that have existing conventions using non-standard characters. When database name
+and table name validation are skipped, there is no guarantee that downstream systems would all support the names.
 
 #### Optimistic Locking
 
