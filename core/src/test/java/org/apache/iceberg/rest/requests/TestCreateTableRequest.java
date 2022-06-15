@@ -94,9 +94,10 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
         .withName(SAMPLE_NAME)
         .withLocation(SAMPLE_LOCATION)
         .withSchema(SAMPLE_SCHEMA)
-        .setProperties(SAMPLE_PROPERTIES)
+        .setProperty("owner", "Hank")
         .withPartitionSpec(SAMPLE_SPEC)
         .withWriteOrder(SAMPLE_WRITE_ORDER)
+        .stageCreate()
         .build();
 
     assertRoundTripSerializesEquallyFrom(jsonStagedReq, req);
