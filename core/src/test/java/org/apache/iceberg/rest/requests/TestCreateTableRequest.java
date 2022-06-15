@@ -82,15 +82,24 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
 
     assertRoundTripSerializesEquallyFrom(fullJsonRaw, req);
 
-    // The same JSON but using existing parsers for clarity
-    String fullJson = String.format(
+    // The same JSON but using existing parsers for clarity and staging the request instead of committing
+    String jsonStagedReq = String.format(
         "{\"name\":\"%s\",\"location\":\"%s\",\"schema\":%s,\"spec\":%s," +
             "\"order\":%s,\"properties\":%s,\"stageCreate\":%b}",
             SAMPLE_NAME, SAMPLE_LOCATION, SchemaParser.toJson(SAMPLE_SCHEMA),
             PartitionSpecParser.toJson(SAMPLE_SPEC.toUnbound()), SortOrderParser.toJson(SAMPLE_WRITE_ORDER.toUnbound()),
-            mapper().writeValueAsString(SAMPLE_PROPERTIES), false);
+            mapper().writeValueAsString(SAMPLE_PROPERTIES), true);
 
-    assertRoundTripSerializesEquallyFrom(fullJson, req);
+    CreateTableRequest stagedReq  = CreateTableRequest.builder()
+        .withName(SAMPLE_NAME)
+        .withLocation(SAMPLE_LOCATION)
+        .withSchema(SAMPLE_SCHEMA)
+        .setProperties(SAMPLE_PROPERTIES)
+        .withPartitionSpec(SAMPLE_SPEC)
+        .withWriteOrder(SAMPLE_WRITE_ORDER)
+        .build();
+
+    assertRoundTripSerializesEquallyFrom(jsonStagedReq, req);
 
     // Partition spec and write order can be null or use PartitionSpec.unpartitioned() and SortOrder.unsorted()
     String jsonWithExplicitUnsortedUnordered = String.format(
@@ -142,12 +151,6 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
         .build();
 
     assertEquals(deserialize(jsonOnlyRequiredFieldsMissingDefaults), reqOnlyRequiredFieldsMissingDefaults);
-
-    String jsonOnlyRequiredFieldsExplicitNullLocation = String.format(
-        "{\"name\":\"%s\",\"location\":null,\"schema\":%s,\"stageCreate\":%b}", SAMPLE_NAME, SAMPLE_SCHEMA_JSON, false);
-
-    assertEquals(
-        deserialize(jsonOnlyRequiredFieldsExplicitNullLocation), reqOnlyRequiredFieldsMissingDefaults);
   }
 
   @Test
@@ -246,8 +249,8 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
     AssertHelpers.assertThrows(
         "The builder should not allow using null as a key when setting a single property",
         IllegalArgumentException.class,
-        "Invalid value for properties [a]: null",
-        () -> CreateTableRequest.builder().setProperties(mapWithNullValue).build()
+        "Invalid property: null",
+        () -> CreateTableRequest.builder().setProperty(null, "foo")
     );
   }
 
