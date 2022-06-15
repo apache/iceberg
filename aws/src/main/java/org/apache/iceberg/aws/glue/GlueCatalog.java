@@ -277,7 +277,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
       glue.deleteTable(DeleteTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
           .databaseName(IcebergToGlueConverter.getDatabaseName(
-                  identifier, awsProperties.glueCatalogSkipNameValidation()))
+              identifier, awsProperties.glueCatalogSkipNameValidation()))
           .name(identifier.name())
           .build());
       LOG.info("Successfully dropped table {} from Glue", identifier);
@@ -362,7 +362,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
       glue.createDatabase(CreateDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
           .databaseInput(IcebergToGlueConverter.toDatabaseInput(
-                  namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
+              namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
           .build());
       LOG.info("Created namespace: {}", namespace);
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
@@ -404,7 +404,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
     String databaseName = IcebergToGlueConverter.toDatabaseName(
-            namespace, awsProperties.glueCatalogSkipNameValidation());
+        namespace, awsProperties.glueCatalogSkipNameValidation());
     try {
       Database database = glue.getDatabase(GetDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
@@ -470,7 +470,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         .catalogId(awsProperties.glueCatalogId())
         .name(IcebergToGlueConverter.toDatabaseName(namespace, awsProperties.glueCatalogSkipNameValidation()))
         .databaseInput(IcebergToGlueConverter.toDatabaseInput(
-                namespace, newProperties, awsProperties.glueCatalogSkipNameValidation()))
+            namespace, newProperties, awsProperties.glueCatalogSkipNameValidation()))
         .build());
     LOG.debug("Successfully set properties {} for {}", properties.keySet(), namespace);
     // Always successful, otherwise exception is thrown
@@ -488,7 +488,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         .catalogId(awsProperties.glueCatalogId())
         .name(IcebergToGlueConverter.toDatabaseName(namespace, awsProperties.glueCatalogSkipNameValidation()))
         .databaseInput(IcebergToGlueConverter.toDatabaseInput(
-                namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
+            namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
         .build());
     LOG.debug("Successfully removed properties {} from {}", properties, namespace);
     // Always successful, otherwise exception is thrown
