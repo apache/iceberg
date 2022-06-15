@@ -43,7 +43,9 @@ from pydantic import Field, PrivateAttr
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
 from iceberg.utils.singleton import Singleton
 
-#class IcebergType(IcebergBaseModel, metaclass=Singleton):
+DECIMAL_REGEX = re.compile(r"decimal\((\d+),\s*(\d+)\)")
+FIXED_REGEX = re.compile(r"fixed\[(\d+)\]")
+
 
 class IcebergType(IcebergBaseModel):
     """Base type for all Iceberg Types
@@ -71,18 +73,12 @@ class IcebergType(IcebergBaseModel):
 
         if isinstance(v, str):
             if v.startswith("decimal"):
-                m = re.search(r"decimal\((\d+),\s*(\d+)\)", v)
-                precision = int(m.group(1))
-                scale = int(m.group(2))
-                return DecimalType(precision, scale)
+                return DecimalType.parse(v)
             elif v.startswith("fixed"):
-                m = re.search(r"fixed\[(\d+)\]", v)
-                length = int(m.group(1))
-                return FixedType(length)
+                return FixedType.parse(v)
             else:
                 return PRIMITIVE_TYPES[v]
-
-        if isinstance(v, dict):
+        elif isinstance(v, dict):
             if v.get("type") == "struct":
                 return StructType(**v)
             elif v.get("type") == "list":
@@ -91,8 +87,8 @@ class IcebergType(IcebergBaseModel):
                 return MapType(**v)
             else:
                 return NestedField(**v)
-
-        return v
+        else:
+            return v
 
     @property
     def is_primitive(self) -> bool:
@@ -125,6 +121,12 @@ class FixedType(PrimitiveType):
     __root__: str = Field()
     _length: int = PrivateAttr()
 
+    @staticmethod
+    def parse(str_repr: str) -> "FixedType":
+        m = FIXED_REGEX.search(str_repr)
+        length = int(m.group(1))
+        return FixedType(length)
+
     def __init__(self, length: int):
         super().__init__(__root__=f"fixed[{length}]")
         self._length = length
@@ -151,6 +153,13 @@ class DecimalType(PrimitiveType):
     _precision: int = PrivateAttr()
     _scale: int = PrivateAttr()
 
+    @staticmethod
+    def parse(str_repr: str) -> "DecimalType":
+        m = DECIMAL_REGEX.search(str_repr)
+        precision = int(m.group(1))
+        scale = int(m.group(2))
+        return DecimalType(precision, scale)
+
     def __init__(self, precision: int, scale: int):
         super().__init__(
             __root__=f"decimal({precision}, {scale})",
@@ -172,6 +181,7 @@ class DecimalType(PrimitiveType):
 
 class NestedField(IcebergType):
     """Represents a field of a struct, a map key, a map value, or a list element.
+
     This is where field IDs, names, docs, and nullability are tracked.
     Example:
         >>> str(NestedField(
@@ -198,13 +208,13 @@ class NestedField(IcebergType):
     doc: Optional[str] = Field(default=None, repr=False)
 
     def __init__(
-        self,
-        field_id: Optional[int] = None,
-        name: Optional[str] = None,
-        field_type: Optional[IcebergType] = None,
-        required: bool = True,
-        doc: Optional[str] = None,
-        **data,
+            self,
+            field_id: Optional[int] = None,
+            name: Optional[str] = None,
+            field_type: Optional[IcebergType] = None,
+            required: bool = True,
+            doc: Optional[str] = None,
+            **data,
     ):
         # We need an init when we want to use positional arguments, but
         # need also to support the aliases.
@@ -272,7 +282,8 @@ class ListType(IcebergType):
     _instances: ClassVar[Dict[Tuple[bool, int, IcebergType], "ListType"]] = {}
 
     def __init__(
-        self, element_id: Optional[int] = None, element: Optional[IcebergType] = None, element_required: bool = True, **data
+            self, element_id: Optional[int] = None, element: Optional[IcebergType] = None,
+            element_required: bool = True, **data
     ):
         data["element_id"] = data["element-id"] if "element-id" in data else element_id
         data["element_type"] = element or data["element_type"]
@@ -310,13 +321,13 @@ class MapType(IcebergType):
         fields = {"key_field": {"exclude": True}, "value_field": {"exclude": True}}
 
     def __init__(
-        self,
-        key_id: Optional[int] = None,
-        key_type: Optional[IcebergType] = None,
-        value_id: Optional[int] = None,
-        value_type: Optional[IcebergType] = None,
-        value_required: bool = True,
-        **data,
+            self,
+            key_id: Optional[int] = None,
+            key_type: Optional[IcebergType] = None,
+            value_id: Optional[int] = None,
+            value_type: Optional[IcebergType] = None,
+            value_required: bool = True,
+            **data,
     ):
         data["key_id"] = key_id or data["key-id"]
         data["key_type"] = key_type or data["key"]

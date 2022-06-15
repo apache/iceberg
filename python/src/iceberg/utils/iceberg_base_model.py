@@ -14,11 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import ClassVar, Dict
 
 from pydantic import BaseModel
 
 
 class IcebergBaseModel(BaseModel):
+    _instances: ClassVar[Dict] = {}
+
+    def __call__(cls, *args, **kwargs):
+        key = (cls, args, tuple(sorted(kwargs.items())))
+        if key not in cls._instances:
+            cls._instances[key] = super().__call__(*args, **kwargs)
+        return cls._instances[key]
+
     class Config:
         allow_population_by_field_name = True
 

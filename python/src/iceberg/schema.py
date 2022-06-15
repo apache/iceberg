@@ -73,11 +73,11 @@ class Schema(IcebergBaseModel):
         self._name_to_id = index_by_name(self)
 
     def __str__(self):
-        return "table {\n" + "\n".join(["  " + str(field) for field in self.columns]) + "\n}"
+        return "table {\n" + "\n".join(["  " + str(field) for field in self.fields]) + "\n}"
 
     def __repr__(self):
         return (
-            f"Schema(fields={repr(self.columns)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
+            f"Schema(fields={repr(self.fields)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
         )
 
     def __eq__(self, other) -> bool:
@@ -87,18 +87,13 @@ class Schema(IcebergBaseModel):
         if not isinstance(other, Schema):
             return False
 
-        if len(self.columns) != len(other.columns):
+        if len(self.fields) != len(other.fields):
             return False
 
         identifier_field_ids_is_equal = self.identifier_field_ids == other.identifier_field_ids
-        schema_is_equal = all([lhs == rhs for lhs, rhs in zip(self.columns, other.columns)])
+        schema_is_equal = all([lhs == rhs for lhs, rhs in zip(self.fields, other.fields)])
 
         return identifier_field_ids_is_equal and schema_is_equal
-
-    @property
-    def columns(self) -> tuple[NestedField, ...]:
-        """A list of the top-level fields in the underlying struct"""
-        return self.fields
 
     def _lazy_id_to_field(self) -> dict[int, NestedField]:
         """Returns an index of field ID to NestedField instance
@@ -135,10 +130,6 @@ class Schema(IcebergBaseModel):
         if not self._id_to_accessor:
             self._id_to_accessor = build_position_accessors(self)
         return self._id_to_accessor
-
-    def as_struct(self) -> StructType:
-        """Returns the underlying struct"""
-        return StructType(*self.fields)
 
     def find_field(self, name_or_id: str | int, case_sensitive: bool = True) -> NestedField:
         """Find a field using a field name or field ID
@@ -195,14 +186,14 @@ class Schema(IcebergBaseModel):
         return self._lazy_id_to_accessor().get(field_id)  # type: ignore
 
     def select(self, names: list[str], case_sensitive: bool = True) -> Schema:
-        """Return a new schema instance pruned to a subset of columns
+        """Return a new schema instance pruned to a subset of fields
 
         Args:
             names (List[str]): A list of column names
             case_sensitive (bool, optional): Whether to perform a case-sensitive lookup for each column name. Defaults to True.
 
         Returns:
-            Schema: A new schema with pruned columns
+            Schema: A new schema with pruned fields
         """
         if case_sensitive:
             return self._case_sensitive_select(schema=self, names=names)
@@ -487,7 +478,8 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
             full_name = ".".join([".".join(self._field_names), name])
 
         if full_name in self._index:
-            raise ValueError(f"Invalid schema, multiple fields for name {full_name}: {self._index[full_name]} and {field_id}")
+            raise ValueError(
+                f"Invalid schema, multiple fields for name {full_name}: {self._index[full_name]} and {field_id}")
         self._index[full_name] = field_id
 
         if self._short_field_names:
@@ -601,7 +593,7 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
         return {}
 
     def map(
-        self, map_type: MapType, key_result: dict[Position, Accessor], value_result: dict[Position, Accessor]
+            self, map_type: MapType, key_result: dict[Position, Accessor], value_result: dict[Position, Accessor]
     ) -> dict[Position, Accessor]:
         return {}
 

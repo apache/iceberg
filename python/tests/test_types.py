@@ -523,8 +523,7 @@ def test_deserialization_struct():
                 "id": 2,
                 "name": "optional_field",
                 "type": "int",
-                "required": true,
-                "doc": null
+                "required": true
             }
         ]
     }

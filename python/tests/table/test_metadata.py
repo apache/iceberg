@@ -19,6 +19,7 @@ import io
 import json
 import os
 import tempfile
+from uuid import UUID
 
 import pytest
 
@@ -29,7 +30,7 @@ from iceberg.types import NestedField, StringType
 
 EXAMPLE_TABLE_METADATA_V1 = {
     "format-version": 1,
-    "table-uuid": "foo-table-uuid",
+    "table-uuid": UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0"),
     "location": "s3://foo/bar/baz.metadata.json",
     "last-updated-ms": 1600000000000,
     "last-column-id": 4,
@@ -97,7 +98,7 @@ EXAMPLE_TABLE_METADATA_V1 = {
 }
 EXAMPLE_TABLE_METADATA_V2 = {
     "format-version": 2,
-    "table-uuid": "foo-table-uuid",
+    "table-uuid": "aefee669-d568-4f9c-b732-3c0cfd3bc7b0",
     "location": "s3://foo/bar/baz.metadata.json",
     "last-updated-ms": 1600000000000,
     "last-column-id": 4,
@@ -231,7 +232,7 @@ def test_v2_metadata_parsing():
     table_metadata = TableMetadata.parse_obj(EXAMPLE_TABLE_METADATA_V2)
 
     assert table_metadata.format_version == 2
-    assert table_metadata.table_uuid == "foo-table-uuid"
+    assert table_metadata.table_uuid == UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0")
     assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
     assert table_metadata.last_sequence_number == 1
     assert table_metadata.last_updated_ms == 1600000000000
@@ -255,7 +256,7 @@ def test_v1_metadata_parsing_directly():
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
 
     assert table_metadata.format_version == 1
-    assert table_metadata.table_uuid == "foo-table-uuid"
+    assert table_metadata.table_uuid == UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0")
     assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
     assert table_metadata.last_updated_ms == 1600000000000
     assert table_metadata.last_column_id == 4
@@ -277,7 +278,7 @@ def test_v2_metadata_parsing_directly():
     table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
 
     assert table_metadata.format_version == 2
-    assert table_metadata.table_uuid == "foo-table-uuid"
+    assert table_metadata.table_uuid == UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0")
     assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
     assert table_metadata.last_sequence_number == 1
     assert table_metadata.last_updated_ms == 1600000000000

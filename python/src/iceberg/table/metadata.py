@@ -16,6 +16,7 @@
 # under the License.
 
 from typing import List, Literal, Union
+from uuid import UUID
 
 from pydantic import Field
 
@@ -27,7 +28,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
-    table_uuid: str = Field(alias="table-uuid")
+    table_uuid: UUID = Field(alias="table-uuid")
     """A UUID that identifies the table, generated when the table is created.
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
@@ -43,7 +44,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
     last_column_id: int = Field(alias="last-column-id")
     """An integer; the highest assigned column ID for the table.
-    This is used to ensure columns are always assigned an unused ID
+    This is used to ensure fields are always assigned an unused ID
     when evolving schemas."""
 
     schemas: List[Schema] = Field()

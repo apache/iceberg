@@ -234,7 +234,7 @@ def test_schema_find_field_by_id(table_schema_simple):
 
 
 def test_schema_find_field_by_id_raise_on_unknown_field(table_schema_simple):
-    """Test raising when the field ID is not found among columns"""
+    """Test raising when the field ID is not found among fields"""
     index = schema.index_by_id(table_schema_simple)
     with pytest.raises(Exception) as exc_info:
         _ = index[4]
@@ -242,7 +242,7 @@ def test_schema_find_field_by_id_raise_on_unknown_field(table_schema_simple):
 
 
 def test_schema_find_field_type_by_id(table_schema_simple):
-    """Test retrieving a columns' type using its field ID"""
+    """Test retrieving a fields' type using its field ID"""
     index = schema.index_by_id(table_schema_simple)
     assert index[1] == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     assert index[2] == NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True)

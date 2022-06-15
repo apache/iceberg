@@ -158,7 +158,7 @@ class InMemoryCatalog(Catalog):
 TEST_TABLE_IDENTIFIER = ("com", "organization", "department", "my_table")
 TEST_TABLE_NAMESPACE = ("com", "organization", "department")
 TEST_TABLE_NAME = "my_table"
-TEST_TABLE_SCHEMA = Schema(NestedField(1, "foo", StringType(), True), schema_id=1)
+TEST_TABLE_SCHEMA = Schema(schema_id=1)
 TEST_TABLE_LOCATION = "protocol://some/location"
 TEST_TABLE_PARTITION_SPEC = PartitionSpec()
 TEST_TABLE_PROPERTIES = {"key1": "value1", "key2": "value2"}
