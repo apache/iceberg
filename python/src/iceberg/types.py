@@ -41,13 +41,18 @@ from typing import (
 from pydantic import Field, PrivateAttr
 
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
+from abc import ABC
+from dataclasses import dataclass, field
+from functools import cached_property
+from typing import ClassVar, Optional, Tuple
+
 from iceberg.utils.singleton import Singleton
 
 DECIMAL_REGEX = re.compile(r"decimal\((\d+),\s*(\d+)\)")
 FIXED_REGEX = re.compile(r"fixed\[(\d+)\]")
 
 
-class IcebergType(IcebergBaseModel):
+class IcebergType(IcebergBaseModel, Singleton):
     """Base type for all Iceberg Types
 
     Example:

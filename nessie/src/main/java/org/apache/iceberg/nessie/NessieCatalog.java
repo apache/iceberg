@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.nessie;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +37,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -69,6 +71,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private String name;
   private FileIO fileIO;
   private Map<String, String> catalogOptions;
+  private CloseableGroup closeableGroup;
 
   public NessieCatalog() {
   }
@@ -107,6 +110,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     this.fileIO = Preconditions.checkNotNull(fileIO, "fileIO must be non-null");
     this.catalogOptions = Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null");
     this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(client);
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
@@ -151,8 +158,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   @Override
-  public void close() {
-    client.close();
+  public void close() throws IOException {
+    if (null != closeableGroup) {
+      closeableGroup.close();
+    }
   }
 
   @Override

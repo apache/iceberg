@@ -14,15 +14,15 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-from abc import ABCMeta
+
 from typing import ClassVar, Dict
 
 
-class Singleton(ABCMeta):
+class Singleton:
     _instances: ClassVar[Dict] = {}
 
-    def __call__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
         key = (cls, args, tuple(sorted(kwargs.items())))
         if key not in cls._instances:
-            cls._instances[key] = super().__call__(*args, **kwargs)
+            cls._instances[key] = super().__new__(cls)
         return cls._instances[key]
