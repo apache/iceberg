@@ -225,8 +225,8 @@ class AddFilesProcedure extends BaseProcedure {
       // Check to see there are sufficient partition columns to satisfy the filter
       Preconditions.checkArgument(partitionFields.size() >= partitionFilter.size(),
           "Cannot add data files to target table %s because that table is partitioned, " +
-              "but the number of columns in the provided partition filter (%d) " +
-              "is greater than the number of partitioned columns in table (%d)",
+              "but the number of columns in the provided partition filter (%s) " +
+              "is greater than the number of partitioned columns in table (%s)",
           table.name(), partitionFilter.size(), partitionFields.size());
 
       // Check for any filters of non existent columns
