@@ -77,8 +77,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                       FileIO fileIO, TableIdentifier tableIdentifier) {
     this.glue = glue;
     this.awsProperties = awsProperties;
-    this.databaseName = IcebergToGlueConverter.getDatabaseName(tableIdentifier);
-    this.tableName = IcebergToGlueConverter.getTableName(tableIdentifier);
+    this.databaseName = IcebergToGlueConverter.getDatabaseName(
+        tableIdentifier, awsProperties.glueCatalogSkipNameValidation());
+    this.tableName = IcebergToGlueConverter.getTableName(
+        tableIdentifier, awsProperties.glueCatalogSkipNameValidation());
     this.fullTableName = String.format("%s.%s.%s", catalogName, databaseName, tableName);
     this.commitLockEntityId = String.format("%s.%s", databaseName, tableName);
     this.fileIO = fileIO;
