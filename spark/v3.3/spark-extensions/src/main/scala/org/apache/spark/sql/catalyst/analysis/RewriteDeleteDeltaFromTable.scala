@@ -25,12 +25,7 @@ import org.apache.spark.sql.catalyst.expressions.EqualNullSafe
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Not
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.Filter
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.Project
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.{DeleteFromIcebergTable, Filter, LogicalPlan, Project, ReplaceData, ReplaceIcebergData, WriteDelta}
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
@@ -73,7 +68,7 @@ object RewriteDeleteDeltaFromTable extends RewriteRowLevelDeltaCommand with Rewr
   private def buildReplaceDataPlan(
       relation: DataSourceV2Relation,
       operationTable: RowLevelOperationTable,
-      cond: Expression): ReplaceData = {
+      cond: Expression): ReplaceIcebergData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
@@ -89,7 +84,7 @@ object RewriteDeleteDeltaFromTable extends RewriteRowLevelDeltaCommand with Rewr
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, cond, remainingRowsPlan, relation)
+    ReplaceIcebergData(writeRelation, remainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support row deltas

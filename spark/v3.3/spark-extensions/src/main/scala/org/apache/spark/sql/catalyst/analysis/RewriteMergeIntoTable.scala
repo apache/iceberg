@@ -51,6 +51,7 @@ import org.apache.spark.sql.catalyst.plans.logical.NO_BROADCAST_HASH
 import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
@@ -172,7 +173,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelDeltaCommand with RewriteRow
       source: LogicalPlan,
       cond: Expression,
       matchedActions: Seq[MergeAction],
-      notMatchedActions: Seq[MergeAction]): ReplaceData = {
+      notMatchedActions: Seq[MergeAction]): ReplaceIcebergData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
@@ -228,7 +229,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelDeltaCommand with RewriteRow
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, cond, mergeRows, relation)
+    ReplaceIcebergData(writeRelation, mergeRows, relation)
   }
 
   // build a rewrite plan for sources that support row deltas

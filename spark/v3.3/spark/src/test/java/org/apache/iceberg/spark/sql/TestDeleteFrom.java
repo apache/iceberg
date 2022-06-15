@@ -32,6 +32,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -94,6 +95,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
   @Test
   public void testDeleteFromPartitionedTable() throws NoSuchTableException {
+    Assertions.setMaxStackTraceElementsDisplayed(10000000);
     sql("CREATE TABLE %s (id bigint, data string) " +
         "USING iceberg " +
         "PARTITIONED BY (truncate(id, 2))", tableName);

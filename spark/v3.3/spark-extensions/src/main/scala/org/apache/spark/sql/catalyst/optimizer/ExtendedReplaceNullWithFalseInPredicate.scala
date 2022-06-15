@@ -51,7 +51,12 @@ import org.apache.spark.util.Utils
  */
 object ExtendedReplaceNullWithFalseInPredicate extends Rule[LogicalPlan] {
 
-  def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
+  override def apply(plan: LogicalPlan): LogicalPlan = {
+    println("ExtendedReplaceNullWithFalseInPredicate : plan -", plan)
+    applyX(plan)
+  }
+
+  def applyX(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
     _.containsAnyPattern(NULL_LITERAL, TRUE_OR_FALSE_LITERAL, INSET)) {
 
     case d @ DeleteFromIcebergTable(_, Some(cond), _) =>

@@ -20,11 +20,7 @@
 package org.apache.spark.sql.catalyst.planning
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
-import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, ReplaceData, ReplaceIcebergData, RowLevelCommand, UpdateIcebergTable, WriteDelta}
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
@@ -41,7 +37,12 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 object RewrittenRowLevelCommand {
   type ReturnType = (RowLevelCommand, LogicalPlan, LogicalPlan)
 
-  def unapply(plan: LogicalPlan): Option[ReturnType] = plan match {
+  def unapply(plan: LogicalPlan): Option[ReturnType] = {
+    println("Iceberg plans RewrittenRowLevelCommand :", plan)
+    unapplyX(plan)
+  }
+
+  def unapplyX(plan: LogicalPlan): Option[ReturnType] = plan match {
     case c: RowLevelCommand if c.rewritePlan.nonEmpty =>
       val rewritePlan = c.rewritePlan.get
 
@@ -52,12 +53,12 @@ object RewrittenRowLevelCommand {
 
       val allowScanDuplication = c match {
         // group-based updates that rely on the union approach may have multiple identical scans
-        case _: UpdateIcebergTable if rewritePlan.isInstanceOf[ReplaceData] => true
+        case _: UpdateIcebergTable if rewritePlan.isInstanceOf[ReplaceIcebergData] => true
         case _ => false
       }
 
       rewritePlan match {
-        case rd @ ReplaceData(DataSourceV2Relation(table, _, _, _, _), _, query, _, _) =>
+        case rd @ ReplaceIcebergData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
           val readRelation = findReadRelation(table, query, allowScanDuplication)
           readRelation.map((c, _, rd))
         case wd @ WriteDelta(DataSourceV2Relation(table, _, _, _, _), query, _, _, _) =>

@@ -27,6 +27,11 @@ import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 object AlignedRowLevelIcebergCommandCheck extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
+    println("AlignedRowLevelIcebergCommandCheck : plan", plan)
+    applyX(plan)
+  }
+
+  def applyX(plan: LogicalPlan): Unit = {
     plan foreach {
       case m: MergeIntoIcebergTable if !m.aligned =>
         throw new AnalysisException(s"Could not align Iceberg MERGE INTO: $m")

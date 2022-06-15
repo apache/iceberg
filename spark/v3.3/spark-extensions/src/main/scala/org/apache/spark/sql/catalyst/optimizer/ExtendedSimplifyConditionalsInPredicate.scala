@@ -29,6 +29,7 @@ import org.apache.spark.sql.catalyst.expressions.Literal.FalseLiteral
 import org.apache.spark.sql.catalyst.expressions.Literal.TrueLiteral
 import org.apache.spark.sql.catalyst.expressions.Not
 import org.apache.spark.sql.catalyst.expressions.Or
+import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate.applyX
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.CASE_WHEN
@@ -40,7 +41,12 @@ import org.apache.spark.sql.types.BooleanType
  */
 object ExtendedSimplifyConditionalsInPredicate extends Rule[LogicalPlan] {
 
-  def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
+  override def apply(plan: LogicalPlan): LogicalPlan = {
+    println("ExtendedSimplifyConditionalsInPredicate : plan -", plan)
+    applyX(plan)
+  }
+
+  def applyX(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
     _.containsAnyPattern(CASE_WHEN, IF)) {
 
     case d @ DeleteFromIcebergTable(_, Some(cond), _) =>

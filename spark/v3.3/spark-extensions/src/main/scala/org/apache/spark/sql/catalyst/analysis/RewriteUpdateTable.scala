@@ -27,14 +27,7 @@ import org.apache.spark.sql.catalyst.expressions.If
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Not
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
-import org.apache.spark.sql.catalyst.plans.logical.Assignment
-import org.apache.spark.sql.catalyst.plans.logical.Filter
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.Project
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.Union
-import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.{Assignment, Filter, LogicalPlan, Project, ReplaceData, ReplaceIcebergData, Union, UpdateIcebergTable, WriteDelta}
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
@@ -80,7 +73,7 @@ object RewriteUpdateTable extends RewriteRowLevelDeltaCommand with RewriteRowLev
       relation: DataSourceV2Relation,
       operationTable: RowLevelOperationTable,
       assignments: Seq[Assignment],
-      cond: Expression): ReplaceData = {
+      cond: Expression): ReplaceIcebergData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
@@ -93,7 +86,7 @@ object RewriteUpdateTable extends RewriteRowLevelDeltaCommand with RewriteRowLev
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, cond, updatedAndRemainingRowsPlan, relation)
+    ReplaceIcebergData(writeRelation, updatedAndRemainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
@@ -102,7 +95,7 @@ object RewriteUpdateTable extends RewriteRowLevelDeltaCommand with RewriteRowLev
       relation: DataSourceV2Relation,
       operationTable: RowLevelOperationTable,
       assignments: Seq[Assignment],
-      cond: Expression): ReplaceData = {
+      cond: Expression): ReplaceIcebergData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
@@ -125,7 +118,7 @@ object RewriteUpdateTable extends RewriteRowLevelDeltaCommand with RewriteRowLev
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, cond, updatedAndRemainingRowsPlan, relation)
+    ReplaceIcebergData(writeRelation, updatedAndRemainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support row deltas
