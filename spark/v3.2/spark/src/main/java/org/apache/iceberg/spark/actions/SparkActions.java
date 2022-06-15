@@ -72,8 +72,8 @@ public class SparkActions implements ActionsProvider {
   }
 
   @Override
-  public RewriteDataFiles rewriteDataFiles(Table table) {
-    return new BaseRewriteDataFilesSparkAction(spark, table);
+  public RewriteDataFiles rewriteDataFiles(Table table, String fullIdentifier) {
+    return new BaseRewriteDataFilesSparkAction(spark, table, fullIdentifier);
   }
 
   @Override

@@ -38,12 +38,14 @@ import org.apache.spark.sql.internal.SQLConf;
 
 public class SparkBinPackStrategy extends BinPackStrategy {
   private final Table table;
+  private final String fullIdentifier;
   private final SparkSession spark;
   private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
   private final FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
 
-  public SparkBinPackStrategy(Table table, SparkSession spark) {
+  public SparkBinPackStrategy(Table table, String fullIdentifier, SparkSession spark) {
     this.table = table;
+    this.fullIdentifier = fullIdentifier;
     this.spark = spark;
   }
 
@@ -66,7 +68,7 @@ public class SparkBinPackStrategy extends BinPackStrategy {
           .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputFileSize(filesToRewrite)))
           .option(SparkReadOptions.FILE_OPEN_COST, "0")
-          .load(table.name());
+          .load(fullIdentifier);
 
       // All files within a file group are written with the same spec, so check the first
       boolean requiresRepartition = !filesToRewrite.get(0).spec().equals(table.spec());
@@ -82,7 +84,7 @@ public class SparkBinPackStrategy extends BinPackStrategy {
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
           .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode)
           .mode("append")
-          .save(table.name());
+          .save(fullIdentifier);
 
       return rewriteCoordinator.fetchNewDataFiles(table, groupID);
     } finally {

@@ -61,6 +61,12 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement rewriteDataFiles");
   }
 
+  default RewriteDataFiles rewriteDataFiles(Table table, String fullIdentifier) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewriteDataFiles(Table, String)"
+    );
+  }
+
   /**
    * Instantiates an action to expire snapshots.
    */
