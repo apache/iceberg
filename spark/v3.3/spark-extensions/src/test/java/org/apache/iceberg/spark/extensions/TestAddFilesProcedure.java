@@ -421,6 +421,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
+  // revisit fix added : https://issues.apache.org/jira/browse/SPARK-39417
+  @Ignore
   @Test
   public void addFilteredPartitionsToPartitionedWithNullValueFilteringOnId() {
     createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
@@ -441,6 +443,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
+  // revisit fix added : https://issues.apache.org/jira/browse/SPARK-39417
+  @Ignore
   @Test
   public void addFilteredPartitionsToPartitionedWithNullValueFilteringOnDept() {
     createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
