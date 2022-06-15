@@ -107,8 +107,8 @@ public class AwsProperties implements Serializable {
    * If Glue should skip name validations
    * It is recommended to stick to Glue best practice in
    * https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html to make sure operations are Hive compatible.
-   * This is only added for services that have existing conventions using non-standard characters. When database name
-   * and table name validation is skipped, there is no guarantee that downstream systems would all support the names.
+   * This is only added for users that have existing conventions using non-standard characters. When database name
+   * and table name validation are skipped, there is no guarantee that downstream systems would all support the names.
    */
   public static final String GLUE_CATALOG_SKIP_NAME_VALIDATION = "glue.skip-name-validation";
   public static final boolean GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT = false;
@@ -412,6 +412,7 @@ public class AwsProperties implements Serializable {
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
     this.glueCatalogSkipNameValidation = GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT;
     this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
+
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
   }
 

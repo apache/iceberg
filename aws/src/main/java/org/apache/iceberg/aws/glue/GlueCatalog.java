@@ -276,8 +276,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
       TableMetadata lastMetadata = ops.current();
       glue.deleteTable(DeleteTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
-          .databaseName(IcebergToGlueConverter.getDatabaseName(identifier,
-              awsProperties.glueCatalogSkipNameValidation()))
+          .databaseName(IcebergToGlueConverter.getDatabaseName(
+                  identifier, awsProperties.glueCatalogSkipNameValidation()))
           .name(identifier.name())
           .build());
       LOG.info("Successfully dropped table {} from Glue", identifier);
