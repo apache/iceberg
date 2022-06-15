@@ -50,6 +50,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroReader;
 import org.apache.iceberg.flink.util.BloomFilterManager;
 import org.apache.iceberg.flink.util.RowDataConverter;
@@ -63,6 +64,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.hash.BloomFilter;
 import org.apache.iceberg.relocated.com.google.common.hash.Funnels;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +95,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
   private static final Map<String, Set<PartitionKey>> jobsPartitionHasProc = Maps.newConcurrentMap();
 
   private Set<PartitionKey> partitionHasProc;
-  private final RowDataDeltaWriter writerForBloom;
+  private final RowDataWrapper wrapper;
+  private final StructProjection structProjection;
 
   PartitionedDeltaWriter(PartitionSpec spec,
                          FileFormat format,
@@ -115,7 +119,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
     this.taskId = fileFactory.getPartitionId();
     this.schema = schema;
     this.operationId = fileFactory.getOperationId();
-    this.writerForBloom = new RowDataDeltaWriter(partitionKey.copy());
+    this.structProjection = StructProjection.create(schema, TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)));
+    this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
 
     if (null != bloomFilterParam) {
       this.recordsEachPartition = (Long) bloomFilterParam.get(RECORDS_EACH_PARTITION);
@@ -183,6 +188,18 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
     });
   }
 
+  public String getKey(RowData rowData) {
+    StructProjection rowKey = structProjection.wrap(wrapper.wrap(rowData));
+    StringBuilder keyString = new StringBuilder();
+
+    for (int i = 0; i < rowKey.size(); i++) {
+      Object obj = rowKey.get(i, Object.class);
+      keyString.append("&").append(obj.toString());
+    }
+
+    return keyString.toString();
+  }
+
   void processParquetAndOrc(String filePath, BloomFilterManager bloomFilterManager) {
     CloseableIterable<Record> reader = null;
     long hasProcessed = 0L;
@@ -215,8 +232,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
 
     for (Record record : reader) {
       RowData rowData = RowDataConverter.convert(schema, record);
-      synchronized (writerForBloom) {
-        String key = writerForBloom.getKey(rowData);
+      synchronized (structProjection) {
+        String key = getKey(rowData);
         bloomFilterManager.setKeyToFilter(key);
       }
 
@@ -253,8 +270,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
     }
 
     for (RowData rowData : reader) {
-      synchronized (writerForBloom) {
-        String key = writerForBloom.getKey(rowData);
+      synchronized (structProjection) {
+        String key = getKey(rowData);
         bloomFilterManager.setKeyToFilter(key);
         hasProcessed++;
       }
@@ -342,8 +359,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
     executorService.shutdown();
 
     try {
-      LOG.info("wait thread pool to finish task id = {}.", taskId);
       boolean result = executorService.awaitTermination(60, TimeUnit.MINUTES);
+      LOG.info("wait thread pool to finish task id = {}, result = {}", taskId, result);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
