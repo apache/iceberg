@@ -89,19 +89,6 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
     return lazyWriteBuilder;
   }
 
-  // @Override
-  // public DeltaWriteBuilder newWriteBuilder(ExtendedLogicalWriteInfo info) {
-  //   if (lazyWriteBuilder == null) {
-  //     // don't validate the scan is not null as if the condition evaluates to false,
-  //     // the optimizer replaces the original scan relation with a local relation
-  //     lazyWriteBuilder = new SparkPositionDeltaWriteBuilder(
-  //         spark, table, command, configuredScan,
-  //         isolationLevel, info);
-  //   }
-  //
-  //   return lazyWriteBuilder;
-  // }
-
   @Override
   public NamedReference[] requiredMetadataAttributes() {
     NamedReference specId = Expressions.column(MetadataColumns.SPEC_ID.name());

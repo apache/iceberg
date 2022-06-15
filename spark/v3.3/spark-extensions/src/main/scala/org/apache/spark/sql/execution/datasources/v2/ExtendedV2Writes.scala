@@ -52,73 +52,71 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
 
   import DataSourceV2Implicits._
 
-  override def apply(plan: LogicalPlan): LogicalPlan = {
-    plan transformDown {
-          case a @ AppendData(r: DataSourceV2Relation, query, options, _, None) if isIcebergRelation(r) =>
-            val writeBuilder = newWriteBuilder(r.table, query.schema, options)
-            val write = writeBuilder.build()
-            val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
-            a.copy(write = Some(write), query = newQuery)
+  override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
+    case a @ AppendData(r: DataSourceV2Relation, query, options, _, None) if isIcebergRelation(r) =>
+      val writeBuilder = newWriteBuilder(r.table, query.schema, options)
+      val write = writeBuilder.build()
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      a.copy(write = Some(write), query = newQuery)
 
-          case o @ OverwriteByExpression(r: DataSourceV2Relation, deleteExpr, query, options, _, None)
-              if isIcebergRelation(r) =>
-            // fail if any filter cannot be converted. correctness depends on removing all matching data.
-            val filters = splitConjunctivePredicates(deleteExpr).flatMap { pred =>
-              val filter = DataSourceStrategy.translateFilter(pred, supportNestedPredicatePushdown = true)
-              if (filter.isEmpty) {
-                throw QueryCompilationErrors.cannotTranslateExpressionToSourceFilterError(pred)
-              }
-              filter
-            }.toArray
-
-            val table = r.table
-            val writeBuilder = newWriteBuilder(table, query.schema, options)
-            val write = writeBuilder match {
-              case builder: SupportsTruncate if isTruncate(filters) =>
-                builder.truncate().build()
-              case builder: SupportsOverwrite =>
-                builder.overwrite(filters).build()
-              case _ =>
-                throw QueryExecutionErrors.overwriteTableByUnsupportedExpressionError(table)
-            }
-
-            val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
-            o.copy(write = Some(write), query = newQuery)
-
-          case o @ OverwritePartitionsDynamic(r: DataSourceV2Relation, query, options, _, None)
-              if isIcebergRelation(r) =>
-            val table = r.table
-            val writeBuilder = newWriteBuilder(table, query.schema, options)
-            val write = writeBuilder match {
-              case builder: SupportsDynamicOverwrite =>
-                builder.overwriteDynamicPartitions().build()
-              case _ =>
-                throw QueryExecutionErrors.dynamicPartitionOverwriteUnsupportedByTableError(table)
-            }
-            val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
-            o.copy(write = Some(write), query = newQuery)
-
-      case rd @ ReplaceIcebergData(r: DataSourceV2Relation, query, _, None) =>
-        val rowSchema = StructType.fromAttributes(rd.dataInput)
-        val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty)
-        val write = writeBuilder.build()
-        val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
-        rd.copy(write = Some(write), query = Project(rd.dataInput, newQuery))
-
-      case wd @ WriteDelta(r: DataSourceV2Relation, query, _, projections, None) =>
-        val rowSchema = projections.rowProjection.map(_.schema).orNull
-        val rowIdSchema = projections.rowIdProjection.schema
-        val metadataSchema = projections.metadataProjection.map(_.schema).orNull
-        val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty, rowIdSchema, metadataSchema)
-        writeBuilder match {
-          case builder: DeltaWriteBuilder =>
-            val deltaWrite = builder.build()
-            val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf)
-            wd.copy(write = Some(deltaWrite), query = newQuery)
-          case other =>
-            throw new AnalysisException(s"$other is not DeltaWriteBuilder")
+    case o @ OverwriteByExpression(r: DataSourceV2Relation, deleteExpr, query, options, _, None)
+        if isIcebergRelation(r) =>
+      // fail if any filter cannot be converted. correctness depends on removing all matching data.
+      val filters = splitConjunctivePredicates(deleteExpr).flatMap { pred =>
+        val filter = DataSourceStrategy.translateFilter(pred, supportNestedPredicatePushdown = true)
+        if (filter.isEmpty) {
+          throw QueryCompilationErrors.cannotTranslateExpressionToSourceFilterError(pred)
         }
-    }
+        filter
+      }.toArray
+
+      val table = r.table
+      val writeBuilder = newWriteBuilder(table, query.schema, options)
+      val write = writeBuilder match {
+        case builder: SupportsTruncate if isTruncate(filters) =>
+          builder.truncate().build()
+        case builder: SupportsOverwrite =>
+          builder.overwrite(filters).build()
+        case _ =>
+          throw QueryExecutionErrors.overwriteTableByUnsupportedExpressionError(table)
+      }
+
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      o.copy(write = Some(write), query = newQuery)
+
+    case o @ OverwritePartitionsDynamic(r: DataSourceV2Relation, query, options, _, None)
+        if isIcebergRelation(r) =>
+      val table = r.table
+      val writeBuilder = newWriteBuilder(table, query.schema, options)
+      val write = writeBuilder match {
+        case builder: SupportsDynamicOverwrite =>
+          builder.overwriteDynamicPartitions().build()
+        case _ =>
+          throw QueryExecutionErrors.dynamicPartitionOverwriteUnsupportedByTableError(table)
+      }
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      o.copy(write = Some(write), query = newQuery)
+
+    case rd @ ReplaceIcebergData(r: DataSourceV2Relation, query, _, None) =>
+      val rowSchema = StructType.fromAttributes(rd.dataInput)
+      val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty)
+      val write = writeBuilder.build()
+      val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
+      rd.copy(write = Some(write), query = Project(rd.dataInput, newQuery))
+
+    case wd @ WriteDelta(r: DataSourceV2Relation, query, _, projections, None) =>
+      val rowSchema = projections.rowProjection.map(_.schema).orNull
+      val rowIdSchema = projections.rowIdProjection.schema
+      val metadataSchema = projections.metadataProjection.map(_.schema).orNull
+      val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty, rowIdSchema, metadataSchema)
+      writeBuilder match {
+        case builder: DeltaWriteBuilder =>
+          val deltaWrite = builder.build()
+          val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(deltaWrite, query, conf)
+          wd.copy(write = Some(deltaWrite), query = newQuery)
+        case other =>
+          throw new AnalysisException(s"$other is not DeltaWriteBuilder")
+      }
   }
 
   private def isTruncate(filters: Array[Filter]): Boolean = {

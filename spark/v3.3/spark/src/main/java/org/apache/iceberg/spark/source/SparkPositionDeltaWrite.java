@@ -73,18 +73,15 @@ import org.apache.spark.sql.connector.iceberg.write.DeltaWrite;
 import org.apache.spark.sql.connector.iceberg.write.DeltaWriter;
 import org.apache.spark.sql.connector.iceberg.write.DeltaWriterFactory;
 import org.apache.spark.sql.connector.iceberg.write.ExtendedLogicalWriteInfo;
-import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
-import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
-import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
-import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 
 class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrdering {
 
@@ -194,7 +191,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
           rowDelta.validateFromSnapshot(scan.snapshotId());
         }
 
-        if (command == UPDATE || command == MERGE) {
+        if (command == Command.UPDATE || command == Command.MERGE) {
           rowDelta.validateDeletedFiles();
           rowDelta.validateNoConflictingDeleteFiles();
         }
@@ -333,7 +330,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
           .positionDeleteSparkType(context.deleteSparkType())
           .build();
 
-      if (command == DELETE) {
+      if (command == Command.DELETE) {
         return new DeleteOnlyDeltaWriter(table, writerFactory, deleteFileFactory, context);
 
       } else if (table.spec().isUnpartitioned()) {
