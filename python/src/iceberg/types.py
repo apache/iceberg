@@ -41,11 +41,6 @@ from typing import (
 from pydantic import Field, PrivateAttr
 
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
-from abc import ABC
-from dataclasses import dataclass, field
-from functools import cached_property
-from typing import ClassVar, Optional, Tuple
-
 from iceberg.utils.singleton import Singleton
 
 DECIMAL_REGEX = re.compile(r"decimal\((\d+),\s*(\d+)\)")
@@ -128,9 +123,11 @@ class FixedType(PrimitiveType):
 
     @staticmethod
     def parse(str_repr: str) -> "FixedType":
-        m = FIXED_REGEX.search(str_repr)
-        length = int(m.group(1))
-        return FixedType(length)
+        matches = FIXED_REGEX.search(str_repr)
+        if matches:
+            length = int(matches.group(1))
+            return FixedType(length)
+        raise ValueError(f"Could not parse {str_repr} into a FixedType")
 
     def __init__(self, length: int):
         super().__init__(__root__=f"fixed[{length}]")
@@ -160,10 +157,13 @@ class DecimalType(PrimitiveType):
 
     @staticmethod
     def parse(str_repr: str) -> "DecimalType":
-        m = DECIMAL_REGEX.search(str_repr)
-        precision = int(m.group(1))
-        scale = int(m.group(2))
-        return DecimalType(precision, scale)
+        matches = DECIMAL_REGEX.search(str_repr)
+        if matches:
+            precision = int(matches.group(1))
+            scale = int(matches.group(2))
+            return DecimalType(precision, scale)
+        else:
+            raise ValueError(f"Could not parse {str_repr} into a DecimalType")
 
     def __init__(self, precision: int, scale: int):
         super().__init__(
@@ -213,13 +213,13 @@ class NestedField(IcebergType):
     doc: Optional[str] = Field(default=None, repr=False)
 
     def __init__(
-            self,
-            field_id: Optional[int] = None,
-            name: Optional[str] = None,
-            field_type: Optional[IcebergType] = None,
-            required: bool = True,
-            doc: Optional[str] = None,
-            **data,
+        self,
+        field_id: Optional[int] = None,
+        name: Optional[str] = None,
+        field_type: Optional[IcebergType] = None,
+        required: bool = True,
+        doc: Optional[str] = None,
+        **data,
     ):
         # We need an init when we want to use positional arguments, but
         # need also to support the aliases.
@@ -287,8 +287,7 @@ class ListType(IcebergType):
     _instances: ClassVar[Dict[Tuple[bool, int, IcebergType], "ListType"]] = {}
 
     def __init__(
-            self, element_id: Optional[int] = None, element: Optional[IcebergType] = None,
-            element_required: bool = True, **data
+        self, element_id: Optional[int] = None, element: Optional[IcebergType] = None, element_required: bool = True, **data
     ):
         data["element_id"] = data["element-id"] if "element-id" in data else element_id
         data["element_type"] = element or data["element_type"]
@@ -326,13 +325,13 @@ class MapType(IcebergType):
         fields = {"key_field": {"exclude": True}, "value_field": {"exclude": True}}
 
     def __init__(
-            self,
-            key_id: Optional[int] = None,
-            key_type: Optional[IcebergType] = None,
-            value_id: Optional[int] = None,
-            value_type: Optional[IcebergType] = None,
-            value_required: bool = True,
-            **data,
+        self,
+        key_id: Optional[int] = None,
+        key_type: Optional[IcebergType] = None,
+        value_id: Optional[int] = None,
+        value_type: Optional[IcebergType] = None,
+        value_required: bool = True,
+        **data,
     ):
         data["key_id"] = key_id or data["key-id"]
         data["key_type"] = key_type or data["key"]

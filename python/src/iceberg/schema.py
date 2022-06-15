@@ -52,7 +52,7 @@ class Schema(IcebergBaseModel):
         >>> from iceberg import types
     """
 
-    fields: tuple[NestedField, ...] = Field()
+    fields: tuple[NestedField, ...] = Field(default_factory=tuple)
     schema_id: int = Field(alias="schema-id")
     identifier_field_ids: list[int] = Field(alias="identifier-field-ids", default_factory=list)
 
@@ -76,9 +76,7 @@ class Schema(IcebergBaseModel):
         return "table {\n" + "\n".join(["  " + str(field) for field in self.fields]) + "\n}"
 
     def __repr__(self):
-        return (
-            f"Schema(fields={repr(self.fields)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
-        )
+        return f"Schema(fields={repr(self.fields)}, schema_id={self.schema_id}, identifier_field_ids={self.identifier_field_ids})"
 
     def __eq__(self, other) -> bool:
         if not other:
@@ -208,6 +206,9 @@ class Schema(IcebergBaseModel):
     def _case_insensitive_select(cls, schema: Schema, names: list[str]):
         # TODO: Add a PruneColumns schema visitor and use it here
         raise NotImplementedError()
+
+    def as_struct(self) -> StructType:
+        return StructType(fields=self.fields)
 
 
 class SchemaVisitor(Generic[T], ABC):
@@ -478,8 +479,7 @@ class _IndexByName(SchemaVisitor[Dict[str, int]]):
             full_name = ".".join([".".join(self._field_names), name])
 
         if full_name in self._index:
-            raise ValueError(
-                f"Invalid schema, multiple fields for name {full_name}: {self._index[full_name]} and {field_id}")
+            raise ValueError(f"Invalid schema, multiple fields for name {full_name}: {self._index[full_name]} and {field_id}")
         self._index[full_name] = field_id
 
         if self._short_field_names:
@@ -593,7 +593,7 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
         return {}
 
     def map(
-            self, map_type: MapType, key_result: dict[Position, Accessor], value_result: dict[Position, Accessor]
+        self, map_type: MapType, key_result: dict[Position, Accessor], value_result: dict[Position, Accessor]
     ) -> dict[Position, Accessor]:
         return {}
 

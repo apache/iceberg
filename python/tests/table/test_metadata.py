@@ -168,58 +168,6 @@ def test_from_dict(metadata: dict):
     TableMetadata.parse_obj(metadata)
 
 
-@pytest.mark.parametrize(
-    "metadata",
-    [
-        EXAMPLE_TABLE_METADATA_V1,
-        EXAMPLE_TABLE_METADATA_V2,
-    ],
-)
-def test_from_input_file(metadata, LocalFileIOFixture):
-    """Test initialization of a TableMetadata instance from a LocalInputFile instance"""
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        file_location = os.path.join(tmpdirname, "table_metadata.json")
-        file_io = LocalFileIOFixture()
-
-        # Instantiate the output file
-        absolute_file_location = os.path.abspath(file_location)
-        output_file = file_io.new_output(location=f"file:{absolute_file_location}")
-
-        # Create the output file and write the metadata file to it
-        f = output_file.create()
-        f.write(json.dumps(metadata).encode("utf-8"))
-        f.close()
-
-        input_file = file_io.new_input(location=f"file:{absolute_file_location}")
-        FromInputFile.table_metadata(input_file=input_file)
-
-
-@pytest.mark.parametrize(
-    "metadata",
-    [
-        EXAMPLE_TABLE_METADATA_V1,
-        EXAMPLE_TABLE_METADATA_V2,
-    ],
-)
-def test_to_output_file(metadata: dict, LocalFileIOFixture):
-    """Test writing a TableMetadata instance to a LocalOutputFile instance"""
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        table_metadata = TableMetadata.parse_obj(metadata)  # Create TableMetadata instance from dictionary
-        file_io = LocalFileIOFixture()  # Use LocalFileIO fixture defined in conftest.py
-
-        # Create an output file in the temporary directory
-        file_location = os.path.join(tmpdirname, "table_metadata.json")
-        absolute_file_location = os.path.abspath(file_location)
-        output_file = file_io.new_output(location=f"file:{absolute_file_location}")
-
-        # Write the TableMetadata instance to the output file
-        ToOutputFile.table_metadata(metadata=table_metadata, output_file=output_file)
-
-        # Read the raw json file and compare to metadata dictionary
-        table_metadata_dict = json.load(open(file_location, encoding="utf-8"))
-        assert table_metadata_dict == metadata
-
-
 def test_from_byte_stream():
     """Test generating a TableMetadata instance from a file-like byte stream"""
     data = bytes(json.dumps(EXAMPLE_TABLE_METADATA_V2), encoding="utf-8")

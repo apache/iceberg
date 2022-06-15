@@ -35,7 +35,6 @@ from iceberg.exceptions import (
 )
 from iceberg.schema import Schema
 from iceberg.table.base import PartitionSpec, Table
-from iceberg.types import NestedField, StringType
 
 
 class InMemoryCatalog(Catalog):
