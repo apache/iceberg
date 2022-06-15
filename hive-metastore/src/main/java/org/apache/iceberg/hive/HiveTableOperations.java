@@ -74,7 +74,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.JsonUtil;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -513,7 +512,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     AtomicReference<LockState> state = new AtomicReference<>(lockResponse.getState());
     long lockId = lockResponse.getLockid();
-    final Pair<Long, String> lockDetails = Pair.of(lockId, String.format("%s.%s", database, tableName));
 
     final long start = System.currentTimeMillis();
     long duration = 0;
@@ -526,7 +524,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         // upper bound of retries. So it is just reasonable to set a large retry count. However, if we set
         // Integer.MAX_VALUE, the above logic of `retries + 1` would overflow into Integer.MIN_VALUE. Hence,
         // the retry is set conservatively as `Integer.MAX_VALUE - 100` so it doesn't hit any boundary issues.
-        Tasks.foreach(lockDetails)
+        Tasks.foreach(lockId)
             .retry(Integer.MAX_VALUE - 100)
             .exponentialBackoff(
                 lockCheckMinWaitTime,
@@ -535,17 +533,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 1.5)
             .throwFailureWhenFinished()
             .onlyRetryOn(WaitingForLockException.class)
-            .run(lockInfo -> {
+            .run(id -> {
               try {
-                LockResponse response = metaClients.run(client -> client.checkLock(lockInfo.first()));
+                LockResponse response = metaClients.run(client -> client.checkLock(id));
                 LockState newState = response.getState();
                 state.set(newState);
                 if (newState.equals(LockState.WAITING)) {
-                  throw new WaitingForLockException(String.format("Waiting for lock on table %s", lockInfo.second()));
+                  throw new WaitingForLockException(
+                          String.format("Waiting for lock on table %s.%s", database, tableName));
                 }
               } catch (InterruptedException e) {
                 Thread.interrupted(); // Clear the interrupt status flag
-                LOG.warn("Interrupted while waiting for lock on table {}", lockInfo.second(), e);
+                LOG.warn("Interrupted while waiting for lock on table {}.{}", database, tableName, e);
               }
             }, TException.class);
       }
