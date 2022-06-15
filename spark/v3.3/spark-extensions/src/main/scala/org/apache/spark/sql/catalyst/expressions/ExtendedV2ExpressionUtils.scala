@@ -65,8 +65,9 @@ object ExtendedV2ExpressionUtils extends SQLConfHelper {
         SortOrder(catalystChild, toCatalyst(direction), toCatalyst(nullOrdering), Seq.empty)
       case IdentityTransform(ref) =>
         resolveRef[NamedExpression](ref, query)
-      case BucketTransform(numBuckets, ref) =>
-        IcebergBucketTransform(numBuckets, resolveRef[NamedExpression](ref, query))
+//      case BucketTransform(numBuckets, ref) =>
+//        // TODO : revisit
+//        IcebergBucketTransform(numBuckets, resolveRef[NamedExpression](ref, query))
       case TruncateTransform(length, ref) =>
         IcebergTruncateTransform(resolveRef[NamedExpression](ref, query), length)
       case YearsTransform(ref) =>

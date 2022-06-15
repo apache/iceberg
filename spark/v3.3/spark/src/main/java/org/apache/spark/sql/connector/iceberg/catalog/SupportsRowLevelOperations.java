@@ -17,23 +17,23 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.iceberg.catalog;
-
-import org.apache.spark.sql.connector.catalog.Table;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationBuilder;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationInfo;
-
-/**
- * A mix-in interface for row-level operations support. Data sources can implement
- * this interface to indicate they support rewriting data for DELETE, UPDATE, MERGE operations.
- */
-public interface SupportsRowLevelOperations extends Table {
-  /**
-   * Returns a RowLevelOperationBuilder to build a RowLevelOperation.
-   * Spark will call this method while planning DELETE, UPDATE and MERGE operations.
-   *
-   * @param info the row-level operation info such command (e.g. DELETE) and options
-   * @return the row-level operation builder
-   */
-  RowLevelOperationBuilder newRowLevelOperationBuilder(RowLevelOperationInfo info);
-}
+// package org.apache.spark.sql.connector.iceberg.catalog;
+//
+// import org.apache.spark.sql.connector.catalog.Table;
+// import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationBuilder;
+// import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationInfo;
+//
+// /**
+//  * A mix-in interface for row-level operations support. Data sources can implement
+//  * this interface to indicate they support rewriting data for DELETE, UPDATE, MERGE operations.
+//  */
+// public interface SupportsRowLevelOperations extends Table {
+//   /**
+//    * Returns a RowLevelOperationBuilder to build a RowLevelOperation.
+//    * Spark will call this method while planning DELETE, UPDATE and MERGE operations.
+//    *
+//    * @param info the row-level operation info such command (e.g. DELETE) and options
+//    * @return the row-level operation builder
+//    */
+//   RowLevelOperationBuilder newRowLevelOperationBuilder(RowLevelOperationInfo info);
+// }

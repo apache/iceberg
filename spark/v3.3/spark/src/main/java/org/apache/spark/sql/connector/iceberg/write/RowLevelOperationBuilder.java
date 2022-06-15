@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.iceberg.write;
-
-/**
- * An interface for building a row-level operation.
- */
-public interface RowLevelOperationBuilder {
-  /**
-   * Returns a row-level operation that controls how Spark rewrites data for DELETE, UPDATE, MERGE commands.
-   */
-  RowLevelOperation build();
-}
+// package org.apache.spark.sql.connector.iceberg.write;
+//
+// /**
+//  * An interface for building a row-level operation.
+//  */
+// public interface RowLevelOperationBuilder {
+//   /**
+//    * Returns a row-level operation that controls how Spark rewrites data for DELETE, UPDATE, MERGE commands.
+//    */
+//   RowLevelOperation build();
+// }

@@ -54,14 +54,15 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
+import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.NamedReference
-import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.MERGE
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.IntegerType
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /**
  * Assigns a rewrite plan for v2 tables that support rewriting data to handle MERGE statements.
@@ -69,7 +70,7 @@ import org.apache.spark.sql.types.IntegerType
  * This rule assumes the commands have been fully resolved and all assignments have been aligned.
  * That's why it must be run after AlignRowLevelCommandAssignments.
  */
-object RewriteMergeIntoTable extends RewriteRowLevelCommand {
+object RewriteMergeIntoTable extends RewriteRowLevelDeltaCommand with RewriteRowLevelCommand {
 
   private final val ROW_FROM_SOURCE = "__row_from_source"
   private final val ROW_FROM_TARGET = "__row_from_target"
@@ -149,9 +150,8 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
-          val operation = buildRowLevelOperation(tbl, MERGE)
-          val table = RowLevelOperationTable(tbl, operation)
-          val rewritePlan = operation match {
+          val table = buildOperationTable(tbl, MERGE, CaseInsensitiveStringMap.empty())
+          val rewritePlan = table.operation match {
             case _: SupportsDelta =>
               buildWriteDeltaPlan(r, table, source, cond, matchedActions, notMatchedActions)
             case _ =>
@@ -178,7 +178,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a scan relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
+    val readRelation = buildRelationWithAttrs(relation, operationTable, metadataAttrs)
     val readAttrs = readRelation.output
 
     // project an extra column to check if a target row exists after the join
@@ -228,7 +228,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, mergeRows, relation)
+    ReplaceData(writeRelation, cond, mergeRows, relation)
   }
 
   // build a rewrite plan for sources that support row deltas
@@ -246,7 +246,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a scan relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs, rowIdAttrs)
+    val readRelation = buildRelationWithAttrs(relation, operationTable, rowIdAttrs ++ metadataAttrs)
     val readAttrs = readRelation.output
 
     // project an extra column to check if a target row exists after the join

@@ -66,6 +66,13 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
+    // testing purpose only, to be removed when spark-3.3 rc published in maven
+    maven {
+      url "https://repository.apache.org/content/repositories/snapshots"
+      mavenContent {
+        snapshotsOnly()
+      }
+    }
   }
 }
 

@@ -61,6 +61,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
@@ -118,7 +119,8 @@ public class SparkCatalog extends BaseCatalog {
    */
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
     Configuration conf = SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name);
-    Map<String, String> optionsMap = new TreeMap<>(options.asCaseSensitiveMap());
+    Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    optionsMap.putAll(options);
     optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
     optionsMap.put(CatalogProperties.USER, SparkSession.active().sparkContext().sparkUser());
     return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
@@ -145,9 +147,30 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public SparkTable loadTable(Identifier ident, String version) throws NoSuchTableException {
+    try {
+      Pair<Table, Long> icebergTable = load(ident);
+      return new SparkTable(icebergTable.first(), Long.parseLong(version), !cacheEnabled);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
+  }
+
+  @Override
+  public SparkTable loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    try {
+      Pair<Table, Long> icebergTable = load(ident);
+      return new SparkTable(icebergTable.first(), SnapshotUtil.snapshotIdAsOfTime(icebergTable.first(), timestamp),
+          !cacheEnabled);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
+  }
+
+  @Override
   public SparkTable createTable(Identifier ident, StructType schema,
-                                Transform[] transforms,
-                                Map<String, String> properties) throws TableAlreadyExistsException {
+      Transform[] transforms,
+      Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
@@ -164,7 +187,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public StagedTable stageCreate(Identifier ident, StructType schema, Transform[] transforms,
-                                 Map<String, String> properties) throws TableAlreadyExistsException {
+      Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
@@ -180,7 +203,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] transforms,
-                                  Map<String, String> properties) throws NoSuchTableException {
+      Map<String, String> properties) throws NoSuchTableException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
@@ -196,7 +219,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
-                                          Map<String, String> properties) {
+      Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
     Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
@@ -418,7 +441,8 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+  public boolean dropNamespace(String[] namespace, boolean cascade)
+      throws NoSuchNamespaceException, NonEmptyNamespaceException {
     if (asNamespaceCatalog != null) {
       try {
         return asNamespaceCatalog.dropNamespace(Namespace.of(namespace));
@@ -468,8 +492,8 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   private static void commitChanges(Table table, SetProperty setLocation, SetProperty setSnapshotId,
-                                    SetProperty pickSnapshotId, List<TableChange> propertyChanges,
-                                    List<TableChange> schemaChanges) {
+      SetProperty pickSnapshotId, List<TableChange> propertyChanges,
+      List<TableChange> schemaChanges) {
     // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
     // one order leads to different results
     Preconditions.checkArgument(setSnapshotId == null || pickSnapshotId == null,

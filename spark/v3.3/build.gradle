@@ -17,8 +17,9 @@
  * under the License.
  */
 
-String sparkVersion = '3.2.1'
-String sparkMajorVersion = '3.2'
+// remove when 3.3.0 is published
+String sparkVersion = '3.3.0-SNAPSHOT'
+String sparkMajorVersion = '3.3'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
 def sparkProjects = [

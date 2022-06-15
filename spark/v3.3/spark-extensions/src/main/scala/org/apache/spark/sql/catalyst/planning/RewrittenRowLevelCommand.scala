@@ -57,7 +57,7 @@ object RewrittenRowLevelCommand {
       }
 
       rewritePlan match {
-        case rd @ ReplaceData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
+        case rd @ ReplaceData(DataSourceV2Relation(table, _, _, _, _), _, query, _, _) =>
           val readRelation = findReadRelation(table, query, allowScanDuplication)
           readRelation.map((c, _, rd))
         case wd @ WriteDelta(DataSourceV2Relation(table, _, _, _, _), query, _, _, _) =>

@@ -36,10 +36,7 @@ import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.SortDirection;
 import org.apache.spark.sql.connector.expressions.SortOrder;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
-
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 
 public class SparkDistributionAndOrderingUtil {
 
@@ -88,7 +85,7 @@ public class SparkDistributionAndOrderingUtil {
 
   public static Distribution buildCopyOnWriteDistribution(Table table, Command command,
                                                           DistributionMode distributionMode) {
-    if (command == DELETE || command == UPDATE) {
+    if (command == Command.DELETE || command == Command.UPDATE) {
       return buildCopyOnWriteDeleteUpdateDistribution(table, distributionMode);
     } else {
       return buildRequiredDistribution(table, distributionMode);
@@ -119,7 +116,7 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   public static SortOrder[] buildCopyOnWriteOrdering(Table table, Command command, Distribution distribution) {
-    if (command == DELETE || command == UPDATE) {
+    if (command == Command.DELETE || command == Command.UPDATE) {
       return buildCopyOnWriteDeleteUpdateOrdering(table, distribution);
     } else {
       return buildRequiredOrdering(table, distribution);
@@ -149,7 +146,7 @@ public class SparkDistributionAndOrderingUtil {
 
   public static Distribution buildPositionDeltaDistribution(Table table, Command command,
                                                             DistributionMode distributionMode) {
-    if (command == DELETE || command == UPDATE) {
+    if (command == Command.DELETE || command == Command.UPDATE) {
       return buildPositionDeleteUpdateDistribution(distributionMode);
     } else {
       return buildPositionMergeDistribution(table, distributionMode);
@@ -204,7 +201,7 @@ public class SparkDistributionAndOrderingUtil {
   }
 
   public static SortOrder[] buildPositionDeltaOrdering(Table table, Command command) {
-    if (command == DELETE || command == UPDATE) {
+    if (command == Command.DELETE || command == Command.UPDATE) {
       return POSITION_DELETE_ORDERING;
     } else {
       // all metadata columns like _spec_id, _file, _pos will be null for new data records

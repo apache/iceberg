@@ -27,11 +27,12 @@ import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.iceberg.write.DeltaWriteBuilder;
 import org.apache.spark.sql.connector.iceberg.write.ExtendedLogicalWriteInfo;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationInfo;
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
+import org.apache.spark.sql.connector.write.LogicalWriteInfo;
+import org.apache.spark.sql.connector.write.RowLevelOperation;
+import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
@@ -76,17 +77,30 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
   }
 
   @Override
-  public DeltaWriteBuilder newWriteBuilder(ExtendedLogicalWriteInfo info) {
+  public DeltaWriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     if (lazyWriteBuilder == null) {
       // don't validate the scan is not null as if the condition evaluates to false,
       // the optimizer replaces the original scan relation with a local relation
       lazyWriteBuilder = new SparkPositionDeltaWriteBuilder(
           spark, table, command, configuredScan,
-          isolationLevel, info);
+          isolationLevel, (ExtendedLogicalWriteInfo) info);
     }
 
     return lazyWriteBuilder;
   }
+
+  // @Override
+  // public DeltaWriteBuilder newWriteBuilder(ExtendedLogicalWriteInfo info) {
+  //   if (lazyWriteBuilder == null) {
+  //     // don't validate the scan is not null as if the condition evaluates to false,
+  //     // the optimizer replaces the original scan relation with a local relation
+  //     lazyWriteBuilder = new SparkPositionDeltaWriteBuilder(
+  //         spark, table, command, configuredScan,
+  //         isolationLevel, info);
+  //   }
+  //
+  //   return lazyWriteBuilder;
+  // }
 
   @Override
   public NamedReference[] requiredMetadataAttributes() {

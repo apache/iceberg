@@ -77,7 +77,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>
       SetWriteDistributionAndOrderingExec(catalog, ident, distributionMode, ordering) :: Nil
 
-    case ReplaceData(_: DataSourceV2Relation, query, r: DataSourceV2Relation, Some(write)) =>
+    case ReplaceData(_: DataSourceV2Relation, _, query, r: DataSourceV2Relation, Some(write)) =>
       // refresh the cache using the original relation
       ReplaceDataExec(planLater(query), refreshCache(r), write) :: Nil
 
@@ -93,7 +93,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         notMatchedOutputs, targetOutput, rowIdAttrs, performCardinalityCheck, emitNotMatchedTargetRows,
         output, planLater(child)) :: Nil
 
-    case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output), condition, None) =>
+    case DeleteFromIcebergTable(DataSourceV2ScanRelation(r, _, output, _), condition, None) =>
       // the optimizer has already checked that this delete can be handled using a metadata operation
       val deleteCond = condition.getOrElse(Literal.TrueLiteral)
       val predicates = splitConjunctivePredicates(deleteCond)

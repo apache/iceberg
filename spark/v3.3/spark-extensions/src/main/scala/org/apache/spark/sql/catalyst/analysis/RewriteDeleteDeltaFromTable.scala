@@ -32,11 +32,12 @@ import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
-import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE
+import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /**
  * Assigns a rewrite plan for v2 tables that support rewriting data to handle DELETE statements.
@@ -46,15 +47,16 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
  * by simply passing delete filters to the connector. If yes, the optimizer will then discard
  * the rewrite plan.
  */
-object RewriteDeleteFromTable extends RewriteRowLevelCommand {
+object RewriteDeleteDeltaFromTable extends RewriteRowLevelDeltaCommand with RewriteRowLevelCommand {
 
+  // TODO : revisit- spark also has this rule and hence it is conflicting.
+  // probably need to shade catalyst.
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case d @ DeleteFromIcebergTable(aliasedTable, Some(cond), None) if d.resolved =>
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
-          val operation = buildRowLevelOperation(tbl, DELETE)
-          val table = RowLevelOperationTable(tbl, operation)
-          val rewritePlan = operation match {
+          val table = buildOperationTable(tbl, DELETE, CaseInsensitiveStringMap.empty())
+          val rewritePlan = table.operation match {
             case _: SupportsDelta =>
               buildWriteDeltaPlan(r, table, cond)
             case _ =>
@@ -62,7 +64,6 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
           }
           // keep the original relation in DELETE to try deleting using filters
           DeleteFromIcebergTable(r, Some(cond), Some(rewritePlan))
-
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
@@ -78,7 +79,7 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a read relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
+    val readRelation = buildRelationWithAttrs(relation, operationTable, metadataAttrs)
 
     // construct a plan that contains unmatched rows in matched groups that must be carried over
     // such rows do not match the condition but have to be copied over as the source can replace
@@ -88,21 +89,21 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, remainingRowsPlan, relation)
+    ReplaceData(writeRelation, cond, remainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support row deltas
   private def buildWriteDeltaPlan(
-      relation: DataSourceV2Relation,
-      operationTable: RowLevelOperationTable,
-      cond: Expression): WriteDelta = {
+                                   relation: DataSourceV2Relation,
+                                   operationTable: RowLevelOperationTable,
+                                   cond: Expression): WriteDelta = {
 
     // resolve all needed attrs (e.g. row ID and any required metadata attrs)
     val rowIdAttrs = resolveRowIdAttrs(relation, operationTable.operation)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a read relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs, rowIdAttrs)
+    val readRelation = buildRelationWithAttrs(relation, operationTable, rowIdAttrs ++ metadataAttrs)
 
     // construct a plan that only contains records to delete
     val deletedRowsPlan = Filter(cond, readRelation)

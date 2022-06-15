@@ -28,6 +28,7 @@ import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.util.CharVarcharUtils
+import org.apache.spark.sql.connector.expressions.filter.Predicate
 import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import org.apache.spark.sql.sources.Filter
@@ -71,7 +72,7 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
   private def pushFilters(
       cond: Expression,
       scanBuilder: ScanBuilder,
-      tableAttrs: Seq[AttributeReference]): (Seq[Filter], Seq[Expression]) = {
+      tableAttrs: Seq[AttributeReference]): (Seq[Filter], Seq[Predicate]) = {
 
     val tableAttrSet = AttributeSet(tableAttrs)
     val filters = splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
@@ -79,7 +80,8 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
     val (_, normalizedFiltersWithoutSubquery) =
       normalizedFilters.partition(SubqueryExpression.hasSubquery)
 
-    PushDownUtils.pushFilters(scanBuilder, normalizedFiltersWithoutSubquery)
+    val (pushedFilters, _) = PushDownUtils.pushFilters(scanBuilder, normalizedFiltersWithoutSubquery)
+    (pushedFilters.left.getOrElse(Seq.empty), pushedFilters.right.getOrElse(Seq.empty))
   }
 
   private def toOutputAttrs(
