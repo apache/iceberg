@@ -513,7 +513,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     AtomicReference<LockState> state = new AtomicReference<>(lockResponse.getState());
     long lockId = lockResponse.getLockid();
-    Pair<Long, String> lockDetails = Pair.of(lockId, String.format("%s.%s", database, tableName));
+    final Pair<Long, String> lockDetails = Pair.of(lockId, String.format("%s.%s", database, tableName));
 
     final long start = System.currentTimeMillis();
     long duration = 0;
