@@ -20,7 +20,11 @@
 package org.apache.spark.sql.catalyst.planning
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, ReplaceData, ReplaceIcebergData, RowLevelCommand, UpdateIcebergTable, WriteDelta}
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
+import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
@@ -37,12 +41,7 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 object RewrittenRowLevelCommand {
   type ReturnType = (RowLevelCommand, LogicalPlan, LogicalPlan)
 
-  def unapply(plan: LogicalPlan): Option[ReturnType] = {
-    println("Iceberg plans RewrittenRowLevelCommand :", plan)
-    unapplyX(plan)
-  }
-
-  def unapplyX(plan: LogicalPlan): Option[ReturnType] = plan match {
+  def unapply(plan: LogicalPlan): Option[ReturnType] = plan match {
     case c: RowLevelCommand if c.rewritePlan.nonEmpty =>
       val rewritePlan = c.rewritePlan.get
 

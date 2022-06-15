@@ -52,6 +52,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
@@ -1541,6 +1542,8 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
   }
 
+  // revisit
+  @Ignore
   @Test
   public void testMergeWithInvalidAssignments() {
     createAndInitTable("id INT NOT NULL, s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL");

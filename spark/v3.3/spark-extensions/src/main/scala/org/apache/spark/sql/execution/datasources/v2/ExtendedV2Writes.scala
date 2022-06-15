@@ -20,10 +20,15 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import java.util.UUID
-
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
-import org.apache.spark.sql.catalyst.plans.logical.{AppendData, LogicalPlan, OverwriteByExpression, OverwritePartitionsDynamic, Project, ReplaceData, ReplaceIcebergData, WriteDelta}
+import org.apache.spark.sql.catalyst.plans.logical.AppendData
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.OverwriteByExpression
+import org.apache.spark.sql.catalyst.plans.logical.OverwritePartitionsDynamic
+import org.apache.spark.sql.catalyst.plans.logical.Project
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.connector.catalog.Table
@@ -48,11 +53,6 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
   import DataSourceV2Implicits._
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
-    println("ExtendedV2Writes recieved :", plan)
-    applyX(plan)
-  }
-
-  def applyX(plan: LogicalPlan): LogicalPlan = {
     plan transformDown {
           case a @ AppendData(r: DataSourceV2Relation, query, options, _, None) if isIcebergRelation(r) =>
             val writeBuilder = newWriteBuilder(r.table, query.schema, options)

@@ -37,12 +37,7 @@ import org.apache.spark.sql.types.StructType
 object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with PredicateHelper {
   import ExtendedDataSourceV2Implicits._
 
-  override def apply(plan: LogicalPlan): LogicalPlan = {
-    println("RowLevelCommandScanRelationPushDown recieved :", plan)
-    applyX(plan)
-  }
-
-  def applyX(plan: LogicalPlan): LogicalPlan = plan transformDown {
+  override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
     // push down the filter from the command condition instead of the filter in the rewrite plan,
     // which may be negated for copy-on-write operations
     case RewrittenRowLevelCommand(command, relation: DataSourceV2Relation, rewritePlan) =>

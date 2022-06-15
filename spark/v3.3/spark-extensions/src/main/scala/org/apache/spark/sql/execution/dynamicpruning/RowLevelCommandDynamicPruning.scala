@@ -32,14 +32,23 @@ import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.planning.RewrittenRowLevelCommand
 import org.apache.spark.sql.catalyst.plans.LeftSemi
-import org.apache.spark.sql.catalyst.plans.logical.{DeleteFromIcebergTable, Filter, Join, JoinHint, LogicalPlan, MergeIntoIcebergTable, Project, ReplaceData, ReplaceIcebergData, RowLevelCommand, RowLevelWrite, Sort, Subquery, UpdateIcebergTable}
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.Filter
+import org.apache.spark.sql.catalyst.plans.logical.Join
+import org.apache.spark.sql.catalyst.plans.logical.JoinHint
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
+import org.apache.spark.sql.catalyst.plans.logical.Project
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
+import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
+import org.apache.spark.sql.catalyst.plans.logical.Sort
+import org.apache.spark.sql.catalyst.plans.logical.Subquery
+import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.PLAN_EXPRESSION
 import org.apache.spark.sql.catalyst.trees.TreePattern.SORT
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering
-import org.apache.spark.sql.connector.write.RowLevelOperation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
-
 import scala.collection.compat.immutable.ArraySeq
 
 /**
@@ -51,9 +60,6 @@ import scala.collection.compat.immutable.ArraySeq
 case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[LogicalPlan] with PredicateHelper {
 
   override def apply(plan: LogicalPlan): LogicalPlan =  {
-    println("RowLevelCommandDynamicPruning recived :", plan)
-//    val a = new IllegalArgumentException("testing-xx")
-//    a.printStackTrace()
     plan transformDown {
       // apply special dynamic filtering only for plans that don't support deltas
       case RewrittenRowLevelCommand(
