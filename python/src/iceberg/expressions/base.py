@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from abc import ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 from enum import Enum, auto
 from functools import reduce, singledispatch
 from typing import Any, Generic, TypeVar
@@ -89,7 +89,7 @@ OPERATION_NEGATIONS = {
 }
 
 
-class Literal(Generic[T], metaclass=ABCMeta):
+class Literal(Generic[T], ABC):
     """Literal which has a value and can be converted between types"""
 
     def __init__(self, value: T, value_type: type):
@@ -130,7 +130,7 @@ class Literal(Generic[T], metaclass=ABCMeta):
         return self.value >= other.value
 
 
-class BooleanExpression(metaclass=ABCMeta):
+class BooleanExpression(ABC):
     """base class for all boolean expressions"""
 
     @abstractmethod
@@ -242,7 +242,7 @@ class Not(BooleanExpression):
         return f"(not {self.child})"
 
 
-class AlwaysTrue(BooleanExpression, metaclass=Singleton):
+class AlwaysTrue(BooleanExpression, ABC, Singleton):
     """TRUE expression"""
 
     def __invert__(self) -> "AlwaysFalse":
@@ -255,7 +255,7 @@ class AlwaysTrue(BooleanExpression, metaclass=Singleton):
         return "true"
 
 
-class AlwaysFalse(BooleanExpression, metaclass=Singleton):
+class AlwaysFalse(BooleanExpression, ABC, Singleton):
     """FALSE expression"""
 
     def __invert__(self) -> "AlwaysTrue":
@@ -349,7 +349,7 @@ class UnboundReference:
         return BoundReference(field=field, accessor=schema.accessor_for_field(field.field_id))
 
 
-class BooleanExpressionVisitor(Generic[T], metaclass=ABCMeta):
+class BooleanExpressionVisitor(Generic[T], ABC):
     @abstractmethod
     def visit_true(self) -> T:
         """Visit method for an AlwaysTrue boolean expression

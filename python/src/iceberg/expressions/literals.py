@@ -112,7 +112,7 @@ def _(value: Decimal) -> Literal[Decimal]:
     return DecimalLiteral(value)
 
 
-class AboveMax(metaclass=Singleton):
+class AboveMax(Singleton):
     @property
     def value(self):
         raise ValueError("AboveMax has no value")
@@ -127,7 +127,7 @@ class AboveMax(metaclass=Singleton):
         return "AboveMax"
 
 
-class BelowMin(metaclass=Singleton):
+class BelowMin(Singleton):
     def __init__(self):
         pass
 
