@@ -148,4 +148,12 @@ public class TestSparkFilters {
     Expression expected = Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
     Assert.assertEquals("Expressions should match", expected.toString(), actual.toString());
   }
+
+  @Test
+  public void testNotInNull() {
+    Not filter = Not.apply(In.apply("col", new Integer[]{1, 2, null}));
+    Expression actual = SparkFilters.convert(filter);
+    Expression expected = Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
+    Assert.assertEquals("Expressions should match", expected.toString(), actual.toString());
+  }
 }

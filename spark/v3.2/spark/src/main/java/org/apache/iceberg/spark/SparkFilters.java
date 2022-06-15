@@ -178,6 +178,7 @@ public class SparkFilters {
             In childInFilter = (In) childFilter;
             Expression notIn = notIn(unquote(childInFilter.attribute()),
                 Stream.of(childInFilter.values())
+                    .filter(Objects::nonNull)
                     .map(SparkFilters::convertLiteral)
                     .collect(Collectors.toList()));
             return and(notNull(childInFilter.attribute()), notIn);
