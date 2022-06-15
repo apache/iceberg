@@ -64,7 +64,7 @@ def test_raise_on_no_negation_for_operation(operation):
     assert str(exc_info.value) == f"No negation defined for operation {operation}"
 
 
-class TestExpressionA(base.BooleanExpression, metaclass=Singleton):
+class TestExpressionA(base.BooleanExpression, Singleton):
     def __invert__(self):
         return TestExpressionB()
 
@@ -75,7 +75,7 @@ class TestExpressionA(base.BooleanExpression, metaclass=Singleton):
         return "testexpra"
 
 
-class TestExpressionB(base.BooleanExpression, metaclass=Singleton):
+class TestExpressionB(base.BooleanExpression, Singleton):
     def __invert__(self):
         return TestExpressionA()
 
