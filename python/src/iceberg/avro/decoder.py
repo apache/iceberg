@@ -16,15 +16,15 @@
 # under the License.
 import decimal
 import struct
-from datetime import (
-    date,
-    datetime,
-    time,
-    timedelta,
-)
+from datetime import date, datetime, time
 
 from iceberg.io.base import InputStream
-from iceberg.utils.datetime import micros_to_time, micros_to_timestamp, micros_to_timestamptz
+from iceberg.utils.datetime import (
+    days_to_date,
+    micros_to_time,
+    micros_to_timestamp,
+    micros_to_timestamptz,
+)
 from iceberg.utils.decimal import unscaled_to_decimal
 
 STRUCT_FLOAT = struct.Struct("<f")  # little-endian float
@@ -131,8 +131,7 @@ class BinaryDecoder:
         int stores the number of days from
         the unix epoch, 1 January 1970 (ISO calendar).
         """
-        days_to_date = self.read_int()
-        return date(1970, 1, 1) + timedelta(days_to_date)
+        return days_to_date(self.read_int())
 
     def read_time_millis(self) -> time:
         """

@@ -52,6 +52,11 @@ def date_to_days(date_str: str) -> int:
     return (date.fromisoformat(date_str) - EPOCH_DATE).days
 
 
+def days_to_date(days: int) -> date:
+    """Creates a date from the number of days from 1970-01-01"""
+    return EPOCH_DATE + timedelta(days)
+
+
 def time_to_micros(time_str: str) -> int:
     """Converts an ISO-8601 formatted time to microseconds from midnight"""
     t = time.fromisoformat(time_str)
