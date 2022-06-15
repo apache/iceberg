@@ -62,7 +62,7 @@ class StreamingOffset extends Offset {
     Preconditions.checkNotNull(json, "Cannot parse StreamingOffset JSON: null");
 
     try {
-      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
+      JsonNode node = JsonUtil.parseJson(json);
       return fromJsonNode(node);
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
@@ -74,7 +74,7 @@ class StreamingOffset extends Offset {
 
     JsonNode node;
     try {
-      node = JsonUtil.mapper().readValue(inputStream, JsonNode.class);
+      node = JsonUtil.parseJson(inputStream);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to read StreamingOffset from json", e);
     }

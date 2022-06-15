@@ -100,7 +100,7 @@ public class NameMappingParser {
 
   public static NameMapping fromJson(String json) {
     try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(JsonUtil.parseJson(json));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to convert version from json: %s", json);
     }

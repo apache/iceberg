@@ -21,10 +21,12 @@ package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +50,24 @@ public class JsonUtil {
 
   public static ObjectMapper mapper() {
     return MAPPER;
+  }
+
+  public static JsonNode parseJson(InputStream input) throws IOException {
+    Preconditions.checkNotNull(input, "input is null");
+    try (JsonParser parser = MAPPER.createParser(input)) {
+      JsonNode parsed = MAPPER.readValue(parser, JsonNode.class);
+      Preconditions.checkArgument(parser.nextToken() == null, "Found characters after the expected end of input");
+      return parsed;
+    }
+  }
+
+  public static JsonNode parseJson(String json) throws IOException {
+    Preconditions.checkNotNull(json, "input is null");
+    try (JsonParser parser = MAPPER.createParser(json)) {
+      JsonNode parsed = MAPPER.readValue(parser, JsonNode.class);
+      Preconditions.checkArgument(parser.nextToken() == null, "Found characters after the expected end of input");
+      return parsed;
+    }
   }
 
   public static int getInt(String property, JsonNode node) {

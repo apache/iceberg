@@ -274,7 +274,7 @@ public class SchemaParser {
   public static Schema fromJson(String json) {
     return SCHEMA_CACHE.get(json, jsonKey -> {
       try {
-        return fromJson(JsonUtil.mapper().readValue(jsonKey, JsonNode.class));
+        return fromJson(JsonUtil.parseJson(json));
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }

@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.iceberg.AssertHelpers;
@@ -72,7 +73,7 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
     Set<String> fieldsFromSpec = Sets.newHashSet();
     Collections.addAll(fieldsFromSpec, allFieldsFromSpec());
     try {
-      JsonNode node = JsonUtil.mapper().readValue(serialize(createExampleInstance()), JsonNode.class);
+      JsonNode node = JsonUtil.parseJson(serialize(createExampleInstance()));
       for (String field : fieldsFromSpec) {
         Assert.assertTrue("Should have field: " + field, node.has(field));
       }
@@ -80,7 +81,7 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
       for (String field : ((Iterable<? extends String>) node::fieldNames)) {
         Assert.assertTrue("Should not have field: " + field, fieldsFromSpec.contains(field));
       }
-    } catch (JsonProcessingException e) {
+    } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }

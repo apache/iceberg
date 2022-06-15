@@ -31,8 +31,8 @@ public class TestFileMetadataParser {
   @Test
   public void testInvalidJson() {
     assertThatThrownBy(() -> FileMetadataParser.fromJson((String) null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("argument \"content\" is null");
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("input is null");
 
     assertThatThrownBy(() -> FileMetadataParser.fromJson(""))
         .isInstanceOf(UncheckedIOException.class)
@@ -45,6 +45,16 @@ public class TestFileMetadataParser {
     assertThatThrownBy(() -> FileMetadataParser.fromJson("{\"blobs\": []"))
         .isInstanceOf(UncheckedIOException.class)
         .hasMessageContaining("Unexpected end-of-input: expected close marker for Object");
+
+    assertThatThrownBy(() -> FileMetadataParser.fromJson("{\"blobs\": []} {}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Found characters after the expected end of input");
+
+    assertThatThrownBy(() -> FileMetadataParser.fromJson("{\"blobs\": []} whatever"))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageStartingWith(
+            "com.fasterxml.jackson.core.JsonParseException: Unrecognized token 'whatever': was expecting " +
+                "(JSON String, Number, Array, Object or token 'null', 'true' or 'false')");
   }
 
   @Test

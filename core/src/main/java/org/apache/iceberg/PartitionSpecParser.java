@@ -104,7 +104,7 @@ public class PartitionSpecParser {
     return SPEC_CACHE.get(Pair.of(schema.asStruct(), json),
         schemaJsonPair -> {
           try {
-            return fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class));
+            return fromJson(schema, JsonUtil.parseJson(json));
           } catch (IOException e) {
             throw new RuntimeIOException(e);
           }
@@ -149,7 +149,7 @@ public class PartitionSpecParser {
 
   static PartitionSpec fromJsonFields(Schema schema, int specId, String json) {
     try {
-      return fromJsonFields(schema, specId, JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJsonFields(schema, specId, JsonUtil.parseJson(json));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to parse partition spec fields: %s", json);
     }

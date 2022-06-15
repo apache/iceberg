@@ -33,6 +33,8 @@ project(':iceberg-mr') {
     implementation project(':iceberg-hive-metastore')
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
 
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'

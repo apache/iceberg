@@ -261,7 +261,7 @@ public class TableMetadataParser {
   public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
-      return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
+      return fromJson(io, file, JsonUtil.parseJson(is));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
@@ -290,7 +290,7 @@ public class TableMetadataParser {
    */
   public static TableMetadata fromJson(FileIO io, String metadataLocation, String json) {
     try {
-      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
+      JsonNode node = JsonUtil.parseJson(json);
       return fromJson(io, metadataLocation, node);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to read JSON string: " + json, e);

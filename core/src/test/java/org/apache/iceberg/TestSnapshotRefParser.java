@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import java.io.UncheckedIOException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -77,6 +79,20 @@ public class TestSnapshotRefParser {
         .maxRefAgeMs(1L)
         .build();
     Assert.assertEquals("Should be able to deserialize tag with all fields", ref, SnapshotRefParser.fromJson(json));
+  }
+
+  @Test
+  public void testTagFromJsonTrailingContent() {
+    String validJson = "{\"snapshot-id\":1,\"type\":\"tag\"}";
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(validJson + "{}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Found characters after the expected end of input");
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(validJson + " null"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Found characters after the expected end of input");
+    Assertions.assertThatThrownBy(() -> SnapshotRefParser.fromJson(validJson + " none"))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessage("Failed to parse snapshot ref: " + validJson + " none");
   }
 
   @Test

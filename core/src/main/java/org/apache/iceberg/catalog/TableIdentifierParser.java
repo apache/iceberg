@@ -83,7 +83,7 @@ public class TableIdentifierParser {
     Preconditions.checkArgument(!json.isEmpty(),
         "Cannot parse table identifier from invalid JSON: ''");
     try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(JsonUtil.parseJson(json));
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Cannot parse table identifier from invalid JSON: %s", json), e);
     }

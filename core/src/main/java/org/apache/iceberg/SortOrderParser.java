@@ -143,7 +143,7 @@ public class SortOrderParser {
 
   public static UnboundSortOrder fromJson(String json) {
     try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(JsonUtil.parseJson(json));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

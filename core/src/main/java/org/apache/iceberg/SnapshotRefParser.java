@@ -74,7 +74,7 @@ public class SnapshotRefParser {
     Preconditions.checkArgument(json != null && !json.isEmpty(), "Cannot parse snapshot ref from invalid JSON: %s",
         json);
     try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(JsonUtil.parseJson(json));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to parse snapshot ref: " + json, e);
     }

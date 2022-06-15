@@ -171,7 +171,7 @@ public class SnapshotParser {
 
   public static Snapshot fromJson(FileIO io, String json) {
     try {
-      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(io, JsonUtil.parseJson(json));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
     }

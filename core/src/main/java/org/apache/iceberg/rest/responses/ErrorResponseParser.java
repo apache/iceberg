@@ -87,7 +87,7 @@ public class ErrorResponseParser {
    */
   public static ErrorResponse fromJson(String json) {
     try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(JsonUtil.parseJson(json));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to read JSON string: " + json, e);
     }

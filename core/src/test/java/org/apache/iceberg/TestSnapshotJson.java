@@ -21,9 +21,11 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -147,5 +149,17 @@ public class TestSnapshotJson {
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
     Assert.assertEquals("Schema ID should match", expected.schemaId(), snapshot.schemaId());
+  }
+
+  @Test
+  public void testParseJsonWithTrailingContent() {
+    String validJson = SnapshotParser.toJson(new BaseSnapshot(ops.io(), System.currentTimeMillis(), 1,
+        "file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro"));
+    Assertions.assertThatThrownBy(() -> SnapshotParser.fromJson(ops.io(), validJson + "{}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Found characters after the expected end of input");
+    Assertions.assertThatThrownBy(() -> SnapshotParser.fromJson(ops.io(), validJson + " some more content"))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessage("Failed to read version from json: " + validJson + " some more content");
   }
 }

@@ -61,7 +61,7 @@ class StreamingOffset extends Offset {
     Preconditions.checkNotNull(json, "Cannot parse StreamingOffset JSON: null");
 
     try {
-      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
+      JsonNode node = JsonUtil.parseJson(json);
       // The version of StreamingOffset. The offset was created with a version number
       // used to validate when deserializing from json string.
       int version = JsonUtil.getInt(VERSION, node);

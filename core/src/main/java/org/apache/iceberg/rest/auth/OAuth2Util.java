@@ -248,7 +248,7 @@ public class OAuth2Util {
 
   public static OAuthTokenResponse tokenResponseFromJson(String json) {
     try {
-      return tokenResponseFromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+      return tokenResponseFromJson(JsonUtil.parseJson(json));
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
