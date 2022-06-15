@@ -100,7 +100,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
         .stageCreate()
         .build();
 
-    assertRoundTripSerializesEquallyFrom(jsonStagedReq, req);
+    assertRoundTripSerializesEquallyFrom(jsonStagedReq, stagedReq);
 
     // Partition spec and write order can be null or use PartitionSpec.unpartitioned() and SortOrder.unsorted()
     String jsonWithExplicitUnsortedUnordered = String.format(
