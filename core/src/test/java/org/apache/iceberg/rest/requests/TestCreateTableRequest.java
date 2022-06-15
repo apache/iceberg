@@ -144,7 +144,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
     assertEquals(deserialize(jsonOnlyRequiredFieldsMissingDefaults), reqOnlyRequiredFieldsMissingDefaults);
 
     String jsonOnlyRequiredFieldsExplicitNullLocation = String.format(
-        "{\"name\":\"%s\",\"location\":null,\"schema\":%s,\"stageCreate\":%b}", SAMPLE_NAME, SchemaParser.toJson(SAMPLE_SCHEMA), false);
+        "{\"name\":\"%s\",\"location\":null,\"schema\":%s,\"stageCreate\":%b}", SAMPLE_NAME, SAMPLE_SCHEMA_JSON, false);
 
     assertEquals(
         deserialize(jsonOnlyRequiredFieldsExplicitNullLocation), reqOnlyRequiredFieldsMissingDefaults);
