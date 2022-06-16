@@ -25,7 +25,7 @@ from typing import (
     Any,
     Dict,
     Generic,
-    TypeVar,
+    TypeVar, Tuple, List,
 )
 
 from pydantic import Field, PrivateAttr
@@ -52,19 +52,19 @@ class Schema(IcebergBaseModel):
         >>> from iceberg import types
     """
 
-    fields: tuple[NestedField, ...] = Field(default_factory=tuple)
+    fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
     schema_id: int = Field(alias="schema-id")
-    identifier_field_ids: list[int] = Field(alias="identifier-field-ids", default_factory=list)
+    identifier_field_ids: List[int] = Field(alias="identifier-field-ids", default_factory=list)
 
-    _name_to_id: dict[str, int] = PrivateAttr()
+    _name_to_id: Dict[str, int] = PrivateAttr()
     # Should be accessed through self._lazy_name_to_id_lower()
-    _name_to_id_lower: dict[str, int] = PrivateAttr(default_factory=dict)
+    _name_to_id_lower: Dict[str, int] = PrivateAttr(default_factory=dict)
     # Should be accessed through self._lazy_id_to_field()
-    _id_to_field: dict[int, NestedField] = PrivateAttr(default_factory=dict)
+    _id_to_field: Dict[int, NestedField] = PrivateAttr(default_factory=dict)
     # Should be accessed through self._lazy_id_to_name()
-    _id_to_name: dict[int, str] = PrivateAttr(default_factory=dict)
+    _id_to_name: Dict[int, str] = PrivateAttr(default_factory=dict)
     # Should be accessed through self._lazy_id_to_accessor()
-    _id_to_accessor: dict[int, Accessor] = PrivateAttr(default_factory=dict)
+    _id_to_accessor: Dict[int, Accessor] = PrivateAttr(default_factory=dict)
 
     def __init__(self, *fields: NestedField, **data):
         if fields:

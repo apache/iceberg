@@ -35,7 +35,7 @@ from typing import (
     Dict,
     Literal,
     Optional,
-    Tuple,
+    Tuple, Type, Any,
 )
 
 from pydantic import Field, PrivateAttr
@@ -264,7 +264,7 @@ class StructType(IcebergType):
         return f"struct<{', '.join(map(str, self.fields))}>"
 
     def __repr__(self) -> str:
-        return f"StructType(fields=[{', '.join(map(repr, self.fields))}])"
+        return f"StructType(fields=({', '.join(map(repr, self.fields))},))"
 
 
 class ListType(IcebergType):

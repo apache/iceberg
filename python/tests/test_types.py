@@ -544,7 +544,7 @@ def test_str_struct(simple_struct: StructType):
 def test_repr_struct(simple_struct: StructType):
     assert (
         repr(simple_struct)
-        == "StructType(fields=[NestedField(field_id=1, name='required_field', field_type=StringType(), required=True), NestedField(field_id=2, name='optional_field', field_type=IntegerType(), required=True)])"
+        == "StructType(fields=(NestedField(field_id=1, name='required_field', field_type=StringType(), required=True), NestedField(field_id=2, name='optional_field', field_type=IntegerType(), required=True),))"
     )
 
 

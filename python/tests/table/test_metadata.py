@@ -203,7 +203,8 @@ def test_v1_metadata_parsing_directly():
     """Test retrieving values from a TableMetadata instance of version 1"""
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
 
-    assert table_metadata.format_version == 1
+    # The version 1 will automatically be bumped to version 2
+    assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0")
     assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
     assert table_metadata.last_updated_ms == 1600000000000
