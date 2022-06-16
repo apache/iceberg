@@ -124,7 +124,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       if (ops.current().ref(branch) == null) {
         SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
         TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(base);
-        updatedBuilder.setRef(branch, branchRef);
+        updatedBuilder.setRef(branch, branchRef).build();
       }
       Preconditions.checkArgument(ops.current().ref(branch).type() != SnapshotRefType.BRANCH, "%s is not a ref to type branch", branch);
       this.toBranch = branch;
