@@ -112,7 +112,11 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         # away by populating the required fields, and setting the version
         data["format-version"] = 2
         schema = data["schema"]
-        data["schemas"] = [schema]
+        if "schemas" not in data:
+            if all([schema != other_schema for other_schema in data["schemas"]]):
+                data["schemas"].append(schema)
+        else:
+            data["schemas"] = [schema]
         data["current-schema-id"] = schema["schema-id"]
         data["last-sequence-number"] = _INITIAL_SEQUENCE_NUMBER
         return TableMetadataV2(**data)

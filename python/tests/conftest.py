@@ -386,9 +386,10 @@ class LocalFileIO(FileIO):
     def new_output(self, location: str):
         return LocalOutputFile(location=location)
 
-    def delete(self, location: Union[InputFile, OutputFile]):
+    def delete(self, location: Union[str, InputFile, OutputFile]):
+        location = location.location if isinstance(location, (InputFile, OutputFile)) else location
         try:
-            os.remove(location.location)
+            os.remove(location)
         except FileNotFoundError as e:
             raise FileNotFoundError(f"Cannot delete file, does not exist: {location}") from e
 

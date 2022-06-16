@@ -271,8 +271,8 @@ class ListType(IcebergType):
     """A list type in Iceberg
 
     Example:
-        >>> ListType(element_id=3, element=StringType(), element_required=False)
-        ListType(element_id=3, element_type=StringType(), element_required=False)
+        >>> ListType(element_id=3, element_type=StringType(), element_required=True)
+        ListType(element_id=3, element_type=StringType(), element_required=True)
     """
 
     class Config:
@@ -283,8 +283,6 @@ class ListType(IcebergType):
     element_type: IcebergType = Field(alias="element")
     element_required: bool = Field(alias="element-required", default=True)
     element_field: NestedField = Field(init=False, repr=False)
-
-    _instances: ClassVar[Dict[Tuple[bool, int, IcebergType], "ListType"]] = {}
 
     def __init__(
         self, element_id: Optional[int] = None, element: Optional[IcebergType] = None, element_required: bool = True, **data
@@ -308,8 +306,8 @@ class MapType(IcebergType):
     """A map type in Iceberg
 
     Example:
-        >>> MapType(key_id=1, key=StringType(), value_id=2, value=IntegerType(), value_is_optional=True)
-        MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_is_optional=True)
+        >>> MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_required=True)
+        MapType(key_id=1, key_type=StringType(), value_id=2, value_type=IntegerType(), value_required=True)
     """
 
     type: Literal["map"] = "map"

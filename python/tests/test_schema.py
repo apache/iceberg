@@ -234,7 +234,7 @@ def test_schema_find_field_by_id(table_schema_simple):
 
 
 def test_schema_find_field_by_id_raise_on_unknown_field(table_schema_simple):
-    """Test raising when the field ID is not found among fields"""
+    """Test raising when the field ID is not found among columns"""
     index = schema.index_by_id(table_schema_simple)
     with pytest.raises(Exception) as exc_info:
         _ = index[4]

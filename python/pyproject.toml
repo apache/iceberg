@@ -40,9 +40,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 mmh3 = "^3.0.0"
-typing-extensions= "4.2.0"
-
-pydantic = {path = "/Users/fokkodriesprong/Desktop/pydantic", develop = true}
+pydantic = "^1.9.1"
 
 pyarrow = { version = "^8.0.0", optional = true }
 
