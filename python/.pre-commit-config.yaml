@@ -50,3 +50,8 @@ repos:
     hooks:
       - id: pyupgrade
         args: [--py38-plus]
+  - repo: https://github.com/pycqa/pylint
+    rev: v2.14.2
+    hooks:
+      - id: pylint
+        args: [ --rcfile=python/pylintrc ]
