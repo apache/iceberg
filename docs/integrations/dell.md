@@ -20,9 +20,9 @@ url: dell
  -->
 
 
-# Iceberg Dell Implementation
+# Iceberg Dell Integration
 
-## Dell ECS Implementation
+## Dell ECS Integration
 
 Iceberg can be used with Dell's Enterprise Object Storage (ECS) by using the ECS catalog since 0.14.0.
 
