@@ -66,7 +66,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
             .withColumn("data", expr("CAST(date AS STRING)"))
             .select("id", "data", "date", "ts");
 
-    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").option(SparkWriteOptions.WRITE_FORMAT, "avro").append();
+    df.coalesce(1).writeTo(tableName).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
 
     sql("CREATE TABLE dim (id BIGINT, date DATE) USING parquet");
     Dataset<Row> dimDF =
