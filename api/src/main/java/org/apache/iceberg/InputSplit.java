@@ -19,12 +19,13 @@
 
 package org.apache.iceberg;
 
+import java.util.Collection;
+
 /**
- * A scan task made of several ranges from files.
+ * A scan task that may include partial input files, multiple input files or both.
+ *
+ * @param <T> the type of scan tasks
  */
-public interface CombinedScanTask extends InputSplit<FileScanTask> {
-  @Override
-  default CombinedScanTask asCombinedScanTask() {
-    return this;
-  }
+public interface InputSplit<T extends ScanTask> extends ScanTask {
+  Collection<T> files();
 }

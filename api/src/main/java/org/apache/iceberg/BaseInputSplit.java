@@ -19,12 +19,22 @@
 
 package org.apache.iceberg;
 
-/**
- * A scan task made of several ranges from files.
- */
-public interface CombinedScanTask extends InputSplit<FileScanTask> {
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+
+public class BaseInputSplit<T extends ScanTask> implements InputSplit<T> {
+  private final List<T> tasks;
+
+  public BaseInputSplit(List<T> tasks) {
+    Preconditions.checkNotNull(tasks, "tasks cannot be null");
+    this.tasks = Collections.unmodifiableList(Lists.newArrayList(tasks));
+  }
+
   @Override
-  default CombinedScanTask asCombinedScanTask() {
-    return this;
+  public Collection<T> files() {
+    return tasks;
   }
 }

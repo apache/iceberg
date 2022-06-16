@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
-abstract class BaseScan<T extends Scan<T>> implements Scan<T> {
+abstract class BaseScan<ThisT, T extends ScanTask, S extends InputSplit<T>> implements Scan<ThisT, T, S> {
   private final TableOperations ops;
   private final Table table;
   private final Schema schema;
@@ -59,46 +59,46 @@ abstract class BaseScan<T extends Scan<T>> implements Scan<T> {
     return context;
   }
 
-  protected abstract T newRefinedScan(
+  protected abstract ThisT newRefinedScan(
       TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext);
 
   @Override
-  public T option(String property, String value) {
+  public ThisT option(String property, String value) {
     return newRefinedScan(ops, table, schema, context.withOption(property, value));
   }
 
   @Override
-  public T project(Schema projectedSchema) {
+  public ThisT project(Schema projectedSchema) {
     return newRefinedScan(ops, table, schema, context.project(projectedSchema));
   }
 
   @Override
-  public T caseSensitive(boolean caseSensitive) {
+  public ThisT caseSensitive(boolean caseSensitive) {
     return newRefinedScan(ops, table, schema, context.setCaseSensitive(caseSensitive));
   }
 
   @Override
-  public T includeColumnStats() {
+  public ThisT includeColumnStats() {
     return newRefinedScan(ops, table, schema, context.shouldReturnColumnStats(true));
   }
 
   @Override
-  public T select(Collection<String> columns) {
+  public ThisT select(Collection<String> columns) {
     return newRefinedScan(ops, table, schema, context.selectColumns(columns));
   }
 
   @Override
-  public T filter(Expression expr) {
+  public ThisT filter(Expression expr) {
     return newRefinedScan(ops, table, schema, context.filterRows(Expressions.and(context.rowFilter(), expr)));
   }
 
   @Override
-  public T ignoreResiduals() {
+  public ThisT ignoreResiduals() {
     return newRefinedScan(ops, table, schema, context.ignoreResiduals(true));
   }
 
   @Override
-  public T planWith(ExecutorService executorService) {
+  public ThisT planWith(ExecutorService executorService) {
     return newRefinedScan(ops, table, schema, context.planWith(executorService));
   }
 

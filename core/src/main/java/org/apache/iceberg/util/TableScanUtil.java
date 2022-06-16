@@ -19,15 +19,20 @@
 
 package org.apache.iceberg.util;
 
+import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.BaseInputSplit;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.InputSplit;
+import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class TableScanUtil {
 
@@ -77,5 +82,58 @@ public class TableScanUtil {
             new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
             splitFiles),
         BaseCombinedScanTask::new);
+  }
+
+  public static <T extends SplittableScanTask<T>> CloseableIterable<InputSplit<T>> planInputSplits(
+      CloseableIterable<T> tasks,
+      long splitSize, int lookback, long openFileCost) {
+
+    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
+    Preconditions.checkArgument(lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
+    Preconditions.checkArgument(openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
+
+    // capture manifests which can be closed after scan planning
+    CloseableIterable<T> splitTasks = CloseableIterable.combine(
+        FluentIterable.from(tasks).transformAndConcat(input -> input.split(splitSize)),
+        tasks);
+
+    Function<T, Long> weightFunc = task -> Math.max(task.totalSizeBytes(), task.totalFilesCount() * openFileCost);
+
+    return CloseableIterable.transform(
+        CloseableIterable.combine(
+            new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
+            splitTasks),
+        combinedTasks -> new BaseInputSplit<>(combineAdjacentTasks(combinedTasks)));
+  }
+
+  private static <T extends SplittableScanTask<T>> List<T> combineAdjacentTasks(List<T> tasks) {
+    if (tasks.isEmpty()) {
+      return tasks;
+    }
+
+    List<T> combinedScans = Lists.newArrayList();
+    T lastTask = null;
+
+    for (T task : tasks) {
+      if (lastTask != null) {
+        if (lastTask.isAdjacent(task)) {
+          // merge with the last task
+          lastTask = lastTask.combine(task);
+        } else {
+          // last task is not adjacent, add it to finished adjacent groups
+          combinedScans.add(lastTask);
+          lastTask = task;
+        }
+      } else {
+        // first split
+        lastTask = task;
+      }
+    }
+
+    if (lastTask != null) {
+      combinedScans.add(lastTask);
+    }
+
+    return combinedScans;
   }
 }

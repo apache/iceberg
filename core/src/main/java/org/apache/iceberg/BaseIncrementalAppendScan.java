@@ -32,7 +32,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 
-class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implements IncrementalAppendScan {
+class BaseIncrementalAppendScan
+    extends BaseScan<IncrementalAppendScan, FileScanTask, CombinedScanTask>
+    implements IncrementalAppendScan {
 
   BaseIncrementalAppendScan(TableOperations ops, Table table) {
     this(ops, table, table.schema(), new TableScanContext());
@@ -174,7 +176,7 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
   }
 
   /**
-   * This method doesn't perform validation, which is already done by the caller {@link #planFiles()}
+   * This method doesn't perform validation, which is already done by the caller {@link #planFiles()} ()}
    */
   private static List<Snapshot> appendsBetween(Table table, Long fromSnapshotIdExclusive, long toSnapshotIdInclusive) {
     List<Snapshot> snapshots = Lists.newArrayList();

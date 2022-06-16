@@ -26,6 +26,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -215,6 +216,18 @@ public class BaseFileScanTask implements FileScanTask {
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
       throw new UnsupportedOperationException("Cannot split a task which is already split");
+    }
+
+    @Override
+    public boolean isAdjacent(FileScanTask other) {
+      return file().equals(other.file()) && offset + len == other.start();
+    }
+
+    @Override
+    public FileScanTask combine(FileScanTask other) {
+      Preconditions.checkArgument(isAdjacent(other), "Only adjacent tasks can be combined");
+
+      return new SplitScanTask(offset, len + other.length(), fileScanTask);
     }
 
     public boolean isAdjacent(SplitScanTask other) {
