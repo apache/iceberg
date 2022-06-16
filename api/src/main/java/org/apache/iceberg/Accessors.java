@@ -56,14 +56,30 @@ public class Accessors {
   }
 
   private static class PositionAccessor implements Accessor<StructLike> {
-    private int position;
+    private final int position;
     private final Type type;
     private final Class<?> javaClass;
 
     PositionAccessor(int pos, Type type) {
       this.position = pos;
       this.type = type;
-      this.javaClass = type.typeId().javaClass();
+
+      switch (type.typeId()) {
+        case MAP:
+          this.javaClass = Map.class;
+          break;
+
+        case LIST:
+          this.javaClass = List.class;
+          break;
+
+        case STRUCT:
+          this.javaClass = StructLike.class;
+          break;
+
+        default:
+          this.javaClass = type.typeId().javaClass();
+      }
     }
 
     @Override
@@ -218,12 +234,14 @@ public class Accessors {
         Types.NestedField field = fields.get(i);
         Map<Integer, Accessor<StructLike>> result = fieldResults.get(i);
         if (result != null) {
+          // Add accessors for nested fields.
           for (Map.Entry<Integer, Accessor<StructLike>> entry : result.entrySet()) {
             accessors.put(entry.getKey(), newAccessor(i, field.isOptional(), entry.getValue()));
           }
-        } else {
-          accessors.put(field.fieldId(), newAccessor(i, field.type()));
         }
+
+        // Add an accessor for this field as an Object (may or may not be primitive).
+        accessors.put(field.fieldId(), newAccessor(i, field.type()));
       }
 
       return accessors;
