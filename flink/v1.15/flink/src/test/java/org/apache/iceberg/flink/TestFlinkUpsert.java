@@ -243,6 +243,43 @@ public class TestFlinkUpsert extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testUpsertTableJoin() {
+    try {
+      sql("CREATE TABLE upsert_test ( " +
+              "  `id`  STRING UNIQUE COMMENT 'unique id', " +
+              "  `data` STRING NOT NULL, " +
+              " PRIMARY KEY(`id`) NOT ENFORCED " +
+              " ) WITH %s", toWithClause(tableUpsertProps));
+
+      sql("insert into upsert_test values ('1','20220507'), ('2','20220504'),('6','20220505')");
+
+      sql("CREATE TABLE upsert_sample ( " +
+              "  `id`  STRING UNIQUE COMMENT 'unique id', " +
+              "  `data` STRING NOT NULL, " +
+              " PRIMARY KEY(`id`) NOT ENFORCED " +
+              " ) WITH %s", toWithClause(tableUpsertProps));
+
+      sql("insert into upsert_sample values ('1','20220607'),('2','20220503'),('3','20220505')");
+
+      sql("insert into upsert_test " +
+              "select " +
+              "t1.id as id, " +
+              "t1.data as data " +
+              "from upsert_sample t1 left join upsert_test t2 " +
+              "on t1.id = t2.id  " +
+              "where t1.data > t2.data or t2.data is null");
+
+      TestHelpers.assertRows(
+              sql("SELECT * FROM upsert_test"),
+              Lists.newArrayList(Row.of("1", "20220607"), Row.of("2", "20220504"), Row.of("3", "20220505"),
+                      Row.of("6", "20220505")));
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, "upsert_test");
+      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, "upsert_sample");
+    }
+  }
+
+  @Test
   public void testPrimaryKeyFieldsAtEndOfTableSchema() {
     // This is the same test case as testPrimaryKeyFieldsAtBeginningOfSchema, but the primary key fields
     // are located at the end of the flink schema.
