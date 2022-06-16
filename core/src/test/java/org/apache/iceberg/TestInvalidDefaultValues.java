@@ -32,35 +32,35 @@ public class TestInvalidDefaultValues {
   public void testInvalidFixed() {
     Type expectedType = Types.FixedType.ofLength(2);
     String defaultJson = "\"111ff\"";
-    Assert.assertThrows(IllegalArgumentException.class, () -> defaultValueParseAndUnParseRoundTrip(
-        expectedType,
-        defaultJson));
+    Exception exception = Assert.assertThrows(IllegalArgumentException.class,
+        () -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson));
+    Assert.assertTrue(exception.getMessage().startsWith("Cannot parse default fixed[2] value"));
   }
 
   @Test
   public void testInvalidUUID() {
-    Type expectedType = Types.FixedType.ofLength(2);
+    Type expectedType = Types.UUIDType.get();
     String defaultJson = "\"eb26bdb1-a1d8-4aa6-990e-da940875492c-abcde\"";
-    Assert.assertThrows(IllegalArgumentException.class, () -> defaultValueParseAndUnParseRoundTrip(
-        expectedType,
-        defaultJson));
+    Exception exception = Assert.assertThrows(IllegalArgumentException.class,
+        () -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson));
+    Assert.assertTrue(exception.getMessage().startsWith("Cannot parse default as a uuid value"));
   }
 
   @Test
   public void testInvalidMap() {
     Type expectedType = Types.MapType.ofOptional(1, 2, Types.IntegerType.get(), Types.StringType.get());
     String defaultJson = "{\"keys\": [1, 2, 3], \"values\": [\"foo\", \"bar\"]}";
-    Assert.assertThrows(IllegalArgumentException.class, () -> defaultValueParseAndUnParseRoundTrip(
-        expectedType,
-        defaultJson));
+    Exception exception = Assert.assertThrows(IllegalArgumentException.class,
+        () -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson));
+    Assert.assertTrue(exception.getMessage().startsWith("Cannot parse default as a map<int, string> value"));
   }
 
   @Test
   public void testInvalidDecimal() {
     Type expectedType = Types.DecimalType.of(5, 2);
     String defaultJson = "123.456";
-    Assert.assertThrows(IllegalArgumentException.class, () -> defaultValueParseAndUnParseRoundTrip(
-        expectedType,
-        defaultJson));
+    Exception exception = Assert.assertThrows(IllegalArgumentException.class,
+        () -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson));
+    Assert.assertTrue(exception.getMessage().startsWith("Cannot parse default as a decimal(5, 2) value"));
   }
 }

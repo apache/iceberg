@@ -85,22 +85,20 @@ public class DateTimeUtil {
   }
 
   public static String daysToIsoDate(int days) {
-    return LocalDate.ofEpochDay(days).format(DateTimeFormatter.ISO_LOCAL_DATE);
+    return dateFromDays(days).format(DateTimeFormatter.ISO_LOCAL_DATE);
   }
 
   public static String microsToIsoTime(long micros) {
-    return LocalTime.ofNanoOfDay(micros * 1000).format(DateTimeFormatter.ISO_LOCAL_TIME);
+    return timeFromMicros(micros).format(DateTimeFormatter.ISO_LOCAL_TIME);
   }
 
   public static String microsToIsoDateTimeTz(long micros) {
-    LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(micros / 1000000,
-        (int) (micros % 1000000) * 1000, ZoneOffset.UTC);
+    LocalDateTime localDateTime = timestampFromMicros(micros);
     return OffsetDateTime.of(localDateTime, ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
   }
 
   public static String microsToIsoDateTime(long micros) {
-    LocalDateTime localDateTime = LocalDateTime.ofEpochSecond(micros / 1000000,
-        (int) (micros % 1000000) * 1000, ZoneOffset.UTC);
+    LocalDateTime localDateTime = timestampFromMicros(micros);
     return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
   }
 
