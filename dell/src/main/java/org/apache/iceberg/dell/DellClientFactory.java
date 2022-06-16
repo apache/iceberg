@@ -20,10 +20,9 @@
 package org.apache.iceberg.dell;
 
 import com.emc.object.s3.S3Client;
-import java.io.Serializable;
 import java.util.Map;
 
-public interface DellClientFactory extends Serializable {
+public interface DellClientFactory {
 
   /**
    * Create a Dell EMC ECS S3 client
