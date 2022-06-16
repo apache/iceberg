@@ -121,7 +121,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT toBranch(String branch){
       Preconditions.checkArgument(branch != null,"branch cannot be null");
-      Preconditions.checkArgument(ops.current().ref(branch) != null, "%s is not a valid ref", branch);
+      if (ops.current().ref(branch) == null) {
+        SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
+        TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(base);
+        updatedBuilder.setRef(branch, branchRef);
+      }
       Preconditions.checkArgument(ops.current().ref(branch).type() != SnapshotRefType.BRANCH, "%s is not a ref to type branch", branch);
       this.toBranch = branch;
       return self();
