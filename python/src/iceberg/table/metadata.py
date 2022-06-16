@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Literal, Union, Type, Dict
+from typing import List, Literal, Union
 from uuid import UUID
 
 from pydantic import Field
@@ -24,6 +24,7 @@ from iceberg.schema import Schema
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
 
 _INITIAL_SEQUENCE_NUMBER = 0
+
 
 class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
@@ -106,7 +107,6 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
 
 class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
-
     def __new__(cls, *_, **data):
         # When we read a V1 format-version, we'll bump it to a V2 table right
         # away by populating the required fields, and setting the version

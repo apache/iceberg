@@ -15,14 +15,22 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-from typing import ClassVar, Dict
+from typing import Any, ClassVar, Dict
+
+
+def _convert_to_hashable_type(any: Any) -> Any:
+    if isinstance(any, dict):
+        return tuple((_convert_to_hashable_type(k), _convert_to_hashable_type(v)) for k, v in any.items())
+    elif isinstance(any, list):
+        return tuple(map(_convert_to_hashable_type, any))
+    return any
 
 
 class Singleton:
     _instances: ClassVar[Dict] = {}
 
     def __new__(cls, *args, **kwargs):
-        key = (cls, tuple(args), tuple(sorted(kwargs.items())))
+        key = (cls, tuple(args), _convert_to_hashable_type(kwargs))
         if key not in cls._instances:
             cls._instances[key] = super().__new__(cls)
         return cls._instances[key]

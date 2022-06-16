@@ -35,7 +35,7 @@ from typing import (
     Dict,
     Literal,
     Optional,
-    Tuple, Type, Any,
+    Tuple,
 )
 
 from pydantic import Field, PrivateAttr
@@ -252,7 +252,7 @@ class StructType(IcebergType):
     """
 
     type: Literal["struct"] = "struct"
-    fields: Tuple[NestedField, ...] = Field()
+    fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
 
     def __init__(self, *fields: NestedField, **data):
         # In case we use positional arguments, instead of keyword args

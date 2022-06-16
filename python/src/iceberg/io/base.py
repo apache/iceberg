@@ -187,11 +187,11 @@ class FileIO(ABC):
         """
 
     @abstractmethod
-    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
+    def delete(self, location: Union[InputFile, OutputFile]) -> None:
         """Delete the file at the given path
 
         Args:
-            location(str, InputFile, OutputFile): A URI or a path to a local file--if an InputFile instance or
+            location(InputFile, OutputFile): A URI or a path to a local file--if an InputFile instance or
             an OutputFile instance is provided, the location attribute for that instance is used as the URI to delete
 
         Raises:

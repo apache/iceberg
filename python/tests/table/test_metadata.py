@@ -17,14 +17,12 @@
 
 import io
 import json
-import os
-import tempfile
 from uuid import UUID
 
 import pytest
 
 from iceberg.schema import Schema
-from iceberg.serializers import FromByteStream, FromInputFile, ToOutputFile
+from iceberg.serializers import FromByteStream
 from iceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
 from iceberg.types import NestedField, StringType
 

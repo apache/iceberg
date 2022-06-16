@@ -386,12 +386,11 @@ class LocalFileIO(FileIO):
     def new_output(self, location: str):
         return LocalOutputFile(location=location)
 
-    def delete(self, location: Union[str, InputFile, OutputFile]):
-        parsed_location = location.location if isinstance(location, (InputFile, OutputFile)) else urlparse(location)
+    def delete(self, location: Union[InputFile, OutputFile]):
         try:
-            os.remove(parsed_location)
+            os.remove(location.location)
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location}") from e
+            raise FileNotFoundError(f"Cannot delete file, does not exist: {location}") from e
 
 
 @pytest.fixture(scope="session", autouse=True)
