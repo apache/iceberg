@@ -56,6 +56,7 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
         .config("spark.sql.shuffle.partitions", "4")
         .config("spark.sql.hive.metastorePartitionPruningFallbackOnException", "true")
+        .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
         .config(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), String.valueOf(RANDOM.nextBoolean()))
         .enableHiveSupport()
         .getOrCreate();
