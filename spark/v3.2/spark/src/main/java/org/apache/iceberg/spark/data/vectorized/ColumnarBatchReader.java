@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -79,13 +78,12 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       closeVectors();
     }
 
-    ColumnBatchLoader batchLoader = new ColumnBatchLoader(numRowsToRead);
+    ColumnarBatch columnarBatch = new ColumnBatchLoader(numRowsToRead).loadDataToColumnBatch();
     rowStartPosInBatch += numRowsToRead;
-    return batchLoader.columnarBatch;
+    return columnarBatch;
   }
 
   private class ColumnBatchLoader {
-    private ColumnarBatch columnarBatch;
     private final int numRowsToRead;
     // the rowId mapping to skip deleted rows for all column vectors inside a batch, it is null when there is no deletes
     private int[] rowIdMapping;
@@ -95,7 +93,9 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     ColumnBatchLoader(int numRowsToRead) {
       Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
       this.numRowsToRead = numRowsToRead;
-      this.columnarBatch = loadDataToColumnBatch();
+      if (hasIsDeletedColumn) {
+        isDeleted = new boolean[numRowsToRead];
+      }
     }
 
     ColumnarBatch loadDataToColumnBatch() {
@@ -107,11 +107,14 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       newColumnarBatch.setNumRows(numRowsUndeleted);
 
       if (hasEqDeletes()) {
-        numRowsUndeleted = applyEqDelete(newColumnarBatch);
+        applyEqDelete(newColumnarBatch);
       }
 
-      if (hasIsDeletedColumn) {
-        rowIdMappingToIsDeleted(numRowsUndeleted);
+      if (hasIsDeletedColumn && rowIdMapping != null) {
+        // reset the row id mapping array, so that it doesn't filter out the deleted rows
+        for (int i = 0; i < numRowsToRead; i++) {
+          rowIdMapping[i] = i;
+        }
         newColumnarBatch.setNumRows(numRowsToRead);
       }
 
@@ -120,10 +123,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
     ColumnVector[] readDataToColumnVectors() {
       ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
-
-      if (hasIsDeletedColumn) {
-        isDeleted = new boolean[numRowsToRead];
-      }
 
       for (int i = 0; i < readers.length; i += 1) {
         vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
@@ -185,6 +184,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         if (!deletedRowPositions.isDeleted(originalRowId + rowStartPosInBatch)) {
           posDelRowIdMapping[currentRowId] = originalRowId;
           currentRowId++;
+        } else if (hasIsDeletedColumn) {
+          isDeleted[originalRowId] = true;
         }
         originalRowId++;
       }
@@ -229,6 +230,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
           // skip deleted rows by pointing to the next undeleted row Id
           rowIdMapping[currentRowId] = rowIdMapping[rowId];
           currentRowId++;
+        } else if (hasIsDeletedColumn) {
+          isDeleted[rowIdMapping[rowId]] = true;
         }
 
         rowId++;
@@ -236,30 +239,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
       newColumnarBatch.setNumRows(currentRowId);
       return currentRowId;
-    }
-
-    /**
-     * Convert the row id mapping array to the isDeleted array.
-     *
-     * @param numRowsInRowIdMapping the num of rows in the row id mapping array
-     */
-    void rowIdMappingToIsDeleted(int numRowsInRowIdMapping) {
-      // isDeleted array is filled with "false" by default. We keep that to indicate no row is deleted
-      // when there is no deletes(rowIdMapping == null).
-      if (isDeleted == null || rowIdMapping == null) {
-        return;
-      }
-
-      Arrays.fill(isDeleted, true);
-
-      for (int i = 0; i < numRowsInRowIdMapping; i++) {
-        isDeleted[rowIdMapping[i]] = false;
-      }
-
-      // reset the row id mapping array, so that it doesn't filter out the deleted rows
-      for (int i = 0; i < numRowsToRead; i++) {
-        rowIdMapping[i] = i;
-      }
     }
   }
 }
