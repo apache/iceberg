@@ -537,8 +537,8 @@ Flink write options are passed when configuring the FlinkSink, like this:
 FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
     .table(table)
     .tableLoader(tableLoader)
-    .writeParallelism(parallelism)
-    .set("write-format", "orc");
+    .set("write-format", "orc")
+    .set(FlinkWriteOptions.OVERWRITE_MODE, "true");
 ```
 
 | Flink option           | Default                    | Description                                                  |
