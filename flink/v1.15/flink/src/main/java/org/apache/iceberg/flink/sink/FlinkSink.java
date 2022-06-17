@@ -184,8 +184,8 @@ public class FlinkSink {
     }
 
     /**
-     * Set the write properties for Flink sink. Write properties (with the same keys) defined in table properties
-     * will be overwritten by properties provided here.
+     * Set the write properties for Flink sink.
+     * View the supported properties in {@link FlinkWriteOptions}
      */
     public Builder set(String property, String value) {
       writeOptions.put(property, value);
@@ -193,8 +193,8 @@ public class FlinkSink {
     }
 
     /**
-     * Set the write properties for Flink sink. Write properties (with the same keys) defined in table properties
-     * will be overwritten by properties provided here.
+     * Set the write properties for Flink sink.
+     * View the supported properties in {@link FlinkWriteOptions}
      */
     public Builder setAll(Map<String, String> properties) {
       writeOptions.putAll(properties);
