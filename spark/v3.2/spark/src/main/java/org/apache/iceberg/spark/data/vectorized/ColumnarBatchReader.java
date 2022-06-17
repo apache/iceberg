@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -44,11 +45,11 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
-  private final boolean hasColumnIsDeleted;
+  private final boolean hasIsDeletedColumn;
 
   public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
     super(readers);
-    this.hasColumnIsDeleted = hasDeletedVectorReader(readers);
+    this.hasIsDeletedColumn = hasDeletedVectorReader(readers);
   }
 
   private boolean hasDeletedVectorReader(List<VectorizedReader<?>> readers) {
@@ -86,8 +87,10 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   private class ColumnBatchLoader {
     private ColumnarBatch columnarBatch;
     private final int numRowsToRead;
-    private int[] rowIdMapping; // the rowId mapping to skip deleted rows for all column vectors inside a batch
-    private boolean[] isDeleted; // the array to indicate if a row is deleted or not
+    // the rowId mapping to skip deleted rows for all column vectors inside a batch, it is null when there is no deletes
+    private int[] rowIdMapping;
+    // the array to indicate if a row is deleted or not, it is null when there is no "_deleted" metadata column
+    private boolean[] isDeleted;
 
     ColumnBatchLoader(int numRowsToRead) {
       Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
@@ -107,7 +110,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         numRowsUndeleted = applyEqDelete(newColumnarBatch);
       }
 
-      if (hasColumnIsDeleted) {
+      if (hasIsDeletedColumn) {
         rowIdMappingToIsDeleted(numRowsUndeleted);
         newColumnarBatch.setNumRows(numRowsToRead);
       }
@@ -118,7 +121,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     ColumnVector[] readDataToColumnVectors() {
       ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
 
-      if (hasColumnIsDeleted) {
+      if (hasIsDeletedColumn) {
         isDeleted = new boolean[numRowsToRead];
       }
 
@@ -241,13 +244,13 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
      * @param numRowsInRowIdMapping the num of rows in the row id mapping array
      */
     void rowIdMappingToIsDeleted(int numRowsInRowIdMapping) {
+      // isDeleted array is filled with "false" by default. We keep that to indicate no row is deleted
+      // when there is no deletes(rowIdMapping == null).
       if (isDeleted == null || rowIdMapping == null) {
         return;
       }
 
-      for (int i = 0; i < numRowsToRead; i++) {
-        isDeleted[i] = true;
-      }
+      Arrays.fill(isDeleted, true);
 
       for (int i = 0; i < numRowsInRowIdMapping; i++) {
         isDeleted[rowIdMapping[i]] = false;

@@ -63,61 +63,61 @@ public class DeletedMetaColumnVector extends ColumnVector {
 
   @Override
   public byte getByte(int rowId) {
-    return 0;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public short getShort(int rowId) {
-    return 0;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public int getInt(int rowId) {
-    return 0;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public long getLong(int rowId) {
-    return 0;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public float getFloat(int rowId) {
-    return 0;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public double getDouble(int rowId) {
-    return 0;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public ColumnarArray getArray(int rowId) {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public ColumnarMap getMap(int ordinal) {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public Decimal getDecimal(int rowId, int precision, int scale) {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public UTF8String getUTF8String(int rowId) {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public byte[] getBinary(int rowId) {
-    return new byte[0];
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public ColumnVector getChild(int ordinal) {
-    return null;
+    throw new UnsupportedOperationException();
   }
 }

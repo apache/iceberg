@@ -518,8 +518,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   /**
-   * A Dummy Vector Reader which doesn't actually read files, instead it returns a dummy
-   * VectorHolder which indicates whether the row is deleted.
+   * A Dummy Vector Reader which doesn't actually read files, instead it returns an
+   * IsDeleted Vector Holder which indicates whether a given row is deleted.
    */
   public static class DeletedVectorReader extends VectorizedArrowReader {
     public DeletedVectorReader() {
