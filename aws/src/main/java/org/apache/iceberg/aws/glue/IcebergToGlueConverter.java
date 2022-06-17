@@ -224,7 +224,8 @@ class IcebergToGlueConverter {
           .storageDescriptor(storageDescriptor
               .location(metadata.location())
               .columns(toColumns(metadata))
-              .build());
+              .build())
+          .partitionKeys(toPartitionColumns(metadata));
     } catch (RuntimeException e) {
       LOG.warn("Encountered unexpected exception while converting Iceberg metadata to Glue table information", e);
     }
@@ -316,5 +317,15 @@ class IcebergToGlueConverter {
           .build());
       dedupe.add(field.name());
     }
+  }
+
+  private static List<Column> toPartitionColumns(TableMetadata metadata) {
+    return metadata.spec().fields().stream()
+        .map(f -> Column.builder()
+            .name(f.transform() + "(" + f.name() + ")")
+            .type(toTypeString(f.transform().getResultType(metadata.schema().findField(f.sourceId()).type())))
+            .comment("fieldId: " + f.fieldId() + ", sourceId: " + f.sourceId() + ", transform: " + f.transform())
+            .build())
+        .collect(Collectors.toList());
   }
 }

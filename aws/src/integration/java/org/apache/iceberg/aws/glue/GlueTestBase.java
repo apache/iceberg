@@ -65,7 +65,7 @@ public class GlueTestBase {
   static GlueCatalog glueCatalogWithSkip;
 
   static Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
-  static PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
+  static PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).identity("c1").build();
 
   // table location properties
   static final Map<String, String> tableLocationProperties = ImmutableMap.of(

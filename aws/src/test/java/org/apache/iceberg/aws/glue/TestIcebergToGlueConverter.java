@@ -153,6 +153,7 @@ public class TestIcebergToGlueConverter {
         .identity("x")
         .withSpecId(1000)
         .build();
+
     TableMetadata tableMetadata = TableMetadata
         .newTableMetadata(schema, partitionSpec, "s3://test", tableLocationProperties);
     IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
@@ -185,6 +186,13 @@ public class TestIcebergToGlueConverter {
                     ))
                     .build()))
             .build())
+        .partitionKeys(ImmutableList.of(
+            Column.builder()
+                .name("identity(x)")
+                .type("string")
+                .comment("fieldId: 1000, sourceId: 1, transform: identity")
+                .build()
+        ))
         .build();
 
     Assert.assertEquals(
@@ -199,6 +207,10 @@ public class TestIcebergToGlueConverter {
         "Columns should match",
         expectedTableInput.storageDescriptor().columns(),
         actualTableInput.storageDescriptor().columns());
+    Assert.assertEquals(
+        "Partition keys should match",
+        expectedTableInput.partitionKeys(),
+        actualTableInput.partitionKeys());
   }
 
   @Test
