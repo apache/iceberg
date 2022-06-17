@@ -83,17 +83,17 @@ class BooleanExpression(ABC):
 
 
 class BoundPredicate(ABC):
-    def __init__(self, left, right):
-        """A concrete predicate must have a `left` and `right`"""
-        self._left = left
-        self._right = right
+    def __init__(self, term, literal):
+        """A concrete predicate must have a `term` and `literal`"""
+        self._term = term
+        self._literal = literal
 
 
 class UnboundPredicate:
-    def __init__(self, left, right):
-        """A concrete predicate must have a `left` and `right`"""
-        self._left = left
-        self._right = right
+    def __init__(self, term, literal):
+        """A concrete predicate must have a `term` and `literal`"""
+        self._term = term
+        self._literal = literal
 
     @abstractmethod
     def bind(self, schema: Schema, case_sensitive: bool) -> BoundPredicate:
