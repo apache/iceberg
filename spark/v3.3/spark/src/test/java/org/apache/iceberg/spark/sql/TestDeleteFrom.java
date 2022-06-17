@@ -28,14 +28,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestDeleteFrom extends SparkCatalogTestBase {
@@ -64,9 +61,11 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-        AnalysisException.class, "Cannot delete from",
-        () -> sql("DELETE FROM %s WHERE id < 2", tableName));
+    sql("DELETE FROM %s WHERE id < 2", tableName);
+
+    assertEquals("Should have no rows after successful delete",
+        ImmutableList.of(row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
 
     sql("DELETE FROM %s WHERE id < 4", tableName);
 
@@ -96,7 +95,6 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
   @Test
   public void testDeleteFromPartitionedTable() throws NoSuchTableException {
-    Assertions.setMaxStackTraceElementsDisplayed(10000000);
     sql("CREATE TABLE %s (id bigint, data string) " +
         "USING iceberg " +
         "PARTITIONED BY (truncate(id, 2))", tableName);
@@ -113,14 +111,15 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-        AnalysisException.class, "Cannot delete from table",
-        () -> sql("DELETE FROM %s WHERE id > 2", tableName));
+    sql("DELETE FROM %s WHERE id > 2", tableName);
+    assertEquals("Should have two rows in the second partition",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
 
     sql("DELETE FROM %s WHERE id < 2", tableName);
 
     assertEquals("Should have two rows in the second partition",
-        ImmutableList.of(row(2L, "b"), row(3L, "c")),
+        ImmutableList.of(row(2L, "b")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
