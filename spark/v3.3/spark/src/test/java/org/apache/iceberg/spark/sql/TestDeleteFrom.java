@@ -48,8 +48,6 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  // revisit
-  @Ignore
   @Test
   public void testDeleteFromUnpartitionedTable() throws NoSuchTableException {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
@@ -96,8 +94,6 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
         () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId));
   }
 
-  // revisit
-  @Ignore
   @Test
   public void testDeleteFromPartitionedTable() throws NoSuchTableException {
     Assertions.setMaxStackTraceElementsDisplayed(10000000);

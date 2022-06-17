@@ -31,6 +31,8 @@ public class MetadataColumns {
   private MetadataColumns() {
   }
 
+  public static final String METADATA_COL_ATTR_KEY = "__metadata_col";
+
   // IDs Integer.MAX_VALUE - (1-100) are used for metadata columns
   public static final NestedField FILE_PATH = NestedField.required(
       Integer.MAX_VALUE - 1, "_file", Types.StringType.get(), "Path of the file in which a row is stored");

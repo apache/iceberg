@@ -35,7 +35,6 @@ import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPre
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 import org.apache.spark.sql.execution.datasources.v2.ExtendedV2Writes
-import org.apache.spark.sql.execution.datasources.v2.GroupBasedRowLevelOperationScanPlanning
 import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromIcebergTable
 import org.apache.spark.sql.execution.datasources.v2.ReplaceRewrittenRowLevelCommand
 import org.apache.spark.sql.execution.datasources.v2.RowLevelCommandScanRelationPushDown

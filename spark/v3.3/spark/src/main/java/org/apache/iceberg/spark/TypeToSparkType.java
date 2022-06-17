@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -37,6 +38,7 @@ import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.MapType$;
 import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.MetadataBuilder;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType$;
@@ -59,8 +61,12 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
       DataType type = fieldResults.get(i);
+      Metadata metadata = Metadata.empty();
+      if (MetadataColumns.isMetadataColumn(field.name())) {
+        metadata = new MetadataBuilder().putBoolean(MetadataColumns.METADATA_COL_ATTR_KEY, true).build();
+      }
       StructField sparkField = StructField.apply(
-          field.name(), type, field.isOptional(), Metadata.empty());
+          field.name(), type, field.isOptional(), metadata);
       if (field.doc() != null) {
         sparkField = sparkField.withComment(field.doc());
       }
