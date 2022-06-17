@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -170,16 +171,19 @@ public class CatalogHandlers {
     properties.putAll(request.properties());
 
     String location;
+    String metadataLocation = null;
     if (request.location() != null) {
       location = request.location();
     } else {
-      location = catalog.buildTable(ident, request.schema())
+      Table table = catalog.buildTable(ident, request.schema())
           .withPartitionSpec(request.spec())
           .withSortOrder(request.writeOrder())
           .withProperties(properties)
           .createTransaction()
-          .table()
-          .location();
+          .table();
+
+      location = table.location();
+      metadataLocation = metadataLocationFor(table);
     }
 
     TableMetadata metadata = TableMetadata.newTableMetadata(
@@ -188,6 +192,12 @@ public class CatalogHandlers {
         request.writeOrder() != null ? request.writeOrder() : SortOrder.unsorted(),
         location,
         properties);
+
+    if (metadataLocation != null) {
+      metadata = TableMetadata.buildFrom(metadata)
+          .withMetadataLocation(metadataLocation)
+          .build();
+    }
 
     return LoadTableResponse.builder()
         .withTableMetadata(metadata)
@@ -335,5 +345,9 @@ public class CatalogHandlers {
     }
 
     return ops.current();
+  }
+
+  private static String metadataLocationFor(Table table) {
+    return ((HasTableOperations) table).operations().current().metadataFileLocation();
   }
 }
