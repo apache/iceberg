@@ -179,7 +179,7 @@ def test_partition_to_py(primitive_type, value_str, expected_result):
 )
 def test_none_partition_values(primitive_type):
     """Test converting a partition value to a python built-in"""
-    assert conversions.partition_to_py(primitive_type, None) == None
+    assert conversions.partition_to_py(primitive_type, None) is None
 
 
 @pytest.mark.parametrize(
@@ -203,7 +203,7 @@ def test_none_partition_values(primitive_type):
 )
 def test_hive_default_partition_values(primitive_type):
     """Test converting a partition value to a python built-in"""
-    assert conversions.partition_to_py(primitive_type, "__HIVE_DEFAULT_PARTITION__") == None
+    assert conversions.partition_to_py(primitive_type, "__HIVE_DEFAULT_PARTITION__") is None
 
 
 @pytest.mark.parametrize(
