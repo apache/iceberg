@@ -35,7 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One-time split enumeration at the start-up
+ * One-time split enumeration at the start-up for batch execution
  */
 @Internal
 public class StaticIcebergEnumerator extends AbstractIcebergEnumerator {

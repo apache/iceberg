@@ -150,6 +150,7 @@ abstract class AbstractIcebergEnumerator implements SplitEnumerator<IcebergSourc
     if (availableFuture.get() != null) {
       return;
     }
+
     CompletableFuture<Void> future = assigner.isAvailable()
         .thenAccept(ignore ->
             // Must run assignSplits in coordinator thread
