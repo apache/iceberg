@@ -143,14 +143,14 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     }
   }
 
-  private long maxReachableSnapshotId(long lastConsumedSnapshotId, long latestSnapshotId, int maxSnapshotCount) {
-    List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastConsumedSnapshotId, latestSnapshotId);
-
-    if (snapshotIds.size() <= maxSnapshotCount) {
-      return latestSnapshotId;
+  private long toSnapshotIdInclusive(long lastConsumedSnapshotId, long currentSnapshotId,
+                                     int maxPlanningSnapshotCount) {
+    List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastConsumedSnapshotId, currentSnapshotId);
+    if (snapshotIds.size() <= maxPlanningSnapshotCount) {
+      return currentSnapshotId;
     } else {
       // It uses reverted index since snapshotIdsBetween returns Ids that are ordered by committed time descending.
-      return snapshotIds.get(snapshotIds.size() - maxSnapshotCount);
+      return snapshotIds.get(snapshotIds.size() - maxPlanningSnapshotCount);
     }
   }
 
@@ -172,7 +172,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
-        snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId, scanContext.maxPlanningSnapshotCount());
+        snapshotId = toSnapshotIdInclusive(lastSnapshotId, snapshotId, scanContext.maxPlanningSnapshotCount());
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 
