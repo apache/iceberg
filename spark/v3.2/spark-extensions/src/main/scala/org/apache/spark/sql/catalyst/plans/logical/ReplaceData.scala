@@ -52,7 +52,6 @@ case class ReplaceData(
     // they will be discarded after the logical write is built in the optimizer
     // metadata columns may be needed to request a correct distribution or ordering
     // but are not passed back to the data source during writes
-
     table.skipSchemaResolution || (dataInput.size == table.output.size &&
       dataInput.zip(table.output).forall { case (inAttr, outAttr) =>
         val outType = CharVarcharUtils.getRawType(outAttr.metadata).getOrElse(outAttr.dataType)

@@ -64,7 +64,6 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
         case r: DataSourceV2Relation if r.table eq table =>
           DataSourceV2ScanRelation(r, scan, toOutputAttrs(scan.readSchema(), r))
       }
-
       command.withNewRewritePlan(newRewritePlan)
   }
 

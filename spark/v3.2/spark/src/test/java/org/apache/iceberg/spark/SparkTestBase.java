@@ -101,6 +101,9 @@ public abstract class SparkTestBase {
   }
 
   protected List<Object[]> sql(String query, Object... args) {
+    if (query.startsWith("MERGE INTO")) {
+      System.out.println(spark.sql(String.format(query, args)).queryExecution().analyzed().treeString());
+    }
     List<Row> rows = spark.sql(String.format(query, args)).collectAsList();
     if (rows.size() < 1) {
       return ImmutableList.of();

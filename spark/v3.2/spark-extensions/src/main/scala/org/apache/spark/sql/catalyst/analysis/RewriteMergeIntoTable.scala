@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -36,23 +37,7 @@ import org.apache.spark.sql.catalyst.plans.Inner
 import org.apache.spark.sql.catalyst.plans.LeftAnti
 import org.apache.spark.sql.catalyst.plans.LeftOuter
 import org.apache.spark.sql.catalyst.plans.RightOuter
-import org.apache.spark.sql.catalyst.plans.logical.AppendData
-import org.apache.spark.sql.catalyst.plans.logical.DeleteAction
-import org.apache.spark.sql.catalyst.plans.logical.Filter
-import org.apache.spark.sql.catalyst.plans.logical.HintInfo
-import org.apache.spark.sql.catalyst.plans.logical.InsertAction
-import org.apache.spark.sql.catalyst.plans.logical.Join
-import org.apache.spark.sql.catalyst.plans.logical.JoinHint
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.MergeAction
-import org.apache.spark.sql.catalyst.plans.logical.MergeIntoIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.MergeRows
-import org.apache.spark.sql.catalyst.plans.logical.NO_BROADCAST_HASH
-import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
-import org.apache.spark.sql.catalyst.plans.logical.Project
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.{AppendData, DeleteAction, Filter, HintInfo, InsertAction, Join, JoinHint, LogicalPlan, MergeAction, MergeIntoIcebergTable, MergeRows, NO_BROADCAST_HASH, NoStatsUnaryNode, Project, ReplaceData, UpdateAction, View, WriteDelta}
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.NamedReference
@@ -82,7 +67,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
         if m.resolved && m.aligned && matchedActions.isEmpty && notMatchedActions.size == 1 =>
-
       EliminateSubqueryAliases(aliasedTable) match {
         case r: DataSourceV2Relation =>
           // NOT MATCHED conditions may only refer to columns in source so they can be pushed down
@@ -112,7 +96,6 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
     case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
         if m.resolved && m.aligned && matchedActions.isEmpty =>
-
       EliminateSubqueryAliases(aliasedTable) match {
         case r: DataSourceV2Relation =>
           // when there are no MATCHED actions, use a left anti join to remove any matching rows
@@ -144,25 +127,47 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
 
-    case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
+    case m @ MergeIntoIcebergTable(aliasedTable, _, _, _, _, None)
         if m.resolved && m.aligned =>
-
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
-          val operation = buildRowLevelOperation(tbl, MERGE)
-          val table = RowLevelOperationTable(tbl, operation)
-          val rewritePlan = operation match {
-            case _: SupportsDelta =>
-              buildWriteDeltaPlan(r, table, source, cond, matchedActions, notMatchedActions)
-            case _ =>
-              buildReplaceDataPlan(r, table, source, cond, matchedActions, notMatchedActions)
+          rewriteIcebergRelation(m, r, tbl)
+        case p: View =>
+          val relations = p.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
+            r
           }
-
-          m.copy(rewritePlan = Some(rewritePlan))
-
+          val icebergTableView = relations.nonEmpty && relations.size == 1
+          if (icebergTableView) {
+            val newM = rewriteIcebergRelation(
+              m,
+              relations.head,
+              relations.head.table.asInstanceOf[SupportsRowLevelOperations])
+            newM
+          } else {
+            throw new AnalysisException(s"$p is not an Iceberg table")
+          }
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
+  }
+
+  private def rewriteIcebergRelation(
+      m: MergeIntoIcebergTable,
+      r: DataSourceV2Relation,
+      tbl: SupportsRowLevelOperations): MergeIntoIcebergTable = {
+    val operation = buildRowLevelOperation(tbl, MERGE)
+    val table = RowLevelOperationTable(tbl, operation)
+    val replacedSourceTable = EliminateSubqueryAliases(m.sourceTable) match {
+      case v: View if v.isTempViewStoringAnalyzedPlan => v.child
+      case other => other
+    }
+    val rewritePlan = operation match {
+      case _: SupportsDelta =>
+        buildWriteDeltaPlan(r, table, replacedSourceTable, m.mergeCondition, m.matchedActions, m.notMatchedActions)
+      case _ =>
+        buildReplaceDataPlan(r, table, replacedSourceTable, m.mergeCondition, m.matchedActions, m.notMatchedActions)
+    }
+    m.copy(sourceTable = replacedSourceTable, rewritePlan = Some(rewritePlan))
   }
 
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
@@ -228,7 +233,8 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, mergeRows, relation)
+    val r = ReplaceData(writeRelation, mergeRows, relation)
+    r
   }
 
   // build a rewrite plan for sources that support row deltas

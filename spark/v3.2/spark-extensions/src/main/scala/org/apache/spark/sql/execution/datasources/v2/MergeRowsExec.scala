@@ -184,7 +184,12 @@ case class MergeRowsExec(
     }
 
     rowIterator
-      .map(processFunc)
+      .map(row => {
+        println(s"input: $row")
+        val o = processFunc(row)
+        println(s"output: $o")
+        o
+      })
       .filter(row => row != null)
   }
 }

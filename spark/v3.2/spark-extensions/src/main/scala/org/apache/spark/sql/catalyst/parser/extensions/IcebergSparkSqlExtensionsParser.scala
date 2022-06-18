@@ -20,6 +20,7 @@
 package org.apache.spark.sql.catalyst.parser.extensions
 
 import java.util.Locale
+
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.Interval
@@ -27,7 +28,7 @@ import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.Spark3Util
-import org.apache.iceberg.spark.source.SparkTable
+import org.apache.iceberg.spark.source.{SparkBatchQueryScan, SparkFilesScan, SparkTable}
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
@@ -56,6 +57,10 @@ import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
 import scala.jdk.CollectionConverters._
 import scala.util.Try
+
+import org.apache.iceberg.hadoop.HadoopTables
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
+import org.apache.spark.sql.execution.metric.SQLMetrics.cachedSQLAccumIdentifier.x
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
@@ -143,6 +148,8 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       // see ResolveMergeIntoTableReferences for details
       val context = MergeIntoContext(cond, matchedActions, notMatchedActions)
       UnresolvedMergeIntoIcebergTable(aliasedTable, source, context)
+    case x =>
+      x
   }
 
   object UnresolvedIcebergTable {
@@ -162,8 +169,12 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         case tableCatalog: TableCatalog =>
           Try(tableCatalog.loadTable(catalogAndIdentifier.identifier))
             .map(isIcebergTable)
-            .getOrElse(false)
-
+            .getOrElse(SparkSession.active.table(s"${multipartIdent.mkString(".")}").queryExecution
+              .executedPlan.collect {
+              case BatchScanExec(_, scan, _) if scan.isInstanceOf[SparkBatchQueryScan] =>
+                val ht = new HadoopTables(SparkSession.active.sparkContext.hadoopConfiguration)
+                ht.exists(scan.asInstanceOf[SparkBatchQueryScan].tableScan().table().location())
+            }.contains(true))
         case _ =>
           false
       }
