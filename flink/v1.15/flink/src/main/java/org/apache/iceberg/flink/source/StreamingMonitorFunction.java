@@ -84,8 +84,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "Cannot set as-of-timestamp option for streaming reader");
     Preconditions.checkArgument(scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
-    Preconditions.checkArgument(scanContext.snapshotGroupLimit() > 0,
-        "The snapshot-group-limit must be greater than zero");
+    Preconditions.checkArgument(scanContext.maxPlanningSnapshotCount() > 0,
+        "The max-planning-snapshot-count must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
   }
@@ -143,14 +143,14 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     }
   }
 
-  private long maxReachableSnapshotId(long lastConsumedSnapshotId, long latestSnapshotId, int snapshotLimit) {
+  private long maxReachableSnapshotId(long lastConsumedSnapshotId, long latestSnapshotId, int maxSnapshotCount) {
     List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastConsumedSnapshotId, latestSnapshotId);
 
-    if (snapshotIds.size() <= snapshotLimit) {
+    if (snapshotIds.size() <= maxSnapshotCount) {
       return latestSnapshotId;
     } else {
       // It uses reverted index since snapshotIdsBetween returns Ids that are ordered by committed time descending.
-      return snapshotIds.get(snapshotIds.size() - snapshotLimit);
+      return snapshotIds.get(snapshotIds.size() - maxSnapshotCount);
     }
   }
 
@@ -172,7 +172,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
-        snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId, scanContext.snapshotGroupLimit());
+        snapshotId = maxReachableSnapshotId(lastSnapshotId, snapshotId, scanContext.maxPlanningSnapshotCount());
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 

@@ -212,10 +212,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   }
 
   @Test
-  public void testInvalidSnapshotGroupLimit() {
+  public void testInvalidMaxPlanningSnapshotCount() {
     ScanContext scanContext1 = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
-        .snapshotGroupLimit(0)
+        .maxPlanningSnapshotCount(0)
         .build();
 
     AssertHelpers.assertThrows("Should throw exception because of invalid config",
@@ -228,7 +228,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
     ScanContext scanContext2 = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
-        .snapshotGroupLimit(-10)
+        .maxPlanningSnapshotCount(-10)
         .build();
 
     AssertHelpers.assertThrows("Should throw exception because of invalid config",
@@ -241,7 +241,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   }
 
   @Test
-  public void testConsumeWithDifferentSnapshotGroupLimit() throws Exception {
+  public void testConsumeWithMaxPlanningSnapshotCount() throws Exception {
     generateRecordsAndCommitTxn(10);
 
     // Use the oldest snapshot as starting to avoid the initial case.
@@ -251,7 +251,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         .monitorInterval(Duration.ofMillis(100))
         .splitSize(1000L)
         .startSnapshotId(oldestSnapshotId)
-        .snapshotGroupLimit(Integer.MAX_VALUE)
+        .maxPlanningSnapshotCount(Integer.MAX_VALUE)
         .build();
 
     FlinkInputSplit[] expectedSplits = FlinkSplitPlanner
@@ -259,13 +259,13 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
     Assert.assertEquals("should produce 9 splits", 9, expectedSplits.length);
 
-    // This covers three cases that snapshotGroupLimit is less than, equal or greater than the total splits number.
-    for (int snapshotGroupLimit : ImmutableList.of(1, 9, 15)) {
+    // This covers three cases that maxPlanningSnapshotCount is less than, equal or greater than the total splits number
+    for (int maxPlanningSnapshotCount : ImmutableList.of(1, 9, 15)) {
       scanContext = ScanContext.builder()
           .monitorInterval(Duration.ofMillis(500))
           .startSnapshotId(oldestSnapshotId)
           .splitSize(1000L)
-          .snapshotGroupLimit(snapshotGroupLimit)
+          .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
           .build();
 
       StreamingMonitorFunction function = createFunction(scanContext);
@@ -278,9 +278,9 @@ public class TestStreamingMonitorFunction extends TableTestBase {
         function.sourceContext(sourceContext);
         function.monitorAndForwardSplits();
 
-        if (snapshotGroupLimit < 10) {
-          Assert.assertEquals("Should produce same splits as snapshot-group-limit",
-              snapshotGroupLimit, sourceContext.splits.size());
+        if (maxPlanningSnapshotCount < 10) {
+          Assert.assertEquals("Should produce same splits as max-planning-snapshot-count",
+              maxPlanningSnapshotCount, sourceContext.splits.size());
         }
       }
     }

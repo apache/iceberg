@@ -184,8 +184,8 @@ public class FlinkSource {
       return this;
     }
 
-    public Builder snapshotGroupLimit(int newSnapshotGroupLimit) {
-      contextBuilder.snapshotGroupLimit(newSnapshotGroupLimit);
+    public Builder maxPlanningSnapshotCount(int newMaxPlanningSnapshotCount) {
+      contextBuilder.maxPlanningSnapshotCount(newMaxPlanningSnapshotCount);
       return this;
     }
 
