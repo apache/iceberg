@@ -205,7 +205,7 @@ public class FlinkSink {
     }
 
     public Builder overwrite(boolean newOverwrite) {
-      writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE, Boolean.toString(newOverwrite));
+      writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(newOverwrite));
       return this;
     }
 
@@ -225,7 +225,7 @@ public class FlinkSink {
       Preconditions.checkArgument(!DistributionMode.RANGE.equals(mode),
           "Flink does not support 'range' write distribution mode now.");
       if (mode != null) {
-        writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE, mode.modeName());
+        writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), mode.modeName());
       }
       return this;
     }
@@ -251,7 +251,7 @@ public class FlinkSink {
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder upsert(boolean enabled) {
-      writeOptions.put(FlinkWriteOptions.WRITE_UPSERT_ENABLED, Boolean.toString(enabled));
+      writeOptions.put(FlinkWriteOptions.WRITE_UPSERT_ENABLED.key(), Boolean.toString(enabled));
       return this;
     }
 

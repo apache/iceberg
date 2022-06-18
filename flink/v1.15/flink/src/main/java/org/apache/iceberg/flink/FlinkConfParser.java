@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.flink.configuration.ConfigOption;
@@ -162,7 +161,7 @@ class FlinkConfParser {
       return self();
     }
 
-    public ThisT sessionConf(ConfigOption<T> newConfigOption) {
+    public ThisT flinkConfig(ConfigOption<T> newConfigOption) {
       this.configOption = newConfigOption;
       return self();
     }
@@ -175,8 +174,7 @@ class FlinkConfParser {
     protected T parse(Function<String, T> conversion, T defaultValue) {
       if (!optionNames.isEmpty()) {
         for (String optionName : optionNames) {
-          // use lower case comparison as DataSourceOptions.asMap() in Spark 2 returns a lower case map
-          String optionValue = options.get(optionName.toLowerCase(Locale.ROOT));
+          String optionValue = options.get(optionName);
           if (optionValue != null) {
             return conversion.apply(optionValue);
           }

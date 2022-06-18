@@ -52,14 +52,16 @@ public class FlinkWriteConf {
 
   public boolean overwriteMode() {
     return confParser.booleanConf()
-        .option(FlinkWriteOptions.OVERWRITE_MODE)
+        .option(FlinkWriteOptions.OVERWRITE_MODE.key())
+        .flinkConfig(FlinkWriteOptions.OVERWRITE_MODE)
         .defaultValue(false)
         .parse();
   }
 
   public boolean upsertMode() {
     return confParser.booleanConf()
-        .option(FlinkWriteOptions.WRITE_UPSERT_ENABLED)
+        .option(FlinkWriteOptions.WRITE_UPSERT_ENABLED.key())
+        .flinkConfig(FlinkWriteOptions.WRITE_UPSERT_ENABLED)
         .tableProperty(TableProperties.UPSERT_ENABLED)
         .defaultValue(TableProperties.UPSERT_ENABLED_DEFAULT)
         .parse();
@@ -67,7 +69,8 @@ public class FlinkWriteConf {
 
   public FileFormat dataFileFormat() {
     String valueAsString = confParser.stringConf()
-        .option(FlinkWriteOptions.WRITE_FORMAT)
+        .option(FlinkWriteOptions.WRITE_FORMAT.key())
+        .flinkConfig(FlinkWriteOptions.WRITE_FORMAT)
         .tableProperty(TableProperties.DEFAULT_FILE_FORMAT)
         .defaultValue(TableProperties.DEFAULT_FILE_FORMAT_DEFAULT)
         .parse();
@@ -76,7 +79,8 @@ public class FlinkWriteConf {
 
   public long targetDataFileSize() {
     return confParser.longConf()
-        .option(FlinkWriteOptions.TARGET_FILE_SIZE_BYTES)
+        .option(FlinkWriteOptions.TARGET_FILE_SIZE_BYTES.key())
+        .flinkConfig(FlinkWriteOptions.TARGET_FILE_SIZE_BYTES)
         .tableProperty(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES)
         .defaultValue(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT)
         .parse();
@@ -84,7 +88,8 @@ public class FlinkWriteConf {
 
   public DistributionMode distributionMode() {
     String modeName = confParser.stringConf()
-        .option(FlinkWriteOptions.DISTRIBUTION_MODE)
+        .option(FlinkWriteOptions.DISTRIBUTION_MODE.key())
+        .flinkConfig(FlinkWriteOptions.DISTRIBUTION_MODE)
         .tableProperty(TableProperties.WRITE_DISTRIBUTION_MODE)
         .defaultValue(TableProperties.WRITE_DISTRIBUTION_MODE_NONE)
         .parse();
@@ -93,7 +98,7 @@ public class FlinkWriteConf {
 
   public int workerPoolSize() {
     return confParser.intConf()
-        .sessionConf(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE)
+        .flinkConfig(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE)
         .defaultValue(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue())
         .parse();
   }

@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.flink;
 
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
+
 /**
  * Flink sink write options
  */
@@ -28,16 +31,27 @@ public class FlinkWriteOptions {
   }
 
   // File format for write operations(default: Table write.format.default )
-  public static final String WRITE_FORMAT = "write-format";
+  public static final ConfigOption<String> WRITE_FORMAT =
+      ConfigOptions.key("write-format")
+          .stringType().noDefaultValue();
 
   // Overrides this table's write.target-file-size-bytes
-  public static final String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
+  public static final ConfigOption<Long> TARGET_FILE_SIZE_BYTES =
+      ConfigOptions.key("target-file-size-bytes")
+          .longType().noDefaultValue();
 
   // Overrides this table's write.upsert.enabled
-  public static final String WRITE_UPSERT_ENABLED = "upsert-enabled";
+  public static final ConfigOption<Boolean> WRITE_UPSERT_ENABLED =
+      ConfigOptions.key("upsert-enabled")
+          .booleanType().noDefaultValue();
 
-  public static final String OVERWRITE_MODE = "overwrite";
+  public static final ConfigOption<Boolean> OVERWRITE_MODE =
+      ConfigOptions.key("overwrite")
+          .booleanType().noDefaultValue();
 
   // Overrides the table's write.distribution-mode
-  public static final String DISTRIBUTION_MODE = "distribution-mode";
+  public static final ConfigOption<String> DISTRIBUTION_MODE =
+      ConfigOptions.key("distribution-mode")
+          .stringType().noDefaultValue();
+
 }

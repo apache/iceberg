@@ -330,7 +330,7 @@ public class TestFlinkIcebergSink {
   @Test
   public void testOverrideWriteConfigWithUnknownDistributionMode() {
     Map<String, String> newProps = Maps.newHashMap();
-    newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE, "UNRECOGNIZED");
+    newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
 
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
@@ -355,7 +355,7 @@ public class TestFlinkIcebergSink {
   @Test
   public void testOverrideWriteConfigWithUnknownFileFormat() {
     Map<String, String> newProps = Maps.newHashMap();
-    newProps.put(FlinkWriteOptions.WRITE_FORMAT, "UNRECOGNIZED");
+    newProps.put(FlinkWriteOptions.WRITE_FORMAT.key(), "UNRECOGNIZED");
 
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
