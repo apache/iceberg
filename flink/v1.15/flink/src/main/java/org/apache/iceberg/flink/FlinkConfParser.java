@@ -162,8 +162,8 @@ class FlinkConfParser {
       return self();
     }
 
-    public ThisT sessionConf(ConfigOption<T> configOption) {
-      this.configOption = configOption;
+    public ThisT sessionConf(ConfigOption<T> newConfigOption) {
+      this.configOption = newConfigOption;
       return self();
     }
 
