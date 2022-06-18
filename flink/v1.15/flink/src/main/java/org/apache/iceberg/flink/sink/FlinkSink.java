@@ -42,13 +42,11 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
@@ -320,7 +318,7 @@ public class FlinkSink {
         }
       }
 
-      flinkWriteConf = new FlinkWriteConf(table, writeOptions);
+      flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
       // Find out the equality field id list based on the user-provided equality field column names.
       List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds();
@@ -394,7 +392,7 @@ public class FlinkSink {
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(
           tableLoader, flinkWriteConf.overwriteMode(), snapshotProperties,
-          readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
+          flinkWriteConf.workerPoolSize());
       SingleOutputStreamOperator<Void> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)
@@ -407,12 +405,8 @@ public class FlinkSink {
 
     private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType,
                                                                  List<Integer> equalityFieldIds) {
-
-      // Fallback to use upsert mode parsed from table properties if don't specify in job level.
-      boolean upsertMode = flinkWriteConf.upsertMode();
-
       // Validate the equality fields and partition fields if we enable the upsert mode.
-      if (upsertMode) {
+      if (flinkWriteConf.upsertMode()) {
         Preconditions.checkState(!flinkWriteConf.overwriteMode(),
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
         Preconditions.checkState(!equalityFieldIds.isEmpty(),
@@ -426,8 +420,8 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkWriteConf.targetDataFileSize(),
-          flinkWriteConf.dataFileFormat(), flinkWriteConf.props(), flinkRowType, equalityFieldIds, upsertMode);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkWriteConf,
+          flinkRowType, equalityFieldIds);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream = input
@@ -514,17 +508,15 @@ public class FlinkSink {
   }
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table,
-                                                         long targetFileSize,
-                                                         FileFormat fileFormat,
-                                                         Map<String, String> props,
+                                                         FlinkWriteConf flinkWriteConf,
                                                          RowType flinkRowType,
-                                                         List<Integer> equalityFieldIds,
-                                                         boolean upsert) {
+                                                         List<Integer> equalityFieldIds) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
     Table serializableTable = SerializableTable.copyOf(table);
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
-        serializableTable, props, flinkRowType, targetFileSize, fileFormat, equalityFieldIds, upsert);
+        serializableTable, flinkRowType, flinkWriteConf.targetDataFileSize(),
+        flinkWriteConf.dataFileFormat(), equalityFieldIds, flinkWriteConf.upsertMode());
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
 }

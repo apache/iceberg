@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -60,16 +59,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   FileFormat format,
                                   List<Integer> equalityFieldIds,
                                   boolean upsert) {
-    this(table, table.properties(), flinkSchema, targetFileSizeBytes, format, equalityFieldIds, upsert);
-  }
-
-  public RowDataTaskWriterFactory(Table table,
-                                  Map<String, String> properties,
-                                  RowType flinkSchema,
-                                  long targetFileSizeBytes,
-                                  FileFormat format,
-                                  List<Integer> equalityFieldIds,
-                                  boolean upsert) {
     this.table = table;
     this.schema = table.schema();
     this.flinkSchema = flinkSchema;
@@ -81,15 +70,15 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.upsert = upsert;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, properties, spec);
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
     } else if (upsert) {
       // In upsert mode, only the new row is emitted using INSERT row kind. Therefore, any column of the inserted row
       // may differ from the deleted row other than the primary key fields, and the delete file must contain values
       // that are correct for the deleted row. Therefore, only write the equality delete fields.
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, properties, spec,
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
           ArrayUtil.toIntArray(equalityFieldIds), TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)), null);
     } else {
-      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, properties, spec,
+      this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
           ArrayUtil.toIntArray(equalityFieldIds), schema, null);
     }
   }

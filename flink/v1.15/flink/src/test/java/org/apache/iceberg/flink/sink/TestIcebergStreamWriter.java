@@ -47,15 +47,16 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.PropertyUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
@@ -334,18 +335,13 @@ public class TestIcebergStreamWriter {
   private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter(
       Table icebergTable, TableSchema flinkSchema) throws Exception {
     RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
+    FlinkWriteConf flinkWriteConfig =
+        new FlinkWriteConf(icebergTable, Maps.newHashMap(), new org.apache.flink.configuration.Configuration());
+
     IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(
         icebergTable,
-        PropertyUtil.propertyAsLong(
-            icebergTable.properties(),
-            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
-            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT),
-        FileFormat.valueOf(PropertyUtil.propertyAsString(
-            icebergTable.properties(),
-            TableProperties.DEFAULT_FILE_FORMAT,
-            TableProperties.DEFAULT_FILE_FORMAT_DEFAULT).toUpperCase(Locale.ENGLISH)),
-        icebergTable.properties(),
-        flinkRowType, null, false);
+        flinkWriteConfig,
+        flinkRowType, null);
     OneInputStreamOperatorTestHarness<RowData, WriteResult> harness = new OneInputStreamOperatorTestHarness<>(
         streamWriter, 1, 1, 0);
 

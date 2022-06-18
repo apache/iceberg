@@ -31,13 +31,13 @@ public class FlinkWriteOptions {
   public static final String WRITE_FORMAT = "write-format";
 
   // Overrides this table's write.target-file-size-bytes
-  public static final String TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
+  public static final String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   // Overrides this table's write.upsert.enabled
-  public static final String WRITE_UPSERT_ENABLED = "write.upsert.enabled";
+  public static final String WRITE_UPSERT_ENABLED = "upsert-enabled";
 
   public static final String OVERWRITE_MODE = "overwrite";
 
-  // Overrides the default distribution mode for a write operation
-  public static final String DISTRIBUTION_MODE = "write.distribution-mode";
+  // Overrides the table's write.distribution-mode
+  public static final String DISTRIBUTION_MODE = "distribution-mode";
 }

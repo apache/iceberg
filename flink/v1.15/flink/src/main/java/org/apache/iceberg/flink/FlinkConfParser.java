@@ -23,25 +23,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 class FlinkConfParser {
 
   private final Map<String, String> tableProperties;
   private final Map<String, String> options;
+  private final ReadableConfig readableConfig;
 
-  FlinkConfParser(Table table, Map<String, String> options) {
+  FlinkConfParser(Table table, Map<String, String> options, ReadableConfig readableConfig) {
     this.tableProperties = table.properties();
     this.options = options;
-  }
-
-  public Map<String, String> props() {
-    Map<String, String> merged = Maps.newHashMap(tableProperties);
-    merged.putAll(options);
-    return merged;
+    this.readableConfig = readableConfig;
   }
 
   public BooleanConfParser booleanConf() {
@@ -156,11 +153,17 @@ class FlinkConfParser {
   abstract class ConfParser<ThisT, T> {
     private final List<String> optionNames = Lists.newArrayList();
     private String tablePropertyName;
+    private ConfigOption<T> configOption;
 
     protected abstract ThisT self();
 
     public ThisT option(String name) {
       this.optionNames.add(name);
+      return self();
+    }
+
+    public ThisT sessionConf(ConfigOption<T> configOption) {
+      this.configOption = configOption;
       return self();
     }
 
@@ -177,6 +180,13 @@ class FlinkConfParser {
           if (optionValue != null) {
             return conversion.apply(optionValue);
           }
+        }
+      }
+
+      if (configOption != null) {
+        T propertyValue = readableConfig.get(configOption);
+        if (propertyValue != null) {
+          return propertyValue;
         }
       }
 
