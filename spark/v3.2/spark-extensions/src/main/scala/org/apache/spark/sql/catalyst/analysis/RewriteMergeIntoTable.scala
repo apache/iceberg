@@ -82,71 +82,47 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
   private final val ROW_ID_REF = FieldReference(ROW_ID)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
+    case m @ MergeIntoIcebergTable(aliasedTable, _, _, matchedActions, notMatchedActions, None)
         if m.resolved && m.aligned && matchedActions.isEmpty && notMatchedActions.size == 1 =>
 
       EliminateSubqueryAliases(aliasedTable) match {
         case r: DataSourceV2Relation =>
-          // NOT MATCHED conditions may only refer to columns in source so they can be pushed down
-          val insertAction = notMatchedActions.head.asInstanceOf[InsertAction]
-          val filteredSource = insertAction.condition match {
-            case Some(insertCond) => Filter(insertCond, source)
-            case None => source
+          rewriteMergeIntoTableWithSingleNotMatchedAction(m, r)
+        case v: View =>
+          val relations = v.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
+            r
           }
-
-          // when there are no MATCHED actions, use a left anti join to remove any matching rows
-          // and switch to using a regular append instead of a row-level merge
-          // only unmatched source rows that match the condition are appended to the table
-          val joinPlan = Join(filteredSource, r, LeftAnti, Some(cond), JoinHint.NONE)
-
-          val outputExprs = insertAction.assignments.map(_.value)
-          val outputColNames = r.output.map(_.name)
-          val outputCols = outputExprs.zip(outputColNames).map { case (expr, name) =>
-            Alias(expr, name)()
+          val icebergTableView = relations.nonEmpty && relations.size == 1
+          if (icebergTableView) {
+            rewriteMergeIntoTableWithSingleNotMatchedAction(m, relations.head)
+          } else {
+            throw new AnalysisException(s"$v is not an Iceberg table")
           }
-          val project = Project(outputCols, joinPlan)
-
-          AppendData.byPosition(r, project)
-
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
 
-    case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
+    case m @ MergeIntoIcebergTable(aliasedTable, _, _, matchedActions, _, None)
         if m.resolved && m.aligned && matchedActions.isEmpty =>
 
       EliminateSubqueryAliases(aliasedTable) match {
         case r: DataSourceV2Relation =>
-          // when there are no MATCHED actions, use a left anti join to remove any matching rows
-          // and switch to using a regular append instead of a row-level merge
-          // only unmatched source rows that match action conditions are appended to the table
-          val joinPlan = Join(source, r, LeftAnti, Some(cond), JoinHint.NONE)
-
-          val notMatchedConditions = notMatchedActions.map(actionCondition)
-          val notMatchedOutputs = notMatchedActions.map(actionOutput(_, Nil))
-
-          // merge rows as there are multiple not matched actions
-          val mergeRows = MergeRows(
-            isSourceRowPresent = TrueLiteral,
-            isTargetRowPresent = FalseLiteral,
-            matchedConditions = Nil,
-            matchedOutputs = Nil,
-            notMatchedConditions = notMatchedConditions,
-            notMatchedOutputs = notMatchedOutputs,
-            targetOutput = Nil,
-            rowIdAttrs = Nil,
-            performCardinalityCheck = false,
-            emitNotMatchedTargetRows = false,
-            output = buildMergeRowsOutput(Nil, notMatchedOutputs, r.output),
-            joinPlan)
-
-          AppendData.byPosition(r, mergeRows)
-
+          rewriteMergeIntoTableWithMultiNotMatchedActions(m, r)
+        case v: View =>
+          val relations = v.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
+            r
+          }
+          val icebergTableView = relations.nonEmpty && relations.size == 1
+          if (icebergTableView) {
+            rewriteMergeIntoTableWithMultiNotMatchedActions(m, relations.head)
+          } else {
+            throw new AnalysisException(s"$v is not an Iceberg table")
+          }
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
 
-    case m @ MergeIntoIcebergTable(aliasedTable, source, cond, matchedActions, notMatchedActions, None)
+    case m @ MergeIntoIcebergTable(aliasedTable, _, _, _, _, None)
         if m.resolved && m.aligned =>
 
       EliminateSubqueryAliases(aliasedTable) match {
@@ -158,17 +134,67 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
           }
           val icebergTableView = relations.nonEmpty && relations.size == 1
           if (icebergTableView) {
-            val newM = rewriteMergeIntoTable(
-              m,
-              relations.head,
-              relations.head.table.asInstanceOf[SupportsRowLevelOperations])
-            newM
+            rewriteMergeIntoTable(m, relations.head, relations.head.table.asInstanceOf[SupportsRowLevelOperations])
           } else {
             throw new AnalysisException(s"$v is not an Iceberg table")
           }
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
+  }
+
+  private def rewriteMergeIntoTableWithMultiNotMatchedActions(
+      m: MergeIntoIcebergTable,
+      r: DataSourceV2Relation): AppendData = {
+    // when there are no MATCHED actions, use a left anti join to remove any matching rows
+    // and switch to using a regular append instead of a row-level merge
+    // only unmatched source rows that match action conditions are appended to the table
+    val joinPlan = Join(m.sourceTable, r, LeftAnti, Some(m.mergeCondition), JoinHint.NONE)
+
+    val notMatchedConditions = m.notMatchedActions.map(actionCondition)
+    val notMatchedOutputs = m.notMatchedActions.map(actionOutput(_, Nil))
+
+    // merge rows as there are multiple not matched actions
+    val mergeRows = MergeRows(
+      isSourceRowPresent = TrueLiteral,
+      isTargetRowPresent = FalseLiteral,
+      matchedConditions = Nil,
+      matchedOutputs = Nil,
+      notMatchedConditions = notMatchedConditions,
+      notMatchedOutputs = notMatchedOutputs,
+      targetOutput = Nil,
+      rowIdAttrs = Nil,
+      performCardinalityCheck = false,
+      emitNotMatchedTargetRows = false,
+      output = buildMergeRowsOutput(Nil, notMatchedOutputs, r.output),
+      joinPlan)
+
+    AppendData.byPosition(r, mergeRows)
+  }
+
+  private def rewriteMergeIntoTableWithSingleNotMatchedAction(
+      m: MergeIntoIcebergTable,
+      r: DataSourceV2Relation): AppendData = {
+    // NOT MATCHED conditions may only refer to columns in source so they can be pushed down
+    val insertAction = m.notMatchedActions.head.asInstanceOf[InsertAction]
+    val filteredSource = insertAction.condition match {
+      case Some(insertCond) => Filter(insertCond, m.sourceTable)
+      case None => m.sourceTable
+    }
+
+    // when there are no MATCHED actions, use a left anti join to remove any matching rows
+    // and switch to using a regular append instead of a row-level merge
+    // only unmatched source rows that match the condition are appended to the table
+    val joinPlan = Join(filteredSource, r, LeftAnti, Some(m.mergeCondition), JoinHint.NONE)
+
+    val outputExprs = insertAction.assignments.map(_.value)
+    val outputColNames = r.output.map(_.name)
+    val outputCols = outputExprs.zip(outputColNames).map { case (expr, name) =>
+      Alias(expr, name)()
+    }
+    val project = Project(outputCols, joinPlan)
+
+    AppendData.byPosition(r, project)
   }
 
   private def rewriteMergeIntoTable(

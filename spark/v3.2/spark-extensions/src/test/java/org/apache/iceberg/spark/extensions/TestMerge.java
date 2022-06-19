@@ -19,10 +19,8 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.io.File;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,16 +28,17 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
-import org.apache.iceberg.Table;
+
+import com.google.common.collect.Sets;
+import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.*;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -1809,5 +1808,120 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     List<Object[]> result = sql("SELECT * FROM %s ORDER BY id", tableName);
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
+  }
+
+  @Test
+  public void testMergeIntoHadoopTablesWithSingleNotMatchedAction() throws Exception {
+    List<Integer> ids = Lists.newArrayListWithCapacity(2);
+    for (int id = 1; id <= 2; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> df = spark.createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id");
+    HadoopTables ht = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    Schema tableSchema = SparkSchemaUtil.convert(df.schema());
+    File dir = java.nio.file.Files.createTempDirectory("TestUpdate").toFile();
+    FileUtils.forceDeleteOnExit(dir);
+    String path = dir.getAbsolutePath();
+    ht.create(tableSchema, path);
+    df.write().format("iceberg").mode("overwrite").save(path);
+    ids = Lists.newArrayListWithCapacity(2);
+    for (int id = 3; id <= 4; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> dfWithNewIDs = spark.createDataset(ids, Encoders.INT()).withColumnRenamed("value", "id");
+    dfWithNewIDs.createOrReplaceTempView("source");
+    Dataset<Row> tableDF = spark.read().format("iceberg").load(path);
+    tableDF.createOrReplaceTempView("target");
+    sql("MERGE INTO target using source on target.id = source.id" +
+            " WHEN NOT MATCHED THEN INSERT *");
+    List<Object[]> result = sql("select * from target");
+    Set<Integer> idSet = Sets.newHashSet();
+    for (Object[] objects: result) {
+      idSet.add((Integer) objects[0]);
+    }
+    Assert.assertEquals(4, idSet.size());
+    Assert.assertTrue(idSet.contains(1));
+    Assert.assertTrue(idSet.contains(2));
+    Assert.assertTrue(idSet.contains(3));
+    Assert.assertTrue(idSet.contains(4));
+  }
+
+  @Test
+  public void testMergeIntoHadoopTablesWithMultiNotMatchedAction() throws Exception {
+    List<Integer> ids = Lists.newArrayListWithCapacity(2);
+    for (int id = 1; id <= 2; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> df = spark.createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id");
+    HadoopTables ht = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    Schema tableSchema = SparkSchemaUtil.convert(df.schema());
+    File dir = java.nio.file.Files.createTempDirectory("TestUpdate").toFile();
+    FileUtils.forceDeleteOnExit(dir);
+    String path = dir.getAbsolutePath();
+    ht.create(tableSchema, path);
+    df.write().format("iceberg").mode("overwrite").save(path);
+    ids = Lists.newArrayListWithCapacity(2);
+    for (int id = 3; id <= 4; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> dfWithNewIDs = spark.createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id");
+    dfWithNewIDs.createOrReplaceTempView("source");
+    Dataset<Row> tableDF = spark.read().format("iceberg").load(path);
+    tableDF.createOrReplaceTempView("target");
+    sql("MERGE INTO target using source on target.id = source.id" +
+            " WHEN NOT MATCHED AND source.id = 3 THEN INSERT (id) VALUES (5)" +
+            " WHEN NOT MATCHED THEN INSERT *");
+    List<Object[]> result = sql("select * from target");
+    Set<Integer> idSet = Sets.newHashSet();
+    for (Object[] objects: result) {
+      idSet.add((Integer) objects[0]);
+    }
+    Assert.assertEquals(4, idSet.size());
+    Assert.assertTrue(idSet.contains(1));
+    Assert.assertTrue(idSet.contains(2));
+    Assert.assertTrue(idSet.contains(4));
+    Assert.assertTrue(idSet.contains(5));
+  }
+
+  @Test
+  public void testMergeIntoHadoopTableWithBothMatchedAndNotMatched() throws Exception {
+    List<Integer> ids = Lists.newArrayListWithCapacity(2);
+    for (int id = 1; id <= 2; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> df = spark.createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id");
+    HadoopTables ht = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    Schema tableSchema = SparkSchemaUtil.convert(df.schema());
+    File dir = java.nio.file.Files.createTempDirectory("TestUpdate").toFile();
+    FileUtils.forceDeleteOnExit(dir);
+    String path = dir.getAbsolutePath();
+    ht.create(tableSchema, path);
+    df.write().format("iceberg").mode("overwrite").save(path);
+    ids = Lists.newArrayListWithCapacity(4);
+    for (int id = 1; id <= 4; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> dfWithNewIDs = spark.createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id");
+    dfWithNewIDs.createOrReplaceTempView("source");
+    Dataset<Row> tableDF = spark.read().format("iceberg").load(path);
+    tableDF.createOrReplaceTempView("target");
+    sql("MERGE INTO target using source on target.id = source.id" +
+            " WHEN MATCHED THEN UPDATE SET target.id = source.id + 10" +
+            " WHEN NOT MATCHED THEN INSERT *");
+    List<Object[]> result = sql("select * from target");
+    Set<Integer> idSet = Sets.newHashSet();
+    for (Object[] objects: result) {
+      idSet.add((Integer) objects[0]);
+    }
+    Assert.assertEquals(4, idSet.size());
+    Assert.assertTrue(idSet.contains(11));
+    Assert.assertTrue(idSet.contains(12));
+    Assert.assertTrue(idSet.contains(3));
+    Assert.assertTrue(idSet.contains(4));
   }
 }
