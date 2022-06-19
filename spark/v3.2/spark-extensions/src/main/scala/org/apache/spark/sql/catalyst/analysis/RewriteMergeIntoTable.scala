@@ -151,27 +151,27 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
-          rewriteIcebergRelation(m, r, tbl)
-        case p: View =>
-          val relations = p.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
+          rewriteMergeIntoTable(m, r, tbl)
+        case v: View =>
+          val relations = v.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
             r
           }
           val icebergTableView = relations.nonEmpty && relations.size == 1
           if (icebergTableView) {
-            val newM = rewriteIcebergRelation(
+            val newM = rewriteMergeIntoTable(
               m,
               relations.head,
               relations.head.table.asInstanceOf[SupportsRowLevelOperations])
             newM
           } else {
-            throw new AnalysisException(s"$p is not an Iceberg table")
+            throw new AnalysisException(s"$v is not an Iceberg table")
           }
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
   }
 
-  private def rewriteIcebergRelation(
+  private def rewriteMergeIntoTable(
       m: MergeIntoIcebergTable,
       r: DataSourceV2Relation,
       tbl: SupportsRowLevelOperations): MergeIntoIcebergTable = {

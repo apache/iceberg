@@ -51,8 +51,8 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
           rewriteUpdateTable(u, r, tbl)
-        case p: View =>
-          val relations = p.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
+        case v: View =>
+          val relations = v.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
             r
           }
           val icebergTableView = relations.nonEmpty && relations.size == 1 &&
@@ -60,7 +60,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
           if (icebergTableView) {
             rewriteUpdateTable(u, relations.head, relations.head.table.asInstanceOf[SupportsRowLevelOperations])
           } else {
-            throw new AnalysisException(s"$p is not an Iceberg table")
+            throw new AnalysisException(s"$v is not an Iceberg table")
           }
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")

@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.EqualNullSafe
@@ -30,6 +31,7 @@ import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
@@ -49,23 +51,40 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 object RewriteDeleteFromTable extends RewriteRowLevelCommand {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case d @ DeleteFromIcebergTable(aliasedTable, Some(cond), None) if d.resolved =>
+    case d @ DeleteFromIcebergTable(aliasedTable, Some(_), None) if d.resolved =>
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
-          val operation = buildRowLevelOperation(tbl, DELETE)
-          val table = RowLevelOperationTable(tbl, operation)
-          val rewritePlan = operation match {
-            case _: SupportsDelta =>
-              buildWriteDeltaPlan(r, table, cond)
-            case _ =>
-              buildReplaceDataPlan(r, table, cond)
+          rewriteDeleteFromTable(d, r, tbl)
+        case v: View =>
+          val relations = v.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
+            r
           }
-          // keep the original relation in DELETE to try deleting using filters
-          DeleteFromIcebergTable(r, Some(cond), Some(rewritePlan))
-
+          val icebergTableView = relations.nonEmpty && relations.size == 1 &&
+            relations.head.table.isInstanceOf[SupportsRowLevelOperations]
+          if (icebergTableView) {
+            rewriteDeleteFromTable(d, relations.head, relations.head.table.asInstanceOf[SupportsRowLevelOperations])
+          } else {
+            throw new AnalysisException(s"$v is not an Iceberg table")
+          }
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
+  }
+
+  private def rewriteDeleteFromTable(
+      d: DeleteFromIcebergTable,
+      r: DataSourceV2Relation,
+      tbl: SupportsRowLevelOperations): DeleteFromIcebergTable = {
+    val operation = buildRowLevelOperation(tbl, DELETE)
+    val table = RowLevelOperationTable(tbl, operation)
+    val rewritePlan = operation match {
+      case _: SupportsDelta =>
+        buildWriteDeltaPlan(r, table, d.condition.get)
+      case _ =>
+        buildReplaceDataPlan(r, table, d.condition.get)
+    }
+    // keep the original relation in DELETE to try deleting using filters
+    DeleteFromIcebergTable(r, d.condition, Some(rewritePlan))
   }
 
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
