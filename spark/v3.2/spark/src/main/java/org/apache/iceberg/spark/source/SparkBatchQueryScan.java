@@ -59,7 +59,7 @@ import org.apache.spark.sql.sources.Filter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering {
+public class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchQueryScan.class);
 
@@ -107,6 +107,10 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     }
 
     return specIds;
+  }
+
+  public TableScan tableScan() {
+    return scan;
   }
 
   private List<FileScanTask> files() {

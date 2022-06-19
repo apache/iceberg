@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.EqualNullSafe
@@ -27,14 +28,7 @@ import org.apache.spark.sql.catalyst.expressions.If
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Not
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
-import org.apache.spark.sql.catalyst.plans.logical.Assignment
-import org.apache.spark.sql.catalyst.plans.logical.Filter
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.Project
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.Union
-import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical.{Assignment, Filter, LogicalPlan, Project, ReplaceData, Union, UpdateIcebergTable, View, WriteDelta}
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE
@@ -56,22 +50,39 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
     case u @ UpdateIcebergTable(aliasedTable, assignments, cond, None) if u.resolved && u.aligned =>
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
-          val operation = buildRowLevelOperation(tbl, UPDATE)
-          val table = RowLevelOperationTable(tbl, operation)
-          val updateCond = cond.getOrElse(Literal.TrueLiteral)
-          val rewritePlan = operation match {
-            case _: SupportsDelta =>
-              buildWriteDeltaPlan(r, table, assignments, updateCond)
-            case _ if SubqueryExpression.hasSubquery(updateCond) =>
-              buildReplaceDataWithUnionPlan(r, table, assignments, updateCond)
-            case _ =>
-              buildReplaceDataPlan(r, table, assignments, updateCond)
+          rewriteUpdateTable(u, r, tbl)
+        case p: View =>
+          val relations = p.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
+            r
           }
-          UpdateIcebergTable(r, assignments, cond, Some(rewritePlan))
-
+          val icebergTableView = relations.nonEmpty && relations.size == 1 &&
+            relations.head.table.isInstanceOf[SupportsRowLevelOperations]
+          if (icebergTableView) {
+            rewriteUpdateTable(u, relations.head, relations.head.table.asInstanceOf[SupportsRowLevelOperations])
+          } else {
+            throw new AnalysisException(s"$p is not an Iceberg table")
+          }
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
+  }
+
+  private def rewriteUpdateTable(
+      u: UpdateIcebergTable,
+      r: DataSourceV2Relation,
+      tbl: SupportsRowLevelOperations): UpdateIcebergTable =  {
+    val operation = buildRowLevelOperation(tbl, UPDATE)
+    val table = RowLevelOperationTable(tbl, operation)
+    val updateCond = u.condition.getOrElse(Literal.TrueLiteral)
+    val rewritePlan = operation match {
+      case _: SupportsDelta =>
+        buildWriteDeltaPlan(r, table, u.assignments, updateCond)
+      case _ if SubqueryExpression.hasSubquery(updateCond) =>
+        buildReplaceDataWithUnionPlan(r, table, u.assignments, updateCond)
+      case _ =>
+        buildReplaceDataPlan(r, table, u.assignments, updateCond)
+    }
+    UpdateIcebergTable(r, u.assignments, u.condition, Some(rewritePlan))
   }
 
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)

@@ -19,9 +19,8 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.io.File;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,13 +28,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.RowLevelOperationMode;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
-import org.apache.iceberg.Table;
+
+import com.google.common.collect.Sets;
+import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.*;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -43,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -992,6 +991,34 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     AssertHelpers.assertThrows("UPDATE is not supported for non iceberg table",
         UnsupportedOperationException.class, "not supported temporarily",
         () -> sql("UPDATE %s SET c1 = -1 WHERE c2 = 1", "testtable"));
+  }
+
+  @Test
+  public void testUpdateHadoopTables() throws Exception {
+    List<Integer> ids = Lists.newArrayListWithCapacity(2);
+    for (int id = 1; id <= 2; id++) {
+      ids.add(id);
+    }
+    Dataset<Row> df = spark.createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id");
+    HadoopTables ht = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    Schema tableSchema = SparkSchemaUtil.convert(df.schema());
+    File dir = java.nio.file.Files.createTempDirectory("TestUpdate").toFile();
+    FileUtils.forceDeleteOnExit(dir);
+    String path = dir.getAbsolutePath();
+    ht.create(tableSchema, path);
+    df.write().format("iceberg").mode("overwrite").save(path);
+    Dataset<Row> tableDF = spark.read().format("iceberg").load(path);
+    tableDF.createOrReplaceTempView("target");
+    sql("UPDATE target SET id = id + 1 WHERE id = 2");
+    List<Object[]> result = sql("select * from target");
+    Set<Integer> idSet = Sets.newHashSet();
+    for (Object[] objects: result) {
+      idSet.add((Integer) objects[0]);
+    }
+    Assert.assertEquals(idSet.size(), 2);
+    Assert.assertTrue(idSet.contains(1));
+    Assert.assertTrue(idSet.contains(3));
   }
 
   private RowLevelOperationMode mode(Table table) {

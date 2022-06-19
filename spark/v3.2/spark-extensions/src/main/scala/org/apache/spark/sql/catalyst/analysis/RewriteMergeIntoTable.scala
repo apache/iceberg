@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -52,6 +53,7 @@ import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
+import org.apache.spark.sql.catalyst.plans.logical.View
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
 import org.apache.spark.sql.connector.expressions.FieldReference
@@ -149,20 +151,39 @@ object RewriteMergeIntoTable extends RewriteRowLevelCommand {
 
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
-          val operation = buildRowLevelOperation(tbl, MERGE)
-          val table = RowLevelOperationTable(tbl, operation)
-          val rewritePlan = operation match {
-            case _: SupportsDelta =>
-              buildWriteDeltaPlan(r, table, source, cond, matchedActions, notMatchedActions)
-            case _ =>
-              buildReplaceDataPlan(r, table, source, cond, matchedActions, notMatchedActions)
+          rewriteIcebergRelation(m, r, tbl)
+        case p: View =>
+          val relations = p.children.collect { case r: DataSourceV2Relation if r.table.isInstanceOf[SparkTable] =>
+            r
           }
-
-          m.copy(rewritePlan = Some(rewritePlan))
-
+          val icebergTableView = relations.nonEmpty && relations.size == 1
+          if (icebergTableView) {
+            val newM = rewriteIcebergRelation(
+              m,
+              relations.head,
+              relations.head.table.asInstanceOf[SupportsRowLevelOperations])
+            newM
+          } else {
+            throw new AnalysisException(s"$p is not an Iceberg table")
+          }
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
+  }
+
+  private def rewriteIcebergRelation(
+      m: MergeIntoIcebergTable,
+      r: DataSourceV2Relation,
+      tbl: SupportsRowLevelOperations): MergeIntoIcebergTable = {
+    val operation = buildRowLevelOperation(tbl, MERGE)
+    val table = RowLevelOperationTable(tbl, operation)
+    val rewritePlan = operation match {
+      case _: SupportsDelta =>
+        buildWriteDeltaPlan(r, table, m.sourceTable, m.mergeCondition, m.matchedActions, m.notMatchedActions)
+      case _ =>
+        buildReplaceDataPlan(r, table, m.sourceTable, m.mergeCondition, m.matchedActions, m.notMatchedActions)
+    }
+    m.copy(rewritePlan = Some(rewritePlan))
   }
 
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
