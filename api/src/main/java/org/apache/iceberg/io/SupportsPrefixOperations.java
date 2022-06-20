@@ -30,7 +30,7 @@ public interface SupportsPrefixOperations {
 
   /**
    * Return a stream of all files under a prefix.
-   *
+   * <p>
    * Hierarchical file systems (e.g. HDFS) may impose additional restrictions
    * like the prefix mush fully match a directory whereas key/value object
    * stores may allow for arbitrary prefixes.
@@ -42,7 +42,7 @@ public interface SupportsPrefixOperations {
 
   /**
    * Delete all files under a prefix.
-   *
+   * <p>
    * Hierarchical file systems (e.g. HDFS) may impose additional restrictions
    * like the prefix mush fully match a directory whereas key/value object
    * stores may allow for arbitrary prefixes.

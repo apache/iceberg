@@ -32,15 +32,15 @@ public class FileInfo {
     this.created = created;
   }
 
-  public String getLocation() {
+  public String location() {
     return location;
   }
 
-  public long getSize() {
+  public long size() {
     return size;
   }
 
-  public Instant getCreated() {
+  public Instant created() {
     return created;
   }
 }
