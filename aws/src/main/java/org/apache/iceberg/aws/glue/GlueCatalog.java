@@ -497,6 +497,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
+    if (awsProperties.glueCatalogSkipNameValidation()) {
+      return true;
+    }
+
     return IcebergToGlueConverter.isValidNamespace(tableIdentifier.namespace()) &&
         IcebergToGlueConverter.isValidTableName(tableIdentifier.name());
   }
