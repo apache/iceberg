@@ -25,9 +25,9 @@ import org.apache.iceberg.spark.source.WritersBenchmark;
 /**
  * A benchmark that evaluates the performance of various Iceberg writers for Avro data.
  * <p>
- * To run this benchmark for spark-3.2:
+ * To run this benchmark for spark-3.3:
  * <code>
- *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
  *       -PjmhIncludeRegex=AvroWritersBenchmark
  *       -PjmhOutputPath=benchmark/avro-writers-benchmark-result.txt
  * </code>

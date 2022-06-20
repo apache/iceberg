@@ -40,7 +40,7 @@ import org.apache.spark.sql.types.BooleanType
  */
 object ExtendedSimplifyConditionalsInPredicate extends Rule[LogicalPlan] {
 
-  def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
+  override def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
     _.containsAnyPattern(CASE_WHEN, IF)) {
 
     case d @ DeleteFromIcebergTable(_, Some(cond), _) =>
