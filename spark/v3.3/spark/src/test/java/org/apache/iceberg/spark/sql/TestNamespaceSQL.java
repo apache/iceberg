@@ -51,7 +51,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
   @After
   public void cleanNamespaces() {
     sql("DROP TABLE IF EXISTS %s.table", fullNamespace);
-    // TODO : revisit, it will now throw 3.3 a db not exists exception when called.
     sql("DROP NAMESPACE IF EXISTS %s", fullNamespace);
   }
 

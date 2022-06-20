@@ -237,7 +237,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     }
   }
 
-  // TODO : revisit
   override def parseQuery(sqlText: String): LogicalPlan = {
     parsePlan(sqlText)
   }

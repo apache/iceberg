@@ -279,3 +279,4 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     enabled = false
   }
 }
+

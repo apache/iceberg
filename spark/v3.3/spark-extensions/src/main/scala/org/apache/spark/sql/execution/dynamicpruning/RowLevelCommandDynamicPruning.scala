@@ -60,26 +60,26 @@ import scala.collection.compat.immutable.ArraySeq
 case class RowLevelCommandDynamicPruning(spark: SparkSession) extends Rule[LogicalPlan] with PredicateHelper {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transformDown {
-      // apply special dynamic filtering only for plans that don't support deltas
-      case RewrittenRowLevelCommand(
-          command: RowLevelCommand,
-          DataSourceV2ScanRelation(_, scan: SupportsRuntimeFiltering, _, _),
-          rewritePlan: ReplaceIcebergData) if conf.dynamicPartitionPruningEnabled && isCandidate(command) =>
+    // apply special dynamic filtering only for plans that don't support deltas
+    case RewrittenRowLevelCommand(
+        command: RowLevelCommand,
+        DataSourceV2ScanRelation(_, scan: SupportsRuntimeFiltering, _, _),
+        rewritePlan: ReplaceIcebergData) if conf.dynamicPartitionPruningEnabled && isCandidate(command) =>
 
-        // use reference equality to find exactly the required scan relations
-        val newRewritePlan = rewritePlan transformUp {
-          case r: DataSourceV2ScanRelation if r.scan eq scan =>
-            val pruningKeys = ExtendedV2ExpressionUtils.resolveRefs[Attribute](
-              ArraySeq.unsafeWrapArray(scan.filterAttributes), r)
-            val dynamicPruningCond = buildDynamicPruningCondition(r, command, pruningKeys)
-            val filter = Filter(dynamicPruningCond, r)
-            // always optimize dynamic filtering subqueries for row-level commands as it is important
-            // to rewrite introduced predicates as joins because Spark recently stopped optimizing
-            // dynamic subqueries to facilitate broadcast reuse
-            optimizeSubquery(filter)
-        }
-        command.withNewRewritePlan(newRewritePlan)
-    }
+      // use reference equality to find exactly the required scan relations
+      val newRewritePlan = rewritePlan transformUp {
+        case r: DataSourceV2ScanRelation if r.scan eq scan =>
+          val pruningKeys = ExtendedV2ExpressionUtils.resolveRefs[Attribute](
+            ArraySeq.unsafeWrapArray(scan.filterAttributes), r)
+          val dynamicPruningCond = buildDynamicPruningCondition(r, command, pruningKeys)
+          val filter = Filter(dynamicPruningCond, r)
+          // always optimize dynamic filtering subqueries for row-level commands as it is important
+          // to rewrite introduced predicates as joins because Spark recently stopped optimizing
+          // dynamic subqueries to facilitate broadcast reuse
+          optimizeSubquery(filter)
+      }
+      command.withNewRewritePlan(newRewritePlan)
+  }
 
   private def isCandidate(command: RowLevelCommand): Boolean = command.condition match {
     case Some(cond) if cond != Literal.TrueLiteral => true

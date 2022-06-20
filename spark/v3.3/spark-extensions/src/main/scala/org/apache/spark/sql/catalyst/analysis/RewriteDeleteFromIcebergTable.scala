@@ -62,6 +62,7 @@ object RewriteDeleteFromIcebergTable extends RewriteRowLevelDeltaCommand with Re
           }
           // keep the original relation in DELETE to try deleting using filters
           DeleteFromIcebergTable(r, Some(cond), Some(rewritePlan))
+          
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
@@ -92,9 +93,9 @@ object RewriteDeleteFromIcebergTable extends RewriteRowLevelDeltaCommand with Re
 
   // build a rewrite plan for sources that support row deltas
   private def buildWriteDeltaPlan(
-                                   relation: DataSourceV2Relation,
-                                   operationTable: RowLevelOperationTable,
-                                   cond: Expression): WriteDelta = {
+      relation: DataSourceV2Relation,
+      operationTable: RowLevelOperationTable,
+      cond: Expression): WriteDelta = {
 
     // resolve all needed attrs (e.g. row ID and any required metadata attrs)
     val rowIdAttrs = resolveRowIdAttrs(relation, operationTable.operation)
