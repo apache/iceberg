@@ -110,7 +110,6 @@ class PartitionData
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public <T> T get(int pos, Class<T> javaClass) {
     Object value = get(pos);
     if (value == null || javaClass.isInstance(value)) {
