@@ -188,6 +188,7 @@ class NestedField(IcebergType):
     """Represents a field of a struct, a map key, a map value, or a list element.
 
     This is where field IDs, names, docs, and nullability are tracked.
+
     Example:
         >>> str(NestedField(
         ...     field_id=1,

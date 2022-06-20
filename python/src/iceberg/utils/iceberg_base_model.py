@@ -20,14 +20,28 @@ from pydantic import BaseModel
 
 
 class IcebergBaseModel(BaseModel):
+    """
+    This class extends the Pydantic BaseModel to set default values by overriding them.
+
+    This is because we always want to set by_alias to True. In Python, the dash can't
+    be used in variable names, and this is used throughout the Iceberg spec.
+
+    The same goes for exclude_none, if a field is None we want to omit it from
+    serialization, for example, the doc attribute on the NestedField object.
+    Default non-null values will be serialized.
+
+    This is recommended by Pydantic:
+    https://pydantic-docs.helpmanual.io/usage/model_config/#change-behaviour-globally
+    """
+
     _instances: ClassVar[Dict] = {}
 
     class Config:
         allow_population_by_field_name = True
         frozen = True
 
-    def dict(self, exclude_none=True, **kwargs):
+    def dict(self, exclude_none: bool = True, **kwargs):
         return super().dict(exclude_none=exclude_none, **kwargs)
 
-    def json(self, exclude_none=True, by_alias=True, **kwargs):
-        return super().json(exclude_none=exclude_none, by_alias=True, **kwargs)
+    def json(self, exclude_none: bool = True, by_alias: bool = True, **kwargs):
+        return super().json(exclude_none=exclude_none, by_alias=by_alias, **kwargs)

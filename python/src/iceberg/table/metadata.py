@@ -15,10 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Literal, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal,
+    Union,
+)
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, root_validator
 
 from iceberg.schema import Schema
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -55,7 +61,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     current_schema_id: int = Field(alias="current-schema-id")
     """ID of the table’s current schema."""
 
-    partition_specs: list = Field(alias="partition-specs")
+    partition_specs: list = Field(alias="partition-specs", default_factory=list)
     """A list of partition specs, stored as full partition spec objects."""
 
     default_spec_id: int = Field(alias="default-spec-id")
@@ -107,19 +113,23 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
 
 class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
-    def __new__(cls, *_, **data):
-        # When we read a V1 format-version, we'll bump it to a V2 table right
-        # away by populating the required fields, and setting the version
-        data["format-version"] = 2
+    @root_validator(pre=True)
+    def populate_schemas(cls, data: Dict[str, Any]):
+        # When we read a V1 format-version, we'll make sure to populate the fields
+        # for V2 as well. This makes it easier downstream because we can just
+        # assume that everything is a TableMetadataV2.
+        # When writing, we should stick to the same version that it was,
+        # because bumping the version should be an explicit operation that is up
+        # to the owner of the table.
         schema = data["schema"]
-        if "schemas" not in data:
+        if "schemas" in data:
             if all([schema != other_schema for other_schema in data["schemas"]]):
                 data["schemas"].append(schema)
         else:
             data["schemas"] = [schema]
         data["current-schema-id"] = schema["schema-id"]
         data["last-sequence-number"] = _INITIAL_SEQUENCE_NUMBER
-        return TableMetadataV2(**data)
+        return data
 
     format_version: Literal[1] = Field(alias="format-version")
     """An integer version number for the format. Currently, this can be 1 or 2

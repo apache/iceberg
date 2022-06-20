@@ -29,7 +29,7 @@ from iceberg.types import NestedField, StringType
 EXAMPLE_TABLE_METADATA_V1 = {
     "format-version": 1,
     "table-uuid": UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0"),
-    "location": "s3://foo/bar/baz.metadata.json",
+    "location": "s3://foo/bar/",
     "last-updated-ms": 1600000000000,
     "last-column-id": 4,
     "schema": {
@@ -42,22 +42,9 @@ EXAMPLE_TABLE_METADATA_V1 = {
         ],
         "identifier-field-ids": [],
     },
-    "schemas": [
-        {
-            "schema-id": 0,
-            "fields": [
-                {"id": 1, "name": "foo", "required": True, "type": "string"},
-                {"id": 2, "name": "bar", "required": True, "type": "string"},
-                {"id": 3, "name": "baz", "required": True, "type": "string"},
-                {"id": 4, "name": "qux", "required": True, "type": "string"},
-            ],
-            "identifier-field-ids": [],
-        },
-    ],
     "current-schema-id": 0,
-    "partition-spec": {},
+    "partition-spec": [],
     "default-spec-id": 0,
-    "partition-specs": [{"spec-id": 0, "fields": []}],
     "last-partition-id": 999,
     "default-sort-order-id": 0,
     "sort-orders": [{"order-id": 0, "fields": []}],
@@ -90,14 +77,14 @@ EXAMPLE_TABLE_METADATA_V1 = {
     "metadata-log": [
         {
             "timestamp-ms": 1637943123331,
-            "metadata-file": "3://foo/bar/baz/00000-907830f8-1a92-4944-965a-ff82c890e912.metadata.json",
+            "metadata-file": "s3://foo/bar/baz/00000-907830f8-1a92-4944-965a-ff82c890e912.metadata.json",
         }
     ],
 }
 EXAMPLE_TABLE_METADATA_V2 = {
     "format-version": 2,
     "table-uuid": "aefee669-d568-4f9c-b732-3c0cfd3bc7b0",
-    "location": "s3://foo/bar/baz.metadata.json",
+    "location": "s3://foo/bar/",
     "last-updated-ms": 1600000000000,
     "last-column-id": 4,
     "last-sequence-number": 1,
@@ -148,7 +135,7 @@ EXAMPLE_TABLE_METADATA_V2 = {
     "metadata-log": [
         {
             "timestamp-ms": 1637943123331,
-            "metadata-file": "3://foo/bar/baz/00000-907830f8-1a92-4944-965a-ff82c890e912.metadata.json",
+            "metadata-file": "s3://foo/bar/baz/00000-907830f8-1a92-4944-965a-ff82c890e912.metadata.json",
         }
     ],
 }
@@ -179,7 +166,7 @@ def test_v2_metadata_parsing():
 
     assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0")
-    assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
+    assert table_metadata.location == "s3://foo/bar/"
     assert table_metadata.last_sequence_number == 1
     assert table_metadata.last_updated_ms == 1600000000000
     assert table_metadata.last_column_id == 4
@@ -201,18 +188,16 @@ def test_v1_metadata_parsing_directly():
     """Test retrieving values from a TableMetadata instance of version 1"""
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
 
-    # This is automatically converted to a V2 instance
-    assert isinstance(table_metadata, TableMetadataV2)
+    assert isinstance(table_metadata, TableMetadataV1)
 
     # The version 1 will automatically be bumped to version 2
-    assert table_metadata.format_version == 2
+    assert table_metadata.format_version == 1
     assert table_metadata.table_uuid == UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0")
-    assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
+    assert table_metadata.location == "s3://foo/bar/"
     assert table_metadata.last_updated_ms == 1600000000000
     assert table_metadata.last_column_id == 4
     assert table_metadata.schemas[0].schema_id == 0
     assert table_metadata.current_schema_id == 0
-    assert table_metadata.partition_specs[0]["spec-id"] == 0
     assert table_metadata.default_spec_id == 0
     assert table_metadata.last_partition_id == 999
     assert table_metadata.current_snapshot_id == 7681945274687743099
@@ -229,7 +214,7 @@ def test_v2_metadata_parsing_directly():
 
     assert table_metadata.format_version == 2
     assert table_metadata.table_uuid == UUID("aefee669-d568-4f9c-b732-3c0cfd3bc7b0")
-    assert table_metadata.location == "s3://foo/bar/baz.metadata.json"
+    assert table_metadata.location == "s3://foo/bar/"
     assert table_metadata.last_sequence_number == 1
     assert table_metadata.last_updated_ms == 1600000000000
     assert table_metadata.last_column_id == 4
@@ -277,3 +262,11 @@ def test_updating_metadata():
 
     assert new_table_metadata.current_schema_id == 1
     assert new_table_metadata.schemas[-1] == Schema(**new_schema)
+
+
+def test_serialize_v2():
+    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+    assert (
+        table_metadata.json()
+        == """{"table-uuid": "aefee669-d568-4f9c-b732-3c0cfd3bc7b0", "location": "s3://foo/bar/", "last-updated-ms": 1600000000000, "last-column-id": 4, "schemas": [{"fields": [{"id": 1, "name": "foo", "type": "string", "required": true}, {"id": 2, "name": "bar", "type": "string", "required": true}, {"id": 3, "name": "baz", "type": "string", "required": true}, {"id": 4, "name": "qux", "type": "string", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": []}], "default-spec-id": 0, "last-partition-id": 999, "properties": {"owner": "root", "write.format.default": "parquet", "read.split.target.size": 134217728}, "current-snapshot-id": 7681945274687743099, "snapshots": [{"snapshot-id": 7681945274687743099, "timestamp-ms": 1637943123188, "summary": {"operation": "append", "added-data-files": "6", "added-records": "237993", "added-files-size": "3386901", "changed-partition-count": "1", "total-records": "237993", "total-files-size": "3386901", "total-data-files": "6", "total-delete-files": "0", "total-position-deletes": "0", "total-equality-deletes": "0"}, "manifest-list": "s3://foo/bar/baz/snap-2874264644797652805-1-9cb3c3cf-5a04-40c1-bdd9-d8d7e38cd8e3.avro", "schema-id": 0}], "snapshot-log": [{"timestamp-ms": 1637943123188, "snapshot-id": 7681945274687743099}], "metadata-log": [{"timestamp-ms": 1637943123331, "metadata-file": "s3://foo/bar/baz/00000-907830f8-1a92-4944-965a-ff82c890e912.metadata.json"}], "sort-orders": [{"order-id": 0, "fields": []}], "default-sort-order-id": 0, "format-version": 2, "last-sequence-number": 1}"""
+    )

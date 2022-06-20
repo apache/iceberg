@@ -26,7 +26,7 @@ retrieved using `request.getfixturevalue(fixture_name)`.
 import os
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, Union
-from urllib.parse import ParseResult, urlparse
+from urllib.parse import urlparse
 
 import pytest
 
@@ -788,7 +788,8 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
 @pytest.fixture(scope="session")
 def simple_struct():
     return StructType(
-        NestedField(1, "required_field", StringType(), True, "this is a doc"), NestedField(2, "optional_field", IntegerType())
+        NestedField(id=1, name="required_field", field_type=StringType(), required=True, doc="this is a doc"),
+        NestedField(id=2, name="optional_field", field_type=IntegerType()),
     )
 
 
@@ -806,7 +807,6 @@ class LocalOutputFile(OutputFile):
     """An OutputFile implementation for local files (for test use only)"""
 
     def __init__(self, location: str):
-
         parsed_location = urlparse(location)  # Create a ParseResult from the uri
         if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
             raise ValueError("LocalOutputFile location must have a scheme of `file`")
@@ -814,28 +814,19 @@ class LocalOutputFile(OutputFile):
             raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
 
         super().__init__(location=location)
-        self._parsed_location = parsed_location
-
-    @property
-    def parsed_location(self) -> ParseResult:
-        """The parsed location
-        Returns:
-            ParseResult: The parsed results which has attributes `scheme`, `netloc`, `path`,
-            `params`, `query`, and `fragments`.
-        """
-        return self._parsed_location
+        self._path = parsed_location.path
 
     def __len__(self):
-        return os.path.getsize(self.parsed_location.path)
+        return os.path.getsize(self._path)
 
     def exists(self):
-        return os.path.exists(self.parsed_location.path)
+        return os.path.exists(self._path)
 
     def to_input_file(self):
         return LocalInputFile(location=self.location)
 
     def create(self, overwrite: bool = False) -> OutputStream:
-        output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
+        output_file = open(self._path, "wb" if overwrite else "xb")
         if not isinstance(output_file, OutputStream):
             raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
         return output_file
@@ -852,10 +843,7 @@ class LocalFileIO(FileIO):
 
     def delete(self, location: Union[str, InputFile, OutputFile]):
         location = location.location if isinstance(location, (InputFile, OutputFile)) else location
-        try:
-            os.remove(location)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {location}") from e
+        os.remove(location)
 
 
 @pytest.fixture(scope="session", autouse=True)
