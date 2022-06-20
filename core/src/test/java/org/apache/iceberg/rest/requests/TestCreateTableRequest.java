@@ -90,7 +90,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
             PartitionSpecParser.toJson(SAMPLE_SPEC.toUnbound()), SortOrderParser.toJson(SAMPLE_WRITE_ORDER.toUnbound()),
             mapper().writeValueAsString(SAMPLE_PROPERTIES), true);
 
-    CreateTableRequest stagedReq  = CreateTableRequest.builder()
+    CreateTableRequest stagedReq = CreateTableRequest.builder()
         .withName(SAMPLE_NAME)
         .withLocation(SAMPLE_LOCATION)
         .withSchema(SAMPLE_SCHEMA)
