@@ -14,3 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from iceberg.avro.reader import BooleanReader, FixedReader
+
+
+def test_singleton():
+    """We want to reuse the readers to avoid creating a gazillion of them"""
+    assert id(BooleanReader()) == id(BooleanReader())
+    assert id(FixedReader(22)) == id(FixedReader(22))
+    assert id(FixedReader(19)) != id(FixedReader(25))

@@ -43,7 +43,7 @@ public class CreateTableRequest implements RESTRequest {
   private UnboundPartitionSpec spec;
   private UnboundSortOrder order;
   private Map<String, String> properties;
-  private Boolean stageCreate;
+  private Boolean stageCreate = false;
 
   public CreateTableRequest() {
     // Needed for Jackson Deserialization.
