@@ -304,7 +304,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     namespaces.add(namespace);
     glueCatalogWithSkipNameValidation.createNamespace(Namespace.of(namespace));
     String tableName = "cc-cc";
-    glueCatalogWithSkipNameValidation.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
+    glueCatalogWithSkipNameValidation.createTable(
+            TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
     GetTableResponse response = glue.getTable(GetTableRequest.builder()
             .databaseName(namespace).name(tableName).build());
     Assert.assertEquals(namespace, response.table().databaseName());
