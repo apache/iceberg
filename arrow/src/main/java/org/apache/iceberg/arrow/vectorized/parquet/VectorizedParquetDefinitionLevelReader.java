@@ -415,13 +415,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
       int startOffset = ((BaseVariableWidthVector) vector).getStartOffset(idx);
       // It is possible that the data buffer was reallocated. So it is important to
       // not cache the data buffer reference but instead use vector.getDataBuffer().
-      if (buffer.isDirect()) {
-        vector.getDataBuffer().setBytes(startOffset, buffer, buffer.position(),
-            buffer.limit() - buffer.position());
-      } else {
-        vector.getDataBuffer().setBytes(startOffset, buffer.array(), buffer.position() + buffer.arrayOffset(),
-            buffer.limit() - buffer.position());
-      }
+      vector.getDataBuffer().setBytes(startOffset, buffer, buffer.position(),
+          buffer.limit() - buffer.position());
+      buffer.arrayOffset();
       // Similarly, we need to get the latest reference to the validity buffer as well
       // since reallocation changes reference of the validity buffers as well.
       if (setArrowValidityVector) {
