@@ -252,7 +252,9 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
 
     return internalListPrefix(s3uri.bucket(), s3uri.key()).stream()
         .flatMap(r -> r.contents().stream())
-        .map(o -> new FileInfo(o.key(), o.size(), o.lastModified().toEpochMilli())).iterator();
+        .map(o -> new FileInfo(
+            String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
+            o.size(), o.lastModified().toEpochMilli())).iterator();
   }
 
   /**
