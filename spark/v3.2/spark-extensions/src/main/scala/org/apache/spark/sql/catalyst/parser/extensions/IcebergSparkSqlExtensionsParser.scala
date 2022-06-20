@@ -20,15 +20,16 @@
 package org.apache.spark.sql.catalyst.parser.extensions
 
 import java.util.Locale
-
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
+import org.apache.iceberg.hadoop.HadoopTables
 import org.apache.iceberg.spark.Spark3Util
-import org.apache.iceberg.spark.source.{SparkBatchQueryScan, SparkTable}
+import org.apache.iceberg.spark.source.SparkBatchQueryScan
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
@@ -51,15 +52,13 @@ import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.execution.command.ExplainCommand
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
 import scala.jdk.CollectionConverters._
 import scala.util.Try
-
-import org.apache.iceberg.hadoop.HadoopTables
-import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
