@@ -417,7 +417,6 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
       // not cache the data buffer reference but instead use vector.getDataBuffer().
       vector.getDataBuffer().setBytes(startOffset, buffer, buffer.position(),
           buffer.limit() - buffer.position());
-      buffer.arrayOffset();
       // Similarly, we need to get the latest reference to the validity buffer as well
       // since reallocation changes reference of the validity buffers as well.
       if (setArrowValidityVector) {
