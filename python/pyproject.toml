@@ -40,6 +40,9 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 mmh3 = "^3.0.0"
+apiclient = "^1.0.4"
+api-client-pydantic = "^2.2.0"
+
 
 pyarrow = { version = "^8.0.0", optional = true }
 
