@@ -869,6 +869,9 @@ components:
 
     RenameTableRequest:
       type: object
+      required:
+        - source
+        - destination
       properties:
         source:
           $ref: '#/components/schemas/TableIdentifier'
