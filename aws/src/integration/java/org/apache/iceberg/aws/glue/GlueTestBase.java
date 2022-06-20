@@ -67,7 +67,6 @@ public class GlueTestBase {
 
   static Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
   static PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
-
   // table location properties
   static final Map<String, String> tableLocationProperties = ImmutableMap.of(
       TableProperties.WRITE_DATA_LOCATION, "s3://" + testBucketName + "/writeDataLoc",
