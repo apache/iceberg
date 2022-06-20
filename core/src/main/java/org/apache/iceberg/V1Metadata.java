@@ -356,8 +356,9 @@ class V1Metadata {
           return wrapped.splitOffsets();
         case 14:
           return wrapped.sortOrderId();
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
-      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
 
     @Override
