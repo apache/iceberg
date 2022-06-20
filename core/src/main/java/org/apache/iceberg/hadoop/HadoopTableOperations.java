@@ -307,7 +307,7 @@ public class HadoopTableOperations implements TableOperations {
   @VisibleForTesting
   int findVersion() {
     Path versionHintFile = versionHintFile();
-    FileSystem fs = Util.getFs(versionHintFile, conf);
+    FileSystem fs = getFileSystem(versionHintFile, conf);
 
     try (InputStreamReader fsr = new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
          BufferedReader in = new BufferedReader(fsr)) {
