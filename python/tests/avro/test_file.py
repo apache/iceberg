@@ -36,7 +36,7 @@ def test_unknown_codec():
     with pytest.raises(ValueError) as exc_info:
         header.compression_codec()
 
-    assert f"Unsupported codec: unknown" in str(exc_info.value)
+    assert "Unsupported codec: unknown" in str(exc_info.value)
 
 
 def test_missing_schema():
@@ -45,4 +45,4 @@ def test_missing_schema():
     with pytest.raises(ValueError) as exc_info:
         header.get_schema()
 
-    assert f"No schema found in Avro file headers" in str(exc_info.value)
+    assert "No schema found in Avro file headers" in str(exc_info.value)

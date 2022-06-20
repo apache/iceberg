@@ -62,7 +62,7 @@ def test_read_negative_bytes():
     with pytest.raises(ValueError) as exc_info:
         decoder.read(-1)
 
-    assert f"Requested -1 bytes to read, expected positive integer." in str(exc_info.value)
+    assert "Requested -1 bytes to read, expected positive integer." in str(exc_info.value)
 
 
 class OneByteAtATimeInputStream(InputStream):
@@ -95,7 +95,7 @@ def test_read_single_byte_at_the_time():
     with pytest.raises(ValueError) as exc_info:
         decoder.read(2)
 
-    assert f"Read 1 bytes, expected 2 bytes" in str(exc_info.value)
+    assert "Read 1 bytes, expected 2 bytes" in str(exc_info.value)
 
 
 def test_read_float():

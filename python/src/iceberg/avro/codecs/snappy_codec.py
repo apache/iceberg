@@ -57,7 +57,7 @@ try:
             SnappyCodec._check_crc32(uncompressed, checksum)
             return uncompressed
 
-except ImportError as ex:
+except ImportError:
 
     class SnappyCodec(Codec):  # type: ignore
         @staticmethod

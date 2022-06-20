@@ -31,7 +31,7 @@ try:
         def decompress(data: bytes) -> bytes:
             return bz2.decompress(data)
 
-except ImportError as ex:
+except ImportError:
 
     class BZip2Codec(Codec):  # type: ignore
         @staticmethod

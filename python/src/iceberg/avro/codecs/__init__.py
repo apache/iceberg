@@ -25,8 +25,6 @@ converting character sets (https://docs.python.org/3/library/codecs.html).
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from iceberg.avro.codecs.bzip2 import BZip2Codec
 from iceberg.avro.codecs.codec import Codec
 from iceberg.avro.codecs.deflate import DeflateCodec

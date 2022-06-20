@@ -41,7 +41,7 @@ try:
                     uncompressed.extend(chunk)
             return uncompressed
 
-except ImportError as ex:
+except ImportError:
 
     class ZStandardCodec(Codec):  # type: ignore
         @staticmethod

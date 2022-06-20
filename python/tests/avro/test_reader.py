@@ -452,4 +452,4 @@ def test_unknown_type():
     with pytest.raises(ValueError) as exc_info:
         primitive_reader(UnknownType())
 
-    assert f"Unknown type:" in str(exc_info.value)
+    assert "Unknown type:" in str(exc_info.value)
