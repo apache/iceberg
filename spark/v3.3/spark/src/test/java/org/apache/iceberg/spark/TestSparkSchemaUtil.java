@@ -25,6 +25,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
+import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
@@ -71,11 +72,10 @@ public class TestSparkSchemaUtil {
     for (AttributeReference attrRef : attrRefs) {
       if (MetadataColumns.isMetadataColumn(attrRef.name())) {
         Assert.assertTrue("metadata columns should have __metadata_col in attribute metadata",
-            attrRef.metadata().contains(TypeToSparkType.METADATA_COL_ATTR_KEY) &&
-                attrRef.metadata().getBoolean(TypeToSparkType.METADATA_COL_ATTR_KEY));
+            MetadataAttribute.unapply(attrRef).isDefined());
       } else {
         Assert.assertFalse("non metadata columns should not have __metadata_col in attribute metadata",
-            attrRef.metadata().contains(TypeToSparkType.METADATA_COL_ATTR_KEY));
+            MetadataAttribute.unapply(attrRef).isDefined());
       }
     }
   }

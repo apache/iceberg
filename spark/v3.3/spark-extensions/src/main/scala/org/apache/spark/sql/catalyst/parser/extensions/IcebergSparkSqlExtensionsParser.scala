@@ -132,7 +132,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
 
   private def replaceRowLevelCommands(plan: LogicalPlan): LogicalPlan = plan resolveOperatorsDown {
     case DeleteFromTable(UnresolvedIcebergTable(aliasedTable), condition) =>
-      DeleteFromIcebergTable(aliasedTable, condition)
+      DeleteFromIcebergTable(aliasedTable, Some(condition))
 
     case UpdateTable(UnresolvedIcebergTable(aliasedTable), assignments, condition) =>
       UpdateIcebergTable(aliasedTable, assignments, condition)
@@ -235,6 +235,10 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         val position = Origin(e.line, e.startPosition)
         throw new IcebergParseException(Option(command), e.message, position, position)
     }
+  }
+
+  override def parseQuery(sqlText: String): LogicalPlan = {
+    parsePlan(sqlText)
   }
 }
 
@@ -348,7 +352,8 @@ class IcebergParseException(
     val builder = new StringBuilder
     builder ++= "\n" ++= message
     start match {
-      case Origin(Some(l), Some(p)) =>
+      case Origin(
+          Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText), Some(objectType), Some(objectName)) =>
         builder ++= s"(line $l, pos $p)\n"
         command.foreach { cmd =>
           val (above, below) = cmd.split("\n").splitAt(l)
