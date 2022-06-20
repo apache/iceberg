@@ -63,6 +63,7 @@ public class GlueTestBase {
   // iceberg
   static GlueCatalog glueCatalog;
   static GlueCatalog glueCatalogWithSkip;
+  static GlueCatalog glueCatalogWithSkipNameValidation;
 
   static Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
   static PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
@@ -84,6 +85,11 @@ public class GlueTestBase {
     properties.setGlueCatalogSkipArchive(true);
     glueCatalogWithSkip = new GlueCatalog();
     glueCatalogWithSkip.initialize(catalogName, testBucketPath, properties, glue,
+            LockManagers.defaultLockManager(), fileIO);
+    glueCatalogWithSkipNameValidation = new GlueCatalog();
+    AwsProperties propertiesSkipNameValidation = new AwsProperties();
+    propertiesSkipNameValidation.setGlueCatalogSkipNameValidation(true);
+    glueCatalogWithSkipNameValidation.initialize(catalogName, testBucketPath, propertiesSkipNameValidation, glue,
             LockManagers.defaultLockManager(), fileIO);
   }
 

@@ -299,6 +299,19 @@ public class TestGlueCatalogTable extends GlueTestBase {
   }
 
   @Test
+  public void testCommitTableSkipNameValidation() {
+    String namespace = "dd-dd";
+    namespaces.add(namespace);
+    glueCatalogWithSkipNameValidation.createNamespace(Namespace.of(namespace));
+    String tableName = "cc-cc";
+    glueCatalogWithSkipNameValidation.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
+    GetTableResponse response = glue.getTable(GetTableRequest.builder()
+            .databaseName(namespace).name(tableName).build());
+    Assert.assertEquals(namespace, response.table().databaseName());
+    Assert.assertEquals(tableName, response.table().name());
+  }
+
+  @Test
   public void testColumnCommentsAndParameters() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
