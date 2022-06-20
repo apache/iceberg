@@ -1,5 +1,5 @@
 ---
-title: "How to Release"
+title: "How to verify a Release"
 bookUrlFromBaseURL: /../../how-to-verify-a-release
 ---
 <!--
