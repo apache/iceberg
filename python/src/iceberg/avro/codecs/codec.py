@@ -14,3 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+
+class Codec(ABC):
+    """Abstract base class for all Avro codec classes."""
+
+    @staticmethod
+    @abstractmethod
+    def compress(data: bytes) -> tuple[bytes, int]:
+        ...
+
+    @staticmethod
+    @abstractmethod
+    def decompress(data: bytes) -> bytes:
+        ...

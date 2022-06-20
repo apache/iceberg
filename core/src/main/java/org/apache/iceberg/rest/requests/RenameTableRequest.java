@@ -43,6 +43,7 @@ public class RenameTableRequest implements RESTRequest {
     validate();
   }
 
+  @Override
   public void validate() {
     Preconditions.checkArgument(source != null, "Invalid source table: null");
     Preconditions.checkArgument(destination != null, "Invalid destination table: null");
