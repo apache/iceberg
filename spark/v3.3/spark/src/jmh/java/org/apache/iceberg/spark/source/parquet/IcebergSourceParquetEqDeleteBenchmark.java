@@ -29,9 +29,9 @@ import org.openjdk.jmh.annotations.Param;
  * for Iceberg.
  * <p>
  * This class uses a dataset with a flat schema.
- * To run this benchmark for spark-3.2:
+ * To run this benchmark for spark-3.3:
  * <code>
- *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2:jmh
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3:jmh
  *       -PjmhIncludeRegex=IcebergSourceParquetEqDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-parquet-eq-delete-benchmark-result.txt
  * </code>

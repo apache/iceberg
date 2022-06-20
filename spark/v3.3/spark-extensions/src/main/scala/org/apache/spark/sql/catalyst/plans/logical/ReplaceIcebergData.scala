@@ -29,7 +29,7 @@ import org.apache.spark.sql.types.DataType
 /**
  * Replace data in an existing table.
  */
-case class ReplaceData(
+case class ReplaceIcebergData(
     table: NamedRelation,
     query: LogicalPlan,
     originalTable: NamedRelation,
@@ -63,7 +63,7 @@ case class ReplaceData(
       })
   }
 
-  override protected def withNewChildInternal(newChild: LogicalPlan): ReplaceData = {
+  override protected def withNewChildInternal(newChild: LogicalPlan): ReplaceIcebergData = {
     copy(query = newChild)
   }
 }

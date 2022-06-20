@@ -37,9 +37,9 @@ import org.slf4j.LoggerFactory
  *
  * Note this rule must be run after expression optimization.
  */
-object OptimizeMetadataOnlyDeleteFromTable extends Rule[LogicalPlan] with PredicateHelper {
+object OptimizeMetadataOnlyDeleteFromIcebergTable extends Rule[LogicalPlan] with PredicateHelper {
 
-  val logger = LoggerFactory.getLogger(OptimizeMetadataOnlyDeleteFromTable.getClass)
+  val logger = LoggerFactory.getLogger(OptimizeMetadataOnlyDeleteFromIcebergTable.getClass)
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     case d @ DeleteFromIcebergTable(relation: DataSourceV2Relation, cond, Some(_)) =>

@@ -36,10 +36,10 @@ import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.SortDirection;
 import org.apache.spark.sql.connector.expressions.SortOrder;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 
 public class SparkDistributionAndOrderingUtil {
 

@@ -147,6 +147,7 @@ public class TestSparkParquetReader extends AvroDataTest {
                 .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
                 .set("spark.sql.parquet.writeLegacyFormat", "false")
                 .set("spark.sql.parquet.outputTimestampType", "INT96")
+                .set("spark.sql.parquet.fieldId.write.enabled", "true")
                 .build(),
             MetricsConfig.getDefault())) {
       writer.addAll(rows);
