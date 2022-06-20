@@ -101,7 +101,7 @@ with content size present), UTF-8 encoded JSON payload representing a single
 | Field Name        | Field Type                              | Required | Description |
 |-------------------|-----------------------------------------|----------| ----------- |
 | type              | JSON string                             | yes      | See [Blob types](#blob-types)
-| fields            | list of JSON long                       | yes      | List of field IDs the blob was computed for; the order of items is used to compute sketches stored in the blob.
+| fields            | JSON list of ints                       | yes      | List of field IDs the blob was computed for; the order of items is used to compute sketches stored in the blob.
 | offset            | JSON long                               | yes      | The offset in the file where the blob contents start
 | length            | JSON long                               | yes      | The length of the blob stored in the file (after compression, if compressed)
 | compression-codec | JSON string                             | no       | See [Compression codecs](#compression-codecs). If omitted, the data is assumed to be uncompressed.
