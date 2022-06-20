@@ -102,7 +102,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
     FileSystem fs = Util.getFs(prefixToList, hadoopConf.get());
 
     try {
-      return Streams.stream(new AdaptingIterator<>(fs.listFiles(prefixToList, true)))
+      return Streams.stream(new AdaptingIterator<>(fs.listFiles(prefixToList, true /* recursive */)))
           .map(fileStatus -> new FileInfo(fileStatus.getPath().toString(), fileStatus.getLen(),
               fileStatus.getModificationTime())).iterator();
     } catch (IOException e) {
@@ -116,7 +116,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
     FileSystem fs = Util.getFs(prefixToDelete, hadoopConf.get());
 
     try {
-      fs.delete(prefixToDelete, true);
+      fs.delete(prefixToDelete, true /* recursive */);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

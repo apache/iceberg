@@ -22,12 +22,12 @@ package org.apache.iceberg.io;
 public class FileInfo {
   private final String location;
   private final long size;
-  private final long created;
+  private final long createdAtMillis;
 
-  public FileInfo(String location, long size, long created) {
+  public FileInfo(String location, long size, long createdAtMillis) {
     this.location = location;
     this.size = size;
-    this.created = created;
+    this.createdAtMillis = createdAtMillis;
   }
 
   public String location() {
@@ -38,7 +38,7 @@ public class FileInfo {
     return size;
   }
 
-  public long created() {
-    return created;
+  public long createdAtMillis() {
+    return createdAtMillis;
   }
 }
