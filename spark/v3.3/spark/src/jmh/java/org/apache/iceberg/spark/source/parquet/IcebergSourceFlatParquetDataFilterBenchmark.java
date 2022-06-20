@@ -44,9 +44,9 @@ import static org.apache.spark.sql.functions.expr;
  *
  * The performance is compared to the built-in file source in Spark.
  *
- * To run this benchmark for spark-3.2:
+ * To run this benchmark for spark-3.3:
  * <code>
- *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataFilterBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-filter-benchmark-result.txt
  * </code>

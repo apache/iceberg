@@ -146,6 +146,31 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public SparkTable loadTable(Identifier ident, String version) throws NoSuchTableException {
+    try {
+      Pair<Table, Long> icebergTable = load(ident);
+      Preconditions.checkArgument(icebergTable.second() == null,
+          "Cannot do time-travel based on both table identifier and AS OF");
+      return new SparkTable(icebergTable.first(), Long.parseLong(version), !cacheEnabled);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
+  }
+
+  @Override
+  public SparkTable loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    try {
+      Pair<Table, Long> icebergTable = load(ident);
+      Preconditions.checkArgument(icebergTable.second() == null,
+          "Cannot do time-travel based on both table identifier and AS OF");
+      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(icebergTable.first(), timestamp);
+      return new SparkTable(icebergTable.first(), snapshotIdAsOfTime, !cacheEnabled);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
+  }
+
+  @Override
   public SparkTable createTable(Identifier ident, StructType schema,
                                 Transform[] transforms,
                                 Map<String, String> properties) throws TableAlreadyExistsException {
@@ -419,7 +444,7 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+  public boolean dropNamespace(String[] namespace, boolean cascade) throws NoSuchNamespaceException {
     if (asNamespaceCatalog != null) {
       try {
         return asNamespaceCatalog.dropNamespace(Namespace.of(namespace));

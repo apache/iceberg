@@ -27,7 +27,7 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.OverwriteByExpression
 import org.apache.spark.sql.catalyst.plans.logical.OverwritePartitionsDynamic
 import org.apache.spark.sql.catalyst.plans.logical.Project
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
@@ -97,7 +97,7 @@ object ExtendedV2Writes extends Rule[LogicalPlan] with PredicateHelper {
       val newQuery = ExtendedDistributionAndOrderingUtils.prepareQuery(write, query, conf)
       o.copy(write = Some(write), query = newQuery)
 
-    case rd @ ReplaceData(r: DataSourceV2Relation, query, _, None) =>
+    case rd @ ReplaceIcebergData(r: DataSourceV2Relation, query, _, None) =>
       val rowSchema = StructType.fromAttributes(rd.dataInput)
       val writeBuilder = newWriteBuilder(r.table, rowSchema, Map.empty)
       val write = writeBuilder.build()

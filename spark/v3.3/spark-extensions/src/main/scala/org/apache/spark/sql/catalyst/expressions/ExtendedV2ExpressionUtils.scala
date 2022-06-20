@@ -33,6 +33,7 @@ import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.MonthsTransform
 import org.apache.spark.sql.connector.expressions.NamedReference
 import org.apache.spark.sql.connector.expressions.SortValue
+import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.connector.expressions.TruncateTransform
 import org.apache.spark.sql.connector.expressions.YearsTransform
 import org.apache.spark.sql.errors.QueryCompilationErrors
@@ -65,8 +66,14 @@ object ExtendedV2ExpressionUtils extends SQLConfHelper {
         SortOrder(catalystChild, toCatalyst(direction), toCatalyst(nullOrdering), Seq.empty)
       case IdentityTransform(ref) =>
         resolveRef[NamedExpression](ref, query)
-      case BucketTransform(numBuckets, ref) =>
-        IcebergBucketTransform(numBuckets, resolveRef[NamedExpression](ref, query))
+      case t: Transform if BucketTransform.unapply(t).isDefined =>
+        t match {
+            // sort columns will be empty for bucket.
+          case BucketTransform(numBuckets, cols, _) =>
+            IcebergBucketTransform(numBuckets, resolveRef[NamedExpression](cols.head, query))
+          case _ => t.asInstanceOf[Expression]
+            // do nothing
+        }
       case TruncateTransform(length, ref) =>
         IcebergTruncateTransform(resolveRef[NamedExpression](ref, query), length)
       case YearsTransform(ref) =>
