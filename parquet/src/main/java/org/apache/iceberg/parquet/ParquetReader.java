@@ -100,6 +100,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final long totalValues;
     private final boolean reuseContainers;
     private final long[] rowGroupsStartRowPos;
+    private final ParquetIndexPageFilter pageFilter;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
@@ -113,6 +114,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
       this.rowGroupsStartRowPos = conf.startRowPositions();
+      this.pageFilter = conf.pageFilter();
     }
 
     @Override
@@ -142,6 +144,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         reader.skipNextRowGroup();
       }
 
+      Long filteredRowCount = null;
+      if (pageFilter != null) {
+        filteredRowCount = pageFilter.applyIndex(reader, nextRowGroup);
+      }
+
       PageReadStore pages;
       try {
         pages = reader.readNextRowGroup();
@@ -150,7 +157,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       }
 
       long rowPosition = rowGroupsStartRowPos[nextRowGroup];
-      nextRowGroupStart += pages.getRowCount();
+      nextRowGroupStart += filteredRowCount != null ? filteredRowCount : pages.getRowCount();
       nextRowGroup += 1;
 
       model.setPageSource(pages, rowPosition);
