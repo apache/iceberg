@@ -275,8 +275,8 @@ def test_accessor_base_class(foo_struct):
     assert base.Accessor(position=6).get(foo_struct) == 1.234
     assert base.Accessor(position=7).get(foo_struct) == Decimal("1.234")
     assert base.Accessor(position=8).get(foo_struct) == uuid_value
-    assert base.Accessor(position=9).get(foo_struct) == True
-    assert base.Accessor(position=10).get(foo_struct) == False
+    assert base.Accessor(position=9).get(foo_struct) is True
+    assert base.Accessor(position=10).get(foo_struct) is False
     assert base.Accessor(position=11).get(foo_struct) == b"\x19\x04\x9e?"
 
 
@@ -317,7 +317,7 @@ def test_bound_reference(table_schema_simple, foo_struct):
 
     assert bound_ref1.eval(foo_struct) == "foovalue"
     assert bound_ref2.eval(foo_struct) == 123
-    assert bound_ref3.eval(foo_struct) == True
+    assert bound_ref3.eval(foo_struct) is True
 
 
 def test_boolean_expression_visitor():
