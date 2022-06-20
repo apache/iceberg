@@ -24,7 +24,6 @@ import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Function;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -99,14 +98,14 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
   }
 
   @Override
-  public Stream<FileInfo> listPrefix(String prefix) {
+  public Iterator<FileInfo> listPrefix(String prefix) {
     Path prefixToList = new Path(prefix);
     FileSystem fs = Util.getFs(prefixToList, hadoopConf.get());
 
     try {
       return Streams.stream(new AdaptingIterator<>(fs.listFiles(prefixToList, true)))
           .map(fileStatus -> new FileInfo(fileStatus.getPath().toString(), fileStatus.getLen(),
-              Instant.ofEpochMilli(fileStatus.getModificationTime())));
+              Instant.ofEpochMilli(fileStatus.getModificationTime()))).iterator();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

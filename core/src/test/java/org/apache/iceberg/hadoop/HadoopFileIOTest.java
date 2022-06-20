@@ -28,6 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -62,11 +63,11 @@ public class HadoopFileIOTest {
       Path scalePath = new Path(parent, Integer.toString(scale));
 
       createRandomFiles(scalePath, scale);
-      assertEquals((long) scale, hadoopFileIO.listPrefix(scalePath.toUri().toString()).count());
+      assertEquals((long) scale, Streams.stream(hadoopFileIO.listPrefix(scalePath.toUri().toString())).count());
     });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertEquals(totalFiles, hadoopFileIO.listPrefix(parent.toUri().toString()).count());
+    assertEquals(totalFiles, Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count());
   }
 
   @Test

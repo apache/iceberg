@@ -20,13 +20,13 @@
 package org.apache.iceberg.aws.s3;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -247,12 +247,12 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
   }
 
   @Override
-  public Stream<FileInfo> listPrefix(String prefix) {
+  public Iterator<FileInfo> listPrefix(String prefix) {
     S3URI s3uri = new S3URI(prefix, awsProperties.s3BucketToAccessPointMapping());
 
     return internalListPrefix(s3uri.bucket(), s3uri.key()).stream()
         .flatMap(r -> r.contents().stream())
-        .map(o -> new FileInfo(o.key(), o.size(), o.lastModified()));
+        .map(o -> new FileInfo(o.key(), o.size(), o.lastModified())).iterator();
   }
 
   /**

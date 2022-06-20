@@ -35,6 +35,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Assert;
 import org.junit.Before;
@@ -203,11 +204,11 @@ public class TestS3FileIO {
       String scalePrefix = String.format("%s/%s/", prefix, scale);
 
       createRandomObjects(scalePrefix, scale);
-      assertEquals((long) scale, s3FileIO.listPrefix(scalePrefix).count());
+      assertEquals((long) scale, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
     });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    Assertions.assertEquals(totalFiles, s3FileIO.listPrefix(prefix).count());
+    Assertions.assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(prefix)).count());
   }
 
   @Test
@@ -220,7 +221,7 @@ public class TestS3FileIO {
 
       createRandomObjects(scalePrefix, scale);
       s3FileIO.deletePrefix(scalePrefix);
-      assertEquals(0L, s3FileIO.listPrefix(scalePrefix).count());
+      assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
     });
   }
 
