@@ -556,6 +556,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   private static List<MetadataUpdate> createChanges(TableMetadata meta) {
     ImmutableList.Builder<MetadataUpdate> changes = ImmutableList.builder();
 
+    changes.add(new MetadataUpdate.UpgradeFormatVersion(meta.formatVersion()));
+
     Schema schema = meta.schema();
     changes.add(new MetadataUpdate.AddSchema(schema, schema.highestFieldId()));
     changes.add(new MetadataUpdate.SetCurrentSchema(-1));
