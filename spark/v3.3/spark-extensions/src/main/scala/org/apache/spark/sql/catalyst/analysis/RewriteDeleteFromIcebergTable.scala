@@ -62,7 +62,7 @@ object RewriteDeleteFromIcebergTable extends RewriteRowLevelDeltaCommand with Re
           }
           // keep the original relation in DELETE to try deleting using filters
           DeleteFromIcebergTable(r, Some(cond), Some(rewritePlan))
-          
+
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
