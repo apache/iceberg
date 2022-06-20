@@ -51,9 +51,9 @@ import static org.apache.spark.sql.functions.when;
  * Benchmark to compare performance of reading Parquet data with a flat schema using vectorized Iceberg read path and
  * the built-in file source in Spark.
  * <p>
- * To run this benchmark for spark-3.2:
+ * To run this benchmark for spark-3.3:
  * <code>
- *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
  *       -PjmhIncludeRegex=VectorizedReadFlatParquetDataBenchmark
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>

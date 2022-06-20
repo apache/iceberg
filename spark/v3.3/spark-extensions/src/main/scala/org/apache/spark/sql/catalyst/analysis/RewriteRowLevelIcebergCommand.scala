@@ -23,54 +23,15 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.ProjectingInternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
-import org.apache.spark.sql.catalyst.expressions.ExprId
 import org.apache.spark.sql.catalyst.expressions.ExtendedV2ExpressionUtils
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
-import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
-import org.apache.spark.sql.connector.write.RowLevelOperationInfoImpl
-import org.apache.spark.sql.connector.write.RowLevelOperationTable
+import org.apache.spark.sql.connector.write.RowLevelOperation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
-import scala.collection.compat.immutable.ArraySeq
-import scala.collection.mutable
 
-trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
-
-  protected def buildRowLevelOperation(
-      table: SupportsRowLevelOperations,
-      command: Command): RowLevelOperation = {
-    val info = RowLevelOperationInfoImpl(command, CaseInsensitiveStringMap.empty())
-    val builder = table.newRowLevelOperationBuilder(info)
-    builder.build()
-  }
-
-  protected def buildReadRelation(
-      relation: DataSourceV2Relation,
-      table: RowLevelOperationTable,
-      metadataAttrs: Seq[AttributeReference],
-      rowIdAttrs: Seq[AttributeReference] = Nil): DataSourceV2Relation = {
-
-    val attrs = dedupAttrs(relation.output ++ rowIdAttrs ++ metadataAttrs)
-    relation.copy(table = table, output = attrs)
-  }
-
-  protected def dedupAttrs(attrs: Seq[AttributeReference]): Seq[AttributeReference] = {
-    val exprIds = mutable.Set.empty[ExprId]
-    attrs.flatMap { attr =>
-      if (exprIds.contains(attr.exprId)) {
-        None
-      } else {
-        exprIds += attr.exprId
-        Some(attr)
-      }
-    }
-  }
+trait RewriteRowLevelIcebergCommand extends RewriteRowLevelCommand {
 
   protected def buildWriteDeltaProjections(
       plan: LogicalPlan,
@@ -114,15 +75,6 @@ trait RewriteRowLevelCommand extends Rule[LogicalPlan] {
       StructType.fromAttributes(attrs)
     }
     ProjectingInternalRow(schema, colOrdinals)
-  }
-
-  protected def resolveRequiredMetadataAttrs(
-      relation: DataSourceV2Relation,
-      operation: RowLevelOperation): Seq[AttributeReference] = {
-
-    ExtendedV2ExpressionUtils.resolveRefs[AttributeReference](
-      operation.requiredMetadataAttributes.toSeq,
-      relation)
   }
 
   protected def resolveRowIdAttrs(

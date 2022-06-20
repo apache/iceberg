@@ -41,9 +41,9 @@ import static org.apache.spark.sql.functions.expr;
  * A benchmark that evaluates the performance of reading Avro data with a flat schema
  * using Iceberg and the built-in file source in Spark.
  * <p>
- * To run this benchmark for spark-3.2:
+ * To run this benchmark for spark-3.3:
  * <code>
- *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatAvroDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-avro-data-read-benchmark-result.txt
  * </code>

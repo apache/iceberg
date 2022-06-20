@@ -24,10 +24,10 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationBuilder;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperationInfo;
+import org.apache.spark.sql.connector.write.RowLevelOperation;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
+import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
+import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;

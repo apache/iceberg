@@ -37,8 +37,8 @@ import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.iceberg.write.DeltaWrite;
 import org.apache.spark.sql.connector.iceberg.write.DeltaWriteBuilder;
 import org.apache.spark.sql.connector.iceberg.write.ExtendedLogicalWriteInfo;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.types.StructType;
 
 class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {

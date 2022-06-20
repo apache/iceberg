@@ -29,7 +29,7 @@ import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.SortDirection;
 import org.apache.spark.sql.connector.expressions.SortOrder;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -41,9 +41,9 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.MERGE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 
 public class TestSparkDistributionAndOrderingUtil extends SparkTestBaseWithCatalog {
 

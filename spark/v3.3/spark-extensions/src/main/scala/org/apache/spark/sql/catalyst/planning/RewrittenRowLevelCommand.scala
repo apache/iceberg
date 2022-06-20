@@ -21,7 +21,7 @@ package org.apache.spark.sql.catalyst.planning
 
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand
 import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
@@ -52,12 +52,12 @@ object RewrittenRowLevelCommand {
 
       val allowScanDuplication = c match {
         // group-based updates that rely on the union approach may have multiple identical scans
-        case _: UpdateIcebergTable if rewritePlan.isInstanceOf[ReplaceData] => true
+        case _: UpdateIcebergTable if rewritePlan.isInstanceOf[ReplaceIcebergData] => true
         case _ => false
       }
 
       rewritePlan match {
-        case rd @ ReplaceData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
+        case rd @ ReplaceIcebergData(DataSourceV2Relation(table, _, _, _, _), query, _, _) =>
           val readRelation = findReadRelation(table, query, allowScanDuplication)
           readRelation.map((c, _, rd))
         case wd @ WriteDelta(DataSourceV2Relation(table, _, _, _, _), query, _, _, _) =>

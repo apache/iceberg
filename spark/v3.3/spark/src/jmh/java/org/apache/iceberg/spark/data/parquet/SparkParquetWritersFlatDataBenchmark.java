@@ -52,9 +52,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * A benchmark that evaluates the performance of writing Parquet data with a flat schema using
  * Iceberg and Spark Parquet writers.
  *
- * To run this benchmark for spark-3.2:
+ * To run this benchmark for spark-3.3:
  * <code>
- *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetWritersFlatDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-writers-flat-data-benchmark-result.txt
  * </code>

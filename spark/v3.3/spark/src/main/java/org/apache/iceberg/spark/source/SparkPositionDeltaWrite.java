@@ -73,18 +73,18 @@ import org.apache.spark.sql.connector.iceberg.write.DeltaWrite;
 import org.apache.spark.sql.connector.iceberg.write.DeltaWriter;
 import org.apache.spark.sql.connector.iceberg.write.DeltaWriterFactory;
 import org.apache.spark.sql.connector.iceberg.write.ExtendedLogicalWriteInfo;
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.MERGE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 
 class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrdering {
 

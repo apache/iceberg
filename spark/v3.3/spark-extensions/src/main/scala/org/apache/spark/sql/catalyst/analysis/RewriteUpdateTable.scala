@@ -31,16 +31,17 @@ import org.apache.spark.sql.catalyst.plans.logical.Assignment
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.Union
 import org.apache.spark.sql.catalyst.plans.logical.UpdateIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.util.RowDeltaUtils._
-import org.apache.spark.sql.connector.iceberg.catalog.SupportsRowLevelOperations
-import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE
+import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.connector.iceberg.write.SupportsDelta
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE
 import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 /**
  * Assigns a rewrite plan for v2 tables that support rewriting data to handle UPDATE statements.
@@ -50,16 +51,15 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
  *
  * This rule also must be run in the same batch with DeduplicateRelations in Spark.
  */
-object RewriteUpdateTable extends RewriteRowLevelCommand {
+object RewriteUpdateTable extends RewriteRowLevelIcebergCommand {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u @ UpdateIcebergTable(aliasedTable, assignments, cond, None) if u.resolved && u.aligned =>
       EliminateSubqueryAliases(aliasedTable) match {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
-          val operation = buildRowLevelOperation(tbl, UPDATE)
-          val table = RowLevelOperationTable(tbl, operation)
+          val table = buildOperationTable(tbl, UPDATE, CaseInsensitiveStringMap.empty())
           val updateCond = cond.getOrElse(Literal.TrueLiteral)
-          val rewritePlan = operation match {
+          val rewritePlan = table.operation match {
             case _: SupportsDelta =>
               buildWriteDeltaPlan(r, table, assignments, updateCond)
             case _ if SubqueryExpression.hasSubquery(updateCond) =>
@@ -80,20 +80,20 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
       relation: DataSourceV2Relation,
       operationTable: RowLevelOperationTable,
       assignments: Seq[Assignment],
-      cond: Expression): ReplaceData = {
+      cond: Expression): ReplaceIcebergData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a read relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
+    val readRelation = buildRelationWithAttrs(relation, operationTable, metadataAttrs)
 
     // build a plan with updated and copied over records
     val updatedAndRemainingRowsPlan = buildUpdateProjection(readRelation, assignments, cond)
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, updatedAndRemainingRowsPlan, relation)
+    ReplaceIcebergData(writeRelation, updatedAndRemainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support replacing groups of data (e.g. files, partitions)
@@ -102,7 +102,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
       relation: DataSourceV2Relation,
       operationTable: RowLevelOperationTable,
       assignments: Seq[Assignment],
-      cond: Expression): ReplaceData = {
+      cond: Expression): ReplaceIcebergData = {
 
     // resolve all needed attrs (e.g. metadata attrs for grouping data on write)
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
@@ -110,7 +110,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
     // construct a read relation and include all required metadata columns
     // the same read relation will be used to read records that must be updated and be copied over
     // DeduplicateRelations will take care of duplicated attr IDs
-    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs)
+    val readRelation = buildRelationWithAttrs(relation, operationTable, metadataAttrs)
 
     // build a plan for records that match the cond and should be updated
     val matchedRowsPlan = Filter(cond, readRelation)
@@ -125,7 +125,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
 
     // build a plan to replace read groups in the table
     val writeRelation = relation.copy(table = operationTable)
-    ReplaceData(writeRelation, updatedAndRemainingRowsPlan, relation)
+    ReplaceIcebergData(writeRelation, updatedAndRemainingRowsPlan, relation)
   }
 
   // build a rewrite plan for sources that support row deltas
@@ -141,7 +141,7 @@ object RewriteUpdateTable extends RewriteRowLevelCommand {
     val metadataAttrs = resolveRequiredMetadataAttrs(relation, operationTable.operation)
 
     // construct a scan relation and include all required metadata columns
-    val readRelation = buildReadRelation(relation, operationTable, metadataAttrs, rowIdAttrs)
+    val readRelation = buildRelationWithAttrs(relation, operationTable, rowIdAttrs ++ metadataAttrs)
 
     // build a plan for updated records that match the cond
     val matchedRowsPlan = Filter(cond, readRelation)
