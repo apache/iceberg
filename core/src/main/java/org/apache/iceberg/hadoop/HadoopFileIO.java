@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
@@ -105,7 +104,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
     try {
       return Streams.stream(new AdaptingIterator<>(fs.listFiles(prefixToList, true)))
           .map(fileStatus -> new FileInfo(fileStatus.getPath().toString(), fileStatus.getLen(),
-              Instant.ofEpochMilli(fileStatus.getModificationTime()))).iterator();
+              fileStatus.getModificationTime())).iterator();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

@@ -19,14 +19,12 @@
 
 package org.apache.iceberg.io;
 
-import java.time.Instant;
-
 public class FileInfo {
   private final String location;
   private final long size;
-  private final Instant created;
+  private final long created;
 
-  public FileInfo(String location, long size, Instant created) {
+  public FileInfo(String location, long size, long created) {
     this.location = location;
     this.size = size;
     this.created = created;
@@ -40,7 +38,7 @@ public class FileInfo {
     return size;
   }
 
-  public Instant created() {
+  public long created() {
     return created;
   }
 }
