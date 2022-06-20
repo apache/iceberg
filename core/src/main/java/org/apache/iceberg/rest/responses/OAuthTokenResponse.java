@@ -80,6 +80,9 @@ public class OAuthTokenResponse implements RESTResponse {
     private Integer expiresInSeconds;
     private final List<String> scopes = Lists.newArrayList();
 
+    private Builder() {
+    }
+
     public Builder withToken(String token) {
       this.accessToken = token;
       return this;
