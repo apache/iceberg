@@ -119,7 +119,7 @@ class PartitionData
 
     throw new IllegalArgumentException(String.format(
         "Wrong class, %s, for object: %s",
-        javaClass.getName(), String.valueOf(value)));
+        javaClass.getName(), value));
   }
 
   @Override
