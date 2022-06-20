@@ -61,7 +61,7 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
 
   @Test
   public void testDeserializeInvalidResponse() {
-    String jsonNamespaceHasWrongType = "{\"namespace\":\"accounting%00tax\",\"properties\":null}";
+    String jsonNamespaceHasWrongType = "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
     AssertHelpers.assertThrows(
         "A JSON response with the wrong type for a field should fail to deserialize",
         JsonProcessingException.class,

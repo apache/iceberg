@@ -37,7 +37,6 @@ from iceberg.types import (
     FloatType,
     IntegerType,
     LongType,
-    Singleton,
     StringType,
     TimestampType,
     TimestamptzType,
@@ -51,6 +50,7 @@ from iceberg.utils.datetime import (
     timestamp_to_micros,
     timestamptz_to_micros,
 )
+from iceberg.utils.singleton import Singleton
 
 
 @singledispatch

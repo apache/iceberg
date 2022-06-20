@@ -164,8 +164,8 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     } else {
       GroupType groupType = field.asGroupType();
       LogicalTypeAnnotation logicalTypeAnnotation = groupType.getLogicalTypeAnnotation();
-      return !logicalTypeAnnotation.equals(LogicalTypeAnnotation.mapType()) &&
-          !logicalTypeAnnotation.equals(LogicalTypeAnnotation.listType());
+      return !LogicalTypeAnnotation.mapType().equals(logicalTypeAnnotation) &&
+          !LogicalTypeAnnotation.listType().equals(logicalTypeAnnotation);
     }
   }
 }
