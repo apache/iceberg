@@ -419,8 +419,9 @@ class V2Metadata {
           return wrapped.equalityFieldIds();
         case 15:
           return wrapped.sortOrderId();
+        default:
+          throw new IllegalArgumentException("Unknown field ordinal: " + pos);
       }
-      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
 
     @Override
