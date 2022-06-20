@@ -34,5 +34,5 @@ public interface ViewHistoryEntry {
   /**
    * Returns ID of the new current version
    */
-  int versionId();
+  long versionId();
 }

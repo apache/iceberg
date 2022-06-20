@@ -112,4 +112,7 @@ public interface RESTClient extends Closeable {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler);
+
+  <T extends RESTResponse> T post(
+      String path, RESTRequest body, Class<T> responseType, Consumer<ErrorResponse> errorHandler);
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 public class ViewConstants {
@@ -25,15 +24,13 @@ public class ViewConstants {
   public static final String OWNER = "owner";
 
   /**
-   * All the properties except 'common_view' are stored in the View's Version Summary.
-   * 'operation' is supplied by the library and hence does not need to appear in the enum below. If you add a new
-   * constant that is specific to a
-   * version of the view, make sure to add it to the enum below.
+   * All the properties except 'common_view' are stored in the View's Version Summary. 'operation'
+   * is supplied by the library and hence does not need to appear in the enum below. If you add a
+   * new constant that is specific to a version of the view, make sure to add it to the enum below.
    */
   protected enum SummaryConstants {
     engine_version
   }
 
-  private ViewConstants() {
-  }
+  private ViewConstants() {}
 }

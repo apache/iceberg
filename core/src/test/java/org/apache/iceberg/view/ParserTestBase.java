@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.io.IOException;
@@ -32,7 +31,8 @@ public abstract class ParserTestBase<T> {
   private final JsonUtil.JsonWriter<T> writer;
   private final JsonUtil.JsonReader<T> reader;
 
-  public ParserTestBase(T entry, String json, JsonUtil.JsonWriter<T> writer, JsonUtil.JsonReader<T> reader) {
+  public ParserTestBase(
+      T entry, String json, JsonUtil.JsonWriter<T> writer, JsonUtil.JsonReader<T> reader) {
     this.entry = entry;
     this.json = json;
     this.writer = writer;

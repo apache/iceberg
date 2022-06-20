@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.io.IOException;
@@ -33,9 +32,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
-/**
- * The Views implementation Based on FileIO.
- */
+/** The Views implementation Based on FileIO. */
 public class HadoopViewCatalog implements ViewCatalog, Configurable {
   private Configuration conf;
 
@@ -59,7 +56,9 @@ public class HadoopViewCatalog implements ViewCatalog, Configurable {
   }
 
   @Override
-  public View createView(TableIdentifier identifier, List<ViewRepresentation> representations,
+  public View createView(
+      TableIdentifier identifier,
+      List<ViewRepresentation> representations,
       Map<String, String> properties) {
     String location = identifier.name();
     ViewOperations ops = newViewOps(location);
@@ -69,7 +68,8 @@ public class HadoopViewCatalog implements ViewCatalog, Configurable {
 
     int parentId = -1;
 
-    ViewUtil.doCommit(ViewDDLOperation.CREATE, 1, parentId, representations, properties, location, ops, null);
+    ViewUtil.doCommit(
+        ViewDDLOperation.CREATE, 1, parentId, representations, properties, location, ops, null);
     return new BaseView(ops, location);
   }
 

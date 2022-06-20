@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.Arrays;
@@ -30,22 +29,20 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestViewMetadataParser extends ParserTestBase<ViewMetadata> {
 
-  private static ViewVersion version1 = BaseViewVersion.builder()
-      .versionId(1)
-      .timestampMillis(4353L)
-      .addRepresentation(BaseViewDefinition.builder()
-          .sql("select 'foo' foo")
-          .build())
-      .build();
+  private static ViewVersion version1 =
+      BaseViewVersion.builder()
+          .versionId(1)
+          .timestampMillis(4353L)
+          .addRepresentation(BaseViewDefinition.builder().sql("select 'foo' foo").build())
+          .build();
   private static ViewHistoryEntry historyEntry1 = BaseViewHistoryEntry.of(4353L, 1);
 
-  private static ViewVersion version2 = BaseViewVersion.builder()
-      .versionId(2)
-      .timestampMillis(5555L)
-      .addRepresentation(BaseViewDefinition.builder()
-          .sql("select 1 id, 'abc' data")
-          .build())
-      .build();
+  private static ViewVersion version2 =
+      BaseViewVersion.builder()
+          .versionId(2)
+          .timestampMillis(5555L)
+          .addRepresentation(BaseViewDefinition.builder().sql("select 1 id, 'abc' data").build())
+          .build();
   private static ViewHistoryEntry historyEntry2 = BaseViewHistoryEntry.of(5555L, 2);
 
   private static TestJsonUtil.JsonStringWriter<ViewVersion> versionJsonStringWriter =
@@ -56,8 +53,9 @@ public class TestViewMetadataParser extends ParserTestBase<ViewMetadata> {
 
   @Parameterized.Parameters
   public static Collection<Object[]> parameters() {
-    return Arrays.asList(new Object[][] {
-        {
+    return Arrays.asList(
+        new Object[][] {
+          {
             ViewMetadata.builder()
                 .location("/location/dummy")
                 .currentVersionId(2)
@@ -69,16 +67,16 @@ public class TestViewMetadataParser extends ParserTestBase<ViewMetadata> {
                 "\"location\":\"/location/dummy\"",
                 "\"properties\":{}",
                 "\"current-version-id\":2",
-                "\"versions\":" +
-                    Stream.of(version1, version2)
+                "\"versions\":"
+                    + Stream.of(version1, version2)
                         .map(versionJsonStringWriter::write)
                         .collect(TestJsonUtil.joiningJsonArray()),
-                "\"version-log\":" +
-                    Stream.of(historyEntry1, historyEntry2)
+                "\"version-log\":"
+                    + Stream.of(historyEntry1, historyEntry2)
                         .map(historyEntryJsonStringWriter::write)
                         .collect(TestJsonUtil.joiningJsonArray()))
-        }
-    });
+          }
+        });
   }
 
   public TestViewMetadataParser(ViewMetadata entry, String json) {

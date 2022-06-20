@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -30,9 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Ordering;
 
-/**
- * Metadata for versioning a view.
- */
+/** Metadata for versioning a view. */
 public class ViewMetadata implements Serializable {
   static final int DEFAULT_VIEW_FORMAT_VERSION = 1;
   static final int SUPPORTED_VIEW_FORMAT_VERSION = 1;
@@ -42,9 +40,12 @@ public class ViewMetadata implements Serializable {
   private final String location;
   private final Map<String, String> properties;
   private final int currentVersionId;
+  private final int currentSchemaId;
   private final List<ViewVersion> versions;
-  private final Map<Integer, ViewVersion> versionsById;
+  private final Map<Long, ViewVersion> versionsById;
   private final List<ViewHistoryEntry> versionLog;
+  private final List<Schema> schemas;
+  private final Map<Integer, Schema> schemasById;
 
   public static Builder builder() {
     return new Builder();
@@ -56,6 +57,8 @@ public class ViewMetadata implements Serializable {
         .properties(metadata.properties())
         .currentVersionId(metadata.currentVersionId())
         .versions(metadata.versions())
+        .schemas(metadata.schemas())
+        .currentSchemaId(metadata.currentSchemaId())
         .history(metadata.history());
   }
 
@@ -65,7 +68,9 @@ public class ViewMetadata implements Serializable {
       Map<String, String> properties,
       int currentVersionId,
       List<ViewVersion> versions,
-      List<ViewHistoryEntry> versionLog) {
+      List<ViewHistoryEntry> versionLog,
+      List<Schema> schemas,
+      int currentSchemaId) {
     this.formatVersion = DEFAULT_VIEW_FORMAT_VERSION;
     this.location = location;
     this.properties = properties;
@@ -75,6 +80,9 @@ public class ViewMetadata implements Serializable {
     checkVersionLog(versionLog);
     this.versionLog = versionLog;
     this.versionsById = indexVersions(versions);
+    this.schemas = schemas;
+    this.schemasById = indexSchemas(schemas);
+    this.currentSchemaId = currentSchemaId;
   }
 
   public int formatVersion() {
@@ -109,17 +117,37 @@ public class ViewMetadata implements Serializable {
     return versionLog;
   }
 
+  public List<Schema> schemas() {
+    return schemas;
+  }
+
+  public int currentSchemaId() {
+    return currentSchemaId;
+  }
+
+  public Schema schema() {
+    return schemasById.get(currentSchemaId);
+  }
+
   @Override
   public String toString() {
-    return "ViewMetadata{" +
-        "formatVersion=" + formatVersion +
-        ", location='" + location + '\'' +
-        ", properties=" + properties +
-        ", currentVersionId=" + currentVersionId +
-        ", versions=" + versions +
-        ", versionsById=" + versionsById +
-        ", versionLog=" + versionLog +
-        '}';
+    return "ViewMetadata{"
+        + "formatVersion="
+        + formatVersion
+        + ", location='"
+        + location
+        + '\''
+        + ", properties="
+        + properties
+        + ", currentVersionId="
+        + currentVersionId
+        + ", versions="
+        + versions
+        + ", versionsById="
+        + versionsById
+        + ", versionLog="
+        + versionLog
+        + '}';
   }
 
   @Override
@@ -165,14 +193,23 @@ public class ViewMetadata implements Serializable {
   private static void checkVersionLog(List<ViewHistoryEntry> versionLog) {
     Preconditions.checkState(versionLog.size() > 0);
     Preconditions.checkState(
-        Ordering.from(Comparator.comparing(ViewHistoryEntry::timestampMillis)).isOrdered(versionLog),
+        Ordering.from(Comparator.comparing(ViewHistoryEntry::timestampMillis))
+            .isOrdered(versionLog),
         "[BUG] Expected sorted version log entries.");
   }
 
-  private static Map<Integer, ViewVersion> indexVersions(List<ViewVersion> versions) {
-    ImmutableMap.Builder<Integer, ViewVersion> builder = ImmutableMap.builder();
+  private static Map<Long, ViewVersion> indexVersions(List<ViewVersion> versions) {
+    ImmutableMap.Builder<Long, ViewVersion> builder = ImmutableMap.builder();
     for (ViewVersion version : versions) {
       builder.put(version.versionId(), version);
+    }
+    return builder.build();
+  }
+
+  private static Map<Integer, Schema> indexSchemas(List<Schema> schemas) {
+    ImmutableMap.Builder<Integer, Schema> builder = ImmutableMap.builder();
+    for (Schema schema : schemas) {
+      builder.put(schema.schemaId(), schema);
     }
     return builder.build();
   }
@@ -189,9 +226,10 @@ public class ViewMetadata implements Serializable {
     private int currentVersionId;
     private List<ViewVersion> versions = Lists.newArrayList();
     private List<ViewHistoryEntry> versionLog = Lists.newArrayList();
+    private int currentSchemaId;
+    private List<Schema> schemas;
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public Builder location(String value) {
       location = value;
@@ -238,8 +276,19 @@ public class ViewMetadata implements Serializable {
       return this;
     }
 
+    public Builder schemas(List<Schema> schemas) {
+      this.schemas = schemas;
+      return this;
+    }
+
+    public Builder currentSchemaId(int currentSchemaId) {
+      this.currentSchemaId = currentSchemaId;
+      return this;
+    }
+
     public ViewMetadata build() {
-      return new ViewMetadata(location, properties, currentVersionId, versions, versionLog);
+      return new ViewMetadata(
+          location, properties, currentVersionId, versions, versionLog, schemas, currentSchemaId);
     }
   }
 }

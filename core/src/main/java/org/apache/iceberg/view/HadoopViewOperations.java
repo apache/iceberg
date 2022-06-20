@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.io.BufferedReader;
@@ -36,9 +35,7 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * The Views implementation Based on FileIO.
- */
+/** The Views implementation Based on FileIO. */
 public class HadoopViewOperations implements ViewOperations {
   private final Configuration conf;
   private final Path location;
@@ -87,8 +84,7 @@ public class HadoopViewOperations implements ViewOperations {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", metadataFile);
     }
     this.version = ver;
-    this.currentMetadata = ViewMetadataParser.read(
-        io().newInputFile(metadataFile.toString()));
+    this.currentMetadata = ViewMetadataParser.read(io().newInputFile(metadataFile.toString()));
     this.shouldRefresh = false;
     return currentMetadata;
   }
@@ -131,8 +127,8 @@ public class HadoopViewOperations implements ViewOperations {
             "Version %d already exists: %s", nextVersion, finalMetadataFile);
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e,
-          "Failed to check if next version exists: %s", finalMetadataFile);
+      throw new RuntimeIOException(
+          e, "Failed to check if next version exists: %s", finalMetadataFile);
     }
 
     try {
@@ -142,8 +138,8 @@ public class HadoopViewOperations implements ViewOperations {
             "Failed to commit changes using rename: %s", finalMetadataFile);
       }
     } catch (IOException e) {
-      throw new CommitFailedException(e,
-          "Failed to commit changes using rename: %s", finalMetadataFile);
+      throw new CommitFailedException(
+          e, "Failed to commit changes using rename: %s", finalMetadataFile);
     }
 
     // update the best-effort version pointer
@@ -176,7 +172,8 @@ public class HadoopViewOperations implements ViewOperations {
         return 0;
       }
 
-      try (BufferedReader in = new BufferedReader(new InputStreamReader(fs.open(versionHintFile), "UTF-8"))) {
+      try (BufferedReader in =
+          new BufferedReader(new InputStreamReader(fs.open(versionHintFile), "UTF-8"))) {
         String versionStr = in.readLine();
         if (versionStr != null) {
           return Integer.parseInt(versionStr.replace("\n", ""));

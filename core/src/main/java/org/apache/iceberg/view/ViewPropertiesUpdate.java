@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.Map;
@@ -43,8 +42,8 @@ class ViewPropertiesUpdate implements ViewUpdateProperties {
   public ViewUpdateProperties set(String key, String value) {
     Preconditions.checkNotNull(key, "Key cannot be null");
     Preconditions.checkNotNull(key, "Value cannot be null");
-    Preconditions.checkArgument(!removals.contains(key),
-        "Cannot remove and update the same key: %s", key);
+    Preconditions.checkArgument(
+        !removals.contains(key), "Cannot remove and update the same key: %s", key);
 
     updates.put(key, value);
 
@@ -54,8 +53,8 @@ class ViewPropertiesUpdate implements ViewUpdateProperties {
   @Override
   public ViewUpdateProperties remove(String key) {
     Preconditions.checkNotNull(key, "Key cannot be null");
-    Preconditions.checkArgument(!updates.containsKey(key),
-        "Cannot remove and update the same key: %s", key);
+    Preconditions.checkArgument(
+        !updates.containsKey(key), "Cannot remove and update the same key: %s", key);
 
     removals.add(key);
 
@@ -82,25 +81,30 @@ class ViewPropertiesUpdate implements ViewUpdateProperties {
   public void commit() {
     Tasks.foreach(ops)
         .retry(
-            PropertyUtil.propertyAsInt(base.properties(),
+            PropertyUtil.propertyAsInt(
+                base.properties(),
                 ViewProperties.COMMIT_NUM_RETRIES,
                 ViewProperties.COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
-            PropertyUtil.propertyAsInt(base.properties(),
+            PropertyUtil.propertyAsInt(
+                base.properties(),
                 ViewProperties.COMMIT_MIN_RETRY_WAIT_MS,
                 ViewProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            PropertyUtil.propertyAsInt(base.properties(),
+            PropertyUtil.propertyAsInt(
+                base.properties(),
                 ViewProperties.COMMIT_MAX_RETRY_WAIT_MS,
                 ViewProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            PropertyUtil.propertyAsInt(base.properties(),
+            PropertyUtil.propertyAsInt(
+                base.properties(),
                 ViewProperties.COMMIT_TOTAL_RETRY_TIME_MS,
                 ViewProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(taskOps -> {
-          Map<String, String> newProperties = apply();
-          ViewMetadata updated = base.replaceProperties(newProperties);
-          taskOps.commit(base, updated, Maps.newHashMap());
-        });
+        .run(
+            taskOps -> {
+              Map<String, String> newProperties = apply();
+              ViewMetadata updated = base.replaceProperties(newProperties);
+              taskOps.commit(base, updated, Maps.newHashMap());
+            });
   }
 }

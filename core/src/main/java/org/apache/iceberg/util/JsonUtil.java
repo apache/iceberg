@@ -279,10 +279,7 @@ public class JsonUtil {
   }
 
   public static <T> void writeObjectList(
-      String property,
-      Iterable<T> objectList,
-      JsonWriter<T> writer,
-      JsonGenerator generator)
+      String property, Iterable<T> objectList, JsonWriter<T> writer, JsonGenerator generator)
       throws IOException {
     generator.writeArrayFieldStart(property);
     for (T object : objectList) {
@@ -291,8 +288,8 @@ public class JsonUtil {
     generator.writeEndArray();
   }
 
-  public static void writeStringList(String property, List<String> stringList, JsonGenerator generator)
-      throws IOException {
+  public static void writeStringList(
+      String property, List<String> stringList, JsonGenerator generator) throws IOException {
     generator.writeArrayFieldStart(property);
     for (String s : stringList) {
       generator.writeString(s);
@@ -300,8 +297,8 @@ public class JsonUtil {
     generator.writeEndArray();
   }
 
-  public static void writeStringMap(String property, Map<String, String> map, JsonGenerator generator)
-      throws IOException {
+  public static void writeStringMap(
+      String property, Map<String, String> map, JsonGenerator generator) throws IOException {
     generator.writeObjectFieldStart(property);
     for (Map.Entry<String, String> entry : map.entrySet()) {
       generator.writeStringField(entry.getKey(), entry.getValue());
@@ -317,16 +314,15 @@ public class JsonUtil {
   public static <T> T getObject(String property, JsonNode node, JsonReader<T> reader) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing object %s", property);
     JsonNode pNode = node.get(property);
-    Preconditions.checkArgument(pNode.isObject(),
-        "Cannot parse %s from non-object value: %s", property, pNode);
+    Preconditions.checkArgument(
+        pNode.isObject(), "Cannot parse %s from non-object value: %s", property, pNode);
     return reader.read(pNode);
   }
 
-  public static <T> List<T> getObjectList(String property, JsonNode node, Function<JsonNode, T> reader) {
+  public static <T> List<T> getObjectList(
+      String property, JsonNode node, Function<JsonNode, T> reader) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing list %s", property);
-    return ImmutableList.<T>builder()
-        .addAll(objectArrayIterator(property, node, reader))
-        .build();
+    return ImmutableList.<T>builder().addAll(objectArrayIterator(property, node, reader)).build();
   }
 
   abstract static class JsonArrayIterator<T> implements Iterator<T> {
@@ -416,7 +412,8 @@ public class JsonUtil {
     }
   }
 
-  static <T> Iterator<T> objectArrayIterator(String property, JsonNode node, Function<JsonNode, T> reader) {
+  static <T> Iterator<T> objectArrayIterator(
+      String property, JsonNode node, Function<JsonNode, T> reader) {
     return new JsonArrayIterator<T>(property, node) {
       protected T convert(JsonNode element) {
         return reader.apply(element);
@@ -424,8 +421,7 @@ public class JsonUtil {
 
       protected void validate(JsonNode element) {
         Preconditions.checkArgument(
-            element.isObject(),
-            "Cannot parse %s from non-object value: %s", property, element);
+            element.isObject(), "Cannot parse %s from non-object value: %s", property, element);
       }
     };
   }

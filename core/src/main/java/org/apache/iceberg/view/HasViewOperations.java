@@ -16,12 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
-/**
- * Used to expose a view's ViewOperations.
- */
+/** Used to expose a view's ViewOperations. */
 public interface HasViewOperations {
   ViewOperations operations();
 }

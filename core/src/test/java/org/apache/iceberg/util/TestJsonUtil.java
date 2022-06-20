@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -92,6 +91,5 @@ public class TestJsonUtil {
     return Stream.of(strings).collect(joiningJsonObject());
   }
 
-  private TestJsonUtil() {
-  }
+  private TestJsonUtil() {}
 }

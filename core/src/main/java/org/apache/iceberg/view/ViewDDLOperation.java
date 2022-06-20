@@ -16,19 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.Locale;
 
 /**
  * View operations that lead to a new version of view getting created.
- * <p>
- * A version can return the operation that resulted in creating that version of the view.
- * Users can inspect the operation to get more information in case a rollback is desired.
+ *
+ * <p>A version can return the operation that resulted in creating that version of the view. Users
+ * can inspect the operation to get more information in case a rollback is desired.
  */
 public enum ViewDDLOperation {
-
   CREATE,
   REPLACE;
 

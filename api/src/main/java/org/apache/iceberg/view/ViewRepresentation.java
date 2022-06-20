@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.view;
 
+import org.apache.iceberg.Schema;
+
 import java.util.Locale;
 
 public interface ViewRepresentation {
@@ -34,6 +36,8 @@ public interface ViewRepresentation {
       return name().toLowerCase(Locale.ENGLISH);
     }
   }
+
+  Schema schema();
 
   Type type();
 }

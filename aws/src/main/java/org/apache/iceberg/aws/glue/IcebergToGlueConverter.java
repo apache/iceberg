@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg.aws.glue;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import com.fasterxml.jackson.core.JsonGenerator;
+import java.io.IOException;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
@@ -43,6 +42,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewRepresentation;
+import org.apache.iceberg.view.ViewRepresentationParser;
+import org.apache.iceberg.view.ViewVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -69,6 +73,7 @@ class IcebergToGlueConverter {
           TableProperties.WRITE_METADATA_LOCATION,
           TableProperties.OBJECT_STORE_PATH,
           TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+  private static final String VIEW_REPRESENTATION_DELIMITER = ",";
 
   // Attempt to set additionalLocations if available on the given AWS SDK version
   private static final DynMethods.UnboundMethod SET_ADDITIONAL_LOCATIONS =
@@ -247,6 +252,39 @@ class IcebergToGlueConverter {
     }
   }
 
+  /** */
+  static void setViewInputInformation(TableInput.Builder tableInputBuilder, ViewMetadata metadata) {
+    try {
+      ViewVersion current = metadata.currentVersion();
+
+      for (int i = 0; i < current.representations().size(); i++) {
+        ViewRepresentation repr = current.representations().get(i);
+        StringWriter writer = new StringWriter();
+        StringBuilder sb = new StringBuilder();
+        try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
+          ViewRepresentationParser.toJson(repr, generator);
+          generator.flush();
+          sb.append(writer);
+          if (i < current.representations().size() - 1) {
+            sb.append(VIEW_REPRESENTATION_DELIMITER);
+          }
+        }
+        String base64EncodedString =
+            Base64.getEncoder().encodeToString(sb.toString().getBytes(StandardCharsets.UTF_8));
+        tableInputBuilder.viewOriginalText(base64EncodedString);
+      }
+
+      StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
+      tableInputBuilder.storageDescriptor(
+          storageDescriptor.location(metadata.location()).columns(toColumns(metadata)).build());
+
+    } catch (RuntimeException | IOException e) {
+      LOG.warn(
+          "Encountered unexpected exception while converting Iceberg metadata to Glue table information",
+          e);
+    }
+  }
+
   /**
    * Converting from an Iceberg type to a type string that can be displayed in Glue.
    *
@@ -316,6 +354,26 @@ class IcebergToGlueConverter {
         }
       }
     }
+
+    return columns;
+  }
+
+  private static List<Column> toColumns(ViewMetadata metadata) {
+    List<Column> columns = Lists.newArrayList();
+    Set<String> addedNames = Sets.newHashSet();
+    Schema schema = metadata.schema();
+    for (NestedField field : schema.columns()) {
+      addColumnWithDedupe(columns, addedNames, field, true /* is current */);
+    }
+
+    // ToDo: Add the previous schema history as well
+    // for (Schema schema : metadata.schemas()) {
+    //   if (schema.schemaId() != metadata.currentSchemaId()) {
+    //     for (NestedField field : schema.columns()) {
+    //       addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
+    //     }
+    //   }
+    // }
 
     return columns;
   }

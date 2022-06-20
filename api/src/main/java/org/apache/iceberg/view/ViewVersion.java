@@ -35,14 +35,14 @@ public interface ViewVersion {
    *
    * @return a long ID
    */
-  int versionId();
+  long versionId();
 
   /**
    * Return this version's parent ID or null.
    *
    * @return a long ID for this version's parent, or null if it has no parent
    */
-  Integer parentId();
+  Long parentId();
 
   /**
    * Return this version's timestamp.

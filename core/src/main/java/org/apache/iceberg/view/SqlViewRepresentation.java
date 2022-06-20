@@ -25,7 +25,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** SQL definition for a view */
-class BaseViewDefinition implements ViewDefinition {
+public class SqlViewRepresentation implements ViewRepresentation {
   private final String sql;
   private final String dialect;
   private final Schema schema;
@@ -49,7 +49,7 @@ class BaseViewDefinition implements ViewDefinition {
         .fieldComments(that.fieldComments());
   }
 
-  private BaseViewDefinition(
+  private SqlViewRepresentation(
       String sql,
       String dialect,
       Schema schema,
@@ -70,12 +70,10 @@ class BaseViewDefinition implements ViewDefinition {
         Preconditions.checkNotNull(fieldComments, "field comments should not be null");
   }
 
-  @Override
   public String sql() {
     return sql;
   }
 
-  @Override
   public String dialect() {
     return dialect;
   }
@@ -86,21 +84,22 @@ class BaseViewDefinition implements ViewDefinition {
   }
 
   @Override
+  public Type type() {
+    return Type.SQL;
+  }
+
   public String defaultCatalog() {
     return defaultCatalog;
   }
 
-  @Override
   public List<String> defaultNamespace() {
     return defaultNamespace;
   }
 
-  @Override
   public List<String> fieldAliases() {
     return fieldAliases;
   }
 
-  @Override
   public List<String> fieldComments() {
     return fieldComments;
   }
@@ -113,7 +112,7 @@ class BaseViewDefinition implements ViewDefinition {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    BaseViewDefinition that = (BaseViewDefinition) o;
+    SqlViewRepresentation that = (SqlViewRepresentation) o;
     return Objects.equals(sql, that.sql)
         && Objects.equals(dialect, that.dialect)
         && Objects.equals(schema.asStruct(), that.schema.asStruct())
@@ -137,7 +136,7 @@ class BaseViewDefinition implements ViewDefinition {
 
   @Override
   public String toString() {
-    return "BaseViewDefinition{"
+    return "SqlViewRepresentation {"
         + "sql='"
         + sql
         + '\''
@@ -204,8 +203,8 @@ class BaseViewDefinition implements ViewDefinition {
       return this;
     }
 
-    public BaseViewDefinition build() {
-      return new BaseViewDefinition(
+    public SqlViewRepresentation build() {
+      return new SqlViewRepresentation(
           sql, dialect, schema, defaultCatalog, defaultNamespace, fieldAliases, fieldComments);
     }
   }

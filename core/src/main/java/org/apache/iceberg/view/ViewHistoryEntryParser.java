@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -38,9 +37,9 @@ class ViewHistoryEntryParser {
   }
 
   static ViewHistoryEntry fromJson(JsonNode node) {
-    return BaseViewHistoryEntry.of(JsonUtil.getLong(TIMESTAMP_MS, node), JsonUtil.getInt(VERSION_ID, node));
+    return BaseViewHistoryEntry.of(
+        JsonUtil.getLong(TIMESTAMP_MS, node), JsonUtil.getInt(VERSION_ID, node));
   }
 
-  private ViewHistoryEntryParser() {
-  }
+  private ViewHistoryEntryParser() {}
 }

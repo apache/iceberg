@@ -374,6 +374,8 @@ project(':iceberg-aws') {
     compileOnly 'software.amazon.awssdk:sts'
     compileOnly 'software.amazon.awssdk:dynamodb'
     compileOnly 'software.amazon.awssdk:lakeformation'
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation "com.fasterxml.jackson.core:jackson-core"
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'

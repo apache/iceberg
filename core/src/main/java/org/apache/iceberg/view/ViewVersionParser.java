@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -36,8 +35,7 @@ class ViewVersionParser {
   private static final String OPERATION = "operation";
   private static final String REPRESENTATIONS = "representations";
 
-  static void toJson(ViewVersion version, JsonGenerator generator)
-      throws IOException {
+  static void toJson(ViewVersion version, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeNumberField(VERSION_ID, version.versionId());
@@ -46,14 +44,15 @@ class ViewVersionParser {
     }
     generator.writeNumberField(TIMESTAMP_MS, version.timestampMillis());
     JsonUtil.writeStringMap(SUMMARY, version.summary(), generator);
-    JsonUtil.writeObjectList(REPRESENTATIONS, version.representations(), ViewRepresentationParser::toJson, generator);
+    JsonUtil.writeObjectList(
+        REPRESENTATIONS, version.representations(), ViewRepresentationParser::toJson, generator);
 
     generator.writeEndObject();
   }
 
   static ViewVersion fromJson(JsonNode node) {
-    Preconditions.checkArgument(node.isObject(),
-        "Cannot parse table version from a non-object: %s", node);
+    Preconditions.checkArgument(
+        node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
     int versionId = JsonUtil.getInt(VERSION_ID, node);
     Integer parentId = JsonUtil.getIntOrNull(PARENT_VERSION_ID, node);
@@ -71,6 +70,5 @@ class ViewVersionParser {
         .build();
   }
 
-  private ViewVersionParser() {
-  }
+  private ViewVersionParser() {}
 }

@@ -16,12 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
-/**
- * View properties that can be set during CREATE/REPLACE view or using updateProperties API.
- */
+/** View properties that can be set during CREATE/REPLACE view or using updateProperties API. */
 public class ViewProperties {
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
@@ -40,6 +37,5 @@ public class ViewProperties {
 
   public static final String TABLE_COMMENT = "comment";
 
-  private ViewProperties() {
-  }
+  private ViewProperties() {}
 }

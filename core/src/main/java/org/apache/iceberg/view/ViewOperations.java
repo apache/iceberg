@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.Map;
 import org.apache.iceberg.io.FileIO;
 
-/**
- * SPI interface to abstract view metadata access and updates.
- */
+/** SPI interface to abstract view metadata access and updates. */
 public interface ViewOperations {
 
   /**
@@ -43,21 +40,19 @@ public interface ViewOperations {
 
   /**
    * Replace the base metadata with a new version.
-   * <p>
-   * This method should implement and document atomicity guarantees.
-   * <p>
-   * Implementations must check that the base metadata is current to avoid overwriting updates. Once the atomic commit
-   * operation succeeds, implementations must not perform any operations that may fail because failure in this method
-   * cannot be distinguished from commit failure.
    *
-   * @param base       view metadata on which changes were based
-   * @param metadata   new view metadata with updates
+   * <p>This method should implement and document atomicity guarantees.
+   *
+   * <p>Implementations must check that the base metadata is current to avoid overwriting updates.
+   * Once the atomic commit operation succeeds, implementations must not perform any operations that
+   * may fail because failure in this method cannot be distinguished from commit failure.
+   *
+   * @param base view metadata on which changes were based
+   * @param metadata new view metadata with updates
    * @param properties view properties.
    */
   void commit(ViewMetadata base, ViewMetadata metadata, Map<String, String> properties);
 
-  /**
-   * Returns a {@link FileIO} to read and write table data and metadata files
-   */
+  /** Returns a {@link FileIO} to read and write table data and metadata files */
   FileIO io();
 }

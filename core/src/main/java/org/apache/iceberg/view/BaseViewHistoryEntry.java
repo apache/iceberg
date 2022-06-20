@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.Objects;
@@ -24,13 +23,13 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class BaseViewHistoryEntry implements ViewHistoryEntry {
   private final long timestampMillis;
-  private final int versionId;
+  private final long versionId;
 
-  static ViewHistoryEntry of(long timestampMillis, int versionId) {
+  static ViewHistoryEntry of(long timestampMillis, long versionId) {
     return new BaseViewHistoryEntry(timestampMillis, versionId);
   }
 
-  private BaseViewHistoryEntry(long timestampMillis, int versionId) {
+  private BaseViewHistoryEntry(long timestampMillis, long versionId) {
     this.timestampMillis = timestampMillis;
     this.versionId = versionId;
   }
@@ -41,7 +40,7 @@ public class BaseViewHistoryEntry implements ViewHistoryEntry {
   }
 
   @Override
-  public int versionId() {
+  public long versionId() {
     return versionId;
   }
 

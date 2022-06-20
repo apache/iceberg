@@ -16,19 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class BaseViewVersion implements ViewVersion {
-  private final int versionId;
-  private final Integer parentId;
+  private final long versionId;
+  private final Long parentId;
   private final long timestampMillis;
   private final Map<String, String> summary;
   private final List<ViewRepresentation> representations;
@@ -38,8 +37,8 @@ public class BaseViewVersion implements ViewVersion {
   }
 
   private BaseViewVersion(
-      int versionId,
-      Integer parentId,
+      long versionId,
+      Long parentId,
       long timestampMillis,
       Map<String, String> summary,
       List<ViewRepresentation> representations) {
@@ -52,12 +51,12 @@ public class BaseViewVersion implements ViewVersion {
   }
 
   @Override
-  public int versionId() {
+  public long versionId() {
     return versionId;
   }
 
   @Override
-  public Integer parentId() {
+  public Long parentId() {
     return parentId;
   }
 
@@ -93,52 +92,52 @@ public class BaseViewVersion implements ViewVersion {
     if (timestampMillis != that.timestampMillis) {
       return false;
     }
-    if (!Objects.equals(parentId, that.parentId)) {
+    if (!Objects.equal(parentId, that.parentId)) {
       return false;
     }
-    if (!Objects.equals(summary, that.summary)) {
+    if (!Objects.equal(summary, that.summary)) {
       return false;
     }
-    return Objects.equals(representations, that.representations);
+    return Objects.equal(representations, that.representations);
   }
 
   @Override
   public int hashCode() {
-    int result = versionId;
-    result = 31 * result + (parentId != null ? parentId.hashCode() : 0);
-    result = 31 * result + (int) (timestampMillis ^ (timestampMillis >>> 32));
-    result = 31 * result + (summary != null ? summary.hashCode() : 0);
-    result = 31 * result + (representations != null ? representations.hashCode() : 0);
-    return result;
+    return Objects.hashCode(
+        this.versionId, this.parentId, this.timestampMillis, this.summary, this.representations);
   }
 
   @Override
   public String toString() {
-    return "BaseViewVersion{" +
-        "versionId=" + versionId +
-        ", parentId=" + parentId +
-        ", timestampMillis=" + timestampMillis +
-        ", summary=" + summary +
-        ", representations=" + representations +
-        '}';
+    return "BaseViewVersion{"
+        + "versionId="
+        + versionId
+        + ", parentId="
+        + parentId
+        + ", timestampMillis="
+        + timestampMillis
+        + ", summary="
+        + summary
+        + ", representations="
+        + representations
+        + '}';
   }
 
   public static final class Builder {
-    private int versionId;
-    private Integer parentId;
+    private long versionId;
+    private Long parentId;
     private long timestampMillis;
     private Map<String, String> summary = Maps.newHashMap();
     private List<ViewRepresentation> representations = Lists.newArrayList();
 
-    private Builder() {
-    }
+    private Builder() {}
 
-    public Builder versionId(int value) {
+    public Builder versionId(long value) {
       versionId = value;
       return this;
     }
 
-    public Builder parentId(Integer value) {
+    public Builder parentId(Long value) {
       parentId = value;
       return this;
     }
@@ -164,12 +163,7 @@ public class BaseViewVersion implements ViewVersion {
     }
 
     public BaseViewVersion build() {
-      return new BaseViewVersion(
-          versionId,
-          parentId,
-          timestampMillis,
-          summary,
-          representations);
+      return new BaseViewVersion(versionId, parentId, timestampMillis, summary, representations);
     }
   }
 }

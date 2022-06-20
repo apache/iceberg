@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.Arrays;
@@ -29,12 +28,10 @@ public class TestViewHistoryEntryParser extends ParserTestBase<ViewHistoryEntry>
 
   @Parameterized.Parameters
   public static Collection<Object[]> parameters() {
-    return Arrays.asList(new Object[][] {
-        {
-            BaseViewHistoryEntry.of(4353L, 1),
-            "{\"timestamp-ms\":4353,\"version-id\":1}"
-        }
-    });
+    return Arrays.asList(
+        new Object[][] {
+          {BaseViewHistoryEntry.of(4353L, 1), "{\"timestamp-ms\":4353,\"version-id\":1}"}
+        });
   }
 
   public TestViewHistoryEntryParser(ViewHistoryEntry entry, String json) {

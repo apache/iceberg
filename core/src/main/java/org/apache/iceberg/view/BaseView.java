@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.List;
@@ -24,8 +23,8 @@ import java.util.Map;
 
 /**
  * Base {@link View} implementation.
- * <p>
- * This can be extended by providing a {@link ViewOperations} to the constructor.
+ *
+ * <p>This can be extended by providing a {@link ViewOperations} to the constructor.
  */
 public class BaseView implements View, HasViewOperations {
   private final ViewOperations ops;

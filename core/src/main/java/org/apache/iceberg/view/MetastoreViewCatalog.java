@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import java.util.List;
@@ -42,21 +41,25 @@ public abstract class MetastoreViewCatalog implements ViewCatalog {
   protected abstract MetastoreViewOperations newViewOps(TableIdentifier viewName);
 
   protected String defaultWarehouseLocation(TableIdentifier viewIdentifier) {
-    throw new UnsupportedOperationException("Implementation for 'defaultWarehouseLocation' not provided.");
+    throw new UnsupportedOperationException(
+        "Implementation for 'defaultWarehouseLocation' not provided.");
   }
 
   @Override
   public View createView(
-      TableIdentifier identifier, List<ViewRepresentation> representations, Map<String, String> properties) {
+      TableIdentifier identifier,
+      List<ViewRepresentation> representations,
+      Map<String, String> properties) {
     ViewOperations ops = newViewOps(identifier);
     if (ops.current() != null) {
       throw new AlreadyExistsException("View already exists: %s", identifier);
     }
 
     String location = defaultWarehouseLocation(identifier);
-    int parentId = -1;
+    long parentId = -1;
 
-    ViewUtil.doCommit(ViewDDLOperation.CREATE, 1, parentId, representations, properties, location, ops, null);
+    ViewUtil.doCommit(
+        ViewDDLOperation.CREATE, 1, parentId, representations, properties, location, ops, null);
     return new BaseView(ops, identifier.toString());
   }
 

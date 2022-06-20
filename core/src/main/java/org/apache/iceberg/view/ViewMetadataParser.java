@@ -3,7 +3,7 @@
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, ViewVersion 2.0 (the
+ * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -77,7 +76,8 @@ class ViewMetadataParser {
     generator.writeNumberField(CURRENT_VERSION_ID, metadata.currentVersionId());
     JsonUtil.writeObjectList(VERSIONS, metadata.versions(), ViewVersionParser::toJson, generator);
 
-    JsonUtil.writeObjectList(VERSION_LOG, metadata.history(), ViewHistoryEntryParser::toJson, generator);
+    JsonUtil.writeObjectList(
+        VERSION_LOG, metadata.history(), ViewHistoryEntryParser::toJson, generator);
 
     generator.writeEndObject();
   }
@@ -91,12 +91,14 @@ class ViewMetadataParser {
   }
 
   public static ViewMetadata fromJson(JsonNode node) {
-    Preconditions.checkArgument(node.isObject(),
-        "Cannot parse metadata from a non-object: %s", node);
+    Preconditions.checkArgument(
+        node.isObject(), "Cannot parse metadata from a non-object: %s", node);
 
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, node);
-    Preconditions.checkArgument(formatVersion <= ViewMetadata.SUPPORTED_VIEW_FORMAT_VERSION,
-        "Cannot read unsupported version %d", formatVersion);
+    Preconditions.checkArgument(
+        formatVersion <= ViewMetadata.SUPPORTED_VIEW_FORMAT_VERSION,
+        "Cannot read unsupported version %d",
+        formatVersion);
 
     String location = JsonUtil.getString(LOCATION, node);
 
@@ -104,12 +106,17 @@ class ViewMetadataParser {
 
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
 
-    List<ViewVersion> versions = JsonUtil.getObjectList(VERSIONS, node, ViewVersionParser::fromJson);
+    List<ViewVersion> versions =
+        JsonUtil.getObjectList(VERSIONS, node, ViewVersionParser::fromJson);
 
-    List<ViewHistoryEntry> history = JsonUtil.getObjectList(VERSION_LOG, node, ViewHistoryEntryParser::fromJson);
+    List<ViewHistoryEntry> history =
+        JsonUtil.getObjectList(VERSION_LOG, node, ViewHistoryEntryParser::fromJson);
 
-    int numVersionsToKeep = PropertyUtil.propertyAsInt(properties,
-        ViewProperties.VERSION_HISTORY_SIZE, ViewProperties.VERSION_HISTORY_SIZE_DEFAULT);
+    int numVersionsToKeep =
+        PropertyUtil.propertyAsInt(
+            properties,
+            ViewProperties.VERSION_HISTORY_SIZE,
+            ViewProperties.VERSION_HISTORY_SIZE_DEFAULT);
 
     return ViewMetadata.builder()
         .location(location)
@@ -122,6 +129,5 @@ class ViewMetadataParser {
         .build();
   }
 
-  private ViewMetadataParser() {
-  }
+  private ViewMetadataParser() {}
 }

@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -31,23 +32,20 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 @RunWith(Parameterized.class)
 public class TestViewRepresentationParser {
 
-  private static ViewDefinition sql1 = BaseViewDefinition.builder()
-      .sql("SELECT 'foo' foo")
-      .schema(new Schema(optional(1, "foo", Types.StringType.get())))
-      .build();
+  private static ViewDefinition sql1 =
+      BaseViewDefinition.builder()
+          .sql("SELECT 'foo' foo")
+          .schema(new Schema(optional(1, "foo", Types.StringType.get())))
+          .build();
 
   private ViewRepresentation viewRepresentation;
 
   @Parameterized.Parameters
   public static Collection<Object[]> parameters() {
-    return Arrays.asList(new Object[][] {
-        {sql1}
-    });
+    return Arrays.asList(new Object[][] {{sql1}});
   }
 
   public TestViewRepresentationParser(ViewRepresentation viewRepresentation) {

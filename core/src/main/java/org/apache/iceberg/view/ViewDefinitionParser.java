@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -44,15 +43,20 @@ class ViewDefinitionParser {
 
   static void toJson(ViewDefinition view, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
-    generator.writeStringField(ViewRepresentationParser.Field.TYPE.fieldName(), view.type().typeName());
+    generator.writeStringField(
+        ViewRepresentationParser.Field.TYPE.fieldName(), view.type().typeName());
     generator.writeStringField(ViewDefinitionParser.Field.SQL.name, view.sql());
     generator.writeStringField(ViewDefinitionParser.Field.DIALECT.name, view.dialect());
     generator.writeFieldName(ViewDefinitionParser.Field.SCHEMA.name);
     SchemaParser.toJson(view.schema(), generator);
-    generator.writeStringField(ViewDefinitionParser.Field.DEFAULT_CATALOG.name, view.defaultCatalog());
-    JsonUtil.writeStringList(ViewDefinitionParser.Field.DEFAULT_NAMESPACE.name, view.defaultNamespace(), generator);
-    JsonUtil.writeStringList(ViewDefinitionParser.Field.FIELD_ALIASES.name, view.fieldAliases(), generator);
-    JsonUtil.writeStringList(ViewDefinitionParser.Field.FIELD_COMMENTS.name, view.fieldComments(), generator);
+    generator.writeStringField(
+        ViewDefinitionParser.Field.DEFAULT_CATALOG.name, view.defaultCatalog());
+    JsonUtil.writeStringList(
+        ViewDefinitionParser.Field.DEFAULT_NAMESPACE.name, view.defaultNamespace(), generator);
+    JsonUtil.writeStringList(
+        ViewDefinitionParser.Field.FIELD_ALIASES.name, view.fieldAliases(), generator);
+    JsonUtil.writeStringList(
+        ViewDefinitionParser.Field.FIELD_COMMENTS.name, view.fieldComments(), generator);
     generator.writeEndObject();
   }
 
@@ -60,14 +64,16 @@ class ViewDefinitionParser {
     return BaseViewDefinition.builder()
         .sql(JsonUtil.getString(ViewDefinitionParser.Field.SQL.name, node))
         .dialect(JsonUtil.getString(ViewDefinitionParser.Field.DIALECT.name, node))
-        .schema(JsonUtil.getObject(ViewDefinitionParser.Field.SCHEMA.name, node, SchemaParser::fromJson))
+        .schema(
+            JsonUtil.getObject(
+                ViewDefinitionParser.Field.SCHEMA.name, node, SchemaParser::fromJson))
         .defaultCatalog(JsonUtil.getString(ViewDefinitionParser.Field.DEFAULT_CATALOG.name, node))
-        .defaultNamespace(JsonUtil.getStringList(ViewDefinitionParser.Field.DEFAULT_NAMESPACE.name, node))
+        .defaultNamespace(
+            JsonUtil.getStringList(ViewDefinitionParser.Field.DEFAULT_NAMESPACE.name, node))
         .fieldAliases(JsonUtil.getStringList(ViewDefinitionParser.Field.FIELD_ALIASES.name, node))
         .fieldComments(JsonUtil.getStringList(ViewDefinitionParser.Field.FIELD_COMMENTS.name, node))
         .build();
   }
 
-  private ViewDefinitionParser() {
-  }
+  private ViewDefinitionParser() {}
 }

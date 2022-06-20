@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.view;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -24,7 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.Locale;
 
-class ViewRepresentationParser {
+public class ViewRepresentationParser {
 
   enum Field {
     TYPE;
@@ -34,15 +33,17 @@ class ViewRepresentationParser {
     }
   }
 
-  public static void toJson(ViewRepresentation representation, JsonGenerator generator) throws IOException {
+  public static void toJson(ViewRepresentation representation, JsonGenerator generator)
+      throws IOException {
     switch (representation.type()) {
       case SQL:
         ViewDefinitionParser.toJson((ViewDefinition) representation, generator);
         break;
 
       default:
-        throw new IllegalArgumentException(String.format("Unknown view representation type '%s' to serialize",
-            representation.type()));
+        throw new IllegalArgumentException(
+            String.format(
+                "Unknown view representation type '%s' to serialize", representation.type()));
     }
   }
 
@@ -55,11 +56,10 @@ class ViewRepresentationParser {
         return ViewDefinitionParser.fromJson(node);
 
       default:
-        throw new IllegalStateException(String.format("Unknown view representation type '%s' to deserialize", type));
+        throw new IllegalStateException(
+            String.format("Unknown view representation type '%s' to deserialize", type));
     }
   }
 
-  private ViewRepresentationParser() {
-  }
+  private ViewRepresentationParser() {}
 }
-
