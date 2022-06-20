@@ -117,8 +117,8 @@ class PartitionData
     }
 
     throw new IllegalArgumentException(String.format(
-        "Wrong class, %s, for object: %s",
-        javaClass.getName(), value));
+        "Wrong class, expected %s, but was %s, for object: %s",
+        javaClass.getName(), value.getClass().getName(), value));
   }
 
   @Override
