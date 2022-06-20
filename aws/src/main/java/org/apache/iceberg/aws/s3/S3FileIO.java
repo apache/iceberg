@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -33,9 +34,11 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -54,11 +57,13 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 /**
  * FileIO implementation backed by S3.
@@ -67,7 +72,7 @@ import software.amazon.awssdk.services.s3.model.Tagging;
  * URIs with schemes s3a, s3n, https are also treated as s3 file paths.
  * Using this FileIO with other schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
-public class S3FileIO implements FileIO, SupportsBulkOperations, CredentialSupplier {
+public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixOperations, CredentialSupplier {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
   private static volatile ExecutorService executorService;
@@ -239,6 +244,52 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, CredentialSuppl
     }
 
     return Lists.newArrayList();
+  }
+
+  @Override
+  public Stream<FileInfo> listPrefix(String prefix) {
+    S3URI s3uri = new S3URI(prefix, awsProperties.s3BucketToAccessPointMapping());
+
+    return internalListPrefix(s3uri.bucket(), s3uri.key()).stream()
+        .flatMap(r -> r.contents().stream())
+        .map(o -> new FileInfo(o.key(), o.size(), o.lastModified()));
+  }
+
+  /**
+   * This method provides a "best-effort" to delete all objects under the
+   * given prefix.
+   *
+   * Bulk delete operations are used and no reattempt is made for deletes if
+   * they fail, but will log any individual objects that are not deleted as part
+   * of the bulk operation.
+   *
+   * @param prefix prefix to delete
+   */
+  @Override
+  public void deletePrefix(String prefix) {
+    S3URI s3uri = new S3URI(prefix, awsProperties.s3BucketToAccessPointMapping());
+
+    internalListPrefix(s3uri.bucket(), s3uri.key()).stream().parallel().forEach(listing -> {
+      List<ObjectIdentifier> objectIdentifiers = listing.contents().stream()
+          .map(o -> ObjectIdentifier.builder().key(o.key()).build())
+          .collect(Collectors.toList());
+
+      DeleteObjectsRequest request = DeleteObjectsRequest.builder()
+          .bucket(s3uri.bucket())
+          .delete(Delete.builder().objects(objectIdentifiers).build())
+          .build();
+
+      client().deleteObjects(request).errors().forEach((s3Error -> {
+        LOG.warn("Error occurred during delete operation. {}: {}. {}", s3Error.code(), s3Error.message(),
+            s3Error.key());
+      }));
+    });
+  }
+
+  private ListObjectsV2Iterable internalListPrefix(String bucket, String keyPrefix) {
+    ListObjectsV2Request request = ListObjectsV2Request.builder().bucket(bucket).prefix(keyPrefix).build();
+
+    return client().listObjectsV2Paginator(request);
   }
 
   private S3Client client() {
