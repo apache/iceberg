@@ -348,9 +348,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
         ByteBuffer buffer = dict.decodeToBinary(reader.readInteger()).toByteBuffer();
-        vector.getDataBuffer().setBytes(
-            (long) idx * typeWidth, buffer.array(),
-            buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+        vector.getDataBuffer().setBytes((long) idx * typeWidth, buffer);
       }
     }
   }
@@ -415,8 +413,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
       int startOffset = ((BaseVariableWidthVector) vector).getStartOffset(idx);
       // It is possible that the data buffer was reallocated. So it is important to
       // not cache the data buffer reference but instead use vector.getDataBuffer().
-      vector.getDataBuffer().setBytes(startOffset, buffer, buffer.position(),
-          buffer.limit() - buffer.position());
+      vector.getDataBuffer().setBytes(startOffset, buffer);
       // Similarly, we need to get the latest reference to the validity buffer as well
       // since reallocation changes reference of the validity buffers as well.
       if (setArrowValidityVector) {
