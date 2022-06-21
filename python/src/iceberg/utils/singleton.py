@@ -30,12 +30,12 @@ More information on metaclasses: https://docs.python.org/3/reference/datamodel.h
 from typing import Any, ClassVar, Dict
 
 
-def _convert_to_hashable_type(any: Any) -> Any:
-    if isinstance(any, dict):
-        return tuple((_convert_to_hashable_type(k), _convert_to_hashable_type(v)) for k, v in any.items())
-    elif isinstance(any, list):
-        return tuple(map(_convert_to_hashable_type, any))
-    return any
+def _convert_to_hashable_type(element: Any) -> Any:
+    if isinstance(element, dict):
+        return tuple((_convert_to_hashable_type(k), _convert_to_hashable_type(v)) for k, v in element.items())
+    elif isinstance(element, list):
+        return tuple(map(_convert_to_hashable_type, element))
+    return element
 
 
 class Singleton:
