@@ -121,10 +121,7 @@ class LocalFileIO(FileIO):
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         location = location.location if isinstance(location, (InputFile, OutputFile)) else location
         parsed_location = urlparse(location)
-        try:
-            os.remove(parsed_location.path)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path}") from e
+        os.remove(parsed_location.path)
 
 
 @pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowFile])

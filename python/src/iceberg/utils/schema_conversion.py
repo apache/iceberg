@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utility class for converting between Avro and Iceberg schemas
-
-"""
+"""Utility class for converting between Avro and Iceberg schemas"""
 from __future__ import annotations
 
 import logging
@@ -116,23 +114,23 @@ class AvroSchemaConversion:
 
     def _resolve_union(self, type_union: dict | list | str) -> tuple[str | dict[str, Any], bool]:
         """
-        Converts Unions into their type and resolves if the field is optional
+        Converts Unions into their type and resolves if the field is required
 
         Examples:
             >>> AvroSchemaConversion()._resolve_union('str')
-            ('str', False)
-            >>> AvroSchemaConversion()._resolve_union(['null', 'str'])
             ('str', True)
+            >>> AvroSchemaConversion()._resolve_union(['null', 'str'])
+            ('str', False)
             >>> AvroSchemaConversion()._resolve_union([{'type': 'str'}])
-            ({'type': 'str'}, False)
-            >>> AvroSchemaConversion()._resolve_union(['null', {'type': 'str'}])
             ({'type': 'str'}, True)
+            >>> AvroSchemaConversion()._resolve_union(['null', {'type': 'str'}])
+            ({'type': 'str'}, False)
 
         Args:
             type_union: The field, can be a string 'str', list ['null', 'str'], or dict {"type": 'str'}
 
         Returns:
-            A tuple containing the type and nullability
+            A tuple containing the type and if required
 
         Raises:
             TypeError: In the case non-optional union types are encountered
@@ -140,20 +138,28 @@ class AvroSchemaConversion:
         avro_types: dict | list
         if isinstance(type_union, str):
             # It is a primitive and required
-            return type_union, False
+            return type_union, True
         elif isinstance(type_union, dict):
             # It is a context and required
-            return type_union, False
+            return type_union, True
         else:
             avro_types = type_union
 
-        is_optional = "null" in avro_types
-
         if len(avro_types) > 2:
-            raise TypeError("Non-optional types aren't part of the Iceberg specification")
+            raise TypeError(f"Non-optional types aren't part of the Iceberg specification: {avro_types}")
+
+        # For the Iceberg spec it is required to set the default value to null
+        # From https://iceberg.apache.org/spec/#avro
+        # Optional fields must always set the Avro field default value to null.
+        #
+        # This means that null has to come first:
+        # https://avro.apache.org/docs/current/spec.html
+        # type of the default value must match the first element of the union.
+        if "null" != avro_types[0]:
+            raise TypeError("Only null-unions are supported")
 
         # Filter the null value and return the type
-        return list(filter(lambda t: t != "null", avro_types))[0], is_optional
+        return list(filter(lambda t: t != "null", avro_types))[0], False
 
     def _convert_schema(self, avro_type: str | dict[str, Any]) -> IcebergType:
         """
@@ -205,13 +211,13 @@ class AvroSchemaConversion:
         if "field-id" not in field:
             raise ValueError(f"Cannot convert field, missing field-id: {field}")
 
-        plain_type, is_optional = self._resolve_union(field["type"])
+        plain_type, required = self._resolve_union(field["type"])
 
         return NestedField(
             field_id=field["field-id"],
             name=field["name"],
             field_type=self._convert_schema(plain_type),
-            required=is_optional,
+            required=required,
             doc=field.get("doc"),
         )
 
@@ -273,12 +279,12 @@ class AvroSchemaConversion:
         if "element-id" not in array_type:
             raise ValueError(f"Cannot convert array-type, missing element-id: {array_type}")
 
-        plain_type, element_is_optional = self._resolve_union(array_type["items"])
+        plain_type, element_required = self._resolve_union(array_type["items"])
 
         return ListType(
             element_id=array_type["element-id"],
             element_type=self._convert_schema(plain_type),
-            element_required=element_is_optional,
+            element_required=element_required,
         )
 
     def _convert_map_type(self, map_type: dict[str, Any]) -> MapType:
@@ -290,7 +296,7 @@ class AvroSchemaConversion:
             >>> from iceberg.utils.schema_conversion import AvroSchemaConversion
             >>> avro_field = {
             ...     "type": "map",
-            ...     "values": ["long", "null"],
+            ...     "values": ["null", "long"],
             ...     "key-id": 101,
             ...     "value-id": 102,
             ... }
@@ -307,14 +313,14 @@ class AvroSchemaConversion:
 
         Returns: A MapType
         """
-        value_type, value_is_optional = self._resolve_union(map_type["values"])
+        value_type, value_required = self._resolve_union(map_type["values"])
         return MapType(
             key_id=map_type["key-id"],
             # Avro only supports string keys
             key_type=StringType(),
             value_id=map_type["value-id"],
             value_type=self._convert_schema(value_type),
-            value_required=value_is_optional,
+            value_required=value_required,
         )
 
     def _convert_logical_type(self, avro_logical_type: dict[str, Any]) -> IcebergType:
