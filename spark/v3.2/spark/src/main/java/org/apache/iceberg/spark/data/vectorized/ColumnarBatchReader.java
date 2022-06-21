@@ -166,8 +166,10 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
      * Build a row id mapping inside a batch, which skips deleted rows. Here is an example of how we delete 2 rows in a
      * batch with 8 rows in total.
      * [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array
+     * [F,F,F,F,F,F,F,F] -- Original status of the isDeleted array
      * Position delete 2, 6
      * [0,1,3,4,5,7,-,-] -- After applying position deletes [Set Num records to 6]
+     * [F,F,T,F,F,F,T,F] -- After applying position deletes
      *
      * @param deletedRowPositions a set of deleted row positions
      * @return the mapping array and the new num of rows in a batch, null if no row is deleted
@@ -212,14 +214,17 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     /**
      * Filter out the equality deleted rows. Here is an example,
      * [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array
+     * [F,F,F,F,F,F,F,F] -- Original status of the isDeleted array
      * Position delete 2, 6
      * [0,1,3,4,5,7,-,-] -- After applying position deletes [Set Num records to 6]
+     * [F,F,T,F,F,F,T,F] -- After applying position deletes
      * Equality delete 1 <= x <= 3
      * [0,4,5,7,-,-,-,-] -- After applying equality deletes [Set Num records to 4]
+     * [F,T,T,T,F,F,T,F] -- After applying equality deletes
      *
-     * @return the number of undeleted rows in a batch after applying equality deletes
+     * @param newColumnarBatch the {@link ColumnarBatch} to apply the equality delete
      */
-    int applyEqDelete(ColumnarBatch newColumnarBatch) {
+    void applyEqDelete(ColumnarBatch newColumnarBatch) {
       Iterator<InternalRow> it = newColumnarBatch.rowIterator();
       int rowId = 0;
       int currentRowId = 0;
@@ -238,7 +243,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       }
 
       newColumnarBatch.setNumRows(currentRowId);
-      return currentRowId;
     }
   }
 }
