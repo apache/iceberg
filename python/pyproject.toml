@@ -40,7 +40,6 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 mmh3 = "^3.0.0"
-
 pyarrow = { version = "^8.0.0", optional = true }
 
 zstandard = { version = "^0.17.0", optional = true }

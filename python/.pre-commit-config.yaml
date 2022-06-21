@@ -50,6 +50,11 @@ repos:
     hooks:
       - id: pyupgrade
         args: [--py38-plus]
+  - repo: https://github.com/pycqa/pylint
+    rev: v2.14.2
+    hooks:
+      - id: pylint
+        args: [ --rcfile=python/pylintrc ]
   - repo: https://github.com/pycqa/flake8
     rev: '4.0.1'
     hooks:

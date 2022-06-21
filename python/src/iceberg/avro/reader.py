@@ -26,7 +26,8 @@ read schema is different, while respecting the read schema
 from __future__ import annotations
 
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as dataclassfield
 from datetime import date, datetime, time
 from decimal import Decimal
 from functools import singledispatch
@@ -61,7 +62,7 @@ from iceberg.utils.singleton import Singleton
 
 @dataclass(frozen=True)
 class AvroStruct(StructProtocol):
-    _data: list[Any | StructProtocol] = field()
+    _data: list[Any | StructProtocol] = dataclassfield()
 
     def set(self, pos: int, value: Any) -> None:
         self._data[pos] = value
@@ -138,7 +139,7 @@ class UUIDReader(Reader):
 
 @dataclass(frozen=True)
 class FixedReader(Reader):
-    length: int = field()
+    length: int = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> bytes:
         return decoder.read(self.length)
@@ -151,8 +152,8 @@ class BinaryReader(Reader):
 
 @dataclass(frozen=True)
 class DecimalReader(Reader):
-    precision: int = field()
-    scale: int = field()
+    precision: int = dataclassfield()
+    scale: int = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> Decimal:
         return decoder.read_decimal_from_bytes(self.precision, self.scale)
@@ -160,7 +161,7 @@ class DecimalReader(Reader):
 
 @dataclass(frozen=True)
 class OptionReader(Reader):
-    option: Reader = field()
+    option: Reader = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> Any | None:
         # For the Iceberg spec it is required to set the default value to null
@@ -179,7 +180,7 @@ class OptionReader(Reader):
 
 @dataclass(frozen=True)
 class StructReader(Reader):
-    fields: tuple[Reader, ...] = field()
+    fields: tuple[Reader, ...] = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> AvroStruct:
         return AvroStruct([field.read(decoder) for field in self.fields])
