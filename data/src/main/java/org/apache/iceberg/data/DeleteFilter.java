@@ -204,12 +204,11 @@ public abstract class DeleteFilter<T> {
           Schema deleteSchema,
           MessageType fileSchema,
           Map<BlockMetaData, BloomFilterReader> parquetBloomFilterReader) {
-    if (record.size() == 0) {
+    if (record.size() == 0 || parquetBloomFilterReader.isEmpty()) {
       return true;
     }
     // build filter by record values
     Expression filter = buildFilter(record, deleteSchema);
-
     ParquetBloomRowGroupFilter bloomFilter = new ParquetBloomRowGroupFilter(deleteSchema, filter, true);
     for (Map.Entry<BlockMetaData, BloomFilterReader> entry : parquetBloomFilterReader.entrySet()) {
       boolean shouldRead = bloomFilter.shouldRead(fileSchema, entry.getKey(), entry.getValue());
