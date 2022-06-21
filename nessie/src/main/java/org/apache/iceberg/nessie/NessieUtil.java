@@ -34,16 +34,23 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
+import org.projectnessie.client.NessieClientBuilder;
+import org.projectnessie.client.http.HttpClientBuilder;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableCommitMeta;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class NessieUtil {
+
+  private static final Logger LOG = LoggerFactory.getLogger(NessieUtil.class);
 
   public static final String NESSIE_CONFIG_PREFIX = "nessie.";
   static final String APPLICATION_TYPE = "application-type";
@@ -130,5 +137,45 @@ public final class NessieUtil {
       throw new RuntimeException(e);
     }
     return newMetadata;
+  }
+
+  static NessieClientBuilder<?> createNessieClientBuilder(String customBuilder) {
+    NessieClientBuilder<?> clientBuilder;
+    if (customBuilder != null) {
+      try {
+        clientBuilder = DynMethods.builder("builder").impl(customBuilder).build().asStatic().invoke();
+      } catch (Exception e) {
+        throw new RuntimeException(String.format("Failed to use custom NessieClientBuilder '%s'.", customBuilder), e);
+      }
+    } else {
+      clientBuilder = HttpClientBuilder.builder();
+    }
+    return clientBuilder;
+  }
+
+  static String validateWarehouseLocation(String name, Map<String, String> catalogOptions) {
+    String warehouseLocation = catalogOptions.get(CatalogProperties.WAREHOUSE_LOCATION);
+    if (warehouseLocation == null) {
+      // Explicitly log a warning, otherwise the thrown exception can get list in the "silent-ish catch"
+      // in o.a.i.spark.Spark3Util.catalogAndIdentifier(o.a.s.sql.SparkSession, List<String>,
+      //     o.a.s.sql.connector.catalog.CatalogPlugin)
+      // in the code block
+      //    Pair<CatalogPlugin, Identifier> catalogIdentifier = SparkUtil.catalogAndIdentifier(nameParts,
+      //        catalogName ->  {
+      //          try {
+      //            return catalogManager.catalog(catalogName);
+      //          } catch (Exception e) {
+      //            return null;
+      //          }
+      //        },
+      //        Identifier::of,
+      //        defaultCatalog,
+      //        currentNamespace
+      //    );
+      LOG.warn("Catalog creation for inputName={} and options {} failed, because parameter " +
+          "'warehouse' is not set, Nessie can't store data.", name, catalogOptions);
+      throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
+    }
+    return warehouseLocation;
   }
 }

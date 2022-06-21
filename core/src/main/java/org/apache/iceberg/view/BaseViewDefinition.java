@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * SQL definition for a view
  */
-class BaseViewDefinition implements ViewDefinition {
+public class BaseViewDefinition implements ViewDefinition {
   private final String sql;
   private final String dialect;
   private final Schema schema;

@@ -19,58 +19,41 @@
 
 package org.apache.iceberg.nessie;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
-import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.view.MetastoreViewCatalog;
+import org.apache.iceberg.view.MetastoreViewOperations;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.TableReference;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-/**
- * Nessie implementation of Iceberg Catalog.
- *
- * <p>
- * A note on namespaces: Nessie namespaces are implicit and do not need to be explicitly created or deleted.
- * The create and delete namespace methods are no-ops for the NessieCatalog. One can still list namespaces that have
- * objects stored in them to assist with namespace-centric catalog exploration.
- * </p>
- */
-public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
+public class NessieViewCatalog extends MetastoreViewCatalog implements AutoCloseable {
 
-  private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private NessieIcebergClient client;
   private String warehouseLocation;
-  private Configuration config;
+  private final Configuration config;
   private String name;
   private FileIO fileIO;
   private Map<String, String> catalogOptions;
   private CloseableGroup closeableGroup;
 
-  public NessieCatalog() {
+  public NessieViewCatalog(Configuration conf) {
+    super(conf);
+    this.config = conf;
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
@@ -116,111 +99,54 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   @Override
-  public void close() throws IOException {
-    if (null != closeableGroup) {
-      closeableGroup.close();
-    }
-  }
-
-  @Override
   public String name() {
     return name;
   }
 
   @Override
-  protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    TableReference tr = TableReference.parse(tableIdentifier.name());
-    Preconditions.checkArgument(!tr.hasTimestamp(), "Invalid table name: # is only allowed for hashes (reference by " +
+  protected String defaultWarehouseLocation(TableIdentifier view) {
+    if (view.hasNamespace()) {
+      return SLASH.join(warehouseLocation, view.namespace().toString(), view.name());
+    }
+    return SLASH.join(warehouseLocation, view.name());
+  }
+
+  @Override
+  public List<TableIdentifier> listViews(Namespace namespace) {
+    return client.listViews(namespace);
+  }
+
+  @Override
+  public boolean dropView(TableIdentifier identifier) {
+    return client.dropView(identifier, false);
+  }
+
+  @Override
+  public boolean dropView(TableIdentifier identifier, boolean purge) {
+    return client.dropView(identifier, purge);
+  }
+
+  @Override
+  public void renameView(TableIdentifier from, TableIdentifier to) {
+    client.renameView(from, NessieUtil.removeCatalogName(to, name()));
+  }
+
+  @Override
+  protected MetastoreViewOperations newViewOps(TableIdentifier viewName) {
+    TableReference tr = TableReference.parse(viewName.name());
+    Preconditions.checkArgument(!tr.hasTimestamp(), "Invalid view name: # is only allowed for hashes (reference by " +
         "timestamp is not supported)");
-    return new NessieTableOperations(
-        ContentKey.of(org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()), tr.getName()),
+    return new NessieViewOperations(
+        ContentKey.of(org.projectnessie.model.Namespace.of(viewName.namespace().levels()), tr.getName()),
         client.withReference(tr.getReference(), tr.getHash()),
         fileIO,
         catalogOptions);
   }
 
   @Override
-  protected String defaultWarehouseLocation(TableIdentifier table) {
-    if (table.hasNamespace()) {
-      return SLASH.join(warehouseLocation, table.namespace().toString(), table.name());
+  public void close() throws Exception {
+    if (null != closeableGroup) {
+      closeableGroup.close();
     }
-    return SLASH.join(warehouseLocation, table.name());
-  }
-
-  @Override
-  public List<TableIdentifier> listTables(Namespace namespace) {
-    return client.listTables(namespace);
-  }
-
-  @Override
-  public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    return client.dropTable(identifier, purge);
-  }
-
-  @Override
-  public void renameTable(TableIdentifier from, TableIdentifier to) {
-    client.renameTable(from, NessieUtil.removeCatalogName(to, name()));
-  }
-
-  @Override
-  public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    client.createNamespace(namespace, metadata);
-  }
-
-  @Override
-  public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    return client.listNamespaces(namespace);
-  }
-
-  /**
-   * Load the given namespace but return an empty map because namespace properties are currently not supported.
-   *
-   * @param namespace a namespace. {@link Namespace}
-   * @return an empty map
-   * @throws NoSuchNamespaceException If the namespace does not exist
-   */
-  @Override
-  public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    return client.loadNamespaceMetadata(namespace);
-  }
-
-  @Override
-  public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    return client.dropNamespace(namespace);
-  }
-
-  @Override
-  public boolean setProperties(Namespace namespace, Map<String, String> properties) {
-    return client.setProperties(namespace, properties);
-  }
-
-  @Override
-  public boolean removeProperties(Namespace namespace, Set<String> properties) {
-    return client.removeProperties(namespace, properties);
-  }
-
-  @Override
-  public void setConf(Configuration conf) {
-    this.config = conf;
-  }
-
-  @Override
-  public Configuration getConf() {
-    return config;
-  }
-
-  @VisibleForTesting
-  String currentHash() {
-    return client.getRef().getHash();
-  }
-
-  @VisibleForTesting
-  String currentRefName() {
-    return client.getRef().getName();
-  }
-
-  @VisibleForTesting
-  FileIO fileIO() {
-    return fileIO;
   }
 }

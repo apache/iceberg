@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
-class ViewMetadataParser {
+public class ViewMetadataParser {
 
   // visible for testing
   static final String FORMAT_VERSION = "format-version";
