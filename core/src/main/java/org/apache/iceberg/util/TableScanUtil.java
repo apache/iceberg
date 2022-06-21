@@ -84,7 +84,7 @@ public class TableScanUtil {
         BaseCombinedScanTask::new);
   }
 
-  public static <T extends SplittableScanTask<T>> CloseableIterable<ScanTaskGroup<T>> planInputSplits(
+  public static <T extends SplittableScanTask<T>> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
       CloseableIterable<T> tasks,
       long splitSize, int lookback, long openFileCost) {
 
