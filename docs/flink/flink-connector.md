@@ -36,6 +36,12 @@ To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WIT
     * `custom`: The customized catalog, see [custom catalog](../custom-catalog) for more details.
 * `catalog-database`: The iceberg database name in the backend catalog, use the current flink database name by default.
 * `catalog-table`: The iceberg table name in the backend catalog. Default to use the table name in the flink `CREATE TABLE` sentence.
+* `lookup.max-retries`: The max retry times if lookup iceberg failed. By default maximum number of retries is `3` times. See the following [Lookup Join](flink-getting-started.md#flink-lookup-join) section for more details.
+* `lookup.base-retry-backoff-mills`: The min retry-backoff times if lookup iceberg failed. By default value is `100`.
+* `lookup.max-retry-backoff-mills`: The maximum retry-backoff times if  lookup iceberg failed. By default value is `10000`.
+* `lookup.cache.max-rows`: The max number of rows of lookup cache, over this value, the oldest rows will be expired. Lookup cache is disabled by default. See the following [Lookup Cache](flink-getting-started.md#Lookup Cache) section for more details.
+* `lookup.cache.ttl`: The max time to live for each rows in lookup cache, over this time, the oldest rows will be expired.By default value is `10s`.
+* `lookup.cache.ignore-empty`: Ignore empty rows of lookup cache. By default value is `true`.
 
 ## Table managed in Hive catalog.
 
