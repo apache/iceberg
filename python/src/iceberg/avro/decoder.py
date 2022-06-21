@@ -103,7 +103,7 @@ class BinaryDecoder:
         size = self.read_long()
         return self.read_decimal_from_fixed(precision, scale, size)
 
-    def read_decimal_from_fixed(self, precision: int, scale: int, size: int) -> decimal.Decimal:
+    def read_decimal_from_fixed(self, _: int, scale: int, size: int) -> decimal.Decimal:
         """
         Decimal is encoded as fixed. Fixed instances are encoded using the
         number of bytes declared in the schema.

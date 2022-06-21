@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint:disable=redefined-outer-name
 """This contains global pytest configurations.
 
 Fixtures contained in this file will be automatically used if provided as an argument
