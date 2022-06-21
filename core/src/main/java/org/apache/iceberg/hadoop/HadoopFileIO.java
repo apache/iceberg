@@ -97,17 +97,19 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
   }
 
   @Override
-  public Iterator<FileInfo> listPrefix(String prefix) {
+  public Iterable<FileInfo> listPrefix(String prefix) {
     Path prefixToList = new Path(prefix);
     FileSystem fs = Util.getFs(prefixToList, hadoopConf.get());
 
-    try {
-      return Streams.stream(new AdaptingIterator<>(fs.listFiles(prefixToList, true /* recursive */)))
+    return () -> {
+      try {
+        return Streams.stream(new AdaptingIterator<>(fs.listFiles(prefixToList, true /* recursive */)))
           .map(fileStatus -> new FileInfo(fileStatus.getPath().toString(), fileStatus.getLen(),
               fileStatus.getModificationTime())).iterator();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    };
   }
 
   @Override

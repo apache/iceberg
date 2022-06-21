@@ -214,7 +214,7 @@ public class TestS3FileIO {
   @Test
   public void testPrefixDelete() {
     String prefix = "s3://bucket/path/to/delete";
-    List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
+    List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
 
     scaleSizes.parallelStream().forEach(scale -> {
       String scalePrefix = String.format("%s/%s/", prefix, scale);

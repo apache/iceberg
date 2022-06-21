@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.io;
 
-import java.util.Iterator;
-
 /**
  * This interface is intended as an extension for FileIO implementations
  * to provide additional prefix based operations that may be useful in
@@ -36,9 +34,9 @@ public interface SupportsPrefixOperations {
    * stores may allow for arbitrary prefixes.
    *
    * @param prefix prefix to list
-   * @return iterator of file information
+   * @return iterable of file information
    */
-  Iterator<FileInfo> listPrefix(String prefix);
+  Iterable<FileInfo> listPrefix(String prefix);
 
   /**
    * Delete all files under a prefix.

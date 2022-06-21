@@ -20,7 +20,6 @@
 package org.apache.iceberg.aws.s3;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -63,7 +63,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
-import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 /**
  * FileIO implementation backed by S3.
@@ -247,10 +246,11 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
   }
 
   @Override
-  public Iterator<FileInfo> listPrefix(String prefix) {
+  public Iterable<FileInfo> listPrefix(String prefix) {
     S3URI s3uri = new S3URI(prefix, awsProperties.s3BucketToAccessPointMapping());
+    ListObjectsV2Request request = ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 
-    return internalListPrefix(s3uri.bucket(), s3uri.key()).stream()
+    return () -> client().listObjectsV2Paginator(request).stream()
         .flatMap(r -> r.contents().stream())
         .map(o -> new FileInfo(
             String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
@@ -269,29 +269,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
    */
   @Override
   public void deletePrefix(String prefix) {
-    S3URI s3uri = new S3URI(prefix, awsProperties.s3BucketToAccessPointMapping());
-
-    internalListPrefix(s3uri.bucket(), s3uri.key()).stream().parallel().forEach(listing -> {
-      List<ObjectIdentifier> objectIdentifiers = listing.contents().stream()
-          .map(o -> ObjectIdentifier.builder().key(o.key()).build())
-          .collect(Collectors.toList());
-
-      DeleteObjectsRequest request = DeleteObjectsRequest.builder()
-          .bucket(s3uri.bucket())
-          .delete(Delete.builder().objects(objectIdentifiers).build())
-          .build();
-
-      client().deleteObjects(request).errors().forEach((s3Error -> {
-        LOG.warn("Error occurred during delete operation. {}: {}. {}", s3Error.code(), s3Error.message(),
-            s3Error.key());
-      }));
-    });
-  }
-
-  private ListObjectsV2Iterable internalListPrefix(String bucket, String keyPrefix) {
-    ListObjectsV2Request request = ListObjectsV2Request.builder().bucket(bucket).prefix(keyPrefix).build();
-
-    return client().listObjectsV2Paginator(request);
+    deleteFiles(() -> Streams.stream(listPrefix(prefix)).map(FileInfo::location).iterator());
   }
 
   private S3Client client() {

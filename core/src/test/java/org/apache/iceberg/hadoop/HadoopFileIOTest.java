@@ -83,12 +83,12 @@ public class HadoopFileIOTest {
       hadoopFileIO.deletePrefix(scalePath.toUri().toString());
 
       // Hadoop filesystem will throw if the path does not exist
-      assertThrows(UncheckedIOException.class, () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()));
+      assertThrows(UncheckedIOException.class, () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator());
     });
 
     hadoopFileIO.deletePrefix(parent.toUri().toString());
     // Hadoop filesystem will throw if the path does not exist
-    assertThrows(UncheckedIOException.class, () -> hadoopFileIO.listPrefix(parent.toUri().toString()));
+    assertThrows(UncheckedIOException.class, () -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator());
   }
 
   private void createRandomFiles(Path parent, int count) {
