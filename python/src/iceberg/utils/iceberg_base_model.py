@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from functools import cached_property
 from typing import ClassVar, Dict
 
 from pydantic import BaseModel
@@ -34,13 +35,13 @@ class IcebergBaseModel(BaseModel):
     https://pydantic-docs.helpmanual.io/usage/model_config/#change-behaviour-globally
     """
 
-    _instances: ClassVar[Dict] = {}
-
     class Config:
+        keep_untouched = (cached_property,)
         allow_population_by_field_name = True
         frozen = True
 
     def dict(self, exclude_none: bool = True, **kwargs):
+
         return super().dict(exclude_none=exclude_none, **kwargs)
 
     def json(self, exclude_none: bool = True, by_alias: bool = True, **kwargs):

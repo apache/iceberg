@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+from enum import Enum
 from typing import (
     Any,
     Dict,
     List,
     Literal,
-    Union,
+    Union, Optional,
 )
 from uuid import UUID
 
@@ -30,18 +30,28 @@ from iceberg.schema import Schema
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
 
 _INITIAL_SEQUENCE_NUMBER = 0
+INITIAL_SPEC_ID = 0
+DEFAULT_SCHEMA_ID = 0
+
+
+class SnapshotRefType(str, Enum):
+    branch = 'branch'
+    tag = 'tag'
+
+
+class SnapshotRef(IcebergBaseModel):
+    snapshot_id: int = Field(alias='snapshot-id')
+    snapshot_ref_type: SnapshotRefType = Field(alias='type')
+    min_snapshots_to_keep: int = Field(alias='min-snapshots-to-keep')
+    max_snapshot_age_ms: int = Field(alias='max-snapshot-age-ms')
+    max_ref_age_ms: int = Field(alias='max-ref-age-ms')
 
 
 class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
-    table_uuid: UUID = Field(alias="table-uuid")
-    """A UUID that identifies the table, generated when the table is created.
-    Implementations must throw an exception if a table’s UUID does not match
-    the expected UUID after refreshing metadata."""
-
-    location: str
+    location: str = Field()
     """The table’s base location. This is used by writers to determine where
     to store data files, manifest files, and table metadata files."""
 
@@ -55,10 +65,10 @@ class TableMetadataCommonFields(IcebergBaseModel):
     This is used to ensure fields are always assigned an unused ID
     when evolving schemas."""
 
-    schemas: List[Schema] = Field()
+    schemas: List[Schema] = Field(default_factory=list)
     """A list of schemas, stored as objects with schema-id."""
 
-    current_schema_id: int = Field(alias="current-schema-id")
+    current_schema_id: int = Field(alias="current-schema-id", default=0)
     """ID of the table’s current schema."""
 
     partition_specs: list = Field(alias="partition-specs", default_factory=list)
@@ -72,22 +82,22 @@ class TableMetadataCommonFields(IcebergBaseModel):
     partition specs for the table. This is used to ensure partition fields
     are always assigned an unused ID when evolving specs."""
 
-    properties: dict
+    properties: Dict[str, str] = Field(default_factory=dict)
     """	A string to string map of table properties. This is used to
     control settings that affect reading and writing and is not intended
     to be used for arbitrary metadata. For example, commit.retry.num-retries
     is used to control the number of commit retries."""
 
-    current_snapshot_id: int = Field(alias="current-snapshot-id")
+    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id")
     """ID of the current table snapshot."""
 
-    snapshots: list
+    snapshots: list = Field(default_factory=list)
     """A list of valid snapshots. Valid snapshots are snapshots for which
     all data files exist in the file system. A data file must not be
     deleted from the file system until the last snapshot in which it was
     listed is garbage collected."""
 
-    snapshot_log: list = Field(alias="snapshot-log")
+    snapshot_log: List[Dict[str, Any]] = Field(alias="snapshot-log", default_factory=list)
     """A list (optional) of timestamp and snapshot ID pairs that encodes
     changes to the current snapshot for the table. Each time the
     current-snapshot-id is changed, a new entry should be added with the
@@ -95,7 +105,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     expired from the list of valid snapshots, all entries before a snapshot
     that has expired should be removed."""
 
-    metadata_log: list = Field(alias="metadata-log")
+    metadata_log: List[Dict[str, Any]] = Field(alias="metadata-log", default_factory=list)
     """A list (optional) of timestamp and metadata file location pairs that
     encodes changes to the previous metadata files for the table. Each time
     a new metadata file is created, a new entry of the previous metadata
@@ -103,33 +113,56 @@ class TableMetadataCommonFields(IcebergBaseModel):
     remove oldest metadata log entries and keep a fixed-size log of the most
     recent entries after a commit."""
 
-    sort_orders: list = Field(alias="sort-orders")
+    sort_orders: List[Dict[str, Any]] = Field(alias="sort-orders", default_factory=list)
     """A list of sort orders, stored as full sort order objects."""
 
-    default_sort_order_id: int = Field(alias="default-sort-order-id")
+    default_sort_order_id: Optional[int] = Field(alias="default-sort-order-id")
     """Default sort order id of the table. Note that this could be used by
     writers, but is not used when reading because reads use the specs stored
      in manifest files."""
 
 
 class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
+
+    # When we read a V1 format-version, we'll make sure to populate the fields
+    # for V2 as well. This makes it easier downstream because we can just
+    # assume that everything is a TableMetadataV2.
+    # When writing, we should stick to the same version that it was,
+    # because bumping the version should be an explicit operation that is up
+    # to the owner of the table.
+
     @root_validator(pre=True)
-    def populate_schemas(cls, data: Dict[str, Any]):
-        # When we read a V1 format-version, we'll make sure to populate the fields
-        # for V2 as well. This makes it easier downstream because we can just
-        # assume that everything is a TableMetadataV2.
-        # When writing, we should stick to the same version that it was,
-        # because bumping the version should be an explicit operation that is up
-        # to the owner of the table.
-        schema = data["schema"]
-        if "schemas" in data:
-            if all([schema != other_schema for other_schema in data["schemas"]]):
-                data["schemas"].append(schema)
-        else:
-            data["schemas"] = [schema]
-        data["current-schema-id"] = schema["schema-id"]
-        data["last-sequence-number"] = _INITIAL_SEQUENCE_NUMBER
+    def set_schema_id(cls, data: Dict[str, Any]):
+        # Set the schema-id to conform to an actual schema
+        data['schema']['schema-id'] = DEFAULT_SCHEMA_ID
+        data['default-spec-id'] = INITIAL_SPEC_ID
+        data['last-partition-id'] = max([spec['field-id'] for spec in data['partition-spec']])
         return data
+
+    @root_validator()
+    def migrate_schema(cls, data: Dict[str, Any]):
+        # Migrate schemas
+        schema = data["schema_"]
+        schemas = data["schemas"]
+        if all([schema != other_schema for other_schema in schemas]):
+            data["schemas"].append(schema)
+        data["current_schema_id"] = schema.schema_id
+        return data
+
+    @root_validator()
+    def migrate_partition_spec(cls, data: Dict[str, Any]):
+        # This is going to be much nicer as soon as partition-spec is also migrated to pydantic
+        if partition_spec := data.get("partition_spec"):
+            data["partition_specs"] = [{**spec, 'spec-id': INITIAL_SPEC_ID + idx} for idx, spec in
+                                       enumerate(partition_spec)]
+            data["default_spec_id"] = INITIAL_SPEC_ID
+            data["last_partition_id"] = max(spec["spec-id"] for spec in data["partition_specs"])
+        return data
+
+    table_uuid: Optional[UUID] = Field(alias="table-uuid")
+    """A UUID that identifies the table, generated when the table is created.
+    Implementations must throw an exception if a table’s UUID does not match
+    the expected UUID after refreshing metadata."""
 
     format_version: Literal[1] = Field(alias="format-version")
     """An integer version number for the format. Currently, this can be 1 or 2
@@ -140,7 +173,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     """The table’s current schema. (Deprecated: use schemas and
     current-schema-id instead)"""
 
-    partition_spec: dict = Field(alias="partition-spec")
+    partition_spec: List[Dict[str, Any]] = Field(alias="partition-spec")
     """The table’s current partition spec, stored as only fields.
     Note that this is used by writers to partition data, but is
     not used when reading because reads use the specs stored in
@@ -154,9 +187,21 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     based on the spec. Implementations must throw an exception if a table’s
     version is higher than the supported version."""
 
-    last_sequence_number: int = Field(alias="last-sequence-number")
+    table_uuid: UUID = Field(alias="table-uuid")
+    """A UUID that identifies the table, generated when the table is created.
+    Implementations must throw an exception if a table’s UUID does not match
+    the expected UUID after refreshing metadata."""
+
+    last_sequence_number: int = Field(alias="last-sequence-number", default=_INITIAL_SEQUENCE_NUMBER)
     """The table’s highest assigned sequence number, a monotonically
     increasing long that tracks the order of snapshots in a table."""
+
+    refs: Dict[str, SnapshotRef] = Field(default_factory=dict)
+    """A map of snapshot references. 
+    The map keys are the unique snapshot reference names in the table, 
+    and the map values are snapshot reference objects. 
+    There is always a main branch reference pointing to the 
+    current-snapshot-id even if the refs map is null."""
 
 
 class TableMetadata:
