@@ -89,7 +89,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
 
-  protected String toBranch = null;
+  protected String targetBranch = SnapshotRef.MAIN_BRANCH;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
@@ -126,8 +126,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(base);
         updatedBuilder.setRef(branch, branchRef).build();
       }
+
       Preconditions.checkArgument(ops.current().ref(branch).type() != SnapshotRefType.BRANCH, "%s is not a ref to type branch", branch);
-      this.toBranch = branch;
+      this.targetBranch = branch;
       return self();
   }
 
@@ -182,10 +183,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public Snapshot apply() {
     refresh();
-    Long parentSnapshotId = base.currentSnapshot() != null ? base.currentSnapshot().snapshotId() : null;
-    if(toBranch != null){
-      parentSnapshotId = base.ref(toBranch).snapshotId();
-    }
+    Long parentSnapshotId = base.ref(targetBranch) != null ? base.ref(targetBranch).snapshotId() : null;
+
     long sequenceNumber = base.nextSequenceNumber();
 
     // run validations from the child operation
@@ -299,7 +298,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
-    String branch = toBranch == null ? SnapshotRef.MAIN_BRANCH : toBranch;
     AtomicLong newSnapshotId = new AtomicLong(-1L);
     try {
       Tasks.foreach(ops)
@@ -316,11 +314,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             TableMetadata.Builder update = TableMetadata.buildFrom(base);
             if (base.snapshot(newSnapshot.snapshotId()) != null) {
               // this is a rollback operation
-              update.setBranchSnapshot(newSnapshot.snapshotId(), branch);
+              update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
             } else if (stageOnly) {
               update.addSnapshot(newSnapshot);
             } else {
-              update.setBranchSnapshot(newSnapshot, branch);
+              update.setBranchSnapshot(newSnapshot, targetBranch);
             }
 
             TableMetadata updated = update.build();
