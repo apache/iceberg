@@ -29,7 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
  * Scan objects are immutable and can be shared between threads. Refinement methods, like
  * {@link #select(Collection)} and {@link #filter(Expression)}, create new TableScan instances.
  */
-public interface Scan<ThisT, T extends ScanTask, S extends InputSplit<T>> {
+public interface Scan<ThisT, T extends ScanTask, S extends ScanTaskGroup<T>> {
   /**
    * Create a new scan from this scan's configuration that will override the {@link Table}'s behavior based
    * on the incoming pair. Unknown properties will be ignored.

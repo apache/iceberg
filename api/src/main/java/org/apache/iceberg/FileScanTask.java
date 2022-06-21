@@ -22,7 +22,7 @@ package org.apache.iceberg;
 import java.util.List;
 
 /**
- * A scan task over a range of a single data file.
+ * A scan task over a range of bytes in a single data file.
  */
 public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
   /**

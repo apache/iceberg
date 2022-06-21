@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
-abstract class BaseScan<ThisT, T extends ScanTask, S extends InputSplit<T>> implements Scan<ThisT, T, S> {
+abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> implements Scan<ThisT, T, G> {
   private final TableOperations ops;
   private final Table table;
   private final Schema schema;

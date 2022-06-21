@@ -21,15 +21,20 @@ package org.apache.iceberg;
 
 public interface SplittableScanTask<ThisT> extends ScanTask {
   /**
-   * Splits this scan task into several smaller scan tasks, each of {@code splitSize} size.
+   * Attempts to split this scan task into several smaller scan tasks, each close to {@code targetSplitSizeBytes} size.
+   * <p>
+   * Note the target split size is just a guidance and the actual split size may be either smaller or larger.
+   * File formats like Parquet may leverage the row group offset information while splitting tasks.
    *
-   * @param splitSize the target size of each new scan task
+   * @param targetSplitSizeBytes the target size of each new scan task in bytes
    * @return an Iterable of smaller tasks
    */
-  Iterable<ThisT> split(long splitSize);
+  Iterable<ThisT> split(long targetSplitSizeBytes);
 
   /**
    * Checks if this task is adjacent to another.
+   * <p>
+   * Two tasks are adjacent if they are scanning the same file and one task begins where exactly where the other ends.
    *
    * @param other another task
    * @return whether this task is adjacent to another
@@ -52,7 +57,7 @@ public interface SplittableScanTask<ThisT> extends ScanTask {
   long totalSizeBytes();
 
   /**
-   * The total number of files that should be open by this scan task.
+   * The total number of files that will be opened by this scan task.
    *
    * @return the total number of files to open
    */

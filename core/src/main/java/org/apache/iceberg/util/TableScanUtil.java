@@ -22,12 +22,12 @@ package org.apache.iceberg.util;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
-import org.apache.iceberg.BaseInputSplit;
+import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.InputSplit;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -84,7 +84,7 @@ public class TableScanUtil {
         BaseCombinedScanTask::new);
   }
 
-  public static <T extends SplittableScanTask<T>> CloseableIterable<InputSplit<T>> planInputSplits(
+  public static <T extends SplittableScanTask<T>> CloseableIterable<ScanTaskGroup<T>> planInputSplits(
       CloseableIterable<T> tasks,
       long splitSize, int lookback, long openFileCost) {
 
@@ -103,7 +103,7 @@ public class TableScanUtil {
         CloseableIterable.combine(
             new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
             splitTasks),
-        combinedTasks -> new BaseInputSplit<>(combineAdjacentTasks(combinedTasks)));
+        combinedTasks -> new BaseScanTaskGroup<>(combineAdjacentTasks(combinedTasks)));
   }
 
   private static <T extends SplittableScanTask<T>> List<T> combineAdjacentTasks(List<T> tasks) {

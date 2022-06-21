@@ -21,6 +21,11 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
 
+/**
+ * A scan task over a range of bytes in a content file.
+ *
+ * @param <F> the Java class of the content file
+ */
 public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask {
   /**
    * The {@link ContentFile file} to scan.
