@@ -36,11 +36,15 @@ import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetBloomRowGroupFilter;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -49,10 +53,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
+import org.apache.parquet.hadoop.BloomFilterReader;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.schema.MessageType;
 
 public abstract class DeleteFilter<T> {
   private static final long DEFAULT_SET_FILTER_THRESHOLD = 100_000L;
@@ -133,8 +142,17 @@ public abstract class DeleteFilter<T> {
 
   private List<Predicate<T>> applyEqDeletes() {
     List<Predicate<T>> isInDeleteSets = Lists.newArrayList();
+    Map<BlockMetaData, BloomFilterReader> parquetBloomFilterReader = Maps.newHashMap();
+    ParquetFileReader parquetReader = null;
+    Predicate<Record> isInBloomFilter = null;
     if (eqDeletes.isEmpty()) {
       return isInDeleteSets;
+    }
+
+    // load bloomfilter readers from data file
+    if (filePath.endsWith(".parquet")) {
+      parquetReader = ParquetUtil.openFile(getInputFile(filePath));
+      parquetBloomFilterReader.putAll(ParquetUtil.getParquetBloomFilters(parquetReader));
     }
 
     Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
@@ -148,6 +166,12 @@ public abstract class DeleteFilter<T> {
 
       Schema deleteSchema = TypeUtil.select(requiredSchema, ids);
 
+      if (filePath.endsWith(".parquet") && parquetReader != null) {
+        MessageType fileSchema = parquetReader.getFileMetaData().getSchema();
+        isInBloomFilter =
+                record -> findInParquetBloomFilter(record, deleteSchema, fileSchema, parquetBloomFilterReader);
+      }
+
       // a projection to select and reorder fields of the file schema to match the delete rows
       StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
 
@@ -157,6 +181,11 @@ public abstract class DeleteFilter<T> {
       // copy the delete records because they will be held in a set
       CloseableIterable<Record> records = CloseableIterable.transform(
           CloseableIterable.concat(deleteRecords), Record::copy);
+
+      // apply bloomfilter on delete records
+      if (isInBloomFilter != null) {
+        records = CloseableIterable.filter(records, isInBloomFilter);
+      }
 
       StructLikeSet deleteSet = Deletes.toEqualitySet(
           CloseableIterable.transform(
@@ -168,6 +197,58 @@ public abstract class DeleteFilter<T> {
     }
 
     return isInDeleteSets;
+  }
+
+  private boolean findInParquetBloomFilter(
+          Record record,
+          Schema deleteSchema,
+          MessageType fileSchema,
+          Map<BlockMetaData, BloomFilterReader> parquetBloomFilterReader) {
+    if (record.size() == 0) {
+      return true;
+    }
+    // build filter by record values
+    Expression filter = buildFilter(record, deleteSchema);
+
+    ParquetBloomRowGroupFilter bloomFilter = new ParquetBloomRowGroupFilter(deleteSchema, filter, true);
+    for (Map.Entry<BlockMetaData, BloomFilterReader> entry : parquetBloomFilterReader.entrySet()) {
+      boolean shouldRead = bloomFilter.shouldRead(fileSchema, entry.getKey(), entry.getValue());
+      if (shouldRead) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private Expression buildFilter(Record record, Schema schema) {
+    Expression filter = Expressions.alwaysTrue();
+    for (Types.NestedField field : schema.columns()) {
+      Object value = getRecordValue(record, field);
+      if (value == null) {
+        continue;
+      }
+      filter = Expressions.and(filter, Expressions.equal(field.name(), value));
+    }
+    return filter;
+  }
+
+  private Object getRecordValue(Record record, Types.NestedField field) {
+    Type type = field.type();
+    switch (type.toString()) {
+      case "date":
+        return Literal.of(record.getField(field.name()).toString()).to(Types.DateType.get()).value();
+      case "time":
+        return Literal.of(record.getField(field.name()).toString()).to(Types.TimeType.get()).value();
+      case "timestamp":
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          return Literal.of(record.getField(field.name()).toString()).to(Types.TimestampType.withZone()).value();
+        } else {
+          return Literal.of(record.getField(field.name()).toString()).to(Types.TimestampType.withoutZone()).value();
+        }
+      default:
+        return record.getField(field.name());
+    }
   }
 
   public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
