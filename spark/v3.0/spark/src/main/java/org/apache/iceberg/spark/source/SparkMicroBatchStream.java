@@ -112,7 +112,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
     Snapshot latestSnapshot = table.currentSnapshot();
     return new StreamingOffset(
-        latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedFiles(table.io())), false);
+        latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedDataFiles(table.io())), false);
   }
 
   @Override
