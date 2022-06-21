@@ -346,7 +346,12 @@ class UnboundReference:
         if not field:
             raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
 
-        return BoundReference(field=field, accessor=schema.accessor_for_field(field.field_id))
+        accessor = schema.accessor_for_field(field.field_id)
+
+        if not accessor:
+            raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
+
+        return BoundReference(field=field, accessor=accessor)
 
 
 class BooleanExpressionVisitor(Generic[T], ABC):

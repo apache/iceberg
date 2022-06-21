@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
@@ -1208,6 +1209,52 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
+    assertFiles(table, FILE_A);
+    assertPreviousMetadataFileCount(table, 0);
+  }
+
+  @Test
+  public void testCompleteCreateTransactionV2() {
+    C catalog = catalog();
+
+    Map<String, String> properties =
+            ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19", "format-version", "2");
+
+    Transaction create = catalog.buildTable(TABLE, SCHEMA)
+            .withLocation("file:/tmp/ns/table")
+            .withPartitionSpec(SPEC)
+            .withSortOrder(WRITE_ORDER)
+            .withProperties(properties)
+            .createTransaction();
+
+    Assert.assertFalse("Table should not exist after createTransaction", catalog.tableExists(TABLE));
+
+    create.newFastAppend()
+            .appendFile(FILE_A)
+            .commit();
+
+    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+
+    create.commitTransaction();
+
+    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Table table = catalog.loadTable(TABLE);
+
+    Map<String, String> expectedProps = Maps.newHashMap(properties);
+    expectedProps.remove("format-version");
+
+    Assert.assertEquals("Table schema should match the new schema",
+            TABLE_SCHEMA.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Table should have create partition spec", TABLE_SPEC.fields(), table.spec().fields());
+    Assert.assertEquals("Table should have create sort order", TABLE_WRITE_ORDER, table.sortOrder());
+    Assert.assertEquals("Table properties should be a superset of the requested properties",
+            expectedProps.entrySet(),
+            Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    Assert.assertEquals(
+            "Sequence number should start at 1 for v2 format", 1, table.currentSnapshot().sequenceNumber());
     if (!overridesRequestedLocation()) {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }

@@ -165,7 +165,7 @@ class StructType(IcebergType):
     def __init__(self, *fields: NestedField, **kwargs):  # pylint: disable=super-init-not-called
         if not fields and "fields" in kwargs:
             fields = kwargs["fields"]
-        object.__setattr__(self, "fields", fields)
+        object.__setattr__(self, "fields", tuple(fields))
 
     @cached_property
     def string_type(self) -> str:
