@@ -23,13 +23,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.GeneralSecurityException;
+import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.iceberg.io.SeekableInputStream;
-
-import static org.apache.iceberg.encryption.AesGcmOutputStream.HEADER_SIZE_LENGTH;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class AesGcmInputStream extends SeekableInputStream {
   private SeekableInputStream sourceStream;
@@ -52,14 +52,23 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   AesGcmInputStream(SeekableInputStream sourceStream, long sourceLength,
                     byte[] aesKey, byte[] fileAadPrefix) throws IOException {
-    this.netSourceFileSize = sourceLength - HEADER_SIZE_LENGTH;
+    this.netSourceFileSize = sourceLength - AesGcmOutputStream.PREFIX_LENGTH;
     this.sourceStream = sourceStream;
-    byte[] blockSizeBytes = new byte[HEADER_SIZE_LENGTH];
-    int fetched = sourceStream.read(blockSizeBytes); // TODO check
+    byte[] prefixBytes = new byte[AesGcmOutputStream.PREFIX_LENGTH];
+    int fetched = sourceStream.read(prefixBytes);
+    Preconditions.checkArgument(fetched == AesGcmOutputStream.PREFIX_LENGTH,
+        "Insufficient read " + fetched);
     this.plainStreamPosition = 0;
     this.fileAadPrefix = fileAadPrefix;
 
-    plainBlockSize = ByteBuffer.wrap(blockSizeBytes).order(ByteOrder.LITTLE_ENDIAN).getInt();
+    byte[] magic = new byte[AesGcmOutputStream.MAGIC_ARRAY.length];
+    System.arraycopy(prefixBytes, 0, magic, 0, AesGcmOutputStream.MAGIC_ARRAY.length);
+
+    Preconditions.checkArgument(Arrays.equals(AesGcmOutputStream.MAGIC_ARRAY, magic),
+        "File with wrong magic string. Should start with " + AesGcmOutputStream.MAGIC_STRING);
+
+    plainBlockSize = ByteBuffer.wrap(prefixBytes, AesGcmOutputStream.MAGIC_ARRAY.length, 4)
+        .order(ByteOrder.LITTLE_ENDIAN).getInt();
     cipherBlockSize = plainBlockSize + AesGcmOutputStream.GCM_NONCE_LENGTH + AesGcmOutputStream.GCM_TAG_LENGTH;
 
     try {
@@ -91,7 +100,7 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   @Override
   public int available() throws IOException {
-    return (int) (plainStreamSize - plainStreamPosition);
+    return Math.toIntExact(plainStreamSize - plainStreamPosition);
   }
 
   @Override
@@ -113,9 +122,9 @@ public class AesGcmInputStream extends SeekableInputStream {
     int resultBufferOffset = off;
     int remaining = len;
 
-    while (remaining > 0) {
-      sourceStream.seek(HEADER_SIZE_LENGTH + currentBlockIndex * cipherBlockSize);
+    sourceStream.seek(AesGcmOutputStream.PREFIX_LENGTH + currentBlockIndex * cipherBlockSize);
 
+    while (remaining > 0) {
       int toLoad = lastBlock ? lastBlockSize : cipherBlockSize;
       int loaded = sourceStream.read(ciphertextBlockBuffer, 0, toLoad);
       if (loaded != toLoad) {
@@ -125,12 +134,12 @@ public class AesGcmInputStream extends SeekableInputStream {
       // Copy nonce
       System.arraycopy(ciphertextBlockBuffer, 0, nonce, 0, AesGcmOutputStream.GCM_NONCE_LENGTH);
 
-      byte[] plaintextBlock = null;
+      byte[] aad = AesGcmOutputStream.calculateAAD(fileAadPrefix, currentBlockIndex);
+      byte[] plaintextBlock;
       try {
         GCMParameterSpec spec = new GCMParameterSpec(AesGcmOutputStream.GCM_TAG_LENGTH_BITS, nonce);
         gcmCipher.init(Cipher.DECRYPT_MODE, key, spec);
-
-        // TODO byte[] aaD = calculateAAD(fileAadPrefix, currentBlockIndex);
+        gcmCipher.updateAAD(aad);
 
         plaintextBlock = gcmCipher.doFinal(ciphertextBlockBuffer, AesGcmOutputStream.GCM_NONCE_LENGTH,
                 toLoad - AesGcmOutputStream.GCM_NONCE_LENGTH);
@@ -163,8 +172,11 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   @Override
   public void seek(long newPos) throws IOException {
-    currentBlockIndex = (int) (newPos / plainBlockSize);
-    currentOffsetInPlainBlock = (int) (newPos % plainBlockSize);
+    if (newPos >= plainStreamSize) {
+      throw new IOException("At or beyond max stream size " + plainStreamSize + ", " + newPos);
+    }
+    currentBlockIndex = Math.toIntExact(newPos / plainBlockSize);
+    currentOffsetInPlainBlock = Math.toIntExact(newPos % plainBlockSize);
     plainStreamPosition = newPos;
   }
 
@@ -175,7 +187,7 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   @Override
   public int read() throws IOException {
-    throw new IOException("should not be called");
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -185,17 +197,16 @@ public class AesGcmInputStream extends SeekableInputStream {
 
   @Override
   public synchronized void mark(int readlimit) {
-    // TODO implement
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public synchronized void reset() throws IOException {
-    // TODO implement
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public boolean markSupported() {
-    // TODO implement
     return false;
   }
 }
