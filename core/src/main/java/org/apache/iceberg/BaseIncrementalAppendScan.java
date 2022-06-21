@@ -176,7 +176,7 @@ class BaseIncrementalAppendScan
   }
 
   /**
-   * This method doesn't perform validation, which is already done by the caller {@link #planFiles()} ()}
+   * This method doesn't perform validation, which is already done by the caller {@link #planFiles()}
    */
   private static List<Snapshot> appendsBetween(Table table, Long fromSnapshotIdExclusive, long toSnapshotIdInclusive) {
     List<Snapshot> snapshots = Lists.newArrayList();
