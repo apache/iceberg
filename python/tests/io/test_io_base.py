@@ -124,7 +124,7 @@ class LocalFileIO(FileIO):
         try:
             os.remove(parsed_location.path)
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: {e}") from e
+            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path}") from e
 
 
 @pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowFile])
