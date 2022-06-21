@@ -176,6 +176,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
+    checkNamespaceIsValid(ns);
+
     ListTablesResponse response = client.get(
         paths.tables(ns), ListTablesResponse.class, headers(context), ErrorHandlers.namespaceErrorHandler());
     return response.identifiers();
@@ -183,6 +185,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public boolean dropTable(SessionContext context, TableIdentifier identifier) {
+    checkIdentifierIsValid(identifier);
+
     try {
       client.delete(paths.table(identifier), null, headers(context), ErrorHandlers.tableErrorHandler());
       return true;
@@ -198,6 +202,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public void renameTable(SessionContext context, TableIdentifier from, TableIdentifier to) {
+    checkIdentifierIsValid(from);
+    checkIdentifierIsValid(to);
+
     RenameTableRequest request = RenameTableRequest.builder()
         .withSource(from)
         .withDestination(to)
@@ -214,6 +221,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
+    checkIdentifierIsValid(identifier);
+
     MetadataTableType metadataType;
     LoadTableResponse response;
     try {
@@ -295,6 +304,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public Map<String, String> loadNamespaceMetadata(SessionContext context, Namespace ns) {
+    checkNamespaceIsValid(ns);
+
     // TODO: rename to LoadNamespaceResponse?
     GetNamespaceResponse response = client
         .get(paths.namespace(ns), GetNamespaceResponse.class, headers(context), ErrorHandlers.namespaceErrorHandler());
@@ -303,6 +314,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public boolean dropNamespace(SessionContext context, Namespace ns) {
+    checkNamespaceIsValid(ns);
+
     try {
       client.delete(paths.namespace(ns), null, headers(context), ErrorHandlers.namespaceErrorHandler());
       return true;
@@ -314,6 +327,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   @Override
   public boolean updateNamespaceMetadata(SessionContext context, Namespace ns,
                                          Map<String, String> updates, Set<String> removals) {
+    checkNamespaceIsValid(ns);
+
     UpdateNamespacePropertiesRequest request = UpdateNamespacePropertiesRequest.builder()
         .updateAll(updates)
         .removeAll(removals)
@@ -404,6 +419,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     private String location = null;
 
     private Builder(TableIdentifier ident, Schema schema, SessionContext context) {
+      checkIdentifierIsValid(ident);
+
       this.ident = ident;
       this.schema = schema;
       this.context = context;
@@ -675,6 +692,18 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
           properties, OAuth2Properties.TOKEN_EXPIRES_IN_MS, OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
     } else {
       return null;
+    }
+  }
+
+  private void checkIdentifierIsValid(TableIdentifier tableIdentifier) {
+    if (tableIdentifier.namespace().isEmpty()) {
+      throw new NoSuchTableException("Invalid table identifier: %s", tableIdentifier);
+    }
+  }
+
+  private void checkNamespaceIsValid(Namespace namespace) {
+    if (namespace.isEmpty()) {
+      throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
     }
   }
 
