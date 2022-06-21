@@ -19,6 +19,7 @@ import random
 
 import pytest
 
+from iceberg.schema import Schema
 from iceberg.utils.bin_packing import PackingIterator
 
 
@@ -81,3 +82,17 @@ def test_bin_packing_lookback(splits, target_weight, lookback, largest_bin_first
         return x
 
     assert [item for item in PackingIterator(splits, target_weight, lookback, weight_func, largest_bin_first)] == expected_lists
+
+
+def test_serialize_schema(table_schema_simple: Schema):
+    actual = table_schema_simple.json()
+    expected = """{"fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [1]}"""
+    assert actual == expected
+
+
+def test_deserialize_schema(table_schema_simple: Schema):
+    actual = Schema.parse_raw(
+        """{"fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [1]}"""
+    )
+    expected = table_schema_simple
+    assert actual == expected

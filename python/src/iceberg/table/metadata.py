@@ -20,7 +20,8 @@ from typing import (
     Dict,
     List,
     Literal,
-    Union, Optional,
+    Optional,
+    Union,
 )
 from uuid import UUID
 
@@ -35,16 +36,16 @@ DEFAULT_SCHEMA_ID = 0
 
 
 class SnapshotRefType(str, Enum):
-    branch = 'branch'
-    tag = 'tag'
+    branch = "branch"
+    tag = "tag"
 
 
 class SnapshotRef(IcebergBaseModel):
-    snapshot_id: int = Field(alias='snapshot-id')
-    snapshot_ref_type: SnapshotRefType = Field(alias='type')
-    min_snapshots_to_keep: int = Field(alias='min-snapshots-to-keep')
-    max_snapshot_age_ms: int = Field(alias='max-snapshot-age-ms')
-    max_ref_age_ms: int = Field(alias='max-ref-age-ms')
+    snapshot_id: int = Field(alias="snapshot-id")
+    snapshot_ref_type: SnapshotRefType = Field(alias="type")
+    min_snapshots_to_keep: int = Field(alias="min-snapshots-to-keep")
+    max_snapshot_age_ms: int = Field(alias="max-snapshot-age-ms")
+    max_ref_age_ms: int = Field(alias="max-ref-age-ms")
 
 
 class TableMetadataCommonFields(IcebergBaseModel):
@@ -133,10 +134,12 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
     @root_validator(pre=True)
     def set_schema_id(cls, data: Dict[str, Any]):
-        # Set the schema-id to conform to an actual schema
-        data['schema']['schema-id'] = DEFAULT_SCHEMA_ID
-        data['default-spec-id'] = INITIAL_SPEC_ID
-        data['last-partition-id'] = max([spec['field-id'] for spec in data['partition-spec']])
+        # Set some sensible defaults for V1, so we comply with the schema
+        # this is in pre=True, meaning that this will be done before validation
+        # we don't want to make them optional, since we do require them for V2
+        data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
+        data["default-spec-id"] = INITIAL_SPEC_ID
+        data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
         return data
 
     @root_validator()
@@ -153,8 +156,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     def migrate_partition_spec(cls, data: Dict[str, Any]):
         # This is going to be much nicer as soon as partition-spec is also migrated to pydantic
         if partition_spec := data.get("partition_spec"):
-            data["partition_specs"] = [{**spec, 'spec-id': INITIAL_SPEC_ID + idx} for idx, spec in
-                                       enumerate(partition_spec)]
+            data["partition_specs"] = [{**spec, "spec-id": INITIAL_SPEC_ID + idx} for idx, spec in enumerate(partition_spec)]
             data["default_spec_id"] = INITIAL_SPEC_ID
             data["last_partition_id"] = max(spec["spec-id"] for spec in data["partition_specs"])
         return data
@@ -197,10 +199,10 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     increasing long that tracks the order of snapshots in a table."""
 
     refs: Dict[str, SnapshotRef] = Field(default_factory=dict)
-    """A map of snapshot references. 
-    The map keys are the unique snapshot reference names in the table, 
-    and the map values are snapshot reference objects. 
-    There is always a main branch reference pointing to the 
+    """A map of snapshot references.
+    The map keys are the unique snapshot reference names in the table,
+    and the map values are snapshot reference objects.
+    There is always a main branch reference pointing to the
     current-snapshot-id even if the refs map is null."""
 
 

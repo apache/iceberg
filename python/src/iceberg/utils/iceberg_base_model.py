@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 from functools import cached_property
-from typing import ClassVar, Dict
 
 from pydantic import BaseModel
 
@@ -41,8 +40,13 @@ class IcebergBaseModel(BaseModel):
         frozen = True
 
     def dict(self, exclude_none: bool = True, **kwargs):
-
         return super().dict(exclude_none=exclude_none, **kwargs)
 
     def json(self, exclude_none: bool = True, by_alias: bool = True, **kwargs):
-        return super().json(exclude_none=exclude_none, by_alias=by_alias, **kwargs)
+        # A small trick to exclude private properties. Properties are serialized by pydantic,
+        # regardless if they start with an underscore.
+        # This will look at the dict, and find the fields and exclude them
+        exclude = set.union(
+            {field for field in self.__dict__ if field.startswith("_") and not field == "__root__"}, kwargs.get("exclude", set())
+        )
+        return super().json(exclude_none=exclude_none, exclude=exclude, by_alias=by_alias, **kwargs)
