@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.data;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -195,7 +197,13 @@ public abstract class DeleteFilter<T> {
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
       isInDeleteSets.add(isInDeleteSet);
     }
-
+    try {
+      if (parquetReader != null) {
+        parquetReader.close();
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("failed to close parquet file reader!", e);
+    }
     return isInDeleteSets;
   }
 
