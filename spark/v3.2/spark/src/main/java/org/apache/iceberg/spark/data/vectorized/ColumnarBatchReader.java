@@ -222,10 +222,10 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
      * [0,4,5,7,-,-,-,-] -- After applying equality deletes [Set Num records to 4]
      * [F,T,T,T,F,F,T,F] -- After applying equality deletes
      *
-     * @param newColumnarBatch the {@link ColumnarBatch} to apply the equality delete
+     * @param columnarBatch the {@link ColumnarBatch} to apply the equality delete
      */
-    void applyEqDelete(ColumnarBatch newColumnarBatch) {
-      Iterator<InternalRow> it = newColumnarBatch.rowIterator();
+    void applyEqDelete(ColumnarBatch columnarBatch) {
+      Iterator<InternalRow> it = columnarBatch.rowIterator();
       int rowId = 0;
       int currentRowId = 0;
       while (it.hasNext()) {
@@ -242,7 +242,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         rowId++;
       }
 
-      newColumnarBatch.setNumRows(currentRowId);
+      columnarBatch.setNumRows(currentRowId);
     }
   }
 }

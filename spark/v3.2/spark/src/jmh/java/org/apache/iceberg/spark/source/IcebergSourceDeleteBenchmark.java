@@ -49,6 +49,7 @@ import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,76 +81,76 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
 
   @Benchmark
   @Threads(1)
-  public void readIceberg() {
+  public void readIceberg(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
-      materialize(df);
+      materialize(df, blackhole);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readIcebergWithIsDeletedColumn() {
+  public void readIcebergWithIsDeletedColumn(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = false");
-      materialize(df);
+      materialize(df, blackhole);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readDeletedRows() {
+  public void readDeletedRows(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = true");
-      materialize(df);
+      materialize(df, blackhole);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readIcebergVectorized() {
+  public void readIcebergVectorized(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
-      materialize(df);
+      materialize(df, blackhole);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readIcebergWithIsDeletedColumnVectorized() {
+  public void readIcebergWithIsDeletedColumnVectorized(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = false");
-      materialize(df);
+      materialize(df, blackhole);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readDeletedRowsVectorized() {
+  public void readDeletedRowsVectorized(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = true");
-      materialize(df);
+      materialize(df, blackhole);
     });
   }
 
