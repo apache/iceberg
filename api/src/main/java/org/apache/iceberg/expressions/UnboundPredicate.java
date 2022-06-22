@@ -109,6 +109,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
       return bindUnaryOperation(bound);
     }
 
+    if (bound.type().isNestedType()) {
+      throw new UnsupportedOperationException("Non-Unary Predicate is not supported for top column of nested types");
+    }
+
     if (op() == Operation.IN || op() == Operation.NOT_IN) {
       return bindInOperation(bound);
     }

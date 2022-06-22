@@ -605,4 +605,188 @@ public class TestPredicateBinding {
     Expression expr = unbound.bind(struct);
     Assert.assertEquals("Should change NOT_IN to alwaysTrue expression", Expressions.alwaysTrue(), expr);
   }
+
+  @Test
+  public void testStructFields() {
+    StructType structFieldType =
+        Types.StructType.of(Types.NestedField.optional(11, "float_field", Types.FloatType.get()));
+    StructType struct = StructType.of(
+        optional(10, "struct", structFieldType)
+    );
+
+    UnboundPredicate<Float> lt = new UnboundPredicate<>(LT, ref("struct"), 1.234f);
+    try {
+      lt.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (UnsupportedOperationException e) {
+      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for top column of nested types",
+          e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
+    }
+
+    UnboundPredicate<?> unbound1 = new UnboundPredicate<>(IS_NULL, ref("struct"));
+    Expression expr1 = unbound1.bind(struct);
+    BoundPredicate<?> bound1 = assertAndUnwrap(expr1);
+
+    Assert.assertEquals("Should use the same operation", IS_NULL, bound1.op());
+    Assert.assertEquals("Should use the correct field ID", 10, bound1.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound1.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound2 = new UnboundPredicate<>(NOT_NULL, ref("struct"));
+    Expression expr2 = unbound2.bind(struct);
+    BoundPredicate<?> bound2 = assertAndUnwrap(expr2);
+
+    Assert.assertEquals("Should use the same operation", NOT_NULL, bound2.op());
+    Assert.assertEquals("Should use the correct field ID", 10, bound2.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound2.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound3 = new UnboundPredicate<>(IS_NULL, ref("struct.float_field"));
+    Expression expr3 = unbound3.bind(struct);
+    BoundPredicate<?> bound3 = assertAndUnwrap(expr3);
+
+    Assert.assertEquals("Should use the same operation", IS_NULL, bound3.op());
+    Assert.assertEquals("Should use the correct field ID", 11, bound3.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound3.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound4 = new UnboundPredicate<>(NOT_NULL, ref("struct.float_field"));
+    Expression expr4 = unbound4.bind(struct);
+    BoundPredicate<?> bound4 = assertAndUnwrap(expr4);
+
+    Assert.assertEquals("Should use the same operation", NOT_NULL, bound4.op());
+    Assert.assertEquals("Should use the correct field ID", 11, bound4.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound4.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound5 = new UnboundPredicate<>(IS_NAN, ref("struct"));
+    try {
+      unbound5.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (ValidationException e) {
+      Assert.assertTrue("Validation should complain about IsNaN cannot be used",
+          e.getMessage().contains("IsNaN cannot be used with a non-floating-point column"));
+    }
+
+    UnboundPredicate<?> unbound6 = new UnboundPredicate<>(NOT_NAN, ref("struct"));
+    try {
+      unbound6.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (ValidationException e) {
+      Assert.assertTrue("Validation should complain about NonNaN cannot be used",
+          e.getMessage().contains("NotNaN cannot be used with a non-floating-point column"));
+    }
+
+    UnboundPredicate<?> unbound7 = new UnboundPredicate<>(IS_NAN, ref("struct.float_field"));
+    Expression expr7 = unbound7.bind(struct);
+    BoundPredicate<?> bound7 = assertAndUnwrap(expr7);
+
+    Assert.assertEquals("Should use the same operation", IS_NAN, bound7.op());
+    Assert.assertEquals("Should use the correct field ID", 11, bound7.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound7.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound8 = new UnboundPredicate<>(NOT_NAN, ref("struct.float_field"));
+    Expression expr8 = unbound8.bind(struct);
+    BoundPredicate<?> bound8 = assertAndUnwrap(expr8);
+
+    Assert.assertEquals("Should use the same operation", NOT_NAN, bound8.op());
+    Assert.assertEquals("Should use the correct field ID", 11, bound8.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound8.isUnaryPredicate());
+  }
+
+  @Test
+  public void testListFields() {
+    StructType struct = StructType.of(
+        optional(10, "list", Types.ListType.ofRequired(11, Types.FloatType.get()))
+    );
+
+    UnboundPredicate<Float> lt = new UnboundPredicate<>(LT, ref("list"), 1.23f);
+    try {
+      lt.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (UnsupportedOperationException e) {
+      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for top column of nested types",
+          e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
+    }
+
+    UnboundPredicate<?> unbound1 = new UnboundPredicate<>(IS_NULL, ref("list"));
+    Expression expr1 = unbound1.bind(struct);
+    BoundPredicate<?> bound1 = assertAndUnwrap(expr1);
+
+    Assert.assertEquals("Should use the same operation", IS_NULL, bound1.op());
+    Assert.assertEquals("Should use the correct field ID", 10, bound1.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound1.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound2 = new UnboundPredicate<>(NOT_NULL, ref("list"));
+    Expression expr2 = unbound2.bind(struct);
+    BoundPredicate<?> bound2 = assertAndUnwrap(expr2);
+
+    Assert.assertEquals("Should use the same operation", NOT_NULL, bound2.op());
+    Assert.assertEquals("Should use the correct field ID", 10, bound2.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound2.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound3 = new UnboundPredicate<>(IS_NAN, ref("list"));
+     try {
+      unbound3.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (ValidationException e) {
+      Assert.assertTrue("Validation should complain about IsNaN cannot be used",
+          e.getMessage().contains("IsNaN cannot be used with a non-floating-point column"));
+    }
+
+    UnboundPredicate<?> unbound4 = new UnboundPredicate<>(NOT_NAN, ref("list"));
+    try {
+      unbound4.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (ValidationException e) {
+      Assert.assertTrue("Validation should complain about NonNaN cannot be used",
+          e.getMessage().contains("NotNaN cannot be used with a non-floating-point column"));
+    }
+  }
+
+  @Test
+  public void testMapFields() {
+    StructType struct = StructType.of(
+        optional(10, "map", Types.MapType.ofRequired(11, 12, Types.LongType.get(), Types.LongType.get()))
+    );
+
+    UnboundPredicate<Float> lt = new UnboundPredicate<>(LT, ref("map"), 1.23f);
+    try {
+      lt.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (UnsupportedOperationException e) {
+      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for top column of nested types",
+          e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
+    }
+
+    UnboundPredicate<?> unbound1 = new UnboundPredicate<>(IS_NULL, ref("map"));
+    Expression expr1 = unbound1.bind(struct);
+    BoundPredicate<?> bound1 = assertAndUnwrap(expr1);
+
+    Assert.assertEquals("Should use the same operation", IS_NULL, bound1.op());
+    Assert.assertEquals("Should use the correct field ID", 10, bound1.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound1.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound2 = new UnboundPredicate<>(NOT_NULL, ref("map"));
+    Expression expr2 = unbound2.bind(struct);
+    BoundPredicate<?> bound2 = assertAndUnwrap(expr2);
+
+    Assert.assertEquals("Should use the same operation", NOT_NULL, bound2.op());
+    Assert.assertEquals("Should use the correct field ID", 10, bound2.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound2.isUnaryPredicate());
+
+    UnboundPredicate<?> unbound3 = new UnboundPredicate<>(IS_NAN, ref("map"));
+    try {
+      unbound3.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (ValidationException e) {
+      Assert.assertTrue("Validation should complain about IsNaN cannot be used",
+          e.getMessage().contains("IsNaN cannot be used with a non-floating-point column"));
+    }
+
+    UnboundPredicate<?> unbound4 = new UnboundPredicate<>(NOT_NAN, ref("map"));
+    try {
+      unbound4.bind(struct);
+      Assert.fail("Binding should fail");
+    } catch (ValidationException e) {
+      Assert.assertTrue("Validation should complain about NonNaN cannot be used",
+          e.getMessage().contains("NotNaN cannot be used with a non-floating-point column"));
+    }
+  }
 }

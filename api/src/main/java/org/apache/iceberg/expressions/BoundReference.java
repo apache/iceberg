@@ -76,6 +76,10 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
 
   @Override
   public String toString() {
-    return String.format("ref(id=%d, accessor-type=%s)", field.fieldId(), accessor.type());
+    if (accessor != null) {
+      return String.format("ref(id=%d, accessor-type=%s)", field.fieldId(), accessor.type());
+    } else {
+      return String.format("ref(id=%d)", field.fieldId());
+    }
   }
 }
