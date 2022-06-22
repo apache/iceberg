@@ -26,6 +26,7 @@ import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -362,7 +363,7 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
-      Types.NestedField schemaField = schema.findField(name);
+      Types.NestedField schemaField = schema.caseInsensitiveFindField(name);
       if (checkConflicts) {
         if (sourceColumnId != null) {
           // for identity transform case we allow conflicts between partition and schema field name as
@@ -397,114 +398,168 @@ public class PartitionSpec implements Serializable {
     }
 
     private Types.NestedField findSourceColumn(String sourceName) {
-      Types.NestedField sourceColumn = schema.findField(sourceName);
+      Types.NestedField sourceColumn = schema.caseInsensitiveFindField(sourceName);
       Preconditions.checkArgument(sourceColumn != null, "Cannot find source column: %s", sourceName);
       return sourceColumn;
     }
 
     Builder identity(String sourceName, String targetName) {
+      Preconditions.checkArgument(targetName == null, "targetName cannot be null");
+      return identity(sourceName, Optional.of(targetName));
+    }
+
+    private Builder identity(String sourceName, Optional<String> targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      checkAndAddPartitionName(targetName, sourceColumn.fieldId());
+      String targetPartitionName = targetName.orElseGet(sourceColumn::name);
+      checkAndAddPartitionName(targetPartitionName, sourceColumn.fieldId());
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity(sourceColumn.type()));
+          sourceColumn.fieldId(), nextFieldId(), targetPartitionName, Transforms.identity(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder identity(String sourceName) {
-      return identity(sourceName, sourceName);
+      return identity(sourceName, Optional.empty());
     }
 
     public Builder year(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Preconditions.checkArgument(targetName == null, "targetName cannot be null");
+      return year(sourceName, Optional.of(targetName));
+    }
+
+    private Builder year(String sourceName, Optional<String> targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      String targetPartitionName = targetName.orElseGet(() -> sourceColumn.name() + "_year");
+      checkAndAddPartitionName(targetPartitionName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year(sourceColumn.type()));
+          sourceColumn.fieldId(), nextFieldId(), targetPartitionName, Transforms.year(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder year(String sourceName) {
-      return year(sourceName, sourceName + "_year");
+      return year(sourceName, Optional.empty());
     }
 
     public Builder month(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Preconditions.checkArgument(targetName == null, "targetName cannot be null");
+      return month(sourceName, Optional.of(targetName));
+    }
+    private Builder month(String sourceName, Optional<String> targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      String targetPartitionName = targetName.orElseGet(() -> sourceColumn.name() + "_month");
+      checkAndAddPartitionName(targetPartitionName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month(sourceColumn.type()));
+          sourceColumn.fieldId(), nextFieldId(), targetPartitionName, Transforms.month(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder month(String sourceName) {
-      return month(sourceName, sourceName + "_month");
+      return month(sourceName, Optional.empty());
     }
 
     public Builder day(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Preconditions.checkArgument(targetName == null, "targetName cannot be null");
+      return day(sourceName, Optional.of(targetName));
+    }
+
+    private Builder day(String sourceName, Optional<String> targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      String targetPartitionName = targetName.orElseGet(() -> sourceColumn.name() + "_day");
+      checkAndAddPartitionName(targetPartitionName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day(sourceColumn.type()));
+          sourceColumn.fieldId(), nextFieldId(), targetPartitionName, Transforms.day(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder day(String sourceName) {
-      return day(sourceName, sourceName + "_day");
+      return day(sourceName, Optional.empty());
     }
 
     public Builder hour(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Preconditions.checkArgument(targetName == null, "targetName cannot be null");
+      return hour(sourceName, Optional.of(targetName));
+    }
+
+    private Builder hour(String sourceName, Optional<String> targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      String targetPartitionName = targetName.orElseGet(() -> sourceColumn.name() + "_hour");
+      checkAndAddPartitionName(targetPartitionName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour(sourceColumn.type()));
+          sourceColumn.fieldId(), nextFieldId(), targetPartitionName, Transforms.hour(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder hour(String sourceName) {
-      return hour(sourceName, sourceName + "_hour");
+      return hour(sourceName, Optional.empty());
     }
 
     public Builder bucket(String sourceName, int numBuckets, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Preconditions.checkArgument(targetName == null, "targetName cannot be null");
+      return bucket(sourceName, numBuckets, Optional.of(targetName));
+    }
+
+    private Builder bucket(String sourceName, int numBuckets, Optional<String> targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      String targetPartitionName = targetName.orElseGet(() -> sourceColumn.name() + "_bucket");
+      checkAndAddPartitionName(targetPartitionName);
       fields.add(new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(sourceColumn.type(), numBuckets)));
+              sourceColumn.fieldId(),
+              nextFieldId(),
+              targetPartitionName,
+              Transforms.bucket(sourceColumn.type(), numBuckets)));
       return this;
     }
 
     public Builder bucket(String sourceName, int numBuckets) {
-      return bucket(sourceName, numBuckets, sourceName + "_bucket");
+      return bucket(sourceName, numBuckets, Optional.empty());
     }
 
     public Builder truncate(String sourceName, int width, String targetName) {
-      checkAndAddPartitionName(targetName);
+      Preconditions.checkArgument(targetName == null, "targetName cannot be null");
+      return truncate(sourceName, width, Optional.of(targetName));
+    }
+
+    private Builder truncate(String sourceName, int width, Optional<String> targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      String targetPartitionName = targetName.orElseGet(() -> sourceColumn.name() + "_trunc");
+      checkAndAddPartitionName(targetPartitionName);
       fields.add(new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.truncate(sourceColumn.type(), width)));
+          sourceColumn.fieldId(), nextFieldId(), targetPartitionName, Transforms.truncate(sourceColumn.type(), width)));
       return this;
     }
 
     public Builder truncate(String sourceName, int width) {
-      return truncate(sourceName, width, sourceName + "_trunc");
+      return truncate(sourceName, width, Optional.empty());
     }
 
     public Builder alwaysNull(String sourceName, String targetName) {
+      Preconditions.checkArgument(targetName == null, "targetName cannot be null");
+      return alwaysNull(sourceName, Optional.of(targetName));
+    }
+
+    private Builder alwaysNull(String sourceName, Optional<String> targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      checkAndAddPartitionName(targetName, sourceColumn.fieldId()); // can duplicate a source column name
-      fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.alwaysNull()));
+      String targetPartitionName = targetName.orElseGet(() -> sourceColumn.name() + "_null");
+      checkAndAddPartitionName(targetPartitionName, sourceColumn.fieldId()); // can duplicate a source column name
+      fields.add(new PartitionField(
+              sourceColumn.fieldId(),
+              nextFieldId(),
+              targetPartitionName,
+              Transforms.alwaysNull()));
       return this;
     }
 
     public Builder alwaysNull(String sourceName) {
-      return alwaysNull(sourceName, sourceName + "_null");
+      return alwaysNull(sourceName, Optional.empty());
     }
 
     // add a partition field with an auto-increment partition field id starting from PARTITION_DATA_ID_START

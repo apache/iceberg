@@ -29,9 +29,11 @@ public class TestPartitionSpecValidation {
       NestedField.required(1, "id", Types.LongType.get()),
       NestedField.required(2, "ts", Types.TimestampType.withZone()),
       NestedField.required(3, "another_ts", Types.TimestampType.withZone()),
-      NestedField.required(4, "d", Types.TimestampType.withZone()),
-      NestedField.required(5, "another_d", Types.TimestampType.withZone()),
-      NestedField.required(6, "s", Types.StringType.get())
+      NestedField.required(4, "mIxEd_CAse_ts", Types.TimestampType.withZone()),
+      NestedField.required(5, "d", Types.TimestampType.withZone()),
+      NestedField.required(6, "another_d", Types.TimestampType.withZone()),
+      NestedField.required(7, "s", Types.StringType.get()),
+      NestedField.required(8, "mIxEd_CAse_s", Types.StringType.get())
   );
 
   @Test
@@ -262,5 +264,32 @@ public class TestPartitionSpecValidation {
     Assert.assertEquals(1005, spec.fields().get(1).fieldId());
     Assert.assertEquals(1006, spec.fields().get(2).fieldId());
     Assert.assertEquals(1006, spec.lastAssignedFieldId());
+  }
+
+  @Test
+  public void testSettingPartitionTransformsWithCaseInsensitiveSourceColumnNames() {
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).year("mixed_case_ts")
+            .build().fields().get(0).name(), "mIxEd_CAse_ts_year");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).month("mixed_case_ts")
+            .build().fields().get(0).name(), "mIxEd_CAse_ts_month");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).day("mixed_case_ts")
+            .build().fields().get(0).name(), "mIxEd_CAse_ts_day");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).hour("mixed_case_ts")
+            .build().fields().get(0).name(), "mIxEd_CAse_ts_hour");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA)
+            .bucket("mixed_case_ts", 4)
+            .build().fields().get(0).name(), "mIxEd_CAse_ts_bucket");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA)
+            .truncate("S", 1)
+            .build().fields().get(0).name(), "s_trunc");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA)
+            .truncate("mixed_case_s", 1)
+            .build().fields().get(0).name(), "mIxEd_CAse_s_trunc");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA)
+            .identity("mixed_case_s")
+            .build().fields().get(0).name(), "mIxEd_CAse_s");
+    Assert.assertEquals(PartitionSpec.builderFor(SCHEMA)
+            .alwaysNull("mixed_case_s")
+            .build().fields().get(0).name(), "mIxEd_CAse_s_null");
   }
 }
