@@ -29,6 +29,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -107,7 +108,55 @@ public class TestScanTaskSerialization extends SparkTestBase {
     }
   }
 
+  @Test
+  public void testBaseScanTaskGroupKryoSerialization() throws Exception {
+    BaseScanTaskGroup<FileScanTask> taskGroup = prepareBaseScanTaskGroupForSerDeTest();
+
+    File data = temp.newFile();
+    Assert.assertTrue(data.delete());
+    Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
+
+    try (Output out = new Output(Files.newOutputStream(data.toPath()))) {
+      kryo.writeClassAndObject(out, taskGroup);
+    }
+
+    try (Input in = new Input(Files.newInputStream(data.toPath()))) {
+      Object obj = kryo.readClassAndObject(in);
+      Assertions.assertThat(obj).as("should be a BaseScanTaskGroup").isInstanceOf(BaseScanTaskGroup.class);
+      TaskCheckHelper.assertEquals(taskGroup, (BaseScanTaskGroup) obj);
+    }
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testBaseScanTaskGroupJavaSerialization() throws Exception {
+    BaseScanTaskGroup<FileScanTask> taskGroup = prepareBaseScanTaskGroupForSerDeTest();
+
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+      out.writeObject(taskGroup);
+    }
+
+    try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+      Object obj = in.readObject();
+      Assertions.assertThat(obj).as("should be a BaseScanTaskGroup").isInstanceOf(BaseScanTaskGroup.class);
+      TaskCheckHelper.assertEquals(taskGroup, (BaseScanTaskGroup<FileScanTask>) obj);
+    }
+  }
+
   private BaseCombinedScanTask prepareBaseCombinedScanTaskForSerDeTest() {
+    Table table = initTable();
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    return new BaseCombinedScanTask(Lists.newArrayList(tasks));
+  }
+
+  private BaseScanTaskGroup<FileScanTask> prepareBaseScanTaskGroupForSerDeTest() {
+    Table table = initTable();
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    return new BaseScanTaskGroup<>(tasks);
+  }
+
+  private Table initTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
@@ -126,8 +175,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
 
     table.refresh();
 
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    return new BaseCombinedScanTask(Lists.newArrayList(tasks));
+    return table;
   }
 
   private void writeRecords(List<ThreeColumnRecord> records) {

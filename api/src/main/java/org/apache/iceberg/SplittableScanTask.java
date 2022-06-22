@@ -19,6 +19,11 @@
 
 package org.apache.iceberg;
 
+/**
+ * A scan task that can be split into smaller scan tasks.
+ *
+ * @param <ThisT> the child Java API class, returned by method chaining
+ */
 public interface SplittableScanTask<ThisT> extends ScanTask {
   /**
    * Attempts to split this scan task into several smaller scan tasks, each close to {@code targetSplitSizeBytes} size.
@@ -34,7 +39,7 @@ public interface SplittableScanTask<ThisT> extends ScanTask {
   /**
    * Checks if this task is adjacent to another.
    * <p>
-   * Two tasks are adjacent if they are scanning the same file and one task begins where exactly where the other ends.
+   * Two tasks are adjacent if they are scanning the same file and one task begins where exactly the other ends.
    *
    * @param other another task
    * @return whether this task is adjacent to another
@@ -42,12 +47,12 @@ public interface SplittableScanTask<ThisT> extends ScanTask {
   boolean isAdjacent(ThisT other);
 
   /**
-   * Combines two tasks into one.
+   * Combines this task with an adjacent task into one.
    *
    * @param other another task
    * @return a new combined task
    */
-  ThisT combine(ThisT other);
+  ThisT combineWithAdjacentTask(ThisT other);
 
   /**
    * The total number of bytes that should be read by this scan task.

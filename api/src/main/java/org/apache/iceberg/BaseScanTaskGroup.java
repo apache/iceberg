@@ -27,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
   private final List<T> tasks;
 
-  public BaseScanTaskGroup(List<T> tasks) {
+  public BaseScanTaskGroup(Iterable<T> tasks) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
     this.tasks = Lists.newArrayList(tasks);
   }

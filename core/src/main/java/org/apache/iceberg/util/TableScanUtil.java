@@ -111,17 +111,17 @@ public class TableScanUtil {
       return tasks;
     }
 
-    List<T> combinedScans = Lists.newArrayList();
+    List<T> combinedTasks = Lists.newArrayList();
     T lastTask = null;
 
     for (T task : tasks) {
       if (lastTask != null) {
         if (lastTask.isAdjacent(task)) {
           // merge with the last task
-          lastTask = lastTask.combine(task);
+          lastTask = lastTask.combineWithAdjacentTask(task);
         } else {
           // last task is not adjacent, add it to finished adjacent groups
-          combinedScans.add(lastTask);
+          combinedTasks.add(lastTask);
           lastTask = task;
         }
       } else {
@@ -131,9 +131,9 @@ public class TableScanUtil {
     }
 
     if (lastTask != null) {
-      combinedScans.add(lastTask);
+      combinedTasks.add(lastTask);
     }
 
-    return combinedScans;
+    return combinedTasks;
   }
 }

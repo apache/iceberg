@@ -28,8 +28,12 @@ import org.apache.iceberg.io.CloseableIterable;
 /**
  * Scan objects are immutable and can be shared between threads. Refinement methods, like
  * {@link #select(Collection)} and {@link #filter(Expression)}, create new TableScan instances.
+ *
+ * @param <ThisT> the child Java API class, returned by method chaining
+ * @param <T> the Java type of tasks produces by this scan
+ * @param <G> the Java type of task groups produces by this scan
  */
-public interface Scan<ThisT, T extends ScanTask, S extends ScanTaskGroup<T>> {
+public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
   /**
    * Create a new scan from this scan's configuration that will override the {@link Table}'s behavior based
    * on the incoming pair. Unknown properties will be ignored.
@@ -113,23 +117,23 @@ public interface Scan<ThisT, T extends ScanTask, S extends ScanTaskGroup<T>> {
   Schema schema();
 
   /**
-   * Plan tasks for this scan without trying to balance the work.
+   * Plan tasks for this scan where each task reads a single file.
    * <p>
-   * Use {@link #planTasks()} for planning that will attempt to balance the work
-   * by combining small or splitting large files.
+   * Use {@link #planTasks()} for planning balanced tasks where each task will read either a single file,
+   * a part of a file, or multiple files.
    *
-   * @return an Iterable of tasks required by this scan
+   * @return an Iterable of tasks scanning entire files required by this scan
    */
   CloseableIterable<T> planFiles();
 
   /**
-   * Plan input split tasks for this scan and balance the work.
+   * Plan balanced task groups for this scan by splitting large and combining small tasks.
    * <p>
-   * Tasks created by this method may read partial input files, multiple input files or both.
+   * Task groups created by this method may read partial input files, multiple input files or both.
    *
-   * @return an Iterable of input splits required by this scan
+   * @return an Iterable of balanced task groups required by this scan
    */
-  CloseableIterable<S> planTasks();
+  CloseableIterable<G> planTasks();
 
   /**
    * Returns the target split size for this scan.

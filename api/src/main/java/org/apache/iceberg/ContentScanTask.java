@@ -58,9 +58,8 @@ public interface ContentScanTask<F extends ContentFile<F>> extends ScanTask {
   /**
    * Returns the residual expression that should be applied to rows in this file scan.
    * <p>
-   * The residual expression for a file is a filter expression created from the scan's filter, inclusive
-   * any predicates that are true or false for the entire file removed, based on the file's
-   * partition data.
+   * The residual expression for a file is a filter expression created by partially evaluating the scan's filter
+   * using the file's partition data.
    *
    * @return a residual expression to apply to rows from this scan
    */

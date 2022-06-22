@@ -38,7 +38,7 @@ public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanT
   }
 
   @Override
-  default FileScanTask combine(FileScanTask other) {
+  default FileScanTask combineWithAdjacentTask(FileScanTask other) {
     throw new UnsupportedOperationException(this.getClass().getName() + " can't be combined with another task");
   }
 

@@ -26,7 +26,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -224,9 +223,7 @@ public class BaseFileScanTask implements FileScanTask {
     }
 
     @Override
-    public FileScanTask combine(FileScanTask other) {
-      Preconditions.checkArgument(isAdjacent(other), "Only adjacent tasks can be combined");
-
+    public FileScanTask combineWithAdjacentTask(FileScanTask other) {
       return new SplitScanTask(offset, len + other.length(), fileScanTask);
     }
 
