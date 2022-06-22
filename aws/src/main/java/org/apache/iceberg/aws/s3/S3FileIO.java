@@ -33,15 +33,18 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -54,6 +57,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -67,7 +71,7 @@ import software.amazon.awssdk.services.s3.model.Tagging;
  * URIs with schemes s3a, s3n, https are also treated as s3 file paths.
  * Using this FileIO with other schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
-public class S3FileIO implements FileIO, SupportsBulkOperations, CredentialSupplier {
+public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixOperations, CredentialSupplier {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
   private static volatile ExecutorService executorService;
@@ -239,6 +243,33 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, CredentialSuppl
     }
 
     return Lists.newArrayList();
+  }
+
+  @Override
+  public Iterable<FileInfo> listPrefix(String prefix) {
+    S3URI s3uri = new S3URI(prefix, awsProperties.s3BucketToAccessPointMapping());
+    ListObjectsV2Request request = ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
+
+    return () -> client().listObjectsV2Paginator(request).stream()
+        .flatMap(r -> r.contents().stream())
+        .map(o -> new FileInfo(
+            String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
+            o.size(), o.lastModified().toEpochMilli())).iterator();
+  }
+
+  /**
+   * This method provides a "best-effort" to delete all objects under the
+   * given prefix.
+   *
+   * Bulk delete operations are used and no reattempt is made for deletes if
+   * they fail, but will log any individual objects that are not deleted as part
+   * of the bulk operation.
+   *
+   * @param prefix prefix to delete
+   */
+  @Override
+  public void deletePrefix(String prefix) {
+    deleteFiles(() -> Streams.stream(listPrefix(prefix)).map(FileInfo::location).iterator());
   }
 
   private S3Client client() {
