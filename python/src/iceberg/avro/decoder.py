@@ -17,6 +17,7 @@
 import decimal
 import struct
 from datetime import date, datetime, time
+from io import SEEK_CUR
 
 from iceberg.io.base import InputStream
 from iceberg.utils.datetime import (
@@ -56,6 +57,9 @@ class BinaryDecoder:
             raise ValueError(f"Read {len(read_bytes)} bytes, expected {n} bytes")
         return read_bytes
 
+    def skip(self, n: int) -> None:
+        self._input_stream.seek(n, SEEK_CUR)
+
     def read_boolean(self) -> bool:
         """
         a boolean is written as a single byte
@@ -64,11 +68,7 @@ class BinaryDecoder:
         return ord(self.read(1)) == 1
 
     def read_int(self) -> int:
-        """int values are written using variable-length, zigzag coding."""
-        return self.read_long()
-
-    def read_long(self) -> int:
-        """long values are written using variable-length, zigzag coding."""
+        """int/long values are written using variable-length, zigzag coding."""
         b = ord(self.read(1))
         n = b & 0x7F
         shift = 7
@@ -100,7 +100,7 @@ class BinaryDecoder:
         Decimal bytes are decoded as signed short, int or long depending on the
         size of bytes.
         """
-        size = self.read_long()
+        size = self.read_int()
         return self.read_decimal_from_fixed(precision, scale, size)
 
     def read_decimal_from_fixed(self, _: int, scale: int, size: int) -> decimal.Decimal:
@@ -116,7 +116,7 @@ class BinaryDecoder:
         """
         Bytes are encoded as a long followed by that many bytes of data.
         """
-        return self.read(self.read_long())
+        return self.read(self.read_int())
 
     def read_utf8(self) -> str:
         """
@@ -146,14 +146,14 @@ class BinaryDecoder:
         long is decoded as python time object which represents
         the number of microseconds after midnight, 00:00:00.000000.
         """
-        return micros_to_time(self.read_long())
+        return micros_to_time(self.read_int())
 
     def read_timestamp_micros(self) -> datetime:
         """
         long is decoded as python datetime object which represents
         the number of microseconds from the unix epoch, 1 January 1970.
         """
-        return micros_to_timestamp(self.read_long())
+        return micros_to_timestamp(self.read_int())
 
     def read_timestamptz_micros(self):
         """
@@ -162,4 +162,27 @@ class BinaryDecoder:
 
         Adjusted to UTC
         """
-        return micros_to_timestamptz(self.read_long())
+        return micros_to_timestamptz(self.read_int())
+
+    def skip_null(self) -> None:
+        pass
+
+    def skip_boolean(self) -> None:
+        self.skip(1)
+
+    def skip_int(self) -> None:
+        b = ord(self.read(1))
+        while (b & 0x80) != 0:
+            b = ord(self.read(1))
+
+    def skip_float(self) -> None:
+        self.skip(4)
+
+    def skip_double(self) -> None:
+        self.skip(8)
+
+    def skip_bytes(self) -> None:
+        self.skip(self.read_int())
+
+    def skip_utf8(self) -> None:
+        self.skip_bytes()

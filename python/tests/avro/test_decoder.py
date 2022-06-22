@@ -33,10 +33,10 @@ def test_read_decimal_from_fixed():
     assert actual == expected
 
 
-def test_read_long():
+def test_read_int():
     mis = MemoryInputStream(b"\x18")
     decoder = BinaryDecoder(mis)
-    assert decoder.read_long() == 12
+    assert decoder.read_int() == 12
 
 
 def test_read_decimal():

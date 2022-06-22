@@ -76,9 +76,16 @@ class Reader(Singleton):
     def read(self, decoder: BinaryDecoder) -> Any:
         ...
 
+    @abstractmethod
+    def skip(self, decoder: BinaryDecoder) -> None:
+        ...
+
 
 class NoneReader(Reader):
     def read(self, _: BinaryDecoder) -> None:
+        return None
+
+    def skip(self, decoder: BinaryDecoder) -> None:
         return None
 
 
@@ -86,55 +93,84 @@ class BooleanReader(Reader):
     def read(self, decoder: BinaryDecoder) -> bool:
         return decoder.read_boolean()
 
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_boolean()
+
 
 class IntegerReader(Reader):
     def read(self, decoder: BinaryDecoder) -> int:
         return decoder.read_int()
 
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_int()
 
-class LongReader(Reader):
-    def read(self, decoder: BinaryDecoder) -> int:
-        return decoder.read_long()
+
+class LongReader(IntegerReader):
+    """Longs and ints are encoded the same way, and there is no long in Python"""
 
 
 class FloatReader(Reader):
     def read(self, decoder: BinaryDecoder) -> float:
         return decoder.read_float()
 
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_float()
+
 
 class DoubleReader(Reader):
     def read(self, decoder: BinaryDecoder) -> float:
         return decoder.read_double()
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_double()
 
 
 class DateReader(Reader):
     def read(self, decoder: BinaryDecoder) -> date:
         return decoder.read_date_from_int()
 
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_int()
+
 
 class TimeReader(Reader):
     def read(self, decoder: BinaryDecoder) -> time:
         return decoder.read_time_micros()
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_int()
 
 
 class TimestampReader(Reader):
     def read(self, decoder: BinaryDecoder) -> datetime:
         return decoder.read_timestamp_micros()
 
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_int()
+
 
 class TimestamptzReader(Reader):
     def read(self, decoder: BinaryDecoder) -> datetime:
         return decoder.read_timestamptz_micros()
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_int()
 
 
 class StringReader(Reader):
     def read(self, decoder: BinaryDecoder) -> str:
         return decoder.read_utf8()
 
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_utf8()
+
 
 class UUIDReader(Reader):
     def read(self, decoder: BinaryDecoder) -> UUID:
         return UUID(decoder.read_utf8())
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_utf8()
 
 
 @dataclass(frozen=True)
@@ -144,10 +180,16 @@ class FixedReader(Reader):
     def read(self, decoder: BinaryDecoder) -> bytes:
         return decoder.read(self.length)
 
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip(self.length)
+
 
 class BinaryReader(Reader):
     def read(self, decoder: BinaryDecoder) -> bytes:
         return decoder.read_bytes()
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_bytes()
 
 
 @dataclass(frozen=True)
@@ -157,6 +199,9 @@ class DecimalReader(Reader):
 
     def read(self, decoder: BinaryDecoder) -> Decimal:
         return decoder.read_decimal_from_bytes(self.precision, self.scale)
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        decoder.skip_bytes()
 
 
 @dataclass(frozen=True)
@@ -177,13 +222,28 @@ class OptionReader(Reader):
             return self.option.read(decoder)
         return None
 
+    def skip(self, decoder: BinaryDecoder) -> None:
+        if decoder.read_int() > 0:
+            return self.option.skip(decoder)
+
 
 @dataclass(frozen=True)
 class StructReader(Reader):
-    fields: tuple[Reader, ...] = dataclassfield()
+    fields: tuple[tuple[int | None, Reader], ...] = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> AvroStruct:
-        return AvroStruct([field.read(decoder) for field in self.fields])
+        result: list[Any | StructProtocol] = [object] * len(self.fields)
+        for (pos, field) in self.fields:
+            if pos is not None:
+                result[pos] = field.read(decoder)
+            else:
+                field.skip(decoder)
+
+        return AvroStruct(result)
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        for _, field in self.fields:
+            field.skip(decoder)
 
 
 @dataclass(frozen=True)
@@ -192,16 +252,27 @@ class ListReader(Reader):
 
     def read(self, decoder: BinaryDecoder) -> list:
         read_items = []
-        block_count = decoder.read_long()
+        block_count = decoder.read_int()
         while block_count != 0:
             if block_count < 0:
                 block_count = -block_count
-                # We ignore the block size for now
-                _ = decoder.read_long()
+                _ = decoder.read_int()
             for _ in range(block_count):
                 read_items.append(self.element.read(decoder))
-            block_count = decoder.read_long()
+            block_count = decoder.read_int()
         return read_items
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        block_count = decoder.read_int()
+        while block_count != 0:
+            if block_count < 0:
+                block_count = -block_count
+                block_size = decoder.read_int()
+                decoder.skip(block_size)
+            else:
+                for _ in range(block_count):
+                    self.element.skip(decoder)
+                block_count = decoder.read_int()
 
 
 @dataclass(frozen=True)
@@ -211,18 +282,31 @@ class MapReader(Reader):
 
     def read(self, decoder: BinaryDecoder) -> dict:
         read_items = {}
-        block_count = decoder.read_long()
+        block_count = decoder.read_int()
         while block_count != 0:
             if block_count < 0:
                 block_count = -block_count
                 # We ignore the block size for now
-                _ = decoder.read_long()
+                _ = decoder.read_int()
             for _ in range(block_count):
                 key = self.key.read(decoder)
                 read_items[key] = self.value.read(decoder)
-            block_count = decoder.read_long()
+            block_count = decoder.read_int()
 
         return read_items
+
+    def skip(self, decoder: BinaryDecoder) -> None:
+        block_count = decoder.read_int()
+        while block_count != 0:
+            if block_count < 0:
+                block_count = -block_count
+                block_size = decoder.read_int()
+                decoder.skip(block_size)
+            else:
+                for _ in range(block_count):
+                    self.key.skip(decoder)
+                    self.value.skip(decoder)
+                block_count = decoder.read_int()
 
 
 class ConstructReader(SchemaVisitor[Reader]):
@@ -230,7 +314,7 @@ class ConstructReader(SchemaVisitor[Reader]):
         return struct_result
 
     def struct(self, struct: StructType, field_results: list[Reader]) -> Reader:
-        return StructReader(tuple(field_results))
+        return StructReader(tuple(enumerate(field_results)))
 
     def field(self, field: NestedField, field_result: Reader) -> Reader:
         return field_result if field.required else OptionReader(field_result)
