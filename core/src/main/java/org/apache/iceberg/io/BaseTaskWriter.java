@@ -23,7 +23,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -99,7 +98,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private SortedPosDeleteWriter<T> posDeleteWriter;
-    private Map<StructLike, PathOffset> insertedRowMap;
+    private StructLikeMap<PathOffset> insertedRowMap;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");

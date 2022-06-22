@@ -51,7 +51,7 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
 
   private PartitionSpec currentSpec = null;
   private Comparator<StructLike> partitionComparator = null;
-  private Set<StructLike> completedPartitions = null;
+  private StructLikeSet completedPartitions = null;
   private StructLike currentPartition = null;
   private FileWriter<T, R> currentWriter = null;
 
