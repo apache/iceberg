@@ -619,7 +619,7 @@ public class TestPredicateBinding {
       lt.bind(struct);
       Assert.fail("Binding should fail");
     } catch (UnsupportedOperationException e) {
-      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for top column of nested types",
+      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for nested types",
           e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
     }
 
@@ -701,7 +701,7 @@ public class TestPredicateBinding {
       lt.bind(struct);
       Assert.fail("Binding should fail");
     } catch (UnsupportedOperationException e) {
-      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for top column of nested types",
+      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for nested types",
           e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
     }
 
@@ -722,7 +722,7 @@ public class TestPredicateBinding {
     Assert.assertTrue("Should be a unary predicate", bound2.isUnaryPredicate());
 
     UnboundPredicate<?> unbound3 = new UnboundPredicate<>(IS_NAN, ref("list"));
-     try {
+    try {
       unbound3.bind(struct);
       Assert.fail("Binding should fail");
     } catch (ValidationException e) {
@@ -751,7 +751,7 @@ public class TestPredicateBinding {
       lt.bind(struct);
       Assert.fail("Binding should fail");
     } catch (UnsupportedOperationException e) {
-      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for top column of nested types",
+      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for nested types",
           e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
     }
 
