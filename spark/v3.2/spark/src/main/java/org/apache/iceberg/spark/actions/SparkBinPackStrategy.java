@@ -45,8 +45,17 @@ public class SparkBinPackStrategy extends BinPackStrategy {
 
   public SparkBinPackStrategy(Table table, String fullIdentifier, SparkSession spark) {
     this.table = table;
-    this.fullIdentifier = fullIdentifier;
     this.spark = spark;
+    // Fallback if a quoted identifier is not supplied
+    this.fullIdentifier = fullIdentifier == null ? table.name() : fullIdentifier;
+  }
+
+  @Deprecated
+  public SparkBinPackStrategy(Table table, SparkSession spark) {
+    this.table = table;
+    this.spark = spark;
+    // Fallback if a quoted identifier is not supplied
+    this.fullIdentifier = table.name();
   }
 
   @Override

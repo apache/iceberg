@@ -97,6 +97,13 @@ public class BaseRewriteDataFilesSparkAction
   private RewriteJobOrder rewriteJobOrder;
   private RewriteStrategy strategy = null;
 
+  @Deprecated
+  protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
+    super(spark);
+    this.table = table;
+    this.fullIdentifier = null;
+  }
+
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table, String fullIdentifier) {
     super(spark);
     this.table = table;
