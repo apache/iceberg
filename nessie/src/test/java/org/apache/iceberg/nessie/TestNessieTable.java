@@ -53,6 +53,7 @@ import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
+import org.projectnessie.model.ImmutableTableReference;
 import org.projectnessie.model.LogResponse.LogEntry;
 import org.projectnessie.model.Operation;
 
@@ -229,6 +230,70 @@ public class TestNessieTable extends BaseTestIceberg {
     verifyCommitMetadata();
   }
 
+  @Test
+  public void testRenameWithTableReference() throws NessieNotFoundException {
+    String renamedTableName = "rename_table_name";
+    TableIdentifier renameTableIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), renamedTableName);
+
+    ImmutableTableReference fromTableReference =
+        ImmutableTableReference.builder().reference(catalog.currentRefName()).name(TABLE_IDENTIFIER.name()).build();
+    ImmutableTableReference toTableReference =
+        ImmutableTableReference.builder()
+            .reference(catalog.currentRefName())
+            .name(renameTableIdentifier.name()).build();
+    TableIdentifier fromIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), fromTableReference.toString());
+    TableIdentifier toIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), toTableReference.toString());
+
+    Table original = catalog.loadTable(fromIdentifier);
+
+    catalog.renameTable(fromIdentifier, toIdentifier);
+    Assertions.assertThat(catalog.tableExists(fromIdentifier)).isFalse();
+    Assertions.assertThat(catalog.tableExists(toIdentifier)).isTrue();
+
+    Table renamed = catalog.loadTable(toIdentifier);
+
+    Assertions.assertThat(original.schema().asStruct()).isEqualTo(renamed.schema().asStruct());
+    Assertions.assertThat(original.spec()).isEqualTo(renamed.spec());
+    Assertions.assertThat(original.location()).isEqualTo(renamed.location());
+    Assertions.assertThat(original.currentSnapshot()).isEqualTo(renamed.currentSnapshot());
+
+    Assertions.assertThat(catalog.dropTable(toIdentifier)).isTrue();
+
+    verifyCommitMetadata();
+  }
+
+  @Test
+  public void testRenameWithTableReferenceInvalidCase() throws NessieNotFoundException {
+    String renamedTableName = "rename_table_name";
+    TableIdentifier renameTableIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), renamedTableName);
+
+    ImmutableTableReference fromTableReference =
+        ImmutableTableReference.builder().reference("Something").name(TABLE_IDENTIFIER.name()).build();
+    ImmutableTableReference toTableReference =
+        ImmutableTableReference.builder()
+            .reference(catalog.currentRefName())
+            .name(renameTableIdentifier.name()).build();
+    TableIdentifier fromIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), fromTableReference.toString());
+    TableIdentifier toIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), toTableReference.toString());
+
+    Assertions.assertThatThrownBy(() -> catalog.renameTable(fromIdentifier, toIdentifier))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("from: Something and to: iceberg-table-test reference name must be same");
+
+    fromTableReference =
+        ImmutableTableReference.builder().reference(catalog.currentRefName()).name(TABLE_IDENTIFIER.name()).build();
+    toTableReference =
+        ImmutableTableReference.builder()
+            .reference("Something")
+            .name(renameTableIdentifier.name()).build();
+    TableIdentifier fromIdentifierNew = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), fromTableReference.toString());
+    TableIdentifier toIdentifierNew = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), toTableReference.toString());
+
+    Assertions.assertThatThrownBy(() -> catalog.renameTable(fromIdentifierNew, toIdentifierNew))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("from: iceberg-table-test and to: Something reference name must be same");
+  }
+
   private void verifyCommitMetadata() throws NessieNotFoundException {
     // check that the author is properly set
     List<LogEntry> log = api.getCommitLog().refName(BRANCH).get().getLogEntries();
@@ -248,6 +313,17 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER)).isTrue();
     Assertions.assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isFalse();
+    verifyCommitMetadata();
+  }
+
+  @Test
+  public void testDropWithTableReference() throws NessieNotFoundException {
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder().reference(catalog.currentRefName()).name(TABLE_IDENTIFIER.name()).build();
+    TableIdentifier identifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(), tableReference.toString());
+    Assertions.assertThat(catalog.tableExists(identifier)).isTrue();
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
+    Assertions.assertThat(catalog.tableExists(identifier)).isFalse();
     verifyCommitMetadata();
   }
 
