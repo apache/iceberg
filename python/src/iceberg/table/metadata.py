@@ -117,7 +117,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     sort_orders: List[Dict[str, Any]] = Field(alias="sort-orders", default_factory=list)
     """A list of sort orders, stored as full sort order objects."""
 
-    default_sort_order_id: Optional[int] = Field(alias="default-sort-order-id")
+    default_sort_order_id: int = Field(alias="default-sort-order-id")
     """Default sort order id of the table. Note that this could be used by
     writers, but is not used when reading because reads use the specs stored
      in manifest files."""
@@ -140,6 +140,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
         data["default-spec-id"] = INITIAL_SPEC_ID
         data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
+        data["default-sort-order-id"] = 0
         return data
 
     @root_validator()
@@ -184,6 +185,39 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
 
 class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
+    @root_validator(skip_on_failure=True)
+    def check_if_schema_is_found(cls, data: Dict[str, Any]):
+        current_schema_id = data["current_schema_id"]
+
+        for schema in data["schemas"]:
+            if schema.schema_id == current_schema_id:
+                return data
+
+        raise ValueError(f"current-schema-id {current_schema_id} can't be found in the schemas")
+
+    @root_validator
+    def check_partition_spec(cls, data: Dict[str, Any]):
+        default_spec_id = data["default_spec_id"]
+
+        for spec in data["partition_specs"]:
+            if spec["spec-id"] == default_spec_id:
+                return data
+
+        raise ValueError(f"default-spec-id {default_spec_id} can't be found")
+
+    @root_validator(skip_on_failure=True)
+    def check_sort_order(cls, data: Dict[str, Any]):
+        default_sort_order_id = data["default_sort_order_id"]
+
+        # 0 == unsorted
+        if default_sort_order_id != 0:
+            for sort in data["sort_orders"]:
+                if sort["order-id"] == default_sort_order_id:
+                    return data
+
+            raise ValueError(f"default-sort-order-id {default_sort_order_id} can't be found")
+        return data
+
     format_version: Literal[2] = Field(alias="format-version")
     """An integer version number for the format. Currently, this can be 1 or 2
     based on the spec. Implementations must throw an exception if a table’s

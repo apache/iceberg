@@ -167,7 +167,7 @@ def test_v1_metadata_parsing_directly():
     assert table_metadata.default_spec_id == 0
     assert table_metadata.last_partition_id == 0
     assert table_metadata.current_snapshot_id == -1
-    assert table_metadata.default_sort_order_id is None
+    assert table_metadata.default_sort_order_id == 0
 
 
 def test_parsing_correct_types():
@@ -211,7 +211,6 @@ def test_serialize_v2():
 
 
 def test_migrate_v1_schemas():
-    """The schema field should be in schemas as well"""
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
 
     assert isinstance(table_metadata, TableMetadataV1)
@@ -220,8 +219,6 @@ def test_migrate_v1_schemas():
 
 
 def test_migrate_v1_partition_specs():
-    """The schema field should be in schemas as well"""
-
     # Copy the example, and add a spec
     v1_metadata = copy(EXAMPLE_TABLE_METADATA_V1)
     v1_metadata["partition-spec"] = [{"field-id": 1, "fields": []}]
@@ -232,3 +229,187 @@ def test_migrate_v1_partition_specs():
     assert len(table_metadata.partition_specs) == 1
     # Spec ID gets added automatically
     assert table_metadata.partition_specs[0] == {**table_metadata.partition_spec[0], "spec-id": 0}
+
+
+def test_invalid_format_version():
+    """Test the exception when trying to load an unknown version"""
+    table_metadata_invalid_format_version = {
+        "format-version": -1,
+        "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
+        "location": "s3://bucket/test/location",
+        "last-updated-ms": 1602638573874,
+        "last-column-id": 3,
+        "schema": {
+            "type": "struct",
+            "fields": [
+                {"id": 1, "name": "x", "required": True, "type": "long"},
+                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+                {"id": 3, "name": "z", "required": True, "type": "long"},
+            ],
+        },
+        "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
+        "properties": {},
+        "current-snapshot-id": -1,
+        "snapshots": [],
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        TableMetadata.parse_obj(table_metadata_invalid_format_version)
+
+    assert "Unknown format version: -1" in str(exc_info.value)
+
+
+def test_current_schema_not_found():
+    """Test that we raise an exception when the schema can't be found"""
+
+    table_metadata_schema_not_found = {
+        "format-version": 2,
+        "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
+        "location": "s3://bucket/test/location",
+        "last-updated-ms": 1602638573874,
+        "last-column-id": 3,
+        "schemas": [
+            {"type": "struct", "schema-id": 0, "fields": [{"id": 1, "name": "x", "required": True, "type": "long"}]},
+            {
+                "type": "struct",
+                "schema-id": 1,
+                "identifier-field-ids": [1, 2],
+                "fields": [
+                    {"id": 1, "name": "x", "required": True, "type": "long"},
+                    {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+                    {"id": 3, "name": "z", "required": True, "type": "long"},
+                ],
+            },
+        ],
+        "current-schema-id": 2,
+        "default-spec-id": 0,
+        "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
+        "last-partition-id": 1000,
+        "default-sort-order-id": 0,
+        "properties": {},
+        "current-snapshot-id": -1,
+        "snapshots": [],
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        TableMetadata.parse_obj(table_metadata_schema_not_found)
+
+    assert "current-schema-id 2 can't be found in the schemas" in str(exc_info.value)
+
+
+def test_sort_order_not_found():
+    """Test that we raise an exception when the schema can't be found"""
+
+    table_metadata_schema_not_found = {
+        "format-version": 2,
+        "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
+        "location": "s3://bucket/test/location",
+        "last-updated-ms": 1602638573874,
+        "last-column-id": 3,
+        "schemas": [
+            {
+                "type": "struct",
+                "schema-id": 0,
+                "identifier-field-ids": [1, 2],
+                "fields": [
+                    {"id": 1, "name": "x", "required": True, "type": "long"},
+                    {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+                    {"id": 3, "name": "z", "required": True, "type": "long"},
+                ],
+            },
+        ],
+        "default-sort-order-id": 4,
+        "sort-orders": [
+            {
+                "order-id": 3,
+                "fields": [
+                    {"transform": "identity", "source-id": 2, "direction": "asc", "null-order": "nulls-first"},
+                    {"transform": "bucket[4]", "source-id": 3, "direction": "desc", "null-order": "nulls-last"},
+                ],
+            }
+        ],
+        "current-schema-id": 0,
+        "default-spec-id": 0,
+        "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
+        "last-partition-id": 1000,
+        "properties": {},
+        "current-snapshot-id": -1,
+        "snapshots": [],
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        TableMetadata.parse_obj(table_metadata_schema_not_found)
+
+    assert "default-sort-order-id 4 can't be found" in str(exc_info.value)
+
+
+def test_sort_order_unsorted():
+    """Test that we raise an exception when the schema can't be found"""
+
+    table_metadata_schema_not_found = {
+        "format-version": 2,
+        "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
+        "location": "s3://bucket/test/location",
+        "last-updated-ms": 1602638573874,
+        "last-column-id": 3,
+        "schemas": [
+            {
+                "type": "struct",
+                "schema-id": 0,
+                "identifier-field-ids": [1, 2],
+                "fields": [
+                    {"id": 1, "name": "x", "required": True, "type": "long"},
+                    {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+                    {"id": 3, "name": "z", "required": True, "type": "long"},
+                ],
+            },
+        ],
+        "default-sort-order-id": 0,
+        "sort-orders": [],
+        "current-schema-id": 0,
+        "default-spec-id": 0,
+        "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
+        "last-partition-id": 1000,
+        "properties": {},
+        "current-snapshot-id": -1,
+        "snapshots": [],
+    }
+
+    table_metadata = TableMetadata.parse_obj(table_metadata_schema_not_found)
+
+    # Most important here is that we correctly handle sort-order-id 0
+    assert len(table_metadata.sort_orders) == 0
+
+
+def test_invalid_partition_spec():
+    table_metadata_spec_not_found = {
+        "format-version": 2,
+        "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1",
+        "location": "s3://bucket/test/location",
+        "last-sequence-number": 34,
+        "last-updated-ms": 1602638573590,
+        "last-column-id": 3,
+        "current-schema-id": 1,
+        "schemas": [
+            {"type": "struct", "schema-id": 0, "fields": [{"id": 1, "name": "x", "required": True, "type": "long"}]},
+            {
+                "type": "struct",
+                "schema-id": 1,
+                "identifier-field-ids": [1, 2],
+                "fields": [
+                    {"id": 1, "name": "x", "required": True, "type": "long"},
+                    {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+                    {"id": 3, "name": "z", "required": True, "type": "long"},
+                ],
+            },
+        ],
+        "sort-orders": [],
+        "default-sort-order-id": 0,
+        "default-spec-id": 1,
+        "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
+        "last-partition-id": 1000,
+    }
+    with pytest.raises(ValueError) as exc_info:
+        TableMetadata.parse_obj(table_metadata_spec_not_found)
+
+    assert "default-spec-id 1 can't be found" in str(exc_info.value)
