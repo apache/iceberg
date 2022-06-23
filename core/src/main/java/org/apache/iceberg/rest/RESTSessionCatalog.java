@@ -246,10 +246,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       }
     }
 
-    Pair<RESTClient, FileIO> clients = tableClients(response.config());
     AuthSession session = tableSession(response.config(), session(context));
     RESTTableOperations ops = new RESTTableOperations(
-        clients.first(), paths.table(identifier), session::headers, clients.second(), response.tableMetadata());
+        client, paths.table(identifier), session::headers, tableFileIO(response.config()), response.tableMetadata());
 
     BaseTable table = new BaseTable(ops, fullTableName(identifier));
     if (metadataType != null) {
@@ -473,10 +472,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
           paths.tables(ident.namespace()), request, LoadTableResponse.class, headers(context),
           ErrorHandlers.tableErrorHandler());
 
-      Pair<RESTClient, FileIO> clients = tableClients(response.config());
       AuthSession session = tableSession(response.config(), session(context));
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), session::headers, clients.second(), response.tableMetadata());
+          client, paths.table(ident), session::headers, tableFileIO(response.config()), response.tableMetadata());
 
       return new BaseTable(ops, fullTableName(ident));
     }
@@ -486,12 +484,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       LoadTableResponse response = stageCreate();
       String fullName = fullTableName(ident);
 
-      Pair<RESTClient, FileIO> clients = tableClients(response.config());
       AuthSession session = tableSession(response.config(), session(context));
       TableMetadata meta = response.tableMetadata();
 
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), session::headers, clients.second(),
+          client, paths.table(ident), session::headers, tableFileIO(response.config()),
           RESTTableOperations.UpdateType.CREATE, createChanges(meta), meta);
 
       return Transactions.createTableTransaction(fullName, ops, meta);
@@ -502,7 +499,6 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       LoadTableResponse response = loadInternal(context, ident);
       String fullName = fullTableName(ident);
 
-      Pair<RESTClient, FileIO> clients = tableClients(response.config());
       AuthSession session = tableSession(response.config(), session(context));
       TableMetadata base = response.tableMetadata();
 
@@ -532,7 +528,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       }
 
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), session::headers, clients.second(),
+          client, paths.table(ident), session::headers, tableFileIO(response.config()),
           RESTTableOperations.UpdateType.REPLACE, changes.build(), base);
 
       return Transactions.replaceTableTransaction(fullName, ops, replacement);
@@ -608,18 +604,15 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return String.format("%s.%s", name(), ident);
   }
 
-  private Pair<RESTClient, FileIO> tableClients(Map<String, String> config) {
+  private FileIO tableFileIO(Map<String, String> config) {
     if (config.isEmpty()) {
-      return Pair.of(client, io); // reuse client and io since config is the same
+      return io; // reuse client and io since config is the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
     String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
-    FileIO tableIO = CatalogUtil.loadFileIO(
-        ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
-    RESTClient tableClient = clientBuilder.apply(fullConf);
 
-    return Pair.of(tableClient, tableIO);
+    return CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
