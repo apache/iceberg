@@ -1,5 +1,6 @@
 ---
 title: "Talks"
+relurl: "../../talks"
 menu:
     main:
         parent: Community

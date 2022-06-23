@@ -1,5 +1,6 @@
 ---
 title: "Blogs"
+relurl: "../../blogs"
 menu:
     main:
         parent: Community

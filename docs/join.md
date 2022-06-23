@@ -1,5 +1,6 @@
 ---
 title: "Join"
+relurl: "../../community"
 menu:
     main:
         parent: Community

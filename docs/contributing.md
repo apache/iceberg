@@ -1,5 +1,6 @@
 ---
 title: "Contribute"
+relurl: "../../contributing"
 menu:
     main:
         parent: Community
