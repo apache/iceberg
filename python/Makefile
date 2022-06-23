@@ -17,13 +17,13 @@
 
 install:
 	pip install poetry
-	poetry install -E pyarrow
+	poetry install -E pyarrow -E boto3
 
 lint:
 	poetry run pre-commit run --all-files
 
 test:
-	poetry run coverage run --source=src/ -m pytest tests/ -m "not s3"
+	poetry run coverage run --source=src/ --omit=src/iceberg/io/boto.py -m pytest tests/ -m "not s3"
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
 	poetry run coverage xml
@@ -35,7 +35,7 @@ test-s3:
 	poetry run coverage xml
 
 test-all:
-	poetry run coverage run --source=src/ -m pytest tests/ -m "marked or not marked"
+	poetry run coverage run --source=src/ -m pytest tests/
 	poetry run coverage report -m --fail-under=90
 	poetry run coverage html
 	poetry run coverage xml
