@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 from copy import copy
-from enum import Enum
 from typing import (
     Any,
     Dict,
@@ -29,29 +28,66 @@ from uuid import UUID, uuid4
 from pydantic import Field, root_validator
 
 from iceberg.schema import Schema
+from iceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
 
 _INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
+DEFAULT_SORT_ORDER_UNSORTED = 0
 
 
-class SnapshotRefType(str, Enum):
-    branch = "branch"
-    tag = "tag"
+class ValidationError(Exception):
+    ...
 
 
-class SnapshotRef(IcebergBaseModel):
-    snapshot_id: int = Field(alias="snapshot-id")
-    snapshot_ref_type: SnapshotRefType = Field(alias="type")
-    min_snapshots_to_keep: int = Field(alias="min-snapshots-to-keep")
-    max_snapshot_age_ms: int = Field(alias="max-snapshot-age-ms")
-    max_ref_age_ms: int = Field(alias="max-ref-age-ms")
+def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
+    current_schema_id = values["current_schema_id"]
+
+    for schema in values["schemas"]:
+        if schema.schema_id == current_schema_id:
+            return values
+
+    raise ValidationError(f"current-schema-id {current_schema_id} can't be found in the schemas")
+
+
+def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
+    default_spec_id = values["default_spec_id"]
+
+    for spec in values["partition_specs"]:
+        if spec["spec-id"] == default_spec_id:
+            return values
+
+    raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
+
+
+def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
+    default_sort_order_id = values["default_sort_order_id"]
+
+    # 0 == unsorted
+    if default_sort_order_id != 0:
+        for sort in values["sort_orders"]:
+            if sort["order-id"] == default_sort_order_id:
+                return values
+
+        raise ValidationError(f"default-sort-order-id {default_sort_order_id} can't be found")
+    return values
 
 
 class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
+
+    @root_validator(skip_on_failure=True)
+    def construct_refs(cls, data: Dict[str, Any]):
+        # This is going to be much nicer as soon as sort-order is an actual pydantic object
+        if not data.get("refs"):
+            if current_snapshot_id := data.get("current_snapshot_id"):
+                if current_snapshot_id != -1:
+                    data["refs"] = {
+                        MAIN_BRANCH: SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.branch)
+                    }
+        return data
 
     location: str = Field()
     """The table’s base location. This is used by writers to determine where
@@ -90,7 +126,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     to be used for arbitrary metadata. For example, commit.retry.num-retries
     is used to control the number of commit retries."""
 
-    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id")
+    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id", default=-1)
     """ID of the current table snapshot."""
 
     snapshots: list = Field(default_factory=list)
@@ -123,9 +159,15 @@ class TableMetadataCommonFields(IcebergBaseModel):
     writers, but is not used when reading because reads use the specs stored
      in manifest files."""
 
+    refs: Dict[str, SnapshotRef] = Field(default_factory=dict)
+    """A map of snapshot references.
+    The map keys are the unique snapshot reference names in the table,
+    and the map values are snapshot reference objects.
+    There is always a main branch reference pointing to the
+    current-snapshot-id even if the refs map is null."""
+
 
 class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
-
     # When we read a V1 format-version, we'll make sure to populate the fields
     # for V2 as well. This makes it easier downstream because we can just
     # assume that everything is a TableMetadataV2.
@@ -134,36 +176,52 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # to the owner of the table.
 
     @root_validator(pre=True)
-    def set_schema_id(cls, data: Dict[str, Any]):
+    def set_v2_compatible_defaults(cls, data: Dict[str, Any]):
         # Set some sensible defaults for V1, so we comply with the schema
         # this is in pre=True, meaning that this will be done before validation
         # we don't want to make them optional, since we do require them for V2
-        data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
-        data["default-spec-id"] = INITIAL_SPEC_ID
-        data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
-        data["default-sort-order-id"] = 0
-        # The UUID is optional
+        if "schema-id" not in data["schema"]:
+            data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
+        if "default-spec-id" not in data:
+            data["default-spec-id"] = INITIAL_SPEC_ID
+        if "last-partition-id" not in data:
+            data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
+        if "default-sort-order-id" not in data:
+            data["default-sort-order-id"] = DEFAULT_SORT_ORDER_UNSORTED
         if "table-uuid" not in data:
             data["table-uuid"] = uuid4()
         return data
 
-    @root_validator()
-    def migrate_schema(cls, data: Dict[str, Any]):
-        # Migrate schemas
-        schema = data["schema_"]
-        schemas = data["schemas"]
-        if all([schema != other_schema for other_schema in schemas]):
-            data["schemas"].append(schema)
-        data["current_schema_id"] = schema.schema_id
+    @root_validator(skip_on_failure=True)
+    def construct_schema(cls, data: Dict[str, Any]):
+        if not data.get("schemas"):
+            schema = data["schema_"]
+            data["schemas"] = [schema]
+            if "current_schema_id" not in data:
+                data["current_schema_id"] = schema.schema_id
+        else:
+            check_schemas(data["schemas"])
         return data
 
-    @root_validator()
-    def migrate_partition_spec(cls, data: Dict[str, Any]):
+    @root_validator(skip_on_failure=True)
+    def construct_partition_specs(cls, data: Dict[str, Any]):
         # This is going to be much nicer as soon as partition-spec is also migrated to pydantic
-        if partition_spec := data.get("partition_spec"):
-            data["partition_specs"] = [{**spec, "spec-id": INITIAL_SPEC_ID + idx} for idx, spec in enumerate(partition_spec)]
-            data["default_spec_id"] = INITIAL_SPEC_ID
-            data["last_partition_id"] = max(spec["field-id"] for spec in data["partition_spec"])
+        if not data.get("partition_specs"):
+            fields = data["partition_spec"]
+            data["partition_specs"] = [{"spec-id": INITIAL_SPEC_ID, "fields": fields}]
+        else:
+            check_partition_specs(data["partition_specs"])
+        return data
+
+    @root_validator(skip_on_failure=True)
+    def construct_sort_orders(cls, data: Dict[str, Any]):
+        # This is going to be much nicer as soon as sort-order is an actual pydantic object
+        # Probably we'll just create a UNSORTED_ORDER constant then
+        if not data.get("sort_orders"):
+            data["sort_orders"] = [{"order_id": 0, "fields": []}]
+            data["default_sort_order_id"] = 0
+        else:
+            check_sort_orders(data["sort_orders"])
         return data
 
     def to_v2(self) -> "TableMetadataV2":
@@ -195,37 +253,16 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
 class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     @root_validator(skip_on_failure=True)
-    def check_if_schema_is_found(cls, data: Dict[str, Any]):
-        current_schema_id = data["current_schema_id"]
-
-        for schema in data["schemas"]:
-            if schema.schema_id == current_schema_id:
-                return data
-
-        raise ValueError(f"current-schema-id {current_schema_id} can't be found in the schemas")
+    def check_schemas(cls, values: Dict[str, Any]):
+        return check_schemas(values)
 
     @root_validator
-    def check_partition_spec(cls, data: Dict[str, Any]):
-        default_spec_id = data["default_spec_id"]
-
-        for spec in data["partition_specs"]:
-            if spec["spec-id"] == default_spec_id:
-                return data
-
-        raise ValueError(f"default-spec-id {default_spec_id} can't be found")
+    def check_partition_specs(cls, values: Dict[str, Any]):
+        return check_partition_specs(values)
 
     @root_validator(skip_on_failure=True)
-    def check_sort_order(cls, data: Dict[str, Any]):
-        default_sort_order_id = data["default_sort_order_id"]
-
-        # 0 == unsorted
-        if default_sort_order_id != 0:
-            for sort in data["sort_orders"]:
-                if sort["order-id"] == default_sort_order_id:
-                    return data
-
-            raise ValueError(f"default-sort-order-id {default_sort_order_id} can't be found")
-        return data
+    def check_sort_orders(cls, values: Dict[str, Any]):
+        return check_sort_orders(values)
 
     format_version: Literal[2] = Field(alias="format-version")
     """An integer version number for the format. Currently, this can be 1 or 2
@@ -241,13 +278,6 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     """The table’s highest assigned sequence number, a monotonically
     increasing long that tracks the order of snapshots in a table."""
 
-    refs: Dict[str, SnapshotRef] = Field(default_factory=dict)
-    """A map of snapshot references.
-    The map keys are the unique snapshot reference names in the table,
-    and the map values are snapshot reference objects.
-    There is always a main branch reference pointing to the
-    current-snapshot-id even if the refs map is null."""
-
 
 class TableMetadata:
     # Once this has been resolved, we can simplify this: https://github.com/samuelcolvin/pydantic/issues/3846
@@ -256,7 +286,7 @@ class TableMetadata:
     @staticmethod
     def parse_obj(data: dict) -> Union[TableMetadataV1, TableMetadataV2]:
         if "format-version" not in data:
-            raise ValueError(f"Missing format-version in TableMetadata: {data}")
+            raise ValidationError(f"Missing format-version in TableMetadata: {data}")
 
         format_version = data["format-version"]
 
@@ -265,4 +295,4 @@ class TableMetadata:
         elif format_version == 2:
             return TableMetadataV2(**data)
         else:
-            raise ValueError(f"Unknown format version: {format_version}")
+            raise ValidationError(f"Unknown format version: {format_version}")

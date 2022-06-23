@@ -24,7 +24,13 @@ import pytest
 
 from iceberg.schema import Schema
 from iceberg.serializers import FromByteStream
-from iceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
+from iceberg.table.metadata import (
+    TableMetadata,
+    TableMetadataV1,
+    TableMetadataV2,
+    ValidationError,
+)
+from iceberg.table.refs import SnapshotRef, SnapshotRefType
 from iceberg.types import LongType, NestedField
 
 EXAMPLE_TABLE_METADATA_V1 = {
@@ -165,7 +171,7 @@ def test_v1_metadata_parsing_directly():
     assert table_metadata.schemas[0].schema_id == 0
     assert table_metadata.current_schema_id == 0
     assert table_metadata.default_spec_id == 0
-    assert table_metadata.last_partition_id == 0
+    assert table_metadata.last_partition_id == 1000
     assert table_metadata.current_snapshot_id == -1
     assert table_metadata.default_sort_order_id == 0
 
@@ -202,11 +208,19 @@ def test_updating_metadata():
     assert new_table_metadata.schemas[-1] == Schema(**new_schema)
 
 
+def test_serialize_v1():
+    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
+    assert (
+        table_metadata.json()
+        == """{"location": "s3://bucket/test/location", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "current-snapshot-id": -1, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order_id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "format-version": 1, "schema": {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
+    )
+
+
 def test_serialize_v2():
     table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
     assert (
         table_metadata.json()
-        == """{"location": "s3://bucket/test/location", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770, "sequence-number": 0, "summary": {"operation": "append"}, "manifest-list": "s3://a/b/1.avro"}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "timestamp-ms": 1555100955770, "sequence-number": 1, "summary": {"operation": "append"}, "manifest-list": "s3://a/b/2.avro", "schema-id": 1}], "snapshot-log": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770}, {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770}], "metadata-log": [], "sort-orders": [{"order-id": 3, "fields": [{"transform": "identity", "source-id": 2, "direction": "asc", "null-order": "nulls-first"}, {"transform": "bucket[4]", "source-id": 3, "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "format-version": 2, "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-sequence-number": 34, "refs": {}}"""
+        == """{"location": "s3://bucket/test/location", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770, "sequence-number": 0, "summary": {"operation": "append"}, "manifest-list": "s3://a/b/1.avro"}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "timestamp-ms": 1555100955770, "sequence-number": 1, "summary": {"operation": "append"}, "manifest-list": "s3://a/b/2.avro", "schema-id": 1}], "snapshot-log": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770}, {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770}], "metadata-log": [], "sort-orders": [{"order-id": 3, "fields": [{"transform": "identity", "source-id": 2, "direction": "asc", "null-order": "nulls-first"}, {"transform": "bucket[4]", "source-id": 3, "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-sequence-number": 34}"""
     )
 
 
@@ -228,7 +242,7 @@ def test_migrate_v1_partition_specs():
     assert isinstance(table_metadata, TableMetadataV1)
     assert len(table_metadata.partition_specs) == 1
     # Spec ID gets added automatically
-    assert table_metadata.partition_specs[0] == {**table_metadata.partition_spec[0], "spec-id": 0}
+    assert table_metadata.partition_specs == [{"spec-id": 0, "fields": [{"field-id": 1, "fields": []}]}]
 
 
 def test_invalid_format_version():
@@ -253,7 +267,7 @@ def test_invalid_format_version():
         "snapshots": [],
     }
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValidationError) as exc_info:
         TableMetadata.parse_obj(table_metadata_invalid_format_version)
 
     assert "Unknown format version: -1" in str(exc_info.value)
@@ -291,7 +305,7 @@ def test_current_schema_not_found():
         "snapshots": [],
     }
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValidationError) as exc_info:
         TableMetadata.parse_obj(table_metadata_schema_not_found)
 
     assert "current-schema-id 2 can't be found in the schemas" in str(exc_info.value)
@@ -337,7 +351,7 @@ def test_sort_order_not_found():
         "snapshots": [],
     }
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValidationError) as exc_info:
         TableMetadata.parse_obj(table_metadata_schema_not_found)
 
     assert "default-sort-order-id 4 can't be found" in str(exc_info.value)
@@ -409,7 +423,7 @@ def test_invalid_partition_spec():
         "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}],
         "last-partition-id": 1000,
     }
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValidationError) as exc_info:
         TableMetadata.parse_obj(table_metadata_spec_not_found)
 
     assert "default-spec-id 1 can't be found" in str(exc_info.value)
@@ -499,12 +513,17 @@ def test_v1_write_metadata_for_v2():
         }
     ]
     assert metadata_v2["partition-specs"] == [
-        {"field-id": 1000, "name": "x", "source-id": 1, "spec-id": 0, "transform": "identity"}
+        {"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}
     ]
     assert metadata_v2["default-spec-id"] == 0
     assert metadata_v2["last-partition-id"] == 1000
-    assert metadata_v2["sort-orders"] == []
+    assert metadata_v2["sort-orders"] == [{"fields": [], "order_id": 0}]
     assert metadata_v2["default-sort-order-id"] == 0
     # Deprecated fields
     assert "schema" not in metadata_v2
     assert "partition-spec" not in metadata_v2
+
+
+def test_v2_ref_creation():
+    table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2)
+    assert table_metadata.refs == {"main": SnapshotRef(snapshot_id=3055729675574597004, snapshot_ref_type=SnapshotRefType.branch)}
