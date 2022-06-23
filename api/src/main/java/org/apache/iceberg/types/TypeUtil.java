@@ -19,6 +19,11 @@
 
 package org.apache.iceberg.types;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -636,4 +641,30 @@ public class TypeUtil {
       }
     }
   }
+
+  public static Type fromJavaType(Object value) {
+    if (value instanceof LocalDate) {
+      return Types.DateType.get();
+    } else if (value instanceof LocalDateTime) {
+      return Types.TimestampType.withoutZone();
+    } else if (value instanceof Instant) {
+      return Types.TimestampType.withZone();
+    } else if (value instanceof LocalTime) {
+      return Types.TimeType.get();
+    } else if (value instanceof Integer) {
+      return Types.IntegerType.get();
+    } else if (value instanceof Long) {
+      return Types.LongType.get();
+    } else if (value instanceof BigDecimal) {
+      BigDecimal data = (BigDecimal) value;
+      return Types.DecimalType.of(data.precision(), data.scale());
+    } else if (value instanceof String) {
+      return Types.StringType.get();
+    } else if (value instanceof byte[]) {
+      return Types.BinaryType.get();
+    } else {
+      throw new UnsupportedOperationException("Unsupported type for " + value.getClass());
+    }
+  }
+
 }

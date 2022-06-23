@@ -43,7 +43,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.NaNUtil;
 
-class Literals {
+public class Literals {
   private Literals() {
   }
 
@@ -87,6 +87,22 @@ class Literals {
     throw new IllegalArgumentException(String.format(
         "Cannot create expression literal from %s: %s", value.getClass().getName(), value));
   }
+
+  public static Literal<Object> fromJavaType(Object value) {
+
+    if (value instanceof LocalDate) {
+      return Literal.of(value.toString()).to(Types.DateType.get());
+    } else if (value instanceof LocalDateTime) {
+      return Literal.of(value.toString()).to(Types.TimestampType.withoutZone());
+    } else if (value instanceof Instant) {
+      return Literal.of(value.toString()).to(Types.TimestampType.withZone());
+    } else if (value instanceof LocalTime) {
+      return Literal.of(value.toString()).to(Types.TimeType.get());
+    } else {
+      return from(value);
+    }
+  }
+
 
   @SuppressWarnings("unchecked")
   static <T> AboveMax<T> aboveMax() {

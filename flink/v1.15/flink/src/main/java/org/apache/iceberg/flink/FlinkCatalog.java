@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,10 +35,12 @@ import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogFunction;
+import org.apache.flink.table.catalog.CatalogFunctionImpl;
 import org.apache.flink.table.catalog.CatalogPartition;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.CatalogTableImpl;
+import org.apache.flink.table.catalog.FunctionLanguage;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
@@ -69,6 +72,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.flink.sink.PartitionTransformUdf;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -96,6 +100,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
+  private final Map<String, CatalogFunction> partitionFunctions;
 
   public FlinkCatalog(
       String catalogName,
@@ -107,11 +112,18 @@ public class FlinkCatalog extends AbstractCatalog {
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
+    this.partitionFunctions = new LinkedHashMap<>();
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
     asNamespaceCatalog = originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;
     closeable = originalCatalog instanceof Closeable ? (Closeable) originalCatalog : null;
+
+    partitionFunctions.put("buckets",
+        new CatalogFunctionImpl(PartitionTransformUdf.Bucket.class.getName(), FunctionLanguage.JAVA));
+    partitionFunctions.put("truncates",
+        new CatalogFunctionImpl(PartitionTransformUdf.Truncate.class.getName(), FunctionLanguage.JAVA));
+
   }
 
   @Override
@@ -619,12 +631,17 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public List<String> listFunctions(String dbName) throws CatalogException {
-    return Collections.emptyList();
+    return Lists.newArrayList(partitionFunctions.keySet());
   }
 
   @Override
   public CatalogFunction getFunction(ObjectPath functionPath) throws FunctionNotExistException, CatalogException {
-    throw new FunctionNotExistException(getName(), functionPath);
+    CatalogFunction catalogFunction = partitionFunctions.get(functionPath.getObjectName());
+    if (catalogFunction == null) {
+      throw new FunctionNotExistException(getName(), functionPath);
+    } else {
+      return catalogFunction;
+    }
   }
 
   @Override
