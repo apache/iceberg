@@ -20,7 +20,6 @@
 package org.apache.iceberg.encryption;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
