@@ -67,6 +67,7 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -747,6 +748,19 @@ public class Spark3Util {
 
   public static TableIdentifier identifierToTableIdentifier(Identifier identifier) {
     return TableIdentifier.of(Namespace.of(identifier.namespace()), identifier.name());
+  }
+
+  public static String quotedFullIdentifier(String catalogName, Identifier identifier) {
+    List<String> parts =
+        ImmutableList.<String>builder()
+            .add(catalogName)
+            .addAll(Arrays.asList(identifier.namespace()))
+            .add(identifier.name())
+            .build();
+
+    return CatalogV2Implicits.MultipartIdentifierHelper(
+        JavaConverters.asScalaIteratorConverter(parts.iterator()).asScala().toSeq()
+    ).quoted();
   }
 
   /**
