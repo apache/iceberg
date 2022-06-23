@@ -56,12 +56,16 @@ public interface ActionsProvider {
 
   /**
    * Instantiates an action to rewrite data files.
+   * @deprecated please use {@link #rewriteDataFiles(Table, String)}
    */
   @Deprecated
   default RewriteDataFiles rewriteDataFiles(Table table) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement rewriteDataFiles");
   }
 
+  /**
+   * Instantiates an action to rewrite data files.
+   */
   default RewriteDataFiles rewriteDataFiles(Table table, String fullIdentifier) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewriteDataFiles(Table, String)"
