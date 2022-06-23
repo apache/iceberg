@@ -87,6 +87,7 @@ public class BaseRewriteDataFilesSparkAction
   );
 
   private final Table table;
+  private final String fullIdentifier;
 
   private Expression filter = Expressions.alwaysTrue();
   private int maxConcurrentFileGroupRewrites;
@@ -96,9 +97,17 @@ public class BaseRewriteDataFilesSparkAction
   private RewriteJobOrder rewriteJobOrder;
   private RewriteStrategy strategy = null;
 
+  @Deprecated
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
+    this.fullIdentifier = null;
+  }
+
+  protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table, String fullIdentifier) {
+    super(spark);
+    this.table = table;
+    this.fullIdentifier = fullIdentifier;
   }
 
   @Override
@@ -428,7 +437,7 @@ public class BaseRewriteDataFilesSparkAction
   }
 
   private BinPackStrategy binPackStrategy() {
-    return new SparkBinPackStrategy(table, spark());
+    return new SparkBinPackStrategy(table, fullIdentifier, spark());
   }
 
   private SortStrategy sortStrategy() {
