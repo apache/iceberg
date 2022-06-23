@@ -17,7 +17,6 @@
 
 import io
 import json
-from copy import copy
 from uuid import UUID
 
 import pytest
@@ -212,7 +211,7 @@ def test_serialize_v1():
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
     assert (
         table_metadata.json()
-        == """{"location": "s3://bucket/test/location", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "current-snapshot-id": -1, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order_id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "format-version": 1, "schema": {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
+        == """{"location": "s3://bucket/test/location", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "current-snapshot-id": -1, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order_id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "schema": {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
     )
 
 
@@ -234,15 +233,13 @@ def test_migrate_v1_schemas():
 
 def test_migrate_v1_partition_specs():
     # Copy the example, and add a spec
-    v1_metadata = copy(EXAMPLE_TABLE_METADATA_V1)
-    v1_metadata["partition-spec"] = [{"field-id": 1, "fields": []}]
-
-    table_metadata = TableMetadataV1(**v1_metadata)
-
+    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
     assert isinstance(table_metadata, TableMetadataV1)
     assert len(table_metadata.partition_specs) == 1
     # Spec ID gets added automatically
-    assert table_metadata.partition_specs == [{"spec-id": 0, "fields": [{"field-id": 1, "fields": []}]}]
+    assert table_metadata.partition_specs == [
+        {"spec-id": 0, "fields": [{"field-id": 1000, "name": "x", "source-id": 1, "transform": "identity"}]}
+    ]
 
 
 def test_invalid_format_version():

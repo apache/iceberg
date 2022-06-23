@@ -229,15 +229,15 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         metadata["format_version"] = 2
         return TableMetadataV2(**metadata)
 
-    table_uuid: Optional[UUID] = Field(alias="table-uuid")
-    """A UUID that identifies the table, generated when the table is created.
-    Implementations must throw an exception if a table’s UUID does not match
-    the expected UUID after refreshing metadata."""
-
     format_version: Literal[1] = Field(alias="format-version")
     """An integer version number for the format. Currently, this can be 1 or 2
     based on the spec. Implementations must throw an exception if a table’s
     version is higher than the supported version."""
+
+    table_uuid: Optional[UUID] = Field(alias="table-uuid")
+    """A UUID that identifies the table, generated when the table is created.
+    Implementations must throw an exception if a table’s UUID does not match
+    the expected UUID after refreshing metadata."""
 
     schema_: Schema = Field(alias="schema")
     """The table’s current schema. (Deprecated: use schemas and
