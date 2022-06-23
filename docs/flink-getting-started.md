@@ -541,13 +541,13 @@ FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SC
     .set(FlinkWriteOptions.OVERWRITE_MODE, "true");
 ```
 
-| Flink option           | Default                    | Description                                                  |
-| ---------------------- | -------------------------- | ------------------------------------------------------------ |
-| write-format           | Table write.format.default | File format to use for this write operation; parquet, avro, or orc |
-| target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes          |
-| upsert-enabled | Table write.upsert.enabled | Overrides this table's write.upsert.enabled |
-| overwrite | false | Overwrite the table's data |
-| distribution-mode | Table write.distribution-mode | Overrides this table's write.distribution-mode |
+| Flink option           | Default                    | Description                                                                                                |
+|------------------------| -------------------------- |------------------------------------------------------------------------------------------------------------|
+| write-file-format      | Table write.format.default | File format to use for this write operation; parquet, avro, or orc                                         |
+| target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes                                                        |
+| upsert-enabled         | Table write.upsert.enabled | Overrides this table's write.upsert.enabled                                                                |
+| overwrite-enabled      | false | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
+| distribution-mode      | Table write.distribution-mode | Overrides this table's write.distribution-mode                                                             |
 
 
 ## Inspecting tables.

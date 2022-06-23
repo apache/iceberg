@@ -32,7 +32,7 @@ public class FlinkWriteOptions {
 
   // File format for write operations(default: Table write.format.default )
   public static final ConfigOption<String> WRITE_FORMAT =
-      ConfigOptions.key("write-format")
+      ConfigOptions.key("write-file-format")
           .stringType().noDefaultValue();
 
   // Overrides this table's write.target-file-size-bytes
@@ -46,8 +46,8 @@ public class FlinkWriteOptions {
           .booleanType().noDefaultValue();
 
   public static final ConfigOption<Boolean> OVERWRITE_MODE =
-      ConfigOptions.key("overwrite")
-          .booleanType().noDefaultValue();
+      ConfigOptions.key("overwrite-enabled")
+          .booleanType().defaultValue(false);
 
   // Overrides the table's write.distribution-mode
   public static final ConfigOption<String> DISTRIBUTION_MODE =

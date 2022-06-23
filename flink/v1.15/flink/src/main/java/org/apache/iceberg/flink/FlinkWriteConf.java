@@ -54,7 +54,7 @@ public class FlinkWriteConf {
     return confParser.booleanConf()
         .option(FlinkWriteOptions.OVERWRITE_MODE.key())
         .flinkConfig(FlinkWriteOptions.OVERWRITE_MODE)
-        .defaultValue(false)
+        .defaultValue(FlinkWriteOptions.OVERWRITE_MODE.defaultValue())
         .parse();
   }
 
