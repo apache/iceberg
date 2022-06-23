@@ -74,6 +74,7 @@ public class IcebergSortCompactionBenchmark {
   private static final String[] NAMESPACE = new String[] {"default"};
   private static final String NAME = "sortbench";
   private static final Identifier IDENT = Identifier.of(NAMESPACE, NAME);
+  private static final String FULL_IDENT = Spark3Util.quotedFullIdentifier("spark_catalog", IDENT);
   private static final int NUM_FILES = 8;
   private static final long NUM_ROWS = 7500000L;
   private static final long UNIQUE_VALUES = NUM_ROWS / 4;
@@ -106,7 +107,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void sortInt() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
@@ -119,7 +120,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void sortInt2() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
@@ -133,7 +134,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void sortInt3() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
@@ -149,7 +150,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void sortInt4() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
@@ -165,7 +166,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void sortString() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
@@ -178,7 +179,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void sortFourColumns() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
@@ -194,7 +195,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void sortSixColumns() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .sort(SortOrder
             .builderFor(table().schema())
@@ -212,7 +213,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void zSortInt() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .zOrder("intCol")
         .execute();
@@ -222,7 +223,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void zSortInt2() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .zOrder("intCol", "intCol2")
         .execute();
@@ -232,7 +233,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void zSortInt3() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .zOrder("intCol", "intCol2", "intCol3")
         .execute();
@@ -242,7 +243,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void zSortInt4() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .zOrder("intCol", "intCol2", "intCol3", "intCol4")
         .execute();
@@ -252,7 +253,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void zSortString() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .zOrder("stringCol")
         .execute();
@@ -262,7 +263,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void zSortFourColumns() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .zOrder("stringCol", "intCol", "dateCol", "doubleCol")
         .execute();
@@ -272,7 +273,7 @@ public class IcebergSortCompactionBenchmark {
   @Threads(1)
   public void zSortSixColumns() {
     SparkActions.get()
-        .rewriteDataFiles(table())
+        .rewriteDataFiles(table(), FULL_IDENT)
         .option(BinPackStrategy.REWRITE_ALL, "true")
         .zOrder("stringCol", "intCol", "dateCol", "timestampCol", "doubleCol", "longCol")
         .execute();

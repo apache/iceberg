@@ -135,7 +135,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   private RewriteDataFiles basicRewrite(Table table) {
     // Always compact regardless of input files
     table.refresh();
-    return actions().rewriteDataFiles(table).option(BinPackStrategy.MIN_INPUT_FILES, "1");
+    return actions().rewriteDataFiles(table, tableLocation).option(BinPackStrategy.MIN_INPUT_FILES, "1");
   }
 
   @Test
@@ -258,7 +258,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     rowDelta.commit();
     table.refresh();
     List<Object[]> expectedRecords = currentData();
-    Result result = actions().rewriteDataFiles(table)
+    Result result = actions().rewriteDataFiles(table, tableLocation)
         // do not include any file based on bin pack file size configs
         .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, "0")
         .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
@@ -292,7 +292,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     rowDelta.commit();
     table.refresh();
     List<Object[]> expectedRecords = currentData();
-    Result result = actions().rewriteDataFiles(table)
+    Result result = actions().rewriteDataFiles(table, tableLocation)
         .option(BinPackStrategy.DELETE_FILE_THRESHOLD, "1")
         .execute();
     Assert.assertEquals("Action should rewrite 1 data files", 1, result.rewrittenDataFilesCount());
@@ -1122,13 +1122,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Table table = createTable(1);
 
     AssertHelpers.assertThrows("Should be unable to set Strategy more than once", IllegalArgumentException.class,
-        "Cannot set strategy", () -> actions().rewriteDataFiles(table).binPack().sort());
+        "Cannot set strategy", () -> actions().rewriteDataFiles(table, tableLocation).binPack().sort());
 
     AssertHelpers.assertThrows("Should be unable to set Strategy more than once", IllegalArgumentException.class,
-        "Cannot set strategy", () -> actions().rewriteDataFiles(table).sort().binPack());
+        "Cannot set strategy", () -> actions().rewriteDataFiles(table, tableLocation).sort().binPack());
 
-    AssertHelpers.assertThrows("Should be unable to set Strategy more than once", IllegalArgumentException.class,
-        "Cannot set strategy", () -> actions().rewriteDataFiles(table).sort(SortOrder.unsorted()).binPack());
+    AssertHelpers.assertThrows(
+        "Should be unable to set Strategy more than once",
+        IllegalArgumentException.class,
+        "Cannot set strategy",
+        () ->
+            actions().rewriteDataFiles(table, tableLocation).sort(SortOrder.unsorted()).binPack());
   }
 
   @Test
