@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from copy import copy
 from enum import Enum
 from typing import (
     Any,
@@ -23,7 +24,7 @@ from typing import (
     Optional,
     Union,
 )
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import Field, root_validator
 
@@ -141,6 +142,9 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         data["default-spec-id"] = INITIAL_SPEC_ID
         data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
         data["default-sort-order-id"] = 0
+        # The UUID is optional
+        if "table-uuid" not in data:
+            data["table-uuid"] = uuid4()
         return data
 
     @root_validator()
@@ -159,8 +163,13 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         if partition_spec := data.get("partition_spec"):
             data["partition_specs"] = [{**spec, "spec-id": INITIAL_SPEC_ID + idx} for idx, spec in enumerate(partition_spec)]
             data["default_spec_id"] = INITIAL_SPEC_ID
-            data["last_partition_id"] = max(spec["spec-id"] for spec in data["partition_specs"])
+            data["last_partition_id"] = max(spec["field-id"] for spec in data["partition_spec"])
         return data
+
+    def to_v2(self) -> "TableMetadataV2":
+        metadata = copy(self.dict())
+        metadata["format_version"] = 2
+        return TableMetadataV2(**metadata)
 
     table_uuid: Optional[UUID] = Field(alias="table-uuid")
     """A UUID that identifies the table, generated when the table is created.

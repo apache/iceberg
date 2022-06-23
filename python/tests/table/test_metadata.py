@@ -44,7 +44,7 @@ EXAMPLE_TABLE_METADATA_V1 = {
     "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
     "properties": {},
     "current-snapshot-id": -1,
-    "snapshots": [],
+    "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
 }
 EXAMPLE_TABLE_METADATA_V2 = {
     "format-version": 2,
@@ -413,3 +413,98 @@ def test_invalid_partition_spec():
         TableMetadata.parse_obj(table_metadata_spec_not_found)
 
     assert "default-spec-id 1 can't be found" in str(exc_info.value)
+
+
+def test_v1_writing_metadata():
+    """
+    https://iceberg.apache.org/spec/#version-2
+
+    Writing v1 metadata:
+        - Table metadata field last-sequence-number should not be written
+    """
+
+    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1)
+    metadata_v1_json = table_metadata.json()
+    metadata_v1 = json.loads(metadata_v1_json)
+
+    assert "last-sequence-number" not in metadata_v1
+
+
+def test_v1_metadata_for_v2():
+    """
+    https://iceberg.apache.org/spec/#version-2
+
+    Reading v1 metadata for v2:
+        - Table metadata field last-sequence-number must default to 0
+    """
+
+    table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1).to_v2()
+
+    assert table_metadata.last_sequence_number == 0
+
+
+def test_v1_write_metadata_for_v2():
+    """
+    https://iceberg.apache.org/spec/#version-2
+
+    Table metadata JSON:
+        - last-sequence-number was added and is required; default to 0 when reading v1 metadata
+        - table-uuid is now required
+        - current-schema-id is now required
+        - schemas is now required
+        - partition-specs is now required
+        - default-spec-id is now required
+        - last-partition-id is now required
+        - sort-orders is now required
+        - default-sort-order-id is now required
+        - schema is no longer required and should be omitted; use schemas and current-schema-id instead
+        - partition-spec is no longer required and should be omitted; use partition-specs and default-spec-id instead
+    """
+
+    minimal_example_v1 = {
+        "format-version": 1,
+        "location": "s3://bucket/test/location",
+        "last-updated-ms": 1602638573874,
+        "last-column-id": 3,
+        "schema": {
+            "type": "struct",
+            "fields": [
+                {"id": 1, "name": "x", "required": True, "type": "long"},
+                {"id": 2, "name": "y", "required": True, "type": "long", "doc": "comment"},
+                {"id": 3, "name": "z", "required": True, "type": "long"},
+            ],
+        },
+        "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
+        "properties": {},
+        "current-snapshot-id": -1,
+        "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}],
+    }
+
+    table_metadata = TableMetadataV1(**minimal_example_v1).to_v2()
+    metadata_v2_json = table_metadata.json()
+    metadata_v2 = json.loads(metadata_v2_json)
+
+    assert metadata_v2["last-sequence-number"] == 0
+    assert UUID(metadata_v2["table-uuid"]) is not None
+    assert metadata_v2["current-schema-id"] == 0
+    assert metadata_v2["schemas"] == [
+        {
+            "fields": [
+                {"id": 1, "name": "x", "required": True, "type": "long"},
+                {"doc": "comment", "id": 2, "name": "y", "required": True, "type": "long"},
+                {"id": 3, "name": "z", "required": True, "type": "long"},
+            ],
+            "identifier-field-ids": [],
+            "schema-id": 0,
+        }
+    ]
+    assert metadata_v2["partition-specs"] == [
+        {"field-id": 1000, "name": "x", "source-id": 1, "spec-id": 0, "transform": "identity"}
+    ]
+    assert metadata_v2["default-spec-id"] == 0
+    assert metadata_v2["last-partition-id"] == 1000
+    assert metadata_v2["sort-orders"] == []
+    assert metadata_v2["default-sort-order-id"] == 0
+    # Deprecated fields
+    assert "schema" not in metadata_v2
+    assert "partition-spec" not in metadata_v2
