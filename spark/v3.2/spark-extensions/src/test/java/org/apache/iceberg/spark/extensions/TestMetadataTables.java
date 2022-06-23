@@ -33,7 +33,6 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.hive.HiveTableOperations;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -326,16 +325,13 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     // Create table and insert data
     sql("CREATE TABLE %s (id bigint, data string) " +
         "USING iceberg " +
-        "PARTITIONED BY (data) " +
-        "TBLPROPERTIES" +
-        "('format-version'='2', 'write.delete.mode'='merge-on-read')", tableName);
+        "PARTITIONED BY (data)", tableName);
 
     List<SimpleRecord> recordsA = Lists.newArrayList(
         new SimpleRecord(1, "a"),
         new SimpleRecord(2, "a")
     );
     spark.createDataset(recordsA, Encoders.bean(SimpleRecord.class))
-        .coalesce(1)
         .writeTo(tableName)
         .append();
 
@@ -344,7 +340,6 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
         new SimpleRecord(2, "b")
     );
     spark.createDataset(recordsB, Encoders.bean(SimpleRecord.class))
-        .coalesce(1)
         .writeTo(tableName)
         .append();
 
@@ -362,11 +357,9 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     Assert.assertEquals("timestampMillis should match currentSnapshot",
         table.currentSnapshot().timestampMillis() * 1000, metadataLogWithFilters.get(0)[0]);
 
-    if (((HasTableOperations) table).operations() instanceof HiveTableOperations) {
-      Assert.assertEquals("file should match current metadata location",
-          ((HiveTableOperations) (((HasTableOperations) table).operations())).currentMetadataLocation(),
-          String.valueOf(metadataLogWithFilters.get(0)[1]));
-    }
+    Assert.assertEquals("file should match current metadata location",
+        ((HasTableOperations) table).operations().current().metadataFileLocation(),
+        String.valueOf(metadataLogWithFilters.get(0)[1]));
 
     // test projection
     List<Object[]> metadataLogWithProjection = sql("SELECT file FROM %s.metadata_log", tableName);
