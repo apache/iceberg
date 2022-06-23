@@ -26,8 +26,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 
 public class AesGcmOutputFile implements OutputFile {
-  private OutputFile targetFile;
-  private byte[] dataKey;
+  private final OutputFile targetFile;
+  private final byte[] dataKey;
 
   public AesGcmOutputFile(OutputFile targetFile, byte[] dataKey) {
     this.targetFile = targetFile;
@@ -39,7 +39,7 @@ public class AesGcmOutputFile implements OutputFile {
     try {
       return new AesGcmOutputStream(targetFile.create(), dataKey, null);
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new UncheckedIOException("Failed to create GCM stream for " + targetFile.location(), e);
     }
   }
 
@@ -48,7 +48,7 @@ public class AesGcmOutputFile implements OutputFile {
     try {
       return new AesGcmOutputStream(targetFile.createOrOverwrite(), dataKey, null);
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new UncheckedIOException("Failed to create or overwrite GCM stream for " + targetFile.location(), e);
     }
   }
 

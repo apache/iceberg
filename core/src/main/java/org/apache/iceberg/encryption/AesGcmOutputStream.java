@@ -22,62 +22,32 @@ package org.apache.iceberg.encryption;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.SecureRandom;
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 import org.apache.iceberg.io.PositionOutputStream;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 
 public class AesGcmOutputStream extends PositionOutputStream {
-  // AES-GCM parameters
-  public static final int GCM_NONCE_LENGTH = 12; // in bytes
-  public static final int GCM_TAG_LENGTH = 16; // in bytes
-  public static final int GCM_TAG_LENGTH_BITS = 8 * GCM_TAG_LENGTH;
-  public static final String MAGIC_STRING = "GCM1";
+  public static final int plainBlockSize = 1024 * 1024;
 
-  static final byte[] MAGIC_ARRAY = MAGIC_STRING.getBytes(StandardCharsets.UTF_8);
-  static final int PREFIX_LENGTH = MAGIC_ARRAY.length + 4; // magic_len + block_size_len
+  private final Ciphers.AesGcmEncryptor gcmEncryptor;
+  private final PositionOutputStream targetStream;
+  private final byte[] plaintextBlockBuffer;
+  private final byte[] fileAadPrefix;
 
-  private PositionOutputStream targetStream;
-
-  private Cipher gcmCipher;
-  private SecureRandom random;
-  private SecretKey key;
-  private byte[] nonce;
-
-  private int blockSize = 1024 * 1024;
-  private byte[] plaintextBlockBuffer;
   private int positionInBuffer;
   private long streamPosition;
   private int currentBlockIndex;
-  private byte[] fileAadPrefix;
 
   AesGcmOutputStream(PositionOutputStream targetStream, byte[] aesKey, byte[] fileAadPrefix) throws IOException {
     this.targetStream = targetStream;
-    try {
-      gcmCipher = Cipher.getInstance("AES/GCM/NoPadding");
-    } catch (GeneralSecurityException e) {
-      throw new IOException(e);
-    }
-    this.random = new SecureRandom();
-    this.nonce = new byte[GCM_NONCE_LENGTH];
-    this.key = new SecretKeySpec(aesKey, "AES");
-    this.plaintextBlockBuffer = new byte[blockSize];
+    this.gcmEncryptor = new Ciphers.AesGcmEncryptor(aesKey);
+    this.plaintextBlockBuffer = new byte[plainBlockSize];
     this.positionInBuffer = 0;
     this.streamPosition = 0;
     this.currentBlockIndex = 0;
     this.fileAadPrefix = fileAadPrefix;
 
-    byte[] prefixBytes = ByteBuffer.allocate(PREFIX_LENGTH).order(ByteOrder.LITTLE_ENDIAN)
-        .put(MAGIC_ARRAY)
-        .putInt(blockSize)
+    byte[] prefixBytes = ByteBuffer.allocate(Ciphers.GCM_STREAM_PREFIX_LENGTH).order(ByteOrder.LITTLE_ENDIAN)
+        .put(Ciphers.GCM_STREAM_MAGIC_ARRAY)
+        .putInt(plainBlockSize)
         .array();
     targetStream.write(prefixBytes);
   }
@@ -88,22 +58,20 @@ public class AesGcmOutputStream extends PositionOutputStream {
   }
 
   @Override
-  public void write(byte[] b)  throws IOException {
-    write(b, 0, b.length);
-  }
-
-  @Override
   public void write(byte[] b, int off, int len) throws IOException {
+    if (b.length - off < len) {
+      throw new IOException("Insufficient bytes in buffer: " + b.length + " - " + off + " < " + len);
+    }
     int remaining = len;
     int offset = off;
 
     while (remaining > 0) {
-      int freeBlockBytes = blockSize - positionInBuffer;
+      int freeBlockBytes = plainBlockSize - positionInBuffer;
       int toWrite = freeBlockBytes <= remaining ? freeBlockBytes : remaining;
 
       System.arraycopy(b, offset, plaintextBlockBuffer, positionInBuffer, toWrite);
       positionInBuffer += toWrite;
-      if (positionInBuffer == blockSize) {
+      if (positionInBuffer == plainBlockSize) {
         encryptAndWriteBlock();
         positionInBuffer = 0;
       }
@@ -133,41 +101,9 @@ public class AesGcmOutputStream extends PositionOutputStream {
   }
 
   private void encryptAndWriteBlock() throws IOException {
-    random.nextBytes(nonce);
-    GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, nonce);
-    try {
-      gcmCipher.init(Cipher.ENCRYPT_MODE, key, spec);
-    } catch (InvalidKeyException | InvalidAlgorithmParameterException e) {
-      throw new IOException("Failed to init GCM cipher", e);
-    }
-
-    byte[] aad = calculateAAD(fileAadPrefix, currentBlockIndex);
-    gcmCipher.updateAAD(aad);
-
-    byte[] cipherText = new byte[GCM_NONCE_LENGTH + positionInBuffer + GCM_TAG_LENGTH];
-    System.arraycopy(nonce, 0, cipherText, 0, GCM_NONCE_LENGTH);
-    try {
-      int encrypted = gcmCipher.doFinal(plaintextBlockBuffer, 0, positionInBuffer, cipherText, GCM_NONCE_LENGTH);
-      Preconditions.checkArgument((encrypted == (positionInBuffer + GCM_TAG_LENGTH)),
-          "Wrong length of encrypted output: " + encrypted + " vs " + (positionInBuffer + GCM_TAG_LENGTH));
-    } catch (GeneralSecurityException e) {
-      throw new IOException("Failed to encrypt", e);
-    }
-
+    byte[] aad = Ciphers.streamBlockAAD(fileAadPrefix, currentBlockIndex);
+    byte[] cipherText = gcmEncryptor.encrypt(plaintextBlockBuffer, 0, positionInBuffer, aad);
     currentBlockIndex++;
-
     targetStream.write(cipherText);
-  }
-
-  static byte[] calculateAAD(byte[] fileAadPrefix, int currentBlockIndex) {
-    byte[] blockAAD = Ints.toByteArray(currentBlockIndex);
-    if (null == fileAadPrefix) {
-      return blockAAD;
-    } else {
-      byte[] aad = new byte[fileAadPrefix.length + 4];
-      System.arraycopy(fileAadPrefix, 0, aad, 0, fileAadPrefix.length);
-      System.arraycopy(blockAAD, 0, aad, fileAadPrefix.length, 4);
-      return aad;
-    }
   }
 }

@@ -23,11 +23,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class AesGcmInputFile implements InputFile {
-  private InputFile sourceFile;
-  private byte[] dataKey;
+  private final InputFile sourceFile;
+  private final byte[] dataKey;
   private long plaintextLength;
 
   public AesGcmInputFile(InputFile sourceFile, byte[] dataKey) {
@@ -38,8 +37,13 @@ public class AesGcmInputFile implements InputFile {
 
   @Override
   public long getLength() {
-    Preconditions.checkArgument(plaintextLength >= 0, "Length is known after new stream is created");
-
+    if (plaintextLength == -1) {
+      try {
+        this.newStream().close();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
     return plaintextLength;
   }
 

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import javax.crypto.AEADBadTagException;
@@ -25,11 +26,20 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 
 public class Ciphers {
-  private static final int NONCE_LENGTH = 12;
-  private static final int GCM_TAG_LENGTH = 16;
+  public static final int NONCE_LENGTH = 12;
+  public static final int GCM_TAG_LENGTH = 16;
+  public static final String GCM_STREAM_MAGIC_STRING = "GCM1";
+
+  static final byte[] GCM_STREAM_MAGIC_ARRAY = GCM_STREAM_MAGIC_STRING.getBytes(StandardCharsets.UTF_8);
+  static final int GCM_STREAM_PREFIX_LENGTH = GCM_STREAM_MAGIC_ARRAY.length + 4; // magic_len + block_size_len
+
   private static final int GCM_TAG_LENGTH_BITS = 8 * GCM_TAG_LENGTH;
+
+  private Ciphers() {
+  }
 
   public static class AesGcmEncryptor {
     private final SecretKeySpec aesKey;
@@ -55,10 +65,14 @@ public class Ciphers {
       this.randomGenerator = new SecureRandom();
     }
 
-    public byte[] encrypt(byte[] plainText, byte[] aad) {
+    public byte[] encrypt(byte[] plaintext, byte[] aad) {
+      return encrypt(plaintext, 0, plaintext.length, aad);
+    }
+
+    public byte[] encrypt(byte[] plaintext, int plaintextOffset, int plaintextLength, byte[] aad) {
       byte[] nonce = new byte[NONCE_LENGTH];
       randomGenerator.nextBytes(nonce);
-      int cipherTextLength = NONCE_LENGTH + plainText.length + GCM_TAG_LENGTH;
+      int cipherTextLength = NONCE_LENGTH + plaintextLength + GCM_TAG_LENGTH;
       byte[] cipherText = new byte[cipherTextLength];
 
       try {
@@ -67,7 +81,7 @@ public class Ciphers {
         if (null != aad) {
           cipher.updateAAD(aad);
         }
-        cipher.doFinal(plainText, 0, plainText.length, cipherText, NONCE_LENGTH);
+        cipher.doFinal(plaintext, plaintextOffset, plaintextLength, cipherText, NONCE_LENGTH);
       } catch (GeneralSecurityException e) {
         throw new RuntimeException("Failed to encrypt", e);
       }
@@ -100,6 +114,7 @@ public class Ciphers {
       }
     }
 
+<<<<<<< HEAD
     public byte[] decrypt(byte[] ciphertext, byte[] aad) {
       int plainTextLength = ciphertext.length - GCM_TAG_LENGTH - NONCE_LENGTH;
       Preconditions.checkState(
@@ -108,30 +123,57 @@ public class Ciphers {
               + ciphertext.length
               + " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted"
               + " with AES GCM cipher");
+=======
+    public byte[] decrypt(byte[] ciphertext, byte[] aad)  {
+      return decrypt(ciphertext, 0, ciphertext.length, aad);
+    }
+
+    public byte[] decrypt(byte[] ciphertext, int ciphertextOffset, int ciphertextLength, byte[] aad)  {
+      Preconditions.checkState(ciphertextLength - GCM_TAG_LENGTH - NONCE_LENGTH >= 1,
+          "Cannot decrypt cipher text of length " + ciphertext.length +
+          " because text must longer than GCM_TAG_LENGTH + NONCE_LENGTH bytes. Text may not be encrypted" +
+          " with AES GCM cipher");
+>>>>>>> 52b944a45 (address review 2)
 
       // Get the nonce from ciphertext
       byte[] nonce = new byte[NONCE_LENGTH];
-      System.arraycopy(ciphertext, 0, nonce, 0, NONCE_LENGTH);
+      System.arraycopy(ciphertext, ciphertextOffset, nonce, 0, NONCE_LENGTH);
 
-      byte[] plainText = new byte[plainTextLength];
-      int inputLength = ciphertext.length - NONCE_LENGTH;
+      int inputLength = ciphertextLength - NONCE_LENGTH;
       try {
         GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, nonce);
         cipher.init(Cipher.DECRYPT_MODE, aesKey, spec);
         if (null != aad) {
           cipher.updateAAD(aad);
         }
+<<<<<<< HEAD
         cipher.doFinal(ciphertext, NONCE_LENGTH, inputLength, plainText, 0);
       } catch (AEADBadTagException e) {
         throw new RuntimeException(
             "GCM tag check failed. Possible reasons: wrong decryption key; or corrupt/tampered"
                 + "data. AES GCM doesn't differentiate between these two.. ",
             e);
+=======
+        return cipher.doFinal(ciphertext, ciphertextOffset + NONCE_LENGTH, inputLength);
+      }  catch (AEADBadTagException e) {
+        throw new RuntimeException("GCM tag check failed. Possible reasons: wrong decryption key; or corrupt/tampered" +
+            "data. AES GCM doesn't differentiate between these two.", e);
+>>>>>>> 52b944a45 (address review 2)
       } catch (GeneralSecurityException e) {
         throw new RuntimeException("Failed to decrypt", e);
       }
+    }
+  }
 
-      return plainText;
+  static byte[] streamBlockAAD(byte[] fileAadPrefix, int currentBlockIndex) {
+    byte[] blockAAD = Ints.toByteArray(currentBlockIndex);
+    if (null == fileAadPrefix) {
+      return blockAAD;
+    } else {
+      byte[] aad = new byte[fileAadPrefix.length + 4];
+      System.arraycopy(fileAadPrefix, 0, aad, 0, fileAadPrefix.length);
+      System.arraycopy(blockAAD, 0, aad, fileAadPrefix.length, 4);
+      return aad;
     }
   }
 }
