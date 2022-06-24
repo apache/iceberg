@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -33,7 +34,7 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
   }
 
   @Override
-  public Iterable<T> tasks() {
+  public Collection<T> tasks() {
     return Collections.unmodifiableList(tasks);
   }
 }
