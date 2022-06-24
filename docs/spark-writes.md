@@ -111,7 +111,7 @@ The partitions that will be replaced by `INSERT OVERWRITE` depends on Spark's pa
 
 {{< hint danger >}}
 Spark 3.0.0 has a correctness bug that affects dynamic `INSERT OVERWRITE` with hidden partitioning, [SPARK-32168][spark-32168].
-For tables with [hidden partitions](../partitioning), make sure you use Spark 3.0.1.
+For tables with [hidden partitions](../partitioning/#icebergs-hidden-partitioning), make sure you use Spark 3.0.1.
 {{< /hint >}}
 
 [spark-32168]: https://issues.apache.org/jira/browse/SPARK-32168
