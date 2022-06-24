@@ -42,6 +42,7 @@ class ValidationError(Exception):
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
+    """Validator to check if the current-schema-id is actually present in schemas"""
     current_schema_id = values["current_schema_id"]
 
     for schema in values["schemas"]:
@@ -52,6 +53,7 @@ def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
+    """Validator to check if the default-spec-id is present in partition-specs"""
     default_spec_id = values["default_spec_id"]
 
     for spec in values["partition_specs"]:
@@ -62,6 +64,7 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
+    """Validator to check if the default_sort_order_id is present in sort-orders"""
     default_sort_order_id = values["default_sort_order_id"]
 
     # 0 == unsorted
@@ -168,6 +171,12 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
 
 class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
+    """Represents version 1 of the Table Metadata
+
+    More information about the specification:
+    https://iceberg.apache.org/spec/#version-1-analytic-data-tables
+    """
+
     # When we read a V1 format-version, we'll make sure to populate the fields
     # for V2 as well. This makes it easier downstream because we can just
     # assume that everything is a TableMetadataV2.
@@ -176,10 +185,19 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # to the owner of the table.
 
     @root_validator(pre=True)
-    def set_v2_compatible_defaults(cls, data: Dict[str, Any]):
-        # Set some sensible defaults for V1, so we comply with the schema
-        # this is in pre=True, meaning that this will be done before validation
-        # we don't want to make them optional, since we do require them for V2
+    def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Sets default values to be compatible with the format v2
+
+        Set some sensible defaults for V1, so we comply with the schema
+        this is in pre=True, meaning that this will be done before validation.
+        We don't want to make the fields optional, since they are required for V2
+
+        Args:
+            data: The raw arguments given when initializing a V1 TableMetadata
+
+        Returns:
+            The TableMetadata with the defaults applied
+        """
         if "schema-id" not in data["schema"]:
             data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
         if "default-spec-id" not in data:
@@ -193,7 +211,19 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         return data
 
     @root_validator(skip_on_failure=True)
-    def construct_schema(cls, data: Dict[str, Any]):
+    def construct_schema(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Converts the schema into schemas
+
+        For V1 schemas is optional, and if they aren't set, we'll set them
+        in this validator. This was we can always use the schemas when reading
+        table metadata, and we don't have to worry if it is a v1 or v2 format.
+
+        Args:
+            data: The raw data after validation, meaning that the aliases are applied
+
+        Returns:
+            The TableMetadata with the schemas set, if not provided
+        """
         if not data.get("schemas"):
             schema = data["schema_"]
             data["schemas"] = [schema]
@@ -204,7 +234,19 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         return data
 
     @root_validator(skip_on_failure=True)
-    def construct_partition_specs(cls, data: Dict[str, Any]):
+    def construct_partition_specs(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Converts the partition_spec into partition_specs
+
+        For V1 partition_specs is optional, and if they aren't set, we'll set them
+        in this validator. This was we can always use the partition_specs when reading
+        table metadata, and we don't have to worry if it is a v1 or v2 format.
+
+        Args:
+            data: The raw data after validation, meaning that the aliases are applied
+
+        Returns:
+            The TableMetadata with the partition_specs set, if not provided
+        """
         # This is going to be much nicer as soon as partition-spec is also migrated to pydantic
         if not data.get("partition_specs"):
             fields = data["partition_spec"]
@@ -214,7 +256,18 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         return data
 
     @root_validator(skip_on_failure=True)
-    def construct_sort_orders(cls, data: Dict[str, Any]):
+    def set_sort_orders(cls, data: Dict[str, Any]):
+        """Sets the sort_orders if not provided
+
+        For V1 sort_orders is optional, and if they aren't set, we'll set them
+        in this validator.
+
+        Args:
+            data: The raw data after validation, meaning that the aliases are applied
+
+        Returns:
+            The TableMetadata with the sort_orders set, if not provided
+        """
         # This is going to be much nicer as soon as sort-order is an actual pydantic object
         # Probably we'll just create a UNSORTED_ORDER constant then
         if not data.get("sort_orders"):
@@ -252,6 +305,16 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
 
 
 class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
+    """Represents version 2 of the Table Metadata
+
+    This extends Version 1 with row-level deletes, and adds some additional
+    information to the schema, such as all the historical schemas, partition-specs,
+    sort-orders.
+
+    For more information:
+    https://iceberg.apache.org/spec/#version-2-row-level-deletes
+    """
+
     @root_validator(skip_on_failure=True)
     def check_schemas(cls, values: Dict[str, Any]):
         return check_schemas(values)
@@ -280,6 +343,8 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
 
 
 class TableMetadata:
+    """Helper class for parsing TableMetadata"""
+
     # Once this has been resolved, we can simplify this: https://github.com/samuelcolvin/pydantic/issues/3846
     # TableMetadata = Annotated[Union[TableMetadataV1, TableMetadataV2], Field(alias="format-version", discriminator="format-version")]
 
