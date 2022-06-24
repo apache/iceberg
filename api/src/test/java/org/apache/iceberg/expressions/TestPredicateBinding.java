@@ -615,13 +615,10 @@ public class TestPredicateBinding {
     );
 
     UnboundPredicate<Float> lt = new UnboundPredicate<>(LT, ref("struct"), 1.234f);
-    try {
-      lt.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (UnsupportedOperationException e) {
-      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for nested types",
-          e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
-    }
+    AssertHelpers.assertThrows("Binding should fail",
+        IllegalStateException.class,
+        "Non-Unary Predicate is not supported for top column of nested types",
+        () -> lt.bind(struct));
 
     UnboundPredicate<?> unbound1 = new UnboundPredicate<>(IS_NULL, ref("struct"));
     Expression expr1 = unbound1.bind(struct);
@@ -656,22 +653,16 @@ public class TestPredicateBinding {
     Assert.assertTrue("Should be a unary predicate", bound4.isUnaryPredicate());
 
     UnboundPredicate<?> unbound5 = new UnboundPredicate<>(IS_NAN, ref("struct"));
-    try {
-      unbound5.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (ValidationException e) {
-      Assert.assertTrue("Validation should complain about IsNaN cannot be used",
-          e.getMessage().contains("IsNaN cannot be used with a non-floating-point column"));
-    }
+    AssertHelpers.assertThrows("Binding should fail",
+        ValidationException.class,
+        "IsNaN cannot be used with a non-floating-point column",
+        () -> unbound5.bind(struct));
 
     UnboundPredicate<?> unbound6 = new UnboundPredicate<>(NOT_NAN, ref("struct"));
-    try {
-      unbound6.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (ValidationException e) {
-      Assert.assertTrue("Validation should complain about NonNaN cannot be used",
-          e.getMessage().contains("NotNaN cannot be used with a non-floating-point column"));
-    }
+    AssertHelpers.assertThrows("Binding should fail",
+        ValidationException.class,
+        "NotNaN cannot be used with a non-floating-point column",
+        () -> unbound6.bind(struct));
 
     UnboundPredicate<?> unbound7 = new UnboundPredicate<>(IS_NAN, ref("struct.float_field"));
     Expression expr7 = unbound7.bind(struct);
@@ -692,21 +683,19 @@ public class TestPredicateBinding {
 
   @Test
   public void testListFields() {
-    StructType struct = StructType.of(
+    StructType list = StructType.of(
         optional(10, "list", Types.ListType.ofRequired(11, Types.FloatType.get()))
     );
 
     UnboundPredicate<Float> lt = new UnboundPredicate<>(LT, ref("list"), 1.23f);
-    try {
-      lt.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (UnsupportedOperationException e) {
-      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for nested types",
-          e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
-    }
+    lt.bind(list);
+    AssertHelpers.assertThrows("Binding should fail",
+        IllegalStateException.class,
+        "Non-Unary Predicate is not supported for top column of nested types",
+        () -> lt.bind(list));
 
     UnboundPredicate<?> unbound1 = new UnboundPredicate<>(IS_NULL, ref("list"));
-    Expression expr1 = unbound1.bind(struct);
+    Expression expr1 = unbound1.bind(list);
     BoundPredicate<?> bound1 = assertAndUnwrap(expr1);
 
     Assert.assertEquals("Should use the same operation", IS_NULL, bound1.op());
@@ -714,7 +703,7 @@ public class TestPredicateBinding {
     Assert.assertTrue("Should be a unary predicate", bound1.isUnaryPredicate());
 
     UnboundPredicate<?> unbound2 = new UnboundPredicate<>(NOT_NULL, ref("list"));
-    Expression expr2 = unbound2.bind(struct);
+    Expression expr2 = unbound2.bind(list);
     BoundPredicate<?> bound2 = assertAndUnwrap(expr2);
 
     Assert.assertEquals("Should use the same operation", NOT_NULL, bound2.op());
@@ -722,41 +711,32 @@ public class TestPredicateBinding {
     Assert.assertTrue("Should be a unary predicate", bound2.isUnaryPredicate());
 
     UnboundPredicate<?> unbound3 = new UnboundPredicate<>(IS_NAN, ref("list"));
-    try {
-      unbound3.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (ValidationException e) {
-      Assert.assertTrue("Validation should complain about IsNaN cannot be used",
-          e.getMessage().contains("IsNaN cannot be used with a non-floating-point column"));
-    }
+    AssertHelpers.assertThrows("Binding should fail",
+        ValidationException.class,
+        "IsNaN cannot be used with a non-floating-point column",
+        () -> unbound3.bind(list));
 
     UnboundPredicate<?> unbound4 = new UnboundPredicate<>(NOT_NAN, ref("list"));
-    try {
-      unbound4.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (ValidationException e) {
-      Assert.assertTrue("Validation should complain about NonNaN cannot be used",
-          e.getMessage().contains("NotNaN cannot be used with a non-floating-point column"));
-    }
+    AssertHelpers.assertThrows("Binding should fail",
+        ValidationException.class,
+        "NotNaN cannot be used with a non-floating-point column",
+        () -> unbound4.bind(list));
   }
 
   @Test
   public void testMapFields() {
-    StructType struct = StructType.of(
+    StructType map = StructType.of(
         optional(10, "map", Types.MapType.ofRequired(11, 12, Types.LongType.get(), Types.LongType.get()))
     );
 
     UnboundPredicate<Float> lt = new UnboundPredicate<>(LT, ref("map"), 1.23f);
-    try {
-      lt.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (UnsupportedOperationException e) {
-      Assert.assertTrue("Validation should complain about Non-Unary predicate is not supported for nested types",
-          e.getMessage().contains("Non-Unary Predicate is not supported for top column of nested types"));
-    }
+    AssertHelpers.assertThrows("Binding should fail",
+        IllegalStateException.class,
+        "Non-Unary Predicate is not supported for top column of nested types",
+        () -> lt.bind(map));
 
     UnboundPredicate<?> unbound1 = new UnboundPredicate<>(IS_NULL, ref("map"));
-    Expression expr1 = unbound1.bind(struct);
+    Expression expr1 = unbound1.bind(map);
     BoundPredicate<?> bound1 = assertAndUnwrap(expr1);
 
     Assert.assertEquals("Should use the same operation", IS_NULL, bound1.op());
@@ -764,7 +744,7 @@ public class TestPredicateBinding {
     Assert.assertTrue("Should be a unary predicate", bound1.isUnaryPredicate());
 
     UnboundPredicate<?> unbound2 = new UnboundPredicate<>(NOT_NULL, ref("map"));
-    Expression expr2 = unbound2.bind(struct);
+    Expression expr2 = unbound2.bind(map);
     BoundPredicate<?> bound2 = assertAndUnwrap(expr2);
 
     Assert.assertEquals("Should use the same operation", NOT_NULL, bound2.op());
@@ -772,21 +752,15 @@ public class TestPredicateBinding {
     Assert.assertTrue("Should be a unary predicate", bound2.isUnaryPredicate());
 
     UnboundPredicate<?> unbound3 = new UnboundPredicate<>(IS_NAN, ref("map"));
-    try {
-      unbound3.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (ValidationException e) {
-      Assert.assertTrue("Validation should complain about IsNaN cannot be used",
-          e.getMessage().contains("IsNaN cannot be used with a non-floating-point column"));
-    }
+    AssertHelpers.assertThrows("Binding should fail",
+        ValidationException.class,
+        "IsNaN cannot be used with a non-floating-point column",
+        () -> unbound3.bind(map));
 
     UnboundPredicate<?> unbound4 = new UnboundPredicate<>(NOT_NAN, ref("map"));
-    try {
-      unbound4.bind(struct);
-      Assert.fail("Binding should fail");
-    } catch (ValidationException e) {
-      Assert.assertTrue("Validation should complain about NonNaN cannot be used",
-          e.getMessage().contains("NotNaN cannot be used with a non-floating-point column"));
-    }
+    AssertHelpers.assertThrows("Binding should fail",
+        ValidationException.class,
+        "NotNaN cannot be used with a non-floating-point column",
+        () -> unbound4.bind(map));
   }
 }
