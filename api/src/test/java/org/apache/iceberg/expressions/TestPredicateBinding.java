@@ -688,7 +688,6 @@ public class TestPredicateBinding {
     );
 
     UnboundPredicate<Float> lt = new UnboundPredicate<>(LT, ref("list"), 1.23f);
-    lt.bind(list);
     AssertHelpers.assertThrows("Binding should fail",
         IllegalStateException.class,
         "Non-Unary Predicate is not supported for top column of nested types",
