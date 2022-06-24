@@ -206,7 +206,7 @@ public class TestUpdateNamespacePropertiesRequest extends RequestResponseTestBas
 
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] { "updates", "removals" };
+    return new String[] { "removals", "updates" };
   }
 
   @Override
