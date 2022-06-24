@@ -163,7 +163,7 @@ public class ScanContext implements Serializable {
     return snapshotId;
   }
 
-  public StreamingStartingStrategy startingStrategy() {
+  public StreamingStartingStrategy streamingStartingStrategy() {
     return startingStrategy;
   }
 
