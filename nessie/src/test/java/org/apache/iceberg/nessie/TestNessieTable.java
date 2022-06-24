@@ -415,8 +415,8 @@ public class TestNessieTable extends BaseTestIceberg {
     // Case 1: Branch does not exist
     Assertions.assertThatThrownBy(
         () -> catalog.registerTable(
-                TableIdentifier.of(DB_NAME, "`" + TABLE_NAME + "`@default"),
-                "file:" + metadataVersionFiles.get(0)))
+            TableIdentifier.of(DB_NAME, "`" + TABLE_NAME + "`@default"),
+            "file:" + metadataVersionFiles.get(0)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Nessie ref 'default' does not exist");
     // Case 2: Table Already Exists
@@ -427,8 +427,8 @@ public class TestNessieTable extends BaseTestIceberg {
     api.createReference().sourceRefName(BRANCH).reference(Tag.of("tag_1", catalog.currentHash())).create();
     Assertions.assertThatThrownBy(
         () -> catalog.registerTable(
-                TableIdentifier.of(DB_NAME, "`" + TABLE_NAME + "`@tag_1"),
-                "file:" + metadataVersionFiles.get(0)))
+            TableIdentifier.of(DB_NAME, "`" + TABLE_NAME + "`@tag_1"),
+            "file:" + metadataVersionFiles.get(0)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("You can only mutate tables when using a branch without a hash or timestamp.");
     // Case 4: non-null metadata path with null metadata location
