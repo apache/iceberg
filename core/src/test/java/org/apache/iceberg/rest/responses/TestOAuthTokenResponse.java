@@ -67,24 +67,6 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
     return OAuth2Util.tokenResponseToJson(response);
   }
 
-  @Override
-  public void testHasOnlyKnownFields() {
-    Set<String> fieldsFromSpec = Sets.newHashSet();
-    Collections.addAll(fieldsFromSpec, allFieldsFromSpec());
-    try {
-      JsonNode node = JsonUtil.mapper().readValue(serialize(createExampleInstance()), JsonNode.class);
-      for (String field : fieldsFromSpec) {
-        Assert.assertTrue("Should have field: " + field, node.has(field));
-      }
-
-      for (String field : ((Iterable<? extends String>) node::fieldNames)) {
-        Assert.assertTrue("Should not have field: " + field, fieldsFromSpec.contains(field));
-      }
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
   @Test
   public void testRoundTrip() throws Exception {
     assertRoundTripSerializesEquallyFrom(

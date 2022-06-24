@@ -255,7 +255,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
 
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] {"name", "location", "schema", "spec", "order", "properties", "stageCreate"};
+    return new String[] {"name", "location", "schema", "partition-spec", "write-order", "stage-create", "properties" };
   }
 
   @Override
