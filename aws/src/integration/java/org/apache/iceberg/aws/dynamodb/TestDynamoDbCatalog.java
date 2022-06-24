@@ -27,8 +27,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
@@ -42,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -293,6 +296,37 @@ public class TestDynamoDbCatalog {
             .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
             .build());
     Assert.assertFalse("namespace must not exist", response.hasItem());
+  }
+
+  @Test
+  public void testRegisterTable() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier identifier = TableIdentifier.of(namespace, catalogTableName);
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    Assertions.assertThat(catalog.dropTable(identifier, false)).isTrue();
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThat(catalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
+  }
+
+  @Test
+  public void testRegisterExistingTable() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier identifier = TableIdentifier.of(namespace, catalogTableName);
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class);
+    Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
   }
 
   private static String genRandomName() {
