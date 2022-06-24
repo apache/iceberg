@@ -24,11 +24,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.CombinableScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -86,6 +88,49 @@ public class TestTableScanUtil {
     for (int i = 0; i < expectedCombinedTasks.size(); ++i) {
       Assert.assertEquals("Scan tasks detail in combined task check failed",
           expectedCombinedTasks.get(i).files(), combinedScanTasks.get(i).files());
+    }
+  }
+
+  @Test
+  public void testTaskCombining() {
+    List<ParentTask> tasks = Lists.newArrayList(
+      new ChildTask1(),
+      new ChildTask1(),
+      new ChildTask2(),
+      new ChildTask3(),
+      new ChildTask3()
+    );
+    List<ParentTask> combinedTasks = TableScanUtil.combineTasks(tasks);
+    Assert.assertEquals("Appropriate tasks should be combined", 3, combinedTasks.size());
+  }
+
+  private interface ParentTask extends ScanTask {
+  }
+
+  private static class ChildTask1 implements ParentTask, CombinableScanTask<ChildTask1> {
+    @Override
+    public boolean isCombinableWith(ScanTask other) {
+      return other instanceof ChildTask1;
+    }
+
+    @Override
+    public ChildTask1 combineWith(ScanTask other) {
+      return new ChildTask1();
+    }
+  }
+
+  private static class ChildTask2 implements ParentTask {
+  }
+
+  private static class ChildTask3 implements ParentTask, CombinableScanTask<ChildTask3> {
+    @Override
+    public boolean isCombinableWith(ScanTask other) {
+      return other instanceof ChildTask3;
+    }
+
+    @Override
+    public ChildTask3 combineWith(ScanTask other) {
+      return new ChildTask3();
     }
   }
 }

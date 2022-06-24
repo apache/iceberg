@@ -35,6 +35,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
@@ -153,7 +154,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
   private BaseScanTaskGroup<FileScanTask> prepareBaseScanTaskGroupForSerDeTest() {
     Table table = initTable();
     CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    return new BaseScanTaskGroup<>(tasks);
+    return new BaseScanTaskGroup<>(ImmutableList.copyOf(tasks));
   }
 
   private Table initTable() {

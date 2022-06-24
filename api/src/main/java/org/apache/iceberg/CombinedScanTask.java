@@ -32,7 +32,7 @@ public interface CombinedScanTask extends ScanTaskGroup<FileScanTask> {
   Collection<FileScanTask> files();
 
   @Override
-  default Iterable<FileScanTask> tasks() {
+  default Collection<FileScanTask> tasks() {
     return files();
   }
 

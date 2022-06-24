@@ -33,22 +33,12 @@ public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanT
   List<DeleteFile> deletes();
 
   @Override
-  default boolean isAdjacent(FileScanTask other) {
-    return false;
-  }
-
-  @Override
-  default FileScanTask combineWithAdjacentTask(FileScanTask other) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " can't be combined with another task");
-  }
-
-  @Override
-  default long totalSizeBytes() {
+  default long sizeBytes() {
     return length() + deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
   }
 
   @Override
-  default long totalFilesCount() {
+  default int filesCount() {
     return 1 + deletes().size();
   }
 

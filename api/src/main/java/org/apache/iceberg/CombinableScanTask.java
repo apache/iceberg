@@ -20,19 +20,26 @@
 package org.apache.iceberg;
 
 /**
- * A scan task that can be split into smaller scan tasks.
+ * A scan task that can be potentially combined with another scan task.
  *
  * @param <ThisT> the child Java API class
  */
-public interface SplittableScanTask<ThisT> extends ScanTask {
+public interface CombinableScanTask<ThisT> extends ScanTask {
   /**
-   * Attempts to split this scan task into several smaller scan tasks, each close to {@code splitSize} size.
-   * <p>
-   * Note the target split size is just guidance and the actual split size may be either smaller or larger.
-   * File formats like Parquet may leverage the row group offset information while splitting tasks.
+   * Checks if this task can be combined with a given task.
    *
-   * @param targetSplitSize the target size of each new scan task in bytes
-   * @return an Iterable of smaller tasks
+   * @param other another task
+   * @return whether the tasks can be combined
    */
-  Iterable<ThisT> split(long targetSplitSize);
+  boolean isCombinableWith(ScanTask other);
+
+  /**
+   * Combines this task with a given task.
+   * <p>
+   * Note this method will be called only if {@link #isCombinableWith(ScanTask)} returned true.
+   *
+   * @param other another task
+   * @return a new combined task
+   */
+  ThisT combineWith(ScanTask other);
 }

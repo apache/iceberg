@@ -23,15 +23,18 @@ import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
+import org.apache.iceberg.CombinableScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class TableScanUtil {
@@ -84,9 +87,10 @@ public class TableScanUtil {
         BaseCombinedScanTask::new);
   }
 
-  public static <T extends SplittableScanTask<T>> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
-      CloseableIterable<T> tasks,
-      long splitSize, int lookback, long openFileCost) {
+  @SuppressWarnings("unchecked")
+  public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(CloseableIterable<T> tasks,
+                                                                                        long splitSize, int lookback,
+                                                                                        long openFileCost) {
 
     Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
     Preconditions.checkArgument(lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
@@ -94,44 +98,57 @@ public class TableScanUtil {
 
     // capture manifests which can be closed after scan planning
     CloseableIterable<T> splitTasks = CloseableIterable.combine(
-        FluentIterable.from(tasks).transformAndConcat(input -> input.split(splitSize)),
+        FluentIterable.from(tasks).transformAndConcat(task -> {
+          if (task instanceof SplittableScanTask<?>) {
+            return ((SplittableScanTask<? extends T>) task).split(splitSize);
+          } else {
+            return ImmutableList.of(task);
+          }
+        }),
         tasks);
 
-    Function<T, Long> weightFunc = task -> Math.max(task.totalSizeBytes(), task.totalFilesCount() * openFileCost);
+    Function<T, Long> weightFunc = task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
 
     return CloseableIterable.transform(
         CloseableIterable.combine(
             new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
             splitTasks),
-        combinedTasks -> new BaseScanTaskGroup<>(combineAdjacentTasks(combinedTasks)));
+        combinedTasks -> new BaseScanTaskGroup<>(combineTasks(combinedTasks)));
   }
 
-  private static <T extends SplittableScanTask<T>> List<T> combineAdjacentTasks(List<T> tasks) {
+  @SuppressWarnings("unchecked")
+  public static <T extends ScanTask> List<T> combineTasks(List<T> tasks) {
     if (tasks.isEmpty()) {
       return tasks;
     }
 
     List<T> combinedTasks = Lists.newArrayList();
-    T lastTask = null;
+    CombinableScanTask<? extends T> lastCombinableTask = null;
 
     for (T task : tasks) {
-      if (lastTask != null) {
-        if (lastTask.isAdjacent(task)) {
-          // merge with the last task
-          lastTask = lastTask.combineWithAdjacentTask(task);
+      if (task instanceof CombinableScanTask<?>) {
+        CombinableScanTask<? extends T> combinableTask = (CombinableScanTask<? extends T>) task;
+        if (lastCombinableTask != null) {
+          if (lastCombinableTask.isCombinableWith(combinableTask)) {
+            // combine current and last tasks
+            lastCombinableTask = (CombinableScanTask<? extends T>) lastCombinableTask.combineWith(combinableTask);
+          } else {
+            // last task can't be combined, add it to combined tasks
+            combinedTasks.add((T) lastCombinableTask);
+            lastCombinableTask = combinableTask;
+          }
         } else {
-          // last task is not adjacent, add it to finished adjacent groups
-          combinedTasks.add(lastTask);
-          lastTask = task;
+          // first combinable task
+          lastCombinableTask = combinableTask;
         }
       } else {
-        // first split
-        lastTask = task;
+        // skip non-combinable task
+        combinedTasks.add(task);
       }
     }
 
-    if (lastTask != null) {
-      combinedTasks.add(lastTask);
+    if (lastCombinableTask != null) {
+      combinedTasks.add((T) lastCombinableTask);
     }
 
     return combinedTasks;

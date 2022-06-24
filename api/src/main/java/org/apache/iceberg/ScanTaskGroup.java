@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+
 /**
  * A scan task that may include partial input files, multiple input files or both.
  *
@@ -29,4 +31,14 @@ public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
    * Returns scan tasks in this group.
    */
   Iterable<T> tasks();
+
+  @Override
+  default long sizeBytes() {
+    return Streams.stream(tasks()).mapToLong(ScanTask::sizeBytes).sum();
+  }
+
+  @Override
+  default int filesCount() {
+    return Streams.stream(tasks()).mapToInt(ScanTask::filesCount).sum();
+  }
 }
