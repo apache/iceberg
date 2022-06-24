@@ -27,6 +27,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, root_validator
 
+from iceberg.exceptions import ValidationError
 from iceberg.schema import Schema
 from iceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
 from iceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -35,10 +36,6 @@ _INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
 DEFAULT_SORT_ORDER_UNSORTED = 0
-
-
-class ValidationError(Exception):
-    ...
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
@@ -193,7 +190,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         We don't want to make the fields optional, since they are required for V2
 
         Args:
-            data: The raw arguments given when initializing a V1 TableMetadata
+            data: The raw arguments when initializing a V1 TableMetadata
 
         Returns:
             The TableMetadata with the defaults applied
