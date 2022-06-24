@@ -66,10 +66,46 @@ public class SortOrderUtil {
     }
 
     // make a map of the partition fields that need to be included in the clustering produced by the sort order
-    Map<Pair<Transform<?, ?>, Integer>, PartitionField> partitionFields = Maps.newLinkedHashMap();
+    Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields = requiredClusteringFields(spec);
+
+    // remove any partition fields that are clustered by the sort order by iterating over a prefix in the sort order.
+    // this will stop when a non-partition field is found, or when the sort field only satisfies the partition field.
+    for (SortField sortField : sortOrder.fields()) {
+      Pair<Transform<?, ?>, Integer> sourceAndTransform = Pair.of(sortField.transform(), sortField.sourceId());
+      if (requiredClusteringFields.containsKey(sourceAndTransform)) {
+        requiredClusteringFields.remove(sourceAndTransform);
+        continue; // keep processing the prefix
+      }
+
+      // if the field satisfies the order of any partition fields, also remove them before stopping
+      // use a set to avoid concurrent modification
+      for (PartitionField field : spec.fields()) {
+        if (sortField.sourceId() == field.sourceId() && sortField.transform().satisfiesOrderOf(field.transform())) {
+          requiredClusteringFields.remove(Pair.of(field.transform(), field.sourceId()));
+        }
+      }
+
+      break;
+    }
+
+    // build a sort prefix of partition fields that are not already in the sort order's prefix
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+    for (PartitionField field : requiredClusteringFields.values()) {
+      String sourceName = schema.findColumnName(field.sourceId());
+      builder.asc(Expressions.transform(sourceName, field.transform()));
+    }
+
+    // add the configured sort to the partition spec prefix sort
+    SortOrderVisitor.visit(sortOrder, new CopySortOrderFields(builder));
+
+    return builder.build();
+  }
+
+  private static Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields(PartitionSpec spec) {
+    Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields = Maps.newLinkedHashMap();
     for (PartitionField partField : spec.fields()) {
       if (!partField.transform().toString().equals("void")) {
-        partitionFields.put(Pair.of(partField.transform(), partField.sourceId()), partField);
+        requiredClusteringFields.put(Pair.of(partField.transform(), partField.sourceId()), partField);
       }
     }
 
@@ -79,42 +115,12 @@ public class SortOrderUtil {
         if (!partField.equals(field) &&
             partField.sourceId() == field.sourceId() &&
             partField.transform().satisfiesOrderOf(field.transform())) {
-          partitionFields.remove(Pair.of(field.transform(), field.sourceId()));
+          requiredClusteringFields.remove(Pair.of(field.transform(), field.sourceId()));
         }
       }
     }
 
-    // remove any partition fields that are clustered by the sort order by iterating over a prefix in the sort order.
-    // this will stop when a non-partition field is found, or when the sort field only satisfies the partition field.
-    for (SortField sortField : sortOrder.fields()) {
-      Pair<Transform<?, ?>, Integer> sourceAndTransform = Pair.of(sortField.transform(), sortField.sourceId());
-      if (partitionFields.containsKey(sourceAndTransform)) {
-        partitionFields.remove(sourceAndTransform);
-        continue; // keep processing the prefix
-      }
-
-      // if the field satisfies the order of any partition fields, also remove them before stopping
-      // use a set to avoid concurrent modification
-      for (PartitionField field : spec.fields()) {
-        if (sortField.sourceId() == field.sourceId() && sortField.transform().satisfiesOrderOf(field.transform())) {
-          partitionFields.remove(Pair.of(field.transform(), field.sourceId()));
-        }
-      }
-
-      break;
-    }
-
-    // build a sort prefix of partition fields that are not already in the sort order's prefix
-    SortOrder.Builder builder = SortOrder.builderFor(schema);
-    for (PartitionField field : partitionFields.values()) {
-      String sourceName = schema.findColumnName(field.sourceId());
-      builder.asc(Expressions.transform(sourceName, field.transform()));
-    }
-
-    // add the configured sort to the partition spec prefix sort
-    SortOrderVisitor.visit(sortOrder, new CopySortOrderFields(builder));
-
-    return builder.build();
+    return requiredClusteringFields;
   }
 
   public static Set<String> orderPreservingSortedColumns(SortOrder sortOrder) {
