@@ -20,9 +20,12 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -40,6 +43,8 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 /**
  * A Spark catalog that can also load non-Iceberg tables.
@@ -259,6 +264,10 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
+    if (options.containsKey("type") && options.get("type").equalsIgnoreCase("hive")) {
+      validateHmsUri(options.get(CatalogProperties.URI));
+    }
+
     this.catalogName = name;
     this.icebergCatalog = buildSparkCatalog(name, options);
     if (icebergCatalog instanceof StagingTableCatalog) {
@@ -268,6 +277,23 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
     this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
+  }
+
+  private void validateHmsUri(String catalogHmsUri) {
+    if (catalogHmsUri == null) {
+      return;
+    }
+
+    Configuration conf = SparkSession.active().sessionState().newHadoopConf();
+    String envHmsUri = conf.get(METASTOREURIS.varname, null);
+    if (envHmsUri == null) {
+      return;
+    }
+
+    Preconditions.checkArgument(catalogHmsUri.equals(envHmsUri),
+        "The environment Hive metastore uri(%s) doesn't match with Spark session catalog uri(%s). " +
+            "Please make sure they are the same, or keep a valid one and unset the other.",
+        envHmsUri, catalogHmsUri);
   }
 
   @Override
