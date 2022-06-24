@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -79,13 +80,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     try (TableLoader loader = tableLoader) {
       return loader.loadTable();
     } catch (IOException e) {
-      throw new RuntimeException("Failed to close table loader", e);
+      throw new UncheckedIOException("Failed to close table loader", e);
     }
   }
 
   @Override
   public Boundedness getBoundedness() {
-    return scanContext.isStreaming() ? Boundedness.BOUNDED : Boundedness.CONTINUOUS_UNBOUNDED;
+    return scanContext.isStreaming() ? Boundedness.CONTINUOUS_UNBOUNDED : Boundedness.BOUNDED;
   }
 
   @Override
