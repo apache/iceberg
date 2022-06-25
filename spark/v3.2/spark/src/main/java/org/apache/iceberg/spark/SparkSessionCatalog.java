@@ -21,6 +21,7 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -43,8 +44,6 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 /**
  * A Spark catalog that can also load non-Iceberg tables.
@@ -285,7 +284,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     }
 
     Configuration conf = SparkSession.active().sessionState().newHadoopConf();
-    String envHmsUri = conf.get(METASTOREURIS.varname, null);
+    String envHmsUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, null);
     if (envHmsUri == null) {
       return;
     }
