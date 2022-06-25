@@ -71,11 +71,11 @@ public class TestSparkSchemaUtil {
     for (AttributeReference attrRef : attrRefs) {
       if (MetadataColumns.isMetadataColumn(attrRef.name())) {
         Assert.assertTrue("metadata columns should have __metadata_col in attribute metadata",
-            attrRef.metadata().contains(MetadataColumns.METADATA_COL_ATTR_KEY) &&
-                attrRef.metadata().getBoolean(MetadataColumns.METADATA_COL_ATTR_KEY));
+            attrRef.metadata().contains(TypeToSparkType.METADATA_COL_ATTR_KEY) &&
+                attrRef.metadata().getBoolean(TypeToSparkType.METADATA_COL_ATTR_KEY));
       } else {
         Assert.assertFalse("non metadata columns should not have __metadata_col in attribute metadata",
-            attrRef.metadata().contains(MetadataColumns.METADATA_COL_ATTR_KEY));
+            attrRef.metadata().contains(TypeToSparkType.METADATA_COL_ATTR_KEY));
       }
     }
   }

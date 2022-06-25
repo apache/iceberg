@@ -48,6 +48,8 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   TypeToSparkType() {
   }
 
+  public static final String METADATA_COL_ATTR_KEY = "__metadata_col";
+
   @Override
   public DataType schema(Schema schema, DataType structType) {
     return structType;
@@ -61,10 +63,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
       DataType type = fieldResults.get(i);
-      Metadata metadata = Metadata.empty();
-      if (MetadataColumns.isMetadataColumn(field.name())) {
-        metadata = new MetadataBuilder().putBoolean(MetadataColumns.METADATA_COL_ATTR_KEY, true).build();
-      }
+      Metadata metadata = fieldMetadata(field.fieldId());
       StructField sparkField = StructField.apply(field.name(), type, field.isOptional(), metadata);
       if (field.doc() != null) {
         sparkField = sparkField.withComment(field.doc());
@@ -126,5 +125,15 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
         throw new UnsupportedOperationException(
             "Cannot convert unknown type to Spark: " + primitive);
     }
+  }
+
+  private Metadata fieldMetadata(int fieldId) {
+    if (MetadataColumns.metadataFieldIds().contains(fieldId)) {
+      return new MetadataBuilder()
+          .putBoolean(METADATA_COL_ATTR_KEY, true)
+          .build();
+    }
+
+    return Metadata.empty();
   }
 }
