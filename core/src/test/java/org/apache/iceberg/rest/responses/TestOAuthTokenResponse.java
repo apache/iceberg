@@ -20,14 +20,9 @@
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import java.util.Collections;
-import java.util.Set;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.apache.iceberg.rest.auth.OAuth2Util;
-import org.apache.iceberg.util.JsonUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
