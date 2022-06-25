@@ -25,7 +25,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.JsonUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -75,10 +74,11 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
    * This test ensures that the serialized JSON of each class has only fields that are expected from the spec.
    * Only top level fields are checked presently, as nested fields generally come from some existing type that is
    * tested elsewhere.
-   * The fields from the spec should be populated into the {@link RequestResponseTestBase#allFieldsFromSpec()}.
+   * The fields from the spec should be populated into each subclass's
+   * {@link RequestResponseTestBase#allFieldsFromSpec()}.
    */
   @Test
-  public void testJSONHasOnlyKnownFieldsFromSpec() {
+  public void testHasOnlyKnownFields() {
     Set<String> fieldsFromSpec = Sets.newHashSet();
     Collections.addAll(fieldsFromSpec, allFieldsFromSpec());
     try {
