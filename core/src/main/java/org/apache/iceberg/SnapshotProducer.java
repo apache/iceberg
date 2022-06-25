@@ -118,9 +118,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public ThisT toBranch(String branch){
-      Preconditions.checkArgument(branch != null,"branch cannot be null");
-      Preconditions.checkArgument(ops.current().ref(branch) != null, "%s is not a valid ref", branch);
-      throw new UnsupportedOperationException("Performing operations on a branch is currently not supported");
+    Preconditions.checkArgument(branch != null,"branch cannot be null");
+    Preconditions.checkArgument(ops.current().ref(branch) != null, "%s is not a valid ref", branch);
+    throw new UnsupportedOperationException("Performing operations on a branch is currently not supported");
   }
 
   protected ExecutorService workerPool() {

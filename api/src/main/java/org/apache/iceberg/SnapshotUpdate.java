@@ -63,7 +63,7 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
 
   /**
    * Perform operations on a particular branch
-   * @param branch which is name of SanshotRef of type branch.
+   * @param branch which is name of SnapshotRef of type branch.
    */
   ThisT toBranch(String branch);
 }
