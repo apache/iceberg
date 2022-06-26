@@ -2,8 +2,6 @@
 title: "View Spec"
 url: view-spec
 toc: true
-aliases:
-    - "view-spec"
 disableSidebar: true
 ---
 <!--

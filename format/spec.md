@@ -2,8 +2,6 @@
 title: "Spec"
 url: spec
 toc: true
-aliases:
-    - "spec"
 disableSidebar: true
 ---
 <!--
