@@ -23,11 +23,11 @@ import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
-import org.apache.iceberg.CombinableScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.SplittableScanTask;
@@ -113,44 +113,38 @@ public class TableScanUtil {
         CloseableIterable.combine(
             new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
             splitTasks),
-        combinedTasks -> new BaseScanTaskGroup<>(combineTasks(combinedTasks)));
+        combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
   }
 
   @SuppressWarnings("unchecked")
-  public static <T extends ScanTask> List<T> combineTasks(List<T> tasks) {
-    if (tasks.isEmpty()) {
-      return tasks;
-    }
+  public static <T extends ScanTask> List<T> mergeTasks(List<T> tasks) {
+    List<T> mergedTasks = Lists.newArrayList();
 
-    List<T> combinedTasks = Lists.newArrayList();
-    CombinableScanTask<? extends T> lastCombinableTask = null;
+    T lastTask = null;
 
     for (T task : tasks) {
-      if (task instanceof CombinableScanTask<?>) {
-        CombinableScanTask<? extends T> combinableTask = (CombinableScanTask<? extends T>) task;
-        if (lastCombinableTask != null) {
-          if (lastCombinableTask.isCombinableWith(combinableTask)) {
-            // combine current and last tasks
-            lastCombinableTask = (CombinableScanTask<? extends T>) lastCombinableTask.combineWith(combinableTask);
+      if (lastTask != null) {
+        if (lastTask instanceof MergeableScanTask<?>) {
+          MergeableScanTask<? extends T> mergeableLastTask = (MergeableScanTask<? extends T>) lastTask;
+          if (mergeableLastTask.canMerge(task)) {
+            lastTask = mergeableLastTask.merge(task);
           } else {
-            // last task can't be combined, add it to combined tasks
-            combinedTasks.add((T) lastCombinableTask);
-            lastCombinableTask = combinableTask;
+            mergedTasks.add(lastTask);
+            lastTask = task;
           }
         } else {
-          // first combinable task
-          lastCombinableTask = combinableTask;
+          mergedTasks.add(lastTask);
+          lastTask = task;
         }
       } else {
-        // skip non-combinable task
-        combinedTasks.add(task);
+        lastTask = task;
       }
     }
 
-    if (lastCombinableTask != null) {
-      combinedTasks.add((T) lastCombinableTask);
+    if (lastTask != null) {
+      mergedTasks.add(lastTask);
     }
 
-    return combinedTasks;
+    return mergedTasks;
   }
 }

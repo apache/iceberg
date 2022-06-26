@@ -20,26 +20,26 @@
 package org.apache.iceberg;
 
 /**
- * A scan task that can be potentially combined with another scan task.
+ * A scan task that can be potentially merged with other scan tasks.
  *
  * @param <ThisT> the child Java API class
  */
-public interface CombinableScanTask<ThisT> extends ScanTask {
+public interface MergeableScanTask<ThisT> extends ScanTask {
   /**
-   * Checks if this task can be combined with a given task.
+   * Checks if this task can merge with a given task.
    *
    * @param other another task
-   * @return whether the tasks can be combined
+   * @return whether the tasks can be merged
    */
-  boolean isCombinableWith(ScanTask other);
+  boolean canMerge(ScanTask other);
 
   /**
-   * Combines this task with a given task.
+   * Merges this task with a given task.
    * <p>
-   * Note this method will be called only if {@link #isCombinableWith(ScanTask)} returned true.
+   * Note this method will be called only if {@link #canMerge(ScanTask)} returns true.
    *
    * @param other another task
-   * @return a new combined task
+   * @return a new merged task
    */
-  ThisT combineWith(ScanTask other);
+  ThisT merge(ScanTask other);
 }

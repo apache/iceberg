@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.Assert;
 
 public final class TaskCheckHelper {
@@ -85,8 +84,8 @@ public final class TaskCheckHelper {
         expected.keyMetadata(), actual.keyMetadata());
   }
 
-  private static List<FileScanTask> getFileScanTasksInFilePathOrder(ScanTaskGroup<FileScanTask> task) {
-    return Streams.stream(task.tasks())
+  private static List<FileScanTask> getFileScanTasksInFilePathOrder(ScanTaskGroup<FileScanTask> taskGroup) {
+    return taskGroup.tasks().stream()
         // use file path + start position to differentiate the tasks
         .sorted(Comparator.comparing(o -> o.file().path().toString() + "##" + o.start()))
         .collect(Collectors.toList());

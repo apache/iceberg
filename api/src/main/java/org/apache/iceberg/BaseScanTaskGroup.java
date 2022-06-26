@@ -20,21 +20,43 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
-  private final List<T> tasks;
+  private final Object[] tasks;
+  private transient volatile List<T> taskList;
 
-  public BaseScanTaskGroup(Iterable<T> tasks) {
+  public BaseScanTaskGroup(Collection<T> tasks) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
-    this.tasks = Lists.newArrayList(tasks);
+    this.tasks = tasks.toArray();
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public Collection<T> tasks() {
-    return Collections.unmodifiableList(tasks);
+    if (taskList == null) {
+      synchronized (this) {
+        if (taskList == null) {
+          ImmutableList.Builder<T> listBuilder = ImmutableList.builderWithExpectedSize(tasks.length);
+          for (Object task : tasks) {
+            listBuilder.add((T) task);
+          }
+          taskList = listBuilder.build();
+        }
+      }
+    }
+
+    return taskList;
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("tasks", Joiner.on(", ").join(tasks))
+        .toString();
   }
 }
