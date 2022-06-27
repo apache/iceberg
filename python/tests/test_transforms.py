@@ -228,7 +228,7 @@ def test_truncate_method(type_var, value, expected_human_str, expected):
     assert truncate_transform.to_human_string(None) == "null"
     assert truncate_transform.width == 1
     assert truncate_transform.apply(None) is None
-    assert truncate_transform.preserves_order()
+    assert truncate_transform.preserves_order
     assert truncate_transform.satisfies_order_of(truncate_transform)
 
 

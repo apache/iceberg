@@ -320,8 +320,12 @@ class TruncateTransform(Transform[S, S]):
         self._width = width
 
     @property
-    def width(self):
+    def width(self) -> int:
         return self._width
+
+    @property
+    def type(self) -> IcebergType:
+        return self._type
 
     def apply(self, value: Optional[S]) -> Optional[S]:
         return self._truncate_value(value) if value is not None else None
@@ -362,14 +366,15 @@ class TruncateTransform(Transform[S, S]):
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
+    @property
     def preserves_order(self) -> bool:
         return True
 
     def satisfies_order_of(self, other: Transform) -> bool:
         if self == other:
             return True
-        elif isinstance(self._type, StringType) and isinstance(other, TruncateTransform) and isinstance(other._type, StringType):
-            return self._width >= other._width
+        elif isinstance(self._type, StringType) and isinstance(other, TruncateTransform) and isinstance(other.type, StringType):
+            return self._width >= other.width
 
         return False
 
