@@ -15,17 +15,34 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint:disable=redefined-outer-name
+"""This contains global pytest configurations.
 
+Fixtures contained in this file will be automatically used if provided as an argument
+to any pytest function.
+
+In the case where the fixture must be used in a pytest.mark.parametrize decorator, the string representation can be used
+and the built-in pytest fixture request should be used as an additional argument in the function. The fixture can then be
+retrieved using `request.getfixturevalue(fixture_name)`.
+"""
+import os
 from tempfile import TemporaryDirectory
-from typing import Any, Dict
+from typing import Any, Dict, Union
+from urllib.parse import urlparse
 
 import pytest
 
 from iceberg import schema
+from iceberg.io.base import (
+    FileIO,
+    InputFile,
+    OutputFile,
+    OutputStream,
+)
 from iceberg.schema import Schema
 from iceberg.types import (
     BinaryType,
     BooleanType,
+    DoubleType,
     FloatType,
     IntegerType,
     ListType,
@@ -36,6 +53,7 @@ from iceberg.types import (
     StructType,
 )
 from tests.catalog.test_base import InMemoryCatalog
+from tests.io.test_io_base import LocalInputFile
 
 
 class FooStruct:
@@ -766,6 +784,72 @@ def avro_schema_manifest_entry() -> Dict[str, Any]:
             },
         ],
     }
+
+
+@pytest.fixture(scope="session")
+def simple_struct():
+    return StructType(
+        NestedField(id=1, name="required_field", field_type=StringType(), required=True, doc="this is a doc"),
+        NestedField(id=2, name="optional_field", field_type=IntegerType()),
+    )
+
+
+@pytest.fixture(scope="session")
+def simple_list():
+    return ListType(element_id=22, element=StringType(), element_required=True)
+
+
+@pytest.fixture(scope="session")
+def simple_map():
+    return MapType(key_id=19, key_type=StringType(), value_id=25, value_type=DoubleType(), value_required=False)
+
+
+class LocalOutputFile(OutputFile):
+    """An OutputFile implementation for local files (for test use only)"""
+
+    def __init__(self, location: str):
+        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+        if parsed_location.scheme and parsed_location.scheme != "file":  # Validate that a uri is provided with a scheme of `file`
+            raise ValueError("LocalOutputFile location must have a scheme of `file`")
+        elif parsed_location.netloc:
+            raise ValueError(f"Network location is not allowed for LocalOutputFile: {parsed_location.netloc}")
+
+        super().__init__(location=location)
+        self._path = parsed_location.path
+
+    def __len__(self):
+        return os.path.getsize(self._path)
+
+    def exists(self):
+        return os.path.exists(self._path)
+
+    def to_input_file(self):
+        return LocalInputFile(location=self.location)
+
+    def create(self, overwrite: bool = False) -> OutputStream:
+        output_file = open(self._path, "wb" if overwrite else "xb")
+        if not isinstance(output_file, OutputStream):
+            raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
+        return output_file
+
+
+class LocalFileIO(FileIO):
+    """A FileIO implementation for local files (for test use only)"""
+
+    def new_input(self, location: str):
+        return LocalInputFile(location=location)
+
+    def new_output(self, location: str):
+        return LocalOutputFile(location=location)
+
+    def delete(self, location: Union[str, InputFile, OutputFile]):
+        location = location.location if isinstance(location, (InputFile, OutputFile)) else location
+        os.remove(location)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def LocalFileIOFixture():
+    return LocalFileIO
 
 
 @pytest.fixture(scope="session")
