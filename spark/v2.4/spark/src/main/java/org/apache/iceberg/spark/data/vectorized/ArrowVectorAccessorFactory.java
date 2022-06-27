@@ -84,7 +84,7 @@ final class ArrowVectorAccessorFactory
     public UTF8String ofByteBuffer(ByteBuffer byteBuffer) {
       if (byteBuffer.hasArray()) {
         return UTF8String.fromBytes(
-                byteBuffer.array(), byteBuffer.arrayOffset() + byteBuffer.position(), byteBuffer.remaining());
+            byteBuffer.array(), byteBuffer.arrayOffset() + byteBuffer.position(), byteBuffer.remaining());
       }
       byte[] bytes = new byte[byteBuffer.remaining()];
       byteBuffer.get(bytes);
