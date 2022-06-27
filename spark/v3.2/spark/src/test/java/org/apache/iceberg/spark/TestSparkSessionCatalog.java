@@ -42,9 +42,14 @@ public class TestSparkSessionCatalog extends SparkTestBase {
 
     // HMS uris doesn't match
     spark.sessionState().catalogManager().reset();
+    String catalogHmsUri = "RandomString";
     spark.conf().set(envHmsUriKey, hmsUri);
-    spark.conf().set(catalogHmsUriKey, "RandomString");
-    Assert.assertThrows(IllegalArgumentException.class, () -> spark.sessionState().catalogManager().v2SessionCatalog());
+    spark.conf().set(catalogHmsUriKey, catalogHmsUri);
+    IllegalArgumentException exception = Assert.assertThrows(IllegalArgumentException.class,
+        () -> spark.sessionState().catalogManager().v2SessionCatalog());
+    String errorMessage = String.format("Inconsistent Hive metastore URIs: %s (Spark session) != %s (spark_catalog)",
+        hmsUri, catalogHmsUri);
+    Assert.assertEquals(errorMessage, exception.getMessage());
 
     // no env HMS uri, only catalog HMS uri
     spark.sessionState().catalogManager().reset();

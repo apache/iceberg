@@ -290,8 +290,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     }
 
     Preconditions.checkArgument(catalogHmsUri.equals(envHmsUri),
-        "The environment Hive metastore uri(%s) doesn't match with Spark session catalog uri(%s). " +
-            "Please make sure they are the same, or keep a valid one and unset the other.",
+        "Inconsistent Hive metastore URIs: %s (Spark session) != %s (spark_catalog)",
         envHmsUri, catalogHmsUri);
   }
 
