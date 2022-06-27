@@ -24,6 +24,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -44,7 +45,7 @@ import scala.runtime.BoxedUnit;
 /**
  * A procedure that rewrites datafiles in a table.
  *
- * @see org.apache.iceberg.spark.actions.SparkActions#rewriteDataFiles(Table)
+ * @see org.apache.iceberg.spark.actions.SparkActions#rewriteDataFiles(Table, String)
  */
 class RewriteDataFilesProcedure extends BaseProcedure {
 
@@ -90,7 +91,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
 
     return modifyIcebergTable(tableIdent, table -> {
-      RewriteDataFiles action = actions().rewriteDataFiles(table);
+      String quotedFullIdentifier = Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
+      RewriteDataFiles action = actions().rewriteDataFiles(table, quotedFullIdentifier);
 
       String strategy = args.isNullAt(1) ? null : args.getString(1);
       String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
@@ -107,7 +109,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       }
 
       String where = args.isNullAt(4) ? null : args.getString(4);
-      action = checkAndApplyFilter(action, where, table.name());
+
+      action = checkAndApplyFilter(action, where, quotedFullIdentifier);
 
       RewriteDataFiles.Result result = action.execute();
 

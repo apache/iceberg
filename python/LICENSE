@@ -202,3 +202,14 @@
    limitations under the License.
 
 --------------------------------------------------------------------------------
+
+This product includes code from Apache Avro.
+
+* Code for initializing the Avro (de)compression codecs
+* The Binary decoder for reading in an Avro byte stream
+
+Copyright: 2014-2022 The Apache Software Foundation.
+Home page: https://avro.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------

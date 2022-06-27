@@ -17,7 +17,7 @@
   - under the License.
   -->
 
-![](site/docs/img/Iceberg-logo.png)
+![Iceberg](https://iceberg.apache.org/docs/latest/img/Iceberg-logo.png)
 
 [![](https://github.com/apache/iceberg/actions/workflows/java-ci.yml/badge.svg)](https://github.com/apache/iceberg/actions/workflows/java-ci.yml)
 [![](https://github.com/apache/iceberg/actions/workflows/python-ci.yml/badge.svg)](https://github.com/apache/iceberg/actions/workflows/python-ci.yml)

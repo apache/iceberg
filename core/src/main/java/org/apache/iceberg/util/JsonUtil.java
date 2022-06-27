@@ -166,11 +166,21 @@ public class JsonUtil {
         .build();
   }
 
+  public static List<Integer> getIntegerList(String property, JsonNode node) {
+    return ImmutableList.<Integer>builder()
+        .addAll(new JsonIntegerArrayIterator(property, node))
+        .build();
+  }
+
   public static Set<Integer> getIntegerSetOrNull(String property, JsonNode node) {
     if (!node.has(property) || node.get(property).isNull()) {
       return null;
     }
 
+    return getIntegerSet(property, node);
+  }
+
+  public static Set<Integer> getIntegerSet(String property, JsonNode node) {
     return ImmutableSet.<Integer>builder()
         .addAll(new JsonIntegerArrayIterator(property, node))
         .build();

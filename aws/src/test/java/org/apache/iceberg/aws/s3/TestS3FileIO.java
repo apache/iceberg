@@ -35,13 +35,16 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -189,5 +192,44 @@ public class TestS3FileIO {
     SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
 
     assertEquals("s3", post.get().serviceName());
+  }
+
+  @Test
+  public void testPrefixList() {
+    String prefix = "s3://bucket/path/to/list";
+
+    List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
+
+    scaleSizes.parallelStream().forEach(scale -> {
+      String scalePrefix = String.format("%s/%s/", prefix, scale);
+
+      createRandomObjects(scalePrefix, scale);
+      assertEquals((long) scale, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+    });
+
+    long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
+    Assertions.assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(prefix)).count());
+  }
+
+  @Test
+  public void testPrefixDelete() {
+    String prefix = "s3://bucket/path/to/delete";
+    List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
+
+    scaleSizes.parallelStream().forEach(scale -> {
+      String scalePrefix = String.format("%s/%s/", prefix, scale);
+
+      createRandomObjects(scalePrefix, scale);
+      s3FileIO.deletePrefix(scalePrefix);
+      assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+    });
+  }
+
+  private void createRandomObjects(String prefix, int count) {
+    S3URI s3URI = new S3URI(prefix);
+
+    random.ints(count).parallel().forEach(i ->
+        s3mock.putObject(builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(), RequestBody.empty())
+    );
   }
 }

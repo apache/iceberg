@@ -16,8 +16,15 @@
 #  under the License.
 """Helper methods for working with date/time representations
 """
+from __future__ import annotations
+
 import re
-from datetime import date, datetime, time
+from datetime import (
+    date,
+    datetime,
+    time,
+    timedelta,
+)
 
 EPOCH_DATE = date.fromisoformat("1970-01-01")
 EPOCH_TIMESTAMP = datetime.fromisoformat("1970-01-01T00:00:00.000000")
@@ -31,9 +38,23 @@ def micros_to_days(timestamp: int) -> int:
     return (datetime.fromtimestamp(timestamp / 1_000_000) - EPOCH_TIMESTAMP).days
 
 
+def micros_to_time(micros: int) -> time:
+    """Converts a timestamp in microseconds to a time"""
+    micros, microseconds = divmod(micros, 1000000)
+    micros, seconds = divmod(micros, 60)
+    micros, minutes = divmod(micros, 60)
+    hours = micros
+    return time(hour=hours, minute=minutes, second=seconds, microsecond=microseconds)
+
+
 def date_to_days(date_str: str) -> int:
     """Converts an ISO-8601 formatted date to days from 1970-01-01"""
     return (date.fromisoformat(date_str) - EPOCH_DATE).days
+
+
+def days_to_date(days: int) -> date:
+    """Creates a date from the number of days from 1970-01-01"""
+    return EPOCH_DATE + timedelta(days)
 
 
 def time_to_micros(time_str: str) -> int:
@@ -63,3 +84,35 @@ def timestamptz_to_micros(timestamptz_str: str) -> int:
     if ISO_TIMESTAMPTZ.fullmatch(timestamptz_str):
         return datetime_to_micros(datetime.fromisoformat(timestamptz_str))
     raise ValueError(f"Invalid timestamp with zone: {timestamptz_str} (must be ISO-8601)")
+
+
+def micros_to_timestamp(micros: int):
+    """Converts microseconds from epoch to a timestamp"""
+    dt = timedelta(microseconds=micros)
+    return EPOCH_TIMESTAMP + dt
+
+
+def micros_to_timestamptz(micros: int):
+    """Converts microseconds from epoch to an utc timestamp"""
+    dt = timedelta(microseconds=micros)
+    return EPOCH_TIMESTAMPTZ + dt
+
+
+def to_human_day(day_ordinal: int) -> str:
+    """Converts a DateType value to human string"""
+    return (EPOCH_DATE + timedelta(days=day_ordinal)).isoformat()
+
+
+def to_human_time(micros_from_midnight: int) -> str:
+    """Converts a TimeType value to human string"""
+    return micros_to_time(micros_from_midnight).isoformat()
+
+
+def to_human_timestamptz(timestamp_micros: int) -> str:
+    """Converts a TimestamptzType value to human string"""
+    return (EPOCH_TIMESTAMPTZ + timedelta(microseconds=timestamp_micros)).isoformat()
+
+
+def to_human_timestamp(timestamp_micros: int) -> str:
+    """Converts a TimestampType value to human string"""
+    return (EPOCH_TIMESTAMP + timedelta(microseconds=timestamp_micros)).isoformat()
