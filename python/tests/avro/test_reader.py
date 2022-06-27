@@ -448,7 +448,7 @@ def test_binary_reader():
 
 def test_unknown_type():
     class UnknownType(PrimitiveType):
-        ...
+        __root__ = "UnknownType"
 
     with pytest.raises(ValueError) as exc_info:
         primitive_reader(UnknownType())
