@@ -22,6 +22,7 @@ package org.apache.iceberg.arrow.vectorized;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -367,18 +368,23 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     private final Dictionary dictionary;
     private final StringFactory<Utf8StringT> stringFactory;
     private final IntVector offsetVector;
+    private final Utf8StringT[] cache;
 
     DictionaryStringAccessor(IntVector vector, Dictionary dictionary, StringFactory<Utf8StringT> stringFactory) {
       super(vector);
       this.offsetVector = vector;
       this.dictionary = dictionary;
       this.stringFactory = stringFactory;
+      this.cache = genericArray(stringFactory.getGenericClass(), dictionary.getMaxId() + 1);
     }
 
     @Override
     public final Utf8StringT getUTF8String(int rowId) {
       int offset = offsetVector.get(rowId);
-      return stringFactory.ofBytes(dictionary.decodeToBinary(offset).getBytesUnsafe());
+      if (cache[offset] == null) {
+        cache[offset] = stringFactory.ofByteBuffer(dictionary.decodeToBinary(offset).toByteBuffer());
+      }
+      return cache[offset];
     }
   }
 
@@ -579,14 +585,11 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
 
     @Override
     public final DecimalT getDecimal(int rowId, int precision, int scale) {
-      int dictId = offsetVector.get(rowId);
-      if (cache[dictId] == null) {
-        cache[dictId] = decimalFactory.ofLong(
-            decode(dictId),
-            precision,
-            scale);
+      int offset = offsetVector.get(rowId);
+      if (cache[offset] == null) {
+        cache[offset] = decimalFactory.ofLong(decode(offset), precision, scale);
       }
-      return cache[dictId];
+      return cache[offset];
     }
 
     protected abstract long decode(int dictId);
@@ -672,6 +675,11 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
      * Create a UTF8 String from the byte array.
      */
     Utf8StringT ofBytes(byte[] bytes);
+
+    /**
+     * Create a UTF8 String from the byte buffer.
+     */
+    Utf8StringT ofByteBuffer(ByteBuffer byteBuffer);
   }
 
   /**
