@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.flink.sink;
 
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableEnvironment;
@@ -28,11 +26,8 @@ import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
-import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.transforms.Transform;
-import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -58,167 +53,80 @@ public class TestPartitionUdf {
     }
   }
 
-
-  @Test
-  public void testBucketDate() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.DateType.get(), 4);
-
-    String date = "2022-05-20";
-    Integer value = bucket.apply(Literal.of(date).to(Types.DateType.get()).value());
-    String expectHumanString = bucket.toHumanString(value);
-
-    List<Row> sql = sql("SELECT buckets(4, DATE '%s')", date);
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
+  public void assertUDF(String expect, String query, Object... args) {
+    List<Row> ret = sql(query, args);
+    Assert.assertEquals(expect, ret.get(0).getField(0));
   }
 
   @Test
-  public void testBucketInt() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.IntegerType.get(), 4);
+  public void testBucket() {
 
-    int num = 10;
-    Integer obj = bucket.apply(num);
-    String expectHumanString = bucket.toHumanString(obj);
+    // int type
+    assertUDF("428", "SELECT buckets(1000, %d)", 10);
 
-    List<Row> sql = sql("SELECT buckets(4, %d)", num);
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
+    // long type
+    assertUDF("525", "SELECT buckets(1000, %d)", 456294967296L);
+
+    // date type
+    assertUDF("51", "SELECT buckets(1000, DATE '%s')", "2022-05-20");
+
+    // timestamp type
+    assertUDF("441", "SELECT buckets(1000, TIMESTAMP '2022-05-20 10:12:55.038194')");
+
+    // time type
+    assertUDF("440", "SELECT buckets(1000, TIME '%s')", "14:08:59");
+
+    // string type
+    assertUDF("489", "SELECT buckets(1000, 'this is a string')");
+
+    // decimal type
+    assertUDF("825", "select buckets(1000, cast(6.12345 as decimal(6,5)))");
+
+    // binary type
+    assertUDF("798", "SELECT buckets(1000, x'010203040506')");
+
+    // boolean type, unsupported
+    AssertHelpers.assertThrows("unsupported boolean type",
+        RuntimeException.class,
+        () -> sql("SELECT buckets(1000, true)"));
   }
 
   @Test
-  public void testBucketLong() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.LongType.get(), 4);
+  public void testTruncate() {
 
-    long num = 10;
-    Integer obj = bucket.apply(num);
-    String expectHumanString = bucket.toHumanString(obj);
+    // int type
+    assertUDF("10", "SELECT truncates(10, %d)", 15);
 
-    List<Row> sql = sql("SELECT buckets(4, %d)", num);
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
+    // long type
+    assertUDF("456294967000", "SELECT truncates(1000, %d)", 456294967296L);
 
-  @Test
-  public void testBucketTimestamp() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.TimestampType.withoutZone(), 4);
-    String ts = "2022-05-20T10:12:55.038194";
-    Literal<Long> lts = Literal.of(ts).to((Types.TimestampType.withoutZone()));
-    Integer apply = bucket.apply(lts.value());
-    String expectHumanString = bucket.toHumanString(apply);
+    // string type
+    assertUDF("this is a ", "SELECT truncates(10, 'this is a string')");
 
-    List<Row> sql = sql("SELECT buckets(4, TIMESTAMP '2022-05-20 10:12:55.038194')");
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
+    // decimal type
+    assertUDF("6.12000", "select truncates(1000, cast(6.12345 as decimal(6,5)))");
 
-  @Test
-  public void testBucketString() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.StringType.get(), 4);
+    // binary type
+    assertUDF("AQIDBAUGBwgJCg==", "SELECT truncates(10, x'0102030405060708090a0b0c0d0e0f')");
 
-    String str = "abcdef";
-    Integer obj = bucket.apply(str);
-    String expectHumanString = bucket.toHumanString(obj);
+    // timestamp type, unsupported
+    AssertHelpers.assertThrows("unsupported timestamp type",
+        RuntimeException.class,
+        () -> sql("SELECT truncates(10, TIMESTAMP '2022-05-20 10:12:55.038194')"));
 
-    List<Row> sql = sql("SELECT buckets(4, '%s')", str);
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
+    // date type, unsupported
+    AssertHelpers.assertThrows("unsupported date type",
+        RuntimeException.class,
+        () -> sql("SELECT truncates(10, DATE '%s')", "2022-05-20"));
 
-  @Test
-  public void testBucketDecimalType() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.DecimalType.of(6, 5), 4);
+    // time type, unsupported
+    AssertHelpers.assertThrows("unsupported time type",
+        RuntimeException.class,
+        () -> sql("SELECT truncates(10, TIME '%s')", "14:08:59"));
 
-    Integer obj = bucket.apply(BigDecimal.valueOf(6.12345));
-    String expectHumanString = bucket.toHumanString(obj);
-
-    List<Row> sql = sql("select buckets(4, cast(6.12345 as decimal(6,5)))");
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
-
-  @Test
-  public void testBucketFixed() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.FixedType.ofLength(6), 4);
-
-    Integer obj = bucket.apply(ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5, 6}));
-    String expectHumanString = bucket.toHumanString(obj);
-
-    List<Row> sql = sql("SELECT buckets(4, x'010203040506')");
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
-
-  @Test
-  public void testBucketTime() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.TimeType.get(), 4);
-
-    String str = "14:08:59";
-    Integer obj = bucket.apply(Literal.of(str).to(Types.TimeType.get()).value());
-    String expectHumanString = bucket.toHumanString(obj);
-
-    List<Row> sql = sql("SELECT buckets(4, TIME '%s')", str);
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
-
-  @Test
-  public void testBucketByteBuffer() {
-    Transform<Object, Integer> bucket = Transforms.bucket(Types.BinaryType.get(), 4);
-
-    Integer obj = bucket.apply(ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5, 6}));
-    String expectHumanString = bucket.toHumanString(obj);
-
-    List<Row> sql = sql("SELECT buckets(4, x'010203040506')");
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
-
-  @Test
-  public void testTruncateInt() {
-    Transform<Object, Object> truncate = Transforms.truncate(Types.IntegerType.get(), 4);
-
-    int num = 10;
-    Object obj = truncate.apply(num);
-    String expectHumanString = truncate.toHumanString(obj);
-
-    List<Row> sql = sql("SELECT truncates(4, %d)", num);
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
-
-  @Test
-  public void testTruncateLong() {
-    Transform<Object, Object> truncate = Transforms.truncate(Types.LongType.get(), 4);
-
-    long num = 10;
-    Object obj = truncate.apply(num);
-    String expectHumanString = truncate.toHumanString(obj);
-
-    List<Row> sql = sql("SELECT truncates(4, %d)", num);
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
-
-  @Test
-  public void testTruncateString() {
-    Transform<Object, Object> truncate = Transforms.truncate(Types.StringType.get(), 4);
-
-    String str = "abcdef";
-    Object obj = truncate.apply(str);
-    String expectHumanString = truncate.toHumanString(obj);
-
-    List<Row> sql = sql("SELECT truncates(4, '%s')", str);
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
-
-  @Test
-  public void testTruncateDecimalType() {
-    Transform<Object, Object> truncate = Transforms.truncate(Types.DecimalType.of(6, 5), 4);
-
-    Object obj = truncate.apply(BigDecimal.valueOf(6.12345));
-    String expectHumanString = truncate.toHumanString(obj);
-
-    List<Row> sql = sql("select truncates(4, cast(6.12345 as decimal(6,5)))");
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
-  }
-
-  @Test
-  public void testTruncateByteBuffer() {
-    Transform<Object, Object> truncate = Transforms.truncate(Types.BinaryType.get(), 4);
-
-    Object obj = truncate.apply(ByteBuffer.wrap(new byte[] {1, 2, 3, 4, 5, 6}));
-    String expectHumanString = truncate.toHumanString(obj);
-
-    List<Row> sql = sql("SELECT truncates(4, x'010203040506')");
-    Assert.assertEquals(expectHumanString, sql.get(0).getField(0));
+    // boolean type, unsupported
+    AssertHelpers.assertThrows("unsupported boolean type",
+        RuntimeException.class,
+        () -> sql("SELECT truncates(10, true)"));
   }
 }

@@ -22,7 +22,6 @@ package org.apache.iceberg.flink;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -112,7 +111,7 @@ public class FlinkCatalog extends AbstractCatalog {
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
-    this.partitionFunctions = new LinkedHashMap<>();
+    this.partitionFunctions = Maps.newHashMap();
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
