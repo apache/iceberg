@@ -26,16 +26,23 @@ evaluate the `__call__` method with all the arguments. If we already initialized
 return it.
 
 More information on metaclasses: https://docs.python.org/3/reference/datamodel.html#metaclasses
-
 """
-from typing import ClassVar, Dict
+from typing import Any, ClassVar, Dict
+
+
+def _convert_to_hashable_type(element: Any) -> Any:
+    if isinstance(element, dict):
+        return tuple((_convert_to_hashable_type(k), _convert_to_hashable_type(v)) for k, v in element.items())
+    elif isinstance(element, list):
+        return tuple(map(_convert_to_hashable_type, element))
+    return element
 
 
 class Singleton:
     _instances: ClassVar[Dict] = {}
 
     def __new__(cls, *args, **kwargs):
-        key = (cls, args, tuple(sorted(kwargs.items())))
+        key = (cls, tuple(args), _convert_to_hashable_type(kwargs))
         if key not in cls._instances:
             cls._instances[key] = super().__new__(cls)
         return cls._instances[key]
