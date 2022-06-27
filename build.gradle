@@ -53,7 +53,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
 } else if (JavaVersion.current() == JavaVersion.VERSION_11) {
   project.ext.jdkVersion = '11'
 } else {
-  throw new GradleException("This build must be run with JDK 8 or 11")
+  throw new GradleException("This build must be run with JDK 8 or 11 but was executed with JDK " + JavaVersion.current())
 }
 
 dependencyRecommendations {
