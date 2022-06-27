@@ -51,7 +51,7 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
   @Override
   public IncrementalAppendScan fromSnapshotInclusive(long fromSnapshotId) {
     Preconditions.checkArgument(table().snapshot(fromSnapshotId) != null,
-        "Cannot find the starting snapshot: %d", fromSnapshotId);
+        "Cannot find the starting snapshot: %s", fromSnapshotId);
     return newRefinedScan(tableOps(), table(), schema(), context().fromSnapshotIdInclusive(fromSnapshotId));
   }
 
@@ -65,7 +65,7 @@ class BaseIncrementalAppendScan extends BaseScan<IncrementalAppendScan> implemen
   @Override
   public IncrementalAppendScan toSnapshot(long toSnapshotId) {
     Preconditions.checkArgument(table().snapshot(toSnapshotId) != null,
-        "Cannot find end snapshot: %d", toSnapshotId);
+        "Cannot find end snapshot: %s", toSnapshotId);
     return newRefinedScan(tableOps(), table(), schema(),  context().toSnapshotId(toSnapshotId));
   }
 
