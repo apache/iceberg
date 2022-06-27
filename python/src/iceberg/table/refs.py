@@ -25,8 +25,8 @@ MAIN_BRANCH = "main"
 
 
 class SnapshotRefType(str, Enum):
-    branch = "branch"
-    tag = "tag"
+    BRANCH = "branch"
+    TAG = "tag"
 
 
 class SnapshotRef(IcebergBaseModel):

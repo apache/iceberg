@@ -64,8 +64,7 @@ def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default_sort_order_id is present in sort-orders"""
     default_sort_order_id = values["default_sort_order_id"]
 
-    # 0 == unsorted
-    if default_sort_order_id != 0:
+    if default_sort_order_id != DEFAULT_SORT_ORDER_UNSORTED:
         for sort in values["sort_orders"]:
             if sort["order-id"] == default_sort_order_id:
                 return values
@@ -78,20 +77,29 @@ class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
+    @root_validator(pre=True)
+    def cleanup_snapshot_id(cls, data: Dict[str, Any]):
+        if data.get("current-snapshot-id") == -1:
+            # We treat -1 and None the same, by cleaning this up
+            # in a pre-validator, we can simplify the logic later on
+            data["current-snapshot-id"] = None
+        return data
+
     @root_validator(skip_on_failure=True)
     def construct_refs(cls, data: Dict[str, Any]):
         # This is going to be much nicer as soon as refs is an actual pydantic object
-        if not data.get("refs"):
-            if current_snapshot_id := data.get("current_snapshot_id"):
-                if current_snapshot_id != -1:
-                    data["refs"] = {
-                        MAIN_BRANCH: SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.branch)
-                    }
+        if current_snapshot_id := data.get("current_snapshot_id"):
+            data["refs"] = {MAIN_BRANCH: SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)}
         return data
 
     location: str = Field()
     """The table’s base location. This is used by writers to determine where
     to store data files, manifest files, and table metadata files."""
+
+    table_uuid: Optional[UUID] = Field(alias="table-uuid")
+    """A UUID that identifies the table, generated when the table is created.
+    Implementations must throw an exception if a table’s UUID does not match
+    the expected UUID after refreshing metadata."""
 
     last_updated_ms: int = Field(alias="last-updated-ms")
     """Timestamp in milliseconds from the unix epoch when the table
@@ -106,13 +114,13 @@ class TableMetadataCommonFields(IcebergBaseModel):
     schemas: List[Schema] = Field(default_factory=list)
     """A list of schemas, stored as objects with schema-id."""
 
-    current_schema_id: int = Field(alias="current-schema-id", default=0)
+    current_schema_id: int = Field(alias="current-schema-id", default=DEFAULT_SCHEMA_ID)
     """ID of the table’s current schema."""
 
     partition_specs: list = Field(alias="partition-specs", default_factory=list)
     """A list of partition specs, stored as full partition spec objects."""
 
-    default_spec_id: int = Field(alias="default-spec-id")
+    default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
     """ID of the “current” spec that writers should use by default."""
 
     last_partition_id: int = Field(alias="last-partition-id")
@@ -126,7 +134,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     to be used for arbitrary metadata. For example, commit.retry.num-retries
     is used to control the number of commit retries."""
 
-    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id", default=-1)
+    current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id")
     """ID of the current table snapshot."""
 
     snapshots: list = Field(default_factory=list)
@@ -154,7 +162,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     sort_orders: List[Dict[str, Any]] = Field(alias="sort-orders", default_factory=list)
     """A list of sort orders, stored as full sort order objects."""
 
-    default_sort_order_id: int = Field(alias="default-sort-order-id")
+    default_sort_order_id: int = Field(alias="default-sort-order-id", default=DEFAULT_SORT_ORDER_UNSORTED)
     """Default sort order id of the table. Note that this could be used by
     writers, but is not used when reading because reads use the specs stored
      in manifest files."""
@@ -197,18 +205,14 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         """
         if "schema-id" not in data["schema"]:
             data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
-        if "default-spec-id" not in data:
-            data["default-spec-id"] = INITIAL_SPEC_ID
         if "last-partition-id" not in data:
             data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
-        if "default-sort-order-id" not in data:
-            data["default-sort-order-id"] = DEFAULT_SORT_ORDER_UNSORTED
         if "table-uuid" not in data:
             data["table-uuid"] = uuid4()
         return data
 
     @root_validator(skip_on_failure=True)
-    def construct_schema(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+    def construct_schemas(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Converts the schema into schemas
 
         For V1 schemas is optional, and if they aren't set, we'll set them
@@ -224,8 +228,6 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         if not data.get("schemas"):
             schema = data["schema_"]
             data["schemas"] = [schema]
-            if "current_schema_id" not in data:
-                data["current_schema_id"] = schema.schema_id
         else:
             check_schemas(data["schemas"])
         return data
@@ -269,7 +271,6 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         # Probably we'll just create a UNSORTED_ORDER constant then
         if not data.get("sort_orders"):
             data["sort_orders"] = [{"order_id": 0, "fields": []}]
-            data["default_sort_order_id"] = 0
         else:
             check_sort_orders(data["sort_orders"])
         return data
@@ -283,11 +284,6 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     """An integer version number for the format. Currently, this can be 1 or 2
     based on the spec. Implementations must throw an exception if a table’s
     version is higher than the supported version."""
-
-    table_uuid: Optional[UUID] = Field(alias="table-uuid")
-    """A UUID that identifies the table, generated when the table is created.
-    Implementations must throw an exception if a table’s UUID does not match
-    the expected UUID after refreshing metadata."""
 
     schema_: Schema = Field(alias="schema")
     """The table’s current schema. (Deprecated: use schemas and
