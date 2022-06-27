@@ -71,6 +71,12 @@
         <property name="format" value="new LinkedHashSet&lt;&gt;\(.*\)"/>
         <property name="message" value="Prefer using Sets.newLinkedHashSet() instead."/>
     </module>
+    <module name="RegexpMultiline">
+        <property name="fileExtensions" value="java"/>
+        <property name="matchAcrossLines" value="true"/>
+        <property name="format" value="Preconditions\.checkArgument\([^;]+%d[^;]+\);"/>
+        <property name="message" value="Preconditions.checkArgument does not support %d. use %s instead"/>
+    </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
     </module>
