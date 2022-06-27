@@ -70,6 +70,10 @@ final class ArrowVectorAccessors {
 
     @Override
     public String ofByteBuffer(ByteBuffer byteBuffer) {
+      if (byteBuffer.hasArray()) {
+        return new String(byteBuffer.array(), byteBuffer.arrayOffset() + byteBuffer.position(),
+                byteBuffer.remaining(), StandardCharsets.UTF_8);
+      }
       return StandardCharsets.UTF_8.decode(byteBuffer).toString();
     }
   }
