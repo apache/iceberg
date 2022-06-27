@@ -29,6 +29,7 @@ Example:
 Notes:
   - https://iceberg.apache.org/#spec/#primitive-types
 """
+from abc import ABC
 from dataclasses import dataclass, field
 from functools import cached_property
 from typing import ClassVar, Optional, Tuple
@@ -37,7 +38,7 @@ from iceberg.utils.singleton import Singleton
 
 
 @dataclass(frozen=True)
-class IcebergType(metaclass=Singleton):
+class IcebergType(ABC, Singleton):
     """Base type for all Iceberg Types
 
     Example:
@@ -164,7 +165,7 @@ class StructType(IcebergType):
     def __init__(self, *fields: NestedField, **kwargs):  # pylint: disable=super-init-not-called
         if not fields and "fields" in kwargs:
             fields = kwargs["fields"]
-        object.__setattr__(self, "fields", fields)
+        object.__setattr__(self, "fields", tuple(fields))
 
     @cached_property
     def string_type(self) -> str:

@@ -64,7 +64,7 @@ class PartitionSpec:
     source_id_to_fields_map: Dict[int, List[PartitionField]] = field(init=False, repr=False)
 
     def __post_init__(self):
-        source_id_to_fields_map = dict()
+        source_id_to_fields_map = {}
         for partition_field in self.fields:
             source_column = self.schema.find_column_name(partition_field.source_id)
             if not source_column:

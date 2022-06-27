@@ -539,11 +539,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 LockState newState = response.getState();
                 state.set(newState);
                 if (newState.equals(LockState.WAITING)) {
-                  throw new WaitingForLockException("Waiting for lock.");
+                  throw new WaitingForLockException(
+                          String.format("Waiting for lock on table %s.%s", database, tableName));
                 }
               } catch (InterruptedException e) {
                 Thread.interrupted(); // Clear the interrupt status flag
-                LOG.warn("Interrupted while waiting for lock.", e);
+                LOG.warn("Interrupted while waiting for lock on table {}.{}", database, tableName, e);
               }
             }, TException.class);
       }
