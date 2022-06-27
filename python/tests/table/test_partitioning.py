@@ -66,7 +66,7 @@ def test_partition_compatible_with(table_schema_simple: Schema):
 
 
 def test_unpartitioned(table_schema_simple: Schema):
-    unpartitioned = PartitionSpec(table_schema_simple, 1, tuple(), 1000)
+    unpartitioned = PartitionSpec(table_schema_simple, 1, (), 1000)
 
     assert not unpartitioned.fields
     assert unpartitioned.is_unpartitioned()
