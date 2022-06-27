@@ -19,8 +19,9 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Arrays;
 import java.util.Map;
-import org.apache.iceberg.Schema;
+import java.util.regex.Pattern;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -97,12 +98,9 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
       String strategy = args.isNullAt(1) ? null : args.getString(1);
       String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
-      SortOrder sortOrder = null;
-      if (sortOrderString != null) {
-        sortOrder = collectSortOrders(table, sortOrderString);
-      }
-      if (strategy != null || sortOrder != null) {
-        action = checkAndApplyStrategy(action, strategy, sortOrder);
+
+      if (strategy != null || sortOrderString != null) {
+        action = checkAndApplyStrategy(action, strategy, sortOrderString, table);
       }
 
       if (!args.isNullAt(3)) {
@@ -141,30 +139,35 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return action.options(options);
   }
 
-  private RewriteDataFiles checkAndApplyStrategy(RewriteDataFiles action, String strategy, SortOrder sortOrder) {
+  private RewriteDataFiles checkAndApplyStrategy(
+      RewriteDataFiles action,
+      String strategy,
+      String sortOrderString,
+      Table table) {
+    Pattern zOrderPattern = Pattern.compile("zorder\\s*\\(.*\\)", Pattern.CASE_INSENSITIVE);
+    boolean isZOrder = sortOrderString != null && zOrderPattern.matcher(sortOrderString).matches();
     // caller of this function ensures that between strategy and sortOrder, at least one of them is not null.
-    if (strategy == null || strategy.equalsIgnoreCase("sort") || strategy.equalsIgnoreCase("zorder")) {
-      if (strategy != null && strategy.equalsIgnoreCase("zorder")) {
-        return action.zOrder(columnNames(sortOrder));
+    if (strategy == null || strategy.equalsIgnoreCase("sort")) {
+      if (isZOrder) {
+        String columns = sortOrderString.substring(
+            sortOrderString.indexOf("(") + 1,
+            sortOrderString.lastIndexOf(")"));
+        String[] columnNames = Arrays.stream(columns.split(",")).map(String::trim).toArray(String[]::new);
+        return action.zOrder(columnNames);
       }
-      return action.sort(sortOrder);
+      return action.sort(collectSortOrders(table, sortOrderString));
     }
     if (strategy.equalsIgnoreCase("binpack")) {
       RewriteDataFiles rewriteDataFiles = action.binPack();
-      if (sortOrder != null) {
+      if (sortOrderString != null) {
         // calling below method to throw the error as user has set both binpack strategy and sort order
-        return rewriteDataFiles.sort(sortOrder);
+        return rewriteDataFiles.sort(collectSortOrders(table, sortOrderString));
       }
       return rewriteDataFiles;
     } else {
       throw new IllegalArgumentException(
-          "unsupported strategy: " + strategy + ". Only binpack,sort or zorder is supported");
+          "unsupported strategy: " + strategy + ". Only binpack or sort is supported");
     }
-  }
-
-  private String[] columnNames(SortOrder sortOrder) {
-    Schema schema = sortOrder.schema();
-    return sortOrder.fields().stream().map(field -> schema.findColumnName(field.sourceId())).toArray(String[]::new);
   }
 
   private SortOrder collectSortOrders(Table table, String sortOrderStr) {

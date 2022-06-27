@@ -143,7 +143,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     // set z_order = c1,c2
     List<Object[]> output = sql(
         "CALL %s.system.rewrite_data_files(table => '%s', " +
-        "strategy => 'zorder', sort_order => 'c1,c2')",
+        "strategy => 'sort', sort_order => 'zorder(c1,c2)')",
         catalogName, tableIdent);
 
     assertEquals("Action should rewrite 10 data files and add 1 data files",
@@ -295,7 +295,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     // Test for invalid strategy
     AssertHelpers.assertThrows("Should reject calls with unsupported strategy error message",
-        IllegalArgumentException.class, "unsupported strategy: temp. Only binpack,sort or zorder is supported",
+        IllegalArgumentException.class, "unsupported strategy: temp. Only binpack or sort is supported",
         () -> sql("CALL %s.system.rewrite_data_files(table => '%s', options => map('min-input-files','2'), " +
             "strategy => 'temp')", catalogName, tableIdent));
 
@@ -332,10 +332,10 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     // Test for z_order with invalid column name
     AssertHelpers.assertThrows("Should reject calls with error message",
-        ValidationException.class, "Cannot find field 'col1' in struct:" +
+        IllegalArgumentException.class, "Cannot find field 'col1' in struct:" +
             " struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
-        () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'zorder', " +
-            "sort_order => 'col1')", catalogName, tableIdent));
+        () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', " +
+            "sort_order => 'zorder(col1)')", catalogName, tableIdent));
   }
 
   @Test
