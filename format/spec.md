@@ -1,7 +1,8 @@
 ---
+title: "Spec"
 url: spec
-aliases:
-    - "spec"
+toc: true
+disableSidebar: true
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more

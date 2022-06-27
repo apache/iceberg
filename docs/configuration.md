@@ -1,4 +1,5 @@
 ---
+title: "Configuration"
 url: configuration
 aliases:
     - "tables/configuration"
