@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
@@ -76,6 +77,17 @@ final class ArrowVectorAccessorFactory
 
     @Override
     public UTF8String ofBytes(byte[] bytes) {
+      return UTF8String.fromBytes(bytes);
+    }
+
+    @Override
+    public UTF8String ofByteBuffer(ByteBuffer byteBuffer) {
+      if (byteBuffer.hasArray()) {
+        return UTF8String.fromBytes(
+            byteBuffer.array(), byteBuffer.arrayOffset() + byteBuffer.position(), byteBuffer.remaining());
+      }
+      byte[] bytes = new byte[byteBuffer.remaining()];
+      byteBuffer.get(bytes);
       return UTF8String.fromBytes(bytes);
     }
   }
