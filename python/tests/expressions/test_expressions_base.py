@@ -22,7 +22,8 @@ from typing import List
 import pytest
 
 from iceberg.expressions import base
-from iceberg.types import NestedField, Singleton, StringType
+from iceberg.types import NestedField, StringType
+from iceberg.utils.singleton import Singleton
 
 
 @pytest.mark.parametrize(
@@ -63,7 +64,7 @@ def test_raise_on_no_negation_for_operation(operation):
     assert str(exc_info.value) == f"No negation defined for operation {operation}"
 
 
-class TestExpressionA(base.BooleanExpression, Singleton):
+class TestExpressionA(base.BooleanExpression, metaclass=Singleton):
     def __invert__(self):
         return TestExpressionB()
 
@@ -74,7 +75,7 @@ class TestExpressionA(base.BooleanExpression, Singleton):
         return "testexpra"
 
 
-class TestExpressionB(base.BooleanExpression, Singleton):
+class TestExpressionB(base.BooleanExpression, metaclass=Singleton):
     def __invert__(self):
         return TestExpressionA()
 
@@ -281,7 +282,7 @@ def test_accessor_base_class(foo_struct):
 
 def test_bound_reference_str_and_repr():
     """Test str and repr of BoundReference"""
-    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
     assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(position1_accessor)})"
@@ -290,10 +291,10 @@ def test_bound_reference_str_and_repr():
 
 def test_bound_reference_field_property():
     """Test str and repr of BoundReference"""
-    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
-    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
 
 
 def test_bound_reference(table_schema_simple, foo_struct):

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -96,9 +97,27 @@ public class Binder {
     }
     ReferenceVisitor visitor = new ReferenceVisitor();
     for (Expression expr : exprs) {
-      ExpressionVisitors.visit(bind(struct, expr, caseSensitive), visitor);
+      if (isBound(expr)) {
+        ExpressionVisitors.visit(expr, visitor);
+      } else {
+        ExpressionVisitors.visit(bind(struct, expr, caseSensitive), visitor);
+      }
     }
     return visitor.references;
+  }
+
+  /**
+   * Returns whether an expression is bound.
+   * <p>
+   * An expression is bound if all of its predicates are bound.
+   *
+   * @param expr an {@link Expression}
+   * @return true if the expression is bound
+   * @throws IllegalArgumentException if the expression has both bound and unbound predicates.
+   */
+  public static boolean isBound(Expression expr) {
+    Boolean isBound = ExpressionVisitors.visit(expr, new IsBoundVisitor());
+    return isBound != null ? isBound : false; // assume unbound if undetermined
   }
 
   private static class BindVisitor extends ExpressionVisitor<Expression> {
@@ -178,6 +197,43 @@ public class Binder {
     public <T> Set<Integer> predicate(BoundPredicate<T> pred) {
       references.add(pred.ref().fieldId());
       return references;
+    }
+  }
+
+  private static class IsBoundVisitor extends ExpressionVisitor<Boolean> {
+    @Override
+    public Boolean not(Boolean result) {
+      return result;
+    }
+
+    @Override
+    public Boolean and(Boolean leftResult, Boolean rightResult) {
+      return combineResults(leftResult, rightResult);
+    }
+
+    @Override
+    public Boolean or(Boolean leftResult, Boolean rightResult) {
+      return combineResults(leftResult, rightResult);
+    }
+
+    @Override
+    public <T> Boolean predicate(BoundPredicate<T> pred) {
+      return true;
+    }
+
+    @Override
+    public <T> Boolean predicate(UnboundPredicate<T> pred) {
+      return false;
+    }
+
+    private Boolean combineResults(Boolean isLeftBound, Boolean isRightBound) {
+      if (isLeftBound != null) {
+        Preconditions.checkArgument(isRightBound == null || isLeftBound.equals(isRightBound),
+            "Found partially bound expression");
+        return isLeftBound;
+      } else {
+        return isRightBound;
+      }
     }
   }
 }

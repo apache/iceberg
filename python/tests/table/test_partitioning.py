@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from iceberg.table.partitioning import PartitionField
+from iceberg.schema import Schema
+from iceberg.table.partitioning import PartitionField, PartitionSpec
 from iceberg.transforms import bucket
 from iceberg.types import IntegerType
 
@@ -32,5 +33,41 @@ def test_partition_field_init():
     assert str(partition_field) == "1000: id: bucket[100](3)"
     assert (
         repr(partition_field)
-        == "PartitionField(field_id=1000, name=id, transform=transforms.bucket(source_type=IntegerType(), num_buckets=100), source_id=3)"
+        == "PartitionField(source_id=3, field_id=1000, transform=transforms.bucket(source_type=IntegerType(), num_buckets=100), name='id')"
     )
+
+
+def test_partition_spec_init(table_schema_simple: Schema):
+    bucket_transform = bucket(IntegerType(), 4)
+    id_field1 = PartitionField(3, 1001, bucket_transform, "id")
+    partition_spec1 = PartitionSpec(table_schema_simple, 0, (id_field1,), 1001)
+
+    assert partition_spec1.spec_id == 0
+    assert partition_spec1.schema == table_schema_simple
+    assert partition_spec1 == partition_spec1
+    assert partition_spec1 != id_field1
+    assert str(partition_spec1) == f"[\n  {str(id_field1)}\n]"
+    assert not partition_spec1.is_unpartitioned()
+    # only differ by PartitionField field_id
+    id_field2 = PartitionField(3, 1002, bucket_transform, "id")
+    partition_spec2 = PartitionSpec(table_schema_simple, 0, (id_field2,), 1001)
+    assert partition_spec1 != partition_spec2
+    assert partition_spec1.compatible_with(partition_spec2)
+    assert partition_spec1.fields_by_source_id(3) == [id_field1]
+
+
+def test_partition_compatible_with(table_schema_simple: Schema):
+    bucket_transform = bucket(IntegerType(), 4)
+    field1 = PartitionField(3, 100, bucket_transform, "id")
+    field2 = PartitionField(3, 102, bucket_transform, "id")
+    lhs = PartitionSpec(table_schema_simple, 0, (field1,), 1001)
+    rhs = PartitionSpec(table_schema_simple, 0, (field1, field2), 1001)
+    assert not lhs.compatible_with(rhs)
+
+
+def test_unpartitioned(table_schema_simple: Schema):
+    unpartitioned = PartitionSpec(table_schema_simple, 1, tuple(), 1000)
+
+    assert not unpartitioned.fields
+    assert unpartitioned.is_unpartitioned()
+    assert str(unpartitioned) == "[]"
