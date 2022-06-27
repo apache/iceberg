@@ -80,7 +80,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
     @root_validator(skip_on_failure=True)
     def construct_refs(cls, data: Dict[str, Any]):
-        # This is going to be much nicer as soon as sort-order is an actual pydantic object
+        # This is going to be much nicer as soon as refs is an actual pydantic object
         if not data.get("refs"):
             if current_snapshot_id := data.get("current_snapshot_id"):
                 if current_snapshot_id != -1:
