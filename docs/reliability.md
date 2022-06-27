@@ -1,5 +1,5 @@
 ---
-title: Reliability"
+title: Reliability
 url: reliability
 aliases:
     - "tables/reliability"
