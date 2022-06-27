@@ -29,7 +29,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
@@ -43,7 +42,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableRequest> {
 
   /* Values used to fill in request fields */
-  private static final Namespace NAMESPACE = Namespace.of("accounting", "tax");
   private static final Map<String, String> SAMPLE_PROPERTIES = ImmutableMap.of("owner", "Hank");
   private static final Map<String, String> EMPTY_PROPERTIES = ImmutableMap.of();
   private static final String SAMPLE_NAME = "test_tbl";
@@ -69,7 +67,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
         "\"fields\":[{\"name\":\"id_bucket\",\"transform\":\"bucket[16]\",\"source-id\":1,\"field-id\":1000}]}," +
         "\"order\":{\"order-id\":1,\"fields\":" +
         "[{\"transform\":\"identity\",\"source-id\":2,\"direction\":\"asc\",\"null-order\":\"nulls-last\"}]}," +
-        "\"properties\":{\"owner\":\"Hank\"},\"stageCreate\":false}";
+        "\"properties\":{\"owner\":\"Hank\"},\"stage-create\":false}";
 
     CreateTableRequest req = CreateTableRequest.builder()
         .withName(SAMPLE_NAME)
@@ -85,7 +83,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
     // The same JSON but using existing parsers for clarity and staging the request instead of committing
     String jsonStagedReq = String.format(
         "{\"name\":\"%s\",\"location\":\"%s\",\"schema\":%s,\"spec\":%s," +
-            "\"order\":%s,\"properties\":%s,\"stageCreate\":%b}",
+            "\"order\":%s,\"properties\":%s,\"stage-create\":%b}",
             SAMPLE_NAME, SAMPLE_LOCATION, SchemaParser.toJson(SAMPLE_SCHEMA),
             PartitionSpecParser.toJson(SAMPLE_SPEC.toUnbound()), SortOrderParser.toJson(SAMPLE_WRITE_ORDER.toUnbound()),
             mapper().writeValueAsString(SAMPLE_PROPERTIES), true);
@@ -105,7 +103,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
     // Partition spec and write order can be null or use PartitionSpec.unpartitioned() and SortOrder.unsorted()
     String jsonWithExplicitUnsortedUnordered = String.format(
         "{\"name\":\"%s\",\"location\":null,\"schema\":%s,\"spec\":%s," +
-            "\"order\":%s,\"properties\":{},\"stageCreate\":%b}",
+            "\"order\":%s,\"properties\":{},\"stage-create\":%b}",
         SAMPLE_NAME, SchemaParser.toJson(SAMPLE_SCHEMA),
         PartitionSpecParser.toJson(PartitionSpec.unpartitioned()),
         SortOrderParser.toJson(SortOrder.unsorted().toUnbound()),
@@ -125,7 +123,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
 
     String jsonOnlyRequiredFieldsNullAsDefault = String.format(
         "{\"name\":\"%s\",\"location\":null,\"schema\":%s,\"spec\":null,\"order\":null,\"properties\":{}," +
-            "\"stageCreate\":false}",
+            "\"stage-create\":false}",
         SAMPLE_NAME, SchemaParser.toJson(SAMPLE_SCHEMA));
 
     CreateTableRequest reqOnlyRequiredFieldsMissingDefaults = CreateTableRequest.builder()
@@ -157,7 +155,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
   @Test
   public void testDeserializeInvalidRequest() {
     String jsonMissingSchema =
-        "{\"name\":\"foo\",\"location\":null,\"spec\":null,\"order\":null,\"properties\":{},\"stageCreate\":false}";
+        "{\"name\":\"foo\",\"location\":null,\"spec\":null,\"order\":null,\"properties\":{},\"stage-create\":false}";
     AssertHelpers.assertThrows(
         "A JSON request with the keys spelled incorrectly should fail to deserialize and validate",
         IllegalArgumentException.class,
@@ -167,7 +165,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
 
     String jsonMissingName = String.format(
         "{\"location\":null,\"schema\":%s,\"spec\":null,\"order\":null,\"properties\":{}," +
-            "\"stageCreate\":false}", SAMPLE_SCHEMA_JSON);
+            "\"stage-create\":false}", SAMPLE_SCHEMA_JSON);
     AssertHelpers.assertThrows(
         "A JSON request with the keys spelled incorrectly should fail to deserialize and validate",
         IllegalArgumentException.class,
@@ -177,7 +175,7 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
 
     String jsonIncorrectTypeForProperties = String.format(
         "{\"name\":\"foo\",\"location\":null,\"schema\":%s,\"spec\":null,\"order\":null,\"properties\":[]," +
-            "\"stageCreate\":false}", SAMPLE_SCHEMA_JSON);
+            "\"stage-create\":false}", SAMPLE_SCHEMA_JSON);
     AssertHelpers.assertThrows(
         "A JSON request with incorrect types for fields should fail to parse and validate",
         JsonProcessingException.class,
