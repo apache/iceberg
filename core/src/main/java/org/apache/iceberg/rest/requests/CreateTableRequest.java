@@ -33,7 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTRequest;
 
 /**
- * A REST request to create a namespace, with an optional set of properties.
+ * A REST request to create a table, either via direct commit or staging the creation
+ * of the table as part of a transaction.
  */
 public class CreateTableRequest implements RESTRequest {
 
