@@ -40,8 +40,8 @@ public class CreateTableRequest implements RESTRequest {
   private String name;
   private String location;
   private Schema schema;
-  private UnboundPartitionSpec spec;
-  private UnboundSortOrder order;
+  private UnboundPartitionSpec partitionSpec;
+  private UnboundSortOrder writeOrder;
   private Map<String, String> properties;
   private Boolean stageCreate = false;
 
@@ -49,13 +49,13 @@ public class CreateTableRequest implements RESTRequest {
     // Needed for Jackson Deserialization.
   }
 
-  private CreateTableRequest(String name, String location, Schema schema, PartitionSpec spec, SortOrder order,
+  private CreateTableRequest(String name, String location, Schema schema, PartitionSpec partitionSpec, SortOrder writeOrder,
                              Map<String, String> properties, boolean stageCreate) {
     this.name = name;
     this.location = location;
     this.schema = schema;
-    this.spec = spec != null ? spec.toUnbound() : null;
-    this.order = order != null ? order.toUnbound() : null;
+    this.partitionSpec = partitionSpec != null ? partitionSpec.toUnbound() : null;
+    this.writeOrder = writeOrder != null ? writeOrder.toUnbound() : null;
     this.properties = properties;
     this.stageCreate = stageCreate;
     validate();
@@ -81,11 +81,11 @@ public class CreateTableRequest implements RESTRequest {
   }
 
   public PartitionSpec spec() {
-    return spec != null ? spec.bind(schema) : null;
+    return partitionSpec != null ? partitionSpec.bind(schema) : null;
   }
 
   public SortOrder writeOrder() {
-    return order != null ? order.bind(schema) : null;
+    return writeOrder != null ? writeOrder.bind(schema) : null;
   }
 
   public Map<String, String> properties() {
@@ -103,8 +103,9 @@ public class CreateTableRequest implements RESTRequest {
         .add("location", location)
         .add("properties", properties)
         .add("schema", schema)
-        .add("spec", spec)
-        .add("order", order)
+        .add("partitionSpec", partitionSpec)
+        .add("writeOrder", writeOrder)
+        .add("stageCreate", stageCreate)
         .toString();
   }
 
