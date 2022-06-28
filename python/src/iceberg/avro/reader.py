@@ -91,7 +91,8 @@ def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable) -> None:
             block_size = decoder.read_int()
             decoder.skip(block_size)
         else:
-            [skip_entry() for _ in range(block_count)]
+            for _ in range(block_count):
+                skip_entry()
         block_count = decoder.read_int()
 
 
@@ -133,15 +134,13 @@ class BooleanReader(Reader):
 
 
 class IntegerReader(Reader):
+    """Longs and ints are encoded the same way, and there is no long in Python"""
+
     def read(self, decoder: BinaryDecoder) -> int:
         return decoder.read_int()
 
     def skip(self, decoder: BinaryDecoder) -> None:
         decoder.skip_int()
-
-
-class LongReader(IntegerReader):
-    """Longs and ints are encoded the same way, and there is no long in Python"""
 
 
 class FloatReader(Reader):
@@ -378,7 +377,9 @@ def _(_: IntegerType) -> Reader:
 
 @primitive_reader.register(LongType)
 def _(_: LongType) -> Reader:
-    return LongReader()
+    # Ints and longs are encoded the same way in Python and
+    # also binary compatible in Avro
+    return IntegerReader()
 
 
 @primitive_reader.register(FloatType)

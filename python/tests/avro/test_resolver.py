@@ -18,7 +18,7 @@ import pytest
 
 from iceberg.avro.reader import (
     DoubleReader,
-    LongReader,
+    IntegerReader,
     MapReader,
     StringReader,
     StructReader,
@@ -26,6 +26,7 @@ from iceberg.avro.reader import (
 from iceberg.avro.resolver import ResolveException, resolve
 from iceberg.schema import Schema
 from iceberg.types import (
+    BinaryType,
     DoubleType,
     IntegerType,
     ListType,
@@ -69,7 +70,7 @@ def test_resolver():
 
     assert read_tree == StructReader(
         (
-            (1, LongReader()),
+            (1, IntegerReader()),
             (None, StringReader()),
             (
                 0,
@@ -99,7 +100,7 @@ def test_resolver_new_required_field():
     with pytest.raises(ResolveException) as exc_info:
         resolve(write_schema, read_schema)
 
-    assert "2: data: optional string is in not in the write schema, and is required" in str(exc_info.value)
+    assert "2: data: required string is non-optional, and not part of the file schema" in str(exc_info.value)
 
 
 def test_resolver_invalid_evolution():
@@ -118,6 +119,42 @@ def test_resolver_invalid_evolution():
     assert "Promotion from int to long is not allowed" in str(exc_info.value)
 
 
+def test_resolver_promotion_int_to_long():
+    write_schema = Schema(
+        NestedField(1, "id", IntegerType()),
+        schema_id=1,
+    )
+    read_schema = Schema(
+        NestedField(1, "id", LongType()),
+        schema_id=1,
+    )
+    resolve(write_schema, read_schema)
+
+
+def test_resolver_promotion_string_to_binary():
+    write_schema = Schema(
+        NestedField(1, "id", StringType()),
+        schema_id=1,
+    )
+    read_schema = Schema(
+        NestedField(1, "id", BinaryType()),
+        schema_id=1,
+    )
+    resolve(write_schema, read_schema)
+
+
+def test_resolver_promotion_binary_to_string():
+    write_schema = Schema(
+        NestedField(1, "id", BinaryType()),
+        schema_id=1,
+    )
+    read_schema = Schema(
+        NestedField(1, "id", StringType()),
+        schema_id=1,
+    )
+    resolve(write_schema, read_schema)
+
+
 def test_resolver_change_type():
     write_schema = Schema(
         NestedField(1, "properties", ListType(2, StringType())),
@@ -131,7 +168,4 @@ def test_resolver_change_type():
     with pytest.raises(ResolveException) as exc_info:
         resolve(write_schema, read_schema)
 
-    assert (
-        "Write/read schema are not aligned for list<string>, got MapType(key_id=2, key_type=StringType(), value_id=3, value_type=StringType(), value_required=True)"
-        in str(exc_info.value)
-    )
+    assert "Write/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)

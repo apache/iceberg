@@ -164,9 +164,6 @@ class BinaryDecoder:
         """
         return micros_to_timestamptz(self.read_int())
 
-    def skip_null(self) -> None:
-        pass
-
     def skip_boolean(self) -> None:
         self.skip(1)
 

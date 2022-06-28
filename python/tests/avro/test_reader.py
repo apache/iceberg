@@ -30,7 +30,6 @@ from iceberg.avro.reader import (
     FixedReader,
     FloatReader,
     IntegerReader,
-    LongReader,
     StringReader,
     TimeReader,
     TimestampReader,
@@ -411,7 +410,7 @@ def test_integer_reader():
 
 
 def test_long_reader():
-    assert primitive_reader(LongType()) == LongReader()
+    assert primitive_reader(LongType()) == IntegerReader()
 
 
 def test_float_reader():

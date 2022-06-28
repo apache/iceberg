@@ -53,25 +53,25 @@ class ResolveException(Exception):
 
 
 @singledispatch
-def resolve(write_schema, read_schema) -> Reader:
+def resolve(file_schema, read_schema) -> Reader:
     """This resolves the write and read schema
 
     The function traverses the schema in post-order fashion
 
      Args:
-         write_schema (Schema | IcebergType): The write schema of the Avro file
+         file_schema (Schema | IcebergType): The write schema of the Avro file
          read_schema (Schema | IcebergType): The requested read schema which is equal or a subset of the write schema
 
      Raises:
          NotImplementedError: If attempting to resolve an unrecognized object type
     """
-    raise NotImplementedError("Cannot resolve non-type: %s" % write_schema)
+    raise NotImplementedError("Cannot resolve non-type: %s" % file_schema)
 
 
 @resolve.register(Schema)
-def _(write_schema: Schema, read_schema: Schema) -> Reader:
+def _(file_schema: Schema, read_schema: Schema) -> Reader:
     """Visit a Schema and starts resolving it by converting it to a struct"""
-    return resolve(write_schema.as_struct(), read_schema.as_struct())
+    return resolve(file_schema.as_struct(), read_schema.as_struct())
 
 
 @resolve.register(StructType)
@@ -98,7 +98,7 @@ def _(write_struct: StructType, read_struct: IcebergType) -> Reader:
     for pos, read_field in enumerate(read_struct.fields):
         if read_field.field_id not in write_fields:
             if read_field.required:
-                raise ResolveException(f"{read_field} is in not in the write schema, and is required")
+                raise ResolveException(f"{read_field} is non-optional, and not part of the file schema")
             # Just set the new field to None
             results.append((pos, NoneReader()))
 
@@ -109,7 +109,7 @@ def _(write_struct: StructType, read_struct: IcebergType) -> Reader:
 def _(write_list: ListType, read_list: IcebergType) -> Reader:
     if not isinstance(read_list, ListType):
         raise ResolveException(f"Write/read schema are not aligned for {write_list}, got {read_list}")
-    element_reader = resolve(write_list.element.field_type, read_list.element.field_type)
+    element_reader = resolve(write_list.element_type, read_list.element_type)
     return ListReader(element_reader)
 
 
@@ -117,8 +117,8 @@ def _(write_list: ListType, read_list: IcebergType) -> Reader:
 def _(write_map: MapType, read_map: IcebergType) -> Reader:
     if not isinstance(read_map, MapType):
         raise ResolveException(f"Write/read schema are not aligned for {write_map}, got {read_map}")
-    key_reader = resolve(write_map.key.field_type, read_map.key.field_type)
-    value_reader = resolve(write_map.value.field_type, read_map.value.field_type)
+    key_reader = resolve(write_map.key_type, read_map.key_type)
+    value_reader = resolve(write_map.value_type, read_map.value_type)
 
     return MapReader(key_reader, value_reader)
 
@@ -145,7 +145,7 @@ def _(write_type: PrimitiveType, read_type: IcebergType) -> Reader:
 
     if write_type != read_type:
         if allowed_promotions := ALLOWED_PROMOTIONS.get(type(write_type)):
-            if read_type not in allowed_promotions:
+            if type(read_type) not in allowed_promotions:
                 raise ResolveException(f"Promotion from {read_type} to {write_type} is not allowed")
         else:
             raise ResolveException(f"Promotion from {read_type} to {write_type} is not allowed")
