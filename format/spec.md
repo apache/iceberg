@@ -218,6 +218,8 @@ Valid type promotions are:
 * `int` to `long`
 * `float` to `double`
 * `decimal(P, S)` to `decimal(P', S)` if `P' > P` -- widen the precision of decimal types.
+* `bytes` to `string`
+* `string` to `bytes`
 
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
 

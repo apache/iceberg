@@ -23,6 +23,7 @@ import mmh3 as mmh3
 import pytest
 
 from iceberg import transforms
+from iceberg.transforms import BucketBytesTransform, BucketStringTransform
 from iceberg.types import (
     BinaryType,
     BooleanType,
@@ -199,3 +200,11 @@ def test_void_transform():
     assert not void_transform.satisfies_order_of(transforms.bucket(DateType(), 100))
     assert void_transform.to_human_string("test") == "null"
     assert void_transform.dedup_name == "void"
+
+
+def test_string_and_binary_equal_hashcode():
+    """The hash of the string and the raw bytes should be equal"""
+    input_string = "iceberg"
+    lhs = BucketStringTransform(100).hash(input_string)
+    rhs = BucketBytesTransform(BinaryType(), 100).hash(input_string.encode())
+    assert lhs == rhs
