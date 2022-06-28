@@ -35,7 +35,7 @@ import org.apache.iceberg.util.SerializationUtil;
 // and v2 file formats.
 public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred.InputSplit, IcebergSplitContainer {
 
-  public static final String[] ANYWHERE = new String[]{"*"};
+  private static final String[] ANYWHERE = new String[]{"*"};
 
   private Table table;
   private CombinedScanTask task;
@@ -73,9 +73,9 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
     // getLocations() won't be accurate when called on worker nodes and will always return "*"
     if (locations == null && conf != null) {
       boolean localityPreferred = conf.getBoolean(InputFormatConfig.LOCALITY, false);
-      locations = localityPreferred ? Util.blockLocations(task, conf) : ANYWHERE;
+      locations = localityPreferred ? Util.blockLocations(task, conf) : ANYWHERE.clone();
     } else {
-      locations = ANYWHERE;
+      locations = ANYWHERE.clone();
     }
 
     return locations;
