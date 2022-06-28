@@ -136,16 +136,16 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   @Test
   public void testCanDeserializeWithoutDefaultValues() throws Exception {
     String metadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
-    String json1 = String.format(
-        "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-        TEST_METADATA_LOCATION, metadataJson);
-
-    TableMetadata metadataV1 = TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, metadataJson);
-    LoadTableResponse resp1 = LoadTableResponse.builder()
-        .withTableMetadata(metadataV1)
-        .addAllConfig(CONFIG)
+    // `config` is missing in the json
+    String json = String.format("{\"metadata-location\":\"%s\",\"metadata\":%s}", TEST_METADATA_LOCATION, metadataJson);
+    TableMetadata metadata = TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, metadataJson);
+    LoadTableResponse actual = deserialize(json);
+    LoadTableResponse expected = LoadTableResponse.builder()
+        .withTableMetadata(metadata)
         .build();
-    assertEquals(deserialize(json1), resp1);
+    assertEquals(actual, expected);
+    Assert.assertEquals("Deserialized JSON with missing fields should have the default values", ImmutableMap.of(),
+        actual.config());
   }
 
   @Override
