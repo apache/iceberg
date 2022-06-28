@@ -19,36 +19,20 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
-
 /**
- * A scan task over a range of bytes in a single data file.
+ * A scan task that can be split into smaller scan tasks.
+ *
+ * @param <ThisT> the child Java API class
  */
-public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
+public interface SplittableScanTask<ThisT> extends ScanTask {
   /**
-   * A list of {@link DeleteFile delete files} to apply when reading the task's data file.
+   * Attempts to split this scan task into several smaller scan tasks, each close to {@code splitSize} size.
+   * <p>
+   * Note the target split size is just guidance and the actual split size may be either smaller or larger.
+   * File formats like Parquet may leverage the row group offset information while splitting tasks.
    *
-   * @return a list of delete files to apply
+   * @param targetSplitSize the target size of each new scan task in bytes
+   * @return an Iterable of smaller tasks
    */
-  List<DeleteFile> deletes();
-
-  @Override
-  default long sizeBytes() {
-    return length() + deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
-  }
-
-  @Override
-  default int filesCount() {
-    return 1 + deletes().size();
-  }
-
-  @Override
-  default boolean isFileScanTask() {
-    return true;
-  }
-
-  @Override
-  default FileScanTask asFileScanTask() {
-    return this;
-  }
+  Iterable<ThisT> split(long targetSplitSize);
 }

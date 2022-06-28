@@ -25,24 +25,32 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.util.TableScanUtil;
 
-public class BaseCombinedScanTask implements CombinedScanTask {
-  private final FileScanTask[] tasks;
+public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
+  private final Object[] tasks;
+  private transient volatile List<T> taskList;
 
-  public BaseCombinedScanTask(FileScanTask... tasks) {
+  public BaseScanTaskGroup(Collection<T> tasks) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
-    this.tasks = tasks;
-  }
-
-  public BaseCombinedScanTask(List<FileScanTask> tasks) {
-    Preconditions.checkNotNull(tasks, "tasks cannot be null");
-    this.tasks = TableScanUtil.mergeTasks(tasks).toArray(new FileScanTask[0]);
+    this.tasks = tasks.toArray();
   }
 
   @Override
-  public Collection<FileScanTask> files() {
-    return ImmutableList.copyOf(tasks);
+  @SuppressWarnings("unchecked")
+  public Collection<T> tasks() {
+    if (taskList == null) {
+      synchronized (this) {
+        if (taskList == null) {
+          ImmutableList.Builder<T> listBuilder = ImmutableList.builderWithExpectedSize(tasks.length);
+          for (Object task : tasks) {
+            listBuilder.add((T) task);
+          }
+          taskList = listBuilder.build();
+        }
+      }
+    }
+
+    return taskList;
   }
 
   @Override
