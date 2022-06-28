@@ -20,9 +20,13 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -259,6 +263,10 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
+    if (options.containsKey("type") && options.get("type").equalsIgnoreCase("hive")) {
+      validateHmsUri(options.get(CatalogProperties.URI));
+    }
+
     this.catalogName = name;
     this.icebergCatalog = buildSparkCatalog(name, options);
     if (icebergCatalog instanceof StagingTableCatalog) {
@@ -268,6 +276,22 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
     this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
+  }
+
+  private void validateHmsUri(String catalogHmsUri) {
+    if (catalogHmsUri == null) {
+      return;
+    }
+
+    Configuration conf = SparkSession.active().sessionState().newHadoopConf();
+    String envHmsUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, null);
+    if (envHmsUri == null) {
+      return;
+    }
+
+    Preconditions.checkArgument(catalogHmsUri.equals(envHmsUri),
+        "Inconsistent Hive metastore URIs: %s (Spark session) != %s (spark_catalog)",
+        envHmsUri, catalogHmsUri);
   }
 
   @Override
