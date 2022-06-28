@@ -117,8 +117,8 @@ public class CreateTableRequest implements RESTRequest {
     private String name;
     private String location;
     private Schema schema;
-    private PartitionSpec spec;
-    private SortOrder order;
+    private PartitionSpec partitionSpec;
+    private SortOrder writeOrder;
     private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
     private boolean stageCreate = false;
 
@@ -159,12 +159,12 @@ public class CreateTableRequest implements RESTRequest {
     }
 
     public Builder withPartitionSpec(PartitionSpec tableSpec) {
-      this.spec = tableSpec;
+      this.partitionSpec = tableSpec;
       return this;
     }
 
-    public Builder withWriteOrder(SortOrder writeOrder) {
-      this.order = writeOrder;
+    public Builder withWriteOrder(SortOrder order) {
+      this.writeOrder = order;
       return this;
     }
 
@@ -174,7 +174,7 @@ public class CreateTableRequest implements RESTRequest {
     }
 
     public CreateTableRequest build() {
-      return new CreateTableRequest(name, location, schema, spec, order, properties.build(), stageCreate);
+      return new CreateTableRequest(name, location, schema, partitionSpec, writeOrder, properties.build(), stageCreate);
     }
   }
 }
