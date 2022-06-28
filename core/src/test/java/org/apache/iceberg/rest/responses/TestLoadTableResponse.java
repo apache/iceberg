@@ -104,39 +104,42 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   }
 
   @Test
-  public void testRoundTripSerde() throws Exception {
+  public void testRoundTripSerdeWithV1TableMetadata() throws Exception {
     // Default fields are missing in this JSON
-    String tableMetadataV1Json = readTableMetadataInputFile("TableMetadataV1Valid.json");
-    TableMetadata metadataV1 = TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, tableMetadataV1Json);
+    String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
+    TableMetadata v1Metadata = TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, tableMetadataJson);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that missing fields
     // are filled in with their default values.
-    String json1 = String.format(
+    String json = String.format(
         "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-        TEST_METADATA_LOCATION, TableMetadataParser.toJson(metadataV1));
-    LoadTableResponse resp1 = LoadTableResponse.builder()
-        .withTableMetadata(metadataV1)
+        TEST_METADATA_LOCATION, TableMetadataParser.toJson(v1Metadata));
+    LoadTableResponse resp = LoadTableResponse.builder()
+        .withTableMetadata(v1Metadata)
         .addAllConfig(CONFIG)
         .build();
-    assertRoundTripSerializesEquallyFrom(json1, resp1);
+    assertRoundTripSerializesEquallyFrom(json, resp);
+  }
 
-    String tableMetadataV2Json = readTableMetadataInputFile("TableMetadataV2Valid.json");
-    TableMetadata metadataV2 = TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, tableMetadataV2Json);
+  @Test
+  public void testRoundTripSerdeWithV2TableMetadata() throws Exception {
+    String tableMetadataJson = readTableMetadataInputFile("TableMetadataV2Valid.json");
+    TableMetadata v2Metadata = TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, tableMetadataJson);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that missing fields
     // are filled in with their default values.
-    String json2 = String.format(
+    String json = String.format(
         "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
-        TEST_METADATA_LOCATION, TableMetadataParser.toJson(metadataV2));
-    LoadTableResponse resp2 = LoadTableResponse.builder()
-        .withTableMetadata(metadataV2)
+        TEST_METADATA_LOCATION, TableMetadataParser.toJson(v2Metadata));
+    LoadTableResponse resp = LoadTableResponse.builder()
+        .withTableMetadata(v2Metadata)
         .addAllConfig(CONFIG)
         .build();
-    assertRoundTripSerializesEquallyFrom(json2, resp2);
+    assertRoundTripSerializesEquallyFrom(json, resp);
   }
 
   @Test
   public void testCanDeserializeWithoutDefaultValues() throws Exception {
     String metadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
-    // `config` is missing in the json
+    // `config` is missing in the JSON
     String json = String.format("{\"metadata-location\":\"%s\",\"metadata\":%s}", TEST_METADATA_LOCATION, metadataJson);
     TableMetadata metadata = TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, metadataJson);
     LoadTableResponse actual = deserialize(json);
