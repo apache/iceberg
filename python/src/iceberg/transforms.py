@@ -41,6 +41,7 @@ from iceberg.types import (
 )
 from iceberg.utils import datetime
 from iceberg.utils.decimal import decimal_to_bytes
+from src.iceberg.utils.singleton import Singleton
 
 S = TypeVar("S")
 T = TypeVar("T")
@@ -328,15 +329,8 @@ class UnknownTransform(Transform):
         return StringType()
 
 
-class VoidTransform(Transform):
+class VoidTransform(Transform, Singleton):
     """A transform that always returns None"""
-
-    _instance = None
-
-    def __new__(cls):  # pylint: disable=W0221
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
     def __init__(self):
         super().__init__("void", "transforms.always_null()")
