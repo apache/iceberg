@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Base class for {@link TableScan} implementations.
  */
-abstract class BaseTableScan extends BaseScan<TableScan> implements TableScan {
+abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedScanTask> implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {

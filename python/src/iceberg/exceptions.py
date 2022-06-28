@@ -30,3 +30,7 @@ class NamespaceNotEmptyError(Exception):
 
 class AlreadyExistsError(Exception):
     """Raised when a table or name-space being created already exists in the catalog"""
+
+
+class ValidationError(Exception):
+    ...

@@ -273,8 +273,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   private Set<Long> unreferencedSnapshotsToRetain(Collection<SnapshotRef> refs) {
     Set<Long> referencedSnapshots = Sets.newHashSet();
     for (SnapshotRef ref : refs) {
-      for (Snapshot snapshot : SnapshotUtil.ancestorsOf(ref.snapshotId(), base::snapshot)) {
-        referencedSnapshots.add(snapshot.snapshotId());
+      if (ref.isBranch()) {
+        for (Snapshot snapshot : SnapshotUtil.ancestorsOf(ref.snapshotId(), base::snapshot)) {
+          referencedSnapshots.add(snapshot.snapshotId());
+        }
+      } else {
+        referencedSnapshots.add(ref.snapshotId());
       }
     }
 

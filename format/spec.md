@@ -1,7 +1,8 @@
 ---
+title: "Spec"
 url: spec
-aliases:
-    - "spec"
+toc: true
+disableSidebar: true
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -373,7 +374,7 @@ In v1, partition field IDs were not tracked, but were assigned sequentially star
 
 Users can sort their data within partitions by columns to gain performance. The information on how the data is sorted can be declared per data or delete file, by a **sort order**.
 
-A sort order is defined by an sort order id and a list of sort fields. The order of the sort fields within the list defines the order in which the sort is applied to the data. Each sort field consists of:
+A sort order is defined by a sort order id and a list of sort fields. The order of the sort fields within the list defines the order in which the sort is applied to the data. Each sort field consists of:
 
 *   A **source column id** from the table's schema
 *   A **transform** that is used to produce values to be sorted on from the source column. This is the same transform as described in [partition transforms](#partition-transforms).
