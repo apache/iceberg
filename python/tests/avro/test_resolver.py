@@ -17,17 +17,22 @@
 import pytest
 
 from iceberg.avro.reader import (
+    CastReader,
+    DecimalReader,
     DoubleReader,
+    FloatReader,
     IntegerReader,
     MapReader,
     StringReader,
     StructReader,
 )
-from iceberg.avro.resolver import ResolveException, resolve
+from iceberg.avro.resolver import ResolveException, promote, resolve
 from iceberg.schema import Schema
 from iceberg.types import (
     BinaryType,
+    DecimalType,
     DoubleType,
+    FloatType,
     IntegerType,
     ListType,
     LongType,
@@ -116,19 +121,7 @@ def test_resolver_invalid_evolution():
     with pytest.raises(ResolveException) as exc_info:
         resolve(write_schema, read_schema)
 
-    assert "Promotion from int to long is not allowed" in str(exc_info.value)
-
-
-def test_resolver_promotion_int_to_long():
-    write_schema = Schema(
-        NestedField(1, "id", IntegerType()),
-        schema_id=1,
-    )
-    read_schema = Schema(
-        NestedField(1, "id", LongType()),
-        schema_id=1,
-    )
-    resolve(write_schema, read_schema)
+    assert "Cannot promote an long to int" in str(exc_info.value)
 
 
 def test_resolver_promotion_string_to_binary():
@@ -168,4 +161,34 @@ def test_resolver_change_type():
     with pytest.raises(ResolveException) as exc_info:
         resolve(write_schema, read_schema)
 
-    assert "Write/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)
+    assert "File/read schema are not aligned for list<string>, got map<string, string>" in str(exc_info.value)
+
+
+def test_promote_int_to_long():
+    assert promote(IntegerType(), LongType()) == IntegerReader()
+
+
+def test_promote_int_to_float():
+    assert promote(IntegerType(), FloatType()) == CastReader(IntegerReader(), float)
+
+
+def test_promote_int_to_double():
+    assert promote(IntegerType(), DoubleType()) == CastReader(IntegerReader(), float)
+
+
+def test_promote_float_to_double():
+    # We should still read floats, because it is encoded in 4 bytes
+    assert promote(FloatType(), DoubleType()) == FloatReader()
+
+
+def test_promote_decimal_to_decimal():
+    # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
+    assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(22, 25)
+
+
+def test_promote_decimal_to_decimal_reduce_precision():
+    # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
+    with pytest.raises(ResolveException) as exc_info:
+        _ = promote(DecimalType(19, 25), DecimalType(10, 25)) == DecimalReader(22, 25)
+
+    assert "Cannot reduce precision from decimal(19, 25) to decimal(10, 25)" in str(exc_info.value)

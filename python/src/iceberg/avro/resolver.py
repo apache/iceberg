@@ -16,16 +16,14 @@
 # under the License.
 from functools import singledispatch
 from typing import (
-    Dict,
     List,
     Optional,
-    Set,
     Tuple,
-    Type,
     Union,
 )
 
 from iceberg.avro.reader import (
+    CastReader,
     ConstructReader,
     ListReader,
     MapReader,
@@ -38,6 +36,9 @@ from iceberg.avro.reader import (
 from iceberg.schema import Schema, visit
 from iceberg.types import (
     BinaryType,
+    DecimalType,
+    DoubleType,
+    FloatType,
     IcebergType,
     IntegerType,
     ListType,
@@ -124,29 +125,84 @@ def _(file_map: MapType, read_map: IcebergType) -> Reader:
     return MapReader(key_reader, value_reader)
 
 
-ALLOWED_PROMOTIONS: Dict[Type[PrimitiveType], Set[Type[PrimitiveType]]] = {
-    # For now, we only support the binary compatible ones
-    IntegerType: {LongType},
-    StringType: {BinaryType},
-    BinaryType: {StringType},
-    # These are all allowed according to the Avro spec
-    # IntegerType: {LongType, FloatType, DoubleType},
-    # LongType: {FloatType, DoubleType},
-    # FloatType: {DoubleType},
-}
-
-
 @resolve.register(PrimitiveType)
 def _(file_type: PrimitiveType, read_type: IcebergType) -> Reader:
     """Converting the primitive type into an actual reader that will decode the physical data"""
     if not isinstance(read_type, PrimitiveType):
         raise ResolveException(f"Cannot promote {file_type} to {read_type}")
 
+    # In the case of a promotion, we want to check if it is valid
     if file_type != read_type:
-        if allowed_promotions := ALLOWED_PROMOTIONS.get(type(file_type)):
-            if type(read_type) not in allowed_promotions:
-                raise ResolveException(f"Promotion from {read_type} to {file_type} is not allowed")
-        else:
-            raise ResolveException(f"Promotion from {read_type} to {file_type} is not allowed")
-
+        return promote(file_type, read_type)
     return primitive_reader(read_type)
+
+
+@singledispatch
+def promote(file_type: IcebergType, read_type: IcebergType) -> Reader:
+    """Promotes reading a file type to a read type
+
+    Args:
+        file_type (IcebergType): The type of the Avro file
+        read_type (IcebergType): The requested read type
+
+    Raises:
+        ResolveException: If attempting to resolve an unrecognized object type
+    """
+    raise ResolveException(f"Cannot promote {file_type} to {read_type}")
+
+
+@promote.register(IntegerType)
+def _(file_type: IntegerType, read_type: IcebergType) -> Reader:
+    if isinstance(read_type, LongType):
+        # Ints/Longs are binary compatible in Avro, so this is okay
+        return primitive_reader(read_type)
+    elif type(read_type) in {FloatType, DoubleType}:
+        # We should just read the int, and convert it to a float
+        return CastReader(primitive_reader(file_type), float)
+    else:
+        raise ResolveException(f"Cannot promote an int to {read_type}")
+
+
+@promote.register(LongType)
+def _(file_type: LongType, read_type: IcebergType) -> Reader:
+    if type(read_type) in {FloatType, DoubleType}:
+        # We should just read the long, and convert it to a float
+        return CastReader(primitive_reader(file_type), float)
+    else:
+        raise ResolveException(f"Cannot promote an long to {read_type}")
+
+
+@promote.register(FloatType)
+def _(file_type: FloatType, read_type: IcebergType) -> Reader:
+    if isinstance(read_type, DoubleType):
+        # We should just read the float, and return it, since it both returns a float
+        return primitive_reader(file_type)
+    else:
+        raise ResolveException(f"Cannot promote an float to {read_type}")
+
+
+@promote.register(StringType)
+def _(file_type: StringType, read_type: IcebergType) -> Reader:
+    if isinstance(read_type, BinaryType):
+        return primitive_reader(read_type)
+    else:
+        raise ResolveException(f"Cannot promote an string to {read_type}")
+
+
+@promote.register(BinaryType)
+def _(file_type: BinaryType, read_type: IcebergType) -> Reader:
+    if isinstance(read_type, StringType):
+        return primitive_reader(read_type)
+    else:
+        raise ResolveException(f"Cannot promote an binary to {read_type}")
+
+
+@promote.register(DecimalType)
+def _(file_type: DecimalType, read_type: IcebergType) -> Reader:
+    if isinstance(read_type, DecimalType):
+        if file_type.precision <= read_type.precision and file_type.scale == file_type.scale:
+            return primitive_reader(read_type)
+        else:
+            raise ResolveException(f"Cannot reduce precision from {file_type} to {read_type}")
+    else:
+        raise ResolveException(f"Cannot promote an decimal to {read_type}")

@@ -21,8 +21,10 @@ from io import SEEK_SET
 import pytest
 
 from iceberg.avro.decoder import BinaryDecoder
+from iceberg.avro.resolver import promote
 from iceberg.io.base import InputStream
 from iceberg.io.memory import MemoryInputStream
+from iceberg.types import FloatType, IntegerType
 
 
 def test_read_decimal_from_fixed():
@@ -203,3 +205,11 @@ def test_skip_utf8():
     assert mis.tell() == 0
     decoder.skip_utf8()
     assert mis.tell() == 3
+
+
+def test_read_int_as_float():
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+    reader = promote(IntegerType(), FloatType())
+
+    assert reader.read(decoder) == 12.0

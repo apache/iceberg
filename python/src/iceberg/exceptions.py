@@ -33,4 +33,4 @@ class AlreadyExistsError(Exception):
 
 
 class ValidationError(Exception):
-    ...
+    """Raises when there is an issue with the schema"""
