@@ -345,4 +345,11 @@ public class TableProperties {
 
   public static final String UPSERT_ENABLED = "write.upsert.enabled";
   public static final boolean UPSERT_ENABLED_DEFAULT = false;
+
+  /**
+   * Table properties to be used when dropping a table. Contains a list of locations that are owned
+   * by the table and should also be dropped.
+   */
+  public static final String LOCATIONS_OWNED_BY_TABLE = "locations-owned-by-table";
+  public static final String LOCATIONS_OWNED_BY_TABLE_DEFAULT = null;
 }

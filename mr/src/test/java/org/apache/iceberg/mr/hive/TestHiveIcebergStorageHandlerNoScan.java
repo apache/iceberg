@@ -244,6 +244,62 @@ public class TestHiveIcebergStorageHandlerNoScan {
     }
   }
 
+  /**
+   * This test exercises the table property level 'locations-owned-by-table' setting to see if it has an effect on
+   * dropping folders associated with the table.
+   */
+  @Test
+  public void testDropTableFolderOwnershipForHiveCatalog()
+      throws TException, IOException, InterruptedException {
+    Assume.assumeTrue("Only relevant for HiveCatalog",
+        testTableType.equals(TestTables.TestTableType.HIVE_CATALOG));
+
+    String tableName = "customers";
+    testTables.createTable(shell, tableName, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        PartitionSpec.unpartitioned(), FileFormat.PARQUET, null);
+    TableIdentifier identifier = TableIdentifier.of("default", tableName);
+
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
+    Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
+
+    // Drop the Iceberg table using HiveCatalog with the location ownership turned off.
+    Properties dropProperties = new Properties();
+    dropProperties.put(Catalogs.NAME, identifier.toString());
+    dropProperties.put(Catalogs.LOCATION, hmsTableLocation);
+    Catalogs.dropTable(shell.getHiveConf(), dropProperties);
+
+    FileSystem fs = Util.getFs(hmsTableLocation, shell.getHiveConf());
+    Assert.assertTrue("Table root directory should remain when the table doesn't own its location",
+        fs.exists(hmsTableLocation));
+
+    // Re-create the table with setting a single owned location in the properties to drop the root folder.
+    Map<String, String> props = Maps.newHashMap();
+    props.put(TableProperties.LOCATIONS_OWNED_BY_TABLE, hmsTableLocation.toString());
+    testTables.createTable(shell, tableName, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        PartitionSpec.unpartitioned(), FileFormat.PARQUET, null, props);
+
+    Catalogs.dropTable(shell.getHiveConf(), dropProperties);
+
+    // Check that now dropTable() also drops the root directory of the table.
+    Assert.assertTrue("Table root directory should be dropped",
+        !fs.exists(hmsTableLocation));
+
+    // Re-create the table with setting an invalid and a valid owned location in the properties to
+    // drop the root folder.
+    props = Maps.newHashMap();
+    StringBuilder locations = new StringBuilder();
+    locations.append("Some invalid location").append(",").append(hmsTableLocation.toString());
+    props.put(TableProperties.LOCATIONS_OWNED_BY_TABLE, locations.toString());
+    testTables.createTable(shell, tableName, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        PartitionSpec.unpartitioned(), FileFormat.PARQUET, null, props);
+
+    Catalogs.dropTable(shell.getHiveConf(), dropProperties);
+
+    // Check that now dropTable() also drops the root directory of the table.
+    Assert.assertTrue("Table root directory should be dropped",
+        !fs.exists(hmsTableLocation));
+  }
+
   @Test
   public void testCreateDropTableNonDefaultCatalog() throws TException, InterruptedException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");

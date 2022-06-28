@@ -214,34 +214,49 @@ abstract class TestTables {
       PartitionSpec spec,
       FileFormat fileFormat,
       List<Record> records) {
+    return createTable(shell, tableName, schema, spec, fileFormat, records, null);
+  }
+
+  /**
+   * Creates a partitioned Hive test table using Hive SQL. The table will be in the 'default' database.
+   * The table will be populated with the provided List of {@link Record}s using a Hive insert statement.
+   * @param shell The HiveShell used for Hive table creation
+   * @param tableName The name of the test table
+   * @param schema The schema used for the table creation
+   * @param spec The partition specification for the table
+   * @param fileFormat The file format used for writing the data
+   * @param records The records with which the table is populated
+   * @param properties Additional TblProperties to pass to the create table statement
+   * @return The created table
+   * @throws IOException If there is an error writing data
+   */
+  public Table createTable(
+      TestHiveShell shell,
+      String tableName,
+      Schema schema,
+      PartitionSpec spec,
+      FileFormat fileFormat,
+      List<Record> records,
+      Map<String, String> properties)  {
     TableIdentifier identifier = TableIdentifier.of("default", tableName);
+    Map<String, String> props = Maps.newHashMap();
+    if (properties != null) {
+      props.putAll(properties);
+    }
+    props.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(schema));
+    props.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(spec));
+    props.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.toString());
+    props.put(InputFormatConfig.CATALOG_NAME, catalogName());
+
     shell.executeStatement(
         "CREATE EXTERNAL TABLE "
             + identifier
             + " STORED BY '"
-            + HiveIcebergStorageHandler.class.getName()
-            + "' "
+            + HiveIcebergStorageHandler.class.getName() +
+            "' "
             + locationForCreateTableSQL(identifier)
-            + "TBLPROPERTIES ('"
-            + InputFormatConfig.TABLE_SCHEMA
-            + "'='"
-            + SchemaParser.toJson(schema)
-            + "', "
-            + "'"
-            + InputFormatConfig.PARTITION_SPEC
-            + "'='"
-            + PartitionSpecParser.toJson(spec)
-            + "', "
-            + "'"
-            + TableProperties.DEFAULT_FILE_FORMAT
-            + "'='"
-            + fileFormat
-            + "', "
-            + "'"
-            + InputFormatConfig.CATALOG_NAME
-            + "'='"
-            + catalogName()
-            + "')");
+            + propertiesForCreateTableSQL(props));
+
 
     if (records != null && !records.isEmpty()) {
       StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");

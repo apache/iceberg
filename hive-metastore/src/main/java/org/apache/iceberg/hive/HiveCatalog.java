@@ -40,6 +40,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -48,6 +49,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -177,20 +179,17 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     try {
-      clients.run(
-          client -> {
-            client.dropTable(
-                database,
-                identifier.name(),
-                false /* do not delete data */,
-                false /* throw NoSuchObjectException if the table doesn't exist */);
-            return null;
-          });
-
+      clients.run(client -> {
+        client.dropTable(database, identifier.name(),
+            false /* do not delete data */,
+            false /* throw NoSuchObjectException if the table doesn't exist */);
+        return null;
+      });
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
-      }
 
+        dropLocationsFromTableProperty(identifier, lastMetadata);
+      }
       LOG.info("Dropped table: {}", identifier);
       return true;
 
@@ -204,6 +203,22 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to dropTable", e);
+    }
+  }
+
+  private void dropLocationsFromTableProperty(TableIdentifier identifier, TableMetadata metadata) {
+    if (fileIO instanceof SupportsPrefixOperations) {
+      String locationsOwnedParam = metadata.property(
+          TableProperties.LOCATIONS_OWNED_BY_TABLE,
+          String.valueOf(TableProperties.LOCATIONS_OWNED_BY_TABLE_DEFAULT));
+      if (locationsOwnedParam != null) {
+        String[] locations = locationsOwnedParam.split(",", 0);
+        for (String location : locations) {
+          ((SupportsPrefixOperations) fileIO).deletePrefix(location);
+
+          LOG.debug("Location {} deleted for table: {}", location, identifier);
+        }
+      }
     }
   }
 
