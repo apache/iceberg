@@ -55,6 +55,16 @@ public interface TableScan extends Scan<TableScan> {
   TableScan asOfTime(long timestampMillis);
 
   /**
+   * Create a new {@link TableScan} from this scan's configuration that will use the given snapshot
+   * by ID.
+   *
+   * @param snapshotRef a snapshot Ref
+   * @return a new scan based on this with the given snapshot Ref
+   * @throws IllegalArgumentException if the snapshot cannot be found
+   */
+  TableScan useSnapshotRef(String snapshotRef);
+
+  /**
    * Create a new {@link TableScan} from this that will read the given data columns. This produces
    * an expected schema that includes all fields that are either selected or used by this scan's
    * filter expression.

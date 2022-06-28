@@ -68,6 +68,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
+  private final String snapshotRef;
   private final List<Expression> runtimeFilterExpressions;
 
   private Set<Integer> specIds = null; // lazy cache of scanned spec IDs
@@ -84,6 +85,7 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
+    this.snapshotRef = readConf.snapshotRef();
     this.runtimeFilterExpressions = Lists.newArrayList();
 
     if (scan == null) {
@@ -256,14 +258,15 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
         Objects.equals(snapshotId, that.snapshotId) &&
         Objects.equals(startSnapshotId, that.startSnapshotId) &&
         Objects.equals(endSnapshotId, that.endSnapshotId) &&
-        Objects.equals(asOfTimestamp, that.asOfTimestamp);
+        Objects.equals(asOfTimestamp, that.asOfTimestamp) &&
+        Objects.equals(snapshotRef, that.snapshotRef);
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(
         table().name(), readSchema(), filterExpressions().toString(), runtimeFilterExpressions.toString(),
-        snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp);
+        snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, snapshotRef);
   }
 
   @Override

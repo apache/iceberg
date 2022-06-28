@@ -153,6 +153,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   public Scan build() {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
+    String snapshotRef = readConf.snapshotRef();
 
     Preconditions.checkArgument(snapshotId == null || asOfTimestamp == null,
         "Cannot set both %s and %s to select which table snapshot to scan",
@@ -185,6 +186,10 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
     if (asOfTimestamp != null) {
       scan = scan.asOfTime(asOfTimestamp);
+    }
+
+    if(snapshotRef != null){
+      scan = scan.useSnapshotRef(snapshotRef);
     }
 
     if (startSnapshotId != null) {
