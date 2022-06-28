@@ -29,7 +29,7 @@ public final class PuffinFormatTestUtil {
   public static final long EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE = 28;
 
   // footer size for v1/sample-metric-data-compressed-zstd.bin
-  public static final long SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE = 242;
+  public static final long SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE = 314;
 
   static byte[] readTestResource(String resourceName) throws Exception {
     return Resources.toByteArray(Resources.getResource(PuffinFormatTestUtil.class, resourceName));
