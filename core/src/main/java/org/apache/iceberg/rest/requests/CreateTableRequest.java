@@ -49,8 +49,8 @@ public class CreateTableRequest implements RESTRequest {
     // Needed for Jackson Deserialization.
   }
 
-  private CreateTableRequest(String name, String location, Schema schema, PartitionSpec partitionSpec, SortOrder writeOrder,
-                             Map<String, String> properties, boolean stageCreate) {
+  private CreateTableRequest(String name, String location, Schema schema, PartitionSpec partitionSpec,
+                             SortOrder writeOrder, Map<String, String> properties, boolean stageCreate) {
     this.name = name;
     this.location = location;
     this.schema = schema;
