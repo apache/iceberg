@@ -69,7 +69,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final boolean readTimestampWithoutZone;
 
   // lazy variables
-  private StructType readSchema = null;
+  private StructType readSchema;
+  private Batch batch;
+  private MicroBatchStream microBatchStream;
 
   SparkScan(SparkSession spark, Table table, SparkReadConf readConf,
             Schema expectedSchema, List<Expression> filters) {
@@ -105,12 +107,18 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public Batch toBatch() {
-    return new SparkBatch(sparkContext, table, readConf, tasks(), expectedSchema);
+    if (batch == null) {
+      batch = new SparkBatch(sparkContext, table, readConf, this::tasks, expectedSchema);
+    }
+    return batch;
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-    return new SparkMicroBatchStream(sparkContext, table, readConf, expectedSchema, checkpointLocation);
+    if (microBatchStream == null) {
+      microBatchStream = new SparkMicroBatchStream(sparkContext, table, readConf, expectedSchema, checkpointLocation);
+    }
+    return microBatchStream;
   }
 
   @Override

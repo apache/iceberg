@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
@@ -43,17 +44,17 @@ class SparkBatch implements Batch {
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
-  private final List<CombinedScanTask> tasks;
+  private final Supplier<List<CombinedScanTask>> taskSupplier;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
 
   SparkBatch(JavaSparkContext sparkContext, Table table, SparkReadConf readConf,
-             List<CombinedScanTask> tasks, Schema expectedSchema) {
+             Supplier<List<CombinedScanTask>> taskSupplier, Schema expectedSchema) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.readConf = readConf;
-    this.tasks = tasks;
+    this.taskSupplier = taskSupplier;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
@@ -65,6 +66,7 @@ class SparkBatch implements Batch {
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
+    List<CombinedScanTask> tasks = taskSupplier.get();
     InputPartition[] readTasks = new InputPartition[tasks.size()];
 
     Tasks.range(readTasks.length)
@@ -83,16 +85,17 @@ class SparkBatch implements Batch {
   }
 
   private int batchSize() {
-    if (parquetOnly() && parquetBatchReadsEnabled()) {
+    List<CombinedScanTask> tasks = taskSupplier.get();
+    if (parquetOnly(tasks) && parquetBatchReadsEnabled()) {
       return readConf.parquetBatchSize();
-    } else if (orcOnly() && orcBatchReadsEnabled()) {
+    } else if (orcOnly(tasks) && orcBatchReadsEnabled(tasks)) {
       return readConf.orcBatchSize();
     } else {
       return 0;
     }
   }
 
-  private boolean parquetOnly() {
+  private boolean parquetOnly(List<CombinedScanTask> tasks) {
     return tasks.stream().allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.PARQUET));
   }
 
@@ -102,11 +105,11 @@ class SparkBatch implements Batch {
         expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType()); // only primitives
   }
 
-  private boolean orcOnly() {
+  private boolean orcOnly(List<CombinedScanTask> tasks) {
     return tasks.stream().allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.ORC));
   }
 
-  private boolean orcBatchReadsEnabled() {
+  private boolean orcBatchReadsEnabled(List<CombinedScanTask> tasks) {
     return readConf.orcVectorizationEnabled() && // vectorization enabled
         tasks.stream().noneMatch(TableScanUtil::hasDeletes); // no delete files
   }
