@@ -31,7 +31,7 @@ from dataclasses import field as dataclassfield
 from datetime import date, datetime, time
 from decimal import Decimal
 from functools import singledispatch
-from typing import Any
+from typing import Any, Callable
 from uuid import UUID
 
 from iceberg.avro.decoder import BinaryDecoder
@@ -58,6 +58,41 @@ from iceberg.types import (
     TimeType,
 )
 from iceberg.utils.singleton import Singleton
+
+
+def _skip_map_array(decoder: BinaryDecoder, skip_entry: Callable) -> None:
+    """Skips over an array or map
+
+    Both the array and map are encoded similar, and we can re-use
+    the logic of skipping in an efficient way.
+
+    From the Avro spec:
+
+    Maps (and arrays) are encoded as a series of blocks.
+    Each block consists of a long count value, followed by that many key/value pairs in the case of a map,
+    and followed by that many array items in the case of an array. A block with count zero indicates the
+    end of the map. Each item is encoded per the map's value schema.
+
+    If a block's count is negative, its absolute value is used, and the count is followed immediately by a
+    long block size indicating the number of bytes in the block. This block size permits fast skipping
+    through data, e.g., when projecting a record to a subset of its fields.
+
+    Args:
+        decoder:
+            The decoder that reads the types from the underlying data
+        skip_entry:
+            Function to skip over the underlying data, element in case of an array, and the
+            key/value in the case of a map
+    """
+    block_count = decoder.read_int()
+    while block_count != 0:
+        if block_count < 0:
+            # The length in bytes in encoded, so we can skip over it right away
+            block_size = decoder.read_int()
+            decoder.skip(block_size)
+        else:
+            [skip_entry() for _ in range(block_count)]
+        block_count = decoder.read_int()
 
 
 @dataclass(frozen=True)
@@ -232,7 +267,7 @@ class StructReader(Reader):
     fields: tuple[tuple[int | None, Reader], ...] = dataclassfield()
 
     def read(self, decoder: BinaryDecoder) -> AvroStruct:
-        result: list[Any | StructProtocol] = [object] * len(self.fields)
+        result: list[Any | StructProtocol] = [None] * len(self.fields)
         for (pos, field) in self.fields:
             if pos is not None:
                 result[pos] = field.read(decoder)
@@ -263,16 +298,7 @@ class ListReader(Reader):
         return read_items
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        block_count = decoder.read_int()
-        while block_count != 0:
-            if block_count < 0:
-                block_count = -block_count
-                block_size = decoder.read_int()
-                decoder.skip(block_size)
-            else:
-                for _ in range(block_count):
-                    self.element.skip(decoder)
-                block_count = decoder.read_int()
+        _skip_map_array(decoder, lambda: self.element.skip(decoder))
 
 
 @dataclass(frozen=True)
@@ -296,17 +322,11 @@ class MapReader(Reader):
         return read_items
 
     def skip(self, decoder: BinaryDecoder) -> None:
-        block_count = decoder.read_int()
-        while block_count != 0:
-            if block_count < 0:
-                block_count = -block_count
-                block_size = decoder.read_int()
-                decoder.skip(block_size)
-            else:
-                for _ in range(block_count):
-                    self.key.skip(decoder)
-                    self.value.skip(decoder)
-                block_count = decoder.read_int()
+        def skip():
+            self.key.skip(decoder)
+            self.value.skip(decoder)
+
+        _skip_map_array(decoder, skip)
 
 
 class ConstructReader(SchemaVisitor[Reader]):

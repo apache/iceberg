@@ -132,6 +132,6 @@ def test_resolver_change_type():
         resolve(write_schema, read_schema)
 
     assert (
-        "Cannot change list<string> into MapType(key_id=2, key_type=StringType(), value_id=3, value_type=StringType(), value_required=True)"
+        "Write/read schema are not aligned for list<string>, got MapType(key_id=2, key_type=StringType(), value_id=3, value_type=StringType(), value_required=True)"
         in str(exc_info.value)
     )

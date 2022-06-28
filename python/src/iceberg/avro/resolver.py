@@ -75,15 +75,18 @@ def _(write_schema: Schema, read_schema: Schema) -> Reader:
 
 
 @resolve.register(StructType)
-def _(write_struct: StructType, read_struct: StructType) -> Reader:
+def _(write_struct: StructType, read_struct: IcebergType) -> Reader:
     """Iterates over the write schema, and checks if the field is in the read schema"""
-    results: List[Tuple[Optional[int], Reader]] = []
 
-    read_fields = {field.name: (pos, field) for pos, field in enumerate(read_struct.fields)}
+    if not isinstance(read_struct, StructType):
+        raise ResolveException(f"Write/read schema are not aligned for {write_struct}, got {read_struct}")
+
+    results: List[Tuple[Optional[int], Reader]] = []
+    read_fields = {field.field_id: (pos, field) for pos, field in enumerate(read_struct.fields)}
 
     for write_field in write_struct.fields:
-        if write_field.name in read_fields:
-            read_pos, read_field = read_fields[write_field.name]
+        if write_field.field_id in read_fields:
+            read_pos, read_field = read_fields[write_field.field_id]
             result_reader = resolve(write_field.field_type, read_field.field_type)
         else:
             read_pos = None
@@ -91,9 +94,9 @@ def _(write_struct: StructType, read_struct: StructType) -> Reader:
         result_reader = result_reader if write_field.required else OptionReader(result_reader)
         results.append((read_pos, result_reader))
 
-    write_fields = {field.name: field for field in write_struct.fields}
+    write_fields = {field.field_id: field for field in write_struct.fields}
     for pos, read_field in enumerate(read_struct.fields):
-        if read_field.name not in write_fields:
+        if read_field.field_id not in write_fields:
             if read_field.required:
                 raise ResolveException(f"{read_field} is in not in the write schema, and is required")
             # Just set the new field to None
@@ -103,17 +106,17 @@ def _(write_struct: StructType, read_struct: StructType) -> Reader:
 
 
 @resolve.register(ListType)
-def _(write_list: ListType, read_list: ListType) -> Reader:
+def _(write_list: ListType, read_list: IcebergType) -> Reader:
     if not isinstance(read_list, ListType):
-        raise ResolveException(f"Cannot change {write_list} into {read_list}")
+        raise ResolveException(f"Write/read schema are not aligned for {write_list}, got {read_list}")
     element_reader = resolve(write_list.element.field_type, read_list.element.field_type)
     return ListReader(element_reader)
 
 
 @resolve.register(MapType)
-def _(write_map: MapType, read_map: MapType) -> Reader:
+def _(write_map: MapType, read_map: IcebergType) -> Reader:
     if not isinstance(read_map, MapType):
-        raise ResolveException(f"Cannot change {write_map} into {read_map}")
+        raise ResolveException(f"Write/read schema are not aligned for {write_map}, got {read_map}")
     key_reader = resolve(write_map.key.field_type, read_map.key.field_type)
     value_reader = resolve(write_map.value.field_type, read_map.value.field_type)
 
@@ -121,7 +124,7 @@ def _(write_map: MapType, read_map: MapType) -> Reader:
 
 
 ALLOWED_PROMOTIONS: Dict[Type[PrimitiveType], Set[Type[PrimitiveType]]] = {
-    # For now we only support the binary compatible ones
+    # For now, we only support the binary compatible ones
     IntegerType: {LongType},
     StringType: {BinaryType},
     BinaryType: {StringType},
