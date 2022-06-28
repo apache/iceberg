@@ -99,19 +99,23 @@ public class TestFileMetadataParser {
     testJsonSerialization(
         new FileMetadata(
             ImmutableList.of(
-                new BlobMetadata("type-a", ImmutableList.of(1), 4, 16, null, ImmutableMap.of()),
-                new BlobMetadata("type-bbb", ImmutableList.of(2, 3, 4), Integer.MAX_VALUE * 10000L, 79834, null,
+                new BlobMetadata("type-a", ImmutableList.of(1), 14, 3, 4, 16, null, ImmutableMap.of()),
+                new BlobMetadata("type-bbb", ImmutableList.of(2, 3, 4), 77, 4, Integer.MAX_VALUE * 10000L, 79834, null,
                     ImmutableMap.of())),
             ImmutableMap.of()),
         "{\n" +
             "  \"blobs\" : [ {\n" +
             "    \"type\" : \"type-a\",\n" +
             "    \"fields\" : [ 1 ],\n" +
+            "    \"snapshot-id\" : 14,\n" +
+            "    \"sequence-number\" : 3,\n" +
             "    \"offset\" : 4,\n" +
             "    \"length\" : 16\n" +
             "  }, {\n" +
             "    \"type\" : \"type-bbb\",\n" +
             "    \"fields\" : [ 2, 3, 4 ],\n" +
+            "    \"snapshot-id\" : 77,\n" +
+            "    \"sequence-number\" : 4,\n" +
             "    \"offset\" : 21474836470000,\n" +
             "    \"length\" : 79834\n" +
             "  } ]\n" +
@@ -124,13 +128,15 @@ public class TestFileMetadataParser {
         new FileMetadata(
             ImmutableList.of(
                 new BlobMetadata(
-                    "type-a", ImmutableList.of(1), 4, 16, null,
+                    "type-a", ImmutableList.of(1), 14, 3, 4, 16, null,
                     ImmutableMap.of("some key", "some value"))),
             ImmutableMap.of()),
         "{\n" +
             "  \"blobs\" : [ {\n" +
             "    \"type\" : \"type-a\",\n" +
             "    \"fields\" : [ 1 ],\n" +
+            "    \"snapshot-id\" : 14,\n" +
+            "    \"sequence-number\" : 3,\n" +
             "    \"offset\" : 4,\n" +
             "    \"length\" : 16,\n" +
             "    \"properties\" : {\n" +

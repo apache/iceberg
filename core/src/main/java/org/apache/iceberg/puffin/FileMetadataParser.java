@@ -41,6 +41,8 @@ public final class FileMetadataParser {
 
   private static final String TYPE = "type";
   private static final String FIELDS = "fields";
+  private static final String SNAPSHOT_ID = "snapshot-id";
+  private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String OFFSET = "offset";
   private static final String LENGTH = "length";
   private static final String COMPRESSION_CODEC = "compression-codec";
@@ -123,6 +125,8 @@ public final class FileMetadataParser {
       generator.writeNumber(field);
     }
     generator.writeEndArray();
+    generator.writeNumberField(SNAPSHOT_ID, blobMetadata.snapshotId());
+    generator.writeNumberField(SEQUENCE_NUMBER, blobMetadata.sequenceNumber());
 
     generator.writeNumberField(OFFSET, blobMetadata.offset());
     generator.writeNumberField(LENGTH, blobMetadata.length());
@@ -145,6 +149,8 @@ public final class FileMetadataParser {
   static BlobMetadata blobMetadataFromJson(JsonNode json) {
     String type = JsonUtil.getString(TYPE, json);
     List<Integer> fields = JsonUtil.getIntegerList(FIELDS, json);
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
+    long sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, json);
     long offset = JsonUtil.getLong(OFFSET, json);
     long length = JsonUtil.getLong(LENGTH, json);
     String compressionCodec = JsonUtil.getStringOrNull(COMPRESSION_CODEC, json);
@@ -158,6 +164,8 @@ public final class FileMetadataParser {
     return new BlobMetadata(
         type,
         fields,
+        snapshotId,
+        sequenceNumber,
         offset,
         length,
         compressionCodec,

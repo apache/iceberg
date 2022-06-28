@@ -79,8 +79,8 @@ public class PuffinWriter implements FileAppender<Blob> {
       ByteBuffer rawData = PuffinFormat.compress(codec, blob.blobData());
       int length = rawData.remaining();
       IOUtil.writeFully(outputStream, rawData);
-      writtenBlobsMetadata.add(new BlobMetadata(blob.type(), blob.inputFields(), fileOffset, length,
-          codec.codecName(), blob.properties()));
+      writtenBlobsMetadata.add(new BlobMetadata(blob.type(), blob.inputFields(), blob.snapshotId(),
+          blob.sequenceNumber(), fileOffset, length, codec.codecName(), blob.properties()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
