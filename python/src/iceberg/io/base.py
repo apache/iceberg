@@ -24,35 +24,35 @@ its location.
 """
 
 from abc import ABC, abstractmethod
-from typing import Union
-
-try:
-    from typing import Protocol, runtime_checkable
-except ImportError:  # pragma: no cover
-    from typing_extensions import Protocol  # type: ignore
-    from typing_extensions import runtime_checkable
+from io import SEEK_SET
+from typing import Protocol, Union, runtime_checkable
 
 
 @runtime_checkable
-class InputStream(Protocol):  # pragma: no cover
+class InputStream(Protocol):
     """A protocol for the file-like object returned by InputFile.open(...)
 
     This outlines the minimally required methods for a seekable input stream returned from an InputFile
     implementation's `open(...)` method. These methods are a subset of IOBase/RawIOBase.
     """
 
-    def read(self, size: int) -> bytes:
+    @abstractmethod
+    def read(self, size: int = 0) -> bytes:
         ...
 
-    def seek(self, offset: int, whence: int) -> None:
+    @abstractmethod
+    def seek(self, offset: int, whence: int = SEEK_SET) -> None:
         ...
 
+    @abstractmethod
     def tell(self) -> int:
         ...
 
+    @abstractmethod
     def closed(self) -> bool:
         ...
 
+    @abstractmethod
     def close(self) -> None:
         ...
 
@@ -65,12 +65,15 @@ class OutputStream(Protocol):  # pragma: no cover
     implementation's `create(...)` method. These methods are a subset of IOBase/RawIOBase.
     """
 
+    @abstractmethod
     def write(self, b: bytes) -> None:
         ...
 
+    @abstractmethod
     def closed(self) -> bool:
         ...
 
+    @abstractmethod
     def close(self) -> None:
         ...
 

@@ -23,7 +23,7 @@ package org.apache.iceberg;
 /**
  * API for configuring an incremental table scan for appends only snapshots
  */
-public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
+public interface IncrementalAppendScan extends Scan<IncrementalAppendScan, FileScanTask, CombinedScanTask> {
 
   /**
    * Refine the incremental scan with the start snapshot inclusive.

@@ -22,6 +22,7 @@ package org.apache.iceberg.arrow.vectorized;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -46,7 +47,6 @@ import org.apache.arrow.vector.util.DecimalUtility;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -255,19 +255,17 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   private static class DictionaryLongAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
           extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final IntVector offsetVector;
-    private final long[] decodedDictionary;
+    private final Dictionary dictionary;
 
     DictionaryLongAccessor(IntVector vector, Dictionary dictionary) {
       super(vector);
       this.offsetVector = vector;
-      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
-          .mapToLong(dictionary::decodeToLong)
-          .toArray();
+      this.dictionary = dictionary;
     }
 
     @Override
     public final long getLong(int rowId) {
-      return decodedDictionary[offsetVector.get(rowId)];
+      return dictionary.decodeToLong(offsetVector.get(rowId));
     }
   }
 
@@ -295,20 +293,17 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   private static class DictionaryFloatAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
           extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final IntVector offsetVector;
-    private final float[] decodedDictionary;
+    private final Dictionary dictionary;
 
     DictionaryFloatAccessor(IntVector vector, Dictionary dictionary) {
       super(vector);
       this.offsetVector = vector;
-      this.decodedDictionary = new float[dictionary.getMaxId() + 1];
-      for (int i = 0; i <= dictionary.getMaxId(); i++) {
-        decodedDictionary[i] = dictionary.decodeToFloat(i);
-      }
+      this.dictionary = dictionary;
     }
 
     @Override
     public final float getFloat(int rowId) {
-      return decodedDictionary[offsetVector.get(rowId)];
+      return dictionary.decodeToFloat(offsetVector.get(rowId));
     }
 
     @Override
@@ -336,19 +331,17 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   private static class DictionaryDoubleAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
           extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final IntVector offsetVector;
-    private final double[] decodedDictionary;
+    private final Dictionary dictionary;
 
     DictionaryDoubleAccessor(IntVector vector, Dictionary dictionary) {
       super(vector);
       this.offsetVector = vector;
-      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
-          .mapToDouble(dictionary::decodeToDouble)
-          .toArray();
+      this.dictionary = dictionary;
     }
 
     @Override
     public final double getDouble(int rowId) {
-      return decodedDictionary[offsetVector.get(rowId)];
+      return dictionary.decodeToDouble(offsetVector.get(rowId));
     }
   }
 
@@ -372,22 +365,26 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
 
   private static class DictionaryStringAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
           extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-    private final Utf8StringT[] decodedDictionary;
+    private final Dictionary dictionary;
+    private final StringFactory<Utf8StringT> stringFactory;
     private final IntVector offsetVector;
+    private final Utf8StringT[] cache;
 
     DictionaryStringAccessor(IntVector vector, Dictionary dictionary, StringFactory<Utf8StringT> stringFactory) {
       super(vector);
       this.offsetVector = vector;
-      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
-          .mapToObj(dictionary::decodeToBinary)
-          .map(binary -> stringFactory.ofBytes(binary.getBytes()))
-          .toArray(genericArray(stringFactory.getGenericClass()));
+      this.dictionary = dictionary;
+      this.stringFactory = stringFactory;
+      this.cache = genericArray(stringFactory.getGenericClass(), dictionary.getMaxId() + 1);
     }
 
     @Override
     public final Utf8StringT getUTF8String(int rowId) {
       int offset = offsetVector.get(rowId);
-      return decodedDictionary[offset];
+      if (cache[offset] == null) {
+        cache[offset] = stringFactory.ofByteBuffer(dictionary.decodeToBinary(offset).toByteBuffer());
+      }
+      return cache[offset];
     }
   }
 
@@ -410,21 +407,17 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   private static class DictionaryBinaryAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
           extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final IntVector offsetVector;
-    private final byte[][] decodedDictionary;
+    private final Dictionary dictionary;
 
     DictionaryBinaryAccessor(IntVector vector, Dictionary dictionary) {
       super(vector);
       this.offsetVector = vector;
-      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
-          .mapToObj(dictionary::decodeToBinary)
-          .map(Binary::getBytes)
-          .toArray(byte[][]::new);
+      this.dictionary = dictionary;
     }
 
     @Override
     public final byte[] getBinary(int rowId) {
-      int offset = offsetVector.get(rowId);
-      return decodedDictionary[offset];
+      return dictionary.decodeToBinary(offsetVector.get(rowId)).getBytes();
     }
   }
 
@@ -579,7 +572,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
 
     protected long decodeToBinary(int dictId) {
-      return new BigInteger(parquetDictionary.decodeToBinary(dictId).getBytes()).longValue();
+      return new BigInteger(parquetDictionary.decodeToBinary(dictId).getBytesUnsafe()).longValue();
     }
 
     protected long decodeToLong(int dictId) {
@@ -592,14 +585,11 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
 
     @Override
     public final DecimalT getDecimal(int rowId, int precision, int scale) {
-      int dictId = offsetVector.get(rowId);
-      if (cache[dictId] == null) {
-        cache[dictId] = decimalFactory.ofLong(
-            decode(dictId),
-            precision,
-            scale);
+      int offset = offsetVector.get(rowId);
+      if (cache[offset] == null) {
+        cache[offset] = decimalFactory.ofLong(decode(offset), precision, scale);
       }
-      return cache[dictId];
+      return cache[offset];
     }
 
     protected abstract long decode(int dictId);
@@ -685,6 +675,11 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
      * Create a UTF8 String from the byte array.
      */
     Utf8StringT ofBytes(byte[] bytes);
+
+    /**
+     * Create a UTF8 String from the byte buffer.
+     */
+    Utf8StringT ofByteBuffer(ByteBuffer byteBuffer);
   }
 
   /**

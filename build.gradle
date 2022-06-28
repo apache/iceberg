@@ -53,7 +53,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
 } else if (JavaVersion.current() == JavaVersion.VERSION_11) {
   project.ext.jdkVersion = '11'
 } else {
-  throw new GradleException("This build must be run with JDK 8 or 11")
+  throw new GradleException("This build must be run with JDK 8 or 11 but was executed with JDK " + JavaVersion.current())
 }
 
 dependencyRecommendations {
@@ -220,6 +220,7 @@ project(':iceberg-core') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
+    implementation 'io.airlift:aircompressor'
     implementation 'org.apache.httpcomponents.client5:httpclient5'
     implementation "com.fasterxml.jackson.core:jackson-databind"
     implementation "com.fasterxml.jackson.core:jackson-core"

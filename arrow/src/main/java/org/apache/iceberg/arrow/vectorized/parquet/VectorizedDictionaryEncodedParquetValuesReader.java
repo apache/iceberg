@@ -121,8 +121,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     @Override
     protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer()
-          .setBytes(idx, buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+      vector.getDataBuffer().setBytes(idx, buffer);
     }
   }
 
@@ -134,8 +133,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
       System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
       ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
       ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer()
-          .setBytes(idx, buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+      vector.getDataBuffer().setBytes(idx, buffer);
     }
   }
 

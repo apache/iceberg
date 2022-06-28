@@ -22,6 +22,7 @@ gradle/*
 .*\.svg
 .*\.lock
 .*\.json
+.*\.bin
 package-list
 sitemap.xml
 derby.log

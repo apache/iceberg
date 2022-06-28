@@ -21,7 +21,8 @@ from typing import Any, Generic, TypeVar
 
 from iceberg.files import StructProtocol
 from iceberg.schema import Accessor, Schema
-from iceberg.types import NestedField, Singleton
+from iceberg.types import NestedField
+from iceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
 
@@ -241,7 +242,7 @@ class Not(BooleanExpression):
         return f"(not {self.child})"
 
 
-class AlwaysTrue(BooleanExpression, Singleton):
+class AlwaysTrue(BooleanExpression, ABC, Singleton):
     """TRUE expression"""
 
     def __invert__(self) -> "AlwaysFalse":
@@ -254,7 +255,7 @@ class AlwaysTrue(BooleanExpression, Singleton):
         return "true"
 
 
-class AlwaysFalse(BooleanExpression, Singleton):
+class AlwaysFalse(BooleanExpression, ABC, Singleton):
     """FALSE expression"""
 
     def __invert__(self) -> "AlwaysTrue":
@@ -345,7 +346,12 @@ class UnboundReference:
         if not field:
             raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
 
-        return BoundReference(field=field, accessor=schema.accessor_for_field(field.field_id))
+        accessor = schema.accessor_for_field(field.field_id)
+
+        if not accessor:
+            raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
+
+        return BoundReference(field=field, accessor=accessor)
 
 
 class BooleanExpressionVisitor(Generic[T], ABC):

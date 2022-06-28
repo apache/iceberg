@@ -415,12 +415,15 @@ public class TableMetadataParser {
 
     // parse properties map
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
-    long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
+    long currentSnapshotId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
     Map<String, SnapshotRef> refs;
     if (node.has(REFS)) {
       refs = refsFromJson(node.get(REFS));
+    } else if (currentSnapshotId != -1) {
+      // initialize the main branch if there are no refs
+      refs = ImmutableMap.of(SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(currentSnapshotId).build());
     } else {
       refs = ImmutableMap.of();
     }
@@ -457,7 +460,7 @@ public class TableMetadataParser {
 
     return new TableMetadata(metadataLocation, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
         snapshots, entries.build(), metadataEntries.build(), refs,
         ImmutableList.of() /* no changes from the file */);
   }

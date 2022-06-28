@@ -26,6 +26,24 @@ import java.io.Serializable;
  */
 public interface ScanTask extends Serializable {
   /**
+   * The number of bytes that should be read by this scan task.
+   *
+   * @return the total number of bytes to read
+   */
+  default long sizeBytes() {
+    return 4 * 1028 * 1028; // 4 MB
+  }
+
+  /**
+   * The number of files that will be opened by this scan task.
+   *
+   * @return the number of files to open
+   */
+  default int filesCount() {
+    return 1;
+  }
+
+  /**
    * Returns true if this is a {@link FileScanTask}, false otherwise.
    */
   default boolean isFileScanTask() {
