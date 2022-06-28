@@ -19,36 +19,26 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
+import java.util.Collection;
 
 /**
- * A scan task over a range of bytes in a single data file.
+ * A scan task that may include partial input files, multiple input files or both.
+ *
+ * @param <T> the type of scan tasks
  */
-public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
+public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
   /**
-   * A list of {@link DeleteFile delete files} to apply when reading the task's data file.
-   *
-   * @return a list of delete files to apply
+   * Returns scan tasks in this group.
    */
-  List<DeleteFile> deletes();
+  Collection<T> tasks();
 
   @Override
   default long sizeBytes() {
-    return length() + deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+    return tasks().stream().mapToLong(ScanTask::sizeBytes).sum();
   }
 
   @Override
   default int filesCount() {
-    return 1 + deletes().size();
-  }
-
-  @Override
-  default boolean isFileScanTask() {
-    return true;
-  }
-
-  @Override
-  default FileScanTask asFileScanTask() {
-    return this;
+    return tasks().stream().mapToInt(ScanTask::filesCount).sum();
   }
 }

@@ -38,7 +38,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
-public abstract class ScanTestBase<T extends Scan<T>> extends TableTestBase {
+public abstract class ScanTestBase<T extends Scan<T, FileScanTask, CombinedScanTask>> extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
     return new Object[] { 1, 2 };

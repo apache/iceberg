@@ -19,36 +19,27 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
-
 /**
- * A scan task over a range of bytes in a single data file.
+ * A scan task that can be potentially merged with other scan tasks.
+ *
+ * @param <ThisT> the child Java API class
  */
-public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
+public interface MergeableScanTask<ThisT> extends ScanTask {
   /**
-   * A list of {@link DeleteFile delete files} to apply when reading the task's data file.
+   * Checks if this task can merge with a given task.
    *
-   * @return a list of delete files to apply
+   * @param other another task
+   * @return whether the tasks can be merged
    */
-  List<DeleteFile> deletes();
+  boolean canMerge(ScanTask other);
 
-  @Override
-  default long sizeBytes() {
-    return length() + deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
-  }
-
-  @Override
-  default int filesCount() {
-    return 1 + deletes().size();
-  }
-
-  @Override
-  default boolean isFileScanTask() {
-    return true;
-  }
-
-  @Override
-  default FileScanTask asFileScanTask() {
-    return this;
-  }
+  /**
+   * Merges this task with a given task.
+   * <p>
+   * Note this method will be called only if {@link #canMerge(ScanTask)} returns true.
+   *
+   * @param other another task
+   * @return a new merged task
+   */
+  ThisT merge(ScanTask other);
 }
