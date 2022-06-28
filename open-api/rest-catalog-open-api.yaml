@@ -1561,7 +1561,7 @@ components:
             Client ID
 
 
-            This can be sent in the request body, but OAuth2 recomments sending it in
+            This can be sent in the request body, but OAuth2 recommends sending it in
             a Basic Authorization header.
         client_secret:
           type: string
@@ -1569,7 +1569,7 @@ components:
             Client secret
 
 
-            This can be sent in the request body, but OAuth2 recomments sending it in
+            This can be sent in the request body, but OAuth2 recommends sending it in
             a Basic Authorization header.
 
     OAuthTokenExchangeRequest:
