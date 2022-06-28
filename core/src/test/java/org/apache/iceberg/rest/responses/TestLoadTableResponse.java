@@ -105,7 +105,6 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
 
   @Test
   public void testRoundTripSerdeWithV1TableMetadata() throws Exception {
-    // Default fields are missing in this JSON
     String tableMetadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
     TableMetadata v1Metadata = TableMetadataParser.fromJson(null, TEST_METADATA_LOCATION, tableMetadataJson);
     // Convert the TableMetadata JSON from the file to an object and then back to JSON so that missing fields
