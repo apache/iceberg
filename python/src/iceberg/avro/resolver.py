@@ -22,6 +22,7 @@ from typing import (
     Set,
     Tuple,
     Type,
+    Union,
 )
 
 from iceberg.avro.reader import (
@@ -53,19 +54,19 @@ class ResolveException(Exception):
 
 
 @singledispatch
-def resolve(file_schema, read_schema) -> Reader:
-    """This resolves the write and read schema
+def resolve(file_schema: Union[Schema, IcebergType], read_schema: Union[Schema, IcebergType]) -> Reader:
+    """This resolves the file and read schema
 
     The function traverses the schema in post-order fashion
 
      Args:
-         file_schema (Schema | IcebergType): The write schema of the Avro file
-         read_schema (Schema | IcebergType): The requested read schema which is equal or a subset of the write schema
+         file_schema (Schema | IcebergType): The schema of the Avro file
+         read_schema (Schema | IcebergType): The requested read schema which is equal, subset or superset of the file schema
 
      Raises:
          NotImplementedError: If attempting to resolve an unrecognized object type
     """
-    raise NotImplementedError("Cannot resolve non-type: %s" % file_schema)
+    raise NotImplementedError(f"Cannot resolve non-type: {file_schema}")
 
 
 @resolve.register(Schema)
@@ -75,28 +76,28 @@ def _(file_schema: Schema, read_schema: Schema) -> Reader:
 
 
 @resolve.register(StructType)
-def _(write_struct: StructType, read_struct: IcebergType) -> Reader:
-    """Iterates over the write schema, and checks if the field is in the read schema"""
+def _(file_struct: StructType, read_struct: IcebergType) -> Reader:
+    """Iterates over the file schema, and checks if the field is in the read schema"""
 
     if not isinstance(read_struct, StructType):
-        raise ResolveException(f"Write/read schema are not aligned for {write_struct}, got {read_struct}")
+        raise ResolveException(f"File/read schema are not aligned for {file_struct}, got {read_struct}")
 
     results: List[Tuple[Optional[int], Reader]] = []
     read_fields = {field.field_id: (pos, field) for pos, field in enumerate(read_struct.fields)}
 
-    for write_field in write_struct.fields:
-        if write_field.field_id in read_fields:
-            read_pos, read_field = read_fields[write_field.field_id]
-            result_reader = resolve(write_field.field_type, read_field.field_type)
+    for file_field in file_struct.fields:
+        if file_field.field_id in read_fields:
+            read_pos, read_field = read_fields[file_field.field_id]
+            result_reader = resolve(file_field.field_type, read_field.field_type)
         else:
             read_pos = None
-            result_reader = visit(write_field.field_type, ConstructReader())
-        result_reader = result_reader if write_field.required else OptionReader(result_reader)
+            result_reader = visit(file_field.field_type, ConstructReader())
+        result_reader = result_reader if file_field.required else OptionReader(result_reader)
         results.append((read_pos, result_reader))
 
-    write_fields = {field.field_id: field for field in write_struct.fields}
+    file_fields = {field.field_id: field for field in file_struct.fields}
     for pos, read_field in enumerate(read_struct.fields):
-        if read_field.field_id not in write_fields:
+        if read_field.field_id not in file_fields:
             if read_field.required:
                 raise ResolveException(f"{read_field} is non-optional, and not part of the file schema")
             # Just set the new field to None
@@ -106,19 +107,19 @@ def _(write_struct: StructType, read_struct: IcebergType) -> Reader:
 
 
 @resolve.register(ListType)
-def _(write_list: ListType, read_list: IcebergType) -> Reader:
+def _(file_list: ListType, read_list: IcebergType) -> Reader:
     if not isinstance(read_list, ListType):
-        raise ResolveException(f"Write/read schema are not aligned for {write_list}, got {read_list}")
-    element_reader = resolve(write_list.element_type, read_list.element_type)
+        raise ResolveException(f"File/read schema are not aligned for {file_list}, got {read_list}")
+    element_reader = resolve(file_list.element_type, read_list.element_type)
     return ListReader(element_reader)
 
 
 @resolve.register(MapType)
-def _(write_map: MapType, read_map: IcebergType) -> Reader:
+def _(file_map: MapType, read_map: IcebergType) -> Reader:
     if not isinstance(read_map, MapType):
-        raise ResolveException(f"Write/read schema are not aligned for {write_map}, got {read_map}")
-    key_reader = resolve(write_map.key_type, read_map.key_type)
-    value_reader = resolve(write_map.value_type, read_map.value_type)
+        raise ResolveException(f"File/read schema are not aligned for {file_map}, got {read_map}")
+    key_reader = resolve(file_map.key_type, read_map.key_type)
+    value_reader = resolve(file_map.value_type, read_map.value_type)
 
     return MapReader(key_reader, value_reader)
 
@@ -132,22 +133,20 @@ ALLOWED_PROMOTIONS: Dict[Type[PrimitiveType], Set[Type[PrimitiveType]]] = {
     # IntegerType: {LongType, FloatType, DoubleType},
     # LongType: {FloatType, DoubleType},
     # FloatType: {DoubleType},
-    # StringType: {BinaryType},
-    # BinaryType: {StringType},
 }
 
 
 @resolve.register(PrimitiveType)
-def _(write_type: PrimitiveType, read_type: IcebergType) -> Reader:
+def _(file_type: PrimitiveType, read_type: IcebergType) -> Reader:
     """Converting the primitive type into an actual reader that will decode the physical data"""
     if not isinstance(read_type, PrimitiveType):
-        raise ResolveException(f"Cannot promote {write_type} to {read_type}")
+        raise ResolveException(f"Cannot promote {file_type} to {read_type}")
 
-    if write_type != read_type:
-        if allowed_promotions := ALLOWED_PROMOTIONS.get(type(write_type)):
+    if file_type != read_type:
+        if allowed_promotions := ALLOWED_PROMOTIONS.get(type(file_type)):
             if type(read_type) not in allowed_promotions:
-                raise ResolveException(f"Promotion from {read_type} to {write_type} is not allowed")
+                raise ResolveException(f"Promotion from {read_type} to {file_type} is not allowed")
         else:
-            raise ResolveException(f"Promotion from {read_type} to {write_type} is not allowed")
+            raise ResolveException(f"Promotion from {read_type} to {file_type} is not allowed")
 
     return primitive_reader(read_type)
