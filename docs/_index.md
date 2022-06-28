@@ -22,7 +22,7 @@ weight: 0
 
 ![Iceberg](./img/Iceberg-logo.png)
 
-**Apache Iceberg is an open table format for huge analytic datasets.** Iceberg adds tables to compute engines including Spark, Trino, PrestoDB, Flink and Hive using a high-performance table format that works just like a SQL table.
+**Apache Iceberg is an open table format for huge analytic datasets.** Iceberg adds tables to compute engines including Spark, Trino, PrestoDB, Flink, Hive and Impala using a high-performance table format that works just like a SQL table.
 
 ### User experience
 
@@ -52,4 +52,3 @@ Iceberg was designed to solve correctness problems in eventually-consistent clou
 Iceberg has been designed and developed to be an open community standard with a [specification](../../spec) to ensure compatibility across languages and implementations.
 
 [Apache Iceberg is open source](../../community), and is developed at the [Apache Software Foundation](https://www.apache.org/).
-
