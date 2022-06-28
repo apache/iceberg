@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
-import java.util.function.Supplier;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
@@ -35,26 +34,24 @@ import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 
-class SparkBatch implements Batch {
+abstract class SparkBatch implements Batch {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
-  private final Supplier<List<CombinedScanTask>> taskSupplier;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
 
-  SparkBatch(JavaSparkContext sparkContext, Table table, SparkReadConf readConf,
-             Supplier<List<CombinedScanTask>> taskSupplier, Schema expectedSchema) {
-    this.sparkContext = sparkContext;
+  SparkBatch(SparkSession spark, Table table, SparkReadConf readConf, Schema expectedSchema) {
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
-    this.taskSupplier = taskSupplier;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
@@ -66,17 +63,22 @@ class SparkBatch implements Batch {
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
-    List<CombinedScanTask> tasks = taskSupplier.get();
-    InputPartition[] readTasks = new InputPartition[tasks.size()];
+    InputPartition[] readTasks = new InputPartition[tasks().size()];
 
     Tasks.range(readTasks.length)
         .stopOnFailure()
         .executeWith(localityEnabled ? ThreadPools.getWorkerPool() : null)
         .run(index -> readTasks[index] = new ReadTask(
-            tasks.get(index), tableBroadcast, expectedSchemaString,
+            tasks().get(index), tableBroadcast, expectedSchemaString,
             caseSensitive, localityEnabled));
 
     return readTasks;
+  }
+
+  protected abstract List<CombinedScanTask> tasks();
+
+  protected JavaSparkContext sparkContext() {
+    return sparkContext;
   }
 
   @Override
@@ -85,18 +87,17 @@ class SparkBatch implements Batch {
   }
 
   private int batchSize() {
-    List<CombinedScanTask> tasks = taskSupplier.get();
-    if (parquetOnly(tasks) && parquetBatchReadsEnabled()) {
+    if (parquetOnly() && parquetBatchReadsEnabled()) {
       return readConf.parquetBatchSize();
-    } else if (orcOnly(tasks) && orcBatchReadsEnabled(tasks)) {
+    } else if (orcOnly() && orcBatchReadsEnabled()) {
       return readConf.orcBatchSize();
     } else {
       return 0;
     }
   }
 
-  private boolean parquetOnly(List<CombinedScanTask> tasks) {
-    return tasks.stream().allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.PARQUET));
+  private boolean parquetOnly() {
+    return tasks().stream().allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.PARQUET));
   }
 
   private boolean parquetBatchReadsEnabled() {
@@ -105,13 +106,13 @@ class SparkBatch implements Batch {
         expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType()); // only primitives
   }
 
-  private boolean orcOnly(List<CombinedScanTask> tasks) {
-    return tasks.stream().allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.ORC));
+  private boolean orcOnly() {
+    return tasks().stream().allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.ORC));
   }
 
-  private boolean orcBatchReadsEnabled(List<CombinedScanTask> tasks) {
+  private boolean orcBatchReadsEnabled() {
     return readConf.orcVectorizationEnabled() && // vectorization enabled
-        tasks.stream().noneMatch(TableScanUtil::hasDeletes); // no delete files
+        tasks().stream().noneMatch(TableScanUtil::hasDeletes); // no delete files
   }
 
   private boolean onlyFileFormat(CombinedScanTask task, FileFormat fileFormat) {
