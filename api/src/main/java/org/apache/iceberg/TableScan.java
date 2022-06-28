@@ -25,7 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 /**
  * API for configuring a table scan.
  */
-public interface TableScan extends Scan<TableScan> {
+public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTask> {
   /**
    * Returns the {@link Table} from which this scan loads data.
    *
