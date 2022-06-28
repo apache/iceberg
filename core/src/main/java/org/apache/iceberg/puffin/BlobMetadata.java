@@ -29,19 +29,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 public class BlobMetadata {
   private final String type;
   private final List<Integer> inputFields;
+  private final long snapshotId;
+  private final long sequenceNumber;
   private final long offset;
   private final long length;
   private final String compressionCodec;
   private final Map<String, String> properties;
 
   public BlobMetadata(
-      String type, List<Integer> inputFields, long offset, long length,
-      @Nullable String compressionCodec, Map<String, String> properties) {
+      String type, List<Integer> inputFields, long snapshotId, long sequenceNumber,
+      long offset, long length, @Nullable String compressionCodec, Map<String, String> properties) {
     Preconditions.checkNotNull(type, "type is null");
     Preconditions.checkNotNull(inputFields, "inputFields is null");
     Preconditions.checkNotNull(properties, "properties is null");
     this.type = type;
     this.inputFields = ImmutableList.copyOf(inputFields);
+    this.snapshotId = snapshotId;
+    this.sequenceNumber = sequenceNumber;
     this.offset = offset;
     this.length = length;
     this.compressionCodec = compressionCodec;
@@ -54,6 +58,20 @@ public class BlobMetadata {
 
   public List<Integer> inputFields() {
     return inputFields;
+  }
+
+  /**
+   * ID of the Iceberg table's snapshot the blob was computed from
+   */
+  public long snapshotId() {
+    return snapshotId;
+  }
+
+  /**
+   * Sequence number of the Iceberg table's snapshot the blob was computed from
+   */
+  public long sequenceNumber() {
+    return sequenceNumber;
   }
 
   /**
