@@ -34,7 +34,7 @@ com.emc.ecs:object-client-bundle = 3.3.2
 # test deps
 org.junit.vintage:junit-vintage-engine = 5.7.2
 org.junit.jupiter:* = 5.7.2
-org.mockito:mockito-core = 3.7.7
+org.mockito:* = 3.7.7
 org.apache.tez:* = 0.8.4
 com.adobe.testing:s3mock-junit4 = 2.1.28
 org.assertj:assertj-core = 3.19.0
