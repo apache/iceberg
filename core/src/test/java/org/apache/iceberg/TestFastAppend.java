@@ -502,7 +502,7 @@ public class TestFastAppend extends TableTestBase {
     table.newDelete().toBranch(null).deleteFile(FILE_A);
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testAppendToInValidBranch() {
     table.newFastAppend()
         .appendFile(FILE_A)
@@ -510,5 +510,6 @@ public class TestFastAppend extends TableTestBase {
 
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
     table.newDelete().toBranch("newBranch").deleteFile(FILE_A).commit();
+    Assert.assertNotNull(table.ops().current().ref("newBranch"));
   }
 }
