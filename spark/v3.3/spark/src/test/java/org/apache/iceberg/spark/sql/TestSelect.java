@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark.sql;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.After;
@@ -219,8 +218,7 @@ public class TestSelect extends SparkCatalogTestBase {
     waitUntilAfter(timestamp + 1000);
     // AS OF expects the timestamp if given in long format will be of seconds precision
     long timestampInSeconds = TimeUnit.MILLISECONDS.toSeconds(timestamp);
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    String formattedDate = sdf.format(new Date(timestamp));
+    String formattedDate = DateTimeUtil.formatTimestampMillisWithLocalTime(timestamp);
 
     List<Object[]> expected = sql("SELECT * FROM %s", tableName);
 
@@ -246,13 +244,21 @@ public class TestSelect extends SparkCatalogTestBase {
         formattedDate);
     assertEquals("Snapshot at specific ID", expected, actualWithDateFormatInHiveSyntax);
 
-    // read the table using DataFrameReader option
-    Dataset<Row> df = spark.read()
+    // read the table using DataFrameReader option with timestamp in long format i.e 1656507980463
+    Dataset<Row> df1 = spark.read()
+        .format("iceberg")
+        .option("timestampAsOf", timestampInSeconds)
+        .load(tableName);
+    List<Object[]> fromDF1 = rowsToJava(df1.collectAsList());
+    assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF1);
+
+    // read the table using DataFrameReader option with timestamp in date format i.e 2022-06-29 18:40:37
+    Dataset<Row> df2 = spark.read()
         .format("iceberg")
         .option("timestampAsOf", formattedDate)
         .load(tableName);
-    List<Object[]> fromDF = rowsToJava(df.collectAsList());
-    assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
+    List<Object[]> fromDF2 = rowsToJava(df2.collectAsList());
+    assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF2);
   }
 
   @Test
