@@ -40,6 +40,7 @@ configure(sparkProjects) {
     attributes(
       "Implementation-Title": project.name,
       "Implementation-Version": project.version,
+      "Build-SHA": project.buildSha,
       "Build-Timestamp": java.time.Instant.now().toString(),
       "Build-JDK": "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
       "Build-OS": "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}"

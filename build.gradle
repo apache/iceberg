@@ -60,6 +60,10 @@ dependencyRecommendations {
   propertiesFile file: file('versions.props')
 }
 
+project.ext {
+  buildSha = gitBuildSha()
+}
+
 allprojects {
   group = "org.apache.iceberg"
   version = getProjectVersion()
@@ -67,10 +71,6 @@ allprojects {
     mavenCentral()
     mavenLocal()
   }
-}
-
-def getCheckedOutGitCommitHash() {
-  'git rev-parse --verify --short HEAD'.execute().text.trim()
 }
 
 subprojects {
@@ -159,7 +159,7 @@ subprojects {
       attributes(
         "Implementation-Title": project.name,
         "Implementation-Version": project.version,
-        "Build-SHA": getCheckedOutGitCommitHash(),
+        "Build-SHA": project.buildSha,
         "Build-Timestamp": java.time.Instant.now().toString(),
         "Build-JDK": "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
         "Build-OS": "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}"
@@ -651,6 +651,10 @@ boolean versionFileExists() {
 @Memoized
 String getVersionFromFile() {
   return file('version.txt').text.trim()
+}
+
+String gitBuildSha() {
+  return 'git rev-parse --verify HEAD'.execute().text.trim()
 }
 
 String getProjectVersion() {
