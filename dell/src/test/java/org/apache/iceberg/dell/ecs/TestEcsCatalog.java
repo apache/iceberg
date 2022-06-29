@@ -21,12 +21,12 @@ package org.apache.iceberg.dell.ecs;
 
 import java.io.IOException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.Schema;
+
+import org.apache.iceberg.*;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -169,5 +170,30 @@ public class TestEcsCatalog {
 
     Assert.assertFalse("Old table does not exist", ecsCatalog.tableExists(TableIdentifier.of("a", "t1")));
     Assert.assertTrue("New table exists", ecsCatalog.tableExists(TableIdentifier.of("b", "t2")));
+  }
+
+  @Test
+  public void testRegisterTable() {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    ecsCatalog.createTable(identifier, SCHEMA);
+    Table registeringTable = ecsCatalog.loadTable(identifier);
+    ecsCatalog.dropTable(identifier, false);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((EcsTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThat(ecsCatalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Table newTable = ecsCatalog.loadTable(identifier);
+    Assertions.assertThat(newTable).isNotNull();
+  }
+
+  @Test
+  public void testRegisterExistingTable() {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    ecsCatalog.createTable(identifier, SCHEMA);
+    Table registeringTable = ecsCatalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((EcsTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThatThrownBy(() -> ecsCatalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
   }
 }
