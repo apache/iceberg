@@ -1058,9 +1058,9 @@ def iceberg_manifest_entry_schema() -> Schema:
 
 @pytest.fixture
 def boto_test_client_kwargs(request):
-    return dict(
-        session=Session(),
-        endpoint_url=request.config.getoption("--endpoint-url"),
-        aws_access_key_id=request.config.getoption("--aws-access-key-id"),
-        aws_secret_access_key=request.config.getoption("--aws-secret-access-key"),
-    )
+    return {
+        "session": Session(),
+        "endpoint_url": request.config.getoption("--endpoint-url"),
+        "aws_access_key_id": request.config.getoption("--aws-access-key-id"),
+        "aws_secret_access_key": request.config.getoption("--aws-secret-access-key"),
+    }
