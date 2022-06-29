@@ -34,12 +34,14 @@ public class StructLikeWrapper {
     return new StructLikeWrapper(struct);
   }
 
+  private final Types.StructType type;
   private final Comparator<StructLike> comparator;
   private final JavaHash<StructLike> structHash;
   private Integer hashCode;
   private StructLike struct;
 
   private StructLikeWrapper(Types.StructType type) {
+    this.type = type;
     this.comparator = Comparators.forType(type);
     this.structHash = JavaHash.forType(type);
     this.hashCode = null;
@@ -64,6 +66,10 @@ public class StructLikeWrapper {
     }
 
     StructLikeWrapper that = (StructLikeWrapper) other;
+
+    if (!type.equals(that.type)) {
+      return false;
+    }
 
     if (this.struct == that.struct) {
       return true;
