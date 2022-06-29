@@ -27,6 +27,7 @@ from io import SEEK_SET
 from iceberg.avro.codecs import KNOWN_CODECS, Codec
 from iceberg.avro.decoder import BinaryDecoder
 from iceberg.avro.reader import AvroStruct, ConstructReader, StructReader
+from iceberg.avro.resolver import resolve
 from iceberg.io.base import InputFile, InputStream
 from iceberg.io.memory import MemoryInputStream
 from iceberg.schema import Schema, visit
@@ -107,6 +108,7 @@ class Block:
 
 class AvroFile:
     input_file: InputFile
+    read_schema: Schema | None
     input_stream: InputStream
     header: AvroFileHeader
     schema: Schema
@@ -116,8 +118,9 @@ class AvroFile:
     decoder: BinaryDecoder
     block: Block | None = None
 
-    def __init__(self, input_file: InputFile) -> None:
+    def __init__(self, input_file: InputFile, read_schema: Schema | None = None) -> None:
         self.input_file = input_file
+        self.read_schema = read_schema
 
     def __enter__(self):
         """
@@ -132,7 +135,11 @@ class AvroFile:
         self.header = self._read_header()
         self.schema = self.header.get_schema()
         self.file_length = len(self.input_file)
-        self.reader = visit(self.schema, ConstructReader())
+        if not self.read_schema:
+            self.reader = visit(self.schema, ConstructReader())
+        else:
+            self.reader = resolve(self.schema, self.read_schema)
+
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -149,9 +156,9 @@ class AvroFile:
                 raise ValueError(f"Expected sync bytes {self.header.sync!r}, but got {sync_marker!r}")
             if self.is_EOF():
                 raise StopIteration
-        block_records = self.decoder.read_long()
+        block_records = self.decoder.read_int()
 
-        block_bytes_len = self.decoder.read_long()
+        block_bytes_len = self.decoder.read_int()
         block_bytes = self.decoder.read(block_bytes_len)
         if codec := self.header.compression_codec():
             block_bytes = codec.decompress(block_bytes)
