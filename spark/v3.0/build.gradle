@@ -27,6 +27,7 @@ configure(sparkProjects) {
   project.ext {
     sparkVersion = '3.0.3'
   }
+
   configurations {
     all {
       resolutionStrategy {
@@ -35,6 +36,7 @@ configure(sparkProjects) {
       }
     }
   }
+
   manifest {
     attributes(
       "Implementation-Title": project.name,
