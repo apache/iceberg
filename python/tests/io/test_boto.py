@@ -125,15 +125,15 @@ def test_boto_read_specified_bytes(boto_test_client_kwargs):
     f = input_file.open()
 
     f.seek(0)
-    assert b"f" == f.read(n=1)
+    assert b"f" == f.read(size=1)
     f.seek(0)
-    assert b"fo" == f.read(n=2)
+    assert b"fo" == f.read(size=2)
     f.seek(1)
-    assert b"o" == f.read(n=1)
+    assert b"o" == f.read(size=1)
     f.seek(1)
-    assert b"oo" == f.read(n=2)
+    assert b"oo" == f.read(size=2)
     f.seek(0)
-    assert b"foo" == f.read(n=999)  # test reading amount larger than entire content length
+    assert b"foo" == f.read(size=999)  # test reading amount larger than entire content length
 
     fileio = boto.BotoFileIO(**boto_test_client_kwargs)
     fileio.delete(input_file)
@@ -158,7 +158,7 @@ def test_boto_invalid_scheme(boto_test_client_kwargs):
 def test_boto_invalid_scheme_when_deleting(boto_test_client_kwargs):
     """Test that a ValueError is raised when deleting location with an invalid scheme"""
 
-    fileio = boto.BotoFileIO()
+    fileio = boto.BotoFileIO(**boto_test_client_kwargs)
     with pytest.raises(ValueError) as exc_info:
         fileio.delete("foo://bar/baz.txt")
 
@@ -180,7 +180,7 @@ def test_raise_on_opening_an_s3_file_not_found(boto_test_client_kwargs):
 def test_raise_on_checking_if_file_exists(boto_test_client_kwargs):
     """Test checking if a file exists"""
 
-    non_existent_file = boto.BotoInputFile(location=f"s3://testbucket/does-not-exist.txt", **boto_test_client_kwargs)
+    non_existent_file = boto.BotoInputFile(location="s3://testbucket/does-not-exist.txt", **boto_test_client_kwargs)
     assert not non_existent_file.exists()
 
     filename = str(uuid.uuid4())

@@ -23,7 +23,13 @@ from urllib.parse import urlparse
 from boto3 import Session
 from botocore.exceptions import ClientError
 
-from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
+from iceberg.io.base import (
+    FileIO,
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 
 
 class BotoInputStream(InputStream):
@@ -38,13 +44,13 @@ class BotoInputStream(InputStream):
         self._position = 0
         self._closed = False
 
-    def read(self, n: int = -1) -> bytes:
+    def read(self, size: int = -1) -> bytes:
         """Read the byte content of the s3 object
 
         This uses the `Range` argument when reading the S3 Object that allows setting a range of bytes to the headers of the request to S3.
 
         Args:
-            n (int, optional): The number of bytes to read. Defaults to -1 which reads the entire file.
+            size (int, optional): The number of bytes to read. Defaults to -1 which reads the entire file.
 
         Returns:
             bytes: The byte content of the file
@@ -52,23 +58,23 @@ class BotoInputStream(InputStream):
         if self._closed:
             raise ValueError("Cannot read, file closed")
 
-        if n < 0:  # Read the entire file from the current position
+        if size < 0:  # Read the entire file from the current position
             range_header = f"bytes={self._position}-"
             self.seek(offset=0, whence=SEEK_END)
         else:
-            position_new = self._position + n
+            position_new = self._position + size
 
             if (
                 position_new >= self._s3_object.content_length
             ):  # If more bytes are requested than exists, just read the entire file from the current position
-                return self.read(n=-1)
+                return self.read(size=-1)
 
             range_header = f"bytes={self._position}-{position_new -1}"
-            self.seek(offset=n, whence=SEEK_CUR)
+            self.seek(offset=size, whence=SEEK_CUR)
 
         return self._s3_object.get(Range=range_header)["Body"].read()
 
-    def seek(self, offset: int, whence: int = 0) -> int:
+    def seek(self, offset: int, whence: int = 0) -> None:
         if self._closed:
             raise ValueError("Cannot seek, file closed")
 
@@ -81,8 +87,6 @@ class BotoInputStream(InputStream):
             self._position = self._position + offset
         elif whence == SEEK_END:
             self._position = self._s3_object.content_length - offset
-
-        return self._position
 
     def tell(self) -> int:
         return self._position
@@ -103,7 +107,7 @@ class BotoOutputStream(OutputStream):
 
     def __init__(self, s3_object):
         self._s3_object = s3_object
-        self._content = bytes()
+        self._content = b""
         self._closed = False
 
     def write(self, b: bytes) -> None:

@@ -75,9 +75,10 @@ make test
 By default, `make test` only runs tests that are suitable for local development, with no additional infrastructure.
 You can run additional tests if you are within an environment that meets the additional requirements.
 
-Make Command        | Description                            | Requirements        |
---------------------|----------------------------------------|---------------------|
+Make Command        | Description                            | Requirements                                                                                                                                                   |
+--------------------|----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+make test           | Run standard tests                     | No infrastructure requirements, simply run `make install` first to install poetry and the required test dependencies                                           |
 make test-s3        | Run S3 based tests                     | An S3 protocol compatibility object store running at http://localhost:9000 with an `aws-access-key-id` of `admin` and an `aws-secret-access-key` of `password` |
-make test-all       | Run all tests, including both marked and unmarked tests | All requirements for other `make test-*` commands |
+make test-all       | Run all tests                          | All requirements for other `make test-*` commands                                                                                                              |
 
 The Python CI that runs automatically for PRs and merges uses the `make test-all` command.
