@@ -511,7 +511,7 @@ Currently the following metadata tables are available in Hive:
 SELECT * FROM default.table_a.files;
 ```
 
-### TIMETARAVEL
+### TIMETRAVEL
 Hive supports snapshot id based and time base timetravel queries.
 For these views it is possible to use projections / joins / filters / etc.
 The function is available with the following syntax:
