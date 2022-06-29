@@ -19,8 +19,11 @@
 
 package org.apache.iceberg.spark.sql;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -180,6 +183,122 @@ public class TestSelect extends SparkCatalogTestBase {
         .load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
+  }
+
+  @Test
+  public void testVersionAsOf() {
+    // get the snapshot ID of the last write and get the current row set as expected
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // read the table at the snapshot
+    List<Object[]> actual1 = sql("SELECT * FROM %s VERSION AS OF %s", tableName, snapshotId);
+    assertEquals("Snapshot at specific ID", expected, actual1);
+
+    // read the table at the snapshot
+    // HIVE time travel syntax
+    List<Object[]> actual2 = sql("SELECT * FROM %s FOR SYSTEM_VERSION AS OF %s", tableName, snapshotId);
+    assertEquals("Snapshot at specific ID", expected, actual2);
+
+    // read the table using DataFrameReader option: versionAsOf
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option("versionAsOf", snapshotId)
+        .load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
+  }
+
+  @Test
+  public void testTimestampAsOf() {
+    long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
+    long timestamp = waitUntilAfter(snapshotTs + 1000);
+    waitUntilAfter(timestamp + 1000);
+    // AS OF expects the timestamp if given in long format will be of seconds precision
+    long timestampInSeconds = TimeUnit.MILLISECONDS.toSeconds(timestamp);
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    String formattedDate = sdf.format(new Date(timestamp));
+
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // read the table at the timestamp in long format i.e 1656507980463.
+    List<Object[]> actualWithLongFormat = sql("SELECT * FROM %s TIMESTAMP AS OF %s", tableName, timestampInSeconds);
+    assertEquals("Snapshot at timestamp", expected, actualWithLongFormat);
+
+    // read the table at the timestamp in date format i.e 2022-06-29 18:40:37
+    List<Object[]> actualWithDateFormat = sql("SELECT * FROM %s TIMESTAMP AS OF '%s'", tableName, formattedDate);
+    assertEquals("Snapshot at timestamp", expected, actualWithDateFormat);
+
+    // HIVE time travel syntax
+    // read the table at the timestamp in long format i.e 1656507980463.
+    List<Object[]> actualWithLongFormatInHiveSyntax = sql("SELECT * FROM %s FOR SYSTEM_TIME AS OF %s", tableName,
+        timestampInSeconds);
+    assertEquals("Snapshot at specific ID", expected, actualWithLongFormatInHiveSyntax);
+
+    // read the table at the timestamp in date format i.e 2022-06-29 18:40:37
+    List<Object[]> actualWithDateFormatInHiveSyntax = sql("SELECT * FROM %s FOR SYSTEM_TIME AS OF '%s'", tableName,
+        formattedDate);
+    assertEquals("Snapshot at specific ID", expected, actualWithDateFormatInHiveSyntax);
+
+    // read the table using DataFrameReader option
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option("timestampAsOf", formattedDate)
+        .load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
+  }
+
+  @Test
+  public void testInvalidTimeTravelBasedOnBothAsOfAndTableIdentifier() {
+    // get the snapshot ID of the last write
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    // get a timestamp just after the last write
+    long timestamp = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+
+    String timestampPrefix = "at_timestamp_";
+    String snapshotPrefix = "snapshot_id_";
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // using snapshot in table identifier and VERSION AS OF
+    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+        IllegalArgumentException.class,
+        "Cannot do time-travel based on both table identifier and AS OF",
+        () -> {
+          sql("SELECT * FROM %s.%s VERSION AS OF %s", tableName, snapshotPrefix + snapshotId, snapshotId);
+        });
+
+    // using snapshot in table identifier and TIMESTAMP AS OF
+    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+        IllegalArgumentException.class,
+        "Cannot do time-travel based on both table identifier and AS OF",
+        () -> {
+          sql("SELECT * FROM %s.%s VERSION AS OF %s", tableName, timestampPrefix + timestamp, snapshotId);
+        });
+
+    // using timestamp in table identifier and VERSION AS OF
+    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+        IllegalArgumentException.class,
+        "Cannot do time-travel based on both table identifier and AS OF",
+        () -> {
+          sql("SELECT * FROM %s.%s TIMESTAMP AS OF %s", tableName, snapshotPrefix + snapshotId, timestamp);
+        });
+
+    // using timestamp in table identifier and TIMESTAMP AS OF
+    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+        IllegalArgumentException.class,
+        "Cannot do time-travel based on both table identifier and AS OF",
+        () -> {
+          sql("SELECT * FROM %s.%s TIMESTAMP AS OF %s", tableName, timestampPrefix + timestamp, timestamp);
+        });
   }
 
   @Test
