@@ -89,7 +89,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
 
-  protected String targetBranch = SnapshotRef.MAIN_BRANCH;
+  private String targetBranch = SnapshotRef.MAIN_BRANCH;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
@@ -106,6 +106,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected abstract ThisT self();
 
+  protected String targetBranch() {
+    return targetBranch;
+  }
+
   @Override
   public ThisT stageOnly() {
     this.stageOnly = true;
@@ -119,17 +123,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   @Override
-  public ThisT toBranch(String branch){
-      Preconditions.checkArgument(branch != null,"branch cannot be null");
-      if (ops.current().ref(branch) == null) {
-        SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
-        TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(base);
-        updatedBuilder.setRef(branch, branchRef).build();
-      }
+  public ThisT toBranch(String branch) {
+    Preconditions.checkArgument(branch != null, "branch cannot be null");
+    if (ops.current().ref(branch) == null) {
+      SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
+      TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(base);
+      updatedBuilder.setRef(branch, branchRef).build();
+    }
 
-      Preconditions.checkArgument(ops.current().ref(branch).type() != SnapshotRefType.BRANCH, "%s is not a ref to type branch", branch);
-      this.targetBranch = branch;
-      return self();
+    Preconditions.checkArgument(ops.current().ref(branch).type() != SnapshotRefType.BRANCH,
+        "%s is not a ref to type branch", branch);
+    this.targetBranch = branch;
+    return self();
   }
 
   protected ExecutorService workerPool() {
