@@ -21,12 +21,14 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -162,6 +164,16 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
   @Override
   public String extractCatalog(CaseInsensitiveStringMap options) {
     return catalogAndIdentifier(options).catalog().name();
+  }
+
+  @Override
+  public Optional<String> extractTimeTravelVersion(CaseInsensitiveStringMap options) {
+    return Optional.ofNullable(PropertyUtil.propertyAsString(options, "versionAsOf", null));
+  }
+
+  @Override
+  public Optional<String> extractTimeTravelTimestamp(CaseInsensitiveStringMap options) {
+    return Optional.ofNullable(PropertyUtil.propertyAsString(options, "timestampAsOf", null));
   }
 
   private static Long propertyAsLong(CaseInsensitiveStringMap options, String property) {
