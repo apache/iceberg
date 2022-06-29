@@ -21,8 +21,12 @@ package org.apache.iceberg.dell.ecs;
 
 import java.io.IOException;
 import java.util.Map;
-
-import org.apache.iceberg.*;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
