@@ -36,6 +36,7 @@ configure(sparkProjects) {
       }
     }
   }
+
   manifest {
     attributes(
       "Implementation-Title": project.name,

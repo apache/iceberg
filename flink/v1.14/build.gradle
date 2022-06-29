@@ -22,8 +22,8 @@ String flinkMajorVersion = '1.14'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
 def flinkProjects = [
-    project(':iceberg-flink:iceberg-flink-${flinkMajorVersion}'),
-    project(':iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}')
+  project(':iceberg-flink:iceberg-flink-${flinkMajorVersion}'),
+  project(':iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}')
 ]
 
 configure(flinkProjects) {
