@@ -137,6 +137,24 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   @Override
+  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    try {
+      return icebergCatalog.loadTable(ident, version);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      return getSessionCatalog().loadTable(ident, version);
+    }
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    try {
+      return icebergCatalog.loadTable(ident, timestamp);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      return getSessionCatalog().loadTable(ident, timestamp);
+    }
+  }
+
+  @Override
   public void invalidateTable(Identifier ident) {
     // We do not need to check whether the table exists and whether
     // it is an Iceberg table to reduce remote service requests.

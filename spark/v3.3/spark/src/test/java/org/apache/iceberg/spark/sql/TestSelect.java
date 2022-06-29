@@ -183,6 +183,80 @@ public class TestSelect extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testVersionAsOf() {
+    // get the snapshot ID of the last write and get the current row set as expected
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // read the table at the snapshot
+    List<Object[]> actual = sql("SELECT * FROM %s VERSION AS OF %s", tableName, snapshotId);
+    assertEquals("Snapshot at specific ID", expected, actual);
+  }
+
+  @Test
+  public void testTimestampAsOf() {
+    long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
+    long timestamp = waitUntilAfter(snapshotTs + 2);
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // read the table at the snapshot
+    List<Object[]> actual = sql("SELECT * FROM %s TIMESTAMP AS OF %s", tableName, timestamp);
+    assertEquals("Snapshot at timestamp", expected, actual);
+  }
+
+  @Test
+  public void testInvalidTimeTravelBasedOnBothAsOfAndTableIdentifier() {
+    // get the snapshot ID of the last write
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    // get a timestamp just after the last write
+    long timestamp = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+
+    String timestampPrefix = "at_timestamp_";
+    String snapshotPrefix = "snapshot_id_";
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // using snapshot in table identifier and VERSION AS OF
+    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+        IllegalArgumentException.class,
+        "Cannot do time-travel based on both table identifier and AS OF",
+        () -> {
+          sql("SELECT * FROM %s.%s VERSION AS OF %s", tableName, snapshotPrefix + snapshotId, snapshotId);
+        });
+
+    // using snapshot in table identifier and TIMESTAMP AS OF
+    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+        IllegalArgumentException.class,
+        "Cannot do time-travel based on both table identifier and AS OF",
+        () -> {
+          sql("SELECT * FROM %s.%s VERSION AS OF %s", tableName, timestampPrefix + timestamp, snapshotId);
+        });
+
+    // using timestamp in table identifier and VERSION AS OF
+    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+        IllegalArgumentException.class,
+        "Cannot do time-travel based on both table identifier and AS OF",
+        () -> {
+          sql("SELECT * FROM %s.%s TIMESTAMP AS OF %s", tableName, snapshotPrefix + snapshotId, timestamp);
+        });
+
+    // using timestamp in table identifier and TIMESTAMP AS OF
+    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+        IllegalArgumentException.class,
+        "Cannot do time-travel based on both table identifier and AS OF",
+        () -> {
+          sql("SELECT * FROM %s.%s TIMESTAMP AS OF %s", tableName, timestampPrefix + timestamp, timestamp);
+        });
+  }
+
+  @Test
   public void testSpecifySnapshotAndTimestamp() {
     // get the snapshot ID of the last write
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();

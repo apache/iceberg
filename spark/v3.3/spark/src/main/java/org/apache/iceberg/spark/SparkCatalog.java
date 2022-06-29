@@ -161,9 +161,12 @@ public class SparkCatalog extends BaseCatalog {
   public SparkTable loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
     try {
       Pair<Table, Long> icebergTable = load(ident);
+      // spark returns timestamp in nano seconds precision, convert it to milliseconds,
+      // as iceberg snapshot's are stored in millisecond precision.
+      long timestampMillis = timestamp / 1000_000;
       Preconditions.checkArgument(icebergTable.second() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
-      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(icebergTable.first(), timestamp);
+      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(icebergTable.first(), timestampMillis);
       return new SparkTable(icebergTable.first(), snapshotIdAsOfTime, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
