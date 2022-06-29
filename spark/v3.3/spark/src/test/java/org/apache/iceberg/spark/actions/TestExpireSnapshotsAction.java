@@ -1147,7 +1147,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
       checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
 
       Assert.assertEquals("Expected total number of jobs with stream-results should match the expected number",
-          5L, jobsRunDuringStreamResults);
+          4L, jobsRunDuringStreamResults);
     });
   }
 }
