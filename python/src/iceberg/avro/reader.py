@@ -226,19 +226,6 @@ class BinaryReader(Reader):
         decoder.skip_bytes()
 
 
-class CastReader(Reader):
-    def __init__(self, reader: Reader, post_processing: Callable):
-        self.reader = reader
-        self.post_processing = post_processing
-
-    def read(self, decoder: BinaryDecoder) -> Any:
-        result = self.reader.read(decoder)
-        return self.post_processing(result)
-
-    def skip(self, decoder: BinaryDecoder) -> None:
-        self.reader.skip(decoder)
-
-
 @dataclass(frozen=True)
 class DecimalReader(Reader):
     precision: int = dataclassfield()

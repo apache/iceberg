@@ -23,7 +23,6 @@ from typing import (
 )
 
 from iceberg.avro.reader import (
-    CastReader,
     ConstructReader,
     ListReader,
     MapReader,
@@ -156,20 +155,8 @@ def _(file_type: IntegerType, read_type: IcebergType) -> Reader:
     if isinstance(read_type, LongType):
         # Ints/Longs are binary compatible in Avro, so this is okay
         return primitive_reader(read_type)
-    elif type(read_type) in {FloatType, DoubleType}:
-        # We should just read the int, and convert it to a float
-        return CastReader(primitive_reader(file_type), float)
     else:
         raise ResolveException(f"Cannot promote an int to {read_type}")
-
-
-@promote.register(LongType)
-def _(file_type: LongType, read_type: IcebergType) -> Reader:
-    if type(read_type) in {FloatType, DoubleType}:
-        # We should just read the long, and convert it to a float
-        return CastReader(primitive_reader(file_type), float)
-    else:
-        raise ResolveException(f"Cannot promote an long to {read_type}")
 
 
 @promote.register(FloatType)

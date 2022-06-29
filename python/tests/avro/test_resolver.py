@@ -17,7 +17,6 @@
 import pytest
 
 from iceberg.avro.reader import (
-    CastReader,
     DecimalReader,
     DoubleReader,
     FloatReader,
@@ -114,14 +113,14 @@ def test_resolver_invalid_evolution():
         schema_id=1,
     )
     read_schema = Schema(
-        NestedField(1, "id", IntegerType()),
+        NestedField(1, "id", DoubleType()),
         schema_id=1,
     )
 
     with pytest.raises(ResolveException) as exc_info:
         resolve(write_schema, read_schema)
 
-    assert "Cannot promote an long to int" in str(exc_info.value)
+    assert "Cannot promote long to double" in str(exc_info.value)
 
 
 def test_resolver_promotion_string_to_binary():
@@ -166,14 +165,6 @@ def test_resolver_change_type():
 
 def test_promote_int_to_long():
     assert promote(IntegerType(), LongType()) == IntegerReader()
-
-
-def test_promote_int_to_float():
-    assert promote(IntegerType(), FloatType()) == CastReader(IntegerReader(), float)
-
-
-def test_promote_int_to_double():
-    assert promote(IntegerType(), DoubleType()) == CastReader(IntegerReader(), float)
 
 
 def test_promote_float_to_double():
