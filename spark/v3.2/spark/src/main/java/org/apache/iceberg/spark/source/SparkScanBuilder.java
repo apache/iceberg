@@ -188,7 +188,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
       scan = scan.asOfTime(asOfTimestamp);
     }
 
-    if(snapshotRef != null){
+    if (snapshotRef != null) {
       scan = scan.useSnapshotRef(snapshotRef);
     }
 
