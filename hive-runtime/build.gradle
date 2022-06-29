@@ -77,6 +77,18 @@ project(':iceberg-hive-runtime') {
     // relocate OrcSplit in order to avoid the conflict from Hive's OrcSplit
     relocate 'org.apache.hadoop.hive.ql.io.orc.OrcSplit', 'org.apache.iceberg.shaded.org.apache.hadoop.hive.ql.io.orc.OrcSplit'
 
+
+    manifest {
+      attributes(
+        "Implementation-Title": project.name,
+        "Implementation-Version": project.version,
+        "Build-SHA": project.buildSha,
+        "Build-Timestamp": java.time.Instant.now().toString(),
+        "Build-JDK": "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
+        "Build-OS": "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}"
+      )
+    }
+
     classifier null
   }
 

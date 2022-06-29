@@ -21,6 +21,24 @@ String flinkVersion = '1.15.0'
 String flinkMajorVersion = '1.15'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
+def flinkProjects = [
+  project(':iceberg-flink:iceberg-flink-${flinkMajorVersion}'),
+  project(':iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}')
+]
+
+configure(flinkProjects) {
+  manifest {
+    attributes(
+      "Implementation-Title": project.name,
+      "Implementation-Version": project.version,
+      "Build-SHA": project.buildSha,
+      "Build-Timestamp": java.time.Instant.now().toString(),
+      "Build-JDK": "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
+      "Build-OS": "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}"
+    )
+  }
+}
+
 project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
   dependencies {

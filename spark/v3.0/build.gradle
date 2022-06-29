@@ -27,7 +27,14 @@ configure(sparkProjects) {
   project.ext {
     sparkVersion = '3.0.3'
   }
-
+  configurations {
+    all {
+      resolutionStrategy {
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
+        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
+      }
+    }
+  }
   manifest {
     attributes(
       "Implementation-Title": project.name,
@@ -37,15 +44,6 @@ configure(sparkProjects) {
       "Build-JDK": "${System.properties['java.version']} (${System.properties['java.vendor']} ${System.properties['java.vm.version']})",
       "Build-OS": "${System.properties['os.name']} ${System.properties['os.arch']} ${System.properties['os.version']}"
     )
-  }
-
-  configurations {
-    all {
-      resolutionStrategy {
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
-        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
-      }
-    }
   }
 }
 
