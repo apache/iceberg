@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.BaseMigrateTableActionResult;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -159,6 +160,16 @@ public class BaseMigrateTableSparkAction
     // copy over relevant source table props
     properties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
     EXCLUDED_PROPERTIES.forEach(properties::remove);
+
+    // inherit the source table format
+    String format = v1SourceTable().storage().serde().get();
+    if (format.contains("avro")) {
+      properties.put(TableProperties.DEFAULT_FILE_FORMAT, "avro");
+    } else if (format.contains("parquet")) {
+      properties.put(TableProperties.DEFAULT_FILE_FORMAT, "parquet");
+    } else if (format.contains("orc")) {
+      properties.put(TableProperties.DEFAULT_FILE_FORMAT, "orc");
+    }
 
     // set default and user-provided props
     properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
