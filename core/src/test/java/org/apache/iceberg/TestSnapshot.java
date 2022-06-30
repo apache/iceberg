@@ -113,13 +113,13 @@ public class TestSnapshot extends TableTestBase {
 
     Snapshot thirdSnapshot = table.currentSnapshot();
 
-    Iterable<DataFile> deletedDataFiles = thirdSnapshot.removedDataFiles(FILE_IO);
-    Assert.assertEquals("Must have 1 deleted data file", 1, Iterables.size(deletedDataFiles));
+    Iterable<DataFile> removedDataFiles = thirdSnapshot.removedDataFiles(FILE_IO);
+    Assert.assertEquals("Must have 1 removed data file", 1, Iterables.size(removedDataFiles));
 
-    DataFile deletedDataFile = Iterables.getOnlyElement(deletedDataFiles);
-    Assert.assertEquals("Path must match", FILE_A.path(), deletedDataFile.path());
-    Assert.assertEquals("Spec ID must match", FILE_A.specId(), deletedDataFile.specId());
-    Assert.assertEquals("Partition must match", FILE_A.partition(), deletedDataFile.partition());
+    DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
+    Assert.assertEquals("Path must match", FILE_A.path(), removedDataFile.path());
+    Assert.assertEquals("Spec ID must match", FILE_A.specId(), removedDataFile.specId());
+    Assert.assertEquals("Partition must match", FILE_A.partition(), removedDataFile.partition());
 
     Iterable<DataFile> addedDataFiles = thirdSnapshot.addedDataFiles(FILE_IO);
     Assert.assertEquals("Must have 1 added data file", 1, Iterables.size(addedDataFiles));
@@ -164,13 +164,13 @@ public class TestSnapshot extends TableTestBase {
 
     Snapshot thirdSnapshot = table.currentSnapshot();
 
-    Iterable<DeleteFile> deletedDeleteFiles = thirdSnapshot.removedDeleteFiles(FILE_IO);
-    Assert.assertEquals("Must have 1 deleted delete file", 1, Iterables.size(deletedDeleteFiles));
+    Iterable<DeleteFile> removedDeleteFiles = thirdSnapshot.removedDeleteFiles(FILE_IO);
+    Assert.assertEquals("Must have 1 removed delete file", 1, Iterables.size(removedDeleteFiles));
 
-    DeleteFile deletedDeleteFile = Iterables.getOnlyElement(deletedDeleteFiles);
-    Assert.assertEquals("Path must match", secondSnapshotDeleteFile.path(), deletedDeleteFile.path());
-    Assert.assertEquals("Spec ID must match", secondSnapshotDeleteFile.specId(), deletedDeleteFile.specId());
-    Assert.assertEquals("Partition must match", secondSnapshotDeleteFile.partition(), deletedDeleteFile.partition());
+    DeleteFile removedDeleteFile = Iterables.getOnlyElement(removedDeleteFiles);
+    Assert.assertEquals("Path must match", secondSnapshotDeleteFile.path(), removedDeleteFile.path());
+    Assert.assertEquals("Spec ID must match", secondSnapshotDeleteFile.specId(), removedDeleteFile.specId());
+    Assert.assertEquals("Partition must match", secondSnapshotDeleteFile.partition(), removedDeleteFile.partition());
 
     Iterable<DeleteFile> addedDeleteFiles = thirdSnapshot.addedDeleteFiles(FILE_IO);
     Assert.assertEquals("Must have 1 added delete file", 1, Iterables.size(addedDeleteFiles));
