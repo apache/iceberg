@@ -98,6 +98,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
+  @SuppressWarnings("Finally")
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     CommitStatus commitStatus = CommitStatus.FAILURE;

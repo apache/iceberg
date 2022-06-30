@@ -577,6 +577,7 @@ public class Avro {
     private org.apache.iceberg.Schema schema = null;
     private Function<Schema, DatumReader<?>> createReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
+    @SuppressWarnings("UnnecessaryLambda")
     private final Function<Schema, DatumReader<?>> defaultCreateReaderFunc = readSchema -> {
       GenericAvroReader<?> reader = new GenericAvroReader<>(readSchema);
       reader.setClassLoader(loader);
