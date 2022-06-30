@@ -828,9 +828,9 @@ class LocalOutputFile(OutputFile):
 
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self._path, "wb" if overwrite else "xb")
-        if not isinstance(output_file, OutputStream):
-            raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
-        return output_file
+        # if not issubclass(type(output_file), OutputStream):
+        #    raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
+        return output_file  # type: ignore
 
 
 class LocalFileIO(FileIO):

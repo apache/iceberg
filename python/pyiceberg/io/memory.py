@@ -36,7 +36,7 @@ class MemoryInputStream(InputStream):
         >>> stream.read(4)
         b'1925'
         >>> stream.close()
-        >>> stream.closed()
+        >>> stream.closed
         True
     """
 
@@ -67,6 +67,7 @@ class MemoryInputStream(InputStream):
     def tell(self) -> int:
         return self.pos
 
+    @property
     def closed(self) -> bool:
         return not hasattr(self, "buffer")
 

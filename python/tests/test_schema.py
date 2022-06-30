@@ -16,7 +16,7 @@
 # under the License.
 
 from textwrap import dedent
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pytest
 
@@ -388,7 +388,7 @@ def test_build_position_accessors(table_schema_nested):
 
 def test_build_position_accessors_with_struct(table_schema_nested: Schema):
     class TestStruct(StructProtocol):
-        def __init__(self, pos: Dict[int, Any] = None):
+        def __init__(self, pos: Optional[Dict[int, Any]] = None):
             self._pos: Dict[int, Any] = pos or {}
 
         def set(self, pos: int, value) -> None:

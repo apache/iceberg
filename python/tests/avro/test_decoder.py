@@ -112,8 +112,9 @@ class OneByteAtATimeInputStream(InputStream):
     def tell(self) -> int:
         pass
 
+    @property
     def closed(self) -> bool:
-        pass
+        return False
 
     def close(self) -> None:
         pass

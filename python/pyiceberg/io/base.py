@@ -48,6 +48,7 @@ class InputStream(Protocol):
     def tell(self) -> int:
         ...
 
+    @property
     @abstractmethod
     def closed(self) -> bool:
         ...
@@ -69,6 +70,7 @@ class OutputStream(Protocol):  # pragma: no cover
     def write(self, b: bytes) -> None:
         ...
 
+    @property
     @abstractmethod
     def closed(self) -> bool:
         ...
