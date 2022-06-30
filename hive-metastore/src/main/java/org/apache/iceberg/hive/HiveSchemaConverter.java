@@ -47,7 +47,8 @@ class HiveSchemaConverter {
 
   private HiveSchemaConverter(boolean autoConvert) {
     this.autoConvert = autoConvert;
-    this.id = 0;
+    // Iceberg starts field id assignment from 1.
+    this.id = 1;
   }
 
   static Schema convert(List<String> names, List<TypeInfo> typeInfos, List<String> comments, boolean autoConvert) {
