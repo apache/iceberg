@@ -283,7 +283,7 @@ public class FlinkSink {
         try (TableLoader loader = tableLoader) {
           // LSY TODO: 2022/6/30 3:48 下午
           /**
-           *最终调用了hive Metastore服务查询是否有对应的表
+           *最终调用了hive Metastore服务查询是否有对应的表.
            */
           this.table = loader.loadTable();
         } catch (IOException e) {
