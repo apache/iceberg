@@ -49,6 +49,8 @@ public class AvroSchemaUtil {
   public static final String ELEMENT_ID_PROP = "element-id";
   public static final String ADJUST_TO_UTC_PROP = "adjust-to-utc";
 
+  public static final String SHOULD_USE_INIT_DEFAULT = "_default_exist";
+
   private static final Schema NULL = Schema.create(Schema.Type.NULL);
   private static final Schema.Type MAP = Schema.Type.MAP;
   private static final Schema.Type ARRAY = Schema.Type.ARRAY;

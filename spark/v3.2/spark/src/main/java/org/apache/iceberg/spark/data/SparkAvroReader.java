@@ -73,17 +73,16 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
     }
   }
 
-  private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
-    private final Map<Integer, ?> idToConstant;
+  private static class ReadBuilder extends SparkDefaultValueAwareAvroSchemaWithTypeVisitor<ValueReader<?>> {
 
     private ReadBuilder(Map<Integer, ?> idToConstant) {
-      this.idToConstant = idToConstant;
+      super(idToConstant);
     }
 
     @Override
     public ValueReader<?> record(Types.StructType expected, Schema record, List<String> names,
                                  List<ValueReader<?>> fields) {
-      return SparkValueReaders.struct(fields, expected, idToConstant);
+      return SparkValueReaders.struct(fields, expected, getIdToConstant());
     }
 
     @Override

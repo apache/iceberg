@@ -35,7 +35,7 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
   public static <T> T visit(Type iType, TypeDescription schema, OrcSchemaWithTypeVisitor<T> visitor) {
     switch (schema.getCategory()) {
       case STRUCT:
-        return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
+        return visitor.visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
 
       case UNION:
         throw new UnsupportedOperationException("Cannot handle " + schema);
@@ -58,7 +58,7 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
     }
   }
 
-  private static <T> T visitRecord(
+  public T visitRecord(
       Types.StructType struct, TypeDescription record, OrcSchemaWithTypeVisitor<T> visitor) {
     List<TypeDescription> fields = record.getChildren();
     List<String> names = record.getFieldNames();

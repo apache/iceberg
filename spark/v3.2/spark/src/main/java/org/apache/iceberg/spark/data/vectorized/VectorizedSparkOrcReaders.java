@@ -30,6 +30,7 @@ import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.data.SparkDefaultValueAwareOrcSchemaWithTypeVisitor;
 import org.apache.iceberg.spark.data.SparkOrcValueReaders;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -80,17 +81,15 @@ public class VectorizedSparkOrcReaders {
                          long batchOffsetInFile);
   }
 
-  private static class ReadBuilder extends OrcSchemaWithTypeVisitor<Converter> {
-    private final Map<Integer, ?> idToConstant;
-
+  private static class ReadBuilder extends SparkDefaultValueAwareOrcSchemaWithTypeVisitor<Converter> {
     private ReadBuilder(Map<Integer, ?> idToConstant) {
-      this.idToConstant = idToConstant;
+      super(idToConstant);
     }
 
     @Override
     public Converter record(Types.StructType iStruct, TypeDescription record, List<String> names,
                             List<Converter> fields) {
-      return new StructConverter(iStruct, fields, idToConstant);
+      return new StructConverter(iStruct, fields, getIdToConstant());
     }
 
     @Override
