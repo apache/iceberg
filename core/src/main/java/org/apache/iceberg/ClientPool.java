@@ -27,4 +27,7 @@ public interface ClientPool<C, E extends Exception> {
   <R> R run(Action<R, C, E> action) throws E, InterruptedException;
 
   <R> R run(Action<R, C, E> action, boolean retry) throws E, InterruptedException;
+
+  default void close() {
+  }
 }

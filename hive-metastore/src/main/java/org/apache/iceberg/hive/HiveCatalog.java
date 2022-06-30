@@ -547,6 +547,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 
+  public void close() {
+    fileIO.close();
+    clients.close();
+  }
+
   @VisibleForTesting
   void setListAllTables(boolean listAllTables) {
     this.listAllTables = listAllTables;

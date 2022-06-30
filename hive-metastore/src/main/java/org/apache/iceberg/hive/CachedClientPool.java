@@ -81,4 +81,10 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
       throws TException, InterruptedException {
     return clientPool().run(action, retry);
   }
+
+  @Override
+  public void close() {
+    clientPoolCache.invalidateAll();
+    clientPoolCache.cleanUp();
+  }
 }
