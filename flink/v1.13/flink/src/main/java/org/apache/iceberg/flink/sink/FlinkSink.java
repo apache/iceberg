@@ -281,6 +281,10 @@ public class FlinkSink {
       if (table == null) {
         tableLoader.open();
         try (TableLoader loader = tableLoader) {
+          // LSY TODO: 2022/6/30 3:48 下午
+          /**
+           *调用hive Metastore服务查询是否有对应的表
+           */
           this.table = loader.loadTable();
         } catch (IOException e) {
           throw new UncheckedIOException("Failed to load iceberg table from table loader: " + tableLoader, e);
