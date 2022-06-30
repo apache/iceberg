@@ -23,7 +23,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.AssertHelpers;
@@ -59,6 +62,7 @@ import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -215,7 +219,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles(table.io()).iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> singleActual = rowsToJava(spark.read()
         .format("iceberg")
@@ -242,7 +246,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles(table.io()).iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> multiActual = rowsToJava(spark.read()
         .format("iceberg")
@@ -270,7 +274,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles(table.io()).iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> multiActual = rowsToJava(spark.read()
         .format("iceberg")
@@ -540,7 +544,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile toDelete = Iterables.getOnlyElement(table.currentSnapshot().addedFiles(table.io()));
+    DataFile toDelete = Iterables.getOnlyElement(table.currentSnapshot().addedDataFiles(table.io()));
 
     // add a second file
     df2.select("id", "data").write()
@@ -903,7 +907,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set(TableProperties.FORMAT_VERSION, "2")
         .commit();
 
-    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedFiles(table.io()), null);
+    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 
@@ -1023,8 +1027,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Table manifestTable = loadTable(tableIdentifier, "all_manifests");
     Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
 
-    List<ManifestFile> manifests = Lists.newArrayList();
-
     df1.select("id", "data").write()
         .format("iceberg")
         .mode("append")
@@ -1034,7 +1036,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set(TableProperties.FORMAT_VERSION, "2")
         .commit();
 
-    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedFiles(table.io()), null);
+    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 
@@ -1047,52 +1049,27 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .addDeletes(deleteFile)
         .commit();
 
-    manifests.addAll(table.currentSnapshot().allManifests(table.io()));
-
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
 
-    manifests.addAll(table.currentSnapshot().allManifests(table.io()));
+    Stream<Pair<Long, ManifestFile>> snapshotIdToManifests =
+        StreamSupport.stream(table.snapshots().spliterator(), false)
+            .flatMap(snapshot -> snapshot.allManifests(table.io()).stream().map(
+                manifest -> Pair.of(snapshot.snapshotId(), manifest)));
 
     List<Row> actual = spark.read()
         .format("iceberg")
         .load(loadLocation(tableIdentifier, "all_manifests"))
-        .dropDuplicates("path")
         .orderBy("path")
         .collectAsList();
 
     table.refresh();
 
-    GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(
-        manifestTable.schema(), "manifests"));
-    GenericRecordBuilder summaryBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
-        manifestTable.schema().findType("partition_summaries.element").asStructType(), "partition_summary"));
-    List<GenericData.Record> expected = Lists.newArrayList(Iterables.transform(manifests, manifest ->
-        builder
-            .set("content", manifest.content().id())
-            .set("path", manifest.path())
-            .set("length", manifest.length())
-            .set("partition_spec_id", manifest.partitionSpecId())
-            .set("added_snapshot_id", manifest.snapshotId())
-            .set("added_data_files_count", manifest.content() == DATA ? manifest.addedFilesCount() : 0)
-            .set("existing_data_files_count", manifest.content() == DATA ? manifest.existingFilesCount() : 0)
-            .set("deleted_data_files_count", manifest.content() == DATA ? manifest.deletedFilesCount() : 0)
-            .set("added_delete_files_count", manifest.content() == DELETES ? manifest.addedFilesCount() : 0)
-            .set("existing_delete_files_count", manifest.content() == DELETES ? manifest.existingFilesCount() : 0)
-            .set("deleted_delete_files_count", manifest.content() == DELETES ? manifest.deletedFilesCount() : 0)
-            .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
-                summaryBuilder
-                    .set("contains_null", false)
-                    .set("contains_nan", false)
-                    .set("lower_bound", "1")
-                    .set("upper_bound", "1")
-                    .build()
-            ))
-            .build()
-    ));
-
+    List<GenericData.Record> expected = snapshotIdToManifests
+        .map(snapshotManifest -> manifestRecord(manifestTable, snapshotManifest.first(), snapshotManifest.second()))
+        .collect(Collectors.toList());
     expected.sort(Comparator.comparing(o -> o.get("path").toString()));
 
-    Assert.assertEquals("Manifests table should have 4 manifest rows", 4, actual.size());
+    Assert.assertEquals("Manifests table should have 5 manifest rows", 5, actual.size());
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(i), actual.get(i));
     }
@@ -1511,6 +1488,101 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .stream().map(r -> (Integer) r.getAs(DataFile.SPEC_ID.name())).collect(Collectors.toList());
 
     Assert.assertEquals("Should have two partition specs", ImmutableList.of(spec0, spec1), actual);
+  }
+
+  @Test
+  public void testAllManifestTableSnapshotFiltering() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "all_manifest_snapshot_filtering");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+    Table manifestTable = loadTable(tableIdentifier, "all_manifests");
+    Dataset<Row> df = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+
+    List<Pair<Long, ManifestFile>> snapshotIdToManifests = Lists.newArrayList();
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    Snapshot snapshot1 = table.currentSnapshot();
+    snapshotIdToManifests.addAll(snapshot1.allManifests().stream()
+        .map(manifest -> Pair.of(snapshot1.snapshotId(), manifest))
+        .collect(Collectors.toList()));
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    Snapshot snapshot2 = table.currentSnapshot();
+    Assert.assertEquals("Should have two manifests", 2, snapshot2.allManifests().size());
+    snapshotIdToManifests.addAll(snapshot2.allManifests().stream()
+        .map(manifest -> Pair.of(snapshot2.snapshotId(), manifest))
+        .collect(Collectors.toList()));
+
+    // Add manifests that will not be selected
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    StringJoiner snapshotIds = new StringJoiner(",", "(", ")");
+    snapshotIds.add(String.valueOf(snapshot1.snapshotId()));
+    snapshotIds.add(String.valueOf(snapshot2.snapshotId()));
+    snapshotIds.toString();
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "all_manifests"))
+        .filter("reference_snapshot_id in " + snapshotIds)
+        .orderBy("path")
+        .collectAsList();
+    table.refresh();
+
+    List<GenericData.Record> expected = snapshotIdToManifests.stream()
+        .map(snapshotManifest -> manifestRecord(manifestTable, snapshotManifest.first(), snapshotManifest.second()))
+        .collect(Collectors.toList());
+    expected.sort(Comparator.comparing(o -> o.get("path").toString()));
+
+    Assert.assertEquals("Manifests table should have 3 manifest rows", 3, actual.size());
+    for (int i = 0; i < expected.size(); i += 1) {
+      TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
+  }
+
+  private GenericData.Record manifestRecord(Table manifestTable, Long referenceSnapshotId, ManifestFile manifest) {
+    GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(
+        manifestTable.schema(), "manifests"));
+    GenericRecordBuilder summaryBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
+        manifestTable.schema().findType("partition_summaries.element").asStructType(), "partition_summary"));
+    return builder
+        .set("content", manifest.content().id())
+        .set("path", manifest.path())
+        .set("length", manifest.length())
+        .set("partition_spec_id", manifest.partitionSpecId())
+        .set("added_snapshot_id", manifest.snapshotId())
+        .set("added_data_files_count", manifest.content() == DATA ? manifest.addedFilesCount() : 0)
+        .set("existing_data_files_count", manifest.content() == DATA ? manifest.existingFilesCount() : 0)
+        .set("deleted_data_files_count", manifest.content() == DATA ? manifest.deletedFilesCount() : 0)
+        .set("added_delete_files_count", manifest.content() == DELETES ? manifest.addedFilesCount() : 0)
+        .set("existing_delete_files_count", manifest.content() == DELETES ? manifest.existingFilesCount() : 0)
+        .set("deleted_delete_files_count", manifest.content() == DELETES ? manifest.deletedFilesCount() : 0)
+        .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
+            summaryBuilder
+                .set("contains_null", false)
+                .set("contains_nan", false)
+                .set("lower_bound", "1")
+                .set("upper_bound", "1")
+                .build()
+        ))
+        .set("reference_snapshot_id", referenceSnapshotId)
+        .build();
   }
 
   private void asMetadataRecord(GenericData.Record file) {

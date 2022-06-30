@@ -18,7 +18,7 @@
 
 import pytest
 
-from iceberg.types import (
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -39,7 +39,7 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
-from iceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 non_parameterized_types = [
     (1, BooleanType),

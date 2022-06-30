@@ -16,8 +16,8 @@
 #  under the License.
 import pytest
 
-from iceberg.avro.codecs import DeflateCodec
-from iceberg.avro.file import AvroFileHeader
+from pyiceberg.avro.codecs import DeflateCodec
+from pyiceberg.avro.file import AvroFileHeader
 
 
 def get_deflate_compressor():

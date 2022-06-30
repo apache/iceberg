@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from iceberg.schema import Schema
-from iceberg.table.partitioning import PartitionField, PartitionSpec
-from iceberg.transforms import bucket
-from iceberg.types import IntegerType
+from pyiceberg.schema import Schema
+from pyiceberg.table.partitioning import PartitionField, PartitionSpec
+from pyiceberg.transforms import bucket
+from pyiceberg.types import IntegerType
 
 
 def test_partition_field_init():
