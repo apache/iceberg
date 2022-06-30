@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 
-from iceberg.avro.reader import (
+from pyiceberg.avro.reader import (
     DecimalReader,
     DoubleReader,
     FloatReader,
@@ -25,9 +25,9 @@ from iceberg.avro.reader import (
     StringReader,
     StructReader,
 )
-from iceberg.avro.resolver import ResolveException, promote, resolve
-from iceberg.schema import Schema
-from iceberg.types import (
+from pyiceberg.avro.resolver import ResolveException, promote, resolve
+from pyiceberg.schema import Schema
+from pyiceberg.types import (
     BinaryType,
     DecimalType,
     DoubleType,

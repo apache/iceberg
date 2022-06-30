@@ -20,11 +20,11 @@ from io import SEEK_SET
 
 import pytest
 
-from iceberg.avro.decoder import BinaryDecoder
-from iceberg.avro.resolver import promote
-from iceberg.io.base import InputStream
-from iceberg.io.memory import MemoryInputStream
-from iceberg.types import DoubleType, FloatType
+from pyiceberg.avro.decoder import BinaryDecoder
+from pyiceberg.avro.resolver import promote
+from pyiceberg.io.base import InputStream
+from pyiceberg.io.memory import MemoryInputStream
+from pyiceberg.types import DoubleType, FloatType
 
 
 def test_read_decimal_from_fixed():
