@@ -150,7 +150,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
 
   private Set<String> dataLocations(Set<Snapshot> snapshotSet, FileIO io) {
     return snapshotSet.stream()
-        .flatMap(snapshot -> StreamSupport.stream(snapshot.addedFiles(io).spliterator(), false))
+        .flatMap(snapshot -> StreamSupport.stream(snapshot.addedDataFiles(io).spliterator(), false))
         .map(dataFile -> dataFile.path().toString())
         .collect(Collectors.toSet());
   }
