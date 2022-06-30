@@ -47,11 +47,10 @@ public class DecimalVectorUtil {
       return result;
     }
 
-    if (bigEndianBytes[0] < 0) {
-      Arrays.fill(result, (byte) 0xFF);
-    }
-
     int start = newLength - bigEndianBytes.length;
+    if (bigEndianBytes[0] < 0) {
+      Arrays.fill(result, 0, start, (byte) 0xFF);
+    }
     System.arraycopy(bigEndianBytes, 0, result, start, bigEndianBytes.length);
 
     return result;
