@@ -56,16 +56,13 @@ object RewriteDeleteFromTable extends RewriteRowLevelCommand {
         case r @ DataSourceV2Relation(tbl: SupportsRowLevelOperations, _, _, _, _) =>
           rewriteDeleteFromTable(d, r, tbl)
         case v: View =>
-          val viewChild = v.child
-          val icebergTableView = v.children.size == 1 && viewChild.isInstanceOf[DataSourceV2Relation] &&
-            viewChild.asInstanceOf[DataSourceV2Relation].table.isInstanceOf[SparkTable]
-          if (icebergTableView) {
-            val dataSourceV2Relation = viewChild.asInstanceOf[DataSourceV2Relation]
-            rewriteDeleteFromTable(d, dataSourceV2Relation,
-              dataSourceV2Relation.table.asInstanceOf[SupportsRowLevelOperations])
-          } else {
-            throw new AnalysisException(s"$v is not an Iceberg table")
+          EliminateSubqueryAliases(v.child) match {
+            case rel @ DataSourceV2Relation(table: SparkTable, _, _, _, _) =>
+              rewriteDeleteFromTable(d, rel, table)
+            case _ =>
+              v
           }
+
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")
       }
