@@ -115,6 +115,17 @@ public class JsonUtil {
     return pNode.asText();
   }
 
+  public static JsonNode getChildNodeOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    if (pNode != null && pNode.isNull()) {
+      return null;
+    }
+    return pNode;
+  }
+
   public static Map<String, String> getStringMap(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing map %s", property);
     JsonNode pNode = node.get(property);

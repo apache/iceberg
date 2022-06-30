@@ -149,7 +149,6 @@ class Literals {
     public int hashCode() {
       return Objects.hashCode(value);
     }
-
   }
 
   private abstract static class ComparableLiteral<C extends Comparable<C>> extends BaseLiteral<C> {
@@ -399,6 +398,8 @@ class Literals {
     public <T> Literal<T> to(Type type) {
       if (type.typeId() == Type.TypeID.DATE) {
         return (Literal<T>) this;
+      } else if (type.typeId() == Type.TypeID.STRING) {
+        return (Literal<T>) new StringLiteral(LocalDate.ofEpochDay(value()).format(DateTimeFormatter.ISO_LOCAL_DATE));
       }
       return null;
     }
@@ -419,6 +420,9 @@ class Literals {
     public <T> Literal<T> to(Type type) {
       if (type.typeId() == Type.TypeID.TIME) {
         return (Literal<T>) this;
+      } else if (type.typeId() == Type.TypeID.STRING) {
+        return (Literal<T>) new StringLiteral(LocalTime.ofNanoOfDay(value() * 1000)
+            .format(DateTimeFormatter.ISO_LOCAL_TIME));
       }
       return null;
     }
@@ -443,6 +447,10 @@ class Literals {
         case DATE:
           return (Literal<T>) new DateLiteral((int) ChronoUnit.DAYS.between(
               EPOCH_DAY, EPOCH.plus(value(), ChronoUnit.MICROS).toLocalDate()));
+        case STRING:
+          // Always return the literal without timezone.
+          return (Literal<T>) new StringLiteral(LocalDateTime.ofEpochSecond(value() / 1000000,
+              (int) (value() % 1000000) * 1000, ZoneOffset.UTC).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         default:
       }
       return null;
