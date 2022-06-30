@@ -907,7 +907,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB.addedFiles(table.io()).forEach(i -> {
+    snapshotB.addedDataFiles(table.io()).forEach(i -> {
       expectedDeletes.add(i.path().toString());
     });
 
@@ -982,7 +982,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the B, C, D snapshot
     Lists.newArrayList(snapshotB, snapshotC, snapshotD).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1035,7 +1035,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the staged snapshot
     Lists.newArrayList(snapshotB).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1048,7 +1048,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the staged and cherry-pick
     Lists.newArrayList(snapshotB, snapshotD).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
