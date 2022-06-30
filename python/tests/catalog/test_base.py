@@ -25,16 +25,16 @@ from typing import (
 
 import pytest
 
-from iceberg.catalog import Identifier, Properties
-from iceberg.catalog.base import Catalog
-from iceberg.exceptions import (
+from pyiceberg.catalog import Identifier, Properties
+from pyiceberg.catalog.base import Catalog
+from pyiceberg.exceptions import (
     AlreadyExistsError,
     NamespaceNotEmptyError,
     NoSuchNamespaceError,
     NoSuchTableError,
 )
-from iceberg.schema import Schema
-from iceberg.table.base import PartitionSpec, Table
+from pyiceberg.schema import Schema
+from pyiceberg.table.base import PartitionSpec, Table
 
 
 class InMemoryCatalog(Catalog):

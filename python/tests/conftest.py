@@ -31,15 +31,15 @@ from urllib.parse import urlparse
 
 import pytest
 
-from iceberg import schema
-from iceberg.io.base import (
+from pyiceberg import schema
+from pyiceberg.io.base import (
     FileIO,
     InputFile,
     OutputFile,
     OutputStream,
 )
-from iceberg.schema import Schema
-from iceberg.types import (
+from pyiceberg.schema import Schema
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DoubleType,

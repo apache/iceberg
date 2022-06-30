@@ -14,17 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from pyiceberg.avro.reader import BooleanReader, FixedReader
-from src.pyiceberg.transforms import VoidTransform
+from __future__ import annotations
+
+import zlib
+
+from pyiceberg.avro.codecs.codec import Codec
 
 
-def test_singleton():
-    """We want to reuse the readers to avoid creating a gazillion of them"""
-    assert id(BooleanReader()) == id(BooleanReader())
-    assert id(FixedReader(22)) == id(FixedReader(22))
-    assert id(FixedReader(19)) != id(FixedReader(25))
+class DeflateCodec(Codec):
+    @staticmethod
+    def compress(data: bytes) -> tuple[bytes, int]:
+        # The first two characters and last character are zlib
+        # wrappers around deflate data.
+        compressed_data = zlib.compress(data)[2:-1]
+        return compressed_data, len(compressed_data)
 
-
-def test_singleton_transform():
-    """We want to reuse VoidTransform since it doesn't carry any state"""
-    assert id(VoidTransform()) == id(VoidTransform())
+    @staticmethod
+    def decompress(data: bytes) -> bytes:
+        # -15 is the log of the window size; negative indicates
+        # "raw" (no zlib headers) decompression.  See zlib.h.
+        return zlib.decompress(data, -15)

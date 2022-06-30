@@ -20,7 +20,7 @@ from decimal import Decimal
 
 import pytest
 
-from iceberg.expressions.literals import (
+from pyiceberg.expressions.literals import (
     AboveMax,
     BelowMin,
     BinaryLiteral,
@@ -36,7 +36,7 @@ from iceberg.expressions.literals import (
     TimestampLiteral,
     literal,
 )
-from iceberg.types import (
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,

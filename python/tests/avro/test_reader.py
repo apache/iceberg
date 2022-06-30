@@ -19,8 +19,8 @@ import json
 
 import pytest
 
-from iceberg.avro.file import AvroFile
-from iceberg.avro.reader import (
+from pyiceberg.avro.file import AvroFile
+from pyiceberg.avro.reader import (
     AvroStruct,
     BinaryReader,
     BooleanReader,
@@ -36,8 +36,8 @@ from iceberg.avro.reader import (
     TimestamptzReader,
     primitive_reader,
 )
-from iceberg.schema import Schema
-from iceberg.types import (
+from pyiceberg.schema import Schema
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,

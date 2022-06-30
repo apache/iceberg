@@ -14,17 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from pyiceberg.avro.reader import BooleanReader, FixedReader
-from src.pyiceberg.transforms import VoidTransform
+from enum import Enum
+from typing import Optional
+
+from pydantic import Field
+
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+
+MAIN_BRANCH = "main"
 
 
-def test_singleton():
-    """We want to reuse the readers to avoid creating a gazillion of them"""
-    assert id(BooleanReader()) == id(BooleanReader())
-    assert id(FixedReader(22)) == id(FixedReader(22))
-    assert id(FixedReader(19)) != id(FixedReader(25))
+class SnapshotRefType(str, Enum):
+    BRANCH = "branch"
+    TAG = "tag"
 
 
-def test_singleton_transform():
-    """We want to reuse VoidTransform since it doesn't carry any state"""
-    assert id(VoidTransform()) == id(VoidTransform())
+class SnapshotRef(IcebergBaseModel):
+    snapshot_id: int = Field(alias="snapshot-id")
+    snapshot_ref_type: SnapshotRefType = Field(alias="type")
+    min_snapshots_to_keep: Optional[int] = Field(alias="min-snapshots-to-keep", default=None)
+    max_snapshot_age_ms: Optional[int] = Field(alias="max-snapshot-age-ms", default=None)
+    max_ref_age_ms: Optional[int] = Field(alias="max-ref-age-ms", default=None)
