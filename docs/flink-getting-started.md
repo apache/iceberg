@@ -543,7 +543,7 @@ FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SC
 
 | Flink option           | Default                    | Description                                                                                                |
 |------------------------| -------------------------- |------------------------------------------------------------------------------------------------------------|
-| write-file-format      | Table write.format.default | File format to use for this write operation; parquet, avro, or orc                                         |
+| write-format           | Table write.format.default | File format to use for this write operation; parquet, avro, or orc                                         |
 | target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes                                                        |
 | upsert-enabled         | Table write.upsert.enabled | Overrides this table's write.upsert.enabled                                                                |
 | overwrite-enabled      | false | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
