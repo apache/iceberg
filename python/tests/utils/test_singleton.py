@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from iceberg.avro.reader import BooleanReader, FixedReader
-from src.iceberg.transforms import VoidTransform
+from pyiceberg.avro.reader import BooleanReader, FixedReader
+from pyiceberg.transforms import VoidTransform
 
 
 def test_singleton():

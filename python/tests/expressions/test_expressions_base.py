@@ -21,9 +21,9 @@ from typing import List
 
 import pytest
 
-from iceberg.expressions import base
-from iceberg.types import NestedField, StringType
-from iceberg.utils.singleton import Singleton
+from pyiceberg.expressions import base
+from pyiceberg.types import NestedField, StringType
+from pyiceberg.utils.singleton import Singleton
 
 
 @pytest.mark.parametrize(

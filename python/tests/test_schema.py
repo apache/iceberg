@@ -20,11 +20,11 @@ from typing import Any, Dict
 
 import pytest
 
-from iceberg import schema
-from iceberg.expressions.base import Accessor
-from iceberg.files import StructProtocol
-from iceberg.schema import Schema, build_position_accessors
-from iceberg.types import (
+from pyiceberg import schema
+from pyiceberg.expressions.base import Accessor
+from pyiceberg.files import StructProtocol
+from pyiceberg.schema import Schema, build_position_accessors
+from pyiceberg.types import (
     BooleanType,
     FloatType,
     IntegerType,

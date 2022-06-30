@@ -22,8 +22,8 @@ from uuid import UUID
 import mmh3 as mmh3
 import pytest
 
-from iceberg import transforms
-from iceberg.types import (
+from pyiceberg import transforms
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -39,7 +39,7 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
-from iceberg.utils.datetime import (
+from pyiceberg.utils.datetime import (
     date_to_days,
     time_to_micros,
     timestamp_to_micros,
