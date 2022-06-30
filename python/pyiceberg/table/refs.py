@@ -14,16 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from enum import Enum
+from typing import Optional
 
-install:
-	pip install poetry
-	poetry install -E pyarrow
+from pydantic import Field
 
-lint:
-	poetry run pre-commit run --all-files
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
-test:
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
+MAIN_BRANCH = "main"
+
+
+class SnapshotRefType(str, Enum):
+    BRANCH = "branch"
+    TAG = "tag"
+
+
+class SnapshotRef(IcebergBaseModel):
+    snapshot_id: int = Field(alias="snapshot-id")
+    snapshot_ref_type: SnapshotRefType = Field(alias="type")
+    min_snapshots_to_keep: Optional[int] = Field(alias="min-snapshots-to-keep", default=None)
+    max_snapshot_age_ms: Optional[int] = Field(alias="max-snapshot-age-ms", default=None)
+    max_ref_age_ms: Optional[int] = Field(alias="max-ref-age-ms", default=None)

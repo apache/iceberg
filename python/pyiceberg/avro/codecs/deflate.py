@@ -14,16 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
-install:
-	pip install poetry
-	poetry install -E pyarrow
+import zlib
 
-lint:
-	poetry run pre-commit run --all-files
+from pyiceberg.avro.codecs.codec import Codec
 
-test:
-	poetry run coverage run --source=pyiceberg/ -m pytest tests/
-	poetry run coverage report -m --fail-under=90
-	poetry run coverage html
-	poetry run coverage xml
+
+class DeflateCodec(Codec):
+    @staticmethod
+    def compress(data: bytes) -> tuple[bytes, int]:
+        # The first two characters and last character are zlib
+        # wrappers around deflate data.
+        compressed_data = zlib.compress(data)[2:-1]
+        return compressed_data, len(compressed_data)
+
+    @staticmethod
+    def decompress(data: bytes) -> bytes:
+        # -15 is the log of the window size; negative indicates
+        # "raw" (no zlib headers) decompression.  See zlib.h.
+        return zlib.decompress(data, -15)
