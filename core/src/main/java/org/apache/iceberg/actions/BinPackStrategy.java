@@ -261,6 +261,14 @@ public abstract class BinPackStrategy implements RewriteStrategy {
     return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
   }
 
+  protected long maxGroupSize() {
+    return maxGroupSize;
+  }
+
+  protected boolean rewriteAll() {
+    return rewriteAll;
+  }
+
   private long sizeOfInputFiles(List<FileScanTask> group) {
     return group.stream().mapToLong(FileScanTask::length).sum();
   }
