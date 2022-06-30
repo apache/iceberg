@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from pyiceberg.avro.reader import BooleanReader, FixedReader
-from src.pyiceberg.transforms import VoidTransform
+from pyiceberg.transforms import VoidTransform
 
 
 def test_singleton():

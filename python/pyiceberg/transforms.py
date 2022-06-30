@@ -46,7 +46,7 @@ from pyiceberg.types import (
 )
 from pyiceberg.utils import datetime
 from pyiceberg.utils.decimal import decimal_to_bytes, truncate_decimal
-from src.pyiceberg.utils.singleton import Singleton
+from pyiceberg.utils.singleton import Singleton
 
 S = TypeVar("S")
 T = TypeVar("T")
