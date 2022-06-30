@@ -47,7 +47,17 @@ public abstract class OrcSchemaVisitor<T> {
         return visitRecord(schema, visitor);
 
       case UNION:
-        throw new UnsupportedOperationException("Cannot handle " + schema);
+        List<TypeDescription> types = schema.getChildren();
+        List<T> options = Lists.newArrayListWithExpectedSize(types.size());
+        for (int i = 0; i < types.size(); i++) {
+          visitor.beforeUnionOption(types.get(i), i);
+          try {
+            options.add(visit(types.get(i), visitor));
+          } finally {
+            visitor.afterUnionOption(types.get(i), i);
+          }
+        }
+        return visitor.union(schema, options);
 
       case LIST:
         final T elementResult;
@@ -112,6 +122,10 @@ public abstract class OrcSchemaVisitor<T> {
     return visitor.record(record, names, visitFields(fields, names, visitor));
   }
 
+  public String optionName(int ordinal) {
+    return "field" + ordinal;
+  }
+
   public String elementName() {
     return "_elem";
   }
@@ -134,6 +148,14 @@ public abstract class OrcSchemaVisitor<T> {
 
   public void afterField(String name, TypeDescription type) {
     fieldNames.pop();
+  }
+
+  public void beforeUnionOption(TypeDescription option, int ordinal) {
+    beforeField(optionName(ordinal), option);
+  }
+
+  public void afterUnionOption(TypeDescription option, int ordinal) {
+    afterField(optionName(ordinal), option);
   }
 
   public void beforeElementField(TypeDescription element) {
@@ -161,6 +183,10 @@ public abstract class OrcSchemaVisitor<T> {
   }
 
   public T record(TypeDescription record, List<String> names, List<T> fields) {
+    return null;
+  }
+
+  public T union(TypeDescription union, List<T> options) {
     return null;
   }
 
