@@ -219,7 +219,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles(table.io()).iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> singleActual = rowsToJava(spark.read()
         .format("iceberg")
@@ -246,7 +246,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles(table.io()).iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> multiActual = rowsToJava(spark.read()
         .format("iceberg")
@@ -274,7 +274,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile file = table.currentSnapshot().addedFiles(table.io()).iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
 
     List<Object[]> multiActual = rowsToJava(spark.read()
         .format("iceberg")
@@ -544,7 +544,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
-    DataFile toDelete = Iterables.getOnlyElement(table.currentSnapshot().addedFiles(table.io()));
+    DataFile toDelete = Iterables.getOnlyElement(table.currentSnapshot().addedDataFiles(table.io()));
 
     // add a second file
     df2.select("id", "data").write()
@@ -907,7 +907,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set(TableProperties.FORMAT_VERSION, "2")
         .commit();
 
-    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedFiles(table.io()), null);
+    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 
@@ -1036,7 +1036,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set(TableProperties.FORMAT_VERSION, "2")
         .commit();
 
-    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedFiles(table.io()), null);
+    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 

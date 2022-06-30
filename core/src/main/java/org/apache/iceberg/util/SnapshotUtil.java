@@ -271,7 +271,7 @@ public class SnapshotUtil {
         return newFiles;
       }
 
-      Iterables.addAll(newFiles, currentSnapshot.addedFiles(io));
+      Iterables.addAll(newFiles, currentSnapshot.addedDataFiles(io));
     }
 
     ValidationException.check(Objects.equals(lastSnapshot.parentId(), baseSnapshotId),

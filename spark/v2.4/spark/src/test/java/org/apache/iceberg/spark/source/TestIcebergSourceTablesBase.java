@@ -1014,7 +1014,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set(TableProperties.FORMAT_VERSION, "2")
         .commit();
 
-    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedFiles(table.io()), null);
+    DataFile dataFile = Iterables.getFirst(table.currentSnapshot().addedDataFiles(table.io()), null);
     PartitionSpec dataFileSpec = table.specs().get(dataFile.specId());
     StructLike dataFilePartition = dataFile.partition();
 
