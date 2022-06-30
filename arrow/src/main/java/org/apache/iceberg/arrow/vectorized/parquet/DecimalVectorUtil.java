@@ -29,8 +29,9 @@ public class DecimalVectorUtil {
   /**
    * Parquet stores decimal values in big-endian byte order, and Arrow stores them in native byte order.
    * When setting the value in Arrow, we call setBigEndian(), and the byte order is reversed if needed.
-   * Also in this method, the byte array is padded to fill 16 bytes in length. This padding operation is slow,
-   * so by using this utility method, we can perform the padding before calling setBigEndian().
+   * Also, the byte array is padded to fill 16 bytes in length by calling Unsafe.setMemory(). The padding
+   * operation can be slow, so by using this utility method, we can pad before calling setBigEndian() and
+   * avoid the call to Unsafe.setMemory().
    *
    * @param bigEndianBytes The big endian bytes
    * @param newLength      The length of the byte array to return
