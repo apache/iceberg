@@ -2,11 +2,11 @@
 title: "Configuration"
 url: configuration
 aliases:
-- "tables/configuration"
+    - "tables/configuration"
 menu:
-main:
-parent: Tables
-weight: 0
+    main:
+        parent: Tables
+        weight: 0
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -170,7 +170,7 @@ The following properties from the Hadoop configuration are used by the Hive Meta
 | iceberg.hive.lock-check-min-wait-ms   | 50               | Minimum time in milliseconds to check back on the status of lock acquisition       |
 | iceberg.hive.lock-check-max-wait-ms   | 5000             | Maximum time in milliseconds to check back on the status of lock acquisition       |
 
-Note: `iceberg.hive.lock-check-max-wait-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout)
-of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the
+Note: `iceberg.hive.lock-check-max-wait-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
+of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 
 Hive Metastore before the lock is retried from Iceberg.
 
