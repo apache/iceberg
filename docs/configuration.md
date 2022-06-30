@@ -52,23 +52,25 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.delete.format.default        | data file format   | Default delete file format for the table; parquet, avro, or orc |
 | write.parquet.row-group-size-bytes | 134217728 (128 MB) | Parquet row group size                             |
 | write.parquet.page-size-bytes      | 1048576 (1 MB)     | Parquet page size                                  |
-| write.delete.parquet.page-size-bytes      | 1048576 (1 MB)     | Parquet page size                                  |
+| write.delete.parquet.page-size-bytes | 1048576 (1 MB)   | Parquet page size                                  |
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
-| write.delete.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
+| write.delete.parquet.dict-size-bytes | 2097152 (2 MB)   | Parquet dictionary page size                       |
 | write.parquet.compression-codec    | gzip               | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
-| write.delete.parquet.compression-codec    | gzip               | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed |
-| write.delete.parquet.compression-level    | null               | Parquet compression level                          |
+| write.delete.parquet.compression-codec | gzip           | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed |
+| write.delete.parquet.compression-level | null           | Parquet compression level                          |
 | write.avro.compression-codec       | gzip               | Avro compression codec: gzip (deflate with 9 level), zstd, snappy, uncompressed |
 | write.avro.compression-level       | null               | Avro compression level                             |
-| write.delete.avro.compression-codec       | gzip               | Avro compression codec: gzip (deflate with 9 level), zstd, snappy, uncompressed |
-| write.delete.avro.compression-level       | null               | Avro compression level                             |
+| write.delete.avro.compression-codec | gzip              | Avro compression codec: gzip (deflate with 9 level), zstd, snappy, uncompressed |
+| write.delete.avro.compression-level | null              | Avro compression level                             |
 | write.orc.stripe-size-bytes        | 67108864 (64 MB)   | Define the default ORC stripe size, in bytes       |
-| write.delete.orc.stripe-size-bytes        | 67108864 (64 MB)   | Define the default ORC stripe size, in bytes       |
+| write.delete.orc.stripe-size-bytes | 67108864 (64 MB)   | Define the default ORC stripe size, in bytes       |
 | write.orc.block-size-bytes         | 268435456 (256 MB) | Define the default file system block size for ORC files |
-| write.delete.orc.block-size-bytes         | 268435456 (256 MB) | Define the default file system block size for ORC files |
+| write.delete.orc.block-size-bytes  | 268435456 (256 MB) | Define the default file system block size for ORC files |
 | write.orc.compression-codec        | zlib               | ORC compression codec: zstd, lz4, lzo, zlib, snappy, none |
 | write.orc.compression-strategy     | speed              | ORC compression strategy: speed, compression |
+| write.delete.orc.compression-codec | zlib               | ORC compression codec: zstd, lz4, lzo, zlib, snappy, none |
+| write.delete.orc.compression-strategy | speed           | ORC compression strategy: speed, compression |
 | write.location-provider.impl       | null               | Optional custom implementation for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
