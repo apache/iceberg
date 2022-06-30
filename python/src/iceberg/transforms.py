@@ -19,8 +19,13 @@ import base64
 import struct
 from abc import ABC, abstractmethod
 from decimal import Decimal
-from functools import singledispatchmethod
-from typing import Generic, Optional, TypeVar
+from functools import singledispatch
+from typing import (
+    Any,
+    Generic,
+    Optional,
+    TypeVar,
+)
 from uuid import UUID
 
 import mmh3  # type: ignore
@@ -40,8 +45,8 @@ from iceberg.types import (
     UUIDType,
 )
 from iceberg.utils import datetime
-from src.iceberg.utils.singleton import Singleton
 from iceberg.utils.decimal import decimal_to_bytes, truncate_decimal
+from src.iceberg.utils.singleton import Singleton
 
 S = TypeVar("S")
 T = TypeVar("T")
@@ -267,39 +272,7 @@ class IdentityTransform(Transform[S, S]):
         return other.preserves_order
 
     def to_human_string(self, value: Optional[S]) -> str:
-        return self._human_string(value)
-
-    @singledispatchmethod
-    def _human_string(self, value: Optional[S]) -> str:
-        return str(value) if value is not None else "null"
-
-    @_human_string.register(bytes)
-    def _(self, value: bytes) -> str:
-        return _base64encode(value)
-
-    @_human_string.register(int)
-    def _(self, value: int) -> str:
-        return self._int_to_human_string(self._type, value)
-
-    @singledispatchmethod
-    def _int_to_human_string(self, _: IcebergType, value: int) -> str:
-        return str(value)
-
-    @_int_to_human_string.register(DateType)
-    def _(self, _: IcebergType, value: int) -> str:
-        return datetime.to_human_day(value)
-
-    @_int_to_human_string.register(TimeType)
-    def _(self, _: IcebergType, value: int) -> str:
-        return datetime.to_human_time(value)
-
-    @_int_to_human_string.register(TimestampType)
-    def _(self, _: IcebergType, value: int) -> str:
-        return datetime.to_human_timestamp(value)
-
-    @_int_to_human_string.register(TimestamptzType)
-    def _(self, _: IcebergType, value: int) -> str:
-        return datetime.to_human_timestamptz(value)
+        return _human_string(value, self._type) if value is not None else "null"
 
 
 class TruncateTransform(Transform[S, S]):
@@ -312,6 +285,7 @@ class TruncateTransform(Transform[S, S]):
     """
 
     def __init__(self, source_type: IcebergType, width: int):
+        assert width > 0, f"width ({width}) should be greater than 0"
         super().__init__(
             f"truncate[{width}]",
             f"transforms.truncate(source_type={repr(source_type)}, width={width})",
@@ -328,37 +302,7 @@ class TruncateTransform(Transform[S, S]):
         return self._type
 
     def apply(self, value: Optional[S]) -> Optional[S]:
-        return self._truncate_value(value) if value is not None else None
-
-    @singledispatchmethod
-    def _truncate_value(self, value: S) -> S:
-        raise ValueError(f"Cannot truncate value: {value}")
-
-    @_truncate_value.register(int)
-    def _(self, value):
-        """Truncate a given int value into a given width if feasible."""
-        if type(self._type) in {IntegerType, LongType}:
-            return value - value % self._width
-        else:
-            raise ValueError(f"Cannot truncate type: {self._type} for value: {value}")
-
-    @_truncate_value.register(str)
-    def _(self, value):
-        """Truncate a given string to a given width."""
-        return value[0 : min(self._width, len(value))]
-
-    @_truncate_value.register(bytes)
-    def _(self, value):
-        """Truncate a given binary bytes into a given width."""
-        if isinstance(self._type, BinaryType):
-            return value[0 : min(self._width, len(value))]
-        else:
-            raise ValueError(f"Cannot truncate type: {self._type}")
-
-    @_truncate_value.register(Decimal)
-    def _(self, value):
-        """Truncate a given decimal value into a given width."""
-        return truncate_decimal(value, self._width)
+        return _truncate_value(value, self._width) if value is not None else None
 
     def can_transform(self, source: IcebergType) -> bool:
         return self._type == source
@@ -385,6 +329,75 @@ class TruncateTransform(Transform[S, S]):
             return _base64encode(value)
         else:
             return str(value)
+
+
+@singledispatch
+def _human_string(value: Any, _type: IcebergType) -> str:
+    return str(value)
+
+
+@_human_string.register(bytes)
+def _(value: bytes, _type: IcebergType) -> str:
+    return _base64encode(value)
+
+
+@_human_string.register(int)
+def _(value: int, _type: IcebergType) -> str:
+    return _int_to_human_string(_type, value)
+
+
+@singledispatch
+def _int_to_human_string(_type: IcebergType, value: int) -> str:
+    return str(value)
+
+
+@_int_to_human_string.register(DateType)
+def _(_type: IcebergType, value: int) -> str:
+    return datetime.to_human_day(value)
+
+
+@_int_to_human_string.register(TimeType)
+def _(_type: IcebergType, value: int) -> str:
+    return datetime.to_human_time(value)
+
+
+@_int_to_human_string.register(TimestampType)
+def _(_type: IcebergType, value: int) -> str:
+    return datetime.to_human_timestamp(value)
+
+
+@_int_to_human_string.register(TimestamptzType)
+def _(_type: IcebergType, value: int) -> str:
+    return datetime.to_human_timestamptz(value)
+
+
+@singledispatch
+def _truncate_value(value: Any, _width: int) -> S:
+    raise ValueError(f"Cannot truncate value: {value}")
+
+
+@_truncate_value.register(int)
+def _(value: int, _width: int) -> int:
+    """Truncate a given int value into a given width if feasible."""
+    return value - value % _width
+
+
+@_truncate_value.register(str)
+def _(value: str, _width: int) -> str:
+    """Truncate a given string to a given width."""
+    return value[0 : min(_width, len(value))]
+
+
+@_truncate_value.register(bytes)
+def _(value: bytes, _width: int) -> bytes:
+    """Truncate a given binary bytes into a given width."""
+    return value[0 : min(_width, len(value))]
+
+
+@_truncate_value.register(Decimal)
+def _(value: Decimal, _width: int) -> Decimal:
+    """Truncate a given decimal value into a given width."""
+    return truncate_decimal(value, _width)
 
 
 class UnknownTransform(Transform):

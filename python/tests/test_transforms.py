@@ -212,10 +212,12 @@ def test_truncate_string(input_var, expected):
     "type_var,value,expected_human_str,expected",
     [
         (BinaryType(), b"\x00\x01\x02\x03", "AAECAw==", b"\x00"),
+        (BinaryType(), bytes("\u2603de", "utf-8"), "4piDZGU=", b"\xe2"),
         (DecimalType(8, 5), Decimal("14.21"), "14.21", Decimal("14.21")),
         (IntegerType(), 123, "123", 123),
         (LongType(), 123, "123", 123),
         (StringType(), "foo", "foo", "f"),
+        (StringType(), "\u2603de", "\u2603de", "\u2603"),
     ],
 )
 def test_truncate_method(type_var, value, expected_human_str, expected):
