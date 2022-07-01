@@ -28,7 +28,6 @@ import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -174,19 +173,9 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   @Override
   public Optional<String> extractTimeTravelTimestamp(CaseInsensitiveStringMap options) {
-    String timestampAsOf = PropertyUtil.propertyAsString(options, "timestampAsOf", null);
-    if (timestampAsOf == null) {
-      return Optional.empty();
-    }
-
-    try {
-      // timestamp provided should be at a seconds precision.
-      // TODO: remove once https://issues.apache.org/jira/browse/SPARK-39633 is resolved
-      long timestampAsOfAsLong = Long.parseLong(timestampAsOf);
-      return Optional.of(DateTimeUtil.formatTimestampMillisWithLocalTime(timestampAsOfAsLong * 1000));
-    } catch (NumberFormatException numberFormatException) {
-      return Optional.of(timestampAsOf);
-    }
+    // TODO: presently specifying timestamp in seconds for time-travel in not supported in dataframe reader,
+    //  remove when https://issues.apache.org/jira/browse/SPARK-39633 is available.
+    return Optional.ofNullable(PropertyUtil.propertyAsString(options, "timestampAsOf", null));
   }
 
   private static Long propertyAsLong(CaseInsensitiveStringMap options, String property) {

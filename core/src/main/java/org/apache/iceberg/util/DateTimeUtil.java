@@ -88,8 +88,4 @@ public class DateTimeUtil {
   public static String formatTimestampMillis(long millis) {
     return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC));
   }
-
-  public static String formatTimestampMillisWithLocalTime(long millis) {
-    return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.systemDefault()));
-  }
 }

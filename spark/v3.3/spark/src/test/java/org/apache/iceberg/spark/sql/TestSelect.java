@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.spark.sql;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -30,13 +34,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestSelect extends SparkCatalogTestBase {
@@ -218,14 +222,16 @@ public class TestSelect extends SparkCatalogTestBase {
     waitUntilAfter(timestamp + 1000);
     // AS OF expects the timestamp if given in long format will be of seconds precision
     long timestampInSeconds = TimeUnit.MILLISECONDS.toSeconds(timestamp);
-    String formattedDate = DateTimeUtil.formatTimestampMillisWithLocalTime(timestamp);
+    DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+    String formattedDate = dateTimeFormatter.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp),
+        ZoneOffset.systemDefault()));
 
     List<Object[]> expected = sql("SELECT * FROM %s", tableName);
 
     // create a second snapshot
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
-    // read the table at the timestamp in long format i.e 1656507980463.
+    // read the table at the timestamp in seconds i.e 1656696383.
     List<Object[]> actualWithLongFormat = sql("SELECT * FROM %s TIMESTAMP AS OF %s", tableName, timestampInSeconds);
     assertEquals("Snapshot at timestamp", expected, actualWithLongFormat);
 
@@ -234,7 +240,7 @@ public class TestSelect extends SparkCatalogTestBase {
     assertEquals("Snapshot at timestamp", expected, actualWithDateFormat);
 
     // HIVE time travel syntax
-    // read the table at the timestamp in long format i.e 1656507980463.
+    // read the table at the timestamp in seconds i.e 1656696383.
     List<Object[]> actualWithLongFormatInHiveSyntax = sql("SELECT * FROM %s FOR SYSTEM_TIME AS OF %s", tableName,
         timestampInSeconds);
     assertEquals("Snapshot at specific ID", expected, actualWithLongFormatInHiveSyntax);
@@ -244,21 +250,37 @@ public class TestSelect extends SparkCatalogTestBase {
         formattedDate);
     assertEquals("Snapshot at specific ID", expected, actualWithDateFormatInHiveSyntax);
 
-    // read the table using DataFrameReader option with timestamp in long format i.e 1656507980463
-    Dataset<Row> df1 = spark.read()
-        .format("iceberg")
-        .option("timestampAsOf", timestampInSeconds)
-        .load(tableName);
-    List<Object[]> fromDF1 = rowsToJava(df1.collectAsList());
-    assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF1);
-
     // read the table using DataFrameReader option with timestamp in date format i.e 2022-06-29 18:40:37
-    Dataset<Row> df2 = spark.read()
+    Dataset<Row> df = spark.read()
         .format("iceberg")
         .option("timestampAsOf", formattedDate)
         .load(tableName);
-    List<Object[]> fromDF2 = rowsToJava(df2.collectAsList());
-    assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF2);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at timestamp " + formattedDate, expected, fromDF);
+  }
+
+  // TODO: remove when https://issues.apache.org/jira/browse/SPARK-39633 is available.
+  @Ignore
+  @Test
+  public void testTimestampAsOfWithTimestampInSecondsUsingDataframeReader() {
+    long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
+    long timestamp = waitUntilAfter(snapshotTs + 1000);
+    waitUntilAfter(timestamp + 1000);
+    // AS OF expects the timestamp if given in long format will be of seconds precision
+    long timestampInSeconds = TimeUnit.MILLISECONDS.toSeconds(timestamp);
+
+    List<Object[]> expected = sql("SELECT * FROM %s", tableName);
+
+    // create a second snapshot
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // read the table using DataFrameReader option with timestamp in seconds i.e 1656696383
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .option("timestampAsOf", timestampInSeconds)
+        .load(tableName);
+    List<Object[]> fromDF = rowsToJava(df.collectAsList());
+    assertEquals("Snapshot at timestamp " + timestampInSeconds, expected, fromDF);
   }
 
   @Test
