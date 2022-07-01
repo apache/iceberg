@@ -30,12 +30,12 @@ from pydantic import Field, root_validator
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import Schema
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
+from pyiceberg.table.sorting import UNPARTITIONED_SORT_ORDER, UNPARTITIONED_SORT_ORDER_ID, SortOrder
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 _INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
-DEFAULT_SORT_ORDER_UNSORTED = 0
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
@@ -62,14 +62,15 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
 
 def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default_sort_order_id is present in sort-orders"""
-    default_sort_order_id = values["default_sort_order_id"]
+    default_sort_order_id: int = values["default_sort_order_id"]
 
-    if default_sort_order_id != DEFAULT_SORT_ORDER_UNSORTED:
-        for sort in values["sort_orders"]:
-            if sort["order-id"] == default_sort_order_id:
+    if default_sort_order_id != UNPARTITIONED_SORT_ORDER_ID:
+        sort_orders: List[SortOrder] = values["sort_orders"]
+        for sort_order in sort_orders:
+            if sort_order.order_id == default_sort_order_id:
                 return values
 
-        raise ValidationError(f"default-sort-order-id {default_sort_order_id} can't be found")
+        raise ValidationError(f"default-sort-order-id {default_sort_order_id} can't be found in {sort_orders}")
     return values
 
 
@@ -159,10 +160,10 @@ class TableMetadataCommonFields(IcebergBaseModel):
     remove oldest metadata log entries and keep a fixed-size log of the most
     recent entries after a commit."""
 
-    sort_orders: List[Dict[str, Any]] = Field(alias="sort-orders", default_factory=list)
+    sort_orders: List[SortOrder] = Field(alias="sort-orders", default_factory=list)
     """A list of sort orders, stored as full sort order objects."""
 
-    default_sort_order_id: int = Field(alias="default-sort-order-id", default=DEFAULT_SORT_ORDER_UNSORTED)
+    default_sort_order_id: int = Field(alias="default-sort-order-id", default=UNPARTITIONED_SORT_ORDER_ID)
     """Default sort order id of the table. Note that this could be used by
     writers, but is not used when reading because reads use the specs stored
      in manifest files."""
@@ -270,7 +271,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         # This is going to be much nicer as soon as sort-order is an actual pydantic object
         # Probably we'll just create a UNSORTED_ORDER constant then
         if not data.get("sort_orders"):
-            data["sort_orders"] = [{"order_id": 0, "fields": []}]
+            data["sort_orders"] = UNPARTITIONED_SORT_ORDER
         else:
             check_sort_orders(data["sort_orders"])
         return data
