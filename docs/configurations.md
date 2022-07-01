@@ -158,7 +158,7 @@ Users can configure tag-based object lifecycle policy at bucket level to transit
 |  spark.sql.catalog._catalog-name_.s3.delete.num-threads    | null | Number of threads to be used for adding delete tags to the S3 objects |
 
 {{< hint info >}}To enable Iceberg's Spark SQL extensions, set `spark.sql.extensions` to `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`
-in your Spark conf{{< /hint >}}
+in your Spark conf.{{< /hint >}}
 
 ### Spark Runtime Read Options
 
