@@ -24,14 +24,15 @@ package org.apache.iceberg;
  */
 public interface ChangelogScanTask extends ScanTask {
   /**
-   * Returns the operation type of records produced by this task (i.e. insert/delete).
+   * Returns the type of changes produced by this task (i.e. insert/delete).
    */
   ChangelogOperation operation();
 
   /**
-   * Returns the relative change order in which the changes must be applied.
+   * Returns the ordinal of changes produced by this task. This number indicates the order in which
+   * changes produced by this scan must be applied. Operations with a lower ordinal must be applied first.
    */
-  int changeOrder();
+  int changeOrdinal();
 
   /**
    * Returns the snapshot ID in which the changes were committed.

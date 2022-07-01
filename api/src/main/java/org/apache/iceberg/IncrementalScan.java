@@ -24,7 +24,7 @@ package org.apache.iceberg;
  */
 public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> extends Scan<ThisT, T, G> {
   /**
-   * Refines this scan with a start snapshot ID (inclusive).
+   * Instructs this scan to look for changes starting from a particular snapshot (inclusive).
    * <p>
    * If the start snapshot is not configured, it is defaulted to the oldest ancestor
    * of the end snapshot (inclusive).
@@ -36,7 +36,7 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
   ThisT fromSnapshotInclusive(long fromSnapshotId);
 
   /**
-   * Refines this scan with a start snapshot ID (exclusive).
+   * Instructs this scan to look for changes starting from a particular snapshot (exclusive).
    * <p>
    * If the start snapshot is not configured, it is defaulted to the oldest ancestor
    * of the end snapshot (inclusive).
