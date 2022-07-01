@@ -152,11 +152,13 @@ Flink passes in catalog properties through `CREATE CATALOG` statement, see more 
 | spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
 | spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
 | spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) |                                                   |
-|  spark.sql.extensions     | `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions` | Add Iceberg Spark-SQL extensions |
 |  spark.sql.catalog._catalog-name_.s3.delete-enabled     | `true` or `false` | When set to `false`, the objects are not hard-deleted from S3 |
 |  spark.sql.catalog._catalog-name_.s3.delete.tags._tag_name_    | null | Objects are tagged with the configured key-value pairs before deletion.
 Users can configure tag-based object lifecycle policy at bucket level to transition objects to different tiers. |
 |  spark.sql.catalog._catalog-name_.s3.delete.num-threads    | null | Number of threads to be used for adding delete tags to the S3 objects |
+
+{{< hint info >}}To enable Iceberg's Spark SQL extensions, set `spark.sql.extensions` to `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`
+in your Spark conf{{< /hint >}}
 
 ### Spark Runtime Read Options
 
