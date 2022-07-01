@@ -1,8 +1,10 @@
 ---
-bookIconFa: fa-gears
-bookFlatSection: true
+title: "Configurations"
 url: configurations
-weight: 470
+aliases:
+    - config
+menu: main
+weight: 1201
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
