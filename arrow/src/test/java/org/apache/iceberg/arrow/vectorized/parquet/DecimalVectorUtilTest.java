@@ -48,4 +48,26 @@ public class DecimalVectorUtilTest {
     assertEquals(bigInt, result);
   }
 
+  @Test
+  public void testPadBigEndianBytesZero() {
+    byte[] bytes = BigInteger.ZERO.toByteArray();
+    byte[] paddedBytes = DecimalVectorUtil.padBigEndianBytes(bytes, 16);
+
+    assertEquals(16, paddedBytes.length);
+    BigInteger result = new BigInteger(paddedBytes);
+    assertEquals(BigInteger.ZERO, result);
+
+    bytes = new byte[0];
+    paddedBytes = DecimalVectorUtil.padBigEndianBytes(bytes, 16);
+
+    assertEquals(16, paddedBytes.length);
+    result = new BigInteger(paddedBytes);
+    assertEquals(BigInteger.ZERO, result);
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testPadBigEndianBytesOverflow() {
+    byte[] bytes = new byte[17];
+    DecimalVectorUtil.padBigEndianBytes(bytes, 16);
+  }
 }

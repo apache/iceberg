@@ -40,20 +40,22 @@ public class DecimalVectorUtil {
   public static byte[] padBigEndianBytes(byte[] bigEndianBytes, int newLength) {
     if (bigEndianBytes.length == newLength) {
       return bigEndianBytes;
-    }
+    } else if (bigEndianBytes.length < newLength) {
+      byte[] result = new byte[newLength];
+      if (bigEndianBytes.length == 0) {
+        return result;
+      }
 
-    byte[] result = new byte[newLength];
-    if (bigEndianBytes.length == 0) {
+      int start = newLength - bigEndianBytes.length;
+      if (bigEndianBytes[0] < 0) {
+        Arrays.fill(result, 0, start, (byte) 0xFF);
+      }
+      System.arraycopy(bigEndianBytes, 0, result, start, bigEndianBytes.length);
+
       return result;
     }
-
-    int start = newLength - bigEndianBytes.length;
-    if (bigEndianBytes[0] < 0) {
-      Arrays.fill(result, 0, start, (byte) 0xFF);
-    }
-    System.arraycopy(bigEndianBytes, 0, result, start, bigEndianBytes.length);
-
-    return result;
+    throw new IllegalArgumentException(String.format("Buffer size of %d is larger than requested size of %d",
+            bigEndianBytes.length, newLength));
   }
 
 }
