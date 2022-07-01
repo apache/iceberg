@@ -149,6 +149,49 @@ subprojects {
       exceptionFormat "full"
     }
   }
+
+  // Borrowed from https://stackoverflow.com/questions/33020069/how-to-get-version-attribute-from-a-gradle-build-to-be-included-in-runtime-swing#answer-65830610
+  task createProperties() {
+    doLast {
+      def details = versionDetails()
+      // properties file must be relative to VersionPropertiesUtil, in org.apache.iceberg.util
+      def mainBuildResourcesDir = "${projectDir}/build/resources/main/org/apache/iceberg/util"
+      def testBuildResourcesDir = "${projectDir}/build/resources/test/org/apache/iceberg/util"
+      def mainBuildResourcesFile = "${mainBuildResourcesDir}/version.properties"
+      def testBuildResourcesFile = "${testBuildResourcesDir}/version.properties"
+      mkdir("${mainBuildResourcesDir}")
+      mkdir("${testBuildResourcesDir}")
+      delete("${mainBuildResourcesFile}")
+      delete("${testBuildResourcesFile}")
+      new File("${mainBuildResourcesFile}").withWriter { w ->
+        Properties p = new Properties()
+        p['projectName'] = project.name.toString()
+        p['projectVersion'] = project.version.toString()
+        p['gitLastTag'] = details.lastTag
+        p['gitCommitDistance'] = details.commitDistance.toString()
+        p['gitHash'] = details.gitHash.toString()
+        p['gitHashFull'] = details.gitHashFull.toString() // full 40-character Git commit hash
+        p['gitBranchName'] = details.branchName // is null if the repository in detached HEAD mode
+        p['gitIsCleanTag'] = details.isCleanTag.toString()
+        p.store w, null
+      }
+
+      // Copy to runtime resources. This is cleaned in core.clean
+      // TODO: Looking for assistance from anybody with more gradle knowledge than myself who
+      //   knows a cleaner way to get this file into the runtime `iceberg-core` classpath / jar
+      //   such that the file doesn't make the git directory dirty, please comment!
+      copy {
+       from "${mainBuildResourcesFile}"
+       into "src/main/resources/org/apache/iceberg/util"
+      }
+
+      // Copy to test resources
+      copy {
+        from "${mainBuildResourcesFile}"
+        into "${testBuildResourcesDir}"
+      }
+    }
+  }
 }
 
 project(':iceberg-bundled-guava') {
@@ -237,6 +280,14 @@ project(':iceberg-core') {
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
+
+  clean.doFirst {
+    file('src/main/resources/org/apache/iceberg/util/version.properties').delete()
+    file('src/main/resources/org/apache/iceberg/util').deleteDir()
+  }
+
+  classes.dependsOn createProperties
+  testClasses.dependsOn createProperties
 }
 
 project(':iceberg-data') {
