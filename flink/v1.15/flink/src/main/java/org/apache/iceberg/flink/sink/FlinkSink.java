@@ -21,16 +21,20 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Function;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -44,6 +48,9 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -64,8 +71,14 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.TableProperties.BLOOM_FILTER_LIFESPAN;
+import static org.apache.iceberg.TableProperties.BLOOM_FILTER_LIFESPAN_DEFAULT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.FALSE_POSITIVE_PROBABILITY;
+import static org.apache.iceberg.TableProperties.FALSE_POSITIVE_PROBABILITY_DEFAULT;
+import static org.apache.iceberg.TableProperties.RECORDS_EACH_PARTITION;
+import static org.apache.iceberg.TableProperties.RECORDS_EACH_PARTITION_DEFAULT;
 import static org.apache.iceberg.TableProperties.UPSERT_ENABLED;
 import static org.apache.iceberg.TableProperties.UPSERT_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
@@ -74,6 +87,7 @@ import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 public class FlinkSink {
+  static final String BLOOM_FILTER_PREVIOUS_LOAD = "previous.load";
   private static final Logger LOG = LoggerFactory.getLogger(FlinkSink.class);
 
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
@@ -413,9 +427,10 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds, upsertMode);
-
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
+
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType,
+              equalityFieldIds, upsertMode, parallelism);
       SingleOutputStreamOperator<WriteResult> writerStream = input
           .transform(operatorName(ICEBERG_STREAM_WRITER_NAME), TypeInformation.of(WriteResult.class), streamWriter)
           .setParallelism(parallelism);
@@ -510,19 +525,143 @@ public class FlinkSink {
     }
   }
 
+  private static boolean supportBloomFilter(Table table) {
+    boolean upsertMode = PropertyUtil.propertyAsBoolean(table.properties(), UPSERT_ENABLED, UPSERT_ENABLED_DEFAULT);
+
+    /* upsertMode is false not need bloomFilter */
+    if (!upsertMode || getRecordsEachPartition(table.properties()) <= 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private static boolean isNeedLoadTable(Table table) {
+    /* unPartitioned table not need bloomFilter */
+    if (table.specs().size() == 0) {
+      return false;
+    }
+
+    /* empty table or not to create bloomFilter return  */
+    return table.currentSnapshot() != null;
+  }
+
+  private static Set<String> getDataFilePaths(Table table) {
+    Set<String> dataFilePathsSet = Sets.newHashSet();
+    List<ManifestFile> dataManifestList = table.currentSnapshot().dataManifests();
+
+    if (dataManifestList.size() <= 0) {
+      return dataFilePathsSet;
+    }
+
+    for (ManifestFile mf : dataManifestList) {
+      ManifestReader<DataFile> reader = ManifestFiles.read(mf, table.io());
+      for (DataFile dataFile : reader) {
+        dataFilePathsSet.add(dataFile.path().toString());
+      }
+
+      try {
+        reader.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close maniFestFile reader", e);
+      }
+    }
+
+    return dataFilePathsSet;
+  }
+
+  private static Map<String, Integer> initBloomFilter(Table table, int parallelism) {
+    Map<String, Integer> partition2Writer = Maps.newHashMap();
+    int maxParallelism = KeyGroupRangeAssignment.DEFAULT_LOWER_BOUND_MAX_PARALLELISM;
+
+    if (!supportBloomFilter(table) || !isNeedLoadTable(table)) {
+      return partition2Writer;
+    }
+
+    SortedSet<String> partitionsSortSet = new TreeSet<>(Collections.reverseOrder());
+    Set<String> partitionsSet = Sets.newHashSet();
+    Set<String> dataFilePathsSet = getDataFilePaths(table);
+
+    if (dataFilePathsSet.size() == 0) {
+      return partition2Writer;
+    }
+
+    String partBegin = table.spec().fields().get(0).name() + "=";
+    String partEnd = "/";
+
+    /* if partition num > 1, means there are two partition at least */
+    if (table.spec().fields().size() > 1) {
+      partEnd = partEnd + table.spec().fields().get(1).name() + "=";
+    }
+
+    /* order the partition key */
+    for (String dataFilePath : dataFilePathsSet) {
+      String strTmp = dataFilePath.substring(dataFilePath.indexOf(partBegin), dataFilePath.lastIndexOf(partEnd));
+      partitionsSortSet.add(strTmp);
+    }
+
+    int number = 0;
+    int lifeSpan = getBloomFilterLifespan(table.properties());
+    for (String value : partitionsSortSet) {
+      number++;
+      partitionsSet.add(value);
+      if (number >= lifeSpan) {
+        break;
+      }
+    }
+
+    /* create key : channel */
+    for (String dataFilePath : dataFilePathsSet) {
+      String strTmp = dataFilePath.substring(dataFilePath.indexOf(partBegin), dataFilePath.lastIndexOf(partEnd));
+      String strKey = dataFilePath.substring(dataFilePath.indexOf(partBegin), dataFilePath.lastIndexOf('/'));
+      int channelNum = KeyGroupRangeAssignment.assignKeyToParallelOperator(strKey, maxParallelism, parallelism);
+
+      /* contain tmp need create bloomFilter */
+      /* need create bloomFilter */
+      if (partitionsSet.contains(strTmp)) {
+        partition2Writer.put(strKey, channelNum | 1 << 16);
+      } else {
+        partition2Writer.put(strKey, channelNum);
+      }
+    }
+
+    return partition2Writer;
+  }
+
   static IcebergStreamWriter<RowData> createStreamWriter(Table table,
                                                          RowType flinkRowType,
                                                          List<Integer> equalityFieldIds,
-                                                         boolean upsert) {
+                                                         boolean upsert,
+                                                         int parallelism) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
     Table serializableTable = SerializableTable.copyOf(table);
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
-        serializableTable, flinkRowType, targetFileSize,
-        fileFormat, equalityFieldIds, upsert);
+    TaskWriterFactory<RowData> taskWriterFactory;
+
+    if (!supportBloomFilter(table)) {
+      taskWriterFactory = new RowDataTaskWriterFactory(
+              serializableTable, flinkRowType, targetFileSize,
+              fileFormat, equalityFieldIds, upsert);
+    } else {
+      long recordsEachPartition = getRecordsEachPartition(props);
+      double falsePositiveProbability = getFalsePositiveProbability(props);
+      int bloomFilterLifespan = getBloomFilterLifespan(props);
+
+      Map<String, Integer> preLoad = initBloomFilter(table, parallelism);
+
+      Map<String, Object> bloomFilterParam = Maps.newHashMap();
+      bloomFilterParam.put(RECORDS_EACH_PARTITION, recordsEachPartition);
+      bloomFilterParam.put(FALSE_POSITIVE_PROBABILITY, falsePositiveProbability);
+      bloomFilterParam.put(BLOOM_FILTER_LIFESPAN, bloomFilterLifespan);
+      bloomFilterParam.put(BLOOM_FILTER_PREVIOUS_LOAD, preLoad);
+
+      taskWriterFactory = new RowDataTaskWriterFactory(
+              serializableTable, flinkRowType, targetFileSize,
+              fileFormat, equalityFieldIds, upsert, bloomFilterParam);
+    }
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
@@ -536,5 +675,24 @@ public class FlinkSink {
     return PropertyUtil.propertyAsLong(properties,
         WRITE_TARGET_FILE_SIZE_BYTES,
         WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+  }
+
+
+  private static long getRecordsEachPartition(Map<String, String> properties) {
+    return PropertyUtil.propertyAsLong(properties,
+            RECORDS_EACH_PARTITION,
+            RECORDS_EACH_PARTITION_DEFAULT);
+  }
+
+  private static double getFalsePositiveProbability(Map<String, String> properties) {
+    return PropertyUtil.propertyAsDouble(properties,
+            FALSE_POSITIVE_PROBABILITY,
+            FALSE_POSITIVE_PROBABILITY_DEFAULT);
+  }
+
+  private static int getBloomFilterLifespan(Map<String, String> properties) {
+    return PropertyUtil.propertyAsInt(properties,
+            BLOOM_FILTER_LIFESPAN,
+            BLOOM_FILTER_LIFESPAN_DEFAULT);
   }
 }

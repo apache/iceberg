@@ -122,6 +122,23 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      */
     protected abstract StructLike asStructLikeKey(T key);
 
+    /**
+     * Get Equality ids string to check bloom filter
+     *
+     * @param row get row's id as bloom filter id
+     */
+    public String getKey(T row) {
+      StructLike copiedKey = StructCopy.copy(structProjection.wrap(asStructLike(row)));
+      StringBuilder bloomKey = new StringBuilder();
+
+      for (int i = 0; i < copiedKey.size(); i++) {
+        Object obj = copiedKey.get(i, Object.class);
+        bloomKey.append("&").append(obj.toString());
+      }
+
+      return bloomKey.toString();
+    }
+
     public void write(T row) throws IOException {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 

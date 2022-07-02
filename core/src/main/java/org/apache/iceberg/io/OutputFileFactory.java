@@ -90,6 +90,14 @@ public class OutputFileFactory {
     return encryptionManager.encrypt(file);
   }
 
+  public int getPartitionId() {
+    return partitionId;
+  }
+
+  public String getOperationId() {
+    return operationId;
+  }
+
   /**
    * Generates an {@link EncryptedOutputFile} for partitioned writes in the default spec.
    */
