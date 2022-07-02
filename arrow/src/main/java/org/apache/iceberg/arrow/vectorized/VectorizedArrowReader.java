@@ -103,7 +103,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     LONG_BACKED_DECIMAL,
     VARCHAR,
     VARBINARY,
-    FIXED_WIDTH_BINARY,
+    FIXED_SIZE_BINARY,
     BOOLEAN,
     INT,
     LONG,
@@ -150,8 +150,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case VARCHAR:
             vectorizedColumnIterator.varWidthTypeBatchReader().nextBatch(vec, -1, nullabilityHolder);
             break;
-          case FIXED_WIDTH_BINARY:
-            vectorizedColumnIterator.fixedWidthTypeBinaryBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
+          case FIXED_SIZE_BINARY:
+            vectorizedColumnIterator.fixedSizeBinaryBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case BOOLEAN:
             vectorizedColumnIterator.booleanBatchReader().nextBatch(vec, -1, nullabilityHolder);
@@ -299,7 +299,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           this.readType = ReadType.UUID;
         } else {
           len = ((Types.FixedType) icebergField.type()).length();
-          this.readType = ReadType.FIXED_WIDTH_BINARY;
+          this.readType = ReadType.FIXED_SIZE_BINARY;
         }
         this.vec = arrowField.createVector(rootAlloc);
         vec.setInitialCapacity(batchSize * len);

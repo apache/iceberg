@@ -113,7 +113,8 @@ public class ArrowReader extends CloseableGroup {
       TypeID.BINARY,
       TypeID.DATE,
       TypeID.UUID,
-      TypeID.TIME
+      TypeID.TIME,
+      TypeID.FIXED
   );
 
   private final Schema schema;
