@@ -1323,4 +1323,32 @@ public class TestRowDelta extends V2TableTestBase {
             .validateNoConflictingDeleteFiles()
             .commit());
   }
+
+  @Test
+  public void testBranchValidations(){
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Expression conflictDetectionFilter = Expressions.alwaysTrue();
+
+    Long firstSnapshot = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().createBranch("newBranch", firstSnapshot).commit();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    //This commit will result in validation exception as we start validation from a snapshot which is
+    // not an ancestor of the branch
+    RowDelta rowDelta = table.newRowDelta()
+        .toBranch("newBranch")
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDeleteFiles();
+
+    AssertHelpers.assertThrows("No matching ancestor found", ValidationException.class, () -> rowDelta.commit());
+  }
 }
