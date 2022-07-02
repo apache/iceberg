@@ -120,7 +120,26 @@ ignored. Do not use `table` when attempting to time-travel or use other options.
 in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 {{< /hint >}}
 
-Time travel is not yet supported by Spark's SQL syntax.
+##### SPARK-SQL 
+
+Starting **Spark 3.3**, Spark supports snapshot id based and time base time travel queries.
+
+```sql 
+-- time travel to snapshot with id 10963874102873L
+
+SELECT * FROM prod.db.table VERSION AS OF 10963874102873;
+SELECT * FROM prod.db.table FOR SYSTEM_VERSION AS OF 10963874102873;
+
+-- time travel to October 26, 1986 at 01:21:00
+
+-- date format
+SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00';
+SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF '1986-10-26 01:21:00';
+
+-- timestamp in seconds
+SELECT * FROM prod.db.table TIMESTAMP AS OF 499162860;
+SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF 499162860;
+```
 
 ### Incremental read
 
