@@ -15,9 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 from enum import Enum
-from typing import Any, List, Optional
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+)
 
-from pydantic import Field
+from pydantic import Field, root_validator
 
 from pyiceberg.transforms import Transform
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -38,8 +43,8 @@ class SortField(IcebergBaseModel):
         self,
         source_id: int,
         transform: Transform,
-        direction: SortDirection = SortDirection.ASC,
-        null_order: NullOrder = NullOrder.NULLS_LAST,
+        direction: Optional[SortDirection] = None,
+        null_order: Optional[NullOrder] = None,
         **data: Any,
     ):
         data["source-id"] = source_id
@@ -47,6 +52,13 @@ class SortField(IcebergBaseModel):
         data["direction"] = direction
         data["null-order"] = null_order
         super().__init__(**data)
+
+    @root_validator(pre=True)
+    def set_null_order(self, values: Dict[str, Any]) -> Dict[str, Any]:
+        values["direction"] = values["direction"] if values["direction"] else SortDirection.ASC
+        if not values["null_order"]:
+            values["direction"] = NullOrder.NULLS_FIRST if values["direction"] == SortDirection.ASC else NullOrder.NULLS_LAST
+        return values
 
     source_id: int = Field(alias="source-id")
     transform: Transform = Field()
@@ -57,7 +69,6 @@ class SortField(IcebergBaseModel):
 class SortOrder(IcebergBaseModel):
     """
     Users can sort their data within partitions by columns to gain performance.
-    The information on how the data is sorted can be declared per data or delete file, by a sort order.
 
     The order of the sort fields within the list defines the order in which the sort is applied to the data.
 
@@ -80,5 +91,5 @@ class SortOrder(IcebergBaseModel):
     fields: List[SortField] = Field(default_factory=list)
 
 
-UNPARTITIONED_SORT_ORDER_ID = 0
-UNPARTITIONED_SORT_ORDER = SortOrder(order_id=UNPARTITIONED_SORT_ORDER_ID)
+UNSORTED_SORT_ORDER_ID = 0
+UNSORTED_SORT_ORDER = SortOrder(order_id=UNSORTED_SORT_ORDER_ID)

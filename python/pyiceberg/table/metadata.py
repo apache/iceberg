@@ -30,7 +30,7 @@ from pydantic import Field, root_validator
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import Schema
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
-from pyiceberg.table.sorting import UNPARTITIONED_SORT_ORDER, UNPARTITIONED_SORT_ORDER_ID, SortOrder
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, UNSORTED_SORT_ORDER_ID, SortOrder
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 _INITIAL_SEQUENCE_NUMBER = 0
@@ -64,7 +64,7 @@ def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default_sort_order_id is present in sort-orders"""
     default_sort_order_id: int = values["default_sort_order_id"]
 
-    if default_sort_order_id != UNPARTITIONED_SORT_ORDER_ID:
+    if default_sort_order_id != UNSORTED_SORT_ORDER_ID:
         sort_orders: List[SortOrder] = values["sort_orders"]
         for sort_order in sort_orders:
             if sort_order.order_id == default_sort_order_id:
@@ -163,7 +163,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     sort_orders: List[SortOrder] = Field(alias="sort-orders", default_factory=list)
     """A list of sort orders, stored as full sort order objects."""
 
-    default_sort_order_id: int = Field(alias="default-sort-order-id", default=UNPARTITIONED_SORT_ORDER_ID)
+    default_sort_order_id: int = Field(alias="default-sort-order-id", default=UNSORTED_SORT_ORDER_ID)
     """Default sort order id of the table. Note that this could be used by
     writers, but is not used when reading because reads use the specs stored
      in manifest files."""
@@ -268,12 +268,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the sort_orders set, if not provided
         """
-        # This is going to be much nicer as soon as sort-order is an actual pydantic object
-        # Probably we'll just create a UNSORTED_ORDER constant then
-        if not data.get("sort_orders"):
-            data["sort_orders"] = UNPARTITIONED_SORT_ORDER
+        if sort_orders := data.get("sort_orders"):
+            check_sort_orders(sort_orders)
         else:
-            check_sort_orders(data["sort_orders"])
+            data["sort_orders"] = UNSORTED_SORT_ORDER
         return data
 
     def to_v2(self) -> "TableMetadataV2":
