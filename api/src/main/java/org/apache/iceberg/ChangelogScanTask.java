@@ -17,11 +17,25 @@
  * under the License.
  */
 
-
 package org.apache.iceberg;
 
 /**
- * API for configuring an incremental table scan for appends only snapshots
+ * A changelog scan task.
  */
-public interface IncrementalAppendScan extends IncrementalScan<IncrementalAppendScan, FileScanTask, CombinedScanTask> {
+public interface ChangelogScanTask extends ScanTask {
+  /**
+   * Returns the type of changes produced by this task (i.e. insert/delete).
+   */
+  ChangelogOperation operation();
+
+  /**
+   * Returns the ordinal of changes produced by this task. This number indicates the order in which
+   * changes produced by this scan must be applied. Operations with a lower ordinal must be applied first.
+   */
+  int changeOrdinal();
+
+  /**
+   * Returns the snapshot ID in which the changes were committed.
+   */
+  long commitSnapshotId();
 }
