@@ -592,6 +592,70 @@ RewriteDataFilesActionResult result = Actions.forTable(table)
 
 For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
 
+## Type conversion
+
+Iceberg's integration for Flink automatically converts between Flink and Iceberg types. When writing to a table with types that are not supported by Flink, like UUID, Iceberg will accept and convert values from the Flink type.
+
+### Flink to Iceberg
+
+Flink types are converted to Iceberg types according to the following table:
+
+| Flink               | Iceberg                    | Notes         |
+|-----------------    |----------------------------|---------------|
+| boolean             | boolean                    |               |
+| tinyint             | integer                    |               |
+| smallint            | integer                    |               |
+| integer             | integer                    |               |
+| bigint              | long                       |               |
+| float               | float                      |               |
+| double              | double                     |               |
+| char                | string                     |               |
+| varchar             | string                     |               |
+| string              | string                     |               |
+| binary              | binary                     |               |
+| varbinary           | fixed                      |               |
+| decimal             | decimal                    |               |
+| date                | date                       |               |
+| time                | time                       |               |
+| timestamp           | timestamp without timezone |               |
+| timestamp_ltz       | timestamp with timezone    |               |
+| array               | list                       |               |
+| map                 | map                        |               |
+| multiset            | map                        |               |
+| row                 | struct                     |               |
+| raw                 |                            | Not supported |
+| interval            |                            | Not supported |
+| structured          |                            | Not supported |
+| timestamp with zone |                            | Not supported |
+| distinct            |                            | Not supported |
+| null                |                            | Not supported |
+| symbol              |                            | Not supported |
+| logical             |                            | Not supported |
+
+### Iceberg to Flink
+
+Iceberg types are converted to Flink types according to the following table:
+
+| Iceberg                    | Flink                 |
+|----------------------------|-----------------------|
+| boolean                    | boolean               |
+| struct                     | row                   |
+| list                       | array                 |
+| map                        | map                   |
+| integer                    | integer               |
+| long                       | bigint                |
+| float                      | float                 |
+| double                     | double                |
+| date                       | date                  |
+| time                       | time                  |
+| timestamp without timezone | timestamp(6)          |
+| timestamp with timezone    | timestamp_ltz(6)      |
+| string                     | varchar(2147483647)   |
+| uuid                       | binary(16)            |
+| fixed(N)                   | binary(N)             |
+| binary                     | varbinary(2147483647) |
+| decimal(P, S)              | decimal(P, S)         |
+
 ## Future improvement.
 
 There are some features that we do not yet support in the current flink iceberg integration work:
