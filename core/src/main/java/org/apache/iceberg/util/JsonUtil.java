@@ -65,9 +65,8 @@ public class JsonUtil {
    * @return a JSON string produced from the generator
    */
   public static String generate(ToJson toJson, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+    try (StringWriter writer = new StringWriter();
+         JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       if (pretty) {
         generator.useDefaultPrettyPrinter();
       }
