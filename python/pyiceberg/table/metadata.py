@@ -78,6 +78,9 @@ class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
 
+    def current_schema(self) -> Schema:
+        return next(schema for schema in self.schemas if schema.schema_id == self.current_schema_id)
+
     @root_validator(pre=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]):
         if data.get("current-snapshot-id") == -1:
@@ -92,6 +95,14 @@ class TableMetadataCommonFields(IcebergBaseModel):
         if current_snapshot_id := data.get("current_snapshot_id"):
             data["refs"] = {MAIN_BRANCH: SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)}
         return data
+
+    def bind(self):
+        """Binds the schema to various objects within the structure,
+        such as sort order, partition spec etc.
+        """
+        current_schema = self.current_schema()
+        for sort_order in self.sort_orders:
+            sort_order.bind(current_schema)
 
     location: str = Field()
     """The table’s base location. This is used by writers to determine where

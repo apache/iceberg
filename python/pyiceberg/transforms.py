@@ -16,12 +16,15 @@
 # under the License.
 
 import base64
+import functools
+import re
 import struct
 from abc import ABC, abstractmethod
 from decimal import Decimal
 from functools import singledispatch
 from typing import (
     Any,
+    Callable,
     Generic,
     Literal,
     Optional,
@@ -54,6 +57,9 @@ from pyiceberg.utils.singleton import Singleton
 S = TypeVar("S")
 T = TypeVar("T")
 
+BUCKET_REGEX = re.compile(r"bucket\[(\d+)\]")
+TRUNCATE_REGEX = re.compile(r"truncate\[(\d+)\]")
+
 
 class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     """Transform base class for concrete transforms.
@@ -77,15 +83,16 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
         # In this case we'll help pydantic a bit by parsing the transform type ourselves
         if isinstance(v, str):
             if v == "identity":
-                return identity
+                bind_func = identity
             elif v == "void":
-                return always_null
+                bind_func = always_null  # type: ignore
             elif v.startswith("bucket"):
-                return bucket
+                bind_func = functools.partial(bucket, num_buckets=BaseBucketTransform.parse(v))
             elif v.startswith("truncate"):
-                return truncate
+                bind_func = functools.partial(truncate, width=TruncateTransform.parse(v))
             else:
-                raise ValueError(f"Unknown transform: {v}")
+                bind_func = functools.partial(unknown, transform=v)
+            return UnboundTransform(v, bind_func)
         return v
 
     def __call__(self, value: Optional[S]) -> Optional[T]:
@@ -120,6 +127,38 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     def __str__(self) -> str:
         return self.__root__
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Transform):
+            return self.__root__ == other.__root__
+        return False
+
+
+class UnboundTransform(Transform):
+    """A transform that needs to be bound to a schema
+
+    Sometimes we know the transform, but we don't have the schema (yet).
+    This way we can initialize the transform, and bind to a schema later on.
+    """
+
+    __root__: str = Field()
+    _bind_func: Callable[[IcebergType], Transform] = PrivateAttr()
+
+    def __init__(self, string_repr: str, bind_func: Callable[[IcebergType], Transform], **data: Any):
+        self._bind_func = bind_func  # type: ignore
+        super().__init__(__root__=string_repr, **data)
+
+    def apply(self, value: Optional[S]) -> Optional[T]:
+        raise NotImplementedError("Bind the transform first")
+
+    def can_transform(self, source: IcebergType) -> bool:
+        return False
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        raise NotImplementedError("Bind the transform first")
+
+    def bind(self, field: IcebergType) -> Transform:
+        return self._bind_func(field)  # type: ignore
+
 
 class BaseBucketTransform(Transform[S, int]):
     """Base Transform class to transform a value into a bucket partition value
@@ -132,6 +171,13 @@ class BaseBucketTransform(Transform[S, int]):
       TimestampType, TimestamptzType, StringType, BinaryType, FixedType, UUIDType.
       num_buckets (int): The number of buckets.
     """
+
+    @staticmethod
+    def parse(str_repr: str) -> int:
+        matches = BUCKET_REGEX.search(str_repr)
+        if matches:
+            return int(matches.group(1))
+        raise ValueError(f"Could not extract the length from the Bucket transform: {str_repr}")
 
     _source_type: IcebergType = PrivateAttr()
     _num_buckets: PositiveInt = PrivateAttr()
@@ -305,6 +351,13 @@ class TruncateTransform(Transform[S, S]):
     Raises:
       ValueError: If a type is provided that is incompatible with a Truncate transform
     """
+
+    @staticmethod
+    def parse(str_repr: str) -> int:
+        matches = TRUNCATE_REGEX.search(str_repr)
+        if matches:
+            return int(matches.group(1))
+        raise ValueError(f"Could not extract the length from the Truncate transform: {str_repr}")
 
     __root__: str = Field()
     _source_type: IcebergType = PrivateAttr()
@@ -506,5 +559,9 @@ def truncate(source_type: IcebergType, width: int) -> TruncateTransform:
     return TruncateTransform(source_type, width)
 
 
-def always_null(_: Optional[IcebergType] = None) -> VoidTransform:
+def always_null(*_) -> VoidTransform:
     return VoidTransform()
+
+
+def unknown(source_type: IcebergType, transform: str) -> UnknownTransform:
+    return UnknownTransform(source_type, transform)

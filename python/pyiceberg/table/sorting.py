@@ -28,7 +28,8 @@ from typing import (
 
 from pydantic import Field, root_validator
 
-from pyiceberg.transforms import Transform
+from pyiceberg.schema import Schema
+from pyiceberg.transforms import Transform, UnboundTransform
 from pyiceberg.types import IcebergType
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -53,6 +54,10 @@ class SortField(IcebergBaseModel):
       source_id (SortDirection): Sort direction, that can only be either asc or desc
       source_id (NullOrder): Null order that describes the order of null values when sorted. Can only be either nulls-first or nulls-last
     """
+
+    class Config:
+        frozen = False
+
     def __init__(
         self,
         source_id: Optional[int] = None,
@@ -79,9 +84,16 @@ class SortField(IcebergBaseModel):
         return values
 
     source_id: int = Field(alias="source-id")
-    transform: Union[Transform, Callable[[IcebergType], Transform]] = Field()
+    transform: Transform = Field()
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
+
+    def bind(self, schema: Schema):
+        self.transform = (
+            self.transform.bind(schema.find_type(self.source_id))
+            if isinstance(self.transform, UnboundTransform)
+            else self.transform
+        )
 
 
 class SortOrder(IcebergBaseModel):
@@ -105,6 +117,16 @@ class SortOrder(IcebergBaseModel):
 
     order_id: Optional[int] = Field(alias="order-id")
     fields: List[SortField] = Field(default_factory=list)
+
+    def bind(self, schema: Schema):
+        """
+        Binds the sort order to the actual fields
+
+        Args:
+            schema: The schema of the table
+        """
+        for field in self.fields:
+            field.bind(schema)
 
 
 UNSORTED_SORT_ORDER_ID = 0

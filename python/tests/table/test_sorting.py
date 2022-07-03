@@ -15,18 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 from pyiceberg import transforms
+from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.sorting import (
+    UNSORTED_SORT_ORDER,
     NullOrder,
     SortDirection,
     SortField,
-    SortOrder, UNSORTED_SORT_ORDER,
+    SortOrder,
 )
-from pyiceberg.transforms import IdentityTransform, VoidTransform
-from pyiceberg.types import IntegerType, StringType
+from pyiceberg.transforms import IdentityTransform, UnboundTransform, VoidTransform
+from pyiceberg.types import IntegerType, LongType, StringType
+from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V2
 
 
 def test_serialize_sort_order_unsorted():
     assert UNSORTED_SORT_ORDER.json() == '{"order-id": 0, "fields": []}'
+
 
 def test_serialize_sort_order():
     sort_order = SortOrder(
@@ -42,10 +46,37 @@ def test_serialize_sort_order():
 def test_deserialize_sort_order():
     expected = SortOrder(
         22,
-        SortField(source_id=19, transform=transforms.identity, null_order=NullOrder.NULLS_FIRST),
-        SortField(source_id=25, transform=transforms.bucket, direction=SortDirection.DESC),
-        SortField(source_id=22, transform=transforms.always_null, direction=SortDirection.ASC),
+        SortField(source_id=19, transform=UnboundTransform("identity", transforms.identity), null_order=NullOrder.NULLS_FIRST),
+        SortField(source_id=25, transform=UnboundTransform("bucket[4]", transforms.identity), direction=SortDirection.DESC),
+        SortField(source_id=22, transform=UnboundTransform("void", transforms.identity), direction=SortDirection.ASC),
     )
     payload = '{"order-id": 22, "fields": [{"source-id": 19, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 25, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}, {"source-id": 22, "transform": "void", "direction": "asc", "null-order": "nulls-first"}]}'
 
     assert SortOrder.parse_raw(payload) == expected
+
+
+def test_sorting_schema_bind():
+    table_metadata = TableMetadata.parse_obj(EXAMPLE_TABLE_METADATA_V2)
+
+    assert table_metadata.sort_orders == [
+        SortOrder(
+            3,
+            SortField(2, UnboundTransform("identity", transforms.identity), SortDirection.ASC, NullOrder.NULLS_FIRST),
+            SortField(3, UnboundTransform("bucket[4]", transforms.bucket), SortDirection.DESC, NullOrder.NULLS_LAST),
+        )
+    ]
+
+    table_metadata.bind()
+
+    assert table_metadata.sort_orders == [
+        SortOrder(
+            3,
+            SortField(2, transforms.identity(source_type=LongType()), SortDirection.ASC, null_order=NullOrder.NULLS_FIRST),
+            SortField(
+                3,
+                transforms.bucket(source_type=LongType(), num_buckets=4),
+                direction=SortDirection.DESC,
+                null_order=NullOrder.NULLS_LAST,
+            ),
+        )
+    ]

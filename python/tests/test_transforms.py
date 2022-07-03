@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=W0123
-
+# pylint: disable=eval-used,protected-access
 from decimal import Decimal
 from uuid import UUID
 
@@ -30,7 +29,9 @@ from pyiceberg.transforms import (
     BucketStringTransform,
     BucketUUIDTransform,
     IdentityTransform,
+    Transform,
     TruncateTransform,
+    UnboundTransform,
     UnknownTransform,
     VoidTransform,
 )
@@ -56,6 +57,7 @@ from pyiceberg.utils.datetime import (
     timestamp_to_micros,
     timestamptz_to_micros,
 )
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
 @pytest.mark.parametrize(
@@ -269,8 +271,19 @@ def test_void_transform():
     assert void_transform.dedup_name == "void"
 
 
-def test_bucket_number_transform_json():
+class TestType(IcebergBaseModel):
+    __root__: Transform
+
+
+def test_bucket_number_transform_serialize():
     assert BucketNumberTransform(source_type=IntegerType(), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_number_transform_deserialize():
+    transform = TestType.parse_raw('"bucket[22]"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("bucket[22]", transform._bind_func)
+    assert transform.bind(IntegerType()) == BucketNumberTransform(source_type=IntegerType(), num_buckets=22)
 
 
 def test_bucket_number_transform_str():
@@ -284,8 +297,15 @@ def test_bucket_number_transform_repr():
     )
 
 
-def test_bucket_decimal_transform_json():
-    assert BucketDecimalTransform(source_type=DecimalType(19, 25), num_buckets=22).json() == '"bucket[22]"'
+def test_bucket_decimal_transform_serialize():
+    assert BucketNumberTransform(source_type=DecimalType(19, 25), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_decimal_transform_deserialize():
+    transform = TestType.parse_raw('"bucket[22]"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("bucket[22]", transform._bind_func)
+    assert transform.bind(DecimalType(19, 25)) == BucketNumberTransform(source_type=DecimalType(19, 25), num_buckets=22)
 
 
 def test_bucket_decimal_transform_str():
@@ -299,8 +319,15 @@ def test_bucket_decimal_transform_repr():
     )
 
 
-def test_bucket_string_transform_json():
-    assert BucketStringTransform(StringType(), num_buckets=22).json() == '"bucket[22]"'
+def test_bucket_string_transform_serialize():
+    assert BucketNumberTransform(source_type=StringType(), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_string_transform_deserialize():
+    transform = TestType.parse_raw('"bucket[22]"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("bucket[22]", transform._bind_func)
+    assert transform.bind(StringType()) == BucketNumberTransform(source_type=DecimalType(19, 25), num_buckets=22)
 
 
 def test_bucket_string_transform_str():
@@ -313,8 +340,15 @@ def test_bucket_string_transform_repr():
     )
 
 
-def test_bucket_bytes_transform_json():
-    assert BucketBytesTransform(BinaryType(), num_buckets=22).json() == '"bucket[22]"'
+def test_bucket_bytes_transform_serialize():
+    assert BucketNumberTransform(source_type=BinaryType(), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_bytes_transform_deserialize():
+    transform = TestType.parse_raw('"bucket[22]"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("bucket[22]", transform._bind_func)
+    assert transform.bind(BinaryType()) == BucketNumberTransform(source_type=DecimalType(19, 25), num_buckets=22)
 
 
 def test_bucket_bytes_transform_str():
@@ -327,8 +361,15 @@ def test_bucket_bytes_transform_repr():
     )
 
 
-def test_bucket_uuid_transform_json():
-    assert BucketUUIDTransform(UUIDType(), num_buckets=22).json() == '"bucket[22]"'
+def test_bucket_uuid_transform_serialize():
+    assert BucketNumberTransform(source_type=UUIDType(), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_uuid_transform_deserialize():
+    transform = TestType.parse_raw('"bucket[22]"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("bucket[22]", transform._bind_func)
+    assert transform.bind(UUIDType()) == BucketNumberTransform(source_type=DecimalType(19, 25), num_buckets=22)
 
 
 def test_bucket_uuid_transform_str():
@@ -339,8 +380,15 @@ def test_bucket_uuid_transform_repr():
     assert repr(BucketUUIDTransform(UUIDType(), num_buckets=22)) == "transforms.bucket(source_type=UUIDType(), num_buckets=22)"
 
 
-def test_identity_transform_json():
-    assert IdentityTransform(StringType()).json() == '"identity"'
+def test_identity_string_transform_serialize():
+    assert IdentityTransform(source_type=StringType()).json() == '"identity"'
+
+
+def test_identity_string_transform_deserialize():
+    transform = TestType.parse_raw('"identity"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("identity", transform._bind_func)
+    assert transform.bind(StringType()) == IdentityTransform(source_type=StringType())
 
 
 def test_identity_transform_str():
@@ -351,8 +399,15 @@ def test_identity_transform_repr():
     assert repr(IdentityTransform(StringType())) == "transforms.identity(source_type=StringType())"
 
 
-def test_truncate_transform_json():
-    assert TruncateTransform(StringType(), 22).json() == '"truncate[22]"'
+def test_truncate_transform_str_serialize():
+    assert TruncateTransform(StringType(), width=22).json() == '"truncate[22]"'
+
+
+def test_truncate_transform_str_deserialize():
+    transform = TestType.parse_raw('"truncate[22]"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("truncate[22]", transform._bind_func)
+    assert transform.bind(StringType()) == TruncateTransform(StringType(), width=22)
 
 
 def test_truncate_transform_str():
@@ -363,8 +418,15 @@ def test_truncate_transform_repr():
     assert repr(TruncateTransform(StringType(), 22)) == "transforms.truncate(source_type=StringType(), width=22)"
 
 
-def test_unknown_transform_json():
+def test_truncate_transform_serialize():
     assert UnknownTransform(StringType(), "unknown").json() == '"unknown"'
+
+
+def test_unknown_transform_deserialize():
+    transform = TestType.parse_raw('"unknown"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("unknown", transform._bind_func)
+    assert transform.bind(StringType()) == UnknownTransform(StringType(), "unknown")
 
 
 def test_unknown_transform_str():
@@ -378,8 +440,15 @@ def test_unknown_transform_repr():
     )
 
 
-def test_void_transform_json():
+def test_void_transform_serialize():
     assert VoidTransform().json() == '"void"'
+
+
+def test_void_transform_deserialize():
+    transform = TestType.parse_raw('"void"').__root__
+    assert isinstance(transform, UnboundTransform)
+    assert transform == UnboundTransform("void", transform._bind_func)
+    assert transform.bind(StringType()) == VoidTransform()
 
 
 def test_void_transform_str():

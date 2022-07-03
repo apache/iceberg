@@ -31,11 +31,13 @@ Notes:
 """
 import re
 from typing import (
+    Any,
     ClassVar,
     Dict,
     Literal,
     Optional,
     Tuple,
+    Union,
 )
 
 from pydantic import Field, PrivateAttr
@@ -65,7 +67,7 @@ class IcebergType(IcebergBaseModel, Singleton):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v: Union[str, Dict[str, Any]]) -> "IcebergType":
         # When Pydantic is unable to determine the subtype
         # In this case we'll help pydantic a bit by parsing the
         # primitive type ourselves, or pointing it at the correct
