@@ -24,14 +24,18 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.NamedReference;
+import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
 
 
@@ -44,6 +48,14 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   @After
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @Test
+  public void testZOrderSortExpression() {
+    List<ExtendedParser.RawOrderField> order = ExtendedParser.parseSortOrder(spark, "c1, zorder(c2, c3)");
+    Assert.assertEquals("Should parse 2 order fields", 2, order.size());
+    Assert.assertEquals("First field should be a ref", "c1", ((NamedReference<?>) order.get(0).term()).name());
+    Assert.assertTrue("Second field should be zorder", order.get(1).term() instanceof Zorder);
   }
 
   @Test

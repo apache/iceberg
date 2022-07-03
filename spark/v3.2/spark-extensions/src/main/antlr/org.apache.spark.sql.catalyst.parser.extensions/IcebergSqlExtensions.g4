@@ -93,6 +93,10 @@ callArgument
     | identifier '=>' expression    #namedArgument
     ;
 
+singleOrder
+    : order EOF
+    ;
+
 order
     : fields+=orderField (',' fields+=orderField)*
     | '(' fields+=orderField (',' fields+=orderField)* ')'

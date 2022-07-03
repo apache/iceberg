@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.NullOrder;
@@ -312,7 +313,7 @@ public class Spark3Util {
   public static Term toIcebergTerm(Expression expr) {
     if (expr instanceof Transform) {
       Transform transform = (Transform) expr;
-      Preconditions.checkArgument(transform.references().length == 1,
+      Preconditions.checkArgument("zorder".equals(transform.name()) || transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s", transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
       switch (transform.name()) {
@@ -332,6 +333,11 @@ public class Spark3Util {
           return org.apache.iceberg.expressions.Expressions.hour(colName);
         case "truncate":
           return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
+        case "zorder":
+          String[] fields = Stream.of(transform.references())
+              .map(ref -> DOT.join(ref.fieldNames()))
+              .toArray(String[]::new);
+          return org.apache.iceberg.expressions.Expressions.zorder(fields);
         default:
           throw new UnsupportedOperationException("Transform is not supported: " + transform);
       }
