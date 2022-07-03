@@ -19,35 +19,33 @@ from pyiceberg.table.sorting import (
     NullOrder,
     SortDirection,
     SortField,
-    SortOrder,
+    SortOrder, UNSORTED_SORT_ORDER,
 )
-from pyiceberg.transforms import IdentityTransform
+from pyiceberg.transforms import IdentityTransform, VoidTransform
 from pyiceberg.types import IntegerType, StringType
 
+
+def test_serialize_sort_order_unsorted():
+    assert UNSORTED_SORT_ORDER.json() == '{"order-id": 0, "fields": []}'
 
 def test_serialize_sort_order():
     sort_order = SortOrder(
         22,
         SortField(source_id=19, transform=IdentityTransform(StringType()), null_order=NullOrder.NULLS_FIRST),
         SortField(source_id=25, transform=transforms.bucket(IntegerType(), 4), direction=SortDirection.DESC),
+        SortField(source_id=22, transform=VoidTransform(), direction=SortDirection.ASC),
     )
-    assert (
-        sort_order.json()
-        == """{
-      "order-id": 3,
-      "fields": [
-        {
-          "transform": "identity",
-          "source-id": 19,
-          "direction": "asc",
-          "null-order": "nulls-first"
-        },
-        {
-          "transform": "bucket[4]",
-          "source-id": 25,
-          "direction": "desc",
-          "null-order": "nulls-last"
-        }
-      ]
-    }"""
+    expected = '{"order-id": 22, "fields": [{"source-id": 19, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 25, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}, {"source-id": 22, "transform": "void", "direction": "asc", "null-order": "nulls-first"}]}'
+    assert sort_order.json() == expected
+
+
+def test_deserialize_sort_order():
+    expected = SortOrder(
+        22,
+        SortField(source_id=19, transform=transforms.identity, null_order=NullOrder.NULLS_FIRST),
+        SortField(source_id=25, transform=transforms.bucket, direction=SortDirection.DESC),
+        SortField(source_id=22, transform=transforms.always_null, direction=SortDirection.ASC),
     )
+    payload = '{"order-id": 22, "fields": [{"source-id": 19, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 25, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}, {"source-id": 22, "transform": "void", "direction": "asc", "null-order": "nulls-first"}]}'
+
+    assert SortOrder.parse_raw(payload) == expected

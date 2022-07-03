@@ -271,7 +271,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         if sort_orders := data.get("sort_orders"):
             check_sort_orders(sort_orders)
         else:
-            data["sort_orders"] = UNSORTED_SORT_ORDER
+            data["sort_orders"] = [UNSORTED_SORT_ORDER]
         return data
 
     def to_v2(self) -> "TableMetadataV2":

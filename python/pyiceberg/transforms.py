@@ -64,6 +64,30 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
 
     __root__: str = Field()
 
+    @classmethod
+    def __get_validators__(cls):
+        # one or more validators may be yielded which will be called in the
+        # order to validate the input, each validator will receive as an input
+        # the value returned from the previous validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v: Any):
+        # When Pydantic is unable to determine the subtype
+        # In this case we'll help pydantic a bit by parsing the transform type ourselves
+        if isinstance(v, str):
+            if v == "identity":
+                return identity
+            elif v == "void":
+                return always_null
+            elif v.startswith("bucket"):
+                return bucket
+            elif v.startswith("truncate"):
+                return truncate
+            else:
+                raise ValueError(f"Unknown transform: {v}")
+        return v
+
     def __call__(self, value: Optional[S]) -> Optional[T]:
         return self.apply(value)
 
@@ -482,5 +506,5 @@ def truncate(source_type: IcebergType, width: int) -> TruncateTransform:
     return TruncateTransform(source_type, width)
 
 
-def always_null() -> VoidTransform:
+def always_null(_: Optional[IcebergType] = None) -> VoidTransform:
     return VoidTransform()
