@@ -20,18 +20,17 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
-import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering;
-import org.apache.spark.sql.catalyst.plans.logical.SortOrderParserUtil;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -98,7 +97,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
       SortOrder sortOrder = null;
       if (sortOrderString != null) {
-        sortOrder = collectSortOrders(table, sortOrderString);
+        sortOrder = parseSortOrder(sortOrderString, table.schema());
       }
       if (strategy != null || sortOrder != null) {
         action = checkAndApplyStrategy(action, strategy, sortOrder);
@@ -157,19 +156,13 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     }
   }
 
-  private SortOrder collectSortOrders(Table table, String sortOrderStr) {
-    String prefix = "ALTER TABLE temp WRITE ORDERED BY ";
-    try {
-      // Note: Reusing the existing Iceberg sql parser to avoid implementing the custom parser for sort orders.
-      // To reuse the existing parser, adding a prefix of "ALTER TABLE temp WRITE ORDERED BY"
-      // along with input sort order and parsing it as a plan to collect the sortOrder.
-      LogicalPlan logicalPlan = spark().sessionState().sqlParser().parsePlan(prefix + sortOrderStr);
-      return (new SortOrderParserUtil()).collectSortOrder(
-          table.schema(),
-          ((SetWriteDistributionAndOrdering) logicalPlan).sortOrder());
-    } catch (AnalysisException ex) {
-      throw new IllegalArgumentException("Unable to parse sortOrder: " + sortOrderStr);
-    }
+  private SortOrder parseSortOrder(String orderString, Schema schema) {
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+
+    ExtendedParser.parseSortOrder(spark(), orderString)
+        .forEach(rawField -> builder.sortBy(rawField.term(), rawField.direction(), rawField.nullOrder()));
+
+    return builder.build();
   }
 
   private InternalRow[] toOutputRows(RewriteDataFiles.Result result) {
