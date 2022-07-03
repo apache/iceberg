@@ -26,7 +26,7 @@ from typing import (
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
-from pyiceberg.types import NestedField
+from pyiceberg.types import NestedField, StructType
 from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
@@ -439,3 +439,32 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     left_result: T = visit(obj.left, visitor=visitor)
     right_result: T = visit(obj.right, visitor=visitor)
     return visitor.visit_or(left_result=left_result, right_result=right_result)
+
+
+class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
+    """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema"""
+
+    def __init__(self, struct: StructType, case_sensitive: bool = True) -> None:
+        self._struct = struct
+        self._case_sensitive = case_sensitive
+
+    def visit_true(self) -> BooleanExpression:
+        return AlwaysTrue()
+
+    def visit_false(self) -> BooleanExpression:
+        return AlwaysFalse()
+
+    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
+        return Not(child=child_result)
+
+    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return And(left=left_result, right=right_result)
+
+    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return Or(left=left_result, right=right_result)
+
+    def visit_unbound_predicate(self, predicate) -> BooleanExpression:
+        return predicate.bind(self._struct)
+
+    def visit_bound_predicate(self, predicate) -> BooleanExpression:
+        raise TypeError(f"Found already bound predicate: {predicate}")
