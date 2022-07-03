@@ -23,6 +23,17 @@ import mmh3 as mmh3
 import pytest
 
 from pyiceberg import transforms
+from pyiceberg.transforms import (
+    BucketBytesTransform,
+    BucketDecimalTransform,
+    BucketNumberTransform,
+    BucketStringTransform,
+    BucketUUIDTransform,
+    IdentityTransform,
+    TruncateTransform,
+    UnknownTransform,
+    VoidTransform,
+)
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -256,3 +267,124 @@ def test_void_transform():
     assert not void_transform.satisfies_order_of(transforms.bucket(DateType(), 100))
     assert void_transform.to_human_string("test") == "null"
     assert void_transform.dedup_name == "void"
+
+
+def test_bucket_number_transform_json():
+    assert BucketNumberTransform(source_type=IntegerType(), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_number_transform_str():
+    assert str(BucketNumberTransform(source_type=IntegerType(), num_buckets=22)) == "bucket[22]"
+
+
+def test_bucket_number_transform_repr():
+    assert (
+        repr(BucketNumberTransform(source_type=IntegerType(), num_buckets=22))
+        == "transforms.bucket(source_type=IntegerType(), num_buckets=22)"
+    )
+
+
+def test_bucket_decimal_transform_json():
+    assert BucketDecimalTransform(source_type=DecimalType(19, 25), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_decimal_transform_str():
+    assert str(BucketDecimalTransform(source_type=DecimalType(19, 25), num_buckets=22)) == "bucket[22]"
+
+
+def test_bucket_decimal_transform_repr():
+    assert (
+        repr(BucketDecimalTransform(source_type=DecimalType(19, 25), num_buckets=22))
+        == "transforms.bucket(source_type=DecimalType(precision=19, scale=25), num_buckets=22)"
+    )
+
+
+def test_bucket_string_transform_json():
+    assert BucketStringTransform(StringType(), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_string_transform_str():
+    assert str(BucketStringTransform(StringType(), num_buckets=22)) == "bucket[22]"
+
+
+def test_bucket_string_transform_repr():
+    assert (
+        repr(BucketStringTransform(StringType(), num_buckets=22)) == "transforms.bucket(source_type=StringType(), num_buckets=22)"
+    )
+
+
+def test_bucket_bytes_transform_json():
+    assert BucketBytesTransform(BinaryType(), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_bytes_transform_str():
+    assert str(BucketBytesTransform(BinaryType(), num_buckets=22)) == "bucket[22]"
+
+
+def test_bucket_bytes_transform_repr():
+    assert (
+        repr(BucketBytesTransform(BinaryType(), num_buckets=22)) == "transforms.bucket(source_type=BinaryType(), num_buckets=22)"
+    )
+
+
+def test_bucket_uuid_transform_json():
+    assert BucketUUIDTransform(UUIDType(), num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_uuid_transform_str():
+    assert str(BucketUUIDTransform(UUIDType(), num_buckets=22)) == "bucket[22]"
+
+
+def test_bucket_uuid_transform_repr():
+    assert repr(BucketUUIDTransform(UUIDType(), num_buckets=22)) == "transforms.bucket(source_type=UUIDType(), num_buckets=22)"
+
+
+def test_identity_transform_json():
+    assert IdentityTransform(StringType()).json() == '"identity"'
+
+
+def test_identity_transform_str():
+    assert str(IdentityTransform(StringType())) == "identity"
+
+
+def test_identity_transform_repr():
+    assert repr(IdentityTransform(StringType())) == "transforms.identity(source_type=StringType())"
+
+
+def test_truncate_transform_json():
+    assert TruncateTransform(StringType(), 22).json() == '"truncate[22]"'
+
+
+def test_truncate_transform_str():
+    assert str(TruncateTransform(StringType(), 22)) == "truncate[22]"
+
+
+def test_truncate_transform_repr():
+    assert repr(TruncateTransform(StringType(), 22)) == "transforms.truncate(source_type=StringType(), width=22)"
+
+
+def test_unknown_transform_json():
+    assert UnknownTransform(StringType(), "unknown").json() == '"unknown"'
+
+
+def test_unknown_transform_str():
+    assert str(UnknownTransform(StringType(), "unknown")) == "unknown"
+
+
+def test_unknown_transform_repr():
+    assert (
+        repr(UnknownTransform(StringType(), "unknown"))
+        == "transforms.UnknownTransform(source_type=StringType(), transform='unknown')"
+    )
+
+
+def test_void_transform_json():
+    assert VoidTransform().json() == '"void"'
+
+
+def test_void_transform_str():
+    assert str(VoidTransform()) == "void"
+
+
+def test_void_transform_repr():
+    assert repr(VoidTransform()) == "transforms.always_null()"
