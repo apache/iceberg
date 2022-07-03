@@ -170,7 +170,7 @@ subprojects {
         p['gitLastTag'] = details?.lastTag
         p['gitHash'] = details?.gitHash.toString()
         p['gitHashFull'] = details?.gitHashFull.toString() // full 40-character Git commit hash
-        p['gitBranchName'] = details?.branchName // is null if the repository in detached HEAD mode
+        // p['gitBranchName'] = details?.branchName // is null if the repository in detached HEAD mode
         p.store w, null
       }
 
