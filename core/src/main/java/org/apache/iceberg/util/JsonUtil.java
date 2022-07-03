@@ -90,8 +90,8 @@ public class JsonUtil {
    *
    * @param json a JSON string
    * @param parser a function that converts a JsonNode to a Java object
-   * @return the parsed Java object
    * @param <T> type of objects created by the parser
+   * @return the parsed Java object
    */
   public static <T> T parse(String json, FromJson<T> parser) {
     try {
