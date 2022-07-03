@@ -122,7 +122,7 @@ in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 
 ##### SPARK-SQL 
 
-Starting **Spark 3.3**, Spark supports snapshot id based and time base time travel queries.
+Since **Spark 3.3**, Spark supports snapshot id based and time base time travel queries.
 
 ```sql 
 -- time travel to snapshot with id 10963874102873L
