@@ -551,6 +551,27 @@ FlinkSink.forRowData(input)
 env.execute("Test Iceberg DataStream");
 ```
 
+## Write options
+
+Flink write options are passed when configuring the FlinkSink, like this:
+
+```
+FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    .table(table)
+    .tableLoader(tableLoader)
+    .set("write-format", "orc")
+    .set(FlinkWriteOptions.OVERWRITE_MODE, "true");
+```
+
+| Flink option           | Default                    | Description                                                                                                |
+|------------------------| -------------------------- |------------------------------------------------------------------------------------------------------------|
+| write-format           | Table write.format.default | File format to use for this write operation; parquet, avro, or orc                                         |
+| target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes                                                        |
+| upsert-enabled         | Table write.upsert.enabled | Overrides this table's write.upsert.enabled                                                                |
+| overwrite-enabled      | false | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
+| distribution-mode      | Table write.distribution-mode | Overrides this table's write.distribution-mode                                                             |
+
+
 ## Inspecting tables.
 
 Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](../api) to read iceberg's meta data to get those table information.
