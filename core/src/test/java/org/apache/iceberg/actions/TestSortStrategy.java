@@ -86,6 +86,9 @@ public class TestSortStrategy extends TableTestBase {
 
   @Test
   public void testInvalidSortOrder() {
+    AssertHelpers.assertThrows("Should not allow an unsorted Sort order", IllegalArgumentException.class,
+        () -> defaultSort().sortOrder(SortOrder.unsorted()).options(Collections.emptyMap()));
+
     AssertHelpers.assertThrows("Should not allow a Sort order with bad columns", ValidationException.class,
         () -> {
           Schema badSchema = new Schema(
