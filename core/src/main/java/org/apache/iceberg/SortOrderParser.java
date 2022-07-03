@@ -22,8 +22,6 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -56,19 +54,7 @@ public class SortOrderParser {
   }
 
   public static String toJson(SortOrder sortOrder, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(sortOrder, generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(sortOrder, gen), pretty);
   }
 
   private static String toJson(SortDirection direction) {
@@ -105,19 +91,7 @@ public class SortOrderParser {
   }
 
   public static String toJson(UnboundSortOrder sortOrder, boolean pretty) {
-    try {
-      StringWriter writer = new StringWriter();
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      if (pretty) {
-        generator.useDefaultPrettyPrinter();
-      }
-      toJson(sortOrder, generator);
-      generator.flush();
-      return writer.toString();
-
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.generate(gen -> toJson(sortOrder, gen), pretty);
   }
 
   private static void toJsonFields(UnboundSortOrder sortOrder, JsonGenerator generator) throws IOException {
@@ -142,11 +116,7 @@ public class SortOrderParser {
   }
 
   public static UnboundSortOrder fromJson(String json) {
-    try {
-      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return JsonUtil.parse(json, SortOrderParser::fromJson);
   }
 
   public static UnboundSortOrder fromJson(JsonNode json) {
