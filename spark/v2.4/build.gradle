@@ -32,6 +32,8 @@ configure(sparkProjects) {
       resolutionStrategy {
         force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
         force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
+        force 'com.fasterxml.jackson.core:jackson-core:2.11.4'
+        force 'com.fasterxml.jackson.core:jackson-databind:2.11.4'
       }
     }
   }
@@ -46,10 +48,6 @@ project(':iceberg-spark:iceberg-spark-2.4') {
       force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
       force 'org.datanucleus:datanucleus-core:3.2.10'
       force 'org.datanucleus:datanucleus-rdbms:3.2.9'
-      force 'com.fasterxml.jackson:jackson-bom:2.11.4'
-      force 'com.fasterxml.jackson.core:jackson-core:2.11.4'
-      force 'com.fasterxml.jackson.core:jackson-databind:2.11.4'
-      force 'com.fasterxml.jackson.core:jackson-annotations:2.11.4'
     }
   }
 
