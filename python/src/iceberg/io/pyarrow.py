@@ -28,7 +28,13 @@ from urllib.parse import urlparse
 
 from pyarrow.fs import FileInfo, FileSystem, FileType
 
-from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
+from iceberg.io.base import (
+    FileIO,
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
 
 
 class PyArrowFile(InputFile, OutputFile):
@@ -54,7 +60,7 @@ class PyArrowFile(InputFile, OutputFile):
     """
 
     def __init__(self, location: str):
-        parsed_location = urlparse(location)  # Create a ParseResult from the uri
+        parsed_location = urlparse(location)  # Create a ParseResult from the URI
         if not parsed_location.scheme:  # If no scheme, assume the path is to a local file
             self._filesystem, self._path = FileSystem.from_uri(os.path.abspath(location))
         else:
@@ -72,7 +78,7 @@ class PyArrowFile(InputFile, OutputFile):
             file_info = self._filesystem.get_file_info(self._path)
         except OSError as e:
             if e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot get file info, access denied: {self.location}")
+                raise PermissionError(f"Cannot get file info, access denied: {self.location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
 
         if file_info.type == FileType.NotFound:
@@ -111,9 +117,9 @@ class PyArrowFile(InputFile, OutputFile):
             raise
         except OSError as e:
             if e.errno == 2 or "Path does not exist" in str(e):
-                raise FileNotFoundError(f"Cannot open file, does not exist: {self.location}")
+                raise FileNotFoundError(f"Cannot open file, does not exist: {self.location}") from e
             elif e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot open file, access denied: {self.location}")
+                raise PermissionError(f"Cannot open file, access denied: {self.location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return input_file
 
@@ -144,7 +150,7 @@ class PyArrowFile(InputFile, OutputFile):
             raise
         except OSError as e:
             if e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot create file, access denied: {self.location}")
+                raise PermissionError(f"Cannot create file, access denied: {self.location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error
         return output_file
 
@@ -204,7 +210,7 @@ class PyArrowFileIO(FileIO):
             raise
         except OSError as e:
             if e.errno == 2 or "Path does not exist" in str(e):
-                raise FileNotFoundError(f"Cannot delete file, does not exist: {location}")
+                raise FileNotFoundError(f"Cannot delete file, does not exist: {location}") from e
             elif e.errno == 13 or "AWS Error [code 15]" in str(e):
-                raise PermissionError(f"Cannot delete file, access denied: {location}")
+                raise PermissionError(f"Cannot delete file, access denied: {location}") from e
             raise  # pragma: no cover - If some other kind of OSError, raise the raw error

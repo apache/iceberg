@@ -28,16 +28,17 @@ on:
 jobs:
   publish-snapshot:
     if: github.repository_owner == 'apache'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           # we need to fetch all tags so that getProjectVersion() in build.gradle correctly determines the next SNAPSHOT version from the newest tag
           fetch-depth: 0
-      - uses: actions/setup-java@v1
+      - uses: actions/setup-java@v3
         with:
+          distribution: zulu
           java-version: 8
       - run: |
           ./gradlew printVersion
-          ./gradlew -DflinkVersions=1.12,1.13,1.14 -DsparkVersions=2.4,3.0,3.1,3.2 -DhiveVersions=2,3 publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
+          ./gradlew -DflinkVersions=1.13,1.14,1.15 -DsparkVersions=2.4,3.0,3.1,3.2,3.3 -DhiveVersions=2,3 publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}
           ./gradlew -DflinkVersions= -DsparkVersions=3.2 -DscalaVersion=2.13 -DhiveVersions= publishApachePublicationToMavenRepository -PmavenUser=${{ secrets.NEXUS_USER }} -PmavenPassword=${{ secrets.NEXUS_PW }}

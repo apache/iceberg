@@ -80,8 +80,8 @@ final class JdbcUtil {
   // Catalog Namespace Properties
   static final String NAMESPACE_PROPERTIES_TABLE_NAME = "iceberg_namespace_properties";
   static final String NAMESPACE_NAME = "namespace";
-  static final String NAMESPACE_PROPERTY_KEY = "key";
-  static final String NAMESPACE_PROPERTY_VALUE = "value";
+  static final String NAMESPACE_PROPERTY_KEY = "property_key";
+  static final String NAMESPACE_PROPERTY_VALUE = "property_value";
 
   static final String CREATE_NAMESPACE_PROPERTIES_TABLE =
       "CREATE TABLE " + NAMESPACE_PROPERTIES_TABLE_NAME +
@@ -149,7 +149,7 @@ final class JdbcUtil {
     StringBuilder sqlStatement = new StringBuilder("UPDATE " + NAMESPACE_PROPERTIES_TABLE_NAME +
             " SET " + NAMESPACE_PROPERTY_VALUE + " = CASE");
     for (int i = 0; i < size; i += 1) {
-      sqlStatement.append(" WHEN key = ? THEN ?");
+      sqlStatement.append(" WHEN " + NAMESPACE_PROPERTY_KEY + " = ? THEN ?");
     }
     sqlStatement.append(" END WHERE " +  CATALOG_NAME + " = ? AND " +
             NAMESPACE_NAME + " = ? AND " + NAMESPACE_PROPERTY_KEY + " IN ");

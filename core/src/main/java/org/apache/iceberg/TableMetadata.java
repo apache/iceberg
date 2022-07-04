@@ -788,7 +788,7 @@ public class TableMetadata implements Serializable {
 
     // handled in build
     private final List<HistoryEntry> snapshotLog;
-    private final String previousFileLocation;
+    private String previousFileLocation;
     private final List<MetadataLogEntry> previousFiles;
 
     // indexes for convenience
@@ -1153,8 +1153,19 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder setPreviousFileLocation(String previousFileLocation) {
+      this.previousFileLocation = previousFileLocation;
+      return this;
+    }
+
+    private boolean hasChanges() {
+      return changes.size() != startingChangeCount ||
+          (discardChanges && changes.size() > 0) ||
+          metadataLocation != null;
+    }
+
     public TableMetadata build() {
-      if (changes.size() == startingChangeCount && !(discardChanges && changes.size() > 0)) {
+      if (!hasChanges()) {
         return base;
       }
 

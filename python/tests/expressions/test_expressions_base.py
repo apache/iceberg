@@ -17,11 +17,13 @@
 
 import uuid
 from decimal import Decimal
+from typing import List
 
 import pytest
 
 from iceberg.expressions import base
-from iceberg.types import NestedField, Singleton, StringType
+from iceberg.types import NestedField, StringType
+from iceberg.utils.singleton import Singleton
 
 
 @pytest.mark.parametrize(
@@ -84,6 +86,65 @@ class TestExpressionB(base.BooleanExpression, Singleton):
         return "testexprb"
 
 
+class TestBooleanExpressionVisitor(base.BooleanExpressionVisitor[List]):
+    """A test implementation of a BooleanExpressionVisit
+
+    As this visitor visits each node, it appends an element to a `visit_histor` list. This enables testing that a given expression is
+    visited in an expected order by the `visit` method.
+    """
+
+    def __init__(self):
+        self.visit_history: List = []
+
+    def visit_true(self) -> List:
+        self.visit_history.append("TRUE")
+        return self.visit_history
+
+    def visit_false(self) -> List:
+        self.visit_history.append("FALSE")
+        return self.visit_history
+
+    def visit_not(self, child_result: List) -> List:
+        self.visit_history.append("NOT")
+        return self.visit_history
+
+    def visit_and(self, left_result: List, right_result: List) -> List:
+        self.visit_history.append("AND")
+        return self.visit_history
+
+    def visit_or(self, left_result: List, right_result: List) -> List:
+        self.visit_history.append("OR")
+        return self.visit_history
+
+    def visit_unbound_predicate(self, predicate) -> List:
+        self.visit_history.append("UNBOUND PREDICATE")
+        return self.visit_history
+
+    def visit_bound_predicate(self, predicate) -> List:
+        self.visit_history.append("BOUND PREDICATE")
+        return self.visit_history
+
+    def visit_test_expression_a(self) -> List:
+        self.visit_history.append("TestExpressionA")
+        return self.visit_history
+
+    def visit_test_expression_b(self) -> List:
+        self.visit_history.append("TestExpressionB")
+        return self.visit_history
+
+
+@base.visit.register(TestExpressionA)
+def _(obj: TestExpressionA, visitor: TestBooleanExpressionVisitor) -> List:
+    """Visit a TestExpressionA with a TestBooleanExpressionVisitor"""
+    return visitor.visit_test_expression_a()
+
+
+@base.visit.register(TestExpressionB)
+def _(obj: TestExpressionB, visitor: TestBooleanExpressionVisitor) -> List:
+    """Visit a TestExpressionB with a TestBooleanExpressionVisitor"""
+    return visitor.visit_test_expression_b()
+
+
 @pytest.mark.parametrize(
     "op, rep",
     [
@@ -115,7 +176,7 @@ def test_strs(op, string):
 
 
 @pytest.mark.parametrize(
-    "input, testexpra, testexprb",
+    "exp, testexpra, testexprb",
     [
         (
             base.And(TestExpressionA(), TestExpressionB()),
@@ -132,12 +193,12 @@ def test_strs(op, string):
         (TestExpressionB(), TestExpressionB(), TestExpressionA()),
     ],
 )
-def test_eq(input, testexpra, testexprb):
-    assert input == testexpra and input != testexprb
+def test_eq(exp, testexpra, testexprb):
+    assert exp == testexpra and exp != testexprb
 
 
 @pytest.mark.parametrize(
-    "input, exp",
+    "lhs, rhs",
     [
         (
             base.And(TestExpressionA(), TestExpressionB()),
@@ -151,12 +212,12 @@ def test_eq(input, testexpra, testexprb):
         (TestExpressionA(), TestExpressionB()),
     ],
 )
-def test_negate(input, exp):
-    assert ~input == exp
+def test_negate(lhs, rhs):
+    assert ~lhs == rhs
 
 
 @pytest.mark.parametrize(
-    "input, exp",
+    "lhs, rhs",
     [
         (
             base.And(TestExpressionA(), TestExpressionB(), TestExpressionA()),
@@ -169,12 +230,12 @@ def test_negate(input, exp):
         (base.Not(base.Not(TestExpressionA())), TestExpressionA()),
     ],
 )
-def test_reduce(input, exp):
-    assert input == exp
+def test_reduce(lhs, rhs):
+    assert lhs == rhs
 
 
 @pytest.mark.parametrize(
-    "input, exp",
+    "lhs, rhs",
     [
         (base.And(base.AlwaysTrue(), TestExpressionB()), TestExpressionB()),
         (base.And(base.AlwaysFalse(), TestExpressionB()), base.AlwaysFalse()),
@@ -183,8 +244,8 @@ def test_reduce(input, exp):
         (base.Not(base.Not(TestExpressionA())), TestExpressionA()),
     ],
 )
-def test_base_AlwaysTrue_base_AlwaysFalse(input, exp):
-    assert input == exp
+def test_base_AlwaysTrue_base_AlwaysFalse(lhs, rhs):
+    assert lhs == rhs
 
 
 def test_accessor_base_class(foo_struct):
@@ -214,14 +275,14 @@ def test_accessor_base_class(foo_struct):
     assert base.Accessor(position=6).get(foo_struct) == 1.234
     assert base.Accessor(position=7).get(foo_struct) == Decimal("1.234")
     assert base.Accessor(position=8).get(foo_struct) == uuid_value
-    assert base.Accessor(position=9).get(foo_struct) == True
-    assert base.Accessor(position=10).get(foo_struct) == False
+    assert base.Accessor(position=9).get(foo_struct) is True
+    assert base.Accessor(position=10).get(foo_struct) is False
     assert base.Accessor(position=11).get(foo_struct) == b"\x19\x04\x9e?"
 
 
 def test_bound_reference_str_and_repr():
     """Test str and repr of BoundReference"""
-    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
     assert str(bound_ref) == f"BoundReference(field={repr(field)}, accessor={repr(position1_accessor)})"
@@ -230,10 +291,10 @@ def test_bound_reference_str_and_repr():
 
 def test_bound_reference_field_property():
     """Test str and repr of BoundReference"""
-    field = NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    field = NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
     position1_accessor = base.Accessor(position=1)
     bound_ref = base.BoundReference(field=field, accessor=position1_accessor)
-    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), is_optional=False)
+    assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
 
 
 def test_bound_reference(table_schema_simple, foo_struct):
@@ -256,4 +317,40 @@ def test_bound_reference(table_schema_simple, foo_struct):
 
     assert bound_ref1.eval(foo_struct) == "foovalue"
     assert bound_ref2.eval(foo_struct) == 123
-    assert bound_ref3.eval(foo_struct) == True
+    assert bound_ref3.eval(foo_struct) is True
+
+
+def test_boolean_expression_visitor():
+    """Test post-order traversal of boolean expression visit method"""
+    expr = base.And(
+        base.Or(base.Not(TestExpressionA()), base.Not(TestExpressionB()), TestExpressionA(), TestExpressionB()),
+        base.Not(TestExpressionA()),
+        TestExpressionB(),
+    )
+    visitor = TestBooleanExpressionVisitor()
+    result = base.visit(expr, visitor=visitor)
+    assert result == [
+        "TestExpressionA",
+        "NOT",
+        "TestExpressionB",
+        "NOT",
+        "OR",
+        "TestExpressionA",
+        "OR",
+        "TestExpressionB",
+        "OR",
+        "TestExpressionA",
+        "NOT",
+        "AND",
+        "TestExpressionB",
+        "AND",
+    ]
+
+
+def test_boolean_expression_visit_raise_not_implemented_error():
+    """Test raise NotImplementedError when visiting an unsupported object type"""
+    visitor = TestBooleanExpressionVisitor()
+    with pytest.raises(NotImplementedError) as exc_info:
+        base.visit("foo", visitor=visitor)
+
+    assert str(exc_info.value) == "Cannot visit unsupported expression: foo"

@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 
 /**
@@ -49,6 +50,8 @@ public interface PendingUpdate<T> {
    *
    * @throws ValidationException If the update cannot be applied to the current table metadata.
    * @throws CommitFailedException If the update cannot be committed due to conflicts.
+   * @throws CommitStateUnknownException If the update success or failure is unknown, no cleanup should be done in
+   * this case.
    */
   void commit();
 

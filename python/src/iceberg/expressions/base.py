@@ -16,11 +16,13 @@
 # under the License.
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from functools import reduce
+from functools import reduce, singledispatch
 from typing import Any, Generic, TypeVar
 
 from iceberg.files import StructProtocol
-from iceberg.types import NestedField, Singleton
+from iceberg.schema import Accessor, Schema
+from iceberg.types import NestedField
+from iceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
 
@@ -65,8 +67,8 @@ class Operation(Enum):
 
         try:
             return OPERATION_NEGATIONS[self]
-        except KeyError:
-            raise ValueError(f"No negation defined for operation {self}")
+        except KeyError as e:
+            raise ValueError(f"No negation defined for operation {self}") from e
 
 
 OPERATION_NEGATIONS = {
@@ -240,7 +242,7 @@ class Not(BooleanExpression):
         return f"(not {self.child})"
 
 
-class AlwaysTrue(BooleanExpression, Singleton):
+class AlwaysTrue(BooleanExpression, ABC, Singleton):
     """TRUE expression"""
 
     def __invert__(self) -> "AlwaysFalse":
@@ -253,46 +255,17 @@ class AlwaysTrue(BooleanExpression, Singleton):
         return "true"
 
 
-class AlwaysFalse(BooleanExpression, Singleton):
+class AlwaysFalse(BooleanExpression, ABC, Singleton):
     """FALSE expression"""
 
     def __invert__(self) -> "AlwaysTrue":
         return AlwaysTrue()
 
     def __repr__(self) -> str:
-        return "AlwaysTrue()"
+        return "AlwaysFalse()"
 
     def __str__(self) -> str:
         return "false"
-
-
-class Accessor:
-    """An accessor for a specific position in a container that implements the StructProtocol"""
-
-    def __init__(self, position: int):
-        self._position = position
-
-    def __str__(self):
-        return f"Accessor(position={self._position})"
-
-    def __repr__(self):
-        return f"Accessor(position={self._position})"
-
-    @property
-    def position(self):
-        """The position in the container to access"""
-        return self._position
-
-    def get(self, container: StructProtocol) -> Any:
-        """Returns the value at self.position in `container`
-
-        Args:
-            container(StructProtocol): A container to access at position `self.position`
-
-        Returns:
-            Any: The value at position `self.position` in the container
-        """
-        return container.get(self.position)
 
 
 class BoundReference:
@@ -328,3 +301,163 @@ class BoundReference:
             Any: The value at the referenced field's position in `struct`
         """
         return self._accessor.get(struct)
+
+
+class UnboundReference:
+    """A reference not yet bound to a field in a schema
+
+    Args:
+        name (str): The name of the field
+
+    Note:
+        An unbound reference is sometimes referred to as a "named" reference
+    """
+
+    def __init__(self, name: str):
+        if not name:
+            raise ValueError(f"Name cannot be null: {name}")
+        self._name = name
+
+    def __str__(self) -> str:
+        return f"UnboundReference(name={repr(self.name)})"
+
+    def __repr__(self) -> str:
+        return f"UnboundReference(name={repr(self.name)})"
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
+        """Bind the reference to an Iceberg schema
+
+        Args:
+            schema (Schema): An Iceberg schema
+            case_sensitive (bool): Whether to consider case when binding the reference to the field
+
+        Raises:
+            ValueError: If an empty name is provided
+
+        Returns:
+            BoundReference: A reference bound to the specific field in the Iceberg schema
+        """
+        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
+
+        if not field:
+            raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
+
+        accessor = schema.accessor_for_field(field.field_id)
+
+        if not accessor:
+            raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
+
+        return BoundReference(field=field, accessor=accessor)
+
+
+class BooleanExpressionVisitor(Generic[T], ABC):
+    @abstractmethod
+    def visit_true(self) -> T:
+        """Visit method for an AlwaysTrue boolean expression
+
+        Note: This visit method has no arguments since AlwaysTrue instances have no context.
+        """
+
+    @abstractmethod
+    def visit_false(self) -> T:
+        """Visit method for an AlwaysFalse boolean expression
+
+        Note: This visit method has no arguments since AlwaysFalse instances have no context.
+        """
+
+    @abstractmethod
+    def visit_not(self, child_result: T) -> T:
+        """Visit method for a Not boolean expression
+
+        Args:
+            result (T): The result of visiting the child of the Not boolean expression
+        """
+
+    @abstractmethod
+    def visit_and(self, left_result: T, right_result: T) -> T:
+        """Visit method for an And boolean expression
+
+        Args:
+            left_result (T): The result of visiting the left side of the expression
+            right_result (T): The result of visiting the right side of the expression
+        """
+
+    @abstractmethod
+    def visit_or(self, left_result: T, right_result: T) -> T:
+        """Visit method for an Or boolean expression
+
+        Args:
+            left_result (T): The result of visiting the left side of the expression
+            right_result (T): The result of visiting the right side of the expression
+        """
+
+    @abstractmethod
+    def visit_unbound_predicate(self, predicate) -> T:
+        """Visit method for an unbound predicate in an expression tree
+
+        Args:
+            predicate (UnboundPredicate): An instance of an UnboundPredicate
+        """
+
+    @abstractmethod
+    def visit_bound_predicate(self, predicate) -> T:
+        """Visit method for a bound predicate in an expression tree
+
+        Args:
+            predicate (BoundPredicate): An instance of a BoundPredicate
+        """
+
+
+@singledispatch
+def visit(obj, visitor: BooleanExpressionVisitor[T]) -> T:
+    """A generic function for applying a boolean expression visitor to any point within an expression
+
+    The function traverses the expression in post-order fashion
+
+    Args:
+        obj(BooleanExpression): An instance of a BooleanExpression
+        visitor(BooleanExpressionVisitor[T]): An instance of an implementation of the generic BooleanExpressionVisitor base class
+
+    Raises:
+        NotImplementedError: If attempting to visit an unsupported expression
+    """
+    raise NotImplementedError(f"Cannot visit unsupported expression: {obj}")
+
+
+@visit.register(AlwaysTrue)
+def _(obj: AlwaysTrue, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an AlwaysTrue boolean expression with a concrete BooleanExpressionVisitor"""
+    return visitor.visit_true()
+
+
+@visit.register(AlwaysFalse)
+def _(obj: AlwaysFalse, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an AlwaysFalse boolean expression with a concrete BooleanExpressionVisitor"""
+    return visitor.visit_false()
+
+
+@visit.register(Not)
+def _(obj: Not, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit a Not boolean expression with a concrete BooleanExpressionVisitor"""
+    child_result: T = visit(obj.child, visitor=visitor)
+    return visitor.visit_not(child_result=child_result)
+
+
+@visit.register(And)
+def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
+    left_result: T = visit(obj.left, visitor=visitor)
+    right_result: T = visit(obj.right, visitor=visitor)
+    return visitor.visit_and(left_result=left_result, right_result=right_result)
+
+
+@visit.register(Or)
+def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
+    left_result: T = visit(obj.left, visitor=visitor)
+    right_result: T = visit(obj.right, visitor=visitor)
+    return visitor.visit_or(left_result=left_result, right_result=right_result)

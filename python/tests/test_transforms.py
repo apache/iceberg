@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=W0123
 
 from decimal import Decimal
 from uuid import UUID
@@ -24,9 +25,12 @@ import pytest
 from iceberg import transforms
 from iceberg.types import (
     BinaryType,
+    BooleanType,
     DateType,
     DecimalType,
+    DoubleType,
     FixedType,
+    FloatType,
     IntegerType,
     LongType,
     StringType,
@@ -125,3 +129,73 @@ def test_string_with_surrogate_pair():
     as_bytes = bytes(string_with_surrogate_pair, "UTF-8")
     bucket_transform = transforms.bucket(StringType(), 100)
     assert bucket_transform.hash(string_with_surrogate_pair) == mmh3.hash(as_bytes)
+
+
+@pytest.mark.parametrize(
+    "type_var,value,expected",
+    [
+        (LongType(), None, "null"),
+        (DateType(), 17501, "2017-12-01"),
+        (TimeType(), 36775038194, "10:12:55.038194"),
+        (TimestamptzType(), 1512151975038194, "2017-12-01T18:12:55.038194+00:00"),
+        (TimestampType(), 1512151975038194, "2017-12-01T18:12:55.038194"),
+        (LongType(), -1234567890000, "-1234567890000"),
+        (StringType(), "a/b/c=d", "a/b/c=d"),
+        (DecimalType(9, 2), Decimal("-1.50"), "-1.50"),
+        (FixedType(100), b"foo", "Zm9v"),
+    ],
+)
+def test_identity_human_string(type_var, value, expected):
+    identity = transforms.identity(type_var)
+    assert identity.to_human_string(value) == expected
+
+
+@pytest.mark.parametrize(
+    "type_var",
+    [
+        BinaryType(),
+        BooleanType(),
+        DateType(),
+        DecimalType(8, 2),
+        DoubleType(),
+        FixedType(16),
+        FloatType(),
+        IntegerType(),
+        LongType(),
+        StringType(),
+        TimestampType(),
+        TimestamptzType(),
+        TimeType(),
+        UUIDType(),
+    ],
+)
+def test_identity_method(type_var):
+    identity_transform = transforms.identity(type_var)
+    assert str(identity_transform) == str(eval(repr(identity_transform)))
+    assert identity_transform.can_transform(type_var)
+    assert identity_transform.result_type(type_var) == type_var
+    assert identity_transform.apply("test") == "test"
+
+
+def test_unknown_transform():
+    unknown_transform = transforms.UnknownTransform(FixedType(8), "unknown")
+    assert str(unknown_transform) == str(eval(repr(unknown_transform)))
+    with pytest.raises(AttributeError):
+        unknown_transform.apply("test")
+    assert unknown_transform.can_transform(FixedType(8))
+    assert not unknown_transform.can_transform(FixedType(5))
+    assert isinstance(unknown_transform.result_type(BooleanType()), StringType)
+
+
+def test_void_transform():
+    void_transform = transforms.always_null()
+    assert void_transform is transforms.always_null()
+    assert void_transform == eval(repr(void_transform))
+    assert void_transform.apply("test") is None
+    assert void_transform.can_transform(BooleanType())
+    assert isinstance(void_transform.result_type(BooleanType()), BooleanType)
+    assert not void_transform.preserves_order
+    assert void_transform.satisfies_order_of(transforms.always_null())
+    assert not void_transform.satisfies_order_of(transforms.bucket(DateType(), 100))
+    assert void_transform.to_human_string("test") == "null"
+    assert void_transform.dedup_name == "void"

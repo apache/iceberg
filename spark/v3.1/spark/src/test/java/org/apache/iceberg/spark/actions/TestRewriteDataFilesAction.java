@@ -39,6 +39,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
@@ -74,6 +75,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.RewriteExecutionContext;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -267,14 +269,75 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertEquals(
         "Data manifest should not have existing data file",
         0,
-        (long) table.currentSnapshot().dataManifests().get(0).existingFilesCount());
+        (long) table.currentSnapshot().dataManifests(table.io()).get(0).existingFilesCount());
     Assert.assertEquals("Data manifest should have 1 delete data file",
         1L,
-        (long) table.currentSnapshot().dataManifests().get(0).deletedFilesCount());
+        (long) table.currentSnapshot().dataManifests(table.io()).get(0).deletedFilesCount());
     Assert.assertEquals(
         "Delete manifest added row count should equal total count",
         total,
-        (long) table.currentSnapshot().deleteManifests().get(0).addedRowsCount());
+        (long) table.currentSnapshot().deleteManifests(table.io()).get(0).addedRowsCount());
+  }
+
+  @Test
+  public void testBinPackWithStartingSequenceNumber() {
+    Table table = createTablePartitioned(4, 2);
+    shouldHaveFiles(table, 8);
+    List<Object[]> expectedRecords = currentData();
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    table.refresh();
+    long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
+
+    Result result = basicRewrite(table)
+        .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
+        .execute();
+    Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFilesCount());
+
+    shouldHaveFiles(table, 4);
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+
+    table.refresh();
+    Assert.assertTrue("Table sequence number should be incremented",
+        oldSequenceNumber < table.currentSnapshot().sequenceNumber());
+
+    Dataset<Row> rows = SparkTableUtil.loadMetadataTable(spark, table, MetadataTableType.ENTRIES);
+    for (Row row : rows.collectAsList()) {
+      if (row.getInt(0) == 1) {
+        Assert.assertEquals("Expect old sequence number for added entries", oldSequenceNumber, row.getLong(2));
+      }
+    }
+  }
+
+  @Test
+  public void testBinPackWithStartingSequenceNumberV1Compatibility() {
+    Table table = createTablePartitioned(4, 2);
+    shouldHaveFiles(table, 8);
+    List<Object[]> expectedRecords = currentData();
+    table.refresh();
+    long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
+    Assert.assertEquals("Table sequence number should be 0", 0, oldSequenceNumber);
+
+    Result result = basicRewrite(table)
+        .option(RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER, "true")
+        .execute();
+    Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFilesCount());
+
+    shouldHaveFiles(table, 4);
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+
+    table.refresh();
+    Assert.assertEquals("Table sequence number should still be 0",
+        oldSequenceNumber, table.currentSnapshot().sequenceNumber());
+
+    Dataset<Row> rows = SparkTableUtil.loadMetadataTable(spark, table, MetadataTableType.ENTRIES);
+    for (Row row : rows.collectAsList()) {
+      Assert.assertEquals("Expect sequence number 0 for all entries",
+          oldSequenceNumber, row.getLong(2));
+    }
   }
 
   @Test
@@ -899,7 +962,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .execute();
 
     Assert.assertEquals("Should have 1 fileGroups", result.rewriteResults().size(), 1);
-    Assert.assertTrue("Should have written 40+ files", Iterables.size(table.currentSnapshot().addedFiles()) >= 40);
+    Assert.assertTrue("Should have written 40+ files",
+        Iterables.size(table.currentSnapshot().addedFiles(table.io())) >= 40);
 
     table.refresh();
 
@@ -1160,7 +1224,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     NestedField field = table.schema().caseInsensitiveFindField(column);
     Class<T> javaClass = (Class<T>) field.type().typeId().javaClass();
 
-    Map<StructLike, List<DataFile>> filesByPartition = Streams.stream(table.currentSnapshot().addedFiles())
+    Map<StructLike, List<DataFile>> filesByPartition = Streams.stream(table.currentSnapshot().addedFiles(table.io()))
         .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

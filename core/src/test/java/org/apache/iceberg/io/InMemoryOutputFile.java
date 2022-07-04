@@ -73,6 +73,7 @@ public class InMemoryOutputFile implements OutputFile {
 
   private static class InMemoryPositionOutputStream extends PositionOutputStream {
     private final ByteArrayOutputStream delegate;
+    private boolean closed = false;
 
     InMemoryPositionOutputStream(ByteArrayOutputStream delegate) {
       Preconditions.checkNotNull(delegate, "delegate is null");
@@ -86,27 +87,37 @@ public class InMemoryOutputFile implements OutputFile {
 
     @Override
     public void write(int b) {
+      checkOpen();
       delegate.write(b);
     }
 
     @Override
     public void write(byte[] b) throws IOException {
+      checkOpen();
       delegate.write(b);
     }
 
     @Override
     public void write(byte[] b, int off, int len) {
+      checkOpen();
       delegate.write(b, off, len);
     }
 
     @Override
     public void flush() throws IOException {
+      checkOpen();
       delegate.flush();
     }
 
     @Override
     public void close() throws IOException {
       delegate.close();
+      closed = true;
+    }
+
+    private void checkOpen() {
+      // ByteArrayOutputStream can be used even after close, so for test purposes disallow such use explicitly
+      Preconditions.checkState(!closed, "Stream is closed");
     }
   }
 }

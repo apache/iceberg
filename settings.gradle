@@ -106,6 +106,15 @@ if (flinkVersions.contains("1.14")) {
   project(":iceberg-flink:flink-runtime-1.14").name = "iceberg-flink-runtime-1.14"
 }
 
+if (flinkVersions.contains("1.15")) {
+  include ":iceberg-flink:flink-1.15"
+  include ":iceberg-flink:flink-runtime-1.15"
+  project(":iceberg-flink:flink-1.15").projectDir = file('flink/v1.15/flink')
+  project(":iceberg-flink:flink-1.15").name = "iceberg-flink-1.15"
+  project(":iceberg-flink:flink-runtime-1.15").projectDir = file('flink/v1.15/flink-runtime')
+  project(":iceberg-flink:flink-runtime-1.15").name = "iceberg-flink-runtime-1.15"
+}
+
 if (sparkVersions.contains("3.0")) {
   include ':iceberg-spark:spark-3.0_2.12'
   include ':iceberg-spark:spark-extensions-3.0_2.12'
@@ -140,6 +149,18 @@ if (sparkVersions.contains("3.2")) {
   project(":iceberg-spark:spark-extensions-3.2_${scalaVersion}").name = "iceberg-spark-extensions-3.2_${scalaVersion}"
   project(":iceberg-spark:spark-runtime-3.2_${scalaVersion}").projectDir = file('spark/v3.2/spark-runtime')
   project(":iceberg-spark:spark-runtime-3.2_${scalaVersion}").name = "iceberg-spark-runtime-3.2_${scalaVersion}"
+}
+
+if (sparkVersions.contains("3.3")) {
+  include ":iceberg-spark:spark-3.3_${scalaVersion}"
+  include ":iceberg-spark:spark-extensions-3.3_${scalaVersion}"
+  include ":iceberg-spark:spark-runtime-3.3_${scalaVersion}"
+  project(":iceberg-spark:spark-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark')
+  project(":iceberg-spark:spark-3.3_${scalaVersion}").name = "iceberg-spark-3.3_${scalaVersion}"
+  project(":iceberg-spark:spark-extensions-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark-extensions')
+  project(":iceberg-spark:spark-extensions-3.3_${scalaVersion}").name = "iceberg-spark-extensions-3.3_${scalaVersion}"
+  project(":iceberg-spark:spark-runtime-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark-runtime')
+  project(":iceberg-spark:spark-runtime-3.3_${scalaVersion}").name = "iceberg-spark-runtime-3.3_${scalaVersion}"
 }
 
 // hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled

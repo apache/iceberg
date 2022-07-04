@@ -42,8 +42,12 @@ import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
+import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.UpdateRequirementParser;
+import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
@@ -69,8 +73,29 @@ public class RESTSerializers {
         .addSerializer(MetadataUpdate.class, new MetadataUpdateSerializer())
         .addDeserializer(MetadataUpdate.class, new MetadataUpdateDeserializer())
         .addSerializer(TableMetadata.class, new TableMetadataSerializer())
-        .addDeserializer(TableMetadata.class, new TableMetadataDeserializer());
+        .addDeserializer(TableMetadata.class, new TableMetadataDeserializer())
+        .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
+        .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
+        .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
+        .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer());
     mapper.registerModule(module);
+  }
+
+  public static class UpdateRequirementDeserializer extends JsonDeserializer<UpdateRequirement> {
+    @Override
+    public UpdateRequirement deserialize(JsonParser p, DeserializationContext ctxt)
+        throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      return UpdateRequirementParser.fromJson(node);
+    }
+  }
+
+  public static class UpdateRequirementSerializer extends JsonSerializer<UpdateRequirement> {
+    @Override
+    public void serialize(UpdateRequirement value, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      UpdateRequirementParser.toJson(value, gen);
+    }
   }
 
   public static class TableMetadataDeserializer extends JsonDeserializer<TableMetadata> {
@@ -203,6 +228,22 @@ public class RESTSerializers {
     public UnboundSortOrder deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return SortOrderParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class OAuthTokenResponseSerializer extends JsonSerializer<OAuthTokenResponse> {
+    @Override
+    public void serialize(OAuthTokenResponse tokenResponse, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      OAuth2Util.tokenResponseToJson(tokenResponse, gen);
+    }
+  }
+
+  public static class OAuthTokenResponseDeserializer extends JsonDeserializer<OAuthTokenResponse> {
+    @Override
+    public OAuthTokenResponse deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return OAuth2Util.tokenResponseFromJson(jsonNode);
     }
   }
 }

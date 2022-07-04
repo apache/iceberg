@@ -84,7 +84,8 @@ public class AllEntriesTable extends BaseMetadataTable {
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      CloseableIterable<ManifestFile> manifests = reachableManifests(Snapshot::allManifests);
+      CloseableIterable<ManifestFile> manifests =
+          reachableManifests(snapshot -> snapshot.allManifests(tableOps().io()));
 
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());

@@ -166,7 +166,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public Snapshot apply() {
-    this.base = refresh();
+    refresh();
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
     long sequenceNumber = base.nextSequenceNumber();
@@ -323,14 +323,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Exceptions.suppressAndThrow(e, this::cleanAll);
     }
 
-    LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
-
     try {
+      LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
+
       // at this point, the commit must have succeeded. after a refresh, the snapshot is loaded by
       // id in case another commit was added between this commit and the refresh.
       Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
       if (saved != null) {
-        cleanUncommitted(Sets.newHashSet(saved.allManifests()));
+        cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
         // also clean up unused manifest lists created by multiple attempts
         for (String manifestList : manifestLists) {
           if (!saved.manifestListLocation().equals(manifestList)) {
@@ -343,11 +343,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
       }
 
-    } catch (RuntimeException e) {
-      LOG.warn("Failed to load committed table metadata, skipping manifest clean-up", e);
+    } catch (Throwable e) {
+      LOG.warn("Failed to load committed table metadata or during cleanup, skipping further cleanup", e);
     }
 
-    notifyListeners();
+    try {
+      notifyListeners();
+    } catch (Throwable e) {
+      LOG.warn("Failed to notify event listeners", e);
+    }
   }
 
   private void notifyListeners() {

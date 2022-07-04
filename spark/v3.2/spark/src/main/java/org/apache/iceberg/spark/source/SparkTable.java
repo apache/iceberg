@@ -33,7 +33,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -199,7 +198,8 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
         new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
         new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
-        new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false)
+        new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),
+        new SparkMetadataColumn(MetadataColumns.IS_DELETED.name(), DataTypes.BooleanType, false)
     };
   }
 
@@ -289,14 +289,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       return;
     }
 
-    try {
-      icebergTable.newDelete()
-          .set("spark.app.id", sparkSession().sparkContext().applicationId())
-          .deleteFromRowFilter(deleteExpr)
-          .commit();
-    } catch (ValidationException e) {
-      throw new IllegalArgumentException("Failed to cleanly delete data files matching: " + deleteExpr, e);
-    }
+    icebergTable.newDelete()
+        .set("spark.app.id", sparkSession().sparkContext().applicationId())
+        .deleteFromRowFilter(deleteExpr)
+        .commit();
   }
 
   @Override

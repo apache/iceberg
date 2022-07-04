@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -55,7 +56,7 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
+    LOG.info("Scanning metadata table {} with filter {}.", table(), ExpressionUtil.toSanitizedString(filter()));
     Listeners.notifyAll(new ScanEvent(table().name(), 0L, filter(), schema()));
 
     return doPlanFiles();

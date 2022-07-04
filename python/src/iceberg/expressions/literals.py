@@ -18,26 +18,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=W0613
 
 import struct
-import sys
 from decimal import ROUND_HALF_UP, Decimal
-from functools import singledispatch
+from functools import singledispatch, singledispatchmethod
 from typing import Optional, Union
 from uuid import UUID
-
-from iceberg.utils.datetime import (
-    date_to_days,
-    micros_to_days,
-    time_to_micros,
-    timestamp_to_micros,
-    timestamptz_to_micros,
-)
-
-if sys.version_info >= (3, 8):
-    from functools import singledispatchmethod  # pragma: no cover
-else:
-    from singledispatch import singledispatchmethod  # pragma: no cover
 
 from iceberg.expressions.base import Literal
 from iceberg.types import (
@@ -50,13 +37,20 @@ from iceberg.types import (
     FloatType,
     IntegerType,
     LongType,
-    Singleton,
     StringType,
     TimestampType,
     TimestamptzType,
     TimeType,
     UUIDType,
 )
+from iceberg.utils.datetime import (
+    date_to_days,
+    micros_to_days,
+    time_to_micros,
+    timestamp_to_micros,
+    timestamptz_to_micros,
+)
+from iceberg.utils.singleton import Singleton
 
 
 @singledispatch
@@ -118,10 +112,8 @@ def _(value: Decimal) -> Literal[Decimal]:
     return DecimalLiteral(value)
 
 
-class AboveMax(Literal[None], Singleton):
-    def __init__(self):
-        pass
-
+class AboveMax(Singleton):
+    @property
     def value(self):
         raise ValueError("AboveMax has no value")
 
@@ -135,7 +127,7 @@ class AboveMax(Literal[None], Singleton):
         return "AboveMax"
 
 
-class BelowMin(Literal[None], Singleton):
+class BelowMin(Singleton):
     def __init__(self):
         pass
 

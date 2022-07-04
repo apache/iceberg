@@ -261,7 +261,7 @@ public class Expressions {
     return new UnboundPredicate<>(op, ref(name));
   }
 
-  private static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr, Iterable<T> values) {
+  public static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr, Iterable<T> values) {
     return new UnboundPredicate<>(op, expr, values);
   }
 

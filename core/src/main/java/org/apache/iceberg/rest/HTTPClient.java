@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
@@ -40,6 +41,7 @@ import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.net.URIBuilder;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -59,13 +61,12 @@ public class HTTPClient implements RESTClient {
   private final String uri;
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
-  private final Map<String, String> additionalHeaders;
+  private final Map<String, String> baseHeaders;
 
-  private HTTPClient(
-      String uri, CloseableHttpClient httpClient, Map<String, String> additionalHeaders) {
+  private HTTPClient(String uri, Map<String, String> baseHeaders) {
     this.uri = uri;
-    this.httpClient = httpClient != null ? httpClient : HttpClients.createDefault();
-    this.additionalHeaders = additionalHeaders != null ? additionalHeaders : ImmutableMap.of();
+    this.httpClient = HttpClients.createDefault();
+    this.baseHeaders = baseHeaders != null ? baseHeaders : ImmutableMap.of();
     this.mapper = RESTObjectMapper.mapper();
   }
 
@@ -131,10 +132,24 @@ public class HTTPClient implements RESTClient {
     throw new RESTException("Unhandled error: %s", errorResponse);
   }
 
+  private URI buildUri(String path, Map<String, String> params) {
+    String baseUri = String.format("%s/%s", uri, path);
+    try {
+      URIBuilder builder = new URIBuilder(baseUri);
+      if (params != null) {
+        params.forEach(builder::addParameter);
+      }
+      return builder.build();
+    } catch (URISyntaxException e) {
+      throw new RESTException("Failed to create request URI from base %s, params %s", baseUri, params);
+    }
+  }
+
   /**
    * Method to execute an HTTP request and process the corresponding response.
    *
    * @param method       - HTTP method, such as GET, POST, HEAD, etc.
+   * @param queryParams  - A map of query parameters
    * @param path         - URL path to send the request to
    * @param requestBody  - Content to place in the request body
    * @param responseType - Class of the Response type. Needs to have serializer registered with ObjectMapper
@@ -143,23 +158,25 @@ public class HTTPClient implements RESTClient {
    * @return The response entity, parsed and converted to its type T
    */
   private <T> T execute(
-      Method method, String path, Object requestBody, Class<T> responseType, Consumer<ErrorResponse> errorHandler) {
+      Method method, String path, Map<String, String> queryParams, Object requestBody, Class<T> responseType,
+      Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
     if (path.startsWith("/")) {
       throw new RESTException(
           "Received a malformed path for a REST request: %s. Paths should not start with /", path);
     }
 
-    String fullUri = String.format("%s/%s", uri, path);
-    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), URI.create(fullUri));
-    addRequestHeaders(request);
+    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), buildUri(path, queryParams));
 
-    if (requestBody != null) {
-      try {
-        StringEntity stringEntity = new StringEntity(mapper.writeValueAsString(requestBody));
-        request.setEntity(stringEntity);
-      } catch (JsonProcessingException e) {
-        throw new RESTException(e, "Failed to write request body: %s", requestBody);
-      }
+    if (requestBody instanceof Map) {
+      // encode maps as form data, application/x-www-form-urlencoded
+      addRequestHeaders(request, headers, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
+      request.setEntity(toFormEncoding((Map<?, ?>) requestBody));
+    } else if (requestBody != null) {
+      // other request bodies are serialized as JSON, application/json
+      addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
+      request.setEntity(toJson(requestBody));
+    } else {
+      addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
     }
 
     try (CloseableHttpResponse response = httpClient.execute(request)) {
@@ -195,33 +212,40 @@ public class HTTPClient implements RESTClient {
   }
 
   @Override
-  public void head(String path, Consumer<ErrorResponse> errorHandler) {
-    execute(Method.HEAD, path, null, null, errorHandler);
+  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    execute(Method.HEAD, path, null, null, null, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T get(String path, Class<T> responseType,
-                                        Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.GET, path, null, responseType, errorHandler);
+  public <T extends RESTResponse> T get(String path, Map<String, String> queryParams, Class<T> responseType,
+                                        Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.GET, path, queryParams, null, responseType, headers, errorHandler);
   }
 
   @Override
   public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType,
-                                         Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.POST, path, body, responseType, errorHandler);
+                                         Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.POST, path, null, body, responseType, headers, errorHandler);
   }
 
   @Override
-  public <T extends RESTResponse> T delete(String path, Class<T> responseType,
+  public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers,
                                            Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, null, responseType, errorHandler);
+    return execute(Method.DELETE, path, null, null, responseType, headers, errorHandler);
   }
 
-  private void addRequestHeaders(HttpUriRequest request) {
+  @Override
+  public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType,
+                                             Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.POST, path, null, formData, responseType, headers, errorHandler);
+  }
+
+  private void addRequestHeaders(HttpUriRequest request, Map<String, String> requestHeaders, String bodyMimeType) {
     request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
     // Many systems require that content type is set regardless and will fail, even on an empty bodied request.
-    request.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
-    additionalHeaders.forEach(request::setHeader);
+    request.setHeader(HttpHeaders.CONTENT_TYPE, bodyMimeType);
+    baseHeaders.forEach(request::setHeader);
+    requestHeaders.forEach(request::setHeader);
   }
 
   @Override
@@ -234,16 +258,10 @@ public class HTTPClient implements RESTClient {
   }
 
   public static class Builder {
-    private final Map<String, String> additionalHeaders = Maps.newHashMap();
+    private final Map<String, String> baseHeaders = Maps.newHashMap();
     private String uri;
-    private CloseableHttpClient httpClient;
-    private ObjectMapper mapper;
 
     private Builder() {
-    }
-
-    private static String asBearer(String token) {
-      return String.format("Bearer %s", token);
     }
 
     public Builder uri(String baseUri) {
@@ -253,23 +271,29 @@ public class HTTPClient implements RESTClient {
     }
 
     public Builder withHeader(String key, String value) {
-      additionalHeaders.put(key, value);
+      baseHeaders.put(key, value);
       return this;
     }
 
     public Builder withHeaders(Map<String, String> headers) {
-      additionalHeaders.putAll(headers);
-      return this;
-    }
-
-    public Builder withBearerAuth(String token) {
-      Preconditions.checkNotNull(token, "Invalid auth token: null");
-      additionalHeaders.put(HttpHeaders.AUTHORIZATION, asBearer(token));
+      baseHeaders.putAll(headers);
       return this;
     }
 
     public HTTPClient build() {
-      return new HTTPClient(uri, httpClient, additionalHeaders);
+      return new HTTPClient(uri, baseHeaders);
     }
+  }
+
+  private StringEntity toJson(Object requestBody) {
+    try {
+      return new StringEntity(mapper.writeValueAsString(requestBody));
+    } catch (JsonProcessingException e) {
+      throw new RESTException(e, "Failed to write request body: %s", requestBody);
+    }
+  }
+
+  private StringEntity toFormEncoding(Map<?, ?> formData) {
+    return new StringEntity(RESTUtil.encodeFormData(formData));
   }
 }

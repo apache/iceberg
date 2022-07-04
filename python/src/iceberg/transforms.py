@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import base64
 import struct
-from abc import ABC
+from abc import ABC, abstractmethod
 from decimal import Decimal
+from functools import singledispatchmethod
 from typing import Generic, Optional, TypeVar
 from uuid import UUID
 
@@ -37,7 +39,9 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
+from iceberg.utils import datetime
 from iceberg.utils.decimal import decimal_to_bytes
+from src.iceberg.utils.singleton import Singleton
 
 S = TypeVar("S")
 T = TypeVar("T")
@@ -64,15 +68,18 @@ class Transform(ABC, Generic[S, T]):
     def __str__(self):
         return self._transform_string
 
-    def __call__(self, value: S) -> Optional[T]:
+    def __call__(self, value: Optional[S]) -> Optional[T]:
         return self.apply(value)
 
-    def apply(self, value: S) -> Optional[T]:
+    @abstractmethod
+    def apply(self, value: Optional[S]) -> Optional[T]:
         ...
 
+    @abstractmethod
     def can_transform(self, source: IcebergType) -> bool:
         return False
 
+    @abstractmethod
     def result_type(self, source: IcebergType) -> IcebergType:
         ...
 
@@ -83,10 +90,8 @@ class Transform(ABC, Generic[S, T]):
     def satisfies_order_of(self, other) -> bool:
         return self == other
 
-    def to_human_string(self, value) -> str:
-        if value is None:
-            return "null"
-        return str(value)
+    def to_human_string(self, value: Optional[S]) -> str:
+        return str(value) if value is not None else "null"
 
     @property
     def dedup_name(self) -> str:
@@ -119,14 +124,15 @@ class BaseBucketTransform(Transform[S, int]):
     def hash(self, value: S) -> int:
         raise NotImplementedError()
 
-    def apply(self, value: S) -> Optional[int]:
-        if value is None:
-            return None
-
-        return (self.hash(value) & IntegerType.max) % self._num_buckets
+    def apply(self, value: Optional[S]) -> Optional[int]:
+        return (self.hash(value) & IntegerType.max) % self._num_buckets if value else None
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return IntegerType()
+
+    @abstractmethod
+    def can_transform(self, source: IcebergType) -> bool:
+        pass
 
 
 class BucketNumberTransform(BaseBucketTransform):
@@ -222,6 +228,126 @@ class BucketUUIDTransform(BaseBucketTransform):
         )
 
 
+def _base64encode(buffer: bytes) -> str:
+    """Converts bytes to base64 string"""
+    return base64.b64encode(buffer).decode("ISO-8859-1")
+
+
+class IdentityTransform(Transform[S, S]):
+    """Transforms a value into itself.
+
+    Example:
+        >>> transform = IdentityTransform(StringType())
+        >>> transform.apply('hello-world')
+        'hello-world'
+    """
+
+    def __init__(self, source_type: IcebergType):
+        super().__init__(
+            "identity",
+            f"transforms.identity(source_type={repr(source_type)})",
+        )
+        self._type = source_type
+
+    def apply(self, value: Optional[S]) -> Optional[S]:
+        return value
+
+    def can_transform(self, source: IcebergType) -> bool:
+        return source.is_primitive
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return source
+
+    @property
+    def preserves_order(self) -> bool:
+        return True
+
+    def satisfies_order_of(self, other: Transform) -> bool:
+        """ordering by value is the same as long as the other preserves order"""
+        return other.preserves_order
+
+    def to_human_string(self, value: Optional[S]) -> str:
+        return self._human_string(value)
+
+    @singledispatchmethod
+    def _human_string(self, value: Optional[S]) -> str:
+        return str(value) if value is not None else "null"
+
+    @_human_string.register(bytes)
+    def _(self, value: bytes) -> str:
+        return _base64encode(value)
+
+    @_human_string.register(int)
+    def _(self, value: int) -> str:
+        return self._int_to_human_string(self._type, value)
+
+    @singledispatchmethod
+    def _int_to_human_string(self, _: IcebergType, value: int) -> str:
+        return str(value)
+
+    @_int_to_human_string.register(DateType)
+    def _(self, _: IcebergType, value: int) -> str:
+        return datetime.to_human_day(value)
+
+    @_int_to_human_string.register(TimeType)
+    def _(self, _: IcebergType, value: int) -> str:
+        return datetime.to_human_time(value)
+
+    @_int_to_human_string.register(TimestampType)
+    def _(self, _: IcebergType, value: int) -> str:
+        return datetime.to_human_timestamp(value)
+
+    @_int_to_human_string.register(TimestamptzType)
+    def _(self, _: IcebergType, value: int) -> str:
+        return datetime.to_human_timestamptz(value)
+
+
+class UnknownTransform(Transform):
+    """A transform that represents when an unknown transform is provided
+    Args:
+      source_type (Type): An Iceberg `Type`
+      transform (str): A string name of a transform
+    Raises:
+      AttributeError: If the apply method is called.
+    """
+
+    def __init__(self, source_type: IcebergType, transform: str):
+        super().__init__(
+            transform,
+            f"transforms.UnknownTransform(source_type={repr(source_type)}, transform={repr(transform)})",
+        )
+        self._type = source_type
+        self._transform = transform
+
+    def apply(self, value: Optional[S]):
+        raise AttributeError(f"Cannot apply unsupported transform: {self}")
+
+    def can_transform(self, source: IcebergType) -> bool:
+        return self._type == source
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return StringType()
+
+
+class VoidTransform(Transform, Singleton):
+    """A transform that always returns None"""
+
+    def __init__(self):
+        super().__init__("void", "transforms.always_null()")
+
+    def apply(self, value: Optional[S]) -> None:
+        return None
+
+    def can_transform(self, _: IcebergType) -> bool:
+        return True
+
+    def result_type(self, source: IcebergType) -> IcebergType:
+        return source
+
+    def to_human_string(self, value: Optional[S]) -> str:
+        return "null"
+
+
 def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
     if type(source_type) in {IntegerType, LongType, DateType, TimeType, TimestampType, TimestamptzType}:
         return BucketNumberTransform(source_type, num_buckets)
@@ -237,3 +363,11 @@ def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
         return BucketUUIDTransform(num_buckets)
     else:
         raise ValueError(f"Cannot bucket by type: {source_type}")
+
+
+def identity(source_type: IcebergType) -> IdentityTransform:
+    return IdentityTransform(source_type)
+
+
+def always_null() -> Transform:
+    return VoidTransform()

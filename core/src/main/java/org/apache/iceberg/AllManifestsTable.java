@@ -44,6 +44,7 @@ import org.apache.iceberg.util.StructProjection;
  */
 public class AllManifestsTable extends BaseMetadataTable {
   private static final Schema MANIFEST_FILE_SCHEMA = new Schema(
+      Types.NestedField.required(14, "content", Types.IntegerType.get()),
       Types.NestedField.required(1, "path", Types.StringType.get()),
       Types.NestedField.required(2, "length", Types.LongType.get()),
       Types.NestedField.optional(3, "partition_spec_id", Types.IntegerType.get()),
@@ -51,6 +52,9 @@ public class AllManifestsTable extends BaseMetadataTable {
       Types.NestedField.optional(5, "added_data_files_count", Types.IntegerType.get()),
       Types.NestedField.optional(6, "existing_data_files_count", Types.IntegerType.get()),
       Types.NestedField.optional(7, "deleted_data_files_count", Types.IntegerType.get()),
+      Types.NestedField.required(15, "added_delete_files_count", Types.IntegerType.get()),
+      Types.NestedField.required(16, "existing_delete_files_count", Types.IntegerType.get()),
+      Types.NestedField.required(17, "deleted_delete_files_count", Types.IntegerType.get()),
       Types.NestedField.optional(8, "partition_summaries", Types.ListType.ofRequired(9, Types.StructType.of(
           Types.NestedField.required(10, "contains_null", Types.BooleanType.get()),
           Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
@@ -121,7 +125,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         } else {
           return StaticDataTask.of(
               io.newInputFile(tableOps().current().metadataFileLocation()),
-              MANIFEST_FILE_SCHEMA, schema(), snap.allManifests(),
+              MANIFEST_FILE_SCHEMA, schema(), snap.allManifests(io),
               manifest -> ManifestsTable.manifestFileToRow(specs.get(manifest.partitionSpecId()), manifest)
           );
         }

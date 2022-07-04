@@ -9,6 +9,7 @@ build
 .rat-excludes
 LICENSE
 NOTICE
+revapi.yml
 gradlew
 examples/*
 gradle/*
@@ -21,6 +22,7 @@ gradle/*
 .*\.svg
 .*\.lock
 .*\.json
+.*\.bin
 package-list
 sitemap.xml
 derby.log

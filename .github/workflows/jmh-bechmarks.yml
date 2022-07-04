@@ -28,8 +28,8 @@ on:
         description: 'The branch name'
         required: true
       spark_version:
-        description: 'The spark project version to use, such as iceberg-spark-3.2'
-        default: 'iceberg-spark-3.2'
+        description: 'The spark project version to use, such as iceberg-spark-3.3'
+        default: 'iceberg-spark-3.3'
         required: true
       benchmarks:
         description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
@@ -37,12 +37,12 @@ on:
 
 jobs:
   matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       foundlabel: ${{ steps.set-matrix.outputs.foundlabel }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: ${{ github.event.inputs.repo }}
           ref: ${{ github.event.inputs.ref }}
@@ -55,7 +55,7 @@ jobs:
 
   show-matrix:
     needs: matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - run: |
           echo "Repo: ${{ github.event.inputs.repo }}"
@@ -67,7 +67,7 @@ jobs:
   run-benchmark:
     if: ${{ needs.matrix.outputs.foundlabel == 'true' }}
     needs: matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
@@ -75,14 +75,15 @@ jobs:
     env:
       SPARK_LOCAL_IP: localhost
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: ${{ github.event.inputs.repo }}
         ref: ${{ github.event.inputs.ref }}
-    - uses: actions/setup-java@v1
+    - uses: actions/setup-java@v3
       with:
+        distribution: zulu
         java-version: 11
-    - uses: actions/cache@v2
+    - uses: actions/cache@v3
       with:
         path: ~/.gradle/caches
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
@@ -92,7 +93,7 @@ jobs:
     - name: Run Benchmark
       run: ./gradlew :iceberg-spark:${{ github.event.inputs.spark_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       if: ${{ always() }}
       with:
         name: benchmark-results

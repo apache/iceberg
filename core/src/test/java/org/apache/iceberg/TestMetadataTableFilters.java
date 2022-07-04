@@ -19,12 +19,14 @@
 
 package org.apache.iceberg;
 
+import java.util.Set;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.BaseFilesTable.ManifestReadTask;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -40,6 +42,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public class TestMetadataTableFilters extends TableTestBase {
 
+  private static final Set<MetadataTableType> aggFileTables = Sets.newHashSet(MetadataTableType.ALL_DATA_FILES,
+      MetadataTableType.ALL_DATA_FILES,
+      MetadataTableType.ALL_FILES);
+
   private final MetadataTableType type;
 
   @Parameterized.Parameters(name = "table_type = {0}, format = {1}")
@@ -51,7 +57,10 @@ public class TestMetadataTableFilters extends TableTestBase {
         { MetadataTableType.FILES, 1 },
         { MetadataTableType.FILES, 2 },
         { MetadataTableType.ALL_DATA_FILES, 1 },
-        { MetadataTableType.ALL_DATA_FILES, 2 }
+        { MetadataTableType.ALL_DATA_FILES, 2 },
+        { MetadataTableType.ALL_DELETE_FILES, 2 },
+        { MetadataTableType.ALL_FILES, 1 },
+        { MetadataTableType.ALL_FILES, 2 }
     };
   }
 
@@ -95,12 +104,12 @@ public class TestMetadataTableFilters extends TableTestBase {
           .commit();
     }
 
-    if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
   }
 
@@ -114,6 +123,10 @@ public class TestMetadataTableFilters extends TableTestBase {
         return new DeleteFilesTable(table.ops(), table);
       case ALL_DATA_FILES:
         return new AllDataFilesTable(table.ops(), table);
+      case ALL_DELETE_FILES:
+        return new AllDeleteFilesTable(table.ops(), table);
+      case ALL_FILES:
+        return new AllFilesTable(table.ops(), table);
       default:
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
     }
@@ -129,12 +142,23 @@ public class TestMetadataTableFilters extends TableTestBase {
         }
       case DATA_FILES:
       case DELETE_FILES:
+      case ALL_DELETE_FILES:
         return partitions;
       case ALL_DATA_FILES:
         return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
+      case ALL_FILES:
+        if (formatVersion == 1) {
+          return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
+        } else {
+          return partitions * 4; // ScanTask for Delete and Data File in DELETED and ADDED states
+        }
       default:
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
     }
+  }
+
+  private boolean isAggFileTable(MetadataTableType tableType) {
+    return aggFileTables.contains(tableType);
   }
 
   @Test
@@ -288,12 +312,12 @@ public class TestMetadataTableFilters extends TableTestBase {
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
 
-    if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
 
     Table metadataTable = createMetadataTable();
@@ -363,12 +387,12 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newRowDelta().addDeletes(delete11).commit();
     }
 
-    if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
 
     Table metadataTable = createMetadataTable();
@@ -424,12 +448,12 @@ public class TestMetadataTableFilters extends TableTestBase {
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
 
-    if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
 
     Table metadataTable = createMetadataTable();
@@ -499,12 +523,12 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newRowDelta().addDeletes(delete11).commit();
     }
 
-    if (type.equals(MetadataTableType.ALL_DATA_FILES)) {
+    if (isAggFileTable(type)) {
       // Clear all files from current snapshot to test whether 'all' Files tables scans previous files
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
 
     Table metadataTable = createMetadataTable();
