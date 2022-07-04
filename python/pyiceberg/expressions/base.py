@@ -433,6 +433,12 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_and(left_result=left_result, right_result=right_result)
 
 
+@visit.register(In)
+def _(obj: In, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
+    return visitor.visit_unbound_predicate(predicate=obj)
+
+
 @visit.register(Or)
 def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
@@ -444,8 +450,8 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
 class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
     """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema"""
 
-    def __init__(self, struct: StructType, case_sensitive: bool = True) -> None:
-        self._struct = struct
+    def __init__(self, schema: Schema, case_sensitive: bool = True) -> None:
+        self._schema = schema
         self._case_sensitive = case_sensitive
 
     def visit_true(self) -> BooleanExpression:
@@ -464,7 +470,7 @@ class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
         return Or(left=left_result, right=right_result)
 
     def visit_unbound_predicate(self, predicate) -> BooleanExpression:
-        return predicate.bind(self._struct)
+        return predicate.bind(self._schema, case_sensitive=self._case_sensitive)
 
     def visit_bound_predicate(self, predicate) -> BooleanExpression:
         raise TypeError(f"Found already bound predicate: {predicate}")
