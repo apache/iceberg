@@ -27,8 +27,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
@@ -42,9 +44,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
@@ -293,6 +297,30 @@ public class TestDynamoDbCatalog {
             .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
             .build());
     Assert.assertFalse("namespace must not exist", response.hasItem());
+  }
+
+  @Ignore
+  public void testRegisterTable() {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    catalog.dropTable(identifier, false);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThat(catalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Table newTable = catalog.loadTable(identifier);
+    Assertions.assertThat(newTable).isNotNull();
+  }
+
+  @Ignore
+  public void testRegisterExistingTable() {
+    catalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
+    Table registeringTable = catalog.loadTable(TableIdentifier.of("a", "t1"));
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(TableIdentifier.of("a", "t1"), metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
   }
 
   private static String genRandomName() {

@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -43,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
@@ -432,5 +434,29 @@ public class TestGlueCatalogTable extends GlueTestBase {
             " properties.",
         "table-key5",
         table.properties().get("key5"));
+  }
+
+  @Ignore
+  public void testRegisterTable() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    glueCatalog.dropTable(TableIdentifier.of(namespace, tableName), false);
+    glueCatalog.registerTable(TableIdentifier.of(namespace, tableName), metadataLocation);
+  }
+
+  @Ignore
+  public void testRegisterTableAlreadyExists() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    AssertHelpers.assertThrows("Should fail to register to an existing Glue table",
+        AlreadyExistsException.class,
+        "already exists in Glue",
+        () -> glueCatalog.registerTable(TableIdentifier.of(namespace, tableName), metadataLocation));
   }
 }
