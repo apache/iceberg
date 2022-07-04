@@ -53,8 +53,8 @@ import static org.apache.spark.sql.functions.when;
  * <p>
  * To run this benchmark for spark-3.3:
  * <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
- *       -PjmhIncludeRegex=VectorizedReadFlatParquetDataBenchmark
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh \
+ *       -PjmhIncludeRegex=VectorizedReadFlatParquetDataBenchmark \
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>
  */
@@ -87,15 +87,18 @@ public class VectorizedReadFlatParquetDataBenchmark extends IcebergSourceBenchma
 
   @Override
   protected Table initTable() {
+    // bigDecimalCol is big enough to be encoded as fix len binary (9 bytes),
+    // decimalCol is small enough to be encoded as a 64-bit int
     Schema schema = new Schema(
         optional(1, "longCol", Types.LongType.get()),
         optional(2, "intCol", Types.IntegerType.get()),
         optional(3, "floatCol", Types.FloatType.get()),
         optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-        optional(6, "dateCol", Types.DateType.get()),
-        optional(7, "timestampCol", Types.TimestampType.withZone()),
-        optional(8, "stringCol", Types.StringType.get()));
+        optional(5, "bigDecimalCol", Types.DecimalType.of(20, 5)),
+        optional(6, "decimalCol", Types.DecimalType.of(18, 5)),
+        optional(7, "dateCol", Types.DateType.get()),
+        optional(8, "timestampCol", Types.TimestampType.withZone()),
+        optional(9, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = parquetWriteProps();
@@ -120,7 +123,8 @@ public class VectorizedReadFlatParquetDataBenchmark extends IcebergSourceBenchma
           .withColumn("intCol", expr("CAST(longCol AS INT)"))
           .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
           .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+          .withColumn("bigDecimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(18, 5))"))
           .withColumn("dateCol", date_add(current_date(), fileNum))
           .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
           .withColumn("stringCol", expr("CAST(longCol AS STRING)"));
@@ -224,6 +228,26 @@ public class VectorizedReadFlatParquetDataBenchmark extends IcebergSourceBenchma
   public void readDecimalsSparkVectorized5k() {
     withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
       Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol");
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readBigDecimalsIcebergVectorized5k() {
+    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().format("iceberg")
+              .load(tableLocation).select("bigDecimalCol");
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readBigDecimalsSparkVectorized5k() {
+    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
+      Dataset<Row> df = spark().read().parquet(dataLocation()).select("bigDecimalCol");
       materialize(df);
     });
   }
