@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -35,15 +36,20 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UnboundPartitionSpec;
+import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
@@ -65,6 +71,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 public class CatalogHandlers {
+
   private static final Schema EMPTY_SCHEMA = new Schema();
 
   private CatalogHandlers() {
@@ -89,6 +96,15 @@ public class CatalogHandlers {
     public CommitFailedException wrapped() {
       return wrapped;
     }
+  }
+
+  private static class CreateCommitInfo {
+    private Schema schema;
+    private UnboundPartitionSpec unboundPartitionSpec;
+    private UnboundSortOrder unboundSortOrder;
+    private Map<String, String> props;
+    private String location;
+    private List<MetadataUpdate> otherUpdates = Lists.newArrayList();
   }
 
   public static ListNamespacesResponse listNamespaces(SupportsNamespaces catalog, Namespace parent) {
@@ -236,35 +252,20 @@ public class CatalogHandlers {
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
   }
 
+  public static void renameTable(Catalog catalog, RenameTableRequest request) {
+    catalog.renameTable(request.source(), request.destination());
+  }
+
   public static LoadTableResponse updateTable(Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
     TableMetadata finalMetadata;
     if (isCreate(request)) {
-      // this is a hacky way to get TableOperations for an uncommitted table
-      Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
-      if (transaction instanceof BaseTransaction) {
-        BaseTransaction baseTransaction = (BaseTransaction) transaction;
-        finalMetadata = create(baseTransaction.underlyingOps(), baseTransaction.startMetadata(), request);
-      } else {
-        throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
-      }
-
+      finalMetadata = commitCreate(catalog, ident, request);
     } else {
-      Table table = catalog.loadTable(ident);
-      if (table instanceof BaseTable) {
-        TableOperations ops = ((BaseTable) table).operations();
-        finalMetadata = commit(ops, request);
-      } else {
-        throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
-      }
+      finalMetadata = commitUpdate(catalog, ident, request);
     }
-
     return LoadTableResponse.builder()
         .withTableMetadata(finalMetadata)
         .build();
-  }
-
-  public static void renameTable(Catalog catalog, RenameTableRequest request) {
-    catalog.renameTable(request.source(), request.destination());
   }
 
   private static boolean isCreate(UpdateTableRequest request) {
@@ -282,12 +283,40 @@ public class CatalogHandlers {
     return isCreate;
   }
 
-  private static TableMetadata create(TableOperations ops, TableMetadata start, UpdateTableRequest request) {
+  private static TableMetadata commitUpdate(Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
+    Table table = catalog.loadTable(ident);
+    if (table instanceof BaseTable) {
+      TableOperations ops = ((BaseTable) table).operations();
+      return commit(ops, request.requirements(), request.updates());
+    } else {
+      throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
+    }
+  }
+
+  private static TableMetadata commitCreate(Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
+    // this is a hacky way to get TableOperations for an uncommitted table
+    Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
+    if (!(transaction instanceof BaseTransaction)) {
+      throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
+    }
+    TableOperations ops = ((BaseTransaction) transaction).underlyingOps();
+
     // the only valid requirement is that the table will be created
     request.requirements().forEach(requirement -> requirement.validate(ops.current()));
 
+    CreateCommitInfo info = extractCreateCommitInfo(request);
+    PartitionSpec partitionSpec =
+        info.unboundPartitionSpec == null ? PartitionSpec.unpartitioned() : info.unboundPartitionSpec.bind(info.schema);
+    SortOrder sortOrder =
+        info.unboundSortOrder == null ? SortOrder.unsorted() : info.unboundSortOrder.bind(info.schema);
+    if (info.props == null) {
+      info.props = ImmutableMap.of();
+    }
+
+    TableMetadata start =
+            TableMetadata.newTableMetadata(info.schema, partitionSpec, sortOrder, info.location, info.props);
     TableMetadata.Builder builder = TableMetadata.buildFrom(start);
-    request.updates().forEach(update -> update.applyTo(builder));
+    info.otherUpdates.forEach(update -> update.applyTo(builder));
 
     // create transactions do not retry. if the table exists, retrying is not a solution
     ops.commit(null, builder.build());
@@ -295,7 +324,36 @@ public class CatalogHandlers {
     return ops.current();
   }
 
-  private static TableMetadata commit(TableOperations ops, UpdateTableRequest request) {
+  private static CreateCommitInfo extractCreateCommitInfo(UpdateTableRequest request) {
+    CreateCommitInfo result = new CreateCommitInfo();
+    for (MetadataUpdate update : request.updates()) {
+      if (update instanceof MetadataUpdate.AddSchema) {
+        result.schema = ((MetadataUpdate.AddSchema) update).schema();
+      } else if (update instanceof MetadataUpdate.AddPartitionSpec) {
+        result.unboundPartitionSpec = ((MetadataUpdate.AddPartitionSpec) update).spec();
+      } else if (update instanceof MetadataUpdate.AddSortOrder) {
+        result.unboundSortOrder = ((MetadataUpdate.AddSortOrder) update).sortOrder();
+      } else if (update instanceof MetadataUpdate.SetProperties) {
+        result.props = ((MetadataUpdate.SetProperties) update).updated();
+      } else if (update instanceof MetadataUpdate.SetLocation) {
+        result.location = ((MetadataUpdate.SetLocation) update).location();
+      } else if (!(update instanceof MetadataUpdate.SetCurrentSchema) &&
+              !(update instanceof MetadataUpdate.SetDefaultPartitionSpec) &&
+              !(update instanceof MetadataUpdate.SetDefaultSortOrder)) {
+        // we don't want to overwrite the initial IDs
+        result.otherUpdates.add(update);
+      }
+    }
+
+    if (result.schema == null) {
+      throw new BadRequestException("No schema specified for create commit");
+    }
+
+    return result;
+  }
+
+  private static TableMetadata commit(TableOperations ops, List<UpdateTableRequest.UpdateRequirement> requirements,
+      List<MetadataUpdate> updates) {
     AtomicBoolean isRetry = new AtomicBoolean(false);
     try {
       Tasks.foreach(ops)
@@ -310,7 +368,7 @@ public class CatalogHandlers {
 
             // validate requirements
             try {
-              request.requirements().forEach(requirement -> requirement.validate(base));
+              requirements.forEach(requirement -> requirement.validate(base));
             } catch (CommitFailedException e) {
               // wrap and rethrow outside of tasks to avoid unnecessary retry
               throw new ValidationFailureException(e);
@@ -318,7 +376,7 @@ public class CatalogHandlers {
 
             // apply changes
             TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
-            request.updates().forEach(update -> update.applyTo(metadataBuilder));
+            updates.forEach(update -> update.applyTo(metadataBuilder));
 
             TableMetadata updated = metadataBuilder.build();
             if (updated.changes().isEmpty()) {
