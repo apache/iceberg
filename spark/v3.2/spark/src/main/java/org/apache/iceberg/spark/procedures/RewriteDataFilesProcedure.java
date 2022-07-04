@@ -19,13 +19,16 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.expressions.NamedReference;
+import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.Spark3Util;
@@ -97,12 +100,9 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
       String strategy = args.isNullAt(1) ? null : args.getString(1);
       String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
-      SortOrder sortOrder = null;
-      if (sortOrderString != null) {
-        sortOrder = parseSortOrder(sortOrderString, table.schema());
-      }
-      if (strategy != null || sortOrder != null) {
-        action = checkAndApplyStrategy(action, strategy, sortOrder);
+
+      if (strategy != null || sortOrderString != null) {
+        action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
       }
 
       if (!args.isNullAt(3)) {
@@ -145,25 +145,39 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       RewriteDataFiles action,
       String strategy,
       String sortOrderString,
-      Table table) {
-    Pattern zOrderPattern = Pattern.compile("zorder\\s*\\(.*\\)", Pattern.CASE_INSENSITIVE);
-    boolean isZOrder = sortOrderString != null && zOrderPattern.matcher(sortOrderString).matches();
+      Schema schema) {
+    List<ExtendedParser.RawOrderField> zOrderFields;
+    List<ExtendedParser.RawOrderField> sortOrderFields;
+    if (sortOrderString != null) {
+      List<ExtendedParser.RawOrderField> rawOrderFields = ExtendedParser.parseSortOrder(spark(), sortOrderString);
+      Map<Boolean, List<ExtendedParser.RawOrderField>> partitions = rawOrderFields.stream().collect(
+              Collectors.partitioningBy(field -> field.term() instanceof Zorder));
+      zOrderFields = partitions.get(true);
+      sortOrderFields = partitions.get(false);
+
+      if (!zOrderFields.isEmpty() && !sortOrderFields.isEmpty()) {
+        // TODO: we need to allow this in future when SparkAction has handling for this.
+        throw new IllegalArgumentException("Both SortOrder and Zorder is configured: " + sortOrderString);
+      }
+    } else {
+      zOrderFields = Collections.emptyList();
+      sortOrderFields = Collections.emptyList();
+    }
+
     // caller of this function ensures that between strategy and sortOrder, at least one of them is not null.
     if (strategy == null || strategy.equalsIgnoreCase("sort")) {
-      if (isZOrder) {
-        String columns = sortOrderString.substring(
-            sortOrderString.indexOf("(") + 1,
-            sortOrderString.lastIndexOf(")"));
-        String[] columnNames = Arrays.stream(columns.split(",")).map(String::trim).toArray(String[]::new);
+      if (!zOrderFields.isEmpty()) {
+        String[] columnNames = zOrderFields.stream().flatMap(
+            field -> ((Zorder) field.term()).refs().stream().map(NamedReference::name)).toArray(String[]::new);
         return action.zOrder(columnNames);
       }
-      return action.sort(collectSortOrders(table, sortOrderString));
+      return action.sort(buildSortOrder(sortOrderFields, schema));
     }
     if (strategy.equalsIgnoreCase("binpack")) {
       RewriteDataFiles rewriteDataFiles = action.binPack();
       if (sortOrderString != null) {
         // calling below method to throw the error as user has set both binpack strategy and sort order
-        return rewriteDataFiles.sort(collectSortOrders(table, sortOrderString));
+        return rewriteDataFiles.sort(buildSortOrder(sortOrderFields, schema));
       }
       return rewriteDataFiles;
     } else {
@@ -172,12 +186,9 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     }
   }
 
-  private SortOrder parseSortOrder(String orderString, Schema schema) {
+  private SortOrder buildSortOrder(List<ExtendedParser.RawOrderField> rawOrderFields, Schema schema) {
     SortOrder.Builder builder = SortOrder.builderFor(schema);
-
-    ExtendedParser.parseSortOrder(spark(), orderString)
-        .forEach(rawField -> builder.sortBy(rawField.term(), rawField.direction(), rawField.nullOrder()));
-
+    rawOrderFields.forEach(rawField -> builder.sortBy(rawField.term(), rawField.direction(), rawField.nullOrder()));
     return builder.build();
   }
 

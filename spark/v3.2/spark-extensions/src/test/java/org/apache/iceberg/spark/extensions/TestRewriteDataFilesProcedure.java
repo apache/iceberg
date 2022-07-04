@@ -348,6 +348,12 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
             " struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
         () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', " +
             "sort_order => 'zorder(col1)')", catalogName, tableIdent));
+
+    // Test for z_order with sort_order
+    AssertHelpers.assertThrows("Should reject calls with error message",
+        IllegalArgumentException.class, "Both SortOrder and Zorder is configured: c1,zorder(c2,c3)",
+        () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', " +
+            "sort_order => 'c1,zorder(c2,c3)')", catalogName, tableIdent));
   }
 
   @Test
