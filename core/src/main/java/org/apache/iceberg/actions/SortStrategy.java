@@ -49,7 +49,7 @@ public abstract class SortStrategy extends BinPackStrategy {
    * @return this for method chaining
    */
   public SortStrategy sortOrder(SortOrder order) {
-    Preconditions.checkArgument(!order.isUnsorted(), "Invalid sort order for sort strategy: unsorted");
+    Preconditions.checkArgument(!order.isUnsorted(), "Cannot set strategy sort order: unsorted");
     this.sortOrder = SortOrderUtil.buildSortOrder(table(), order);
     return this;
   }
