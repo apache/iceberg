@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+from pyiceberg import transforms
 from pyiceberg.schema import Schema
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.transforms import bucket
-from pyiceberg.types import IntegerType
+from pyiceberg.types import IntegerType, StringType
 
 
 def test_partition_field_init():
@@ -37,37 +37,92 @@ def test_partition_field_init():
     )
 
 
-def test_partition_spec_init(table_schema_simple: Schema):
+def test_partition_spec_init():
     bucket_transform = bucket(IntegerType(), 4)
     id_field1 = PartitionField(3, 1001, bucket_transform, "id")
-    partition_spec1 = PartitionSpec(table_schema_simple, 0, (id_field1,), 1001)
+    partition_spec1 = PartitionSpec(0, (id_field1,), 1001)
 
     assert partition_spec1.spec_id == 0
-    assert partition_spec1.schema == table_schema_simple
     assert partition_spec1 == partition_spec1
     assert partition_spec1 != id_field1
     assert str(partition_spec1) == f"[\n  {str(id_field1)}\n]"
     assert not partition_spec1.is_unpartitioned()
     # only differ by PartitionField field_id
     id_field2 = PartitionField(3, 1002, bucket_transform, "id")
-    partition_spec2 = PartitionSpec(table_schema_simple, 0, (id_field2,), 1001)
+    partition_spec2 = PartitionSpec(0, (id_field2,), 1001)
     assert partition_spec1 != partition_spec2
     assert partition_spec1.compatible_with(partition_spec2)
     assert partition_spec1.fields_by_source_id(3) == [id_field1]
 
 
-def test_partition_compatible_with(table_schema_simple: Schema):
+def test_partition_compatible_with():
     bucket_transform = bucket(IntegerType(), 4)
     field1 = PartitionField(3, 100, bucket_transform, "id")
     field2 = PartitionField(3, 102, bucket_transform, "id")
-    lhs = PartitionSpec(table_schema_simple, 0, (field1,), 1001)
-    rhs = PartitionSpec(table_schema_simple, 0, (field1, field2), 1001)
+    lhs = PartitionSpec(0, (field1,), 1001)
+    rhs = PartitionSpec(0, (field1, field2), 1001)
     assert not lhs.compatible_with(rhs)
 
 
-def test_unpartitioned(table_schema_simple: Schema):
-    unpartitioned = PartitionSpec(table_schema_simple, 1, (), 1000)
+def test_unpartitioned():
+    unpartitioned = PartitionSpec(1, (), 1000)
 
     assert not unpartitioned.fields
     assert unpartitioned.is_unpartitioned()
     assert str(unpartitioned) == "[]"
+
+
+def test_serialize_unpartition_spec():
+    unpartitioned = PartitionSpec(1, (), 1000)
+    assert unpartitioned.json() == """{"spec-id": 1, "fields": [], "last-assigned-field-id": 1000}"""
+
+
+def test_serialize_partition_spec():
+    partitioned = PartitionSpec(
+        spec_id=3,
+        fields=(
+            PartitionField(
+                source_id=1, field_id=1000, transform=transforms.truncate(StringType(), width=19), name="str_truncate"
+            ),
+            PartitionField(
+                source_id=2, field_id=1001, transform=transforms.bucket(IntegerType(), num_buckets=25), name="int_bucket"
+            ),
+        ),
+    )
+    assert (
+        partitioned.json()
+        == """{"spec-id": 3, "fields": [{"source-id": 1, "field-id": 1000, "transform": "truncate[19]", "name": "str_truncate"}, {"source-id": 2, "field-id": 1001, "transform": "bucket[25]", "name": "int_bucket"}], "last-assigned-field-id": 1001}"""
+    )
+
+
+def test_deserialize_partition_spec(table_schema_simple: Schema):
+    json_partition_spec = """{"spec-id": 3, "fields": [{"source-id": 1, "field-id": 1000, "transform": "truncate[19]", "name": "str_truncate"}, {"source-id": 2, "field-id": 1001, "transform": "bucket[25]", "name": "int_bucket"}], "last-assigned-field-id": 1001}"""
+
+    spec = PartitionSpec.parse_raw(json_partition_spec)
+
+    # Should show unbound transforms, waiting for https://github.com/apache/iceberg/pull/5124
+    assert spec == PartitionSpec(
+        spec_id=3,
+        fields=(
+            PartitionField(
+                source_id=1, field_id=1000, transform=transforms.truncate(StringType(), width=19), name="str_truncate"
+            ),
+            PartitionField(
+                source_id=2, field_id=1001, transform=transforms.bucket(IntegerType(), num_buckets=25), name="int_bucket"
+            ),
+        ),
+    )
+
+    spec.bind(table_schema_simple)
+
+    assert spec == PartitionSpec(
+        spec_id=3,
+        fields=(
+            PartitionField(
+                source_id=1, field_id=1000, transform=transforms.truncate(StringType(), width=19), name="str_truncate"
+            ),
+            PartitionField(
+                source_id=2, field_id=1001, transform=transforms.bucket(IntegerType(), num_buckets=25), name="int_bucket"
+            ),
+        ),
+    )

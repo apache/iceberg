@@ -14,17 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+)
+
+from pydantic import Field, PrivateAttr
 
 from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 _PARTITION_DATA_ID_START: int = 1000
 
 
-@dataclass(frozen=True)
-class PartitionField:
+class PartitionField(IcebergBaseModel):
     """
     PartitionField is a single element with name and unique id,
     It represents how one partition value is derived from the source column via transformation
@@ -36,17 +43,41 @@ class PartitionField:
         name(str): The name of this partition field
     """
 
-    source_id: int
-    field_id: int
-    transform: Transform
-    name: str
+    source_id: int = Field(alias="source-id")
+    field_id: int = Field(alias="field-id")
+    transform: Transform = Field()
+    name: str = Field()
+
+    def __init__(
+        self,
+        source_id: Optional[int] = None,
+        field_id: Optional[int] = None,
+        transform: Optional[Transform] = None,
+        name: Optional[str] = None,
+        **data: Any,
+    ):
+        if source_id is not None:
+            data["source-id"] = source_id
+        if field_id is not None:
+            data["field-id"] = field_id
+        if transform is not None:
+            data["transform"] = transform
+        if name is not None:
+            data["name"] = name
+        super().__init__(**data)
 
     def __str__(self):
         return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
 
+    def bind(self, schema: Schema):
+        self.transform = (
+            self.transform.bind(schema.find_type(self.source_id))
+            if isinstance(self.transform, UnboundTransform)
+            else self.transform
+        )
 
-@dataclass(eq=False, frozen=True)
-class PartitionSpec:
+
+class PartitionSpec(IcebergBaseModel):
     """
     PartitionSpec captures the transformation from table data to partition values
 
@@ -57,24 +88,44 @@ class PartitionSpec:
         last_assigned_field_id(int): auto-increment partition field id starting from PARTITION_DATA_ID_START
     """
 
-    schema: Schema
-    spec_id: int
-    fields: Tuple[PartitionField, ...]
-    last_assigned_field_id: int
-    source_id_to_fields_map: Dict[int, List[PartitionField]] = field(init=False, repr=False)
+    spec_id: int = Field(alias="spec-id")
+    fields: Tuple[PartitionField, ...] = Field()
+    last_assigned_field_id: int = Field(alias="last-assigned-field-id")
 
-    def __post_init__(self):
-        source_id_to_fields_map = {}
+    _source_id_to_fields_map: Dict[int, List[PartitionField]] = PrivateAttr(default_factory=dict)
+
+    def __init__(
+        self,
+        spec_id: Optional[int] = None,
+        fields: Optional[Tuple[PartitionField, ...]] = None,
+        last_assigned_field_id: Optional[int] = None,
+        **data: Any,
+    ):
+        if spec_id is not None:
+            data["spec-id"] = spec_id
+        if fields is not None:
+            data["fields"] = fields
+        if last_assigned_field_id is not None:
+            data["last-assigned-field-id"] = last_assigned_field_id
+
+        if not data.get("last-assigned-field-id"):
+            if fields := data.get("fields"):
+                data["last-assigned-field-id"] = max(field.field_id for field in fields)
+            else:
+                data["last-assigned-field-id"] = _PARTITION_DATA_ID_START
+        super().__init__(**data)
+
+    def bind(self, schema: Schema):
         for partition_field in self.fields:
-            source_column = self.schema.find_column_name(partition_field.source_id)
+            # Lookup the column
+            source_column = schema.find_field(partition_field.source_id)
             if not source_column:
                 raise ValueError(f"Cannot find source column: {partition_field.source_id}")
-            existing = source_id_to_fields_map.get(partition_field.source_id, [])
-            existing.append(partition_field)
-            source_id_to_fields_map[partition_field.source_id] = existing
-        object.__setattr__(self, "source_id_to_fields_map", source_id_to_fields_map)
+            self._source_id_to_fields_map.get(partition_field.source_id, []).append(partition_field)
+            # Init the right transform impl based on the field
+            partition_field.bind(source_column.field_type)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         """
         Produce a boolean to return True if two objects are considered equal
 
@@ -102,7 +153,7 @@ class PartitionSpec:
         return not self.fields
 
     def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
-        return self.source_id_to_fields_map[field_id]
+        return self._source_id_to_fields_map[field_id]
 
     def compatible_with(self, other: "PartitionSpec") -> bool:
         """
