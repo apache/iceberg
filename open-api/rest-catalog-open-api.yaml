@@ -1085,7 +1085,6 @@ components:
         - snapshot-id
         - timestamp-ms
         - manifest-list
-        - summary
       properties:
         snapshot-id:
           type: integer
