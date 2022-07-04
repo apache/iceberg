@@ -592,8 +592,8 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
 
     @Override
     protected DecimalT decode(int dictId, int precision, int scale) {
-      BigDecimal value = DecimalUtility.getBigDecimalFromByteBuffer(
-          parquetDictionary.decodeToBinary(dictId).toByteBuffer(), scale, DecimalVector.TYPE_WIDTH);
+      ByteBuffer byteBuffer = parquetDictionary.decodeToBinary(dictId).toByteBuffer();
+      BigDecimal value = DecimalUtility.getBigDecimalFromByteBuffer(byteBuffer, scale, byteBuffer.remaining());
       return decimalFactory.ofBigDecimal(value, precision, scale);
     }
   }
