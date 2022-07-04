@@ -87,6 +87,7 @@ public abstract class BaseTestIceberg {
   protected NessieApiV1 api;
   protected Configuration hadoopConfig;
   protected final String branch;
+  private String initialHashOfDefaultBranch;
   protected String uri;
 
   public BaseTestIceberg(String branch) {
@@ -94,14 +95,23 @@ public abstract class BaseTestIceberg {
   }
 
   private void resetData() throws NessieConflictException, NessieNotFoundException {
+    Branch defaultBranch = api.getDefaultBranch();
     for (Reference r : api.getAllReferences().get().getReferences()) {
-      if (r instanceof Branch) {
+      if (r instanceof Branch && !r.getName().equals(defaultBranch.getName())) {
         api.deleteBranch().branch((Branch) r).delete();
-      } else {
+      }
+      if (r instanceof Tag) {
         api.deleteTag().tag((Tag) r).delete();
       }
     }
-    api.createReference().reference(Branch.of("main", null)).create();
+
+    // Reset default branch "main", if necessary
+    if (!defaultBranch.getHash().equals(initialHashOfDefaultBranch)) {
+      api.assignBranch()
+          .assignTo(Branch.of(defaultBranch.getName(), initialHashOfDefaultBranch))
+          .branch(defaultBranch)
+          .assign();
+    }
   }
 
   @BeforeEach
@@ -109,12 +119,10 @@ public abstract class BaseTestIceberg {
     this.uri = nessieUri.toString();
     this.api = HttpClientBuilder.builder().withUri(this.uri).build(NessieApiV1.class);
 
-    resetData();
-
-    try {
+    Branch defaultBranch = api.getDefaultBranch();
+    initialHashOfDefaultBranch = defaultBranch.getHash();
+    if (!branch.equals(defaultBranch.getName())) {
       api.createReference().reference(Branch.of(branch, null)).create();
-    } catch (Exception e) {
-      // ignore, already created. Can't run this in BeforeAll as quarkus hasn't disabled auth
     }
 
     hadoopConfig = new Configuration();
@@ -174,6 +182,8 @@ public abstract class BaseTestIceberg {
 
   @AfterEach
   public void afterEach() throws Exception {
+    resetData();
+
     try {
       if (catalog != null) {
         catalog.close();
