@@ -70,7 +70,7 @@ public abstract class DeleteFilter<T> {
   private final int isDeletedColumnPosition;
 
   private PositionDeleteIndex deleteRowPositions = null;
-  private Predicate<T> eqDeleteRows = null;
+  private List<Predicate<T>> eqDeletePredicates = null;
 
   protected DeleteFilter(String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
@@ -132,8 +132,12 @@ public abstract class DeleteFilter<T> {
   }
 
   private List<Predicate<T>> applyEqDeletes() {
+    if (eqDeletePredicates != null) {
+      return eqDeletePredicates;
+    }
     List<Predicate<T>> isInDeleteSets = Lists.newArrayList();
     if (eqDeletes.isEmpty()) {
+      this.eqDeletePredicates = isInDeleteSets;
       return isInDeleteSets;
     }
 
@@ -166,7 +170,7 @@ public abstract class DeleteFilter<T> {
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
       isInDeleteSets.add(isInDeleteSet);
     }
-
+    this.eqDeletePredicates = isInDeleteSets;
     return isInDeleteSets;
   }
 
@@ -192,13 +196,10 @@ public abstract class DeleteFilter<T> {
   }
 
   public Predicate<T> eqDeletedRowFilter() {
-    if (eqDeleteRows == null) {
-      eqDeleteRows = applyEqDeletes().stream()
-          .map(Predicate::negate)
-          .reduce(Predicate::and)
-          .orElse(t -> true);
-    }
-    return eqDeleteRows;
+    return applyEqDeletes().stream()
+            .map(Predicate::negate)
+            .reduce(Predicate::and)
+            .orElse(t -> true);
   }
 
   public PositionDeleteIndex deletedRowPositions() {
