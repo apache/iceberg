@@ -67,7 +67,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   }
 
   @Override
-  public org.apache.iceberg.Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+  public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
     Preconditions.checkArgument(
         (identifier != null) && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
     Preconditions.checkArgument(metadataFileLocation != null && !metadataFileLocation.isEmpty(),
@@ -75,7 +75,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     // Throw an exception if this table already exists in the catalog.
     if (tableExists(identifier)) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException("Table already exists: %s", identifier);
+      throw new AlreadyExistsException("Table already exists: %s", identifier);
     }
 
     TableOperations ops = newTableOps(identifier);
