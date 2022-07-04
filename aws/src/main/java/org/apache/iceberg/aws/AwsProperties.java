@@ -70,7 +70,7 @@ public class AwsProperties implements Serializable {
 
   /**
    * If S3 encryption type is SSE-KMS, input is a KMS Key ID or ARN.
-   *   In case this property is not set, default key "aws/s3" is used.
+   * In case this property is not set, default key "aws/s3" is used.
    * If encryption type is SSE-C, input is a custom base-64 AES256 symmetric key.
    */
   public static final String S3FILEIO_SSE_KEY = "s3.sse.key";
@@ -80,6 +80,12 @@ public class AwsProperties implements Serializable {
    * This MD5 must be explicitly passed in by the caller to ensure key integrity.
    */
   public static final String S3FILEIO_SSE_MD5 = "s3.sse.md5";
+
+  /**
+   * The value must be one of {@link software.amazon.awssdk.regions.Region}, such as 'us-east-1'.
+   * For more details, see https://docs.aws.amazon.com/general/latest/gr/rande.html
+   */
+  public static final String KMS_REGION = "kms.region";
 
   /**
    * The ID of the Glue Data Catalog where the tables reside.
@@ -93,6 +99,12 @@ public class AwsProperties implements Serializable {
    * The account ID used in a Glue resource ARN, e.g. arn:aws:glue:us-east-1:1000000000000:table/db1/table1
    */
   public static final String GLUE_ACCOUNT_ID = "glue.account-id";
+
+  /**
+   * The value must be one of {@link software.amazon.awssdk.regions.Region}, such as 'us-east-1'.
+   * For more details, see https://docs.aws.amazon.com/general/latest/gr/rande.html
+   */
+  public static final String GLUE_REGION = "glue.region";
 
   /**
    * If Glue should skip archiving an old table version when creating a new version in a commit.
@@ -126,7 +138,7 @@ public class AwsProperties implements Serializable {
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
    */
-  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS  = "s3.multipart.num-threads";
+  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS = "s3.multipart.num-threads";
 
   /**
    * The size of a single part for multipart upload requests in bytes (default: 32MB).
@@ -169,6 +181,12 @@ public class AwsProperties implements Serializable {
    * or access a private S3 endpoint in a virtual private cloud.
    */
   public static final String S3FILEIO_ENDPOINT = "s3.endpoint";
+
+  /**
+   * The value must be one of {@link software.amazon.awssdk.regions.Region}, such as 'us-east-1'.
+   * For more details, see https://docs.aws.amazon.com/general/latest/gr/rande.html
+   */
+  public static final String S3FILEIO_REGION = "s3.region";
 
   /**
    * If set {@code true}, requests to S3FileIO will use Path-Style, otherwise, Virtual Hosted-Style will be used.
@@ -244,6 +262,12 @@ public class AwsProperties implements Serializable {
    * Configure an alternative endpoint of the DynamoDB service to access.
    */
   public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
+
+  /**
+   * The value must be one of {@link software.amazon.awssdk.regions.Region}, such as 'us-east-1'.
+   * For more details, see https://docs.aws.amazon.com/general/latest/gr/rande.html
+   */
+  public static final String DYNAMODB_REGION = "dynamodb.region";
 
   /**
    * DynamoDB table name for {@link DynamoDbCatalog}
@@ -539,6 +563,7 @@ public class AwsProperties implements Serializable {
   public boolean glueCatalogSkipArchive() {
     return glueCatalogSkipArchive;
   }
+
   public void setGlueCatalogSkipArchive(boolean skipArchive) {
     this.glueCatalogSkipArchive = skipArchive;
   }
