@@ -511,7 +511,7 @@ public class FlinkSink {
                                                          FlinkWriteConf flinkWriteConf,
                                                          RowType flinkRowType,
                                                          List<Integer> equalityFieldIds) {
-    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
+    Preconditions.checkArgument(table != null, "Iceberg table shouldn't be null");
 
     Table serializableTable = SerializableTable.copyOf(table);
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
