@@ -67,18 +67,7 @@ Hive 4.0.0-alpha-1 comes with the Iceberg 0.13.1 included. No additional downloa
 
 ### Hive 2.3.x, Hive 3.1.x
 
-You need to do the following steps:
-* Loading runtime jar
-* Enabling support
-Collaborator
-@samredai samredai 26 days ago
-This could just be one line right?
-
 In order to use Hive 2.3.x or Hive 3.1.x, you must load the Iceberg-Hive runtime jar and enable Iceberg support, either globally or for an individual table using a table property.
-
-and then jump into the sections below that provide more details.
-
-@samredai	Reply...
 
 #### Loading runtime jar
 
