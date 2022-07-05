@@ -81,6 +81,11 @@ public class GCSFileIO implements FileIO {
   }
 
   @Override
+  public InputFile newInputFile(String path, long length) {
+    return GCSInputFile.fromLocation(path, length, client(), gcpProperties, metrics);
+  }
+
+  @Override
   public OutputFile newOutputFile(String path) {
     return GCSOutputFile.fromLocation(path, client(), gcpProperties, metrics);
   }

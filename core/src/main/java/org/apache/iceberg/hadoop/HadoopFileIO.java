@@ -68,6 +68,11 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
   }
 
   @Override
+  public InputFile newInputFile(String path, long length) {
+    return HadoopInputFile.fromLocation(path, length, hadoopConf.get());
+  }
+
+  @Override
   public OutputFile newOutputFile(String path) {
     return HadoopOutputFile.fromPath(new Path(path), hadoopConf.get());
   }

@@ -38,6 +38,13 @@ public interface FileIO extends Serializable, Closeable {
   InputFile newInputFile(String path);
 
   /**
+   * Get a {@link InputFile} instance to read bytes from the file at the given path, with a known file length.
+   */
+  default InputFile newInputFile(String path, long length) {
+    return newInputFile(path);
+  }
+
+  /**
    * Get a {@link OutputFile} instance to write bytes to the file at the given path.
    */
   OutputFile newOutputFile(String path);
