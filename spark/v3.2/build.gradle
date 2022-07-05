@@ -154,8 +154,8 @@ project(":iceberg-spark:iceberg-spark-extensions-3.2_2.12") {
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     // We shade this in Spark3 Runtime to avoid issues with Spark's Antlr Runtime
-    runtimeOnly "org.antlr:antlr4-runtime:4.7.1"
-    antlr "org.antlr:antlr4:4.7.1"
+    runtimeOnly "org.antlr:antlr4-runtime:4.8"
+    antlr "org.antlr:antlr4:4.8"
   }
 
   generateGrammarSource {
