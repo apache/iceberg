@@ -53,6 +53,7 @@ public class ExceptionUtil {
     void run() throws Exception;
   }
 
+  @Deprecated
   public static <R> R runSafely(
       Block<R, RuntimeException, RuntimeException, RuntimeException> block,
       CatchBlock catchBlock,
@@ -61,6 +62,7 @@ public class ExceptionUtil {
         RuntimeException.class, RuntimeException.class, RuntimeException.class);
   }
 
+  @Deprecated
   public static <R, E1 extends Exception> R runSafely(
       Block<R, E1, RuntimeException, RuntimeException> block,
       CatchBlock catchBlock,
@@ -69,6 +71,7 @@ public class ExceptionUtil {
     return runSafely(block, catchBlock, finallyBlock, e1Class, RuntimeException.class, RuntimeException.class);
   }
 
+  @Deprecated
   public static <R, E1 extends Exception, E2 extends Exception> R runSafely(
       Block<R, E1, E2, RuntimeException> block,
       CatchBlock catchBlock,
@@ -78,6 +81,7 @@ public class ExceptionUtil {
     return runSafely(block, catchBlock, finallyBlock, e1Class, e2Class, RuntimeException.class);
   }
 
+  @Deprecated
   public static <R, E1 extends Exception, E2 extends Exception, E3 extends Exception> R runSafely(
       Block<R, E1, E2, E3> block,
       CatchBlock catchBlock,
