@@ -82,6 +82,7 @@ public class ExceptionUtil {
   }
 
   @Deprecated
+  @SuppressWarnings("Finally")
   public static <R, E1 extends Exception, E2 extends Exception, E3 extends Exception> R runSafely(
       Block<R, E1, E2, E3> block,
       CatchBlock catchBlock,
