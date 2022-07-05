@@ -176,6 +176,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
+    checkNamespaceIsValid(ns);
+
     ListTablesResponse response = client.get(
         paths.tables(ns), ListTablesResponse.class, headers(context), ErrorHandlers.namespaceErrorHandler());
     return response.identifiers();
@@ -183,6 +185,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public boolean dropTable(SessionContext context, TableIdentifier identifier) {
+    checkIdentifierIsValid(identifier);
+
     try {
       client.delete(paths.table(identifier), null, headers(context), ErrorHandlers.tableErrorHandler());
       return true;
@@ -198,6 +202,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public void renameTable(SessionContext context, TableIdentifier from, TableIdentifier to) {
+    checkIdentifierIsValid(from);
+    checkIdentifierIsValid(to);
+
     RenameTableRequest request = RenameTableRequest.builder()
         .withSource(from)
         .withDestination(to)
@@ -214,6 +221,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
+    checkIdentifierIsValid(identifier);
+
     MetadataTableType metadataType;
     LoadTableResponse response;
     try {
@@ -237,10 +246,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       }
     }
 
-    Pair<RESTClient, FileIO> clients = tableClients(response.config());
     AuthSession session = tableSession(response.config(), session(context));
     RESTTableOperations ops = new RESTTableOperations(
-        clients.first(), paths.table(identifier), session::headers, clients.second(), response.tableMetadata());
+        client, paths.table(identifier), session::headers, tableFileIO(response.config()), response.tableMetadata());
 
     BaseTable table = new BaseTable(ops, fullTableName(identifier));
     if (metadataType != null) {
@@ -295,6 +303,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public Map<String, String> loadNamespaceMetadata(SessionContext context, Namespace ns) {
+    checkNamespaceIsValid(ns);
+
     // TODO: rename to LoadNamespaceResponse?
     GetNamespaceResponse response = client
         .get(paths.namespace(ns), GetNamespaceResponse.class, headers(context), ErrorHandlers.namespaceErrorHandler());
@@ -303,6 +313,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
   @Override
   public boolean dropNamespace(SessionContext context, Namespace ns) {
+    checkNamespaceIsValid(ns);
+
     try {
       client.delete(paths.namespace(ns), null, headers(context), ErrorHandlers.namespaceErrorHandler());
       return true;
@@ -314,6 +326,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   @Override
   public boolean updateNamespaceMetadata(SessionContext context, Namespace ns,
                                          Map<String, String> updates, Set<String> removals) {
+    checkNamespaceIsValid(ns);
+
     UpdateNamespacePropertiesRequest request = UpdateNamespacePropertiesRequest.builder()
         .updateAll(updates)
         .removeAll(removals)
@@ -404,6 +418,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     private String location = null;
 
     private Builder(TableIdentifier ident, Schema schema, SessionContext context) {
+      checkIdentifierIsValid(ident);
+
       this.ident = ident;
       this.schema = schema;
       this.context = context;
@@ -456,10 +472,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
           paths.tables(ident.namespace()), request, LoadTableResponse.class, headers(context),
           ErrorHandlers.tableErrorHandler());
 
-      Pair<RESTClient, FileIO> clients = tableClients(response.config());
       AuthSession session = tableSession(response.config(), session(context));
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), session::headers, clients.second(), response.tableMetadata());
+          client, paths.table(ident), session::headers, tableFileIO(response.config()), response.tableMetadata());
 
       return new BaseTable(ops, fullTableName(ident));
     }
@@ -469,12 +484,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       LoadTableResponse response = stageCreate();
       String fullName = fullTableName(ident);
 
-      Pair<RESTClient, FileIO> clients = tableClients(response.config());
       AuthSession session = tableSession(response.config(), session(context));
       TableMetadata meta = response.tableMetadata();
 
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), session::headers, clients.second(),
+          client, paths.table(ident), session::headers, tableFileIO(response.config()),
           RESTTableOperations.UpdateType.CREATE, createChanges(meta), meta);
 
       return Transactions.createTableTransaction(fullName, ops, meta);
@@ -485,7 +499,6 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       LoadTableResponse response = loadInternal(context, ident);
       String fullName = fullTableName(ident);
 
-      Pair<RESTClient, FileIO> clients = tableClients(response.config());
       AuthSession session = tableSession(response.config(), session(context));
       TableMetadata base = response.tableMetadata();
 
@@ -515,7 +528,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
       }
 
       RESTTableOperations ops = new RESTTableOperations(
-          clients.first(), paths.table(ident), session::headers, clients.second(),
+          client, paths.table(ident), session::headers, tableFileIO(response.config()),
           RESTTableOperations.UpdateType.REPLACE, changes.build(), base);
 
       return Transactions.replaceTableTransaction(fullName, ops, replacement);
@@ -556,6 +569,8 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
   private static List<MetadataUpdate> createChanges(TableMetadata meta) {
     ImmutableList.Builder<MetadataUpdate> changes = ImmutableList.builder();
 
+    changes.add(new MetadataUpdate.UpgradeFormatVersion(meta.formatVersion()));
+
     Schema schema = meta.schema();
     changes.add(new MetadataUpdate.AddSchema(schema, schema.highestFieldId()));
     changes.add(new MetadataUpdate.SetCurrentSchema(-1));
@@ -589,18 +604,15 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return String.format("%s.%s", name(), ident);
   }
 
-  private Pair<RESTClient, FileIO> tableClients(Map<String, String> config) {
+  private FileIO tableFileIO(Map<String, String> config) {
     if (config.isEmpty()) {
-      return Pair.of(client, io); // reuse client and io since config is the same
+      return io; // reuse client and io since config is the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
     String ioImpl = fullConf.get(CatalogProperties.FILE_IO_IMPL);
-    FileIO tableIO = CatalogUtil.loadFileIO(
-        ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
-    RESTClient tableClient = clientBuilder.apply(fullConf);
 
-    return Pair.of(tableClient, tableIO);
+    return CatalogUtil.loadFileIO(ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), fullConf, this.conf);
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
@@ -673,6 +685,18 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
           properties, OAuth2Properties.TOKEN_EXPIRES_IN_MS, OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
     } else {
       return null;
+    }
+  }
+
+  private void checkIdentifierIsValid(TableIdentifier tableIdentifier) {
+    if (tableIdentifier.namespace().isEmpty()) {
+      throw new NoSuchTableException("Invalid table identifier: %s", tableIdentifier);
+    }
+  }
+
+  private void checkNamespaceIsValid(Namespace namespace) {
+    if (namespace.isEmpty()) {
+      throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
     }
   }
 

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -114,10 +113,7 @@ public interface TableOperations {
    * @return a long snapshot ID
    */
   default long newSnapshotId() {
-    UUID uuid = UUID.randomUUID();
-    long mostSignificantBits = uuid.getMostSignificantBits();
-    long leastSignificantBits = uuid.getLeastSignificantBits();
-    return (mostSignificantBits ^ leastSignificantBits) & Long.MAX_VALUE;
+    return SnapshotIdGeneratorUtil.generateSnapshotID();
   }
 
 }

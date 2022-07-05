@@ -96,14 +96,14 @@ public class TestPuffinWriter {
     try (PuffinWriter writer = Puffin.write(outputFile)
         .createdBy("Test 1234")
         .build()) {
-      writer.add(new Blob("some-blob", ImmutableList.of(1), ByteBuffer.wrap("abcdefghi".getBytes(UTF_8)),
+      writer.add(new Blob("some-blob", ImmutableList.of(1), 2, 1, ByteBuffer.wrap("abcdefghi".getBytes(UTF_8)),
           compression, ImmutableMap.of()));
 
       // "xxx"s are stripped away by data offsets
       byte[] bytes =
           "xxx some blob \u0000 binary data 🤯 that is not very very very very very very long, is it? xxx".getBytes(
               UTF_8);
-      writer.add(new Blob("some-other-blob", ImmutableList.of(2), ByteBuffer.wrap(bytes, 4, bytes.length - 8),
+      writer.add(new Blob("some-other-blob", ImmutableList.of(2), 2, 1, ByteBuffer.wrap(bytes, 4, bytes.length - 8),
           compression, ImmutableMap.of()));
 
       assertThat(writer.writtenBlobsMetadata()).hasSize(2);

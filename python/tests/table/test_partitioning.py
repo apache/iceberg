@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from iceberg.schema import Schema
-from iceberg.table.partitioning import PartitionField, PartitionSpec
-from iceberg.transforms import bucket
-from iceberg.types import IntegerType
+from pyiceberg.schema import Schema
+from pyiceberg.table.partitioning import PartitionField, PartitionSpec
+from pyiceberg.transforms import bucket
+from pyiceberg.types import IntegerType
 
 
 def test_partition_field_init():
@@ -66,7 +66,7 @@ def test_partition_compatible_with(table_schema_simple: Schema):
 
 
 def test_unpartitioned(table_schema_simple: Schema):
-    unpartitioned = PartitionSpec(table_schema_simple, 1, tuple(), 1000)
+    unpartitioned = PartitionSpec(table_schema_simple, 1, (), 1000)
 
     assert not unpartitioned.fields
     assert unpartitioned.is_unpartitioned()

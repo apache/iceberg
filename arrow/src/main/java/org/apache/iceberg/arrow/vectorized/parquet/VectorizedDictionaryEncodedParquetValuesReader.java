@@ -121,21 +121,18 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     @Override
     protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer()
-          .setBytes(idx, buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+      vector.getDataBuffer().setBytes(idx, buffer);
     }
   }
 
   class FixedLengthDecimalDictEncodedReader extends BaseDictEncodedReader {
     @Override
     protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      byte[] decimalBytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
-      byte[] vectorBytes = new byte[typeWidth];
-      System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
+      byte[] vectorBytes =
+          DecimalVectorUtil.padBigEndianBytes(
+              dict.decodeToBinary(currentVal).getBytesUnsafe(),
+              DecimalVector.TYPE_WIDTH);
       ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
-      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer()
-          .setBytes(idx, buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
     }
   }
 

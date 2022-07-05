@@ -22,10 +22,12 @@ package org.apache.iceberg;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -109,5 +111,22 @@ public class TestFileIOSerialization {
     Map<String, String> map = Maps.newHashMapWithExpectedSize(conf.size());
     conf.forEach(entry -> map.put(entry.getKey(), entry.getValue()));
     return map;
+  }
+
+  @Test
+  public void testFileIOJsonSerialization() {
+    FileIO io = table.io();
+    Object conf;
+    if (io instanceof Configurable) {
+      conf = ((Configurable) io).getConf();
+    } else {
+      conf = null;
+    }
+
+    String json = FileIOParser.toJson(io);
+    try (FileIO deserialized = FileIOParser.fromJson(json, conf)) {
+      Assert.assertTrue(deserialized instanceof HadoopFileIO);
+      Assert.assertEquals(io.properties(), deserialized.properties());
+    }
   }
 }

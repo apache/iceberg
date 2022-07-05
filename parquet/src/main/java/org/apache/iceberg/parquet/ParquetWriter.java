@@ -39,6 +39,7 @@ import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.page.PageWriteStore;
+import org.apache.parquet.column.values.bloomfilter.BloomFilterWriteStore;
 import org.apache.parquet.hadoop.CodecFactory;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -224,7 +225,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         compressor, parquetSchema, props.getAllocator(), this.columnIndexTruncateLength);
 
     this.flushPageStoreToWriter = flushToWriter.bind(pageStore);
-    this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore);
+    this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, (BloomFilterWriteStore) pageStore);
 
     model.setColumnStore(writeStore);
   }
@@ -237,6 +238,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       writeStore.close();
       if (writer != null) {
         writer.end(metadata);
+      }
+      if (compressor != null) {
+        compressor.release();
       }
     }
   }

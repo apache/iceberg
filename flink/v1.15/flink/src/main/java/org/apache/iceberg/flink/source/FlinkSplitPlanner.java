@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Table;
@@ -124,7 +125,7 @@ public class FlinkSplitPlanner {
   /**
    * refine scan with common configs
    */
-  private static <T extends Scan<T>> T refineScanWithBaseConfigs(
+  private static <T extends Scan<T, FileScanTask, CombinedScanTask>> T refineScanWithBaseConfigs(
       T scan, ScanContext context, ExecutorService workerPool) {
     T refinedScan = scan
         .caseSensitive(context.caseSensitive())

@@ -348,9 +348,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
         ByteBuffer buffer = dict.decodeToBinary(reader.readInteger()).toByteBuffer();
-        vector.getDataBuffer().setBytes(
-            (long) idx * typeWidth, buffer.array(),
-            buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+        vector.getDataBuffer().setBytes((long) idx * typeWidth, buffer);
       }
     }
   }
@@ -360,7 +358,8 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     protected void nextVal(
         FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
       valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
-      ((DecimalVector) vector).setBigEndian(idx, byteArray);
+      byte[] vectorBytes = DecimalVectorUtil.padBigEndianBytes(byteArray, DecimalVector.TYPE_WIDTH);
+      ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
     }
 
     @Override
@@ -371,9 +370,10 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         reader.fixedLengthDecimalDictEncodedReader()
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        ByteBuffer decimalBytes = dict.decodeToBinary(reader.readInteger()).toByteBuffer();
-        byte[] vectorBytes = new byte[typeWidth];
-        System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
+        byte[] vectorBytes =
+            DecimalVectorUtil.padBigEndianBytes(
+                dict.decodeToBinary(reader.readInteger()).getBytesUnsafe(),
+                DecimalVector.TYPE_WIDTH);
         ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
       }
     }
@@ -415,8 +415,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
       int startOffset = ((BaseVariableWidthVector) vector).getStartOffset(idx);
       // It is possible that the data buffer was reallocated. So it is important to
       // not cache the data buffer reference but instead use vector.getDataBuffer().
-      vector.getDataBuffer().setBytes(startOffset, buffer.array(), buffer.position() + buffer.arrayOffset(),
-          buffer.limit() - buffer.position());
+      vector.getDataBuffer().setBytes(startOffset, buffer);
       // Similarly, we need to get the latest reference to the validity buffer as well
       // since reallocation changes reference of the validity buffers as well.
       if (setArrowValidityVector) {
