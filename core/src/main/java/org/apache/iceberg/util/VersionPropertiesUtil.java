@@ -36,6 +36,7 @@ public class VersionPropertiesUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(VersionPropertiesUtil.class);
   private static final String VERSION_PROPERTIES_FILE = "version.properties";
+  private static final String UNKNOWN_DEFAULT = "unknown";
 
   private static boolean isLoaded = false;
   private static Properties versionProperties = new Properties();
@@ -49,26 +50,16 @@ public class VersionPropertiesUtil {
    * Loads the version.properties file for this module.
    */
   public static void loadBuildInfo() {
-    InputStream inputStream = null;
-
-    try {
-      inputStream = readResource(VERSION_PROPERTIES_FILE);
+    try (InputStream is = readResource(VERSION_PROPERTIES_FILE)) {
+      versionProperties.load(is);
     } catch (IOException e) {
       LOG.warn("Failed to load version properties from {}. Will use default values.", VERSION_PROPERTIES_FILE, e);
     }
 
-    if (inputStream != null) {
-      try {
-        versionProperties.load(inputStream);
-      } catch (Exception e) {
-        LOG.error("Could not load version.properties", e);
-      }
-    }
-
-    gitHash = versionProperties.getProperty("gitHash", "git-hash-not-found");
-    gitHashFull = versionProperties.getProperty("gitHashFull", "git-hash-full-not-found");
-    projectName = versionProperties.getProperty("projectName", "iceberg-core");
-    projectVersion = versionProperties.getProperty("projectVersion", "project-version-not-found");
+    gitHash = versionProperties.getProperty("gitHash", UNKNOWN_DEFAULT);
+    gitHashFull = versionProperties.getProperty("gitHashFull", UNKNOWN_DEFAULT);
+    projectName = versionProperties.getProperty("projectName", UNKNOWN_DEFAULT);
+    projectVersion = versionProperties.getProperty("projectVersion", UNKNOWN_DEFAULT);
   }
 
   public static String gitHash() {
