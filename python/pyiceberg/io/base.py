@@ -22,7 +22,6 @@ as check if a file exists. An implementation of the FileIO abstract base class i
 for returning an InputFile instance, an OutputFile instance, and deleting a file given
 its location.
 """
-
 from abc import ABC, abstractmethod
 from io import SEEK_SET
 from typing import Protocol, Union, runtime_checkable
@@ -41,16 +40,11 @@ class InputStream(Protocol):
         ...
 
     @abstractmethod
-    def seek(self, offset: int, whence: int = SEEK_SET) -> None:
+    def seek(self, offset: int, whence: int = SEEK_SET) -> int:
         ...
 
     @abstractmethod
     def tell(self) -> int:
-        ...
-
-    @property
-    @abstractmethod
-    def closed(self) -> bool:
         ...
 
     @abstractmethod
@@ -67,12 +61,7 @@ class OutputStream(Protocol):  # pragma: no cover
     """
 
     @abstractmethod
-    def write(self, b: bytes) -> None:
-        ...
-
-    @property
-    @abstractmethod
-    def closed(self) -> bool:
+    def write(self, b: bytes) -> int:
         ...
 
     @abstractmethod
