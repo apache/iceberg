@@ -19,12 +19,9 @@
 
 package org.apache.iceberg.spark.source.parquet.vectorized;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.Map;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -45,8 +42,8 @@ import static org.apache.spark.sql.functions.to_timestamp;
  * <p>
  * To run this benchmark for spark-3.3:
  * <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
- *       -PjmhIncludeRegex=VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
+ *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh \
+ *       -PjmhIncludeRegex=VectorizedReadDictionaryEncodedFlatParquetDataBenchmark \
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>
  */
@@ -78,6 +75,7 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends Vec
     df = withIntColumnDictEncoded(df);
     df = withFloatColumnDictEncoded(df);
     df = withDoubleColumnDictEncoded(df);
+    df = withBigDecimalColumnNotDictEncoded(df); // no dictionary for fixed len binary in Parquet v1
     df = withDecimalColumnDictEncoded(df);
     df = withDateColumnDictEncoded(df);
     df = withTimestampColumnDictEncoded(df);
@@ -113,9 +111,12 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends Vec
     return df.withColumn("doubleCol", modColumn().cast(DataTypes.DoubleType));
   }
 
+  private static Dataset<Row> withBigDecimalColumnNotDictEncoded(Dataset<Row> df) {
+    return df.withColumn("bigDecimalCol", modColumn().cast("decimal(20,5)"));
+  }
+
   private static Dataset<Row> withDecimalColumnDictEncoded(Dataset<Row> df) {
-    Types.DecimalType type = Types.DecimalType.of(20, 5);
-    return df.withColumn("decimalCol", lit(bigDecimal(type, 0)).plus(modColumn()));
+    return df.withColumn("decimalCol", modColumn().cast("decimal(18,5)"));
   }
 
   private static Dataset<Row> withDateColumnDictEncoded(Dataset<Row> df) {
@@ -130,10 +131,5 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends Vec
 
   private static Dataset<Row> withStringColumnDictEncoded(Dataset<Row> df) {
     return df.withColumn("stringCol", modColumn().cast(DataTypes.StringType));
-  }
-
-  private static BigDecimal bigDecimal(Types.DecimalType type, int value) {
-    BigInteger unscaled = new BigInteger(String.valueOf(value + 1));
-    return new BigDecimal(unscaled, type.scale());
   }
 }
