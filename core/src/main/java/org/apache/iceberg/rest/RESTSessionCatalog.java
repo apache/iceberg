@@ -352,6 +352,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     return refreshExecutor;
   }
 
+  @SuppressWarnings("FutureReturnValueIgnored")
   private void scheduleTokenRefresh(
       AuthSession session, long startTimeMillis, long expiresIn, TimeUnit unit) {
     // convert expiration interval to milliseconds
