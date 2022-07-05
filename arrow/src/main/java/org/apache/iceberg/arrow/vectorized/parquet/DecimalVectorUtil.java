@@ -20,10 +20,17 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.util.Arrays;
+import org.apache.arrow.vector.DecimalVector;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 public class DecimalVectorUtil {
 
   private DecimalVectorUtil() {
+  }
+
+  public static void setBigEndian(DecimalVector vector, int idx, byte[] value) {
+    byte[] paddedBytes = DecimalVectorUtil.padBigEndianBytes(value, DecimalVector.TYPE_WIDTH);
+    vector.setBigEndian(idx, paddedBytes);
   }
 
   /**
@@ -37,7 +44,8 @@ public class DecimalVectorUtil {
    * @param newLength      The length of the byte array to return
    * @return The new byte array
    */
-  public static byte[] padBigEndianBytes(byte[] bigEndianBytes, int newLength) {
+  @VisibleForTesting
+  static byte[] padBigEndianBytes(byte[] bigEndianBytes, int newLength) {
     if (bigEndianBytes.length == newLength) {
       return bigEndianBytes;
     } else if (bigEndianBytes.length < newLength) {
