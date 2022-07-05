@@ -491,7 +491,7 @@ public class FlinkSink {
                                                          RowType flinkRowType,
                                                          List<Integer> equalityFieldIds,
                                                          boolean upsert) {
-    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
+    Preconditions.checkArgument(table != null, "Iceberg table shouldn't be null");
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
