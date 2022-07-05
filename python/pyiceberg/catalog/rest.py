@@ -14,118 +14,146 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-from __future__ import annotations
+import json
+from typing import Dict, Tuple, Union, Optional, List, Set
 
-from typing import Dict
+from pydantic import Field
 
-from iceberg.catalog import Identifier, Properties
-from iceberg.catalog.base import Catalog
-from iceberg.schema import Schema
-from iceberg.table.base import Table, PartitionSpec
+from pyiceberg.catalog import Identifier, Properties
+from pyiceberg.catalog.base import Catalog
+from pyiceberg.schema import Schema
+from pyiceberg.table.base import Table, PartitionSpec
+import requests
 
-from apiclient import APIClient, endpoint
-from apiclient_pydantic import serialize_all_methods
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
-@endpoint(base_url='{scheme}://{host}/{basePath}')
 class Endpoints:
-    get_config: str = '/v1/config'
-    list_namespaces: str = '/v1/namespaces'
-    create_namespace: str = '/v1/namespaces'
-    load_namespace_metadata: str = '/v1/namespaces/{namespace}'
-    drop_namespace: str = '/v1/namespaces/{namespace}'
-    update_properties: str = '/v1/namespaces/{namespace}/properties'
-    list_tables: str = '/v1/namespaces/{namespace}/tables'
-    create_table: str = '/v1/namespaces/{namespace}/tables'
-    load_table: str = '/v1/namespaces/{namespace}/tables/{table}'
-    update_table: str = '/v1/namespaces/{namespace}/tables/{table}'
-    drop_table: str = '/v1/namespaces/{namespace}/tables/{table}'
-    table_exists: str = '/v1/namespaces/{namespace}/tables/{table}'
-    get_token: str = '/v1/oauth/tokens'
-    rename_table: str = '/v1/tables/rename'
+    get_config: str = 'config'
+    list_namespaces: str = 'namespaces'
+    create_namespace: str = 'namespaces'
+    load_namespace_metadata: str = 'namespaces/{namespace}'
+    drop_namespace: str = 'namespaces/{namespace}'
+    update_properties: str = 'namespaces/{namespace}/properties'
+    list_tables: str = 'namespaces/{namespace}/tables'
+    create_table: str = 'namespaces/{namespace}/tables'
+    load_table: str = 'namespaces/{namespace}/tables/{table}'
+    update_table: str = 'namespaces/{namespace}/tables/{table}'
+    drop_table: str = 'namespaces/{namespace}/tables/{table}'
+    table_exists: str = 'namespaces/{namespace}/tables/{table}'
+    get_token: str = 'oauth/tokens'
+    rename_table: str = 'tables/rename'
 
 
-@serialize_all_methods()
-class MyAPIClient(APIClient):
-
-
-    def get_config(self) -> CatalogConfig:
-        """List all catalog configuration settings"""
-        return self.get(Endpoints.get_config)
-
-    def list_namespaces(
-            self, query_params: ParentQueryParams
-    ) -> V1NamespacesGetResponse:
-        """List namespaces, optionally providing a parent namespace to list underneath"""
-        return self.get(Endpoints.list_namespaces, query_params)
-
-    def create_namespace(
-            self, body: CreateNamespaceRequest = None
-    ) -> V1NamespacesPostResponse:
-        """Create a namespace"""
-        return self.post(Endpoints.create_namespace, body)
-
-    def load_namespace_metadata(
-            self, path_params: NamespacePathParams
-    ) -> V1NamespacesNamespaceGetResponse:
-        """Load the metadata properties for a namespace"""
-        return self.get(Endpoints.load_namespace_metadata.format(**path_params))
-
-    def drop_namespace(self, path_params: NamespacePathParams) -> None:
-        """Drop a namespace from the catalog. Namespace must be empty."""
-        self.delete(Endpoints.drop_namespace.format(**path_params))
-
-    def update_properties(
-            self,
-            path_params: NamespacePathParams,
-            body: UpdateNamespacePropertiesRequest = None,
-    ) -> V1NamespacesNamespacePropertiesPostResponse:
-        """Set or remove properties on a namespace"""
-        return self.post(Endpoints.update_properties.format(**path_params), body)
-
-    def list_tables(
-            self, path_params: NamespacePathParams
-    ) -> V1NamespacesNamespaceTablesGetResponse:
-        """List all table identifiers underneath a given namespace"""
-        return
-
-    def create_table(
-            self, path_params: NamespacePathParams, body: CreateTableRequest = None
-    ) -> LoadTableResult:
-        """Create a table in the given namespace"""
-        return self.post(Endpoints.create_table.format(**path_params), body)
-
-    def load_table(self, path_params: NamespaceTablePathParams) -> LoadTableResult:
-        """Load a table from the catalog"""
-        return self.get(Endpoints.load_table.format(**path_params))
-
-    def update_table(
-            self, path_params: NamespaceTablePathParams, body: CommitTableRequest = None
-    ) -> V1NamespacesNamespaceTablesTablePostResponse:
-        """Commit updates to a table"""
-        return self.post(Endpoints.update_table.format(**path_params), body)
-
-    def drop_table(
-            self,
-            path_params: NamespaceTablePathParams,
-            query_params: PurgeRequestedQueryParams = ...,
-    ) -> None:
-        """Drop a table from the catalog"""
-        self.delete(Endpoints.drop_table.format(**path_params), query_params)
-
+AUTHORIZATION_HEADER = "Authorization"
+BEARER_PREFIX = "Bearer"
+TOKEN = 't-rHkfxlPOv70:Shr3gJy9mpT0SexvRfuqv40SdOg'
+CATALOG_SCOPE = "catalog"
+CLIENT_ID = "client_id"
+PREFIX = 'prefix'
+CLIENT_SECRET = "client_secret"
+CLIENT_CREDENTIALS = "client_credentials"
+CREDENTIAL = "credential"
+GRANT_TYPE = "grant_type"
+SCOPE = "scope"
+HOST = 'https://api.dev.tabulardata.io/ws/v1/'
+TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange"
 
 NAMESPACE_SEPARATOR = b'\x1F'.decode('UTF-8')
 
 
-class RestCatalog(APIClient, Catalog):
+class TokenResponse(IcebergBaseModel):
+    access_token: str = Field()
+    token_type: str = Field()
+    expires_in: int = Field()
+    warehouse_id: str = Field()
+    region: str = Field()
+    issued_token_type: str = Field()
+
+
+class ConfigResponse(IcebergBaseModel):
+    defaults: Dict[str, str] = Field()
+    overrides: Dict[str, str] = Field()
+
+
+class ListNamespaceResponse(IcebergBaseModel):
+    namespaces: List[Identifier] = Field()
+
+
+class NamespaceResponse(IcebergBaseModel):
+    namespace: Identifier = Field()
+    properties: Properties = Field()
+
+
+class UpdateNamespacePropertiesResponse(IcebergBaseModel):
+    removed: List[str]
+    updated: List[str]
+    missing: List[str]
+
+
+class RestCatalog(Catalog):
+    token: TokenResponse
+    config: ConfigResponse
 
     def __init__(self, name: str, properties: Properties):
+        self.token = self._fetch_access_token()
+        self.config = self._fetch_config()
         super().__init__(name, properties)
 
-        # Probably we should do something with this
-        self.post(Endpoints.get_token, data={})
+    def _get_host(self, prefixed: bool = True) -> str:
+        """Resolves the endpoint based
 
-    def _split_namespace_and_table(self, identifier: str | Identifier) -> Dict[str, str]:
+        Args:
+            prefixed: If the prefix return by the config needs to be appended
+
+        Returns:
+            The base url of the rest catalog
+        """
+        url = HOST
+        url = url if url.endswith('/') else url + "/"
+
+        if prefixed:
+            url += self.config.overrides.get(PREFIX, '')
+            url = url if url.endswith('/') else url + "/"
+
+        return url
+
+    def _split_token(self, token: str) -> Tuple[str, str]:
+        """Splits the token in a client id and secret
+
+        Args:
+            token: The token with a semicolon as a separator
+
+        Returns:
+            The client id and secret
+        """
+        client, secret = token.split(':')
+        return client, secret
+
+    @property
+    def _headers(self) -> Dict[str, str]:
+        return {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"
+        }
+
+    def _fetch_access_token(self) -> TokenResponse:
+        client, secret = self._split_token(TOKEN)
+        data = {
+            GRANT_TYPE: CLIENT_CREDENTIALS,
+            CLIENT_ID: client,
+            CLIENT_SECRET: secret,
+            SCOPE: CATALOG_SCOPE
+        }
+        response = requests.post(f'{self._get_host(prefixed=False)}{Endpoints.get_token}', data=data)
+        response.raise_for_status()
+        return TokenResponse(**response.json())
+
+    def _fetch_config(self) -> ConfigResponse:
+        response = requests.get(f'{self._get_host(prefixed=False)}{Endpoints.get_config}', headers=self._headers)
+        response.raise_for_status()
+        return ConfigResponse(**response.json())
+
+    def _split_namespace_and_table(self, identifier: Union[str, Identifier]) -> Dict[str, str]:
         identifier = self.identifier_to_tuple(identifier)
         return {
             'namespace': NAMESPACE_SEPARATOR.join(identifier[:-1]),
@@ -133,50 +161,124 @@ class RestCatalog(APIClient, Catalog):
         }
 
     def create_table(self,
-                     identifier: str | Identifier,
+                     identifier: Union[str, Identifier],
                      schema: Schema,
-                     location: str | None = None,
-                     partition_spec: PartitionSpec | None = None,
-                     properties: Properties | None = None) -> Table:
-        namespace_and_table = self._split_namespace_and_table(identifier)
-        return self.post(Endpoints.create_table.format(namespace=namespace_and_table['namespace']), {
-            'name': namespace_and_table['table'],
+                     location: Optional[str] = None,
+                     partition_spec: Optional[PartitionSpec] = None,
+                     sort_order: Optional[Any] = None,
+                     properties: Optional[Properties] = None) -> Table:
+        url = f'{self._get_host()}{Endpoints.create_namespace}'
+        headers = {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}",
+        }
+        payload = {
+            'name': self.identifier_to_tuple(identifier),
             'location': location,
-            'partition_spec': partition_spec,
-            #'write_order': sort_order,
-        })
+            'schema': schema,
+            'partition-spec': partition_spec,
+            'write-order': sort_order,
 
-    def list_tables(self, namespace: str | Identifier | None = None) -> list[Identifier]:
-        return self.get(Endpoints.list_tables.format(namespace=namespace))
+        }
+        response = requests.post(
+            url,
+            json=payload,
+            headers=headers
+        )
+        response.raise_for_status()
+        return NamespaceResponse(**response.json())
 
-    def load_table(self, identifier: str | Identifier) -> Table:
+    def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
+        namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
+        response = requests.get(
+            f'{self._get_host()}{Endpoints.list_tables.format(namespace=namespace)}',
+            headers=self._headers
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def load_table(self, identifier: Union[str, Identifier]) -> Table:
         pass
 
-    def drop_table(self, identifier: str | Identifier, purge_requested: bool = False) -> None:
-        self.delete(
-            Endpoints.drop_table.format(**self._split_namespace_and_table(identifier)))
-
-    def purge_table(self, identifier: str | Identifier) -> None:
+    def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
         pass
 
-    def rename_table(self, from_identifier: str | Identifier, to_identifier: str | Identifier) -> Table:
-        return self.post(Endpoints.rename_table, {
-            "source": from_identifier,
-            "destination": to_identifier
-        })
-
-    def create_namespace(self, namespace: str | Identifier, properties: Properties | None = None) -> None:
+    def purge_table(self, identifier: Union[str, Identifier]) -> None:
         pass
 
-    def drop_namespace(self, namespace: str | Identifier) -> None:
+    def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         pass
 
-    def list_namespaces(self) -> list[Identifier]:
-        pass
+    def create_namespace(self, namespace: Union[str, Identifier],
+                         properties: Optional[Properties] = None) -> NamespaceResponse:
+        url = f'{self._get_host()}{Endpoints.create_namespace}'
+        headers = {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}",
+        }
+        payload = {
+            'namespace': self.identifier_to_tuple(namespace),
+            'properties': properties
+        }
+        response = requests.post(
+            url,
+            json=payload,
+            headers=headers
+        )
+        response.raise_for_status()
+        return NamespaceResponse(**response.json())
 
-    def load_namespace_properties(self, namespace: str | Identifier) -> Properties:
-        pass
+    def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
+        namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
+        url = f'{self._get_host()}{Endpoints.drop_namespace.format(namespace=namespace)}'
+        headers = {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"
+        }
+        response = requests.delete(
+            url,
+            headers=headers
+        )
+        response.raise_for_status()
 
-    def update_namespace_properties(self, namespace: str | Identifier, removals: set[str] | None = None,
-                                    updates: Properties | None = None) -> None:
-        pass
+    def list_namespaces(self) -> List[Identifier]:
+        url = f'{self._get_host()}{Endpoints.list_namespaces}'
+        headers = {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"
+        }
+        response = requests.get(
+            url,
+            headers=headers
+        )
+        response.raise_for_status()
+        namespaces = ListNamespaceResponse(**response.json())
+        return namespaces.namespaces
+
+    def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
+        namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
+        url = f'{self._get_host()}{Endpoints.drop_namespace.format(namespace=namespace)}'
+        headers = {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"
+        }
+        response = requests.get(
+            url,
+            headers=headers
+        )
+        response.raise_for_status()
+        return NamespaceResponse(**response.json()).properties
+
+    def update_namespace_properties(self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None,
+                                    updates: Optional[Properties] = None) -> UpdateNamespacePropertiesResponse:
+        namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
+        url = f'{self._get_host()}{Endpoints.update_properties.format(namespace=namespace)}'
+        headers = {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"
+        }
+        payload = {
+            'removals': list(removals),
+            'updates': updates
+        }
+        response = requests.post(
+            url,
+            json=payload,
+            headers=headers
+        )
+        response.raise_for_status()
+        return UpdateNamespacePropertiesResponse(**response.json())

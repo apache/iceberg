@@ -42,6 +42,7 @@ python = "^3.8"
 mmh3 = "^3.0.0"
 api-client = "^1.0.4"
 api-client-pydantic = "^2.2.0"
+requests = "^2.28.1"
 
 pydantic = "^1.9.1"
 
