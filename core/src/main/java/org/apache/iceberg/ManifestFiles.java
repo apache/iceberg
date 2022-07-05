@@ -133,7 +133,7 @@ public class ManifestFiles {
                                                               Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s", manifest);
-    InputFile file = io.newInputFile(manifest.path());
+    InputFile file = io.newInputFile(manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
