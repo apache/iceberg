@@ -19,10 +19,12 @@
 
 package org.apache.iceberg.flink.sink;
 
+import java.math.BigDecimal;
 import java.util.List;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
+import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
@@ -53,41 +55,47 @@ public class TestPartitionUdf {
     }
   }
 
-  public void assertUDF(String expect, String query, Object... args) {
+  public Object getSqlResult(String query, Object... args) {
     List<Row> ret = sql(query, args);
-    Assert.assertEquals(expect, ret.get(0).getField(0));
+    return ret.get(0).getField(0);
   }
-
   @Test
   public void testBucket() {
 
     // int type
-    assertUDF("428", "SELECT buckets(1000, %d)", 10);
+    Assert.assertEquals(428, getSqlResult("SELECT buckets(1000, 10)"));
 
     // long type
-    assertUDF("525", "SELECT buckets(1000, %d)", 456294967296L);
+    Assert.assertEquals(525, getSqlResult("SELECT buckets(1000, 456294967296)"));
 
     // date type
-    assertUDF("51", "SELECT buckets(1000, DATE '%s')", "2022-05-20");
+    Assert.assertEquals(51, getSqlResult("SELECT buckets(1000, DATE '2022-05-20')"));
+
+    // timestamp_ltz type
+    Assert.assertEquals(483,
+        getSqlResult("select buckets(1000, ts) from " +
+            "(select cast(TIMESTAMP '2022-05-20 10:12:55.038194' as timestamp_ltz(6)) as ts)"));
 
     // timestamp type
-    assertUDF("441", "SELECT buckets(1000, TIMESTAMP '2022-05-20 10:12:55.038194')");
+    Assert.assertEquals(441,
+        getSqlResult("select buckets(1000, ts) from " +
+            "(select cast(TIMESTAMP '2022-05-20 10:12:55.038194' as timestamp(6)) as ts)"));
 
     // time type
-    assertUDF("440", "SELECT buckets(1000, TIME '%s')", "14:08:59");
+    Assert.assertEquals(440, getSqlResult("SELECT buckets(1000, TIME '14:08:59')"));
 
     // string type
-    assertUDF("489", "SELECT buckets(1000, 'this is a string')");
+    Assert.assertEquals(489, getSqlResult("SELECT buckets(1000, 'this is a string')"));
 
     // decimal type
-    assertUDF("825", "select buckets(1000, cast(6.12345 as decimal(6,5)))");
+    Assert.assertEquals(825, getSqlResult("select buckets(1000, cast(6.12345 as decimal(6,5)))"));
 
     // binary type
-    assertUDF("798", "SELECT buckets(1000, x'010203040506')");
+    Assert.assertEquals(798, getSqlResult("SELECT buckets(1000, x'010203040506')"));
 
     // boolean type, unsupported
     AssertHelpers.assertThrows("unsupported boolean type",
-        RuntimeException.class,
+        ValidationException.class,
         () -> sql("SELECT buckets(1000, true)"));
   }
 
@@ -95,38 +103,41 @@ public class TestPartitionUdf {
   public void testTruncate() {
 
     // int type
-    assertUDF("10", "SELECT truncates(10, %d)", 15);
+    Assert.assertEquals(10, getSqlResult("SELECT truncates(10, 15)"));
 
     // long type
-    assertUDF("456294967000", "SELECT truncates(1000, %d)", 456294967296L);
+    Assert.assertEquals(456294967000L, getSqlResult("SELECT truncates(1000, 456294967296)"));
 
     // string type
-    assertUDF("this is a ", "SELECT truncates(10, 'this is a string')");
+    Assert.assertEquals("this is a ", getSqlResult("SELECT truncates(10, 'this is a string')"));
 
     // decimal type
-    assertUDF("6.12000", "select truncates(1000, cast(6.12345 as decimal(6,5)))");
+    Assert.assertEquals(BigDecimal.valueOf(612000, 5),
+        getSqlResult("select truncates(1000, cast(6.12345 as decimal(6, 5)) )"));
 
     // binary type
-    assertUDF("AQIDBAUGBwgJCg==", "SELECT truncates(10, x'0102030405060708090a0b0c0d0e0f')");
+    Assert.assertArrayEquals(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+        (byte[]) getSqlResult("SELECT truncates(10, x'0102030405060708090a0b0c0d0e0f')"));
+
 
     // timestamp type, unsupported
     AssertHelpers.assertThrows("unsupported timestamp type",
-        RuntimeException.class,
+        ValidationException.class,
         () -> sql("SELECT truncates(10, TIMESTAMP '2022-05-20 10:12:55.038194')"));
 
     // date type, unsupported
     AssertHelpers.assertThrows("unsupported date type",
-        RuntimeException.class,
+        ValidationException.class,
         () -> sql("SELECT truncates(10, DATE '%s')", "2022-05-20"));
 
     // time type, unsupported
     AssertHelpers.assertThrows("unsupported time type",
-        RuntimeException.class,
+        ValidationException.class,
         () -> sql("SELECT truncates(10, TIME '%s')", "14:08:59"));
 
     // boolean type, unsupported
     AssertHelpers.assertThrows("unsupported boolean type",
-        RuntimeException.class,
+        ValidationException.class,
         () -> sql("SELECT truncates(10, true)"));
   }
 }
