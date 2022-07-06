@@ -153,8 +153,7 @@ subprojects {
   // Borrowed from https://stackoverflow.com/questions/33020069/how-to-get-version-attribute-from-a-gradle-build-to-be-included-in-runtime-swing#answer-65830610
   task createProperties() {
     doLast {
-      def details = versionDetails()
-      // properties file must be relative to VersionPropertiesUtil, in org.apache.iceberg.util
+      // properties file must be relative to VersionPropertiesUtil class, in org.apache.iceberg.util
       def mainBuildResourcesDir = "${projectDir}/build/resources/main/org/apache/iceberg/util"
       def testBuildResourcesDir = "${projectDir}/build/resources/test/org/apache/iceberg/util"
       def mainBuildResourcesFile = "${mainBuildResourcesDir}/version.properties"
@@ -163,14 +162,25 @@ subprojects {
       mkdir("${testBuildResourcesDir}")
       delete("${mainBuildResourcesFile}")
       delete("${testBuildResourcesFile}")
+
+      // versionDetails is only available when the .git folder is available
+      def details
+      try {
+        details = versionDetails()
+      } catch (Exception e) {
+        project.logger.warn("Failed to get git version details. Will use default values", e.getMessage())
+      }
+
       new File("${mainBuildResourcesFile}").withWriter { w ->
         Properties p = new Properties()
         p['projectName'] = project.name.toString()
         p['projectVersion'] = project.version.toString()
-        p['gitLastTag'] = details.lastTag
-        p['gitHash'] = details.gitHash.toString()
-        p['gitHashFull'] = details.gitHashFull.toString() // full 40-character Git commit hash
-        // p['gitBranchName'] = details?.branchName // is null if the repository in detached HEAD mode
+        if (details != null) {
+          p['gitLastTag'] = details.lastTag
+          p['gitHash'] = details.gitHash.toString()
+          p['gitHashFull'] = details.gitHashFull.toString() // full 40-character Git commit hash
+          p['gitBranchName'] = details.branchName ?: "unknown" // null if the repository in detached HEAD mode
+        }
         p.store w, null
       }
 
