@@ -16,21 +16,15 @@
 # under the License.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum, auto
 from functools import reduce, singledispatch
-from typing import (
-    Any,
-    Generic,
-    List,
-    TypeVar,
-)
+from typing import Generic, Tuple, TypeVar
 
-from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import NestedField
 from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
+B = TypeVar("B")
 
 
 class Literal(Generic[T], ABC):
@@ -75,29 +69,106 @@ class Literal(Generic[T], ABC):
 
 
 class BooleanExpression(ABC):
-    """base class for all boolean expressions"""
+    """Represents a boolean expression tree."""
 
     @abstractmethod
     def __invert__(self) -> "BooleanExpression":
-        ...
+        """Transform the Expression into its negated version."""
 
 
-class BoundPredicate(ABC):
-    def __init__(self, term, literal):
-        """A concrete predicate must have a `term` and `literal`"""
-        self._term = term
-        self._literal = literal
+class Bound(Generic[T], ABC):
+    """Represents a bound value expression."""
+
+    def eval(self, schema: Schema):  # pylint: disable=W0613
+        ...  # pragma: no cover
 
 
-class UnboundPredicate:
-    def __init__(self, term, literal):
-        """A concrete predicate must have a `term` and `literal`"""
-        self._term = term
-        self._literal = literal
+class Unbound(Generic[T, B], ABC):
+    """Represents an unbound expression node."""
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundPredicate:
-        """Bind to a schema to create a BoundPredicate"""
+    def bind(self, schema: Schema, case_sensitive: bool) -> B:
+        ...  # pragma: no cover
+
+
+class Term(ABC):
+    """An expression that evaluates to a value."""
+
+
+class Reference(Generic[T], ABC):
+    """Represents a variable reference in an expression."""
+
+
+class BoundTerm(Bound[T], Term):
+    """Represents a bound term."""
+
+
+class UnboundTerm(Unbound[T, BoundTerm[T]]):
+    """Represents an unbound term."""
+
+
+@dataclass(frozen=True)
+class BoundReference(BoundTerm[T], Reference[T]):
+    """A reference bound to a field in a schema
+
+    Args:
+        field (NestedField): A referenced field in an Iceberg schema
+        accessor (Accessor): An Accessor object to access the value at the field's position
+    """
+
+    field: NestedField
+    accessor: Accessor
+
+
+@dataclass(frozen=True)
+class UnboundReference(UnboundTerm[T], Reference[T]):
+    """A reference not yet bound to a field in a schema
+
+    Args:
+        name (str): The name of the field
+
+    Note:
+        An unbound reference is sometimes referred to as a "named" reference
+    """
+
+    name: str
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
+        """Bind the reference to an Iceberg schema
+
+        Args:
+            schema (Schema): An Iceberg schema
+            case_sensitive (bool): Whether to consider case when binding the reference to the field
+
+        Raises:
+            ValueError: If an empty name is provided
+
+        Returns:
+            BoundReference: A reference bound to the specific field in the Iceberg schema
+        """
+        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
+
+        if not field:
+            raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
+
+        accessor = schema.accessor_for_field(field.field_id)
+
+        if not accessor:
+            raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
+
+        return BoundReference(field=field, accessor=accessor)
+
+
+@dataclass(frozen=True)  # type: ignore[misc]
+class BoundPredicate(Bound[T], BooleanExpression):
+    term: BoundReference[T]
+    literals: Tuple[Literal[T], ...]
+
+
+@dataclass(frozen=True)  # type: ignore[misc]
+class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
+    term: UnboundReference[T]
+    literals: Tuple[Literal[T], ...]
 
 
 class And(BooleanExpression):
@@ -230,78 +301,20 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
         return "false"
 
 
-@dataclass
-class In(BooleanExpression, UnboundPredicate):
-    term: "UnboundReference"
-    literal: List[Literal]
-
+@dataclass(frozen=True)
+class In(UnboundPredicate[T]):
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
 
     def bind(self, schema: Schema, case_sensitive: bool) -> "BoundIn":
         bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundIn(bound_ref, [lit.to(bound_ref.field.field_type) for lit in self.literal])
+        return BoundIn(bound_ref, tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
 
 
-@dataclass
-class BoundIn(BooleanExpression, BoundPredicate):
-    term: "BoundReference"
-    literal: List[Literal]
-
+@dataclass(frozen=True)
+class BoundIn(BoundPredicate[T]):
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
-
-
-@dataclass
-class BoundReference:
-    """A reference bound to a field in a schema
-
-    Args:
-        field (NestedField): A referenced field in an Iceberg schema
-        accessor (Accessor): An Accessor object to access the value at the field's position
-    """
-
-    field: NestedField
-    accessor: Accessor
-
-
-@dataclass
-class UnboundReference:
-    """A reference not yet bound to a field in a schema
-
-    Args:
-        name (str): The name of the field
-
-    Note:
-        An unbound reference is sometimes referred to as a "named" reference
-    """
-
-    name: str
-
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
-        """Bind the reference to an Iceberg schema
-
-        Args:
-            schema (Schema): An Iceberg schema
-            case_sensitive (bool): Whether to consider case when binding the reference to the field
-
-        Raises:
-            ValueError: If an empty name is provided
-
-        Returns:
-            BoundReference: A reference bound to the specific field in the Iceberg schema
-        """
-        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
-
-        if not field:
-            raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
-
-        accessor = schema.accessor_for_field(field.field_id)
-
-        if not accessor:
-            raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
-
-        return BoundReference(field=field, accessor=accessor)
 
 
 class BooleanExpressionVisitor(Generic[T], ABC):
