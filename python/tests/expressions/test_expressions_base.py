@@ -142,30 +142,29 @@ def test_strs(op, string):
     "a,  schema, case_sensitive, success",
     [
         (
-            base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("foo"), (literal("hello"), literal("world"))),
             "table_schema_simple",
             True,
             True,
         ),
         (
-            base.In(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("not_foo"), (literal("hello"), literal("world"))),
             "table_schema_simple",
             False,
             False,
         ),
         (
-            base.In(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("Bar"), (literal("hello"), literal("world"))),
             "table_schema_simple",
             False,
             True,
         ),
         (
-            base.In(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
+            base.In(base.UnboundReference("Bar"), (literal("hello"), literal("world"))),
             "table_schema_simple",
             True,
             False,
         ),
-
     ],
 )
 def test_bind(a, schema, case_sensitive, success, request):
