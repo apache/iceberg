@@ -53,6 +53,10 @@ public class ExceptionUtil {
     void run() throws Exception;
   }
 
+  /**
+   * This function is unused outside of the associated tests in TestExceptionUtil.
+   * @deprecated since 0.14.0. Will be removed in 1.0.0.
+   */
   @Deprecated
   public static <R> R runSafely(
       Block<R, RuntimeException, RuntimeException, RuntimeException> block,
@@ -62,6 +66,10 @@ public class ExceptionUtil {
         RuntimeException.class, RuntimeException.class, RuntimeException.class);
   }
 
+  /**
+   * This function is unused outside of the associated tests in TestExceptionUtil.
+   * @deprecated since 0.14.0. Will be removed in 1.0.0.
+   */
   @Deprecated
   public static <R, E1 extends Exception> R runSafely(
       Block<R, E1, RuntimeException, RuntimeException> block,
@@ -71,6 +79,10 @@ public class ExceptionUtil {
     return runSafely(block, catchBlock, finallyBlock, e1Class, RuntimeException.class, RuntimeException.class);
   }
 
+  /**
+   * This function is unused outside the associated tests in TestExceptionUtil.
+   * @deprecated since 0.14.0. Will be removed in 1.0.0.
+   */
   @Deprecated
   public static <R, E1 extends Exception, E2 extends Exception> R runSafely(
       Block<R, E1, E2, RuntimeException> block,
@@ -81,6 +93,10 @@ public class ExceptionUtil {
     return runSafely(block, catchBlock, finallyBlock, e1Class, e2Class, RuntimeException.class);
   }
 
+  /**
+   * This function is unused outside the associated tests in TestExceptionUtil.
+   * @deprecated since 0.14.0. Will be removed in 1.0.0.
+   */
   @Deprecated
   @SuppressWarnings("Finally")
   public static <R, E1 extends Exception, E2 extends Exception, E3 extends Exception> R runSafely(
