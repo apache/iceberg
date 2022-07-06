@@ -404,7 +404,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         NestedField.required(4, "data", Types.StringType.get())
     );
 
-    org.apache.iceberg.Table table = glueCatalog.buildTable(tableIdent, schema)
+    Table table = glueCatalog.buildTable(tableIdent, schema)
         .withProperty("key2", "table-key2")
         .withProperty("key3", "table-key3")
         .withProperty("key5", "table-key5")
