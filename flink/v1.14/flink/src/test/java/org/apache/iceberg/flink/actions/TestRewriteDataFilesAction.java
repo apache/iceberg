@@ -36,6 +36,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -134,6 +135,41 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         .rewriteDataFiles()
         .execute();
     Assert.assertNull("Table must stay empty", icebergTableUnPartitioned.currentSnapshot());
+  }
+
+  @Test
+  public void testRewriteSplitDataFile() {
+    if (format != FileFormat.PARQUET) {
+      return;
+    }
+    String oldRowGroupSize = icebergTableUnPartitioned.properties().get(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES);
+    if (oldRowGroupSize == null) {
+      oldRowGroupSize = TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+    }
+    icebergTableUnPartitioned.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "64").commit();
+    icebergTableUnPartitioned.refresh();
+
+    List<String> data = Lists.newArrayList();
+    for (int i = 0; i < 200; i++) {
+      data.add(String.format("(%d, '%s')", i, "abc"));
+    }
+    sql("INSERT INTO %s values %s", TABLE_NAME_UNPARTITIONED, String.join(",", data));
+    icebergTableUnPartitioned.refresh();
+
+    CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    Assert.assertEquals("Should have 1 data files before rewrite", 1, dataFiles.size());
+
+    RewriteDataFilesActionResult result =
+            Actions.forTable(icebergTableUnPartitioned)
+                    .rewriteDataFiles()
+                    .targetSizeInBytes(1000)
+                    .execute();
+
+    Assert.assertEquals("Should have 2 data files before rewrite", 2, result.addedDataFiles().size());
+    icebergTableUnPartitioned.updateProperties()
+            .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, oldRowGroupSize).commit();
+    icebergTableUnPartitioned.refresh();
   }
 
 
