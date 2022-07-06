@@ -175,9 +175,6 @@ subprojects {
       }
 
       // Copy to runtime resources. This is cleaned in core.clean
-      // TODO: Looking for assistance from anybody with more gradle knowledge than myself who
-      //   knows a cleaner way to get this file into the runtime `iceberg-core` classpath / jar
-      //   such that the file doesn't make the git directory dirty, please comment!
       copy {
        from "${mainBuildResourcesFile}"
        into "src/main/resources/org/apache/iceberg/util"
