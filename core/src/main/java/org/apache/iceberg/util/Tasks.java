@@ -569,6 +569,7 @@ public class Tasks {
     return new Builder<>(Arrays.asList(items));
   }
 
+  @SuppressWarnings("StreamToIterable")
   public static <I> Builder<I> foreach(Stream<I> items) {
     return new Builder<>(items::iterator);
   }

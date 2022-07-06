@@ -593,7 +593,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB.addedFiles(table.io()).forEach(i -> {
+    snapshotB.addedDataFiles(table.io()).forEach(i -> {
       expectedDeletes.add(i.path().toString());
     });
 
@@ -668,7 +668,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     // Make sure no dataFiles are deleted for the B, C, D snapshot
     Lists.newArrayList(snapshotB, snapshotC, snapshotD).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -723,7 +723,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     // Make sure no dataFiles are deleted for the staged snapshot
     Lists.newArrayList(snapshotB).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -737,7 +737,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     // Make sure no dataFiles are deleted for the staged and cherry-pick
     Lists.newArrayList(snapshotB, snapshotD).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1147,7 +1147,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
       checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
 
       Assert.assertEquals("Expected total number of jobs with stream-results should match the expected number",
-          5L, jobsRunDuringStreamResults);
+          4L, jobsRunDuringStreamResults);
     });
   }
 }

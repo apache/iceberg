@@ -20,9 +20,11 @@ from io import SEEK_SET
 
 import pytest
 
-from iceberg.avro.decoder import BinaryDecoder
-from iceberg.io.base import InputStream
-from iceberg.io.memory import MemoryInputStream
+from pyiceberg.avro.decoder import BinaryDecoder
+from pyiceberg.avro.resolver import promote
+from pyiceberg.io.base import InputStream
+from pyiceberg.io.memory import MemoryInputStream
+from pyiceberg.types import DoubleType, FloatType
 
 
 def test_read_decimal_from_fixed():
@@ -33,10 +35,38 @@ def test_read_decimal_from_fixed():
     assert actual == expected
 
 
-def test_read_long():
+def test_read_boolean_true():
+    mis = MemoryInputStream(b"\x01")
+    decoder = BinaryDecoder(mis)
+    assert decoder.read_boolean() is True
+
+
+def test_read_boolean_false():
+    mis = MemoryInputStream(b"\x00")
+    decoder = BinaryDecoder(mis)
+    assert decoder.read_boolean() is False
+
+
+def test_skip_boolean():
+    mis = MemoryInputStream(b"\x00")
+    decoder = BinaryDecoder(mis)
+    assert mis.tell() == 0
+    decoder.skip_boolean()
+    assert mis.tell() == 1
+
+
+def test_read_int():
     mis = MemoryInputStream(b"\x18")
     decoder = BinaryDecoder(mis)
-    assert decoder.read_long() == 12
+    assert decoder.read_int() == 12
+
+
+def test_skip_int():
+    mis = MemoryInputStream(b"\x18")
+    decoder = BinaryDecoder(mis)
+    assert mis.tell() == 0
+    decoder.skip_int()
+    assert mis.tell() == 1
 
 
 def test_read_decimal():
@@ -104,10 +134,26 @@ def test_read_float():
     assert decoder.read_float() == 19.25
 
 
+def test_skip_float():
+    mis = MemoryInputStream(b"\x00\x00\x9A\x41")
+    decoder = BinaryDecoder(mis)
+    assert mis.tell() == 0
+    decoder.skip_float()
+    assert mis.tell() == 4
+
+
 def test_read_double():
     mis = MemoryInputStream(b"\x00\x00\x00\x00\x00\x40\x33\x40")
     decoder = BinaryDecoder(mis)
     assert decoder.read_double() == 19.25
+
+
+def test_skip_double():
+    mis = MemoryInputStream(b"\x00\x00\x00\x00\x00\x40\x33\x40")
+    decoder = BinaryDecoder(mis)
+    assert mis.tell() == 0
+    decoder.skip_double()
+    assert mis.tell() == 8
 
 
 def test_read_date():
@@ -138,3 +184,32 @@ def test_read_timestamptz_micros():
     mis = MemoryInputStream(b"\xBC\x7D")
     decoder = BinaryDecoder(mis)
     assert decoder.read_timestamptz_micros() == datetime(1970, 1, 1, 0, 0, 0, 8030, tzinfo=timezone.utc)
+
+
+def test_read_bytes():
+    mis = MemoryInputStream(b"\x08\x01\x02\x03\x04")
+    decoder = BinaryDecoder(mis)
+    actual = decoder.read_bytes()
+    assert actual == b"\x01\x02\x03\x04"
+
+
+def test_read_utf8():
+    mis = MemoryInputStream(b"\x04\x76\x6F")
+    decoder = BinaryDecoder(mis)
+    assert decoder.read_utf8() == "vo"
+
+
+def test_skip_utf8():
+    mis = MemoryInputStream(b"\x04\x76\x6F")
+    decoder = BinaryDecoder(mis)
+    assert mis.tell() == 0
+    decoder.skip_utf8()
+    assert mis.tell() == 3
+
+
+def test_read_int_as_float():
+    mis = MemoryInputStream(b"\x00\x00\x9A\x41")
+    decoder = BinaryDecoder(mis)
+    reader = promote(FloatType(), DoubleType())
+
+    assert reader.read(decoder) == 19.25

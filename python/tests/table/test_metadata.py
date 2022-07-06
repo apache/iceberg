@@ -21,12 +21,12 @@ from uuid import UUID
 
 import pytest
 
-from iceberg.exceptions import ValidationError
-from iceberg.schema import Schema
-from iceberg.serializers import FromByteStream
-from iceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
-from iceberg.table.refs import SnapshotRef, SnapshotRefType
-from iceberg.types import LongType, NestedField
+from pyiceberg.exceptions import ValidationError
+from pyiceberg.schema import Schema
+from pyiceberg.serializers import FromByteStream
+from pyiceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
+from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
+from pyiceberg.types import LongType, NestedField
 
 EXAMPLE_TABLE_METADATA_V1 = {
     "format-version": 1,

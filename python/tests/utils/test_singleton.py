@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from iceberg.avro.reader import BooleanReader, FixedReader
+from pyiceberg.avro.reader import BooleanReader, FixedReader
+from pyiceberg.transforms import VoidTransform
 
 
 def test_singleton():
@@ -22,3 +23,8 @@ def test_singleton():
     assert id(BooleanReader()) == id(BooleanReader())
     assert id(FixedReader(22)) == id(FixedReader(22))
     assert id(FixedReader(19)) != id(FixedReader(25))
+
+
+def test_singleton_transform():
+    """We want to reuse VoidTransform since it doesn't carry any state"""
+    assert id(VoidTransform()) == id(VoidTransform())

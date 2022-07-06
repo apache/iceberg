@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
@@ -119,7 +120,7 @@ public class SparkCatalog extends BaseCatalog {
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
     Configuration conf = SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name);
     Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    optionsMap.putAll(options);
+    optionsMap.putAll(options.asCaseSensitiveMap());
     optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
     optionsMap.put(CatalogProperties.USER, SparkSession.active().sparkContext().sparkUser());
     return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
@@ -161,9 +162,12 @@ public class SparkCatalog extends BaseCatalog {
   public SparkTable loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
     try {
       Pair<Table, Long> icebergTable = load(ident);
+      // spark returns timestamp in micro seconds precision, convert it to milliseconds,
+      // as iceberg snapshot's are stored in millisecond precision.
+      long timestampMillis = TimeUnit.MICROSECONDS.toMillis(timestamp);
       Preconditions.checkArgument(icebergTable.second() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
-      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(icebergTable.first(), timestamp);
+      long snapshotIdAsOfTime = SnapshotUtil.snapshotIdAsOfTime(icebergTable.first(), timestampMillis);
       return new SparkTable(icebergTable.first(), snapshotIdAsOfTime, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);

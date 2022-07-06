@@ -52,6 +52,7 @@ public class GCSFileIO implements FileIO {
   private transient volatile Storage storage;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
+  private Map<String, String> properties = null;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -94,6 +95,11 @@ public class GCSFileIO implements FileIO {
     }
   }
 
+  @Override
+  public Map<String, String> properties() {
+    return properties;
+  }
+
   private Storage client() {
     if (storage == null) {
       synchronized (this) {
@@ -106,8 +112,9 @@ public class GCSFileIO implements FileIO {
   }
 
   @Override
-  public void initialize(Map<String, String> properties) {
-    this.gcpProperties = new GCPProperties(properties);
+  public void initialize(Map<String, String> props) {
+    this.properties = props;
+    this.gcpProperties = new GCPProperties(props);
 
     this.storageSupplier = () -> {
       StorageOptions.Builder builder = StorageOptions.newBuilder();
@@ -121,7 +128,7 @@ public class GCSFileIO implements FileIO {
         DynConstructors.Ctor<MetricsContext> ctor =
             DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
         MetricsContext context = ctor.newInstance("gcs");
-        context.initialize(properties);
+        context.initialize(props);
         this.metrics = context;
       } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
         LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);

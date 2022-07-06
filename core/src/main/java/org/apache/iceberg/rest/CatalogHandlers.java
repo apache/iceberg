@@ -20,6 +20,7 @@
 package org.apache.iceberg.rest;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -166,7 +167,7 @@ public class CatalogHandlers {
     }
 
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("created-at", OffsetDateTime.now().toString());
+    properties.put("created-at", OffsetDateTime.now(ZoneOffset.UTC).toString());
     properties.putAll(request.properties());
 
     String location;

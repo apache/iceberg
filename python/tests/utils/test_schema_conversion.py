@@ -19,8 +19,8 @@ from typing import Any, Dict
 
 import pytest
 
-from iceberg.schema import Schema
-from iceberg.types import (
+from pyiceberg.schema import Schema
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -34,7 +34,7 @@ from iceberg.types import (
     StringType,
     StructType,
 )
-from iceberg.utils.schema_conversion import AvroSchemaConversion
+from pyiceberg.utils.schema_conversion import AvroSchemaConversion
 
 
 def test_iceberg_to_avro(avro_schema_manifest_file: Dict[str, Any]):
