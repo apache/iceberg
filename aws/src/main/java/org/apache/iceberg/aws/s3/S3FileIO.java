@@ -120,6 +120,11 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
   }
 
   @Override
+  public InputFile newInputFile(String path, long length) {
+    return S3InputFile.fromLocation(path, length, client(), awsProperties, metrics);
+  }
+
+  @Override
   public OutputFile newOutputFile(String path) {
     return S3OutputFile.fromLocation(path, client(), awsProperties, metrics);
   }
