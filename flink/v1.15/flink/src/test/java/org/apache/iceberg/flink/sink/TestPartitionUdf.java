@@ -26,6 +26,7 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.AssertHelpers;
@@ -42,6 +43,8 @@ public class TestPartitionUdf {
   public static void before() {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     tEnv = StreamTableEnvironment.create(env);
+    tEnv.getConfig().getConfiguration()
+        .set(TableConfigOptions.LOCAL_TIME_ZONE, "Asia/Shanghai");
     tEnv.createTemporarySystemFunction("buckets", PartitionTransformUdf.Bucket.class);
     tEnv.createTemporarySystemFunction("truncates", PartitionTransformUdf.Truncate.class);
   }
