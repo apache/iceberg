@@ -48,7 +48,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
@@ -299,28 +298,35 @@ public class TestDynamoDbCatalog {
     Assert.assertFalse("namespace must not exist", response.hasItem());
   }
 
-  @Ignore
+  @Test
   public void testRegisterTable() {
-    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier identifier = TableIdentifier.of(namespace, catalogTableName);
     catalog.createTable(identifier, SCHEMA);
     Table registeringTable = catalog.loadTable(identifier);
-    catalog.dropTable(identifier, false);
+    Assertions.assertThat(catalog.dropTable(identifier, false)).isTrue();
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
     Assertions.assertThat(catalog.registerTable(identifier, metadataLocation)).isNotNull();
-    Table newTable = catalog.loadTable(identifier);
-    Assertions.assertThat(newTable).isNotNull();
+    Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
   }
 
-  @Ignore
+  @Test
   public void testRegisterExistingTable() {
-    catalog.createTable(TableIdentifier.of("a", "t1"), SCHEMA);
-    Table registeringTable = catalog.loadTable(TableIdentifier.of("a", "t1"));
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier identifier = TableIdentifier.of(namespace, catalogTableName);
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
-    Assertions.assertThatThrownBy(() -> catalog.registerTable(TableIdentifier.of("a", "t1"), metadataLocation))
-        .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage("Table already exists: a.t1");
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class);
+    Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
   }
 
   private static String genRandomName() {
