@@ -43,6 +43,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -334,10 +335,10 @@ public class Spark3Util {
         case "truncate":
           return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
         case "zorder":
-          String[] fields = Stream.of(transform.references())
+          return new Zorder(Stream.of(transform.references())
               .map(ref -> DOT.join(ref.fieldNames()))
-              .toArray(String[]::new);
-          return org.apache.iceberg.expressions.Expressions.zorder(fields);
+              .map(org.apache.iceberg.expressions.Expressions::ref)
+              .collect(Collectors.toList()));
         default:
           throw new UnsupportedOperationException("Transform is not supported: " + transform);
       }

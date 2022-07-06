@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.expressions;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -302,13 +300,5 @@ public class Expressions {
    */
   public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
     return new UnboundTransform<>(ref(name), transform);
-  }
-
-  public static Term zorder(String... names) {
-    return zorder(Arrays.asList(names));
-  }
-
-  public static Term zorder(List<String> names) {
-    return new Zorder(Lists.transform(names, Expressions::ref));
   }
 }

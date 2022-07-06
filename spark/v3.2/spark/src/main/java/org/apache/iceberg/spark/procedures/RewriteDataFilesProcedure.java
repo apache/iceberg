@@ -19,16 +19,15 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.Spark3Util;
@@ -146,22 +145,21 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       String strategy,
       String sortOrderString,
       Schema schema) {
-    List<ExtendedParser.RawOrderField> zOrderFields;
-    List<ExtendedParser.RawOrderField> sortOrderFields;
+    List<ExtendedParser.RawOrderField> zOrderFields = Lists.newArrayList();
+    List<ExtendedParser.RawOrderField> sortOrderFields = Lists.newArrayList();
     if (sortOrderString != null) {
-      List<ExtendedParser.RawOrderField> rawOrderFields = ExtendedParser.parseSortOrder(spark(), sortOrderString);
-      Map<Boolean, List<ExtendedParser.RawOrderField>> partitions = rawOrderFields.stream().collect(
-              Collectors.partitioningBy(field -> field.term() instanceof Zorder));
-      zOrderFields = partitions.get(true);
-      sortOrderFields = partitions.get(false);
+      ExtendedParser.parseSortOrder(spark(), sortOrderString).forEach(field -> {
+        if (field.term() instanceof Zorder) {
+          zOrderFields.add(field);
+        } else {
+          sortOrderFields.add(field);
+        }
+      });
 
       if (!zOrderFields.isEmpty() && !sortOrderFields.isEmpty()) {
         // TODO: we need to allow this in future when SparkAction has handling for this.
         throw new IllegalArgumentException("Both SortOrder and Zorder is configured: " + sortOrderString);
       }
-    } else {
-      zOrderFields = Collections.emptyList();
-      sortOrderFields = Collections.emptyList();
     }
 
     // caller of this function ensures that between strategy and sortOrder, at least one of them is not null.
@@ -170,8 +168,9 @@ class RewriteDataFilesProcedure extends BaseProcedure {
         String[] columnNames = zOrderFields.stream().flatMap(
             field -> ((Zorder) field.term()).refs().stream().map(NamedReference::name)).toArray(String[]::new);
         return action.zOrder(columnNames);
+      } else {
+        return action.sort(buildSortOrder(sortOrderFields, schema));
       }
-      return action.sort(buildSortOrder(sortOrderFields, schema));
     }
     if (strategy.equalsIgnoreCase("binpack")) {
       RewriteDataFiles rewriteDataFiles = action.binPack();
