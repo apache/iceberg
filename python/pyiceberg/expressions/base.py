@@ -24,6 +24,7 @@ from typing import (
     TypeVar,
 )
 
+from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import NestedField
 from pyiceberg.utils.singleton import Singleton
@@ -84,7 +85,7 @@ class BooleanExpression(ABC):
 class Bound(Generic[T], ABC):
     """Represents a bound value expression."""
 
-    def eval(self, schema: Schema):  # pylint: disable=W0613
+    def eval(self, struct: StructProtocol):  # pylint: disable=W0613
         ...  # pragma: no cover
 
 
@@ -124,14 +125,14 @@ class BoundReference(BoundTerm[T], Reference[T]):
     field: NestedField
     accessor: Accessor
 
-    def eval(self, schema: Schema) -> Any:
+    def eval(self, struct: StructProtocol) -> Any:
         """Returns the value at the referenced field's position in an object that abides by the StructProtocol
         Args:
             struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
         Returns:
             Any: The value at the referenced field's position in `struct`
         """
-        return self.accessor.get(schema)
+        return self.accessor.get(struct)
 
 
 @dataclass(frozen=True)
