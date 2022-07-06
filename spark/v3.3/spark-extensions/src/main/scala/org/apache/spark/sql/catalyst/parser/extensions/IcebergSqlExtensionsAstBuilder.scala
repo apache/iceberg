@@ -37,11 +37,13 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
@@ -77,6 +79,50 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform),
       Option(ctx.name).map(_.getText))
+  }
+
+  /**
+   * Create an ADD BRANCH logical command.
+   */
+  override def visitCreateBranch(ctx: CreateBranchContext): CreateBranch = withOrigin(ctx) {
+    val timeUnit: String => Long = {
+      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
+      case "DAYS" => 24 * 60 * 60 * 1000L
+      case "HOURS" => 60 * 60 * 1000L
+      case "MINUTES" => 1 * 1000L
+      case _ => throw new RuntimeException("unknown time unit!")
+    }
+
+    CreateBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      Option(ctx.numSnapshots()).map(_.getText.toLong),
+      Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText)),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  /**
+   * Create an REPLACE BRANCH logical command.
+   */
+  override def visitReplaceBranch(ctx: ReplaceBranchContext): ReplaceBranch = withOrigin(ctx) {
+    val timeUnit: String => Long = {
+      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
+      case "DAYS" => 24 * 60 * 60 * 1000L
+      case "HOURS" => 60 * 60 * 1000L
+      case "MINUTES" => 1 * 1000L
+      case _ => throw new RuntimeException("unknown time unit!")
+    }
+
+    ReplaceBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      Option(ctx.numSnapshots()).map(_.getText.toLong),
+      Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText)),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
   }
 
   /**
@@ -260,6 +306,15 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   private def typedVisit[T](ctx: ParseTree): T = {
     ctx.accept(this).asInstanceOf[T]
+  }
+
+  val timeUnit = (unit: String) => {
+    unit match {
+      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
+      case "DAYS" => 24 * 60 * 60 * 1000L
+      case "HOURS" => 60 * 60 * 1000L
+      case "MINUTES" => 1 * 1000L
+    }
   }
 }
 
