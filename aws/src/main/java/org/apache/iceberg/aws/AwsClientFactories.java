@@ -60,7 +60,11 @@ public class AwsClientFactories {
   private static AwsClientFactory loadClientFactory(String impl, Map<String, String> properties) {
     DynConstructors.Ctor<AwsClientFactory> ctor;
     try {
-      ctor = DynConstructors.builder(AwsClientFactory.class).hiddenImpl(impl).buildChecked();
+      ctor =
+          DynConstructors.builder(AwsClientFactory.class)
+              .loader(AwsClientFactories.class.getClassLoader())
+              .hiddenImpl(impl)
+              .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
           "Cannot initialize AwsClientFactory, missing no-arg constructor: %s", impl), e);
@@ -86,6 +90,7 @@ public class AwsClientFactories {
     private String s3SessionToken;
     private Boolean s3PathStyleAccess;
     private Boolean s3UseArnRegionEnabled;
+    private String dynamoDbEndpoint;
     private String httpClientType;
 
     DefaultAwsClientFactory() {
@@ -113,7 +118,10 @@ public class AwsClientFactories {
 
     @Override
     public DynamoDbClient dynamo() {
-      return DynamoDbClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
+      return DynamoDbClient.builder()
+          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .applyMutation(builder -> configureEndpoint(builder, dynamoDbEndpoint))
+          .build();
     }
 
     @Override
@@ -136,6 +144,7 @@ public class AwsClientFactories {
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
           "S3 client access key ID and secret access key must be set at the same time");
+      this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
       this.httpClientType = PropertyUtil.propertyAsString(properties,
           AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
     }

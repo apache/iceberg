@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -31,13 +32,16 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
@@ -203,7 +207,7 @@ public class TestDataSourceOptions {
         .mode("append")
         .save(tableLocation);
 
-    List<DataFile> files = Lists.newArrayList(icebergTable.currentSnapshot().addedFiles(icebergTable.io()));
+    List<DataFile> files = Lists.newArrayList(icebergTable.currentSnapshot().addedDataFiles(icebergTable.io()));
     Assert.assertEquals("Should have written 1 file", 1, files.size());
 
     long fileSize = files.get(0).fileSizeInBytes();
@@ -403,5 +407,42 @@ public class TestDataSourceOptions {
 
     Assert.assertTrue(table.currentSnapshot().summary().get("extra-key").equals("someValue"));
     Assert.assertTrue(table.currentSnapshot().summary().get("another-key").equals("anotherValue"));
+  }
+
+  @Test
+  public void testExtraSnapshotMetadataWithSQL() throws InterruptedException, IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+
+    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+    spark.read().format("iceberg").load(tableLocation).createOrReplaceTempView("target");
+    Thread writerThread = new Thread(() -> {
+      Map<String, String> properties = Maps.newHashMap();
+      properties.put("writer-thread", String.valueOf(Thread.currentThread().getName()));
+      CommitMetadata.withCommitProperties(properties, () -> {
+        spark.sql("INSERT INTO target VALUES (3, 'c'), (4, 'd')");
+        return 0;
+      }, RuntimeException.class);
+    });
+    writerThread.setName("test-extra-commit-message-writer-thread");
+    writerThread.start();
+    writerThread.join();
+    Set<String> threadNames = Sets.newHashSet();
+    for (Snapshot snapshot : table.snapshots()) {
+      threadNames.add(snapshot.summary().get("writer-thread"));
+    }
+    Assert.assertEquals(2, threadNames.size());
+    Assert.assertTrue(threadNames.contains(null));
+    Assert.assertTrue(threadNames.contains("test-extra-commit-message-writer-thread"));
   }
 }

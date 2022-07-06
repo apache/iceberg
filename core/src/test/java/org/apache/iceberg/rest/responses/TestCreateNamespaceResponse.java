@@ -76,7 +76,7 @@ public class TestCreateNamespaceResponse extends RequestResponseTestBase<CreateN
 
   @Test
   public void testDeserializeInvalidResponse() {
-    String jsonResponseMalformedNamespaceValue = "{\"namespace\":\"accounting%00tax\",\"properties\":null}";
+    String jsonResponseMalformedNamespaceValue = "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
     AssertHelpers.assertThrows(
         "A JSON response with the wrong type for the namespace field should fail to deserialize",
         JsonProcessingException.class,

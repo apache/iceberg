@@ -44,6 +44,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -963,7 +964,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     Assert.assertEquals("Should have 1 fileGroups", result.rewriteResults().size(), 1);
     Assert.assertTrue("Should have written 40+ files",
-        Iterables.size(table.currentSnapshot().addedFiles(table.io())) >= 40);
+        Iterables.size(table.currentSnapshot().addedDataFiles(table.io())) >= 40);
 
     table.refresh();
 
@@ -1224,7 +1225,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     NestedField field = table.schema().caseInsensitiveFindField(column);
     Class<T> javaClass = (Class<T>) field.type().typeId().javaClass();
 
-    Map<StructLike, List<DataFile>> filesByPartition = Streams.stream(table.currentSnapshot().addedFiles(table.io()))
+    Snapshot snapshot = table.currentSnapshot();
+    Map<StructLike, List<DataFile>> filesByPartition = Streams.stream(snapshot.addedDataFiles(table.io()))
         .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

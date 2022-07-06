@@ -20,11 +20,13 @@
 package org.apache.iceberg.rest;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.PartitionSpec;
@@ -165,7 +167,7 @@ public class CatalogHandlers {
     }
 
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("created-at", OffsetDateTime.now().toString());
+    properties.put("created-at", OffsetDateTime.now(ZoneOffset.UTC).toString());
     properties.putAll(request.properties());
 
     String location;
@@ -227,6 +229,9 @@ public class CatalogHandlers {
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())
           .build();
+    } else if (table instanceof BaseMetadataTable) {
+      // metadata tables are loaded on the client side, return NoSuchTableException for now
+      throw new NoSuchTableException("Table does not exist: %s", ident.toString());
     }
 
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");

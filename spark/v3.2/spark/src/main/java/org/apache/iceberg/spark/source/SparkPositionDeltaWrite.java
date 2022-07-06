@@ -54,6 +54,7 @@ import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.Types;
@@ -248,6 +249,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       }
 
       extraSnapshotMetadata.forEach(operation::set);
+
+      if (!CommitMetadata.commitProperties().isEmpty()) {
+        CommitMetadata.commitProperties().forEach(operation::set);
+      }
 
       if (wapEnabled && wapId != null) {
         // write-audit-publish is enabled for this table and job

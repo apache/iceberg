@@ -167,6 +167,11 @@ public class TableProperties {
       "write.delete.parquet.row-group-check-max-record-count";
   public static final int PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT = 10000;
 
+  public static final String PARQUET_BLOOM_FILTER_MAX_BYTES = "write.parquet.bloom-filter-max-bytes";
+  public static final int PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT = 1024 * 1024;
+
+  public static final String PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX = "write.parquet.bloom-filter-enabled.column.";
+
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
@@ -302,6 +307,9 @@ public class TableProperties {
 
   public static final String MIN_SNAPSHOTS_TO_KEEP = "history.expire.min-snapshots-to-keep";
   public static final int MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 1;
+
+  public static final String MAX_REF_AGE_MS = "history.expire.max-ref-age-ms";
+  public static final long MAX_REF_AGE_MS_DEFAULT = Long.MAX_VALUE;
 
   public static final String DELETE_ISOLATION_LEVEL = "write.delete.isolation-level";
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";
