@@ -237,12 +237,24 @@ public abstract class TestWriterMetrics<T> {
     dataWriter.close();
     DataFile dataFile = dataWriter.toDataFile();
 
-    // No field should have metrics
-    Assert.assertTrue("Should not have any lower bound metrics", dataFile.lowerBounds().isEmpty());
-    Assert.assertTrue("Should not have any upper bound metrics", dataFile.upperBounds().isEmpty());
-    Assert.assertTrue("Should not have any nan value metrics", dataFile.nanValueCounts().isEmpty());
-    Assert.assertTrue("Should not have any null value metrics", dataFile.nullValueCounts().isEmpty());
-    Assert.assertTrue("Should not have any value metrics", dataFile.valueCounts().isEmpty());
+    // start at 1 because IDs were reassigned in the table
+    int i = 1;
+    for (; i <= 32; i += 1) {
+      Assert.assertNotNull("Should have lower bound metrics", dataFile.lowerBounds().get(i));
+      Assert.assertNotNull("Should have upper bound metrics", dataFile.upperBounds().get(i));
+      Assert.assertNull("Should not have nan value metrics (not floating point)", dataFile.nanValueCounts().get(i));
+      Assert.assertNotNull("Should have null value metrics", dataFile.nullValueCounts().get(i));
+      Assert.assertNotNull("Should have value metrics", dataFile.valueCounts().get(i));
+    }
+
+    // Remaining fields should not have metrics
+    for (; i <= numColumns; i += 1) {
+      Assert.assertNull("Should not have any lower bound metrics", dataFile.lowerBounds().get(i));
+      Assert.assertNull("Should not have any upper bound metrics", dataFile.upperBounds().get(i));
+      Assert.assertNull("Should not have any nan value metrics", dataFile.nanValueCounts().get(i));
+      Assert.assertNull("Should not have any null value metrics", dataFile.nullValueCounts().get(i));
+      Assert.assertNull("Should not have any value metrics", dataFile.valueCounts().get(i));
+    }
   }
 
   @Test
