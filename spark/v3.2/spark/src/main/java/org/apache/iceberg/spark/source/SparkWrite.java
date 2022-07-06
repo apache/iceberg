@@ -180,7 +180,8 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private WriterFactory createWriterFactory() {
     // broadcast the table metadata as the writer factory will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
-    return new WriterFactory(tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
+    return new WriterFactory(
+        tableBroadcast, queryId, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -594,15 +595,17 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
   private static class WriterFactory implements DataWriterFactory, StreamingDataWriterFactory {
     private final Broadcast<Table> tableBroadcast;
+    private final String queryId;
     private final FileFormat format;
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
 
-    protected WriterFactory(Broadcast<Table> tableBroadcast, FileFormat format, long targetFileSize,
+    protected WriterFactory(Broadcast<Table> tableBroadcast, String queryId, FileFormat format, long targetFileSize,
                             Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
+      this.queryId = queryId;
       this.format = format;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
@@ -622,6 +625,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       FileIO io = table.io();
 
       OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
+          .operationId(queryId)
           .format(format)
           .build();
       SparkFileWriterFactory writerFactory = SparkFileWriterFactory.builderFor(table)
