@@ -28,7 +28,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 
 /**
- *
+ * A REST response that is used when a table is successfully loaded.
+ * <p>
+ * This class is used whenever the response to a request is a table's requested metadata and the associated location
+ * of its metadata, to reduce code duplication. This includes using this class as the response for
+ * {@link org.apache.iceberg.rest.requests.CreateTableRequest}, including when that request is used to commit
+ * an already staged table creation as part of a transaction.
  */
 public class LoadTableResponse implements RESTResponse {
 
@@ -48,6 +53,7 @@ public class LoadTableResponse implements RESTResponse {
 
   @Override
   public void validate() {
+    Preconditions.checkNotNull(metadata, "Invalid metadata: null");
   }
 
   public String metadataLocation() {

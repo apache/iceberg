@@ -56,7 +56,6 @@ import org.apache.iceberg.util.Pair;
  */
 public class RESTCatalogAdapter implements RESTClient {
   private static final Splitter SLASH = Splitter.on('/');
-  private static final Splitter NULL = Splitter.on('\u0000');
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES = ImmutableMap
       .<Class<? extends Exception>, Integer>builder()
@@ -194,7 +193,8 @@ public class RESTCatalogAdapter implements RESTClient {
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns = Namespace.of(NULL.splitToStream(vars.get("parent")).toArray(String[]::new));
+            ns = Namespace.of(
+                RESTUtil.NAMESPACE_SPLITTER.splitToStream(vars.get("parent")).toArray(String[]::new));
           } else {
             ns = Namespace.empty();
           }

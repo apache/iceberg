@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
 import org.apache.arrow.vector.VarCharVector;
@@ -64,6 +65,17 @@ final class ArrowVectorAccessors {
 
     @Override
     public String ofBytes(byte[] bytes) {
+      return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    @Override
+    public String ofByteBuffer(ByteBuffer byteBuffer) {
+      if (byteBuffer.hasArray()) {
+        return new String(byteBuffer.array(), byteBuffer.arrayOffset() + byteBuffer.position(),
+            byteBuffer.remaining(), StandardCharsets.UTF_8);
+      }
+      byte[] bytes = new byte[byteBuffer.remaining()];
+      byteBuffer.get(bytes);
       return new String(bytes, StandardCharsets.UTF_8);
     }
   }

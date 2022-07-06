@@ -28,8 +28,12 @@ import org.apache.iceberg.io.CloseableIterable;
 /**
  * Scan objects are immutable and can be shared between threads. Refinement methods, like
  * {@link #select(Collection)} and {@link #filter(Expression)}, create new TableScan instances.
+ *
+ * @param <ThisT> the child Java API class, returned by method chaining
+ * @param <T> the Java type of tasks produces by this scan
+ * @param <G> the Java type of task groups produces by this scan
  */
-public interface Scan<T extends Scan<T>> {
+public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
   /**
    * Create a new scan from this scan's configuration that will override the {@link Table}'s behavior based
    * on the incoming pair. Unknown properties will be ignored.
@@ -38,7 +42,7 @@ public interface Scan<T extends Scan<T>> {
    * @param value value to override with
    * @return a new scan based on this with overridden behavior
    */
-  T option(String property, String value);
+  ThisT option(String property, String value);
 
   /**
    * Create a new scan from this with the schema as its projection.
@@ -46,7 +50,7 @@ public interface Scan<T extends Scan<T>> {
    * @param schema a projection schema
    * @return a new scan based on this with the given projection
    */
-  T project(Schema schema);
+  ThisT project(Schema schema);
 
   /**
    * Create a new scan from this that, if data columns where selected
@@ -55,7 +59,7 @@ public interface Scan<T extends Scan<T>> {
    *
    * @return a new scan based on this with case sensitivity as stated
    */
-  T caseSensitive(boolean caseSensitive);
+  ThisT caseSensitive(boolean caseSensitive);
 
   /**
    * Create a new scan from this that loads the column stats with each data file.
@@ -64,7 +68,7 @@ public interface Scan<T extends Scan<T>> {
    *
    * @return a new scan based on this that loads column stats.
    */
-  T includeColumnStats();
+  ThisT includeColumnStats();
 
   /**
    * Create a new scan from this that will read the given data columns. This produces
@@ -74,7 +78,7 @@ public interface Scan<T extends Scan<T>> {
    * @param columns column names from the table's schema
    * @return a new scan based on this with the given projection columns
    */
-  T select(Collection<String> columns);
+  ThisT select(Collection<String> columns);
 
   /**
    * Create a new scan from the results of this filtered by the {@link Expression}.
@@ -82,14 +86,14 @@ public interface Scan<T extends Scan<T>> {
    * @param expr a filter expression
    * @return a new scan based on this with results filtered by the expression
    */
-  T filter(Expression expr);
+  ThisT filter(Expression expr);
 
   /**
    * Create a new scan from this that applies data filtering to files but not to rows in those files.
    *
    * @return a new scan based on this that does not filter rows in files.
    */
-  T ignoreResiduals();
+  ThisT ignoreResiduals();
 
   /**
    * Create a new scan to use a particular executor to plan. The default worker pool will be
@@ -98,7 +102,7 @@ public interface Scan<T extends Scan<T>> {
    * @param executorService the provided executor
    * @return a table scan that uses the provided executor to access manifests
    */
-  T planWith(ExecutorService executorService);
+  ThisT planWith(ExecutorService executorService);
 
   /**
    * Returns this scan's projection {@link Schema}.
@@ -113,26 +117,23 @@ public interface Scan<T extends Scan<T>> {
   Schema schema();
 
   /**
-   * Plan the {@link FileScanTask files} that will be read by this scan.
+   * Plan tasks for this scan where each task reads a single file.
    * <p>
-   * Each file has a residual expression that should be applied to filter the file's rows.
-   * <p>
-   * This simple plan returns file scans for each file from position 0 to the file's length. For
-   * planning that will combine small files, split large files, and attempt to balance work, use
-   * {@link #planTasks()} instead.
+   * Use {@link #planTasks()} for planning balanced tasks where each task will read either a single file,
+   * a part of a file, or multiple files.
    *
-   * @return an Iterable of file tasks that are required by this scan
+   * @return an Iterable of tasks scanning entire files required by this scan
    */
-  CloseableIterable<FileScanTask> planFiles();
+  CloseableIterable<T> planFiles();
 
   /**
-   * Plan the {@link CombinedScanTask tasks} for this scan.
+   * Plan balanced task groups for this scan by splitting large and combining small tasks.
    * <p>
-   * Tasks created by this method may read partial input files, multiple input files, or both.
+   * Task groups created by this method may read partial input files, multiple input files or both.
    *
-   * @return an Iterable of tasks for this scan
+   * @return an Iterable of balanced task groups required by this scan
    */
-  CloseableIterable<CombinedScanTask> planTasks();
+  CloseableIterable<G> planTasks();
 
   /**
    * Returns the target split size for this scan.

@@ -980,10 +980,14 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder addSnapshot(Snapshot snapshot) {
-      if (snapshot == null || snapshotsById.containsKey(snapshot.snapshotId())) {
+      if (snapshot == null) {
         // change is a noop
         return this;
       }
+
+      ValidationException.check(!snapshotsById.containsKey(snapshot.snapshotId()),
+          "Snapshot already exists for id: %s",
+          snapshot.snapshotId());
 
       ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
           "Cannot add snapshot with sequence number %s older than last sequence number %s",

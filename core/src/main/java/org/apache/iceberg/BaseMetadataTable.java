@@ -34,7 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * using a {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
  * deserialization.
  */
-abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
+public abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final TableOperations ops;

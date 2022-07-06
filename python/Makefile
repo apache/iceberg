@@ -16,13 +16,14 @@
 # under the License.
 
 install:
-	pip install -e ".[dev,arrow]"
+	pip install poetry
+	poetry install -E pyarrow
 
 lint:
-	pre-commit run --all-files
+	poetry run pre-commit run --all-files
 
 test:
-	coverage run --source=src/ -m pytest tests/
-	coverage report -m --fail-under=90
-	coverage html
-	coverage xml
+	poetry run coverage run --source=pyiceberg/ -m pytest tests/
+	poetry run coverage report -m --fail-under=90
+	poetry run coverage html
+	poetry run coverage xml

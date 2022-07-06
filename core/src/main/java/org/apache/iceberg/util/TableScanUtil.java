@@ -19,15 +19,23 @@
 
 package org.apache.iceberg.util;
 
+import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MergeableScanTask;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class TableScanUtil {
 
@@ -77,5 +85,66 @@ public class TableScanUtil {
             new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
             splitFiles),
         BaseCombinedScanTask::new);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(CloseableIterable<T> tasks,
+                                                                                        long splitSize, int lookback,
+                                                                                        long openFileCost) {
+
+    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
+    Preconditions.checkArgument(lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
+    Preconditions.checkArgument(openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
+
+    // capture manifests which can be closed after scan planning
+    CloseableIterable<T> splitTasks = CloseableIterable.combine(
+        FluentIterable.from(tasks).transformAndConcat(task -> {
+          if (task instanceof SplittableScanTask<?>) {
+            return ((SplittableScanTask<? extends T>) task).split(splitSize);
+          } else {
+            return ImmutableList.of(task);
+          }
+        }),
+        tasks);
+
+    Function<T, Long> weightFunc = task -> Math.max(task.sizeBytes(), task.filesCount() * openFileCost);
+
+    return CloseableIterable.transform(
+        CloseableIterable.combine(
+            new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
+            splitTasks),
+        combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends ScanTask> List<T> mergeTasks(List<T> tasks) {
+    List<T> mergedTasks = Lists.newArrayList();
+
+    T lastTask = null;
+
+    for (T task : tasks) {
+      if (lastTask != null) {
+        if (lastTask instanceof MergeableScanTask<?>) {
+          MergeableScanTask<? extends T> mergeableLastTask = (MergeableScanTask<? extends T>) lastTask;
+          if (mergeableLastTask.canMerge(task)) {
+            lastTask = mergeableLastTask.merge(task);
+          } else {
+            mergedTasks.add(lastTask);
+            lastTask = task;
+          }
+        } else {
+          mergedTasks.add(lastTask);
+          lastTask = task;
+        }
+      } else {
+        lastTask = task;
+      }
+    }
+
+    if (lastTask != null) {
+      mergedTasks.add(lastTask);
+    }
+
+    return mergedTasks;
   }
 }
