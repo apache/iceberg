@@ -138,43 +138,43 @@ def test_strs(op, string):
     assert str(op) == string
 
 
-# @pytest.mark.parametrize(
-#     "a,  schema, case_sensitive, success",
-#     [
-#         (
-#             base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
-#             "table_schema_simple",
-#             True,
-#             True,
-#         ),
-#         (
-#             base.In(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
-#             "table_schema_simple",
-#             False,
-#             False,
-#         ),
-#         (
-#             base.In(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
-#             "table_schema_simple",
-#             False,
-#             True,
-#         ),
-#         (
-#             base.In(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
-#             "table_schema_simple",
-#             True,
-#             False,
-#         ),
+@pytest.mark.parametrize(
+    "a,  schema, case_sensitive, success",
+    [
+        (
+            base.In(base.UnboundReference("foo"), [literal("hello"), literal("world")]),
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.In(base.UnboundReference("not_foo"), [literal("hello"), literal("world")]),
+            "table_schema_simple",
+            False,
+            False,
+        ),
+        (
+            base.In(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.In(base.UnboundReference("Bar"), [literal("hello"), literal("world")]),
+            "table_schema_simple",
+            True,
+            False,
+        ),
 
-#     ],
-# )
-# def test_bind(a, schema, case_sensitive, success, request):
-#     schema = request.getfixturevalue(schema)
-#     if success:
-#         assert a.bind(schema, case_sensitive).term.field == schema.find_field(a.term.name, case_sensitive)
-#     else:
-#         with pytest.raises(ValueError):
-#             a.bind(schema, case_sensitive)
+    ],
+)
+def test_bind(a, schema, case_sensitive, success, request):
+    schema = request.getfixturevalue(schema)
+    if success:
+        assert a.bind(schema, case_sensitive).term.field == schema.find_field(a.term.name, case_sensitive)
+    else:
+        with pytest.raises(ValueError):
+            a.bind(schema, case_sensitive)
 
 
 @pytest.mark.parametrize(
@@ -308,27 +308,27 @@ def test_bound_reference_field_property():
     assert bound_ref.field == NestedField(field_id=1, name="foo", field_type=StringType(), required=False)
 
 
-# def test_bound_reference(table_schema_simple, foo_struct):
-#     """Test creating a BoundReference and evaluating it on a StructProtocol"""
-#     foo_struct.set(pos=1, value="foovalue")
-#     foo_struct.set(pos=2, value=123)
-#     foo_struct.set(pos=3, value=True)
+def test_bound_reference(table_schema_simple, foo_struct):
+    """Test creating a BoundReference and evaluating it on a StructProtocol"""
+    foo_struct.set(pos=1, value="foovalue")
+    foo_struct.set(pos=2, value=123)
+    foo_struct.set(pos=3, value=True)
 
-#     position1_accessor = base.Accessor(position=1)
-#     position2_accessor = base.Accessor(position=2)
-#     position3_accessor = base.Accessor(position=3)
+    position1_accessor = base.Accessor(position=1)
+    position2_accessor = base.Accessor(position=2)
+    position3_accessor = base.Accessor(position=3)
 
-#     field1 = table_schema_simple.find_field(1)
-#     field2 = table_schema_simple.find_field(2)
-#     field3 = table_schema_simple.find_field(3)
+    field1 = table_schema_simple.find_field(1)
+    field2 = table_schema_simple.find_field(2)
+    field3 = table_schema_simple.find_field(3)
 
-#     bound_ref1 = base.BoundReference(field=field1, accessor=position1_accessor)
-#     bound_ref2 = base.BoundReference(field=field2, accessor=position2_accessor)
-#     bound_ref3 = base.BoundReference(field=field3, accessor=position3_accessor)
+    bound_ref1 = base.BoundReference(field=field1, accessor=position1_accessor)
+    bound_ref2 = base.BoundReference(field=field2, accessor=position2_accessor)
+    bound_ref3 = base.BoundReference(field=field3, accessor=position3_accessor)
 
-#     assert bound_ref1.eval(foo_struct) == "foovalue"
-#     assert bound_ref2.eval(foo_struct) == 123
-#     assert bound_ref3.eval(foo_struct) is True
+    assert bound_ref1.eval(foo_struct) == "foovalue"
+    assert bound_ref2.eval(foo_struct) == 123
+    assert bound_ref3.eval(foo_struct) is True
 
 
 def test_boolean_expression_visitor():

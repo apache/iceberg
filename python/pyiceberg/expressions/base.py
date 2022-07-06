@@ -17,7 +17,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import Generic, Tuple, TypeVar
+from typing import (
+    Any,
+    Generic,
+    Tuple,
+    TypeVar,
+)
 
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import NestedField
@@ -118,6 +123,15 @@ class BoundReference(BoundTerm[T], Reference[T]):
 
     field: NestedField
     accessor: Accessor
+
+    def eval(self, schema: Schema) -> Any:
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
+        Args:
+            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
+        Returns:
+            Any: The value at the referenced field's position in `struct`
+        """
+        return self.accessor.get(schema)
 
 
 @dataclass(frozen=True)
