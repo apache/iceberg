@@ -38,7 +38,7 @@ public class VersionPropertiesUtil {
   private static final String VERSION_PROPERTIES_FILE = "version.properties";
   private static final String UNKNOWN_DEFAULT = "unknown";
 
-  private static boolean isLoaded = false;
+  private static volatile boolean isLoaded = false;
   private static Properties versionProperties = new Properties();
 
   private static String gitHash;  // 10 character short git hash of the build
