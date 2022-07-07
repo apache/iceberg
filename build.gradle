@@ -241,16 +241,14 @@ project(':iceberg-core') {
 
   task writeGitInfoFile(type: WriteProperties) {
     outputFile = project.ext.versionPropertiesFile
+    encoding = "UTF-8"
     property 'version', getProjectVersion()
-    property 'projectName', 'apache-iceberg'
+    property 'projectName', project.name
     def details = versionDetails()
-    // In case this runs somewhere that's not a git directory
-    if (details != null) {
-      property 'gitLastTag', "${details.lastTag}"
-      property 'gitHash', "${details.gitHash.toString()}"
-      property 'gitHashFull', "${details.gitHashFull.toString()}"
-      property 'gitBranchName', "${details.branchName}"
-    }
+    property 'gitLastTag', "${details?.lastTag}"
+    property 'gitHash', "${details?.gitHash.toString()}"
+    property 'gitHashFull', "${details?.gitHashFull.toString()}"
+    property 'gitBranchName', "${details?.branchName}"
   }
 
   processResources.dependsOn writeGitInfoFile
@@ -693,13 +691,10 @@ task writeGitInfoFile(type: WriteProperties) {
   property 'version', getProjectVersion()
   property 'projectName', 'apache-iceberg'
   def details = versionDetails()
-  // In case this runs somewhere that's not a git directory
-  if (details != null) {
-    property 'gitLastTag', "${details.lastTag}"
-    property 'gitHash', "${details.gitHash.toString()}"
-    property 'gitHashFull', "${details.gitHashFull.toString()}"
-    property 'gitBranchName', "${details.branchName}"
-  }
+  property 'gitLastTag', "${details?.lastTag}"
+  property 'gitHash', "${details?.gitHash.toString()}"
+  property 'gitHashFull', "${details?.gitHashFull.toString()}"
+  property 'gitBranchName', "${details?.branchName}"
 }
 
 apply from: 'jmh.gradle'
