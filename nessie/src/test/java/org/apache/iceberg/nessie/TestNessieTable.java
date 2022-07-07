@@ -414,7 +414,7 @@ public class TestNessieTable extends BaseTestIceberg {
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     // Case 1: Branch does not exist
     ImmutableTableReference tableReference =
-            ImmutableTableReference.builder().reference("default").name(TABLE_NAME).build();
+        ImmutableTableReference.builder().reference("default").name(TABLE_NAME).build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
     Assertions.assertThatThrownBy(
         () -> catalog.registerTable(
