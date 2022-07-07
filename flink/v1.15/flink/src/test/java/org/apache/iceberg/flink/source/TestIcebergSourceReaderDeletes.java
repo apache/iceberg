@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -43,7 +42,6 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
-import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeSet;
@@ -82,16 +80,12 @@ public class TestIcebergSourceReaderDeletes extends TestFlinkReaderDeletesBase {
     TableLoader hiveTableLoader = TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of("default", tableName));
     hiveTableLoader.open();
     try (TableLoader tableLoader = hiveTableLoader) {
-      Configuration config = new Configuration();
-      Table table = tableLoader.loadTable();
       StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
       env.setParallelism(1);
       DataStream<RowData> stream = env.fromSource(
           IcebergSource.<RowData>builder()
               .tableLoader(tableLoader)
               .assignerFactory(new SimpleSplitAssignerFactory())
-              .readerFunction(new RowDataReaderFunction(config, table.schema(), projected,
-                  null, false, table.io(), table.encryption()))
               .project(projected)
               .build(),
           WatermarkStrategy.noWatermarks(),
