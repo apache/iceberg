@@ -149,54 +149,6 @@ subprojects {
       exceptionFormat "full"
     }
   }
-
-  // Borrowed from https://stackoverflow.com/questions/33020069/how-to-get-version-attribute-from-a-gradle-build-to-be-included-in-runtime-swing#answer-65830610
-  task createProperties() {
-    doLast {
-      // properties file must be relative to VersionPropertiesUtil class, in org.apache.iceberg.util
-      def mainBuildResourcesDir = "${projectDir}/build/resources/main/org/apache/iceberg/util"
-      def testBuildResourcesDir = "${projectDir}/build/resources/test/org/apache/iceberg/util"
-      def mainBuildResourcesFile = "${mainBuildResourcesDir}/version.properties"
-      def testBuildResourcesFile = "${testBuildResourcesDir}/version.properties"
-      mkdir("${mainBuildResourcesDir}")
-      mkdir("${testBuildResourcesDir}")
-      delete("${mainBuildResourcesFile}")
-      delete("${testBuildResourcesFile}")
-
-      // versionDetails is only available when the .git folder is available
-      def details
-      try {
-        details = versionDetails()
-      } catch (Exception e) {
-        project.logger.warn("Failed to get git version details. Will use default values", e.getMessage())
-      }
-
-      new File("${mainBuildResourcesFile}").withWriter { w ->
-        Properties p = new Properties()
-        p['projectName'] = project.name.toString()
-        p['projectVersion'] = project.version.toString()
-        if (details != null) {
-          p['gitLastTag'] = details.lastTag
-          p['gitHash'] = details.gitHash.toString()
-          p['gitHashFull'] = details.gitHashFull.toString() // full 40-character Git commit hash
-          p['gitBranchName'] = details.branchName ?: "unknown" // null if the repository in detached HEAD mode
-        }
-        p.store w, null
-      }
-
-      // Copy to runtime resources. This is cleaned in core.clean
-      copy {
-       from "${mainBuildResourcesFile}"
-       into "src/main/resources/org/apache/iceberg/util"
-      }
-
-      // Copy to test resources
-      copy {
-        from "${mainBuildResourcesFile}"
-        into "${testBuildResourcesDir}"
-      }
-    }
-  }
 }
 
 project(':iceberg-bundled-guava') {
@@ -257,6 +209,7 @@ project(':iceberg-common') {
 }
 
 project(':iceberg-core') {
+  project.ext.versionPropertiesFile = "${projectDir}/build/iceberg-build.properties"
   test {
     useJUnitPlatform()
   }
@@ -286,13 +239,21 @@ project(':iceberg-core') {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 
-  clean.doFirst {
-    file('src/main/resources/org/apache/iceberg/util/version.properties').delete()
-    file('src/main/resources/org/apache/iceberg/util').deleteDir()
+  task writeGitInfoFile(type: WriteProperties) {
+    outputFile = project.ext.versionPropertiesFile
+    property 'version', getProjectVersion()
+    property 'projectName', 'apache-iceberg'
+    def details = versionDetails()
+    // In case this runs somewhere that's not a git directory
+    if (details != null) {
+      property 'gitLastTag', "${details.lastTag}"
+      property 'gitHash', "${details.gitHash.toString()}"
+      property 'gitHashFull', "${details.gitHashFull.toString()}"
+      property 'gitBranchName', "${details.branchName}"
+    }
   }
 
-  classes.dependsOn createProperties
-  testClasses.dependsOn createProperties
+  processResources.dependsOn writeGitInfoFile
 }
 
 project(':iceberg-data') {
@@ -727,7 +688,7 @@ String getJavadocVersion() {
 }
 
 task writeGitInfoFile(type: WriteProperties) {
-  def propsFile = project.hasProperty("versionPropertiesFile") ? project.ext.versionPropertiesFile : "git-info.properties"
+  def propsFile = project.hasProperty("versionPropertiesFile") ? project.ext.versionPropertiesFile : "iceberg-build.properties"
   outputFile = "${propsFile}"
   property 'version', getProjectVersion()
   property 'projectName', 'apache-iceberg'
