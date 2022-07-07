@@ -38,6 +38,8 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS;
+import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT;
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 @Immutable
@@ -140,9 +142,7 @@ public final class MetricsConfig implements Serializable {
    * @return metrics configuration
    */
   private static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
-    int maxInferredDefaultColumns = PropertyUtil.propertyAsInt(props,
-        TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
-        TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT);
+    int maxInferredDefaultColumns = maxInferredColumnDefaults(props);
     Map<String, MetricsMode> columnModes = Maps.newHashMap();
 
     // Handle user override of default mode
@@ -157,7 +157,7 @@ public final class MetricsConfig implements Serializable {
       defaultMode = DEFAULT_MODE;
 
     } else {
-      // a inferred default mode is applied to the first few columns, up to the limit
+      // an inferred default mode is applied to the first few columns, up to the limit
       Schema subSchema = new Schema(schema.columns().subList(0, maxInferredDefaultColumns));
       for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
         columnModes.put(subSchema.findColumnName(id), DEFAULT_MODE);
@@ -173,11 +173,10 @@ public final class MetricsConfig implements Serializable {
     sortedCols.forEach(sc -> columnModes.put(sc, sortedColDefaultMode));
 
     // Handle user overrides of defaults
-    MetricsMode finalDefaultModeVal = defaultMode;
     for (String key : props.keySet()) {
       if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
         String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
-        MetricsMode mode = parseMode(props.get(key), finalDefaultModeVal, "column " + columnAlias);
+        MetricsMode mode = parseMode(props.get(key), defaultMode, "column " + columnAlias);
         columnModes.put(columnAlias, mode);
       }
     }
@@ -195,6 +194,19 @@ public final class MetricsConfig implements Serializable {
       return MetricsModes.Truncate.withLength(16);
     } else {
       return defaultMode;
+    }
+  }
+
+  private static int maxInferredColumnDefaults(Map<String, String> properties) {
+    int maxInferredDefaultColumns = PropertyUtil.propertyAsInt(properties,
+        METRICS_MAX_INFERRED_COLUMN_DEFAULTS, METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT);
+    if (maxInferredDefaultColumns < 0) {
+      LOG.warn("Invalid value for {} (negative): {}, falling back to {}",
+          METRICS_MAX_INFERRED_COLUMN_DEFAULTS, maxInferredDefaultColumns,
+          METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT);
+      return METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT;
+    } else {
+      return maxInferredDefaultColumns;
     }
   }
 
