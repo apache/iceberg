@@ -34,7 +34,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
@@ -151,7 +150,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     @Override
     public DeltaWriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
       // broadcast the table metadata as the writer factory will be sent to executors
-      Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
+      Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
       return new PositionDeltaWriteFactory(tableBroadcast, command, context);
     }
 
