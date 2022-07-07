@@ -166,7 +166,8 @@ public class ZOrderByteUtils {
    * @param interleavedSize the number of bytes to use in the output
    * @return the columnbytes interleaved
    */
-  @SuppressWarnings("ByteBufferBackingArray")
+  // NarrowingCompoundAssignment is intended here. See https://github.com/apache/iceberg/pull/5200#issuecomment-1176226163
+  @SuppressWarnings({"ByteBufferBackingArray", "NarrowingCompoundAssignment"})
   public static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize, ByteBuffer reuse) {
     byte[] interleavedBytes = reuse.array();
     Arrays.fill(interleavedBytes, 0, interleavedSize, (byte) 0x00);
