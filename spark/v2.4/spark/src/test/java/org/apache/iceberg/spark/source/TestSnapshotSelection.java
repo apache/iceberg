@@ -35,6 +35,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -176,7 +177,7 @@ public class TestSnapshotSelection {
     Assert.assertEquals("Previous snapshot rows should match", firstBatchRecords, previousSnapshotRecords);
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testSnapshotSelectionByInvalidSnapshotId() throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
 
@@ -184,15 +185,15 @@ public class TestSnapshotSelection {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     tables.create(SCHEMA, spec, tableLocation);
 
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option("snapshot-id", -10)
-        .load(tableLocation);
-
-    df.collectAsList();
+    Assertions.assertThatThrownBy(() -> spark.read()
+                    .format("iceberg")
+                    .option("snapshot-id", -10)
+                    .load(tableLocation))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Cannot find snapshot with ID -10");
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testSnapshotSelectionByInvalidTimestamp() throws IOException {
     long timestamp = System.currentTimeMillis();
 
@@ -201,15 +202,15 @@ public class TestSnapshotSelection {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     tables.create(SCHEMA, spec, tableLocation);
 
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
-        .load(tableLocation);
-
-    df.collectAsList();
+    Assertions.assertThatThrownBy(() -> spark.read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .load(tableLocation))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Cannot find a snapshot older than");
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testSnapshotSelectionBySnapshotIdAndTimestamp() throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
 
@@ -227,12 +228,13 @@ public class TestSnapshotSelection {
 
     long timestamp = System.currentTimeMillis();
     long snapshotId = table.currentSnapshot().snapshotId();
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
-        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
-        .load(tableLocation);
 
-    df.collectAsList();
+    Assertions.assertThatThrownBy(() -> spark.read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .load(tableLocation))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Cannot scan using both snapshot-id and as-of-timestamp");
   }
 }

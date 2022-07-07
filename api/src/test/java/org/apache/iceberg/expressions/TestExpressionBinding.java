@@ -51,19 +51,17 @@ public class TestExpressionBinding {
   @Test
   public void testMissingReference() {
     Expression expr = and(equal("t", 5), equal("x", 7));
-    try {
-      Binder.bind(STRUCT, expr);
-      Assert.fail("Should not successfully bind to struct without field 't'");
-    } catch (ValidationException e) {
-      Assert.assertTrue("Should complain about missing field",
-          e.getMessage().contains("Cannot find field 't' in struct:"));
-    }
+    Assertions.assertThatThrownBy(() -> Binder.bind(STRUCT, expr))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 't' in struct");
   }
 
-  @Test(expected = IllegalStateException.class)
+  @Test
   public void testBoundExpressionFails() {
     Expression expr = not(equal("x", 7));
-    Binder.bind(STRUCT, Binder.bind(STRUCT, expr));
+    Assertions.assertThatThrownBy(() -> Binder.bind(STRUCT, Binder.bind(STRUCT, expr)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Found already bound predicate");
   }
 
   @Test
@@ -78,10 +76,12 @@ public class TestExpressionBinding {
     TestHelpers.assertAllReferencesBound("Single reference", Binder.bind(STRUCT, expr, false));
   }
 
-  @Test(expected = ValidationException.class)
+  @Test
   public void testCaseSensitiveReference() {
     Expression expr = not(equal("X", 7));
-    Binder.bind(STRUCT, expr, true);
+    Assertions.assertThatThrownBy(() -> Binder.bind(STRUCT, expr, true))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'X' in struct");
   }
 
   @Test

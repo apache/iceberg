@@ -26,6 +26,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types.IntegerType;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -427,7 +428,7 @@ public class TestTypeUtil {
     Assert.assertEquals(expected.asStruct(), actual.asStruct());
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testReassignIdsIllegalArgumentException() {
     Schema schema = new Schema(
         required(1, "a", Types.IntegerType.get()),
@@ -436,10 +437,12 @@ public class TestTypeUtil {
     Schema sourceSchema = new Schema(
         required(1, "a", Types.IntegerType.get())
     );
-    TypeUtil.reassignIds(schema, sourceSchema);
+    Assertions.assertThatThrownBy(() -> TypeUtil.reassignIds(schema, sourceSchema))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Field b not found in source schema");
   }
 
-  @Test(expected = RuntimeException.class)
+  @Test
   public void testValidateSchemaViaIndexByName() {
     Types.NestedField nestedType = Types.NestedField
         .required(1, "a", Types.StructType.of(
@@ -450,7 +453,9 @@ public class TestTypeUtil {
             )
         );
 
-    TypeUtil.indexByName(Types.StructType.of(nestedType));
+    Assertions.assertThatThrownBy(() -> TypeUtil.indexByName(Types.StructType.of(nestedType)))
+            .isInstanceOf(RuntimeException.class)
+            .hasMessageContaining("Invalid schema: multiple fields for name a.b.c");
   }
 
   @Test

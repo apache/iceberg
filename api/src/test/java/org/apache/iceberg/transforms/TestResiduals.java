@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.Predicate;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -129,7 +130,7 @@ public class TestResiduals {
     Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
   }
 
-  @Test(expected = ValidationException.class)
+  @Test
   public void testCaseSensitiveIdentityTransformResiduals() {
     Schema schema = new Schema(
         Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
@@ -142,7 +143,9 @@ public class TestResiduals {
 
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, lessThan("DATEINT", 20170815), true);
 
-    resEval.residualFor(Row.of(20170815));
+    Assertions.assertThatThrownBy(() -> resEval.residualFor(Row.of(20170815)))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'DATEINT' in struct");
   }
 
   @Test
