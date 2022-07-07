@@ -24,14 +24,18 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.NamedReference;
+import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
 
 
@@ -44,6 +48,14 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   @After
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @Test
+  public void testZOrderSortExpression() {
+    List<ExtendedParser.RawOrderField> order = ExtendedParser.parseSortOrder(spark, "c1, zorder(c2, c3)");
+    Assert.assertEquals("Should parse 2 order fields", 2, order.size());
+    Assert.assertEquals("First field should be a ref", "c1", ((NamedReference<?>) order.get(0).term()).name());
+    Assert.assertTrue("Second field should be zorder", order.get(1).term() instanceof Zorder);
   }
 
   @Test
@@ -131,6 +143,39 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testRewriteDataFilesWithZOrder() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+
+    // set z_order = c1,c2
+    List<Object[]> output = sql(
+        "CALL %s.system.rewrite_data_files(table => '%s', " +
+        "strategy => 'sort', sort_order => 'zorder(c1,c2)')",
+        catalogName, tableIdent);
+
+    assertEquals("Action should rewrite 10 data files and add 1 data files",
+        ImmutableList.of(row(10, 1)),
+        output);
+
+    // Due to Z_order, the data written will be in the below order.
+    // As there is only one small output file, we can validate the query ordering (as it will not change).
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(2, "bar", null),
+        row(2, "bar", null),
+        row(2, "bar", null),
+        row(2, "bar", null),
+        row(2, "bar", null),
+        row(1, "foo", null),
+        row(1, "foo", null),
+        row(1, "foo", null),
+        row(1, "foo", null),
+        row(1, "foo", null)
+    );
+    assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
   }
 
   @Test
@@ -258,7 +303,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     // Test for invalid strategy
     AssertHelpers.assertThrows("Should reject calls with unsupported strategy error message",
-        IllegalArgumentException.class, "unsupported strategy: temp. Only binpack,sort is supported",
+        IllegalArgumentException.class, "unsupported strategy: temp. Only binpack or sort is supported",
         () -> sql("CALL %s.system.rewrite_data_files(table => '%s', options => map('min-input-files','2'), " +
             "strategy => 'temp')", catalogName, tableIdent));
 
@@ -292,6 +337,20 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         IllegalArgumentException.class, "Cannot parse predicates in where option: col1 = 3",
         () -> sql("CALL %s.system.rewrite_data_files(table => '%s', " +
             "where => 'col1 = 3')", catalogName, tableIdent));
+
+    // Test for z_order with invalid column name
+    AssertHelpers.assertThrows("Should reject calls with error message",
+        IllegalArgumentException.class, "Cannot find column 'col1' in table schema: " +
+            "struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
+        () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', " +
+            "sort_order => 'zorder(col1)')", catalogName, tableIdent));
+
+    // Test for z_order with sort_order
+    AssertHelpers.assertThrows("Should reject calls with error message",
+        IllegalArgumentException.class, "Cannot mix identity sort columns and a Zorder sort expression:" +
+            " c1,zorder(c2,c3)",
+        () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', " +
+            "sort_order => 'c1,zorder(c2,c3)')", catalogName, tableIdent));
   }
 
   @Test
