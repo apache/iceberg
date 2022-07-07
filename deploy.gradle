@@ -55,6 +55,7 @@ subprojects {
       task.from(rootDir) {
         include 'LICENSE'
         include 'NOTICE'
+        include 'iceberg-build.properties'
       }
     }
 
