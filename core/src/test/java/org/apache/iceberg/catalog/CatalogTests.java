@@ -67,11 +67,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   private static final Namespace NS = Namespace.of("newdb");
-  private static final TableIdentifier TABLE = TableIdentifier.of(NS, "table");
+  protected static final TableIdentifier TABLE = TableIdentifier.of(NS, "table");
   private static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
 
   // Schema passed to create tables
-  private static final Schema SCHEMA = new Schema(
+  protected static final Schema SCHEMA = new Schema(
       required(3, "id", Types.IntegerType.get(), "unique ID"),
       required(4, "data", Types.StringType.get())
   );
@@ -918,6 +918,27 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testUpdateTableSchemaThenRevert() {
+    C catalog = catalog();
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    table.updateSchema()
+        .addColumn("col1", Types.StringType.get())
+        .addColumn("col2", Types.StringType.get())
+        .addColumn("col3", Types.StringType.get())
+        .commit();
+
+    table.updateSchema()
+        .deleteColumn("col1")
+        .deleteColumn("col2")
+        .deleteColumn("col3")
+        .commit();
+
+    Assert.assertEquals("Loaded table should have expected schema", TABLE_SCHEMA.asStruct(), table.schema().asStruct());
+  }
+
+  @Test
   public void testUpdateTableSpec() {
     C catalog = catalog();
 
@@ -1015,6 +1036,28 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testUpdateTableSpecThenRevert() {
+    C catalog = catalog();
+
+    // create a v2 table. otherwise the spec update would produce a different spec with a void partition field
+    Table table = catalog.buildTable(TABLE, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withProperty("format-version", "2")
+        .create();
+    Assert.assertEquals("Should be a v2 table", 2, ((BaseTable) table).operations().current().formatVersion());
+
+    table.updateSpec()
+        .addField("id")
+        .commit();
+
+    table.updateSpec()
+        .removeField("id")
+        .commit();
+
+    Assert.assertEquals("Loaded table should have expected spec", TABLE_SPEC, table.spec());
+  }
+
+  @Test
   public void testUpdateTableSortOrder() {
     C catalog = catalog();
 
@@ -1057,6 +1100,26 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     // the sort order ID may not match, so check equality of the fields
     Assert.assertEquals("Loaded table should have expected order", expected.fields(), loaded.sortOrder().fields());
+  }
+
+  @Test
+  public void testUpdateTableOrderThenRevert() {
+    C catalog = catalog();
+
+    Table table = catalog.buildTable(TABLE, SCHEMA)
+        .withSortOrder(WRITE_ORDER)
+        .create();
+
+    table.replaceSortOrder()
+        .asc("id")
+        .commit();
+
+    table.replaceSortOrder()
+        .asc(Expressions.bucket("id", 16))
+        .asc("id")
+        .commit();
+
+    Assert.assertEquals("Loaded table should have expected order", TABLE_WRITE_ORDER, table.sortOrder());
   }
 
   @Test
