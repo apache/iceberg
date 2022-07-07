@@ -247,8 +247,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
         io().deleteFile(metadataLocation);
       }
     } catch (RuntimeException e) {
-      LOG.error("Fail to cleanup metadata file at {}", metadataLocation, e);
-      throw e;
+      LOG.error("Failed to cleanup metadata file at {}", metadataLocation, e);
     } finally {
       if (lockManager != null) {
         lockManager.release(commitLockEntityId, metadataLocation);

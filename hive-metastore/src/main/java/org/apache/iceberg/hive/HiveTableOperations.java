@@ -578,8 +578,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         io().deleteFile(metadataLocation);
       }
     } catch (RuntimeException e) {
-      LOG.error("Fail to cleanup metadata file at {}", metadataLocation, e);
-      throw e;
+      LOG.error("Failed to cleanup metadata file at {}", metadataLocation, e);
     } finally {
       unlock(lockId);
       tableLevelMutex.unlock();
