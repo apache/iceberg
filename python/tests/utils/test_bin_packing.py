@@ -19,8 +19,8 @@ import random
 
 import pytest
 
-from iceberg.schema import Schema
-from iceberg.utils.bin_packing import PackingIterator
+from pyiceberg.schema import Schema
+from pyiceberg.utils.bin_packing import PackingIterator
 
 
 @pytest.mark.parametrize(

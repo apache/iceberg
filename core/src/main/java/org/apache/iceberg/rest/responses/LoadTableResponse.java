@@ -53,6 +53,7 @@ public class LoadTableResponse implements RESTResponse {
 
   @Override
   public void validate() {
+    Preconditions.checkNotNull(metadata, "Invalid metadata: null");
   }
 
   public String metadataLocation() {

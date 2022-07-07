@@ -70,6 +70,7 @@ public abstract class SparkTestBase {
         .master("local[2]")
         .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+        .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
         .enableHiveSupport()
         .getOrCreate();
 

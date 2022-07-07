@@ -74,6 +74,11 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   }
 
   @Override
+  public Map<String, String> properties() {
+    return properties;
+  }
+
+  @Override
   public void initialize(Map<String, String> newProperties) {
     close(); // close and discard any existing FileIO instances
     this.properties = newProperties;

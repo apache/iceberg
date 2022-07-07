@@ -22,14 +22,14 @@ from urllib.parse import ParseResult, urlparse
 
 import pytest
 
-from iceberg.io.base import (
+from pyiceberg.io.base import (
     FileIO,
     InputFile,
     InputStream,
     OutputFile,
     OutputStream,
 )
-from iceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
+from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
 class LocalInputFile(InputFile):

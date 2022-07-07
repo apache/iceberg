@@ -101,7 +101,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 2, \"dep\": \"hardware\" }");
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
-    withUnavailableFiles(snapshot.addedFiles(table.io()), () -> {
+    withUnavailableFiles(snapshot.addedDataFiles(table.io()), () -> {
       // disable dynamic pruning and rely only on static predicate pushdown
       withSQLConf(ImmutableMap.of(SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(), "false"), () -> {
         sql("MERGE INTO %s t USING source " +

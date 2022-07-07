@@ -283,6 +283,28 @@ catalogs:
     warehouse: hdfs://nn:8020/warehouse/path
 ```
 
+### Create through SQL Files
+
+Since the `sql-client-defaults.yaml` file was removed in flink 1.14, SQL Client supports the -i startup option to execute an initialization SQL file to setup environment when starting up the SQL Client.
+An example of such a file is presented below.
+```sql
+-- define available catalogs
+CREATE CATALOG hive_catalog WITH (
+  'type'='iceberg',
+  'catalog-type'='hive',
+  'uri'='thrift://localhost:9083',
+  'warehouse'='hdfs://nn:8020/warehouse/path'
+);
+
+USE CATALOG hive_catalog;
+```
+using -i <init.sql> option to initialize SQL Client session
+```bash
+/path/to/bin/sql-client.sh -i /path/to/init.sql
+```
+
+
+
 ## DDL commands
 
 ### `CREATE DATABASE`
@@ -530,6 +552,27 @@ FlinkSink.forRowData(input)
 env.execute("Test Iceberg DataStream");
 ```
 
+## Write options
+
+Flink write options are passed when configuring the FlinkSink, like this:
+
+```
+FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    .table(table)
+    .tableLoader(tableLoader)
+    .set("write-format", "orc")
+    .set(FlinkWriteOptions.OVERWRITE_MODE, "true");
+```
+
+| Flink option           | Default                    | Description                                                                                                |
+|------------------------| -------------------------- |------------------------------------------------------------------------------------------------------------|
+| write-format           | Table write.format.default | File format to use for this write operation; parquet, avro, or orc                                         |
+| target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes                                                        |
+| upsert-enabled         | Table write.upsert.enabled | Overrides this table's write.upsert.enabled                                                                |
+| overwrite-enabled      | false | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
+| distribution-mode      | Table write.distribution-mode | Overrides this table's write.distribution-mode                                                             |
+
+
 ## Inspecting tables.
 
 Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](../api) to read iceberg's meta data to get those table information.
@@ -549,6 +592,70 @@ RewriteDataFilesActionResult result = Actions.forTable(table)
 ```
 
 For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
+
+## Type conversion
+
+Iceberg's integration for Flink automatically converts between Flink and Iceberg types. When writing to a table with types that are not supported by Flink, like UUID, Iceberg will accept and convert values from the Flink type.
+
+### Flink to Iceberg
+
+Flink types are converted to Iceberg types according to the following table:
+
+| Flink               | Iceberg                    | Notes         |
+|-----------------    |----------------------------|---------------|
+| boolean             | boolean                    |               |
+| tinyint             | integer                    |               |
+| smallint            | integer                    |               |
+| integer             | integer                    |               |
+| bigint              | long                       |               |
+| float               | float                      |               |
+| double              | double                     |               |
+| char                | string                     |               |
+| varchar             | string                     |               |
+| string              | string                     |               |
+| binary              | binary                     |               |
+| varbinary           | fixed                      |               |
+| decimal             | decimal                    |               |
+| date                | date                       |               |
+| time                | time                       |               |
+| timestamp           | timestamp without timezone |               |
+| timestamp_ltz       | timestamp with timezone    |               |
+| array               | list                       |               |
+| map                 | map                        |               |
+| multiset            | map                        |               |
+| row                 | struct                     |               |
+| raw                 |                            | Not supported |
+| interval            |                            | Not supported |
+| structured          |                            | Not supported |
+| timestamp with zone |                            | Not supported |
+| distinct            |                            | Not supported |
+| null                |                            | Not supported |
+| symbol              |                            | Not supported |
+| logical             |                            | Not supported |
+
+### Iceberg to Flink
+
+Iceberg types are converted to Flink types according to the following table:
+
+| Iceberg                    | Flink                 |
+|----------------------------|-----------------------|
+| boolean                    | boolean               |
+| struct                     | row                   |
+| list                       | array                 |
+| map                        | map                   |
+| integer                    | integer               |
+| long                       | bigint                |
+| float                      | float                 |
+| double                     | double                |
+| date                       | date                  |
+| time                       | time                  |
+| timestamp without timezone | timestamp(6)          |
+| timestamp with timezone    | timestamp_ltz(6)      |
+| string                     | varchar(2147483647)   |
+| uuid                       | binary(16)            |
+| fixed(N)                   | binary(N)             |
+| binary                     | varbinary(2147483647) |
+| decimal(P, S)              | decimal(P, S)         |
 
 ## Future improvement.
 

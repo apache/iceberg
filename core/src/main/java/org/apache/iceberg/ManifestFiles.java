@@ -226,6 +226,7 @@ public class ManifestFiles {
     }
   }
 
+  @SuppressWarnings("Finally")
   private static ManifestFile copyManifestInternal(int formatVersion, ManifestReader<DataFile> reader,
                                                    OutputFile outputFile, long snapshotId,
                                                    SnapshotSummary.Builder summaryBuilder,

@@ -28,8 +28,11 @@ import java.util.Map;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -223,6 +226,22 @@ public class TestS3FileIO {
       s3FileIO.deletePrefix(scalePrefix);
       assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
     });
+  }
+
+  @Test
+  public void testFileIOJsonSerialization() {
+    Object conf;
+    if (s3FileIO instanceof Configurable) {
+      conf = ((Configurable) s3FileIO).getConf();
+    } else {
+      conf = null;
+    }
+
+    String json = FileIOParser.toJson(s3FileIO);
+    try (FileIO deserialized = FileIOParser.fromJson(json, conf)) {
+      Assert.assertTrue(deserialized instanceof S3FileIO);
+      Assert.assertEquals(s3FileIO.properties(), deserialized.properties());
+    }
   }
 
   private void createRandomObjects(String prefix, int count) {

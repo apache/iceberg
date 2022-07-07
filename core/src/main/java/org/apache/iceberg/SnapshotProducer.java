@@ -406,7 +406,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected long snapshotId() {
     if (snapshotId == null) {
       synchronized (this) {
-        if (snapshotId == null) {
+        while (snapshotId == null || ops.current().snapshot(snapshotId) != null) {
           this.snapshotId = ops.newSnapshotId();
         }
       }
