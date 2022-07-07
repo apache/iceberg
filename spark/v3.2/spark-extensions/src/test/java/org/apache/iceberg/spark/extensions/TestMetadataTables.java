@@ -551,6 +551,44 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     Assert.assertEquals("TAG", testTag.get(0).getAs("type"));
     Assert.assertEquals(currentSnapshotId, testTag.get(0).getAs("snapshot_id"));
     Assert.assertEquals(Long.valueOf(50), testTag.get(0).getAs("max_reference_age_in_ms"));
+
+    // Check projection in refs table
+    List<Row> testTagProjection =
+        spark
+            .sql(
+                "SELECT name,type,snapshot_id,max_reference_age_in_ms,min_snapshots_to_keep FROM "
+                    + tableName
+                    + ".refs where type='TAG'")
+            .collectAsList();
+    Assert.assertEquals("testTag", testTagProjection.get(0).getAs("name"));
+    Assert.assertEquals("TAG", testTagProjection.get(0).getAs("type"));
+    Assert.assertEquals(currentSnapshotId, testTagProjection.get(0).getAs("snapshot_id"));
+    Assert.assertEquals(
+        Long.valueOf(50), testTagProjection.get(0).getAs("max_reference_age_in_ms"));
+    Assert.assertNull(testTagProjection.get(0).getAs("min_snapshots_to_keep"));
+
+    List<Row> mainBranchProjection =
+        spark
+            .sql(
+                "SELECT name, type FROM "
+                    + tableName
+                    + ".refs WHERE name = 'main' AND type = 'BRANCH'")
+            .collectAsList();
+    Assert.assertEquals("main", mainBranchProjection.get(0).getAs("name"));
+    Assert.assertEquals("BRANCH", mainBranchProjection.get(0).getAs("type"));
+
+    List<Row> testBranchProjection =
+        spark
+            .sql(
+                "SELECT type, name, max_reference_age_in_ms, snapshot_id FROM "
+                    + tableName
+                    + ".refs WHERE name = 'testBranch' AND type = 'BRANCH'")
+            .collectAsList();
+    Assert.assertEquals("testBranch", testBranchProjection.get(0).getAs("name"));
+    Assert.assertEquals("BRANCH", testBranchProjection.get(0).getAs("type"));
+    Assert.assertEquals(currentSnapshotId, testBranchProjection.get(0).getAs("snapshot_id"));
+    Assert.assertEquals(
+        Long.valueOf(10), testBranchProjection.get(0).getAs("max_reference_age_in_ms"));
   }
 
   /**

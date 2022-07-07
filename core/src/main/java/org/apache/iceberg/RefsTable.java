@@ -24,7 +24,11 @@ import java.util.function.Function;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 
-/** A {@link Table} implementation that exposes a table's known snapshot references as rows. */
+/**
+ * A {@link Table} implementation that exposes a table's known snapshot references as rows.
+ *
+ * <p>{@link SnapshotRefType} stores the valid snapshot references type.
+ */
 public class RefsTable extends BaseMetadataTable {
   private static final Schema SNAPSHOT_REF_SCHEMA =
       new Schema(
