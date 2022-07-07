@@ -413,10 +413,12 @@ public class TestNessieTable extends BaseTestIceberg {
     List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     // Case 1: Branch does not exist
+    ImmutableTableReference tableReference =
+            ImmutableTableReference.builder().reference("default").name(TABLE_NAME).build();
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
     Assertions.assertThatThrownBy(
         () -> catalog.registerTable(
-            TableIdentifier.of(DB_NAME, "`" + TABLE_NAME + "`@default"),
-            "file:" + metadataVersionFiles.get(0)))
+            identifier, "file:" + metadataVersionFiles.get(0)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Nessie ref 'default' does not exist");
     // Case 2: Table Already Exists

@@ -651,8 +651,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((JdbcTableOperations) ops).currentMetadataLocation();
     Assertions.assertThat(catalog.registerTable(identifier, metadataLocation)).isNotNull();
-    Table newTable = catalog.loadTable(identifier);
-    Assertions.assertThat(newTable).isNotNull();
+    Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
   }
 
   @Test
@@ -665,5 +665,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
   }
 }
