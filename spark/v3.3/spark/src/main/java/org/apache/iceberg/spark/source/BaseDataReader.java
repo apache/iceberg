@@ -29,10 +29,15 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
-import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.AddedRowsScanTask;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -60,23 +65,42 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
-abstract class BaseDataReader<T> implements Closeable {
+abstract class BaseDataReader<T, CST extends ContentScanTask<DataFile>, G extends ScanTaskGroup<CST>>
+    implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseDataReader.class);
 
   private final Table table;
-  private final Iterator<FileScanTask> tasks;
+  private final Iterator<CST> tasks;
   private final Map<String, InputFile> inputFiles;
 
   private CloseableIterator<T> currentIterator;
   private T current = null;
-  private FileScanTask currentTask = null;
+  private CST currentTask = null;
 
-  BaseDataReader(Table table, CombinedScanTask task) {
+  BaseDataReader(Table table, G task) {
     this.table = table;
-    this.tasks = task.files().iterator();
+    this.tasks = task.tasks().iterator();
+    this.inputFiles = inputFiles(task);
+    this.currentIterator = CloseableIterator.empty();
+  }
+
+  private Map<String, InputFile> inputFiles(G task) {
     Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-    task.files().stream()
-        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
+    Stream<ContentFile> dataFileStream = task.tasks().stream()
+        .flatMap(contentScanTask -> {
+          Stream<ContentFile> stream = Stream.of(contentScanTask.file());
+          if (contentScanTask.isFileScanTask()) {
+            stream = Stream.concat(stream, contentScanTask.asFileScanTask().deletes().stream());
+          } else if (contentScanTask instanceof AddedRowsScanTask) {
+            stream = Stream.concat(stream, ((AddedRowsScanTask) contentScanTask).deletes().stream());
+          } else if (contentScanTask instanceof DeletedRowsScanTask) {
+            stream = Stream.concat(stream, ((DeletedRowsScanTask) contentScanTask).addedDeletes().stream());
+            stream = Stream.concat(stream, ((DeletedRowsScanTask) contentScanTask).existingDeletes().stream());
+          }
+          return stream;
+        });
+
+    dataFileStream
         .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
     Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
         .map(entry -> EncryptedFiles.encryptedInput(table.io().newInputFile(entry.getKey()), entry.getValue()));
@@ -84,11 +108,9 @@ abstract class BaseDataReader<T> implements Closeable {
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
     Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encrypted::iterator);
 
-    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
+    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.tasks().size());
     decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-    this.inputFiles = ImmutableMap.copyOf(files);
-
-    this.currentIterator = CloseableIterator.empty();
+    return ImmutableMap.copyOf(files);
   }
 
   protected Table table() {
@@ -122,7 +144,7 @@ abstract class BaseDataReader<T> implements Closeable {
     return current;
   }
 
-  abstract CloseableIterator<T> open(FileScanTask task);
+  abstract CloseableIterator<T> open(CST task);
 
   @Override
   public void close() throws IOException {
@@ -137,7 +159,7 @@ abstract class BaseDataReader<T> implements Closeable {
     }
   }
 
-  protected InputFile getInputFile(FileScanTask task) {
+  protected InputFile getInputFile(CST task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
     return inputFiles.get(task.file().path().toString());
   }

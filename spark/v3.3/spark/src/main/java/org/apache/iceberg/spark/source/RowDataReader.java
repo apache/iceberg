@@ -47,7 +47,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-class RowDataReader extends BaseDataReader<InternalRow> {
+class RowDataReader extends BaseDataReader<InternalRow, FileScanTask, CombinedScanTask> {
 
   private final Schema tableSchema;
   private final Schema expectedSchema;

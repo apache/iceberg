@@ -48,7 +48,7 @@ import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-class BatchDataReader extends BaseDataReader<ColumnarBatch> {
+class BatchDataReader extends BaseDataReader<ColumnarBatch, FileScanTask, CombinedScanTask> {
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
