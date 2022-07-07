@@ -727,14 +727,18 @@ String getJavadocVersion() {
 }
 
 task writeGitInfoFile(type: WriteProperties) {
-  outputFile = "git-info.properties"
-  def details = versionDetails()
+  def propsFile = project.hasProperty("versionPropertiesFile") ? project.ext.versionPropertiesFile : "git-info.properties"
+  outputFile = "${propsFile}"
   property 'version', getProjectVersion()
   property 'projectName', 'apache-iceberg'
-  property 'gitLasTag', "${details.lastTag}"
-  property 'gitHash', "${details.gitHash.toString()}"
-  property 'gitHashFull', "${details.gitHashFull.toString()}"
-  property 'gitBranchName', "${details.branchName}"
+  def details = versionDetails()
+  // In case this runs somewhere that's not a git directory
+  if (details != null) {
+    property 'gitLastTag', "${details.lastTag}"
+    property 'gitHash', "${details.gitHash.toString()}"
+    property 'gitHashFull', "${details.gitHashFull.toString()}"
+    property 'gitBranchName', "${details.branchName}"
+  }
 }
 
 apply from: 'jmh.gradle'
