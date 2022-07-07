@@ -726,6 +726,17 @@ String getJavadocVersion() {
   }
 }
 
+task writeGitInfoFile(type: WriteProperties) {
+  outputFile = "git-info.properties"
+  def details = versionDetails()
+  property 'version', getProjectVersion()
+  property 'projectName', 'apache-iceberg'
+  property 'gitLasTag', "${details.lastTag}"
+  property 'gitHash', "${details.gitHash.toString()}"
+  property 'gitHashFull', "${details.gitHashFull.toString()}"
+  property 'gitBranchName', "${details.branchName}"
+}
+
 apply from: 'jmh.gradle'
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
