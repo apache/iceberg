@@ -79,6 +79,10 @@ class RowDataReader<CST extends ContentScanTask<DataFile>, G extends ScanTaskGro
     return tableSchema;
   }
 
+  protected Schema expectedSchema() {
+    return expectedSchema;
+  }
+
   protected CloseableIterable<InternalRow> open(CST task, Schema readSchema, Map<Integer, ?> idToConstant) {
     CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
@@ -178,6 +182,6 @@ class RowDataReader<CST extends ContentScanTask<DataFile>, G extends ScanTaskGro
 
   protected SparkDeleteFilter deleteFilter(CST task) {
     Preconditions.checkArgument(task.isFileScanTask(), "Only FileScanTask is supported for delete filtering");
-    return new SparkDeleteFilter(task.asFileScanTask(), tableSchema, expectedSchema, this);
+    return new SparkDeleteFilter(task.asFileScanTask(), tableSchema, expectedSchema(), this);
   }
 }

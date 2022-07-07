@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -35,6 +37,13 @@ public class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     super(task.file().path().toString(), task.deletes(), tableSchema, requestedSchema);
     this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     this.reader =  reader;
+  }
+
+  SparkDeleteFilter(String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema,
+                    BaseDataReader reader) {
+    super(filePath, deletes, tableSchema, requestedSchema);
+    this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
+    this.reader = reader;
   }
 
   @Override

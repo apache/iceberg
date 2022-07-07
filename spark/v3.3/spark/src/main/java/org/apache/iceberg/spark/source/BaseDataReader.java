@@ -32,6 +32,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
@@ -91,6 +92,8 @@ abstract class BaseDataReader<T, CST extends ContentScanTask<?>, G extends ScanT
             stream = Stream.concat(stream, contentScanTask.asFileScanTask().deletes().stream());
           } else if (contentScanTask instanceof AddedRowsScanTask) {
             stream = Stream.concat(stream, ((AddedRowsScanTask) contentScanTask).deletes().stream());
+          } else if (contentScanTask instanceof DeletedDataFileScanTask) {
+            stream = Stream.concat(stream, ((DeletedDataFileScanTask) contentScanTask).existingDeletes().stream());
           } else if (contentScanTask instanceof DeletedRowsScanTask) {
             stream = Stream.concat(stream, ((DeletedRowsScanTask) contentScanTask).addedDeletes().stream());
             stream = Stream.concat(stream, ((DeletedRowsScanTask) contentScanTask).existingDeletes().stream());
