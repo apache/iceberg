@@ -19,26 +19,27 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.AddedRowsScanTask;
+import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class ChangelogRowReader extends BaseDataReader<InternalRow, FileScanTask, CombinedScanTask> {
+public class ChangelogRowReader extends RowDataReader<AddedRowsScanTask, BaseScanTaskGroup<AddedRowsScanTask>> {
 
   private final boolean caseSensitive;
   private final Schema expectedSchema;
 
-  ChangelogRowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(table, task);
+  ChangelogRowReader(BaseScanTaskGroup<AddedRowsScanTask> task, Table table, Schema expectedSchema,
+                     boolean caseSensitive) {
+    super(task, table, table.schema(), caseSensitive);
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
   }
 
   @Override
-  CloseableIterator<InternalRow> open(FileScanTask task) {
+  CloseableIterator<InternalRow> open(AddedRowsScanTask task) {
 //    SparkDeleteFilter matches = new SparkDeleteFilter(task, tableSchema(), expectedSchema);
 //
 //    // schema or rows returned by readers

@@ -32,9 +32,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeletedRowsScanTask;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTaskGroup;
@@ -65,7 +63,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
-abstract class BaseDataReader<T, CST extends ContentScanTask<DataFile>, G extends ScanTaskGroup<CST>>
+abstract class BaseDataReader<T, CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>>
     implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseDataReader.class);
 
@@ -168,7 +166,7 @@ abstract class BaseDataReader<T, CST extends ContentScanTask<DataFile>, G extend
     return inputFiles.get(location);
   }
 
-  protected Map<Integer, ?> constantsMap(FileScanTask task, Schema readSchema) {
+  protected Map<Integer, ?> constantsMap(CST task, Schema readSchema) {
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
       StructType partitionType = Partitioning.partitionType(table);
       return PartitionUtil.constantsMap(task, partitionType, BaseDataReader::convertConstant);

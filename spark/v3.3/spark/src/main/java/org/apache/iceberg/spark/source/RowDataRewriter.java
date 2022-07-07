@@ -112,7 +112,7 @@ public class RowDataRewriter implements Serializable {
 
     try {
       while (dataReader.next()) {
-        InternalRow row = dataReader.get();
+        InternalRow row = (InternalRow) dataReader.get();
         writer.write(row);
       }
 

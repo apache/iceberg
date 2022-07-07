@@ -22,13 +22,12 @@ package org.apache.iceberg.spark.source;
 import java.util.Map;
 import java.util.Set;
 import org.apache.arrow.vector.NullCheckingForGet;
-import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.DeleteFilter;
@@ -40,21 +39,20 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-class BatchDataReader extends BaseDataReader<ColumnarBatch, FileScanTask, CombinedScanTask> {
+class BatchDataReader<CST extends ContentScanTask<DataFile>, G extends ScanTaskGroup<CST>>
+    extends BaseDataReader<ColumnarBatch, CST, G> {
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
   private final int batchSize;
 
-  BatchDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
+  BatchDataReader(G task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
     super(table, task);
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -63,7 +61,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch, FileScanTask, Combin
   }
 
   @Override
-  CloseableIterator<ColumnarBatch> open(FileScanTask task) {
+  CloseableIterator<ColumnarBatch> open(CST task) {
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function
@@ -125,8 +123,10 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch, FileScanTask, Combin
     return iter.iterator();
   }
 
-  private SparkDeleteFilter deleteFilter(FileScanTask task) {
-    return task.deletes().isEmpty() ? null : new SparkDeleteFilter(task, table().schema(), expectedSchema);
+  protected SparkDeleteFilter deleteFilter(CST task) {
+    Preconditions.checkArgument(task.isFileScanTask(), "Only FileScanTask is supported for delete filtering");
+    return task.asFileScanTask().deletes().isEmpty() ?
+        null : new SparkDeleteFilter(task.asFileScanTask(), table().schema(), expectedSchema, this);
   }
 
   private Schema requiredSchema(DeleteFilter deleteFilter) {
@@ -134,25 +134,6 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch, FileScanTask, Combin
       return deleteFilter.requiredSchema();
     } else {
       return expectedSchema;
-    }
-  }
-
-  private class SparkDeleteFilter extends DeleteFilter<InternalRow> {
-    private final InternalRowWrapper asStructLike;
-
-    SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
-      super(task.file().path().toString(), task.deletes(), tableSchema, requestedSchema);
-      this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
-    }
-
-    @Override
-    protected StructLike asStructLike(InternalRow row) {
-      return asStructLike.wrap(row);
-    }
-
-    @Override
-    protected InputFile getInputFile(String location) {
-      return BatchDataReader.this.getInputFile(location);
     }
   }
 }

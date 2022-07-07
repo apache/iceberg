@@ -29,7 +29,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class EqualityDeleteRowReader extends RowDataReader {
+public class EqualityDeleteRowReader extends RowDataReader<FileScanTask, CombinedScanTask> {
   private final Schema expectedSchema;
 
   public EqualityDeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
@@ -39,7 +39,7 @@ public class EqualityDeleteRowReader extends RowDataReader {
 
   @Override
   CloseableIterator<InternalRow> open(FileScanTask task) {
-    SparkDeleteFilter matches = new SparkDeleteFilter(task, tableSchema(), expectedSchema);
+    SparkDeleteFilter matches = new SparkDeleteFilter(task, tableSchema(), expectedSchema, this);
 
     // schema or rows returned by readers
     Schema requiredSchema = matches.requiredSchema();
