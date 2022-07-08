@@ -101,8 +101,6 @@ public class CatalogHandlers {
     private Schema schema;
     private UnboundPartitionSpec unboundPartitionSpec;
     private UnboundSortOrder unboundSortOrder;
-    private Map<String, String> props;
-    private String location;
     private List<MetadataUpdate> otherUpdates = Lists.newArrayList();
   }
 
@@ -328,22 +326,29 @@ public class CatalogHandlers {
     if (info.unboundSortOrder != null) {
       builder.withSortOrder(info.unboundSortOrder.bind(info.schema));
     }
-    builder.withLocation(info.location).withProperties(info.props);
   }
 
   private static CreateCommitInfo extractCreateCommitInfo(UpdateTableRequest request) {
+    // Here we are extracting the initial schema, partition spec, and sort order, which
+    // we will use to initialize the table. Other updates are applied on top of that.
+    // If we add a second schema then we assume we have captured the necessary info for
+    // the table init, and we will apply all updates after that.
+
     CreateCommitInfo result = new CreateCommitInfo();
+    boolean initialSchema = true;
     for (MetadataUpdate update : request.updates()) {
-      if (result.schema == null && update instanceof MetadataUpdate.AddSchema) {
-        result.schema = ((MetadataUpdate.AddSchema) update).schema();
-      } else if (result.unboundPartitionSpec == null && update instanceof MetadataUpdate.AddPartitionSpec) {
+      if (initialSchema && update instanceof MetadataUpdate.AddSchema) {
+        if (result.schema == null) {
+          result.schema = ((MetadataUpdate.AddSchema) update).schema();
+        } else {
+          initialSchema = false;
+          addCreateCommitUpdate(result, update);
+        }
+      } else if (initialSchema && result.unboundPartitionSpec == null &&
+          update instanceof MetadataUpdate.AddPartitionSpec) {
         result.unboundPartitionSpec = ((MetadataUpdate.AddPartitionSpec) update).spec();
-      } else if (result.unboundSortOrder == null && update instanceof MetadataUpdate.AddSortOrder) {
+      } else if (initialSchema && result.unboundSortOrder == null && update instanceof MetadataUpdate.AddSortOrder) {
         result.unboundSortOrder = ((MetadataUpdate.AddSortOrder) update).sortOrder();
-      } else if (result.props == null && update instanceof MetadataUpdate.SetProperties) {
-        result.props = ((MetadataUpdate.SetProperties) update).updated();
-      } else if (result.location == null && update instanceof MetadataUpdate.SetLocation) {
-        result.location = ((MetadataUpdate.SetLocation) update).location();
       } else {
         addCreateCommitUpdate(result, update);
       }
