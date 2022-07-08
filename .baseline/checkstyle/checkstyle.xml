@@ -8,10 +8,6 @@
     <property name="severity" value="error"/>
 
     <module name="FileTabCharacter"/> <!-- Java Style Guide: Whitespace characters -->
-    <module name="LineLength"> <!-- Java Style Guide: No line-wrapping -->
-        <property name="max" value="120"/>
-        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
-    </module>
     <module name="NewlineAtEndOfFile"> <!-- Java Style Guide: Line ending: LF -->
         <property name="lineSeparator" value="lf"/>
     </module>
@@ -148,10 +144,6 @@
             <property name="exceptionVariableName" value="expected"/>
         </module>
         <module name="EmptyForInitializerPad"/> <!-- Java Style Guide: Horizontal whitespace -->
-        <module name="EmptyLineSeparator"> <!-- Java Style Guide: Source file structure -->
-            <property name="tokens" value="PACKAGE_DEF, IMPORT, CLASS_DEF, ENUM_DEF, INTERFACE_DEF, CTOR_DEF, STATIC_INIT, INSTANCE_INIT, VARIABLE_DEF"/>
-            <property name="allowNoEmptyLineBetweenFields" value="true"/>
-        </module>
         <module name="EmptyStatement"/> <!-- Java Style Guide: One statement per line -->
         <module name="EqualsHashCode"/>
         <module name="FallThrough"/> <!-- Java Style Guide: Fall-through: commented -->
@@ -255,20 +247,7 @@
             <property name="illegalClassNames" value="com.google.common.cache.CacheBuilder, com.google.common.cache.Cache, com.google.common.cache.LoadingCache"/>
             <message key="illegal.type" value="Do not use Guava caches, they are outperformed by and harder to use than Caffeine caches"/>
         </module>
-        <module name="ImportOrder"> <!-- Java Style Guide: Ordering and spacing -->
-            <property name="groups" value="/.*/"/>
-            <property name="option" value="bottom"/>
-            <property name="separated" value="true"/>
-            <property name="sortStaticImportsAlphabetically" value="true"/>
-        </module>
-        <module name="Indentation"> <!-- Java Style Guide: Block indentation: +4 spaces -->
-            <property name="basicOffset" value="2"/>
-            <property name="arrayInitIndent" value="4"/>
-            <property name="lineWrappingIndentation" value="4"/>
-            <property name="caseIndent" value="2"/>
-        </module>
         <module name="InnerAssignment"/> <!-- Java Coding Guidelines: Inner assignments: Not used -->
-        <module name="LeftCurly"/> <!-- Java Style Guide: Nonempty blocks: K & R style -->
         <module name="MemberName"> <!-- Java Style Guide: Non-constant field names -->
             <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
             <message key="name.invalidPattern" value="Member name ''{0}'' must match pattern ''{1}''."/>
@@ -287,19 +266,8 @@
         <module name="NoClone"/> <!-- Java Coding Guidelines: Never override Object#finalize or Object#clone -->
         <module name="NoFinalizer"/> <!-- Java Coding Guidelines: Never override Object#finalize -->
         <module name="NoLineWrap"/> <!-- Java Style Guide: No line-wrapping -->
-        <module name="NoWhitespaceAfter"> <!-- Java Style Guide: Horizontal whitespace -->
-            <property name="allowLineBreaks" value="false"/>
-            <property name="tokens" value="BNOT,DEC,DOT,INC,LNOT,UNARY_MINUS,UNARY_PLUS"/>
-        </module>
-        <module name="NoWhitespaceBefore"> <!-- Java Style Guide: Horizontal whitespace -->
-            <property name="allowLineBreaks" value="true"/>
-        </module>
         <module name="OneStatementPerLine"/> <!-- Java Style Guide: One statement per line -->
         <module name="OneTopLevelClass"/> <!-- Java Style Guide: Exactly one top-level class declaration -->
-        <module name="OperatorWrap"> <!-- Java Style Guide: Where to break -->
-            <property name="option" value="EOL"/>
-            <property name="tokens" value="BAND, BOR, BSR, BXOR, DIV, EQUAL, GE, GT, LAND, LE, LITERAL_INSTANCEOF, LOR, LT, MINUS, MOD, NOT_EQUAL, PLUS, QUESTION, SL, SR, STAR "/>
-        </module>
         <module name="OuterTypeFilename"/> <!-- Java Style Guide: File name -->
         <module name="PackageAnnotation"/> <!-- Java Style Guide: Package statement -->
         <module name="PackageDeclaration"/> <!-- Java Style Guide: Package statement -->
@@ -415,22 +383,6 @@
             <property name="format" value="@Test\(.*expected.*\)"/>
             <property name="message" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
         </module>
-        <module name="RightCurly"> <!-- Java Style Guide: Nonempty blocks: K & R style -->
-            <property name="option" value="same"/>
-            <property name="tokens" value="LITERAL_TRY, LITERAL_CATCH, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_DO"/>
-        </module>
-        <module name="RightCurly"> <!-- Java Style Guide: Nonempty blocks: K & R style -->
-            <property name="option" value="alone"/>
-            <property name="tokens" value="CLASS_DEF, METHOD_DEF, CTOR_DEF, LITERAL_FOR, LITERAL_WHILE, STATIC_INIT, INSTANCE_INIT"/>
-        </module>
-        <module name="SeparatorWrap"> <!-- Java Style Guide: Where to break -->
-            <property name="tokens" value="DOT"/>
-            <property name="option" value="nl"/>
-        </module>
-        <module name="SeparatorWrap"> <!-- Java Style Guide: Where to break -->
-            <property name="tokens" value="COMMA"/>
-            <property name="option" value="EOL"/>
-        </module>
         <module name="SimplifyBooleanExpression"/> <!-- Java Coding Guidelines: Keep Boolean expressions simple -->
         <module name="SimplifyBooleanReturn"/> <!-- Java Coding Guidelines: Keep Boolean expressions simple -->
         <module name="StaticVariableName"/> <!-- Java Style Guide: Naming -->
@@ -453,16 +405,6 @@
         </module>
         <module name="UpperEll"/> <!-- Java Style Guide: Numeric Literals -->
         <module name="VisibilityModifier"/> <!-- Java Coding Guidelines: Minimize mutability -->
-        <module name="WhitespaceAfter"/> <!-- Java Style Guide: Horizontal whitespace -->
-        <module name="WhitespaceAround"> <!-- Java Style Guide: Horizontal whitespace -->
-            <property name="allowEmptyConstructors" value="true"/>
-            <property name="allowEmptyMethods" value="true"/>
-            <property name="allowEmptyTypes" value="true"/>
-            <property name="allowEmptyLoops" value="true"/>
-            <property name="ignoreEnhancedForColon" value="false"/>
-            <message key="ws.notFollowed" value="WhitespaceAround: ''{0}'' is not followed by whitespace. Empty blocks may only be represented as '{}' when not part of a multi-block statement (4.1.3)"/>
-            <message key="ws.notPreceded" value="WhitespaceAround: ''{0}'' is not preceded with whitespace."/>
-        </module>
 
         <!-- Stricter checks begin: delete some or all of the following for faster prototyping, but please restore before pushing to production. -->
 
@@ -510,7 +452,6 @@
             <message key="name.invalidPattern" value="Parameter name ''{0}'' must match pattern ''{1}''."/>
             <property name="ignoreOverridden" value="true"/>
         </module>
-        <module name="SingleLineJavadoc"/> <!-- Java Style Guide: General form -->
 
         <!-- Stricter checks end -->
     </module>

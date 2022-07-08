@@ -881,6 +881,7 @@ public class ArrowReaderTest {
     }
   }
 
+  @SuppressWarnings("MethodLength")
   private void checkAllVectorValues(
       int expectedNumRows,
       List<GenericRecord> expectedRows,

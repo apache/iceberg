@@ -64,6 +64,7 @@ public class TestIcebergObjectInspector {
           required(21, "time_field", Types.TimeType.get(), "time comment")
   );
 
+  @SuppressWarnings("MethodLength")
   @Test
   public void testIcebergObjectInspector() {
     ObjectInspector oi = IcebergObjectInspector.create(schema);

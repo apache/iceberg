@@ -1339,6 +1339,7 @@ public class TestSchemaUpdate {
         newSchema.identifierFieldIds());
   }
 
+  @SuppressWarnings("MethodLength")
   @Test
   public void testSetIdentifierFieldsFails() {
     Schema testSchema = new Schema(
