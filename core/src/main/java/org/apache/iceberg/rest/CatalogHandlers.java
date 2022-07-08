@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.BaseTransaction.TransactionTable;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -39,6 +40,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Catalog.TableBuilder;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -48,7 +50,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -71,8 +72,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 public class CatalogHandlers {
-
-  private static final Schema EMPTY_SCHEMA = new Schema();
 
   private CatalogHandlers() {
   }
@@ -295,38 +294,41 @@ public class CatalogHandlers {
   }
 
   private static TableMetadata commitCreate(Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
-    // this is a hacky way to get TableOperations for an uncommitted table
-    Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
-    Preconditions.checkState(transaction instanceof BaseTransaction,
-        "Cannot wrap catalog that does not produce BaseTransaction");
-    TableOperations ops = ((BaseTransaction) transaction).underlyingOps();
-
-    // the only valid requirement is that the table will be created
-    request.requirements().forEach(requirement -> requirement.validate(ops.current()));
-
     CreateCommitInfo info = extractCreateCommitInfo(request);
-
     if (info.schema == null) {
       throw new BadRequestException("No schema specified for create commit");
     }
 
-    PartitionSpec partitionSpec =
-        info.unboundPartitionSpec == null ? PartitionSpec.unpartitioned() : info.unboundPartitionSpec.bind(info.schema);
-    SortOrder sortOrder =
-        info.unboundSortOrder == null ? SortOrder.unsorted() : info.unboundSortOrder.bind(info.schema);
-    if (info.props == null) {
-      info.props = ImmutableMap.of();
-    }
+    TableBuilder builder = catalog.buildTable(ident, info.schema);
+    initTableBuilder(builder, info);
 
-    TableMetadata start =
-            TableMetadata.newTableMetadata(info.schema, partitionSpec, sortOrder, info.location, info.props);
-    TableMetadata.Builder builder = TableMetadata.buildFrom(start);
-    info.otherUpdates.forEach(update -> update.applyTo(builder));
+    Transaction transaction = builder.createOrReplaceTransaction();
+    Preconditions.checkState(transaction instanceof BaseTransaction,
+        "Cannot wrap catalog that does not produce BaseTransaction");
 
-    // create transactions do not retry. if the table exists, retrying is not a solution
-    ops.commit(null, builder.build());
+    // the only valid requirement is that the table will be created
+    request.requirements().forEach(requirement ->
+        requirement.validate(((BaseTransaction) transaction).underlyingOps().current()));
+
+    TableOperations ops = ((TransactionTable) transaction.table()).operations();
+    TableMetadata start = ops.current();
+    TableMetadata.Builder metaBuilder = TableMetadata.buildFrom(start);
+    info.otherUpdates.forEach(update -> update.applyTo(metaBuilder));
+
+    ops.commit(start, metaBuilder.build());
+    transaction.commitTransaction();
 
     return ops.current();
+  }
+
+  private static void initTableBuilder(TableBuilder builder, CreateCommitInfo info) {
+    if (info.unboundPartitionSpec != null) {
+      builder.withPartitionSpec(info.unboundPartitionSpec.bind(info.schema));
+    }
+    if (info.unboundSortOrder != null) {
+      builder.withSortOrder(info.unboundSortOrder.bind(info.schema));
+    }
+    builder.withLocation(info.location).withProperties(info.props);
   }
 
   private static CreateCommitInfo extractCreateCommitInfo(UpdateTableRequest request) {
