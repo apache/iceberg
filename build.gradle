@@ -49,7 +49,7 @@ try {
   // git properties file for the root project for adding to the source tarball
   gitProperties {
     gitPropertiesName = 'iceberg-build.properties'
-    gitPropertiesResourceDir = 'build'
+    gitPropertiesResourceDir = file("${rootDir}/build")
     extProperty = 'gitProps'
     failOnNoGitDirectory = false
   }
