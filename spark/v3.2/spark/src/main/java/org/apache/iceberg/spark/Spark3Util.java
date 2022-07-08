@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.NullOrder;
@@ -42,6 +43,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -312,7 +314,7 @@ public class Spark3Util {
   public static Term toIcebergTerm(Expression expr) {
     if (expr instanceof Transform) {
       Transform transform = (Transform) expr;
-      Preconditions.checkArgument(transform.references().length == 1,
+      Preconditions.checkArgument("zorder".equals(transform.name()) || transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s", transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
       switch (transform.name()) {
@@ -332,6 +334,11 @@ public class Spark3Util {
           return org.apache.iceberg.expressions.Expressions.hour(colName);
         case "truncate":
           return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
+        case "zorder":
+          return new Zorder(Stream.of(transform.references())
+              .map(ref -> DOT.join(ref.fieldNames()))
+              .map(org.apache.iceberg.expressions.Expressions::ref)
+              .collect(Collectors.toList()));
         default:
           throw new UnsupportedOperationException("Transform is not supported: " + transform);
       }

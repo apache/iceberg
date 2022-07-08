@@ -269,7 +269,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
 | `strategy`    |    | string | Name of the strategy - binpack or sort. Defaults to binpack strategy |
-| `sort_order`  |    | string | Comma separated sort_order_column. Where sort_order_column is a space separated sort order info per column (ColumnName SortDirection NullOrder). <br/> SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST |
+| `sort_order`  |    | string | If Zorder, then comma separated column names within zorder() text. Example: zorder(c1,c2,c3). <br/>Else, Comma separated sort_order_column. Where sort_order_column is a space separated sort order info per column (ColumnName SortDirection NullOrder). <br/> SortDirection can be ASC or DESC. NullOrder can be NULLS FIRST or NULLS LAST |
 | `options`     | ️   | map<string, string> | Options to be used for actions|
 | `where`       | ️   | string | predicate as a string used for filtering the files. Note that all files that may contain data matching the filter will be selected for rewriting|
 
@@ -298,6 +298,12 @@ Rewrite the data files in table `db.sample` by sorting all the data on id and na
 using the same defaults as bin-pack to determine which files to rewrite.
 ```sql
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'id DESC NULLS LAST,name ASC NULLS FIRST')
+```
+
+Rewrite the data files in table `db.sample` by zOrdering on column c1 and c2.
+Using the same defaults as bin-pack to determine which files to rewrite.
+```sql
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)')
 ```
 
 Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where more than 2 or more files need to be rewritten.
