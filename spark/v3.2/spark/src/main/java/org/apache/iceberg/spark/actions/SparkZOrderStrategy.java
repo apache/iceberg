@@ -145,7 +145,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
       NestedField nestedField = caseSensitive ? schema.findField(col) : schema.caseInsensitiveFindField(col);
       if (nestedField == null) {
         throw new IllegalArgumentException(
-            String.format("Cannot find field '%s' in struct: %s", col, schema.asStruct()));
+            String.format("Cannot find column '%s' in table schema: %s", col, schema.asStruct()));
       }
     });
   }

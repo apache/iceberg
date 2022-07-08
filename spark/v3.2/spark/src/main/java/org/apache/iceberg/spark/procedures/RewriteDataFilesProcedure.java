@@ -140,33 +140,31 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return action.options(options);
   }
 
-  private RewriteDataFiles checkAndApplyStrategy(
-      RewriteDataFiles action,
-      String strategy,
-      String sortOrderString,
-      Schema schema) {
-    List<ExtendedParser.RawOrderField> zOrderFields = Lists.newArrayList();
+  private RewriteDataFiles checkAndApplyStrategy(RewriteDataFiles action, String strategy, String sortOrderString,
+                                                 Schema schema) {
+    List<Zorder> zOrderTerms = Lists.newArrayList();
     List<ExtendedParser.RawOrderField> sortOrderFields = Lists.newArrayList();
     if (sortOrderString != null) {
       ExtendedParser.parseSortOrder(spark(), sortOrderString).forEach(field -> {
         if (field.term() instanceof Zorder) {
-          zOrderFields.add(field);
+          zOrderTerms.add((Zorder) field.term());
         } else {
           sortOrderFields.add(field);
         }
       });
 
-      if (!zOrderFields.isEmpty() && !sortOrderFields.isEmpty()) {
+      if (!zOrderTerms.isEmpty() && !sortOrderFields.isEmpty()) {
         // TODO: we need to allow this in future when SparkAction has handling for this.
-        throw new IllegalArgumentException("Both SortOrder and Zorder is configured: " + sortOrderString);
+        throw new IllegalArgumentException(
+            "Cannot mix identity sort columns and a Zorder sort expression: " + sortOrderString);
       }
     }
 
     // caller of this function ensures that between strategy and sortOrder, at least one of them is not null.
     if (strategy == null || strategy.equalsIgnoreCase("sort")) {
-      if (!zOrderFields.isEmpty()) {
-        String[] columnNames = zOrderFields.stream().flatMap(
-            field -> ((Zorder) field.term()).refs().stream().map(NamedReference::name)).toArray(String[]::new);
+      if (!zOrderTerms.isEmpty()) {
+        String[] columnNames = zOrderTerms.stream().flatMap(
+            zOrder -> zOrder.refs().stream().map(NamedReference::name)).toArray(String[]::new);
         return action.zOrder(columnNames);
       } else {
         return action.sort(buildSortOrder(sortOrderFields, schema));

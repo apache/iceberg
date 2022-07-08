@@ -150,7 +150,6 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     createTable();
     // create 10 files under non-partitioned table
     insertData(10);
-    List<Object[]> expectedRecords = currentData();
 
     // set z_order = c1,c2
     List<Object[]> output = sql(
@@ -161,9 +160,6 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Action should rewrite 10 data files and add 1 data files",
         ImmutableList.of(row(10, 1)),
         output);
-
-    List<Object[]> actualRecords = currentData();
-    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
     // Due to Z_order, the data written will be in the below order.
     // As there is only one small output file, we can validate the query ordering (as it will not change).
@@ -344,14 +340,15 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
     // Test for z_order with invalid column name
     AssertHelpers.assertThrows("Should reject calls with error message",
-        IllegalArgumentException.class, "Cannot find field 'col1' in struct:" +
-            " struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
+        IllegalArgumentException.class, "Cannot find column 'col1' in table schema: " +
+            "struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>",
         () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', " +
             "sort_order => 'zorder(col1)')", catalogName, tableIdent));
 
     // Test for z_order with sort_order
     AssertHelpers.assertThrows("Should reject calls with error message",
-        IllegalArgumentException.class, "Both SortOrder and Zorder is configured: c1,zorder(c2,c3)",
+        IllegalArgumentException.class, "Cannot mix identity sort columns and a Zorder sort expression:" +
+            " c1,zorder(c2,c3)",
         () -> sql("CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', " +
             "sort_order => 'c1,zorder(c2,c3)')", catalogName, tableIdent));
   }
