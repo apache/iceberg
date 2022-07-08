@@ -208,11 +208,11 @@ timeUnit
     ;
 
 snapshotRefRetainTimeUnit
-    : identifier
+    : timeUnit
     ;
 
 snapshotRetainTimeUnit
-    : identifier
+    : timeUnit
     ;
 
 ADD: 'ADD';
