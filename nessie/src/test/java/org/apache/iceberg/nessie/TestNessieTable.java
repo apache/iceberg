@@ -413,12 +413,12 @@ public class TestNessieTable extends BaseTestIceberg {
     List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     // Case 1: Branch does not exist
-    ImmutableTableReference tableReference =
+    ImmutableTableReference defaultTableReference =
         ImmutableTableReference.builder().reference("default").name(TABLE_NAME).build();
-    TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    TableIdentifier defaultIdentifier = TableIdentifier.of(DB_NAME, defaultTableReference.toString());
     Assertions.assertThatThrownBy(
         () -> catalog.registerTable(
-            identifier, "file:" + metadataVersionFiles.get(0)))
+            defaultIdentifier, "file:" + metadataVersionFiles.get(0)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Nessie ref 'default' does not exist");
     // Case 2: Table Already Exists
@@ -426,15 +426,21 @@ public class TestNessieTable extends BaseTestIceberg {
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: db.tbl");
     // Case 3: Registering using a tag
-    api.createReference().sourceRefName(BRANCH).reference(Tag.of("tag_1", catalog.currentHash())).create();
+    ImmutableTableReference branchTableReference =
+        ImmutableTableReference.builder().reference(BRANCH).name(TABLE_NAME).build();
+    TableIdentifier branchIdentifier = TableIdentifier.of(DB_NAME, branchTableReference.toString());
+    Assertions.assertThat(catalog.dropTable(branchIdentifier, false)).isTrue();
+    String hash = api.getReference().refName(BRANCH).get().getHash();
+    api.createReference().sourceRefName(BRANCH).reference(Tag.of("tag_1", hash)).create();
+    ImmutableTableReference tagTableReference =
+        ImmutableTableReference.builder().reference("tag_1").name(TABLE_NAME).build();
+    TableIdentifier tagIdentifier = TableIdentifier.of(DB_NAME, tagTableReference.toString());
     Assertions.assertThatThrownBy(
         () -> catalog.registerTable(
-            TableIdentifier.of(DB_NAME, "`" + TABLE_NAME + "`@tag_1"),
-            "file:" + metadataVersionFiles.get(0)))
+            tagIdentifier, "file:" + metadataVersionFiles.get(0)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("You can only mutate tables when using a branch without a hash or timestamp.");
     // Case 4: non-null metadata path with null metadata location
-    Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
     Assertions.assertThatThrownBy(
         () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0) + "invalidName"))
         .isInstanceOf(NotFoundException.class);
