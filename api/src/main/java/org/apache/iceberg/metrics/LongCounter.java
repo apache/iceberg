@@ -27,6 +27,25 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * {@link Long} to count events.
  */
 class LongCounter implements MetricsContext.Counter<Long> {
+  static final LongCounter NOOP =
+      new LongCounter("NOOP", MetricsContext.Unit.UNDEFINED) {
+        @Override
+        public void increment() {}
+
+        @Override
+        public void increment(Long amount) {}
+
+        @Override
+        public Optional<Long> count() {
+          return Optional.of(value());
+        }
+
+        @Override
+        public Long value() {
+          return 0L;
+        }
+      };
+
   private final AtomicLong counter;
   private final String name;
   private final MetricsContext.Unit unit;

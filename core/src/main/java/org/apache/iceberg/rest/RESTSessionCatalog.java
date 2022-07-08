@@ -56,6 +56,8 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.metrics.LoggingScanReporter;
+import org.apache.iceberg.metrics.ScanReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -102,6 +104,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private ResourcePaths paths = null;
   private Object conf = null;
   private FileIO io = null;
+  private ScanReporter scanReporter = null;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -171,6 +174,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
     this.io =
         CatalogUtil.loadFileIO(
             ioImpl != null ? ioImpl : ResolvingFileIO.class.getName(), mergedProps, conf);
+    this.scanReporter = new LoggingScanReporter();
 
     super.initialize(name, mergedProps);
   }
@@ -280,7 +284,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog
             tableFileIO(response.config()),
             response.tableMetadata());
 
-    BaseTable table = new BaseTable(ops, fullTableName(loadedIdent));
+    BaseTable table = new BaseTable(ops, fullTableName(loadedIdent), this.scanReporter);
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
