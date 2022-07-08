@@ -22,6 +22,7 @@ package org.apache.iceberg.metrics;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Generalized interface for creating telemetry related instances for tracking
@@ -89,12 +90,29 @@ public interface MetricsContext extends Serializable {
   }
 
   /**
+   * Get a named timer.
+   *
+   * @param name name of the metric
+   * @param unit the time unit designation of the metric
+   * @return a timer implementation
+   */
+  default Timer timer(String name, TimeUnit unit) {
+    throw new UnsupportedOperationException("Timer is not supported.");
+  }
+
+  /**
    * Utility method for producing no metrics.
    *
    * @return a non-recording metrics context
    */
   static MetricsContext nullMetrics() {
     return new MetricsContext() {
+
+      @Override
+      public Timer timer(String name, TimeUnit unit) {
+        return Timer.NOOP;
+      }
+
       @Override
       public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
         return new Counter<T>() {
