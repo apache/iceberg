@@ -100,7 +100,13 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     List<Filter> pushed = Lists.newArrayListWithExpectedSize(filters.length);
 
     for (Filter filter : filters) {
-      Expression expr = SparkFilters.convert(filter);
+      Expression expr = null;
+      try {
+        expr = SparkFilters.convert(filter);
+      } catch (IllegalArgumentException e) {
+        // converting to Iceberg Expression failed, so this expression cannot be pushed down
+      }
+
       if (expr != null) {
         try {
           Binder.bind(schema.asStruct(), expr, caseSensitive);
