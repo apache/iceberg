@@ -1213,6 +1213,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
   }
 
@@ -1259,6 +1260,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
   }
 
@@ -1349,6 +1351,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
   }
 
@@ -2001,6 +2004,16 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Should contain correct file paths",
           CharSequenceSet.of(Iterables.transform(Arrays.asList(files), DataFile::path)),
           CharSequenceSet.of(paths));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public void assertFilesPartitionSpec(Table table) {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      Streams.stream(tasks)
+          .map(FileScanTask::file)
+          .forEach(file -> Assert.assertEquals(table.spec().specId(), file.specId()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

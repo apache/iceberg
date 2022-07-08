@@ -263,6 +263,7 @@ public class CatalogHandlers {
     } else {
       finalMetadata = commitUpdate(catalog, ident, request);
     }
+
     return LoadTableResponse.builder()
         .withTableMetadata(finalMetadata)
         .build();
@@ -296,15 +297,19 @@ public class CatalogHandlers {
   private static TableMetadata commitCreate(Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
     // this is a hacky way to get TableOperations for an uncommitted table
     Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
-    if (!(transaction instanceof BaseTransaction)) {
-      throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
-    }
+    Preconditions.checkState(transaction instanceof BaseTransaction,
+        "Cannot wrap catalog that does not produce BaseTransaction");
     TableOperations ops = ((BaseTransaction) transaction).underlyingOps();
 
     // the only valid requirement is that the table will be created
     request.requirements().forEach(requirement -> requirement.validate(ops.current()));
 
     CreateCommitInfo info = extractCreateCommitInfo(request);
+
+    if (info.schema == null) {
+      throw new BadRequestException("No schema specified for create commit");
+    }
+
     PartitionSpec partitionSpec =
         info.unboundPartitionSpec == null ? PartitionSpec.unpartitioned() : info.unboundPartitionSpec.bind(info.schema);
     SortOrder sortOrder =
@@ -327,29 +332,41 @@ public class CatalogHandlers {
   private static CreateCommitInfo extractCreateCommitInfo(UpdateTableRequest request) {
     CreateCommitInfo result = new CreateCommitInfo();
     for (MetadataUpdate update : request.updates()) {
-      if (update instanceof MetadataUpdate.AddSchema) {
+      if (result.schema == null && update instanceof MetadataUpdate.AddSchema) {
         result.schema = ((MetadataUpdate.AddSchema) update).schema();
-      } else if (update instanceof MetadataUpdate.AddPartitionSpec) {
+      } else if (result.unboundPartitionSpec == null && update instanceof MetadataUpdate.AddPartitionSpec) {
         result.unboundPartitionSpec = ((MetadataUpdate.AddPartitionSpec) update).spec();
-      } else if (update instanceof MetadataUpdate.AddSortOrder) {
+      } else if (result.unboundSortOrder == null && update instanceof MetadataUpdate.AddSortOrder) {
         result.unboundSortOrder = ((MetadataUpdate.AddSortOrder) update).sortOrder();
-      } else if (update instanceof MetadataUpdate.SetProperties) {
+      } else if (result.props == null && update instanceof MetadataUpdate.SetProperties) {
         result.props = ((MetadataUpdate.SetProperties) update).updated();
-      } else if (update instanceof MetadataUpdate.SetLocation) {
+      } else if (result.location == null && update instanceof MetadataUpdate.SetLocation) {
         result.location = ((MetadataUpdate.SetLocation) update).location();
-      } else if (!(update instanceof MetadataUpdate.SetCurrentSchema) &&
-              !(update instanceof MetadataUpdate.SetDefaultPartitionSpec) &&
-              !(update instanceof MetadataUpdate.SetDefaultSortOrder)) {
-        // we don't want to overwrite the initial IDs
-        result.otherUpdates.add(update);
+      } else {
+        addCreateCommitUpdate(result, update);
       }
     }
 
-    if (result.schema == null) {
-      throw new BadRequestException("No schema specified for create commit");
-    }
-
     return result;
+  }
+
+  private static void addCreateCommitUpdate(CreateCommitInfo commitInfo, MetadataUpdate update) {
+    // we want to skip the updates that set the ID to -1
+    if (update instanceof MetadataUpdate.SetCurrentSchema) {
+      if (((MetadataUpdate.SetCurrentSchema) update).schemaId() != -1) {
+        commitInfo.otherUpdates.add(update);
+      }
+    } else if (update instanceof MetadataUpdate.SetDefaultPartitionSpec) {
+      if (((MetadataUpdate.SetDefaultPartitionSpec) update).specId() != -1) {
+        commitInfo.otherUpdates.add(update);
+      }
+    } else if (update instanceof MetadataUpdate.SetDefaultSortOrder) {
+      if (((MetadataUpdate.SetDefaultSortOrder) update).sortOrderId() != -1) {
+        commitInfo.otherUpdates.add(update);
+      }
+    } else {
+      commitInfo.otherUpdates.add(update);
+    }
   }
 
   private static TableMetadata commit(TableOperations ops, List<UpdateTableRequest.UpdateRequirement> requirements,
