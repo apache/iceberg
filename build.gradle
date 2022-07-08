@@ -34,6 +34,7 @@ buildscript {
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
   }
 }
 
@@ -42,8 +43,16 @@ plugins {
 }
 
 try {
-  // apply this plugin in a try-catch block so that we can handle cases without .git directory
+  // apply these plugins in a try-catch block so that we can handle cases without .git directory
   apply plugin: 'com.palantir.git-version'
+  apply plugin: 'com.gorylenko.gradle-git-properties'
+  // git properties file for the root project for adding to the source tarball
+  gitProperties {
+    gitPropertiesName = 'iceberg-build.properties'
+    extProperty = 'gitProps'
+    failOnNoGitDirectory = false
+  }
+  generateGitProperties.outputs.upToDateWhen { false }
 } catch (Exception e) {
   project.logger.error(e.getMessage())
 }
