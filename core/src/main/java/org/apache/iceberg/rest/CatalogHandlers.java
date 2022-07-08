@@ -102,6 +102,10 @@ public class CatalogHandlers {
     private UnboundPartitionSpec unboundPartitionSpec;
     private UnboundSortOrder unboundSortOrder;
     private List<MetadataUpdate> otherUpdates = Lists.newArrayList();
+
+    private boolean otherUpdatesHasType(Class<? extends MetadataUpdate> updateClass) {
+      return otherUpdates.stream().anyMatch(updateClass::isInstance);
+    }
   }
 
   public static ListNamespacesResponse listNamespaces(SupportsNamespaces catalog, Namespace parent) {
@@ -358,17 +362,16 @@ public class CatalogHandlers {
   }
 
   private static void addCreateCommitUpdate(CreateCommitInfo commitInfo, MetadataUpdate update) {
-    // we want to skip the updates that set the ID to -1
     if (update instanceof MetadataUpdate.SetCurrentSchema) {
-      if (((MetadataUpdate.SetCurrentSchema) update).schemaId() != -1) {
+      if (commitInfo.otherUpdatesHasType(MetadataUpdate.AddSchema.class)) {
         commitInfo.otherUpdates.add(update);
       }
     } else if (update instanceof MetadataUpdate.SetDefaultPartitionSpec) {
-      if (((MetadataUpdate.SetDefaultPartitionSpec) update).specId() != -1) {
+      if (commitInfo.otherUpdatesHasType(MetadataUpdate.AddPartitionSpec.class)) {
         commitInfo.otherUpdates.add(update);
       }
     } else if (update instanceof MetadataUpdate.SetDefaultSortOrder) {
-      if (((MetadataUpdate.SetDefaultSortOrder) update).sortOrderId() != -1) {
+      if (commitInfo.otherUpdatesHasType(MetadataUpdate.AddSortOrder.class)) {
         commitInfo.otherUpdates.add(update);
       }
     } else {
