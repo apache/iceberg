@@ -1224,7 +1224,10 @@ public class TableMetadata implements Serializable {
       boolean schemaFound = schemasById.containsKey(newSchemaId);
       if (schemaFound && newLastColumnId == lastColumnId) {
         // the new spec and last column id is already current and no change is needed
-        this.lastAddedSchemaId = newSchemaId;
+        // update lastAddedSchemaId if the schema was added in this set of changes (since it is now the last)
+        boolean isNewSchema = lastAddedSchemaId != null &&
+            changes(MetadataUpdate.AddSchema.class).anyMatch(added -> added.schema().schemaId() == newSchemaId);
+        this.lastAddedSchemaId = isNewSchema ? newSchemaId : null;
         return newSchemaId;
       }
 
@@ -1265,7 +1268,10 @@ public class TableMetadata implements Serializable {
     private int addPartitionSpecInternal(PartitionSpec spec) {
       int newSpecId = reuseOrCreateNewSpecId(spec);
       if (specsById.containsKey(newSpecId)) {
-        this.lastAddedSpecId = newSpecId;
+        // update lastAddedSpecId if the spec was added in this set of changes (since it is now the last)
+        boolean isNewSpec = lastAddedSpecId != null &&
+            changes(MetadataUpdate.AddPartitionSpec.class).anyMatch(added -> added.spec().specId() == lastAddedSpecId);
+        this.lastAddedSpecId = isNewSpec ? newSpecId : null;
         return newSpecId;
       }
 
@@ -1303,7 +1309,11 @@ public class TableMetadata implements Serializable {
     private int addSortOrderInternal(SortOrder order) {
       int newOrderId = reuseOrCreateNewSortOrderId(order);
       if (sortOrdersById.containsKey(newOrderId)) {
-        this.lastAddedOrderId = newOrderId;
+        // update lastAddedOrderId if the order was added in this set of changes (since it is now the last)
+        boolean isNewOrder = lastAddedOrderId != null &&
+            changes(MetadataUpdate.AddSortOrder.class)
+                .anyMatch(added -> added.sortOrder().orderId() == lastAddedOrderId);
+        this.lastAddedOrderId = isNewOrder ? newOrderId : null;
         return newOrderId;
       }
 
