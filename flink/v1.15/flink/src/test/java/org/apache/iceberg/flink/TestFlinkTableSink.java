@@ -67,9 +67,10 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
 
   private final FileFormat format;
   private final boolean isStreamingJob;
+  private final boolean useNewSink;
 
   @Parameterized.Parameters(
-      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
+      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}, useNewSink={4}")
   public static Iterable<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
@@ -78,7 +79,8 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
         for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
-          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
+          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming, true});
+          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming, false});
         }
       }
     }
@@ -86,10 +88,15 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   }
 
   public TestFlinkTableSink(
-      String catalogName, Namespace baseNamespace, FileFormat format, Boolean isStreamingJob) {
+      String catalogName,
+      Namespace baseNamespace,
+      FileFormat format,
+      Boolean isStreamingJob,
+      Boolean useNewSink) {
     super(catalogName, baseNamespace);
     this.format = format;
     this.isStreamingJob = isStreamingJob;
+    this.useNewSink = useNewSink;
   }
 
   @Override
@@ -110,6 +117,10 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
           settingsBuilder.inBatchMode();
           tEnv = TableEnvironment.create(settingsBuilder.build());
         }
+
+        tEnv.getConfig()
+            .getConfiguration()
+            .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP143_SINK, useNewSink);
       }
     }
     return tEnv;

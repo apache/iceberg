@@ -31,6 +31,7 @@ import org.apache.flink.table.connector.sink.abilities.SupportsPartitioning;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
+import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
@@ -69,16 +70,29 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     List<String> equalityColumns =
         tableSchema.getPrimaryKey().map(UniqueConstraint::getColumns).orElseGet(ImmutableList::of);
 
-    return (DataStreamSinkProvider)
-        (providerContext, dataStream) ->
-            FlinkSink.forRowData(dataStream)
-                .tableLoader(tableLoader)
-                .tableSchema(tableSchema)
-                .equalityFieldColumns(equalityColumns)
-                .overwrite(overwrite)
-                .setAll(writeProps)
-                .flinkConf(readableConfig)
-                .append();
+    if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP143_SINK)) {
+      return (DataStreamSinkProvider)
+          (providerContext, dataStream) ->
+              IcebergSink.forRowData(dataStream)
+                  .tableLoader(tableLoader)
+                  .tableSchema(tableSchema)
+                  .equalityFieldColumns(equalityColumns)
+                  .overwrite(overwrite)
+                  .setAll(writeProps)
+                  .flinkConf(readableConfig)
+                  .append();
+    } else {
+      return (DataStreamSinkProvider)
+          (providerContext, dataStream) ->
+              FlinkSink.forRowData(dataStream)
+                  .tableLoader(tableLoader)
+                  .tableSchema(tableSchema)
+                  .equalityFieldColumns(equalityColumns)
+                  .overwrite(overwrite)
+                  .setAll(writeProps)
+                  .flinkConf(readableConfig)
+                  .append();
+    }
   }
 
   @Override
