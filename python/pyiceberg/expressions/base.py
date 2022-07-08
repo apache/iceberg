@@ -101,7 +101,7 @@ class Term(ABC):
     """An expression that evaluates to a value."""
 
 
-class Reference(Generic[T], ABC):
+class BaseReference(Generic[T], Term, ABC):
     """Represents a variable reference in an expression."""
 
 
@@ -109,12 +109,12 @@ class BoundTerm(Bound[T], Term):
     """Represents a bound term."""
 
 
-class UnboundTerm(Unbound[T, BoundTerm[T]]):
+class UnboundTerm(Unbound[T, BoundTerm[T]], Term):
     """Represents an unbound term."""
 
 
 @dataclass(frozen=True)
-class BoundReference(BoundTerm[T], Reference[T]):
+class BoundReference(BoundTerm[T], BaseReference[T]):
     """A reference bound to a field in a schema
 
     Args:
@@ -136,7 +136,7 @@ class BoundReference(BoundTerm[T], Reference[T]):
 
 
 @dataclass(frozen=True)
-class UnboundReference(UnboundTerm[T], Reference[T]):
+class Reference(UnboundTerm[T], BaseReference[T]):
     """A reference not yet bound to a field in a schema
 
     Args:
@@ -148,7 +148,7 @@ class UnboundReference(UnboundTerm[T], Reference[T]):
 
     name: str
 
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference[T]:
         """Bind the reference to an Iceberg schema
 
         Args:
@@ -182,7 +182,7 @@ class BoundPredicate(Bound[T], BooleanExpression):
 
 @dataclass(frozen=True)  # type: ignore[misc]
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
-    term: UnboundReference[T]
+    term: Reference[T]
     literals: Tuple[Literal[T], ...]
 
 
@@ -317,19 +317,19 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
 
 
 @dataclass(frozen=True)
+class BoundIn(BoundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("In expressions do not support negation.")
+
+
+@dataclass(frozen=True)
 class In(UnboundPredicate[T]):
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
 
-    def bind(self, schema: Schema, case_sensitive: bool) -> "BoundIn":
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn:
         bound_ref = self.term.bind(schema, case_sensitive)
         return BoundIn(bound_ref, tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
-
-
-@dataclass(frozen=True)
-class BoundIn(BoundPredicate[T]):
-    def __invert__(self):
-        raise TypeError("In expressions do not support negation.")
 
 
 class BooleanExpressionVisitor(Generic[T], ABC):
