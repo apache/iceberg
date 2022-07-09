@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTaskGroup;
@@ -44,7 +43,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-class RowDataReader<CST extends ContentScanTask<DataFile>, G extends ScanTaskGroup<CST>>
+class RowDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>>
     extends BaseDataReader<InternalRow, CST, G> {
 
   private final Schema tableSchema;
@@ -67,10 +66,9 @@ class RowDataReader<CST extends ContentScanTask<DataFile>, G extends ScanTaskGro
     // schema or rows returned by readers
     Schema requiredSchema = deletes.requiredSchema();
     Map<Integer, ?> idToConstant = constantsMap(task, requiredSchema);
-    DataFile file = task.file();
 
     // update the current file for Spark's filename() function
-    InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
+    InputFileBlockHolder.set(task.file().path().toString(), task.start(), task.length());
 
     return deletes.filter(open(task, requiredSchema, idToConstant)).iterator();
   }

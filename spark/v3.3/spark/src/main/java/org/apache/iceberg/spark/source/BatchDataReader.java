@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTaskGroup;
@@ -45,7 +44,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-class BatchDataReader<CST extends ContentScanTask<DataFile>, G extends ScanTaskGroup<CST>>
+class BatchDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>>
     extends BaseDataReader<ColumnarBatch, CST, G> {
   private final Schema expectedSchema;
   private final String nameMapping;
@@ -62,10 +61,8 @@ class BatchDataReader<CST extends ContentScanTask<DataFile>, G extends ScanTaskG
 
   @Override
   CloseableIterator<ColumnarBatch> open(CST task) {
-    DataFile file = task.file();
-
     // update the current file for Spark's filename() function
-    InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
+    InputFileBlockHolder.set(task.file().path().toString(), task.start(), task.length());
 
     Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema);
 
