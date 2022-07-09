@@ -53,6 +53,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     compileOnly "org.apache.avro:avro"
 
+    implementation "com.github.ben-manes.caffeine:caffeine"
     implementation("org.apache.orc:orc-core::nohive") {
       exclude group: 'org.apache.hadoop'
       exclude group: 'commons-lang'

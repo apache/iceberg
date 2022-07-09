@@ -45,8 +45,6 @@ public class TestPartitionUdf {
     tEnv = StreamTableEnvironment.create(env);
     tEnv.getConfig().getConfiguration()
         .set(TableConfigOptions.LOCAL_TIME_ZONE, "Asia/Shanghai");
-    tEnv.createTemporarySystemFunction("buckets", PartitionTransformUdf.Bucket.class);
-    tEnv.createTemporarySystemFunction("truncates", PartitionTransformUdf.Truncate.class);
   }
 
   protected List<Row> sql(String query, Object... args) {
@@ -64,6 +62,7 @@ public class TestPartitionUdf {
   }
   @Test
   public void testBucket() {
+    tEnv.createTemporarySystemFunction("buckets", PartitionTransformUdf.Bucket.class);
 
     // int type
     Assert.assertEquals(428, getSqlResult("SELECT buckets(1000, 10)"));
@@ -104,6 +103,7 @@ public class TestPartitionUdf {
 
   @Test
   public void testTruncate() {
+    tEnv.createTemporarySystemFunction("truncates", PartitionTransformUdf.Truncate.class);
 
     // int type
     Assert.assertEquals(10, getSqlResult("SELECT truncates(10, 15)"));
