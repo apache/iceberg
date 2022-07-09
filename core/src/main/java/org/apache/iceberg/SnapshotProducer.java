@@ -128,7 +128,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public ThisT toBranch(String branch) {
-    throw new UnsupportedOperationException("Performing operations on a branch is currently not supported");
+    throw new UnsupportedOperationException("Performing operations on a branch only supported for Append");
   }
 
   protected ExecutorService workerPool() {
