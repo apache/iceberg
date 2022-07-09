@@ -103,6 +103,18 @@ public class CatalogHandlers {
     private UnboundSortOrder unboundSortOrder;
     private List<MetadataUpdate> otherUpdates = Lists.newArrayList();
 
+    private boolean hasAddSchema() {
+      return otherUpdatesHasType(MetadataUpdate.AddSchema.class);
+    }
+
+    private boolean hasAddPartitionSpec() {
+      return otherUpdatesHasType(MetadataUpdate.AddPartitionSpec.class);
+    }
+
+    private boolean hasAddSortOrder() {
+      return otherUpdatesHasType(MetadataUpdate.AddSortOrder.class);
+    }
+
     private boolean otherUpdatesHasType(Class<? extends MetadataUpdate> updateClass) {
       return otherUpdates.stream().anyMatch(updateClass::isInstance);
     }
@@ -339,19 +351,14 @@ public class CatalogHandlers {
     // the table init, and we will apply all updates after that.
 
     CreateCommitInfo result = new CreateCommitInfo();
-    boolean initialSchema = true;
     for (MetadataUpdate update : request.updates()) {
-      if (initialSchema && update instanceof MetadataUpdate.AddSchema) {
-        if (result.schema == null) {
-          result.schema = ((MetadataUpdate.AddSchema) update).schema();
-        } else {
-          initialSchema = false;
-          addCreateCommitUpdate(result, update);
-        }
-      } else if (initialSchema && result.unboundPartitionSpec == null &&
+      if (result.schema == null && update instanceof MetadataUpdate.AddSchema) {
+        result.schema = ((MetadataUpdate.AddSchema) update).schema();
+      } else if (!result.hasAddSchema() && result.unboundPartitionSpec == null &&
           update instanceof MetadataUpdate.AddPartitionSpec) {
         result.unboundPartitionSpec = ((MetadataUpdate.AddPartitionSpec) update).spec();
-      } else if (initialSchema && result.unboundSortOrder == null && update instanceof MetadataUpdate.AddSortOrder) {
+      } else if (!result.hasAddSchema() && result.unboundSortOrder == null &&
+          update instanceof MetadataUpdate.AddSortOrder) {
         result.unboundSortOrder = ((MetadataUpdate.AddSortOrder) update).sortOrder();
       } else {
         addCreateCommitUpdate(result, update);
@@ -363,15 +370,15 @@ public class CatalogHandlers {
 
   private static void addCreateCommitUpdate(CreateCommitInfo commitInfo, MetadataUpdate update) {
     if (update instanceof MetadataUpdate.SetCurrentSchema) {
-      if (commitInfo.otherUpdatesHasType(MetadataUpdate.AddSchema.class)) {
+      if (commitInfo.hasAddSchema()) {
         commitInfo.otherUpdates.add(update);
       }
     } else if (update instanceof MetadataUpdate.SetDefaultPartitionSpec) {
-      if (commitInfo.otherUpdatesHasType(MetadataUpdate.AddPartitionSpec.class)) {
+      if (commitInfo.hasAddPartitionSpec()) {
         commitInfo.otherUpdates.add(update);
       }
     } else if (update instanceof MetadataUpdate.SetDefaultSortOrder) {
-      if (commitInfo.otherUpdatesHasType(MetadataUpdate.AddSortOrder.class)) {
+      if (commitInfo.hasAddSortOrder()) {
         commitInfo.otherUpdates.add(update);
       }
     } else {
