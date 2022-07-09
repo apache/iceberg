@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -487,9 +488,24 @@ public class TestFastAppend extends TableTestBase {
 
     Long currSnapshot = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_D)
+        .commit();
+
     table.newFastAppend().toBranch("ref").appendFile(FILE_B).commit();
     Snapshot branch = table.snapshot(table.ops().current().ref("ref").snapshotId());
     Assert.assertEquals(currSnapshot, branch.parentId());
+    Iterable<ManifestFile> allManifests = table.currentSnapshot().allManifests(table.io());
+    Assert.assertEquals(3, Iterables.size(allManifests));
+
+    Snapshot branchSnapshot = table.ops().current().snapshot(table.ops().current().ref("ref").snapshotId());
+    Iterable<ManifestFile> branchManifests = branchSnapshot.allManifests(table.io());
+    Assert.assertEquals(2, Iterables.size(branchManifests));
   }
 
   @Test(expected = IllegalArgumentException.class)
@@ -499,7 +515,10 @@ public class TestFastAppend extends TableTestBase {
         .commit();
 
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
-    table.newDelete().toBranch(null).deleteFile(FILE_A);
+    table.newFastAppend()
+        .toBranch(null)
+        .appendFile(FILE_B)
+        .commit();
   }
 
   @Test
@@ -509,7 +528,7 @@ public class TestFastAppend extends TableTestBase {
         .commit();
 
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
-    table.newDelete().toBranch("newBranch").deleteFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).toBranch("newBranch").commit();
     Assert.assertNotNull(table.ops().current().ref("newBranch"));
   }
 }

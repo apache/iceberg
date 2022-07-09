@@ -110,6 +110,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return targetBranch;
   }
 
+  protected void setTargetBranch(String targetBranch) {
+    this.targetBranch = targetBranch;
+  }
+
   @Override
   public ThisT stageOnly() {
     this.stageOnly = true;
@@ -124,18 +128,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public ThisT toBranch(String branch) {
-    Preconditions.checkArgument(branch != null, "branch cannot be null");
-    if (ops.current().ref(branch) == null) {
-      SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
-      TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(base);
-      updatedBuilder.setRef(branch, branchRef);
-      ops.commit(base, updatedBuilder.build());
-    }
-
-    Preconditions.checkArgument(ops.current().ref(branch).type().equals(SnapshotRefType.BRANCH),
-        "%s is not a ref to type branch", branch);
-    this.targetBranch = branch;
-    return self();
+    throw new UnsupportedOperationException("Performing operations on a branch is currently not supported");
   }
 
   protected ExecutorService workerPool() {

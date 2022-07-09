@@ -114,6 +114,22 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     return this;
   }
 
+  @Override
+  public FastAppend toBranch(String branch){
+    Preconditions.checkArgument(branch != null, "branch cannot be null");
+    if (ops.current().ref(branch) == null) {
+      SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
+      TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(ops.current());
+      updatedBuilder.setRef(branch, branchRef);
+      ops.commit(ops.current(), updatedBuilder.build());
+    }
+
+    Preconditions.checkArgument(ops.current().ref(branch).type().equals(SnapshotRefType.BRANCH),
+        "%s is not a ref to type branch", branch);
+    setTargetBranch(branch);
+    return this;
+  }
+
   private ManifestFile copyManifest(ManifestFile manifest) {
     TableMetadata current = ops.current();
     InputFile toCopy = ops.io().newInputFile(manifest.path());
@@ -125,6 +141,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public List<ManifestFile> apply(TableMetadata base) {
     List<ManifestFile> newManifests = Lists.newArrayList();
+    Snapshot current = base.ref(targetBranch()) != null ?
+        base.snapshot(base.ref(targetBranch()).snapshotId()) : base.currentSnapshot();
 
     try {
       ManifestFile manifest = writeManifest();
@@ -140,8 +158,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
         manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
     Iterables.addAll(newManifests, appendManifestsWithMetadata);
 
-    if (base.currentSnapshot() != null) {
-      newManifests.addAll(base.currentSnapshot().allManifests(ops.io()));
+    if (current != null) {
+      newManifests.addAll(current.allManifests(ops.io()));
     }
 
     return newManifests;
