@@ -115,7 +115,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   @Override
-  public FastAppend toBranch(String branch){
+  public FastAppend toBranch(String branch) {
     Preconditions.checkArgument(branch != null, "branch cannot be null");
     if (ops.current().ref(branch) == null) {
       SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
