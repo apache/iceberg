@@ -164,6 +164,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteFilterManager.failMissingDeletePaths();
   }
 
+  protected void createNewRef(String branch) {
+    SnapshotRef branchRef = SnapshotRef.branchBuilder(this.current().currentSnapshot().snapshotId()).build();
+    TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(this.current());
+    updatedBuilder.setRef(branch, branchRef);
+    ops.commit(ops.current(), updatedBuilder.build());
+  }
+
   /**
    * Add a filter to match files to delete. A file will be deleted if all of the rows it contains
    * match this or any other filter passed to this method.

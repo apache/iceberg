@@ -97,13 +97,26 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
     return this;
   }
 
-  private void checkIfSnapshotIsAnAncestor(Long startingSnapshotId, Snapshot current, TableMetadata base){
-    if(startingSnapshotId == null || current == null){
+  @Override
+  public RowDelta toBranch(String branch) {
+    Preconditions.checkArgument(branch != null, "branch cannot be null");
+    if (this.current().ref(branch) == null) {
+      super.createNewRef(branch);
+    }
+
+    Preconditions.checkArgument(this.current().ref(branch).type().equals(SnapshotRefType.BRANCH),
+        "%s is not a ref to type branch", branch);
+    setTargetBranch(branch);
+    return self();
+  }
+
+  private void checkIfSnapshotIsAnAncestor(Snapshot current, TableMetadata base) {
+    if (this.startingSnapshotId == null || current == null) {
       return;
     }
 
     for (Snapshot ancestor : SnapshotUtil.ancestorsOf(current.snapshotId(), base::snapshot)) {
-      if(ancestor.snapshotId() == startingSnapshotId){
+      if (ancestor.snapshotId() == this.startingSnapshotId) {
         return;
       }
 
@@ -116,7 +129,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
     Snapshot current = base.ref(targetBranch()) != null ?
         base.snapshot(base.ref(targetBranch()).snapshotId()) : base.currentSnapshot();
 
-    checkIfSnapshotIsAnAncestor(startingSnapshotId, current, base);
+    checkIfSnapshotIsAnAncestor(current, base);
     if (!referencedDataFiles.isEmpty()) {
       validateDataFilesExist(
           base, startingSnapshotId, referencedDataFiles, !validateDeletes, conflictDetectionFilter);
