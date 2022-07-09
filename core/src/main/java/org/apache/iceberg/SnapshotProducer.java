@@ -124,18 +124,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public ThisT toBranch(String branch) {
-    Preconditions.checkArgument(branch != null, "branch cannot be null");
-    if (ops.current().ref(branch) == null) {
-      SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
-      TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(base);
-      updatedBuilder.setRef(branch, branchRef);
-      ops.commit(base, updatedBuilder.build());
-    }
+    throw new UnsupportedOperationException("Performing operations on a branch is is only supported for BaseRowDelta");
+  }
 
-    Preconditions.checkArgument(ops.current().ref(branch).type().equals(SnapshotRefType.BRANCH),
-        "%s is not a ref to type branch", branch);
+  protected void setTargetBranch(String branch) {
     this.targetBranch = branch;
-    return self();
   }
 
   protected ExecutorService workerPool() {
