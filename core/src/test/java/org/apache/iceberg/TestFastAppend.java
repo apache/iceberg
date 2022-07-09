@@ -484,28 +484,7 @@ public class TestFastAppend extends TableTestBase {
     table.newFastAppend()
             .appendFile(FILE_A)
             .commit();
-
     table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
-    table.newDelete().toBranch("ref");
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testAppendToNullBranch() {
-    table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
-
-    table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
-    table.newDelete().toBranch(null).deleteFile(FILE_A);
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testAppendToInValidBranch() {
-    table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
-
-    table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
-    table.newDelete().toBranch("newBranch").deleteFile(FILE_A);
+    table.newFastAppend().appendFile(FILE_B).toBranch("ref").commit();
   }
 }
