@@ -1261,10 +1261,22 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
     Table table = catalog.loadTable(TABLE);
 
+    // initial IDs taken from TableMetadata constants
+    final int initialSchemaId = 0;
+    final int initialSpecId = 0;
+    final int initialOrderId = 1;
+    final int updateSchemaId = initialSchemaId + 1;
+    final int updateSpecId = initialSpecId + 1;
+    final int updateOrderId = initialOrderId + 1;
+
     Assert.assertEquals("Table schema should match the new schema",
         newSchema.asStruct(), table.schema().asStruct());
-    Assert.assertEquals("Table should have create partition spec", newSpec.fields(), table.spec().fields());
-    Assert.assertEquals("Table should have create sort order", newSortOrder.fields(), table.sortOrder().fields());
+    Assert.assertEquals("Table schema should match the new schema ID",
+        updateSchemaId, table.schema().schemaId());
+    Assert.assertEquals("Table should have updated partition spec", newSpec.fields(), table.spec().fields());
+    Assert.assertEquals("Table should have updated partition spec ID", updateSpecId, table.spec().specId());
+    Assert.assertEquals("Table should have updated sort order", newSortOrder.fields(), table.sortOrder().fields());
+    Assert.assertEquals("Table should have updated sort order ID", updateOrderId, table.sortOrder().orderId());
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
@@ -1272,8 +1284,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A, anotherFile);
-    assertFilePartitionSpec(table, FILE_A, 0);
-    assertFilePartitionSpec(table, anotherFile, 1);
+    assertFilePartitionSpec(table, FILE_A, initialSpecId);
+    assertFilePartitionSpec(table, anotherFile, updateSpecId);
     assertPreviousMetadataFileCount(table, 0);
   }
 
