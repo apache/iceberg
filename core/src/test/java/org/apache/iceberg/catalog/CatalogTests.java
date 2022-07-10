@@ -1213,6 +1213,67 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
+    assertPreviousMetadataFileCount(table, 0);
+  }
+
+  @Test
+  public void testCompleteCreateTransactionMultipleSchemas() {
+    C catalog = catalog();
+
+    Map<String, String> properties = ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
+    Transaction create = catalog.buildTable(TABLE, SCHEMA)
+        .withLocation("file:/tmp/ns/table")
+        .withPartitionSpec(SPEC)
+        .withSortOrder(WRITE_ORDER)
+        .withProperties(properties)
+        .createTransaction();
+
+    Assert.assertFalse("Table should not exist after createTransaction", catalog.tableExists(TABLE));
+
+    create.newFastAppend().appendFile(FILE_A).commit();
+
+    UpdateSchema updateSchema = create.updateSchema().addColumn("new_col", Types.LongType.get());
+    Schema newSchema = updateSchema.apply();
+    updateSchema.commit();
+
+    UpdatePartitionSpec updateSpec = create.updateSpec().addField("new_col");
+    PartitionSpec newSpec = updateSpec.apply();
+    updateSpec.commit();
+
+    ReplaceSortOrder replaceSortOrder = create.replaceSortOrder().asc("new_col");
+    SortOrder newSortOrder = replaceSortOrder.apply();
+    replaceSortOrder.commit();
+
+    DataFile anotherFile = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-b.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("id_bucket=0/new_col=0") // easy way to set partition data for now
+        .withRecordCount(2) // needs at least one record or else metrics will filter it out
+        .build();
+
+    create.newFastAppend().appendFile(anotherFile).commit();
+
+    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+
+    create.commitTransaction();
+
+    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Table table = catalog.loadTable(TABLE);
+
+    Assert.assertEquals("Table schema should match the new schema",
+        newSchema.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Table should have create partition spec", newSpec.fields(), table.spec().fields());
+    Assert.assertEquals("Table should have create sort order", newSortOrder.fields(), table.sortOrder().fields());
+    Assert.assertEquals("Table properties should be a superset of the requested properties",
+        properties.entrySet(),
+        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
+    assertFiles(table, FILE_A, anotherFile);
+    assertFilePartitionSpec(table, FILE_A, 0);
+    assertFilePartitionSpec(table, anotherFile, 1);
     assertPreviousMetadataFileCount(table, 0);
   }
 
@@ -1259,6 +1320,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
   }
 
@@ -1349,6 +1411,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
     }
     assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
   }
 
@@ -2001,6 +2064,27 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Should contain correct file paths",
           CharSequenceSet.of(Iterables.transform(Arrays.asList(files), DataFile::path)),
           CharSequenceSet.of(paths));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public void assertFilePartitionSpec(Table table, DataFile dataFile, int specId) {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      Streams.stream(tasks)
+          .map(FileScanTask::file)
+          .filter(file -> file.path().equals(dataFile.path()))
+          .forEach(file -> Assert.assertEquals(specId, file.specId()));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public void assertFilesPartitionSpec(Table table) {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      Streams.stream(tasks)
+          .map(FileScanTask::file)
+          .forEach(file -> Assert.assertEquals(table.spec().specId(), file.specId()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

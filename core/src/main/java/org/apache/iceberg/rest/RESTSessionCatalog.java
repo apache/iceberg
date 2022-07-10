@@ -579,14 +579,18 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
     PartitionSpec spec = meta.spec();
     if (spec != null && spec.isPartitioned()) {
       changes.add(new MetadataUpdate.AddPartitionSpec(spec));
-      changes.add(new MetadataUpdate.SetDefaultPartitionSpec(-1));
+    } else {
+      changes.add(new MetadataUpdate.AddPartitionSpec(PartitionSpec.unpartitioned()));
     }
+    changes.add(new MetadataUpdate.SetDefaultPartitionSpec(-1));
 
     SortOrder order = meta.sortOrder();
     if (order != null && order.isSorted()) {
       changes.add(new MetadataUpdate.AddSortOrder(order));
-      changes.add(new MetadataUpdate.SetDefaultSortOrder(-1));
+    } else {
+      changes.add(new MetadataUpdate.AddSortOrder(SortOrder.unsorted()));
     }
+    changes.add(new MetadataUpdate.SetDefaultSortOrder(-1));
 
     String location = meta.location();
     if (location != null) {

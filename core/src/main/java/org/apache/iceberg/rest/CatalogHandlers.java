@@ -244,7 +244,7 @@ public class CatalogHandlers {
       Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
       if (transaction instanceof BaseTransaction) {
         BaseTransaction baseTransaction = (BaseTransaction) transaction;
-        finalMetadata = create(baseTransaction.underlyingOps(), baseTransaction.startMetadata(), request);
+        finalMetadata = create(baseTransaction.underlyingOps(), request);
       } else {
         throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
       }
@@ -283,15 +283,15 @@ public class CatalogHandlers {
     return isCreate;
   }
 
-  private static TableMetadata create(TableOperations ops, TableMetadata start, UpdateTableRequest request) {
+  private static TableMetadata create(TableOperations ops, UpdateTableRequest request) {
     // the only valid requirement is that the table will be created
     request.requirements().forEach(requirement -> requirement.validate(ops.current()));
 
-    TableMetadata.Builder builder = TableMetadata.buildFrom(start);
+    TableMetadata.Builder builder = TableMetadata.buildFromEmpty();
     request.updates().forEach(update -> update.applyTo(builder));
 
     // create transactions do not retry. if the table exists, retrying is not a solution
-    ops.commit(null, builder.build());
+    ops.commit(null, builder.discardChanges().build());
 
     return ops.current();
   }
