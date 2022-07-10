@@ -121,7 +121,9 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
       super.createNewRef(branch);
     }
 
-    Preconditions.checkArgument(ops.current().ref(branch).type().equals(SnapshotRefType.BRANCH),
+    Preconditions.checkArgument(ops.current()
+            .ref(branch).type()
+            .equals(SnapshotRefType.BRANCH),
         "%s is not a ref to type branch", branch);
     setTargetBranch(branch);
     return this;
