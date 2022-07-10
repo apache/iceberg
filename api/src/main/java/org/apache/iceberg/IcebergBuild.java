@@ -56,7 +56,7 @@ public class IcebergBuild {
     Properties buildProperties = new Properties();
     try (InputStream is = readResource(VERSION_PROPERTIES_FILE)) {
       buildProperties.load(is);
-    } catch (IOException e) {
+    } catch (Exception e) {
       LOG.warn("Failed to load version properties from {}", VERSION_PROPERTIES_FILE, e);
     }
 
