@@ -106,14 +106,15 @@ class OneByteAtATimeInputStream(InputStream):
         self.pos += 1
         return int.to_bytes(1, self.pos, byteorder="little")
 
-    def seek(self, offset: int, whence: int = SEEK_SET) -> None:
+    def seek(self, offset: int, whence: int = SEEK_SET) -> int:
         pass
 
     def tell(self) -> int:
         pass
 
+    @property
     def closed(self) -> bool:
-        pass
+        return False
 
     def close(self) -> None:
         pass
