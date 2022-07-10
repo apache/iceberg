@@ -89,7 +89,7 @@ echo "Preparing source for $tagrc"
 
 echo "Generating version.txt and iceberg-build.properties..."
 echo $version > $projectdir/version.txt
-./gradlew buildInfo
+./gradlew generateGitProperties
 cp $projectdir/build/iceberg-build.properties $projectdir/iceberg-build.properties
 
 echo "Creating release candidate tag: $tagrc..."
