@@ -63,14 +63,20 @@ public class SimpleSplitAssigner implements SplitAssigner {
 
   @Override
   public void onDiscoveredSplits(Collection<IcebergSourceSplit> splits) {
-    pendingSplits.addAll(splits);
-    completeAvailableFuturesIfNeeded();
+    addSplits(splits);
   }
 
   @Override
   public void onUnassignedSplits(Collection<IcebergSourceSplit> splits) {
-    pendingSplits.addAll(splits);
-    completeAvailableFuturesIfNeeded();
+    addSplits(splits);
+  }
+
+  private void addSplits(Collection<IcebergSourceSplit> splits) {
+    if (!splits.isEmpty()) {
+      pendingSplits.addAll(splits);
+      // only complete pending future if new splits are discovered
+      completeAvailableFuturesIfNeeded();
+    }
   }
 
   /**
