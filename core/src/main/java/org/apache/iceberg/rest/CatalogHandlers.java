@@ -291,7 +291,7 @@ public class CatalogHandlers {
     request.updates().forEach(update -> update.applyTo(builder));
 
     // create transactions do not retry. if the table exists, retrying is not a solution
-    ops.commit(null, builder.discardChanges().build());
+    ops.commit(null, builder.build());
 
     return ops.current();
   }

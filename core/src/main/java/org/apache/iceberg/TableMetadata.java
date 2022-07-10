@@ -127,7 +127,6 @@ public class TableMetadata implements Serializable {
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(location)
         .setProperties(properties)
-        .discardChanges()
         .build();
   }
 
@@ -1245,7 +1244,7 @@ public class TableMetadata implements Serializable {
           ImmutableList.copyOf(newSnapshotLog),
           ImmutableList.copyOf(metadataHistory),
           ImmutableMap.copyOf(refs),
-          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes)
+          discardChanges || base == null ? ImmutableList.of() : ImmutableList.copyOf(changes)
       );
     }
 
