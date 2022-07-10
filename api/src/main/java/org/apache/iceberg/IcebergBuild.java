@@ -40,7 +40,7 @@ public class IcebergBuild {
   private static final String VERSION_PROPERTIES_FILE = "/iceberg-build.properties";
   private static final String UNKNOWN_DEFAULT = "unknown";
 
-  private static boolean isLoaded = false;
+  private static volatile boolean isLoaded = false;
 
   private static String shortId;  // 10 character short git hash of the build
   private static String commitId;  // 40 character full git hash of the build
