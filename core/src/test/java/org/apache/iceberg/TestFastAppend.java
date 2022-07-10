@@ -478,5 +478,4 @@ public class TestFastAppend extends TableTestBase {
     String changedPartitions = table.currentSnapshot().summary().get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP);
     Assert.assertEquals("Should set changed partition count", "2", changedPartitions);
   }
-
 }
