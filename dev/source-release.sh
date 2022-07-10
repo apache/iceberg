@@ -87,11 +87,12 @@ tagrc="${tag}-rc${rc}"
 
 echo "Preparing source for $tagrc"
 
-echo "Adding version.txt and tagging release..."
+echo "Generating version.txt and iceberg-build.properties..."
 echo $version > $projectdir/version.txt
-git add $projectdir/version.txt
-git commit -m "Add version.txt for release $version" $projectdir/version.txt
+./gradlew buildInfo
+cp $projectdir/build/iceberg-build.properties $projectdir/iceberg-build.properties
 
+echo "Creating release candidate tag: $tagrc..."
 set_version_hash=`git rev-list HEAD 2> /dev/null | head -n 1 `
 git tag -am "Apache Iceberg $version" $tagrc $set_version_hash
 
@@ -109,7 +110,11 @@ fi
 # archive (identical hashes) using the scm tag
 echo "Creating tarball ${tarball} using commit $release_hash"
 tarball=$tag.tar.gz
-git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$tarball
+git archive $release_hash --worktree-attributes --prefix $tag/ --add-file $projectdir/version.txt --add-file $projectdir/iceberg-build.properties -o $projectdir/$tarball
+
+# remove the uncommitted build files so they don't affect the current working copy
+rm $projectdir/version.txt
+rm $projectdir/iceberg-build.properties
 
 echo "Signing the tarball..."
 [[ -n "$keyid" ]] && keyopt="-u $keyid"

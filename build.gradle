@@ -51,7 +51,7 @@ try {
     gitPropertiesName = 'iceberg-build.properties'
     gitPropertiesResourceDir = file("${rootDir}/build")
     extProperty = 'gitProps'
-    failOnNoGitDirectory = false
+    failOnNoGitDirectory = true
   }
   generateGitProperties.outputs.upToDateWhen { false }
 } catch (Exception e) {
