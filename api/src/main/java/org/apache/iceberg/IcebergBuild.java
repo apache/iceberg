@@ -63,9 +63,9 @@ public class IcebergBuild {
     IcebergBuild.shortId = buildProperties.getProperty("git.commit.id.abbrev", UNKNOWN_DEFAULT);
     IcebergBuild.commitId = buildProperties.getProperty("git.commit.id", UNKNOWN_DEFAULT);
     IcebergBuild.branch = buildProperties.getProperty("git.branch", UNKNOWN_DEFAULT);
-    String tags = buildProperties.getProperty("git.tags", "");
-    if (!tags.isEmpty()) {
-      IcebergBuild.tags = ImmutableList.copyOf(Splitter.on(",").split(tags));
+    String tagList = buildProperties.getProperty("git.tags", "");
+    if (!tagList.isEmpty()) {
+      IcebergBuild.tags = ImmutableList.copyOf(Splitter.on(",").split(tagList));
     } else {
       IcebergBuild.tags = ImmutableList.of();
     }
