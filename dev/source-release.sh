@@ -87,11 +87,6 @@ tagrc="${tag}-rc${rc}"
 
 echo "Preparing source for $tagrc"
 
-echo "Generating version.txt and iceberg-build.properties..."
-echo $version > $projectdir/version.txt
-./gradlew generateGitProperties
-cp $projectdir/build/iceberg-build.properties $projectdir/iceberg-build.properties
-
 echo "Creating release candidate tag: $tagrc..."
 set_version_hash=`git rev-list HEAD 2> /dev/null | head -n 1 `
 git tag -am "Apache Iceberg $version" $tagrc $set_version_hash
@@ -105,6 +100,11 @@ if [ -z "$release_hash" ]; then
   echo "Cannot continue: unknown Git tag: $tag"
   exit
 fi
+
+echo "Generating version.txt and iceberg-build.properties..."
+echo $version > $projectdir/version.txt
+./gradlew generateGitProperties
+cp $projectdir/build/iceberg-build.properties $projectdir/iceberg-build.properties
 
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
