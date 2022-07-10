@@ -1012,10 +1012,12 @@ public class TableMetadata implements Serializable {
         return this;
       }
 
+      ValidationException.check(!schemas.isEmpty(), "Attempting to add a snapshot before a schema is added");
+      ValidationException.check(!specs.isEmpty(), "Attempting to add a snapshot before a partition spec is added");
+      ValidationException.check(!sortOrders.isEmpty(), "Attempting to add a snapshot before a sort order is added");
       ValidationException.check(!snapshotsById.containsKey(snapshot.snapshotId()),
           "Snapshot already exists for id: %s",
           snapshot.snapshotId());
-
       ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
           "Cannot add snapshot with sequence number %s older than last sequence number %s",
           snapshot.sequenceNumber(), lastSequenceNumber);
