@@ -118,10 +118,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   public FastAppend toBranch(String branch) {
     Preconditions.checkArgument(branch != null, "branch cannot be null");
     if (ops.current().ref(branch) == null) {
-      SnapshotRef branchRef = SnapshotRef.branchBuilder(ops.current().currentSnapshot().snapshotId()).build();
-      TableMetadata.Builder updatedBuilder = TableMetadata.buildFrom(ops.current());
-      updatedBuilder.setRef(branch, branchRef);
-      ops.commit(ops.current(), updatedBuilder.build());
+      super.createNewRef(branch);
     }
 
     Preconditions.checkArgument(ops.current().ref(branch).type().equals(SnapshotRefType.BRANCH),
@@ -141,8 +138,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public List<ManifestFile> apply(TableMetadata base) {
     List<ManifestFile> newManifests = Lists.newArrayList();
-    Snapshot current = base.ref(targetBranch()) != null ?
-        base.snapshot(base.ref(targetBranch()).snapshotId()) : base.currentSnapshot();
+    Snapshot current = base.ref(getTargetBranch()) != null ?
+        base.snapshot(base.ref(getTargetBranch()).snapshotId()) : base.currentSnapshot();
 
     try {
       ManifestFile manifest = writeManifest();

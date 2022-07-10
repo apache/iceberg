@@ -486,26 +486,42 @@ public class TestFastAppend extends TableTestBase {
         .appendFile(FILE_A)
         .commit();
 
-    Long currSnapshot = table.currentSnapshot().snapshotId();
-    table.manageSnapshots().createBranch("ref", table.currentSnapshot().snapshotId()).commit();
+    TableMetadata branchBase = readMetadata();
+    Long branchSnapshotStart = table.currentSnapshot().snapshotId();
 
     table.newFastAppend()
         .appendFile(FILE_C)
         .commit();
 
+    TableMetadata base = readMetadata();
+
     table.newFastAppend()
         .appendFile(FILE_D)
         .commit();
 
-    table.newFastAppend().toBranch("ref").appendFile(FILE_B).commit();
-    Snapshot branch = table.snapshot(table.ops().current().ref("ref").snapshotId());
-    Assert.assertEquals(currSnapshot, branch.parentId());
     Iterable<ManifestFile> allManifests = table.currentSnapshot().allManifests(table.io());
     Assert.assertEquals(3, Iterables.size(allManifests));
+    validateSnapshot(base.currentSnapshot(), table.currentSnapshot(), 3, FILE_D);
 
-    Snapshot branchSnapshot = table.ops().current().snapshot(table.ops().current().ref("ref").snapshotId());
-    Iterable<ManifestFile> branchManifests = branchSnapshot.allManifests(table.io());
+    table.manageSnapshots().createBranch("ref", branchSnapshotStart).commit();
+
+    table.newFastAppend()
+        .toBranch("ref")
+        .appendFile(FILE_B).commit();
+
+    Snapshot branchCurrentSnapshot = table.snapshot(table.ops().current().ref("ref").snapshotId());
+
+    Assert.assertEquals(branchSnapshotStart, branchCurrentSnapshot.parentId());
+    validateSnapshot(branchBase.currentSnapshot(), branchCurrentSnapshot, 4, FILE_B);
+
+    Iterable<ManifestFile> branchManifests = branchCurrentSnapshot.allManifests(table.io());
     Assert.assertEquals(2, Iterables.size(branchManifests));
+
+    TableMetadata newBase = readMetadata();
+    table.newFastAppend()
+        .appendFile(FILE_A2)
+        .commit();
+    validateSnapshot(newBase.currentSnapshot(), table.currentSnapshot(), 5, FILE_A2);
   }
 
   @Test(expected = IllegalArgumentException.class)
