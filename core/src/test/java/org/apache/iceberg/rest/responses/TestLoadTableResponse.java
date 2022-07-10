@@ -78,6 +78,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
         TableMetadata
             .buildFrom(
                 TableMetadata.newTableMetadata(SCHEMA_7, SPEC_5, SORT_ORDER_3, TEST_TABLE_LOCATION, TABLE_PROPS))
+            .discardChanges()
             .withMetadataLocation(TEST_METADATA_LOCATION)
             .build();
 
