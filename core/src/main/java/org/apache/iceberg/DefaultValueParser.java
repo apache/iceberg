@@ -76,9 +76,16 @@ public class DefaultValueParser {
             "Cannot parse default as a %s value: %s", type, defaultValue);
         return defaultValue.doubleValue();
       case DECIMAL:
-        Preconditions.checkArgument(defaultValue.isNumber(),
+        Preconditions.checkArgument(defaultValue.isTextual(),
             "Cannot parse default as a %s value: %s", type, defaultValue);
-        BigDecimal retDecimal = defaultValue.decimalValue();
+        BigDecimal retDecimal;
+        try {
+          retDecimal = new BigDecimal(defaultValue.textValue());
+        } catch (Exception e) {
+          throw new IllegalArgumentException(String.format(
+              "Cannot parse default as a %s value: %s",
+              type, defaultValue), e);
+        }
         Preconditions.checkArgument(
             retDecimal.scale() == ((Types.DecimalType) type).scale(),
             "Cannot parse default as a %s value: %s, the scale doesn't match", type, defaultValue);
@@ -308,7 +315,7 @@ public class DefaultValueParser {
             defaultValue instanceof BigDecimal &&
                 ((BigDecimal) defaultValue).scale() == ((Types.DecimalType) type).scale(),
             "Invalid default %s value: %s", type, defaultValue);
-        generator.writeNumber((BigDecimal) defaultValue);
+        generator.writeString(((BigDecimal) defaultValue).toPlainString());
         break;
       case LIST:
         Preconditions.checkArgument(defaultValue instanceof List, "Invalid default %s value: %s", type, defaultValue);

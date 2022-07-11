@@ -49,7 +49,7 @@ public class TestDefaultValueParser {
         {Types.UUIDType.get(), "\"eb26bdb1-a1d8-4aa6-990e-da940875492c\""},
         {Types.FixedType.ofLength(2), "\"111f\""},
         {Types.BinaryType.get(), "\"0000ff\""},
-        {Types.DecimalType.of(9, 2), "123.45"},
+        {Types.DecimalType.of(9, 4), "\"123.4500\""},
         {Types.ListType.ofOptional(1, Types.IntegerType.get()), "[1, 2, 3]"},
         {Types.MapType.ofOptional(2, 3, Types.IntegerType.get(), Types.StringType.get()),
          "{\"keys\": [1, 2], \"values\": [\"foo\", \"bar\"]}"},
@@ -136,7 +136,7 @@ public class TestDefaultValueParser {
   }
 
   // serialize to json and deserialize back should return the same result
-  private static String defaultValueParseAndUnParseRoundTrip(Type type, String defaultValue) throws IOException {
+  private static String defaultValueParseAndUnParseRoundTrip(Type type, String defaultValue) {
     Object javaDefaultValue = DefaultValueParser.fromJson(type, defaultValue);
     return DefaultValueParser.toJson(type, javaDefaultValue);
   }
