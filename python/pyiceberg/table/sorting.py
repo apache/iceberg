@@ -27,8 +27,7 @@ from typing import (
 
 from pydantic import Field, root_validator
 
-from pyiceberg.schema import Schema
-from pyiceberg.transforms import Transform, UnboundTransform
+from pyiceberg.transforms import Transform
 from pyiceberg.types import IcebergType
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -84,18 +83,6 @@ class SortField(IcebergBaseModel):
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
 
-    def bind(self, schema: Schema) -> "SortField":
-        return SortField(
-            source_id=self.source_id,
-            transform=(
-                self.transform.bind(schema.find_type(self.source_id))
-                if isinstance(self.transform, UnboundTransform)
-                else self.transform
-            ),
-            direction=self.direction,
-            null_order=self.null_order,
-        )
-
 
 class SortOrder(IcebergBaseModel):
     """Describes how the data is sorted within the table
@@ -118,15 +105,6 @@ class SortOrder(IcebergBaseModel):
 
     order_id: Optional[int] = Field(alias="order-id")
     fields: List[SortField] = Field(default_factory=list)
-
-    def bind(self, schema: Schema) -> "SortOrder":
-        """
-        Binds the sort order to the actual fields
-
-        Args:
-            schema: The schema of the table
-        """
-        return SortOrder(self.order_id, *[field.bind(schema) for field in self.fields])
 
 
 UNSORTED_SORT_ORDER_ID = 0

@@ -166,10 +166,6 @@ class TableMetadataCommonFields(IcebergBaseModel):
     sort_orders: List[SortOrder] = Field(alias="sort-orders", default_factory=list)
     """A list of sort orders, stored as full sort order objects."""
 
-    @property
-    def bound_sort_orders(self) -> List[SortOrder]:
-        return [sort_order.bind(self.current_schema()) for sort_order in self.sort_orders]
-
     default_sort_order_id: int = Field(alias="default-sort-order-id", default=UNSORTED_SORT_ORDER_ID)
     """Default sort order id of the table. Note that this could be used by
     writers, but is not used when reading because reads use the specs stored
