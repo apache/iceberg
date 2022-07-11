@@ -17,12 +17,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import (
-    Any,
-    Generic,
-    Tuple,
-    TypeVar,
-)
+from typing import Generic, Tuple, TypeVar
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
@@ -125,7 +120,7 @@ class BoundReference(BoundTerm[T], BaseReference[T]):
     field: NestedField
     accessor: Accessor
 
-    def eval(self, struct: StructProtocol) -> Any:
+    def eval(self, struct: StructProtocol) -> T:
         """Returns the value at the referenced field's position in an object that abides by the StructProtocol
         Args:
             struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
@@ -327,7 +322,7 @@ class In(UnboundPredicate[T]):
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
 
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn:
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn[T]:
         bound_ref = self.term.bind(schema, case_sensitive)
         return BoundIn(bound_ref, tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
 
@@ -433,9 +428,49 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
     return visitor.visit_and(left_result=left_result, right_result=right_result)
 
 
+@visit.register(In)
+def _(obj: In, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an In boolean expression with a concrete BooleanExpressionVisitor"""
+    return visitor.visit_unbound_predicate(predicate=obj)
+
+
 @visit.register(Or)
 def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an Or boolean expression with a concrete BooleanExpressionVisitor"""
     left_result: T = visit(obj.left, visitor=visitor)
     right_result: T = visit(obj.right, visitor=visitor)
     return visitor.visit_or(left_result=left_result, right_result=right_result)
+
+
+class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
+    """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema
+
+    Args:
+      schema (Schema): A schema to use when binding the expression
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+    """
+
+    def __init__(self, schema: Schema, case_sensitive: bool = True) -> None:
+        self._schema = schema
+        self._case_sensitive = case_sensitive
+
+    def visit_true(self) -> BooleanExpression:
+        return AlwaysTrue()
+
+    def visit_false(self) -> BooleanExpression:
+        return AlwaysFalse()
+
+    def visit_not(self, child_result: BooleanExpression) -> BooleanExpression:
+        return Not(child=child_result)
+
+    def visit_and(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return And(left=left_result, right=right_result)
+
+    def visit_or(self, left_result: BooleanExpression, right_result: BooleanExpression) -> BooleanExpression:
+        return Or(left=left_result, right=right_result)
+
+    def visit_unbound_predicate(self, predicate) -> BooleanExpression:
+        return predicate.bind(self._schema, case_sensitive=self._case_sensitive)
+
+    def visit_bound_predicate(self, predicate) -> BooleanExpression:
+        raise TypeError(f"Found already bound predicate: {predicate}")
