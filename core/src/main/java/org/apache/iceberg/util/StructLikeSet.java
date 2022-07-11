@@ -38,9 +38,11 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
   private final Types.StructType type;
   private final Set<StructLikeWrapper> wrapperSet;
   private final ThreadLocal<StructLikeWrapper> wrappers;
+  private final StructLikeWrapperFactory structLikeWrapperFactory;
 
   private StructLikeSet(Types.StructType type) {
     this.type = type;
+    this.structLikeWrapperFactory = new StructLikeWrapperFactory(type);
     this.wrapperSet = Sets.newHashSet();
     this.wrappers = ThreadLocal.withInitial(() -> StructLikeWrapper.forType(type));
   }
@@ -100,7 +102,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
 
   @Override
   public boolean add(StructLike struct) {
-    return wrapperSet.add(StructLikeWrapper.forType(type).set(struct));
+    return wrapperSet.add(structLikeWrapperFactory.generate().set(struct));
   }
 
   @Override
@@ -126,7 +128,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
   public boolean addAll(Collection<? extends StructLike> structs) {
     if (structs != null) {
       return Iterables.addAll(wrapperSet,
-          Iterables.transform(structs, struct -> StructLikeWrapper.forType(type).set(struct)));
+          Iterables.transform(structs, struct -> structLikeWrapperFactory.generate().set(struct)));
     }
     return false;
   }

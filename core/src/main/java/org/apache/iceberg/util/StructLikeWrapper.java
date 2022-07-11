@@ -45,6 +45,11 @@ public class StructLikeWrapper {
     this.hashCode = null;
   }
 
+  StructLikeWrapper(Comparator<StructLike> comparator, JavaHash<StructLike> structHash) {
+    this.comparator = comparator;
+    this.structHash = structHash;
+  }
+
   public StructLikeWrapper set(StructLike newStruct) {
     this.struct = newStruct;
     this.hashCode = null;
