@@ -396,12 +396,14 @@ class DeleteFileIndex {
           });
 
       // build a map from (specId, partition) to delete file entries
+      Map<Integer, StructLikeWrapper> wrappersBySpecId = Maps.newHashMap();
       ListMultimap<Pair<Integer, StructLikeWrapper>, ManifestEntry<DeleteFile>> deleteFilesByPartition =
           Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
       for (ManifestEntry<DeleteFile> entry : deleteEntries) {
         int specId = entry.file().specId();
-        StructLikeWrapper wrapper = StructLikeWrapper.forType(specsById.get(specId).partitionType())
-            .set(entry.file().partition());
+        StructLikeWrapper wrapper = wrappersBySpecId
+            .computeIfAbsent(specId, id -> StructLikeWrapper.forType(specsById.get(id).partitionType()))
+            .copyFor(entry.file().partition());
         deleteFilesByPartition.put(Pair.of(specId, wrapper), entry);
       }
 
