@@ -22,6 +22,8 @@ package org.apache.iceberg.rest;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -32,13 +34,25 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 public class HTTPClientFactory implements Function<Map<String, String>, RESTClient> {
 
+  @VisibleForTesting
+  static final String CLIENT_VERSION_HEADER = "X-Client-Version";
+  @VisibleForTesting
+  static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
+
   @Override
   public RESTClient apply(Map<String, String> properties) {
     Preconditions.checkArgument(properties != null, "Invalid configuration: null");
     Preconditions.checkArgument(properties.containsKey(CatalogProperties.URI), "REST Catalog server URI is required");
 
     String baseURI = properties.get(CatalogProperties.URI).trim();
+    String clientVersion = IcebergBuild.fullVersion();
+    String gitCommitShortId = IcebergBuild.gitCommitShortId();
 
-    return HTTPClient.builder().uri(baseURI).build();
+    return HTTPClient
+        .builder()
+        .withHeader(CLIENT_VERSION_HEADER, clientVersion)
+        .withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, gitCommitShortId)
+        .uri(baseURI)
+        .build();
   }
 }
