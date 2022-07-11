@@ -42,7 +42,11 @@ public class InternalRecordWrapper implements StructLike {
         .toArray(length -> (Function<Object, Object>[]) Array.newInstance(Function.class, length));
   }
 
-  private static Function<Object, Object> converter(Type type) {
+  InternalRecordWrapper(Function<Object, Object>[] transforms) {
+    this.transforms = transforms;
+  }
+
+  public static Function<Object, Object> converter(Type type) {
     switch (type.typeId()) {
       case DATE:
         return date -> DateTimeUtil.daysFromDate((LocalDate) date);

@@ -158,9 +158,11 @@ public abstract class DeleteFilter<T> {
       CloseableIterable<Record> records = CloseableIterable.transform(
           CloseableIterable.concat(deleteRecords), Record::copy);
 
+      InternalRecordWrapperFactory internalRecordWrapperFactory =
+              new InternalRecordWrapperFactory(deleteSchema.asStruct());
       StructLikeSet deleteSet = Deletes.toEqualitySet(
           CloseableIterable.transform(
-              records, record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
+              records, record -> internalRecordWrapperFactory.generate().wrap(record)),
           deleteSchema.asStruct());
 
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
