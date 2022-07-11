@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=keyword-arg-before-vararg
-
 from enum import Enum
 from typing import (
     Any,
@@ -45,18 +44,15 @@ class NullOrder(Enum):
 
 
 class SortField(IcebergBaseModel):
-    """A field that provides information on how the table is sorted
+    """Sort order field
 
     Args:
       source_id (int): Source column id from the table’s schema
       transform (str): Transform that is used to produce values to be sorted on from the source column.
                        This is the same transform as described in partition transforms.
-      source_id (SortDirection): Sort direction, that can only be either asc or desc
-      source_id (NullOrder): Null order that describes the order of null values when sorted. Can only be either nulls-first or nulls-last
+      direction (SortDirection): Sort direction, that can only be either asc or desc
+      null_order (NullOrder): Null order that describes the order of null values when sorted. Can only be either nulls-first or nulls-last
     """
-
-    class Config:
-        frozen = False
 
     def __init__(
         self,
@@ -88,11 +84,16 @@ class SortField(IcebergBaseModel):
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
 
-    def bind(self, schema: Schema):
-        self.transform = (
-            self.transform.bind(schema.find_type(self.source_id))
-            if isinstance(self.transform, UnboundTransform)
-            else self.transform
+    def bind(self, schema: Schema) -> "SortField":
+        return SortField(
+            source_id=self.source_id,
+            transform=(
+                self.transform.bind(schema.find_type(self.source_id))
+                if isinstance(self.transform, UnboundTransform)
+                else self.transform
+            ),
+            direction=self.direction,
+            null_order=self.null_order,
         )
 
 
@@ -118,15 +119,14 @@ class SortOrder(IcebergBaseModel):
     order_id: Optional[int] = Field(alias="order-id")
     fields: List[SortField] = Field(default_factory=list)
 
-    def bind(self, schema: Schema):
+    def bind(self, schema: Schema) -> "SortOrder":
         """
         Binds the sort order to the actual fields
 
         Args:
             schema: The schema of the table
         """
-        for field in self.fields:
-            field.bind(schema)
+        return SortOrder(self.order_id, *[field.bind(schema) for field in self.fields])
 
 
 UNSORTED_SORT_ORDER_ID = 0

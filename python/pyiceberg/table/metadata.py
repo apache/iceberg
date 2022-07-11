@@ -96,14 +96,6 @@ class TableMetadataCommonFields(IcebergBaseModel):
             data["refs"] = {MAIN_BRANCH: SnapshotRef(snapshot_id=current_snapshot_id, snapshot_ref_type=SnapshotRefType.BRANCH)}
         return data
 
-    def bind(self):
-        """Binds the schema to various objects within the structure,
-        such as sort order, partition spec etc.
-        """
-        current_schema = self.current_schema()
-        for sort_order in self.sort_orders:
-            sort_order.bind(current_schema)
-
     location: str = Field()
     """The table’s base location. This is used by writers to determine where
     to store data files, manifest files, and table metadata files."""
@@ -173,6 +165,10 @@ class TableMetadataCommonFields(IcebergBaseModel):
 
     sort_orders: List[SortOrder] = Field(alias="sort-orders", default_factory=list)
     """A list of sort orders, stored as full sort order objects."""
+
+    @property
+    def bound_sort_orders(self) -> List[SortOrder]:
+        return [sort_order.bind(self.current_schema()) for sort_order in self.sort_orders]
 
     default_sort_order_id: int = Field(alias="default-sort-order-id", default=UNSORTED_SORT_ORDER_ID)
     """Default sort order id of the table. Note that this could be used by

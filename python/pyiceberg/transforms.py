@@ -52,6 +52,7 @@ from pyiceberg.types import (
 from pyiceberg.utils import datetime
 from pyiceberg.utils.decimal import decimal_to_bytes, truncate_decimal
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
 
 S = TypeVar("S")
@@ -59,6 +60,14 @@ T = TypeVar("T")
 
 BUCKET_REGEX = re.compile(r"bucket\[(\d+)\]")
 TRUNCATE_REGEX = re.compile(r"truncate\[(\d+)\]")
+
+IDENTITY = "identity"
+VOID = "void"
+BUCKET = "bucket"
+TRUNCATE = "truncate"
+
+BUCKET_PARSER = ParseNumberFromBrackets(BUCKET)
+TRUNCATE_PARSER = ParseNumberFromBrackets(TRUNCATE)
 
 
 class Transform(IcebergBaseModel, ABC, Generic[S, T]):
@@ -82,14 +91,14 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
         # When Pydantic is unable to determine the subtype
         # In this case we'll help pydantic a bit by parsing the transform type ourselves
         if isinstance(v, str):
-            if v == "identity":
+            if v == IDENTITY:
                 bind_func = identity
-            elif v == "void":
+            elif v == VOID:
                 bind_func = always_null  # type: ignore
-            elif v.startswith("bucket"):
-                bind_func = functools.partial(bucket, num_buckets=BaseBucketTransform.parse(v))
-            elif v.startswith("truncate"):
-                bind_func = functools.partial(truncate, width=TruncateTransform.parse(v))
+            elif v.startswith(BUCKET):
+                bind_func = functools.partial(bucket, num_buckets=BUCKET_PARSER.match(v))
+            elif v.startswith(TRUNCATE):
+                bind_func = functools.partial(truncate, width=TRUNCATE_PARSER.match(v))
             else:
                 bind_func = functools.partial(unknown, transform=v)
             return UnboundTransform(v, bind_func)
@@ -171,13 +180,6 @@ class BaseBucketTransform(Transform[S, int]):
       TimestampType, TimestamptzType, StringType, BinaryType, FixedType, UUIDType.
       num_buckets (int): The number of buckets.
     """
-
-    @staticmethod
-    def parse(str_repr: str) -> int:
-        matches = BUCKET_REGEX.search(str_repr)
-        if matches:
-            return int(matches.group(1))
-        raise ValueError(f"Could not extract the length from the Bucket transform: {str_repr}")
 
     _source_type: IcebergType = PrivateAttr()
     _num_buckets: PositiveInt = PrivateAttr()
@@ -351,13 +353,6 @@ class TruncateTransform(Transform[S, S]):
     Raises:
       ValueError: If a type is provided that is incompatible with a Truncate transform
     """
-
-    @staticmethod
-    def parse(str_repr: str) -> int:
-        matches = TRUNCATE_REGEX.search(str_repr)
-        if matches:
-            return int(matches.group(1))
-        raise ValueError(f"Could not extract the length from the Truncate transform: {str_repr}")
 
     __root__: str = Field()
     _source_type: IcebergType = PrivateAttr()

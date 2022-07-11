@@ -58,7 +58,7 @@ def test_deserialize_sort_order():
 def test_sorting_schema_bind():
     table_metadata = TableMetadata.parse_obj(EXAMPLE_TABLE_METADATA_V2)
 
-    assert table_metadata.sort_orders == [
+    assert table_metadata.bound_sort_orders == [
         SortOrder(
             3,
             SortField(2, UnboundTransform("identity", transforms.identity), SortDirection.ASC, NullOrder.NULLS_FIRST),
@@ -66,9 +66,7 @@ def test_sorting_schema_bind():
         )
     ]
 
-    table_metadata.bind()
-
-    assert table_metadata.sort_orders == [
+    assert table_metadata.bound_sort_orders == [
         SortOrder(
             3,
             SortField(2, transforms.identity(source_type=LongType()), SortDirection.ASC, null_order=NullOrder.NULLS_FIRST),
