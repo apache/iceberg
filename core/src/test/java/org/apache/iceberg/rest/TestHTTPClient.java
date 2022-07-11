@@ -28,6 +28,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
@@ -53,13 +55,17 @@ public class TestHTTPClient {
   private static final String URI = String.format("http://127.0.0.1:%d", PORT);
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
+  private static String icebergBuildGitCommitShort;
+  private static String icebergBuildFullVersion;
   private static ClientAndServer mockServer;
   private static RESTClient restClient;
 
   @BeforeClass
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
-    restClient = HTTPClient.builder().uri(URI).build();
+    restClient = new HTTPClientFactory().apply(ImmutableMap.of(CatalogProperties.URI, URI));
+    icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
+    icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
 
   @AfterClass
@@ -166,7 +172,9 @@ public class TestHTTPClient {
     String asJson = body != null ? MAPPER.writeValueAsString(body) : null;
     HttpRequest mockRequest = request("/" + path)
         .withMethod(method.name().toUpperCase(Locale.ROOT))
-        .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
+        .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN)
+        .withHeader(HTTPClientFactory.CLIENT_VERSION_HEADER, icebergBuildFullVersion)
+        .withHeader(HTTPClientFactory.CLIENT_GIT_COMMIT_SHORT_HEADER, icebergBuildGitCommitShort);
 
     if (method.usesRequestBody()) {
       mockRequest = mockRequest.withBody(asJson);
