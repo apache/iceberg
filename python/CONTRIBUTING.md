@@ -83,3 +83,5 @@ make test PYTEST_ARGS="-v"
 ```sh
 make test PYTEST_ARGS="--pdb"
 ```
+
+To see all available pytest arguments, run `make test PYTEST_ARGS="--help"`.
