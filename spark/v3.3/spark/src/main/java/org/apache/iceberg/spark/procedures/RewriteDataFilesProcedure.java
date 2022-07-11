@@ -19,19 +19,22 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.expressions.NamedReference;
+import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
-import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering;
-import org.apache.spark.sql.catalyst.plans.logical.SortOrderParserUtil;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -96,12 +99,9 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
       String strategy = args.isNullAt(1) ? null : args.getString(1);
       String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
-      SortOrder sortOrder = null;
-      if (sortOrderString != null) {
-        sortOrder = collectSortOrders(table, sortOrderString);
-      }
-      if (strategy != null || sortOrder != null) {
-        action = checkAndApplyStrategy(action, strategy, sortOrder);
+
+      if (strategy != null || sortOrderString != null) {
+        action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
       }
 
       if (!args.isNullAt(3)) {
@@ -140,36 +140,53 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return action.options(options);
   }
 
-  private RewriteDataFiles checkAndApplyStrategy(RewriteDataFiles action, String strategy, SortOrder sortOrder) {
+  private RewriteDataFiles checkAndApplyStrategy(RewriteDataFiles action, String strategy, String sortOrderString,
+                                                 Schema schema) {
+    List<Zorder> zOrderTerms = Lists.newArrayList();
+    List<ExtendedParser.RawOrderField> sortOrderFields = Lists.newArrayList();
+    if (sortOrderString != null) {
+      ExtendedParser.parseSortOrder(spark(), sortOrderString).forEach(field -> {
+        if (field.term() instanceof Zorder) {
+          zOrderTerms.add((Zorder) field.term());
+        } else {
+          sortOrderFields.add(field);
+        }
+      });
+
+      if (!zOrderTerms.isEmpty() && !sortOrderFields.isEmpty()) {
+        // TODO: we need to allow this in future when SparkAction has handling for this.
+        throw new IllegalArgumentException(
+            "Cannot mix identity sort columns and a Zorder sort expression: " + sortOrderString);
+      }
+    }
+
     // caller of this function ensures that between strategy and sortOrder, at least one of them is not null.
     if (strategy == null || strategy.equalsIgnoreCase("sort")) {
-      return action.sort(sortOrder);
+      if (!zOrderTerms.isEmpty()) {
+        String[] columnNames = zOrderTerms.stream().flatMap(
+            zOrder -> zOrder.refs().stream().map(NamedReference::name)).toArray(String[]::new);
+        return action.zOrder(columnNames);
+      } else {
+        return action.sort(buildSortOrder(sortOrderFields, schema));
+      }
     }
     if (strategy.equalsIgnoreCase("binpack")) {
       RewriteDataFiles rewriteDataFiles = action.binPack();
-      if (sortOrder != null) {
+      if (sortOrderString != null) {
         // calling below method to throw the error as user has set both binpack strategy and sort order
-        return rewriteDataFiles.sort(sortOrder);
+        return rewriteDataFiles.sort(buildSortOrder(sortOrderFields, schema));
       }
       return rewriteDataFiles;
     } else {
-      throw new IllegalArgumentException("unsupported strategy: " + strategy + ". Only binpack,sort is supported");
+      throw new IllegalArgumentException(
+          "unsupported strategy: " + strategy + ". Only binpack or sort is supported");
     }
   }
 
-  private SortOrder collectSortOrders(Table table, String sortOrderStr) {
-    String prefix = "ALTER TABLE temp WRITE ORDERED BY ";
-    try {
-      // Note: Reusing the existing Iceberg sql parser to avoid implementing the custom parser for sort orders.
-      // To reuse the existing parser, adding a prefix of "ALTER TABLE temp WRITE ORDERED BY"
-      // along with input sort order and parsing it as a plan to collect the sortOrder.
-      LogicalPlan logicalPlan = spark().sessionState().sqlParser().parsePlan(prefix + sortOrderStr);
-      return (new SortOrderParserUtil()).collectSortOrder(
-          table.schema(),
-          ((SetWriteDistributionAndOrdering) logicalPlan).sortOrder());
-    } catch (AnalysisException ex) {
-      throw new IllegalArgumentException("Unable to parse sortOrder: " + sortOrderStr);
-    }
+  private SortOrder buildSortOrder(List<ExtendedParser.RawOrderField> rawOrderFields, Schema schema) {
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+    rawOrderFields.forEach(rawField -> builder.sortBy(rawField.term(), rawField.direction(), rawField.nullOrder()));
+    return builder.build();
   }
 
   private InternalRow[] toOutputRows(RewriteDataFiles.Result result) {
