@@ -186,7 +186,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "1", "1", "1");
     } else {
-      validateMergeOnRead(currentSnapshot, "1", "1", null);
+      validateMergeOnRead(currentSnapshot, "1", "1", "0");
     }
 
     assertEquals("Should have expected rows",
@@ -208,12 +208,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Snapshot currentSnapshot = table.currentSnapshot();
 
     if (fileFormat.equals("orc") || fileFormat.equals("parquet")) {
-      validateDelete(currentSnapshot, "0", null);
+      validateDelete(currentSnapshot, "0", "0");
     } else {
       if (mode(table) == COPY_ON_WRITE) {
-        validateCopyOnWrite(currentSnapshot, "0", null, null);
+        validateCopyOnWrite(currentSnapshot, "0", "0", "0");
       } else {
-        validateMergeOnRead(currentSnapshot, "0", null, null);
+        validateMergeOnRead(currentSnapshot, "0", "0", "0");
       }
     }
 
@@ -283,9 +283,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     // should be an overwrite since cannot be executed using a metadata operation
     Snapshot currentSnapshot = table.currentSnapshot();
     if (mode(table) == COPY_ON_WRITE) {
-      validateCopyOnWrite(currentSnapshot, "1", "1", null);
+      validateCopyOnWrite(currentSnapshot, "1", "1", "0");
     } else {
-      validateMergeOnRead(currentSnapshot, "1", "1", null);
+      validateMergeOnRead(currentSnapshot, "1", "1", "0");
     }
 
     assertEquals("Should have expected rows",
@@ -794,7 +794,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "2", "2", "2");
     } else {
-      validateMergeOnRead(currentSnapshot, "2", "2", null);
+      validateMergeOnRead(currentSnapshot, "2", "2", "0");
     }
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(3, "hr")),
@@ -838,7 +838,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       // that's why the number of changed partitions is 4 for copy-on-write
       validateCopyOnWrite(currentSnapshot, "4", "4", "1");
     } else {
-      validateMergeOnRead(currentSnapshot, "3", "3", null);
+      validateMergeOnRead(currentSnapshot, "3", "3", "0");
     }
 
     assertEquals("Should have expected rows",

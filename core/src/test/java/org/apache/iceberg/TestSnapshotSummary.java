@@ -46,7 +46,7 @@ public class TestSnapshotSummary extends TableTestBase {
         .commit();
     Map<String, String> summary = table.currentSnapshot().summary();
     Assert.assertEquals("10", summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
-    Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
+    Assert.assertEquals("0", summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
     Assert.assertEquals("10", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
 
     // merge append
@@ -55,7 +55,7 @@ public class TestSnapshotSummary extends TableTestBase {
         .commit();
     summary = table.currentSnapshot().summary();
     Assert.assertEquals("10", summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
-    Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
+    Assert.assertEquals("0", summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
     Assert.assertEquals("20", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
 
     table.newOverwrite()
@@ -75,7 +75,7 @@ public class TestSnapshotSummary extends TableTestBase {
         .deleteFile(FILE_D)
         .commit();
     summary = table.currentSnapshot().summary();
-    Assert.assertNull(summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
+    Assert.assertEquals("0", summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
     Assert.assertEquals("20", summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
     Assert.assertEquals("10", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
   }

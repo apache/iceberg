@@ -153,7 +153,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "0", null, null);
+    validateSnapshot(currentSnapshot, "overwrite", "0", "0", "0");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
@@ -175,7 +175,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // should be a delete instead of an overwrite as it is done through a metadata operation
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "delete", "2", "3", null);
+    validateSnapshot(currentSnapshot, "delete", "2", "3", "0");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(),
@@ -197,7 +197,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // should be a delete instead of an overwrite as it is done through a metadata operation
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "delete", "2", "2", null);
+    validateSnapshot(currentSnapshot, "delete", "2", "2", "0");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "dep1")),
@@ -220,7 +220,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // should be an overwrite since cannot be executed using a metadata operation
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "overwrite", "1", "1", null);
+    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "0");
 
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(null, "hr")),
@@ -301,7 +301,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     Snapshot currentSnapshot = table.currentSnapshot();
-    validateSnapshot(currentSnapshot, "delete", "1", "1", null);
+    validateSnapshot(currentSnapshot, "delete", "1", "1", "0");
   }
 
   @Test

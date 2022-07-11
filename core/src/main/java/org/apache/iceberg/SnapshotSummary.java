@@ -185,9 +185,9 @@ public class SnapshotSummary {
       builder.putAll(properties);
 
       metrics.addTo(builder);
-      setIf(deletedDuplicateFiles > 0, builder, DELETED_DUPLICATE_FILES, deletedDuplicateFiles);
+      builder.put(DELETED_DUPLICATE_FILES, String.valueOf(deletedDuplicateFiles));
       Set<String> changedPartitions = partitionMetrics.keySet();
-      setIf(trustPartitionMetrics, builder, CHANGED_PARTITION_COUNT_PROP, changedPartitions.size());
+      builder.put(CHANGED_PARTITION_COUNT_PROP, String.valueOf(changedPartitions.size()));
 
       if (trustPartitionMetrics && changedPartitions.size() <= maxChangedPartitionsForSummaries) {
         setIf(changedPartitions.size() > 0, builder, PARTITION_SUMMARY_PROP, "true");
@@ -246,24 +246,24 @@ public class SnapshotSummary {
     }
 
     void addTo(ImmutableMap.Builder<String, String> builder) {
-      setIf(addedFiles > 0, builder, ADDED_FILES_PROP, addedFiles);
-      setIf(removedFiles > 0, builder, DELETED_FILES_PROP, removedFiles);
-      setIf(addedEqDeleteFiles > 0, builder, ADD_EQ_DELETE_FILES_PROP, addedEqDeleteFiles);
-      setIf(removedEqDeleteFiles > 0, builder, REMOVED_EQ_DELETE_FILES_PROP, removedEqDeleteFiles);
-      setIf(addedPosDeleteFiles > 0, builder, ADD_POS_DELETE_FILES_PROP, addedPosDeleteFiles);
-      setIf(removedPosDeleteFiles > 0, builder, REMOVED_POS_DELETE_FILES_PROP, removedPosDeleteFiles);
-      setIf(addedDeleteFiles > 0, builder, ADDED_DELETE_FILES_PROP, addedDeleteFiles);
-      setIf(removedDeleteFiles > 0, builder, REMOVED_DELETE_FILES_PROP, removedDeleteFiles);
-      setIf(addedRecords > 0, builder, ADDED_RECORDS_PROP, addedRecords);
-      setIf(deletedRecords > 0, builder, DELETED_RECORDS_PROP, deletedRecords);
+      builder.put(ADDED_FILES_PROP, String.valueOf(addedFiles));
+      builder.put(DELETED_FILES_PROP, String.valueOf(removedFiles));
+      builder.put(ADD_EQ_DELETE_FILES_PROP, String.valueOf(addedEqDeleteFiles));
+      builder.put(REMOVED_EQ_DELETE_FILES_PROP, String.valueOf(removedEqDeleteFiles));
+      builder.put(ADD_POS_DELETE_FILES_PROP, String.valueOf(addedPosDeleteFiles));
+      builder.put(REMOVED_POS_DELETE_FILES_PROP, String.valueOf(removedPosDeleteFiles));
+      builder.put(ADDED_DELETE_FILES_PROP, String.valueOf(addedDeleteFiles));
+      builder.put(REMOVED_DELETE_FILES_PROP, String.valueOf(removedDeleteFiles));
+      builder.put(ADDED_RECORDS_PROP, String.valueOf(addedRecords));
+      builder.put(DELETED_RECORDS_PROP, String.valueOf(deletedRecords));
 
       if (trustSizeAndDeleteCounts) {
-        setIf(addedSize > 0, builder, ADDED_FILE_SIZE_PROP, addedSize);
-        setIf(removedSize > 0, builder, REMOVED_FILE_SIZE_PROP, removedSize);
-        setIf(addedPosDeletes > 0, builder, ADDED_POS_DELETES_PROP, addedPosDeletes);
-        setIf(removedPosDeletes > 0, builder, REMOVED_POS_DELETES_PROP, removedPosDeletes);
-        setIf(addedEqDeletes > 0, builder, ADDED_EQ_DELETES_PROP, addedEqDeletes);
-        setIf(removedEqDeletes > 0, builder, REMOVED_EQ_DELETES_PROP, removedEqDeletes);
+        builder.put(ADDED_FILE_SIZE_PROP, String.valueOf(addedSize));
+        builder.put(REMOVED_FILE_SIZE_PROP, String.valueOf(removedSize));
+        builder.put(ADDED_POS_DELETES_PROP, String.valueOf(addedPosDeletes));
+        builder.put(REMOVED_POS_DELETES_PROP, String.valueOf(removedPosDeletes));
+        builder.put(ADDED_EQ_DELETES_PROP, String.valueOf(addedEqDeletes));
+        builder.put(REMOVED_EQ_DELETES_PROP, String.valueOf(removedEqDeletes));
       }
     }
 
