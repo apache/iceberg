@@ -224,6 +224,7 @@ project(':iceberg-api') {
     testImplementation "org.apache.avro:avro"
   }
 
+  tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
   tasks.test.dependsOn rootProject.tasks.buildInfo
 
   sourceSets {
