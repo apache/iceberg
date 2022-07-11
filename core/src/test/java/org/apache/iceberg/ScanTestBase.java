@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.Executors;
@@ -28,6 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -36,7 +38,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
-public abstract class ScanTestBase<T extends Scan<T>> extends TableTestBase {
+public abstract class ScanTestBase<T extends Scan<T, FileScanTask, CombinedScanTask>> extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
     return new Object[] { 1, 2 };
@@ -132,5 +134,64 @@ public abstract class ScanTestBase<T extends Scan<T>> extends TableTestBase {
         }));
     Assert.assertEquals(2, Iterables.size(scan.planFiles()));
     Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+  }
+
+  @Test
+  public void testReAddingPartitionField() throws Exception {
+    Assume.assumeTrue(formatVersion == 2);
+    Schema schema = new Schema(
+        required(1, "a", Types.IntegerType.get()),
+        required(2, "b", Types.StringType.get()),
+        required(3, "data", Types.IntegerType.get())
+    );
+    PartitionSpec initialSpec = PartitionSpec.builderFor(schema).identity("a").build();
+    File dir = temp.newFolder();
+    dir.delete();
+    this.table = TestTables.create(dir, "test_part_evolution", schema, initialSpec, formatVersion);
+    table.newFastAppend().appendFile(DataFiles.builder(initialSpec)
+        .withPath("/path/to/data/a.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("a=1")
+        .withRecordCount(1)
+        .build()).commit();
+
+    table.updateSpec().addField("b").removeField("a").commit();
+    table.newFastAppend().appendFile(DataFiles.builder(table.spec())
+        .withPath("/path/to/data/b.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("b=1")
+        .withRecordCount(1)
+        .build()).commit();
+
+    table.updateSpec().addField("a").commit();
+    table.newFastAppend().appendFile(DataFiles.builder(table.spec())
+        .withPath("/path/to/data/ab.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("b=1/a=1")
+        .withRecordCount(1)
+        .build()).commit();
+
+    table.newFastAppend().appendFile(DataFiles.builder(table.spec())
+        .withPath("/path/to/data/a2b.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("b=1/a=2")
+        .withRecordCount(1)
+        .build()).commit();
+
+    TableScan scan1 = table.newScan().filter(Expressions.equal("b", "1"));
+    try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
+      Assert.assertTrue("There should be 1 combined task", Iterables.size(tasks) == 1);
+      for (CombinedScanTask combinedScanTask : tasks) {
+        Assert.assertEquals("All 4 files should match b=1 filter", 4, combinedScanTask.files().size());
+      }
+    }
+
+    TableScan scan2 = table.newScan().filter(Expressions.equal("a", 2));
+    try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
+      Assert.assertTrue("There should be 1 combined task", Iterables.size(tasks) == 1);
+      for (CombinedScanTask combinedScanTask : tasks) {
+        Assert.assertEquals("a=2 and file without a in spec should match", 2, combinedScanTask.files().size());
+      }
+    }
   }
 }

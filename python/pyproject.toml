@@ -16,7 +16,7 @@
 # under the License.
 
 [tool.poetry]
-name = "apache-iceberg"
+name = "pyiceberg"
 version = "0.0.1rc1"
 readme = "README.md"
 homepage = "https://iceberg.apache.org/"
@@ -34,19 +34,25 @@ classifiers = [
 ]
 
 packages = [
-    { include = "iceberg", from = "src" },
+    { include = "pyiceberg" },
 ]
 
 [tool.poetry.dependencies]
 python = "^3.8"
 mmh3 = "^3.0.0"
+pydantic = "^1.9.1"
 
 pyarrow = { version = "^8.0.0", optional = true }
+
+zstandard = { version = "^0.17.0", optional = true }
+
+python-snappy = { version = "^0.6.1", optional = true }
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
 pytest-checkdocs = "^2.0.0"
 pre-commit = "^2.0.0"
+fastavro = "^1.5.1"
 coverage = { version = "^6.0.0", extras = ["toml"] }
 
 [build-system]
@@ -55,13 +61,15 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.extras]
 pyarrow = ["pyarrow"]
+snappy = ["python-snappy"]
+python-snappy = ["zstandard"]
 
 [tool.black]
 line-length = 130
 target-version = ['py38']
 
 [tool.isort]
-src_paths = ["src/", "tests/"]
+src_paths = ["pyiceberg/", "tests/"]
 multi_line_output = 3
 profile = 'black'
 line_length = 130
@@ -76,8 +84,32 @@ warn_redundant_casts = true
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = "mypy-pyarrow.*"
+module = "pyarrow.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "snappy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "zstandard.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pydantic.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pytest.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "fastavro.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mmh3.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]
-source = ['src/']
+source = ['pyiceberg/']

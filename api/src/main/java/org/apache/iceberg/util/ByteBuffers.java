@@ -51,7 +51,7 @@ public class ByteBuffers {
     Preconditions.checkArgument(reuse.hasArray(), "Cannot reuse a buffer not backed by an array");
     Preconditions.checkArgument(reuse.arrayOffset() == 0, "Cannot reuse a buffer whose array offset is not 0");
     Preconditions.checkArgument(reuse.capacity() == length,
-        "Canout use a buffer whose capacity (%s) is not equal to the requested length (%s)", length, reuse.capacity());
+        "Cannot use a buffer whose capacity (%s) is not equal to the requested length (%s)", length, reuse.capacity());
     reuse.position(0);
     reuse.limit(length);
     return reuse;

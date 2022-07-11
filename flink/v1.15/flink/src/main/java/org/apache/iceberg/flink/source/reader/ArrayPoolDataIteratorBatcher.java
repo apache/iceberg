@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
-import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.SourceReaderOptions;
 import org.apache.flink.connector.file.src.util.Pool;
@@ -40,9 +40,9 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
 
   private transient Pool<T[]> pool;
 
-  ArrayPoolDataIteratorBatcher(Configuration config, RecordFactory<T> recordFactory) {
-    this.batchSize = config.getInteger(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT);
-    this.handoverQueueSize = config.getInteger(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY);
+  ArrayPoolDataIteratorBatcher(ReadableConfig config, RecordFactory<T> recordFactory) {
+    this.batchSize = config.get(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT);
+    this.handoverQueueSize = config.get(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY);
     this.recordFactory = recordFactory;
   }
 

@@ -50,8 +50,8 @@ Next we'll create a source distribution (`sdist`) which will generate a `.tar.gz
 # Update the version
 poetry version ${VERSION}
 
-git diff src/iceberg/__init__.py
-git add src/iceberg/__init__.py
+git diff pyiceberg/__init__.py
+git add pyiceberg/__init__.py
 git commit -s -m "Set to version ${VERSION}"
 ```
 

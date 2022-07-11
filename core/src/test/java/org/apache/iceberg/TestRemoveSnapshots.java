@@ -907,7 +907,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB.addedFiles(table.io()).forEach(i -> {
+    snapshotB.addedDataFiles(table.io()).forEach(i -> {
       expectedDeletes.add(i.path().toString());
     });
 
@@ -982,7 +982,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the B, C, D snapshot
     Lists.newArrayList(snapshotB, snapshotC, snapshotD).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1035,7 +1035,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the staged snapshot
     Lists.newArrayList(snapshotB).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1048,7 +1048,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // Make sure no dataFiles are deleted for the staged and cherry-pick
     Lists.newArrayList(snapshotB, snapshotD).forEach(i -> {
-      i.addedFiles(table.io()).forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -1358,6 +1358,82 @@ public class TestRemoveSnapshots extends TableTestBase {
         .commit();
 
     Assert.assertEquals(2, table.ops().current().snapshots().size());
+  }
+
+  @Test
+  public void testUnreferencedSnapshotParentOfTag() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    long initialSnapshotId = table.currentSnapshot().snapshotId();
+
+    // this will be expired because it is still unreferenced with a tag on its child snapshot
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    long expiredSnapshotId = table.currentSnapshot().snapshotId();
+
+    long expireTimestampSnapshotB = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    waitUntilAfter(expireTimestampSnapshotB);
+
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    // create a tag that references the current history and rewrite main to point to the initial snapshot
+    table.manageSnapshots()
+        .createTag("tag", table.currentSnapshot().snapshotId())
+        .replaceBranch("main", initialSnapshotId)
+        .commit();
+
+    table.expireSnapshots()
+        .expireOlderThan(expireTimestampSnapshotB)
+        .cleanExpiredFiles(false)
+        .commit();
+
+    Assert.assertNull("Should remove unreferenced snapshot beneath a tag", table.snapshot(expiredSnapshotId));
+    Assert.assertEquals(2, table.ops().current().snapshots().size());
+  }
+
+  @Test
+  public void testSnapshotParentOfBranchNotUnreferenced() {
+    // similar to testUnreferencedSnapshotParentOfTag, but checks that branch history is not considered unreferenced
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    long initialSnapshotId = table.currentSnapshot().snapshotId();
+
+    // this will be expired because it is still unreferenced with a tag on its child snapshot
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    long expireTimestampSnapshotB = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    waitUntilAfter(expireTimestampSnapshotB);
+
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    // create a branch that references the current history and rewrite main to point to the initial snapshot
+    table.manageSnapshots()
+        .createBranch("branch", table.currentSnapshot().snapshotId())
+        .setMaxSnapshotAgeMs("branch", Long.MAX_VALUE)
+        .replaceBranch("main", initialSnapshotId)
+        .commit();
+
+    table.expireSnapshots()
+        .expireOlderThan(expireTimestampSnapshotB)
+        .cleanExpiredFiles(false)
+        .commit();
+
+    Assert.assertNotNull("Should not remove snapshot beneath a branch", table.snapshot(snapshotId));
+    Assert.assertEquals(3, table.ops().current().snapshots().size());
   }
 
   // ToDo: Add tests which commit to branches once committing snapshots to a branch is supported

@@ -273,8 +273,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   private Set<Long> unreferencedSnapshotsToRetain(Collection<SnapshotRef> refs) {
     Set<Long> referencedSnapshots = Sets.newHashSet();
     for (SnapshotRef ref : refs) {
-      for (Snapshot snapshot : SnapshotUtil.ancestorsOf(ref.snapshotId(), base::snapshot)) {
-        referencedSnapshots.add(snapshot.snapshotId());
+      if (ref.isBranch()) {
+        for (Snapshot snapshot : SnapshotUtil.ancestorsOf(ref.snapshotId(), base::snapshot)) {
+          referencedSnapshots.add(snapshot.snapshotId());
+        }
+      } else {
+        referencedSnapshots.add(ref.snapshotId());
       }
     }
 
@@ -559,7 +563,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   private static final Schema MANIFEST_PROJECTION = ManifestFile.schema()
-      .select("manifest_path", "added_snapshot_id", "deleted_data_files_count");
+      .select("manifest_path", "manifest_length", "added_snapshot_id", "deleted_data_files_count");
 
   private CloseableIterable<ManifestFile> readManifestFiles(Snapshot snapshot) {
     if (snapshot.manifestListLocation() != null) {

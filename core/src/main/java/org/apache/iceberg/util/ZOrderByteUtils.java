@@ -123,6 +123,7 @@ public class ZOrderByteUtils {
    * This implementation just uses a set size to for all output byte representations. Truncating longer strings
    * and right padding 0 for shorter strings.
    */
+  @SuppressWarnings("ByteBufferBackingArray")
   public static ByteBuffer stringToOrderedBytes(String val, int length, ByteBuffer reuse, CharsetEncoder encoder) {
     Preconditions.checkArgument(encoder.charset().equals(StandardCharsets.UTF_8),
         "Cannot use an encoder not using UTF_8 as it's Charset");
@@ -140,6 +141,7 @@ public class ZOrderByteUtils {
    * Return a bytebuffer with the given bytes truncated to length, or filled with 0's to length depending on whether
    * the given bytes are larger or smaller than the given length.
    */
+  @SuppressWarnings("ByteBufferBackingArray")
   public static ByteBuffer byteTruncateOrFill(byte[] val, int length, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, length);
     if (val.length < length) {
@@ -164,6 +166,8 @@ public class ZOrderByteUtils {
    * @param interleavedSize the number of bytes to use in the output
    * @return the columnbytes interleaved
    */
+  // NarrowingCompoundAssignment is intended here. See https://github.com/apache/iceberg/pull/5200#issuecomment-1176226163
+  @SuppressWarnings({"ByteBufferBackingArray", "NarrowingCompoundAssignment"})
   public static byte[] interleaveBits(byte[][] columnsBinary, int interleavedSize, ByteBuffer reuse) {
     byte[] interleavedBytes = reuse.array();
     Arrays.fill(interleavedBytes, 0, interleavedSize, (byte) 0x00);

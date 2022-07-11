@@ -78,9 +78,9 @@ public class PuffinWriter implements FileAppender<Blob> {
       PuffinCompressionCodec codec = MoreObjects.firstNonNull(blob.requestedCompression(), defaultBlobCompression);
       ByteBuffer rawData = PuffinFormat.compress(codec, blob.blobData());
       int length = rawData.remaining();
-      writeFully(rawData);
-      writtenBlobsMetadata.add(new BlobMetadata(blob.type(), blob.inputFields(), fileOffset, length,
-          codec.codecName(), blob.properties()));
+      IOUtil.writeFully(outputStream, rawData);
+      writtenBlobsMetadata.add(new BlobMetadata(blob.type(), blob.inputFields(), blob.snapshotId(),
+          blob.sequenceNumber(), fileOffset, length, codec.codecName(), blob.properties()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -132,7 +132,7 @@ public class PuffinWriter implements FileAppender<Blob> {
     ByteBuffer footerPayload = PuffinFormat.compress(footerCompression, footerJson);
     outputStream.write(MAGIC);
     int footerPayloadLength = footerPayload.remaining();
-    writeFully(footerPayload);
+    IOUtil.writeFully(outputStream, footerPayload);
     PuffinFormat.writeIntegerLittleEndian(outputStream, footerPayloadLength);
     writeFlags();
     outputStream.write(MAGIC);
@@ -148,10 +148,6 @@ public class PuffinWriter implements FileAppender<Blob> {
       }
       outputStream.write(byteFlag);
     }
-  }
-
-  private void writeFully(ByteBuffer buffer) throws IOException {
-    IOUtil.writeFully(outputStream, buffer);
   }
 
   public long footerSize() {

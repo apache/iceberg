@@ -29,7 +29,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
@@ -135,7 +134,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
     // broadcast the table metadata as input partitions will be sent to executors
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
 
     List<CombinedScanTask> scanTasks = tasks();
     InputPartition[] readTasks = new InputPartition[scanTasks.size()];

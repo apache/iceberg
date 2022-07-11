@@ -64,6 +64,11 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   }
 
   @Override
+  public InputFile newInputFile(String location, long length) {
+    return io(location).newInputFile(location, length);
+  }
+
+  @Override
   public OutputFile newOutputFile(String location) {
     return io(location).newOutputFile(location);
   }
@@ -71,6 +76,11 @@ public class ResolvingFileIO implements FileIO, HadoopConfigurable {
   @Override
   public void deleteFile(String location) {
     io(location).deleteFile(location);
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return properties;
   }
 
   @Override

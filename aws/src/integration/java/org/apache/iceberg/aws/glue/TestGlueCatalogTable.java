@@ -299,6 +299,20 @@ public class TestGlueCatalogTable extends GlueTestBase {
   }
 
   @Test
+  public void testCommitTableSkipNameValidation() {
+    String namespace = "dd-dd";
+    namespaces.add(namespace);
+    glueCatalogWithSkipNameValidation.createNamespace(Namespace.of(namespace));
+    String tableName = "cc-cc";
+    glueCatalogWithSkipNameValidation.createTable(
+            TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
+    GetTableResponse response = glue.getTable(GetTableRequest.builder()
+            .databaseName(namespace).name(tableName).build());
+    Assert.assertEquals(namespace, response.table().databaseName());
+    Assert.assertEquals(tableName, response.table().name());
+  }
+
+  @Test
   public void testColumnCommentsAndParameters() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
@@ -390,7 +404,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         NestedField.required(4, "data", Types.StringType.get())
     );
 
-    org.apache.iceberg.Table table = glueCatalog.buildTable(tableIdent, schema)
+    Table table = glueCatalog.buildTable(tableIdent, schema)
         .withProperty("key2", "table-key2")
         .withProperty("key3", "table-key3")
         .withProperty("key5", "table-key5")

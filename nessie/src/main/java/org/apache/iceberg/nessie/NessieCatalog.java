@@ -171,9 +171,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    TableReference tr = TableReference.parse(tableIdentifier.name());
-    Preconditions.checkArgument(!tr.hasTimestamp(), "Invalid table name: # is only allowed for hashes (reference by " +
-        "timestamp is not supported)");
+    TableReference tr = parseTableReference(tableIdentifier);
     return new NessieTableOperations(
         ContentKey.of(org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()), tr.getName()),
         client.withReference(tr.getReference(), tr.getHash()),
@@ -196,12 +194,26 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    return client.dropTable(identifier, purge);
+    TableReference tableReference = parseTableReference(identifier);
+    return client.withReference(tableReference.getReference(), tableReference.getHash())
+        .dropTable(identifierWithoutTableReference(identifier, tableReference), purge);
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    client.renameTable(from, NessieUtil.removeCatalogName(to, name()));
+    TableReference fromTableReference = parseTableReference(from);
+    TableReference toTableReference = parseTableReference(to);
+    String fromReference =
+        fromTableReference.hasReference() ? fromTableReference.getReference() : client.getRef().getName();
+    String toReference =
+        toTableReference.hasReference() ? toTableReference.getReference() : client.getRef().getName();
+    Preconditions.checkArgument(
+        fromReference.equalsIgnoreCase(toReference),
+        "from: %s and to: %s reference name must be same", fromReference, toReference);
+
+    client.withReference(fromTableReference.getReference(), fromTableReference.getHash()).renameTable(
+        identifierWithoutTableReference(from, fromTableReference),
+        NessieUtil.removeCatalogName(identifierWithoutTableReference(to, toTableReference), name()));
   }
 
   @Override
@@ -264,5 +276,19 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   @VisibleForTesting
   FileIO fileIO() {
     return fileIO;
+  }
+
+  private TableReference parseTableReference(TableIdentifier tableIdentifier) {
+    TableReference tr = TableReference.parse(tableIdentifier.name());
+    Preconditions.checkArgument(!tr.hasTimestamp(), "Invalid table name: # is only allowed for hashes (reference by " +
+        "timestamp is not supported)");
+    return tr;
+  }
+
+  private TableIdentifier identifierWithoutTableReference(TableIdentifier identifier, TableReference tableReference) {
+    if (tableReference.hasReference()) {
+      return TableIdentifier.of(identifier.namespace(), tableReference.getName());
+    }
+    return identifier;
   }
 }

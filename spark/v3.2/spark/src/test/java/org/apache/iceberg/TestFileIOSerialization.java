@@ -22,12 +22,15 @@ package org.apache.iceberg;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -82,7 +85,7 @@ public class TestFileIOSerialization {
     FileIO io = table.io();
     Configuration expectedConf = ((HadoopFileIO) io).conf();
 
-    Table serializableTable = SerializableTable.copyOf(table);
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
     FileIO deserializedIO = KryoHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
@@ -96,7 +99,7 @@ public class TestFileIOSerialization {
     FileIO io = table.io();
     Configuration expectedConf = ((HadoopFileIO) io).conf();
 
-    Table serializableTable = SerializableTable.copyOf(table);
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
     FileIO deserializedIO = TestHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
@@ -109,5 +112,22 @@ public class TestFileIOSerialization {
     Map<String, String> map = Maps.newHashMapWithExpectedSize(conf.size());
     conf.forEach(entry -> map.put(entry.getKey(), entry.getValue()));
     return map;
+  }
+
+  @Test
+  public void testFileIOJsonSerialization() {
+    FileIO io = table.io();
+    Object conf;
+    if (io instanceof Configurable) {
+      conf = ((Configurable) io).getConf();
+    } else {
+      conf = null;
+    }
+
+    String json = FileIOParser.toJson(io);
+    try (FileIO deserialized = FileIOParser.fromJson(json, conf)) {
+      Assert.assertTrue(deserialized instanceof HadoopFileIO);
+      Assert.assertEquals(io.properties(), deserialized.properties());
+    }
   }
 }

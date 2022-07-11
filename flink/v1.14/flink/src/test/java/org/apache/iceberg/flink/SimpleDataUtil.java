@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -192,6 +193,60 @@ public class SimpleDataUtil {
 
   public static void assertTableRows(Table table, List<RowData> expected) throws IOException {
     assertTableRecords(table, convertToRecords(expected));
+  }
+
+  /**
+   * Get all rows for a table
+   */
+  public static List<Record> tableRecords(Table table) throws IOException {
+    table.refresh();
+    List<Record> records = Lists.newArrayList();
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
+      for (Record record : iterable) {
+        records.add(record);
+      }
+    }
+    return records;
+  }
+
+  private static boolean equalsRecords(List<Record> expected, List<Record> actual, Schema schema) {
+    if (expected.size() != actual.size()) {
+      return false;
+    }
+    Types.StructType type = schema.asStruct();
+    StructLikeSet expectedSet = StructLikeSet.create(type);
+    expectedSet.addAll(expected);
+    StructLikeSet actualSet = StructLikeSet.create(type);
+    actualSet.addAll(actual);
+    return expectedSet.equals(actualSet);
+  }
+
+  private static void assertRecordsEqual(List<Record> expected, List<Record> actual, Schema schema) {
+    Assert.assertEquals(expected.size(), actual.size());
+    Types.StructType type = schema.asStruct();
+    StructLikeSet expectedSet = StructLikeSet.create(type);
+    expectedSet.addAll(expected);
+    StructLikeSet actualSet = StructLikeSet.create(type);
+    actualSet.addAll(actual);
+    Assert.assertEquals(expectedSet, actualSet);
+  }
+
+  /**
+   * Assert table contains the expected list of records after
+   * waiting up to {@code maxCheckCount} with {@code checkInterval}
+   */
+  public static void assertTableRecords(
+          Table table, List<Record> expected, Duration checkInterval, int maxCheckCount)
+          throws IOException, InterruptedException {
+    for (int i = 0; i < maxCheckCount; ++i) {
+      if (equalsRecords(expected, tableRecords(table), table.schema())) {
+        break;
+      } else {
+        Thread.sleep(checkInterval.toMillis());
+      }
+    }
+    // success or failure, assert on the latest table state
+    assertRecordsEqual(tableRecords(table), expected, table.schema());
   }
 
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {

@@ -28,7 +28,7 @@ package org.apache.iceberg.io;
  */
 public interface CredentialSupplier {
   /**
-   * @return the credential string
+   * Returns the credential string
    */
   String getCredential();
 }

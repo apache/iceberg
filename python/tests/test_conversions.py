@@ -77,9 +77,9 @@ from decimal import Decimal
 
 import pytest
 
-import iceberg.utils.decimal as decimal_util
-from iceberg import conversions
-from iceberg.types import (
+import pyiceberg.utils.decimal as decimal_util
+from pyiceberg import conversions
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,

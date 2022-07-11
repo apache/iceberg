@@ -479,4 +479,13 @@ public class TestGlueCatalog {
     Assert.assertTrue(properties.containsKey("table-override.key4"));
     Assert.assertEquals("catalog-override-key4", properties.get("table-override.key4"));
   }
+
+  @Test
+  public void testValidateIdentifierSkipNameValidation() {
+    AwsProperties props = new AwsProperties();
+    props.setGlueCatalogSkipNameValidation(true);
+    glueCatalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, props, glue,
+        LockManagers.defaultLockManager(), null);
+    Assert.assertEquals(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")), true);
+  }
 }

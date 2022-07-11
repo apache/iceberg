@@ -83,7 +83,7 @@ jobs:
     strategy:
       matrix:
         jvm: [8, 11]
-        spark: ['3.0', '3.1', '3.2']
+        spark: ['3.0', '3.1', '3.2', '3.3']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -111,7 +111,7 @@ jobs:
     strategy:
       matrix:
         jvm: [8, 11]
-        spark: ['3.2']
+        spark: ['3.2','3.3']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
