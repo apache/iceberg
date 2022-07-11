@@ -21,7 +21,6 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.Table;
@@ -63,25 +62,6 @@ public class SparkCachedTableCatalog implements TableCatalog {
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     Pair<Table, Long> table = load(ident);
     return new SparkTable(table.first(), table.second(), false /* refresh eagerly */);
-  }
-
-  @Override
-  public SparkTable loadTable(Identifier ident, String version) throws NoSuchTableException {
-    Pair<Table, Long> table = load(ident);
-    Preconditions.checkArgument(table.second() == null,
-        "Cannot time travel based on both table identifier and AS OF");
-    return new SparkTable(table.first(), Long.parseLong(version), false /* refresh eagerly */);
-  }
-
-  @Override
-  public SparkTable loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    Pair<Table, Long> table = load(ident);
-    Preconditions.checkArgument(table.second() == null,
-        "Cannot time travel based on both table identifier and AS OF");
-    // Spark passes microseconds but Iceberg uses milliseconds for snapshots
-    long timestampMillis = TimeUnit.MICROSECONDS.toMillis(timestampMicros);
-    long snapshotId = SnapshotUtil.snapshotIdAsOfTime(table.first(), timestampMillis);
-    return new SparkTable(table.first(), snapshotId, false /* refresh eagerly */);
   }
 
   @Override

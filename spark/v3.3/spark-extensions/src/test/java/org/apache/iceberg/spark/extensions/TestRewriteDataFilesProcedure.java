@@ -41,6 +41,7 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
+
 public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
   private static final String QUOTED_SPECIAL_CHARS_TABLE_NAME = "`table:with.special:chars`";
