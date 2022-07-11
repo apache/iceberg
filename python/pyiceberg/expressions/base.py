@@ -443,7 +443,12 @@ def _(obj: Or, visitor: BooleanExpressionVisitor[T]) -> T:
 
 
 class BindVisitor(BooleanExpressionVisitor[BooleanExpression]):
-    """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema"""
+    """Rewrites a boolean expression by replacing unbound references with references to fields in a struct schema
+
+    Args:
+      schema (Schema): A schema to use when binding the expression
+      case_sensitive (bool): Whether to consider case when binding a reference to a field in a schema, defaults to True
+    """
 
     def __init__(self, schema: Schema, case_sensitive: bool = True) -> None:
         self._schema = schema
