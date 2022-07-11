@@ -68,7 +68,7 @@ class PropertiesUpdate implements UpdateProperties {
     Preconditions.checkNotNull(key, "Key cannot be null");
     Preconditions.checkNotNull(transformFunc, "Transform function cannot be null");
     Preconditions.checkArgument(!updates.containsKey(key),
-        "Cannot updates and transform the same key: %s", key);
+        "Cannot update and transform the same key: %s", key);
     Preconditions.checkArgument(!removals.contains(key),
         "Cannot remove and transform the same key: %s", key);
     transforms.put(key, transformFunc);

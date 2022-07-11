@@ -45,7 +45,7 @@ public interface UpdateProperties extends PendingUpdate<Map<String, String>> {
   /**
    * Apply a transform to a table property based on the "current" value.
    *
-   * If the key doesn't exit but transformFunc produces a non-null value, it will add the key/value
+   * If the key doesn't exist but transformFunc produces a non-null value, it will add the key/value
    * to table property, so the transformFunc is expected to handle null as input.
    *
    * @param key a String key
