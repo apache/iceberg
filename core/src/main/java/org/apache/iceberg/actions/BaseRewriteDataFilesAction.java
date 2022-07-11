@@ -259,9 +259,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       CloseableIterator<FileScanTask> tasksIter) {
     ListMultimap<StructLikeWrapper, FileScanTask> tasksGroupedByPartition = Multimaps.newListMultimap(
         Maps.newHashMap(), Lists::newArrayList);
+    StructLikeWrapper partitionWrapper = StructLikeWrapper.forType(spec.partitionType());
     try (CloseableIterator<FileScanTask> iterator = tasksIter) {
       iterator.forEachRemaining(task -> {
-        StructLikeWrapper structLike = StructLikeWrapper.forType(spec.partitionType()).set(task.file().partition());
+        StructLikeWrapper structLike = partitionWrapper.copyFor(task.file().partition());
         tasksGroupedByPartition.put(structLike, task);
       });
     } catch (IOException e) {
