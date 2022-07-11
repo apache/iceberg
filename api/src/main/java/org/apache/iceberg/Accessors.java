@@ -63,23 +63,7 @@ public class Accessors {
     PositionAccessor(int pos, Type type) {
       this.position = pos;
       this.type = type;
-
-      switch (type.typeId()) {
-        case MAP:
-          this.javaClass = Map.class;
-          break;
-
-        case LIST:
-          this.javaClass = List.class;
-          break;
-
-        case STRUCT:
-          this.javaClass = StructLike.class;
-          break;
-
-        default:
-          this.javaClass = type.typeId().javaClass();
-      }
+      this.javaClass = type.typeId().javaClass();
     }
 
     @Override

@@ -123,10 +123,10 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
 
     Snapshot startSnapshot = startSnapshotOptional.get();
     LOG.info("Get starting snapshot id {} based on strategy {}",
-        startSnapshot.snapshotId(), scanContext.startingStrategy());
+        startSnapshot.snapshotId(), scanContext.streamingStartingStrategy());
     List<IcebergSourceSplit> splits;
     IcebergEnumeratorPosition toPosition;
-    if (scanContext.startingStrategy() == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
+    if (scanContext.streamingStartingStrategy() == StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL) {
       // do a batch table scan first
       splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
       LOG.info("Discovered {} splits from initial batch table scan with snapshot Id {}",
@@ -161,7 +161,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
    */
   @VisibleForTesting
   static Optional<Snapshot> startSnapshot(Table table, ScanContext scanContext) {
-    switch (scanContext.startingStrategy()) {
+    switch (scanContext.streamingStartingStrategy()) {
       case TABLE_SCAN_THEN_INCREMENTAL:
       case INCREMENTAL_FROM_LATEST_SNAPSHOT:
         return Optional.ofNullable(table.currentSnapshot());
@@ -183,7 +183,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
           return Optional.of(SnapshotUtil.snapshotAfter(table, snapshotIdAsOfTime));
         }
       default:
-        throw new IllegalArgumentException("Unknown starting strategy: " + scanContext.startingStrategy());
+        throw new IllegalArgumentException("Unknown starting strategy: " + scanContext.streamingStartingStrategy());
     }
   }
 }

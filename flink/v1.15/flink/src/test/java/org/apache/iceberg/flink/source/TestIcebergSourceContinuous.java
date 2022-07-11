@@ -29,7 +29,6 @@ import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.client.program.ClusterClient;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.client.JobStatusMessage;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -38,7 +37,6 @@ import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -49,7 +47,6 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
-import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -301,17 +298,13 @@ public class TestIcebergSourceContinuous {
   }
 
   private DataStream<Row> createStream(ScanContext scanContext) throws Exception {
-    Table table = tableResource.table();
-    Configuration config = new Configuration();
     // start the source and collect output
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
     DataStream<Row> stream = env.fromSource(
-        IcebergSource.<RowData>builder()
+        IcebergSource.forRowData()
             .tableLoader(tableResource.tableLoader())
             .assignerFactory(new SimpleSplitAssignerFactory())
-            .readerFunction(new RowDataReaderFunction(config, table.schema(), null,
-                null, false, table.io(), table.encryption()))
             .streaming(scanContext.isStreaming())
             .streamingStartingStrategy(scanContext.streamingStartingStrategy())
             .startSnapshotTimestamp(scanContext.startSnapshotTimestamp())

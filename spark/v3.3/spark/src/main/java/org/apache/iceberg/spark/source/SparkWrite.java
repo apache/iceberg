@@ -37,7 +37,6 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
@@ -179,7 +178,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   // the writer factory works for both batch and streaming
   private WriterFactory createWriterFactory() {
     // broadcast the table metadata as the writer factory will be sent to executors
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     return new WriterFactory(tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
   }
 

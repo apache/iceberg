@@ -79,6 +79,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
+  private Map<String, String> properties = null;
   private transient volatile S3Client client;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
@@ -119,6 +120,11 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
   }
 
   @Override
+  public InputFile newInputFile(String path, long length) {
+    return S3InputFile.fromLocation(path, length, client(), awsProperties, metrics);
+  }
+
+  @Override
   public OutputFile newOutputFile(String path) {
     return S3OutputFile.fromLocation(path, client(), awsProperties, metrics);
   }
@@ -142,6 +148,11 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
         DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
 
     client().deleteObject(deleteRequest);
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return properties;
   }
 
   /**
@@ -302,12 +313,13 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
   }
 
   @Override
-  public void initialize(Map<String, String> properties) {
-    this.awsProperties = new AwsProperties(properties);
+  public void initialize(Map<String, String> props) {
+    this.awsProperties = new AwsProperties(props);
+    this.properties = props;
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      AwsClientFactory clientFactory = AwsClientFactories.from(properties);
+      AwsClientFactory clientFactory = AwsClientFactories.from(props);
       if (clientFactory instanceof CredentialSupplier) {
         this.credential = ((CredentialSupplier) clientFactory).getCredential();
       }
@@ -322,7 +334,7 @@ public class S3FileIO implements FileIO, SupportsBulkOperations, SupportsPrefixO
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
-      context.initialize(properties);
+      context.initialize(props);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);

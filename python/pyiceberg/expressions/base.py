@@ -15,9 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 from abc import ABC, abstractmethod
-from enum import Enum, auto
+from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import Any, Generic, TypeVar
+from typing import (
+    Any,
+    Generic,
+    Tuple,
+    TypeVar,
+)
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
@@ -25,68 +30,7 @@ from pyiceberg.types import NestedField
 from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
-
-
-class Operation(Enum):
-    """Operations to be used as components in expressions
-
-    Operations can be negated by calling the negate method.
-    >>> Operation.TRUE.negate()
-    <Operation.FALSE: 2>
-    >>> Operation.IS_NULL.negate()
-    <Operation.NOT_NULL: 4>
-
-    The above example uses the OPERATION_NEGATIONS map which maps each enum
-    to it's opposite enum.
-
-    Raises:
-        ValueError: This is raised when attempting to negate an operation
-            that cannot be negated.
-    """
-
-    TRUE = auto()
-    FALSE = auto()
-    IS_NULL = auto()
-    NOT_NULL = auto()
-    IS_NAN = auto()
-    NOT_NAN = auto()
-    LT = auto()
-    LT_EQ = auto()
-    GT = auto()
-    GT_EQ = auto()
-    EQ = auto()
-    NOT_EQ = auto()
-    IN = auto()
-    NOT_IN = auto()
-    NOT = auto()
-    AND = auto()
-    OR = auto()
-
-    def negate(self) -> "Operation":
-        """Returns the operation used when this is negated."""
-
-        try:
-            return OPERATION_NEGATIONS[self]
-        except KeyError as e:
-            raise ValueError(f"No negation defined for operation {self}") from e
-
-
-OPERATION_NEGATIONS = {
-    Operation.TRUE: Operation.FALSE,
-    Operation.FALSE: Operation.TRUE,
-    Operation.IS_NULL: Operation.NOT_NULL,
-    Operation.NOT_NULL: Operation.IS_NULL,
-    Operation.IS_NAN: Operation.NOT_NAN,
-    Operation.NOT_NAN: Operation.IS_NAN,
-    Operation.LT: Operation.GT_EQ,
-    Operation.LT_EQ: Operation.GT,
-    Operation.GT: Operation.LT_EQ,
-    Operation.GT_EQ: Operation.LT,
-    Operation.EQ: Operation.NOT_EQ,
-    Operation.NOT_EQ: Operation.EQ,
-    Operation.IN: Operation.NOT_IN,
-    Operation.NOT_IN: Operation.IN,
-}
+B = TypeVar("B")
 
 
 class Literal(Generic[T], ABC):
@@ -102,7 +46,7 @@ class Literal(Generic[T], ABC):
         return self._value  # type: ignore
 
     @abstractmethod
-    def to(self, type_var):
+    def to(self, type_var) -> "Literal":
         ...  # pragma: no cover
 
     def __repr__(self):
@@ -131,11 +75,115 @@ class Literal(Generic[T], ABC):
 
 
 class BooleanExpression(ABC):
-    """base class for all boolean expressions"""
+    """Represents a boolean expression tree."""
 
     @abstractmethod
     def __invert__(self) -> "BooleanExpression":
-        ...
+        """Transform the Expression into its negated version."""
+
+
+class Bound(Generic[T], ABC):
+    """Represents a bound value expression."""
+
+    def eval(self, struct: StructProtocol):  # pylint: disable=W0613
+        ...  # pragma: no cover
+
+
+class Unbound(Generic[T, B], ABC):
+    """Represents an unbound expression node."""
+
+    @abstractmethod
+    def bind(self, schema: Schema, case_sensitive: bool) -> B:
+        ...  # pragma: no cover
+
+
+class Term(ABC):
+    """An expression that evaluates to a value."""
+
+
+class BaseReference(Generic[T], Term, ABC):
+    """Represents a variable reference in an expression."""
+
+
+class BoundTerm(Bound[T], Term):
+    """Represents a bound term."""
+
+
+class UnboundTerm(Unbound[T, BoundTerm[T]], Term):
+    """Represents an unbound term."""
+
+
+@dataclass(frozen=True)
+class BoundReference(BoundTerm[T], BaseReference[T]):
+    """A reference bound to a field in a schema
+
+    Args:
+        field (NestedField): A referenced field in an Iceberg schema
+        accessor (Accessor): An Accessor object to access the value at the field's position
+    """
+
+    field: NestedField
+    accessor: Accessor
+
+    def eval(self, struct: StructProtocol) -> Any:
+        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
+        Args:
+            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
+        Returns:
+            Any: The value at the referenced field's position in `struct`
+        """
+        return self.accessor.get(struct)
+
+
+@dataclass(frozen=True)
+class Reference(UnboundTerm[T], BaseReference[T]):
+    """A reference not yet bound to a field in a schema
+
+    Args:
+        name (str): The name of the field
+
+    Note:
+        An unbound reference is sometimes referred to as a "named" reference
+    """
+
+    name: str
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference[T]:
+        """Bind the reference to an Iceberg schema
+
+        Args:
+            schema (Schema): An Iceberg schema
+            case_sensitive (bool): Whether to consider case when binding the reference to the field
+
+        Raises:
+            ValueError: If an empty name is provided
+
+        Returns:
+            BoundReference: A reference bound to the specific field in the Iceberg schema
+        """
+        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
+
+        if not field:
+            raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
+
+        accessor = schema.accessor_for_field(field.field_id)
+
+        if not accessor:
+            raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
+
+        return BoundReference(field=field, accessor=accessor)
+
+
+@dataclass(frozen=True)  # type: ignore[misc]
+class BoundPredicate(Bound[T], BooleanExpression):
+    term: BoundReference[T]
+    literals: Tuple[Literal[T], ...]
+
+
+@dataclass(frozen=True)  # type: ignore[misc]
+class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
+    term: Reference[T]
+    literals: Tuple[Literal[T], ...]
 
 
 class And(BooleanExpression):
@@ -268,90 +316,20 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
         return "false"
 
 
-class BoundReference:
-    """A reference bound to a field in a schema
-
-    Args:
-        field (NestedField): A referenced field in an Iceberg schema
-        accessor (Accessor): An Accessor object to access the value at the field's position
-    """
-
-    def __init__(self, field: NestedField, accessor: Accessor):
-        self._field = field
-        self._accessor = accessor
-
-    def __str__(self):
-        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
-
-    def __repr__(self):
-        return f"BoundReference(field={repr(self.field)}, accessor={repr(self._accessor)})"
-
-    @property
-    def field(self) -> NestedField:
-        """The referenced field"""
-        return self._field
-
-    def eval(self, struct: StructProtocol) -> Any:
-        """Returns the value at the referenced field's position in an object that abides by the StructProtocol
-
-        Args:
-            struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
-
-        Returns:
-            Any: The value at the referenced field's position in `struct`
-        """
-        return self._accessor.get(struct)
+@dataclass(frozen=True)
+class BoundIn(BoundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("In expressions do not support negation.")
 
 
-class UnboundReference:
-    """A reference not yet bound to a field in a schema
+@dataclass(frozen=True)
+class In(UnboundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("In expressions do not support negation.")
 
-    Args:
-        name (str): The name of the field
-
-    Note:
-        An unbound reference is sometimes referred to as a "named" reference
-    """
-
-    def __init__(self, name: str):
-        if not name:
-            raise ValueError(f"Name cannot be null: {name}")
-        self._name = name
-
-    def __str__(self) -> str:
-        return f"UnboundReference(name={repr(self.name)})"
-
-    def __repr__(self) -> str:
-        return f"UnboundReference(name={repr(self.name)})"
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference:
-        """Bind the reference to an Iceberg schema
-
-        Args:
-            schema (Schema): An Iceberg schema
-            case_sensitive (bool): Whether to consider case when binding the reference to the field
-
-        Raises:
-            ValueError: If an empty name is provided
-
-        Returns:
-            BoundReference: A reference bound to the specific field in the Iceberg schema
-        """
-        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
-
-        if not field:
-            raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
-
-        accessor = schema.accessor_for_field(field.field_id)
-
-        if not accessor:
-            raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
-
-        return BoundReference(field=field, accessor=accessor)
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundIn(bound_ref, tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
 
 
 class BooleanExpressionVisitor(Generic[T], ABC):

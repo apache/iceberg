@@ -22,6 +22,7 @@ package org.apache.iceberg.hadoop;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -33,6 +34,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsPrefixOperations;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableSupplier;
 
@@ -66,6 +68,11 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
   }
 
   @Override
+  public InputFile newInputFile(String path, long length) {
+    return HadoopInputFile.fromLocation(path, length, hadoopConf.get());
+  }
+
+  @Override
   public OutputFile newOutputFile(String path) {
     return HadoopOutputFile.fromPath(new Path(path), hadoopConf.get());
   }
@@ -79,6 +86,11 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", path);
     }
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return ImmutableMap.of();
   }
 
   @Override

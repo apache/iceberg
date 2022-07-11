@@ -133,7 +133,21 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
           "Cannot perform ZOrdering, all columns provided were identity partition columns and cannot be used.");
     }
 
+    validateColumnsExistence(table, spark, zOrderColNames);
+
     this.zOrderColNames = zOrderColNames;
+  }
+
+  private void validateColumnsExistence(Table table, SparkSession spark, List<String> colNames) {
+    boolean caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+    Schema schema = table.schema();
+    colNames.forEach(col -> {
+      NestedField nestedField = caseSensitive ? schema.findField(col) : schema.caseInsensitiveFindField(col);
+      if (nestedField == null) {
+        throw new IllegalArgumentException(
+            String.format("Cannot find column '%s' in table schema: %s", col, schema.asStruct()));
+      }
+    });
   }
 
   @Override

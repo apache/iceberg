@@ -36,8 +36,6 @@ class MemoryInputStream(InputStream):
         >>> stream.read(4)
         b'1925'
         >>> stream.close()
-        >>> stream.closed()
-        True
     """
 
     buffer: bytes
@@ -54,7 +52,7 @@ class MemoryInputStream(InputStream):
         self.pos += size
         return b
 
-    def seek(self, offset: int, whence: int = SEEK_SET) -> None:
+    def seek(self, offset: int, whence: int = SEEK_SET) -> int:
         if whence == SEEK_SET:
             self.pos = offset
         elif whence == SEEK_CUR:
@@ -64,11 +62,10 @@ class MemoryInputStream(InputStream):
         else:
             raise ValueError(f"Unknown whence {offset}")
 
-    def tell(self) -> int:
         return self.pos
 
-    def closed(self) -> bool:
-        return not hasattr(self, "buffer")
+    def tell(self) -> int:
+        return self.pos
 
     def close(self) -> None:
         del self.buffer
