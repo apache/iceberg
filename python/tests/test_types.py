@@ -211,7 +211,7 @@ def test_non_parameterized_type_equality(input_index, input_type, check_index, c
 # Examples based on https://iceberg.apache.org/spec/#appendix-c-json-serialization
 
 
-class TestType(IcebergBaseModel):
+class IcebergTestType(IcebergBaseModel):
     __root__: IcebergType
 
 
@@ -220,7 +220,7 @@ def test_serialization_boolean():
 
 
 def test_deserialization_boolean():
-    assert TestType.parse_raw('"boolean"') == BooleanType()
+    assert IcebergTestType.parse_raw('"boolean"') == BooleanType()
 
 
 def test_str_boolean():
@@ -236,7 +236,7 @@ def test_serialization_int():
 
 
 def test_deserialization_int():
-    assert TestType.parse_raw('"int"') == IntegerType()
+    assert IcebergTestType.parse_raw('"int"') == IntegerType()
 
 
 def test_str_int():
@@ -252,7 +252,7 @@ def test_serialization_long():
 
 
 def test_deserialization_long():
-    assert TestType.parse_raw('"long"') == LongType()
+    assert IcebergTestType.parse_raw('"long"') == LongType()
 
 
 def test_str_long():
@@ -268,7 +268,7 @@ def test_serialization_float():
 
 
 def test_deserialization_float():
-    assert TestType.parse_raw('"float"') == FloatType()
+    assert IcebergTestType.parse_raw('"float"') == FloatType()
 
 
 def test_str_float():
@@ -284,7 +284,7 @@ def test_serialization_double():
 
 
 def test_deserialization_double():
-    assert TestType.parse_raw('"double"') == DoubleType()
+    assert IcebergTestType.parse_raw('"double"') == DoubleType()
 
 
 def test_str_double():
@@ -300,7 +300,7 @@ def test_serialization_date():
 
 
 def test_deserialization_date():
-    assert TestType.parse_raw('"date"') == DateType()
+    assert IcebergTestType.parse_raw('"date"') == DateType()
 
 
 def test_str_date():
@@ -316,7 +316,7 @@ def test_serialization_time():
 
 
 def test_deserialization_time():
-    assert TestType.parse_raw('"time"') == TimeType()
+    assert IcebergTestType.parse_raw('"time"') == TimeType()
 
 
 def test_str_time():
@@ -332,7 +332,7 @@ def test_serialization_timestamp():
 
 
 def test_deserialization_timestamp():
-    assert TestType.parse_raw('"timestamp"') == TimestampType()
+    assert IcebergTestType.parse_raw('"timestamp"') == TimestampType()
 
 
 def test_str_timestamp():
@@ -348,7 +348,7 @@ def test_serialization_timestamptz():
 
 
 def test_deserialization_timestamptz():
-    assert TestType.parse_raw('"timestamptz"') == TimestamptzType()
+    assert IcebergTestType.parse_raw('"timestamptz"') == TimestamptzType()
 
 
 def test_str_timestamptz():
@@ -364,7 +364,7 @@ def test_serialization_string():
 
 
 def test_deserialization_string():
-    assert TestType.parse_raw('"string"') == StringType()
+    assert IcebergTestType.parse_raw('"string"') == StringType()
 
 
 def test_str_string():
@@ -380,7 +380,7 @@ def test_serialization_uuid():
 
 
 def test_deserialization_uuid():
-    assert TestType.parse_raw('"uuid"') == UUIDType()
+    assert IcebergTestType.parse_raw('"uuid"') == UUIDType()
 
 
 def test_str_uuid():
@@ -396,7 +396,7 @@ def test_serialization_fixed():
 
 
 def test_deserialization_fixed():
-    fixed = TestType.parse_raw('"fixed[22]"')
+    fixed = IcebergTestType.parse_raw('"fixed[22]"')
     assert fixed == FixedType(22)
 
     inner = fixed.__root__
@@ -417,7 +417,7 @@ def test_serialization_binary():
 
 
 def test_deserialization_binary():
-    assert TestType.parse_raw('"binary"') == BinaryType()
+    assert IcebergTestType.parse_raw('"binary"') == BinaryType()
 
 
 def test_str_binary():
@@ -433,7 +433,7 @@ def test_serialization_decimal():
 
 
 def test_deserialization_decimal():
-    decimal = TestType.parse_raw('"decimal(19, 25)"')
+    decimal = IcebergTestType.parse_raw('"decimal(19, 25)"')
     assert decimal == DecimalType(19, 25)
 
     inner = decimal.__root__
@@ -490,7 +490,9 @@ def test_deserialization_nestedfield():
 
 def test_deserialization_nestedfield_inner():
     expected = NestedField(1, "required_field", StringType(), True, "this is a doc")
-    actual = TestType.parse_raw('{"id": 1, "name": "required_field", "type": "string", "required": true, "doc": "this is a doc"}')
+    actual = IcebergTestType.parse_raw(
+        '{"id": 1, "name": "required_field", "type": "string", "required": true, "doc": "this is a doc"}'
+    )
     assert expected == actual.__root__
 
 

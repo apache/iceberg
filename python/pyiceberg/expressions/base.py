@@ -17,16 +17,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import (
-    Any,
-    Generic,
-    Tuple,
-    TypeVar,
-)
+from typing import Generic, Tuple, TypeVar
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
-from pyiceberg.types import NestedField, StructType
+from pyiceberg.types import NestedField
 from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
@@ -125,7 +120,7 @@ class BoundReference(BoundTerm[T], BaseReference[T]):
     field: NestedField
     accessor: Accessor
 
-    def eval(self, struct: StructProtocol) -> Any:
+    def eval(self, struct: StructProtocol) -> T:
         """Returns the value at the referenced field's position in an object that abides by the StructProtocol
         Args:
             struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
@@ -327,7 +322,7 @@ class In(UnboundPredicate[T]):
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
 
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn:
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn[T]:
         bound_ref = self.term.bind(schema, case_sensitive)
         return BoundIn(bound_ref, tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
 
@@ -435,7 +430,7 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
 
 @visit.register(In)
 def _(obj: In, visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit an And boolean expression with a concrete BooleanExpressionVisitor"""
+    """Visit an In boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_unbound_predicate(predicate=obj)
 
 
