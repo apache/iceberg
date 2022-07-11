@@ -1,5 +1,5 @@
 ---
-name: Iceberg Bug report 🐞
+name: Iceberg Question
 description: Problems, bugs and issues with Apache Iceberg
 labels: ["kind:question"]
 body:
