@@ -97,7 +97,7 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
         return v
 
     @abstractmethod
-    def hash_function(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
         ...
 
     @abstractmethod
@@ -176,7 +176,7 @@ class BucketTransform(Transform[S, int]):
             UUIDType,
         }
 
-    def hash_function(self, source: IcebergType, bucket: bool = True) -> Callable[[Optional[Any]], Optional[int]]:
+    def transform(self, source: IcebergType, bucket: bool = True) -> Callable[[Optional[Any]], Optional[int]]:
         source_type = type(source)
         if source_type in {IntegerType, LongType, DateType, TimeType, TimestampType, TimestamptzType}:
 
@@ -225,14 +225,14 @@ class IdentityTransform(Transform[S, S]):
 
     Example:
         >>> transform = IdentityTransform()
-        >>> transform.hash_function(StringType())('hello-world')
+        >>> transform.transform(StringType())('hello-world')
         'hello-world'
     """
 
     __root__: Literal["identity"] = Field(default="identity")
     _source_type: IcebergType = PrivateAttr()
 
-    def hash_function(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
         return lambda v: v
 
     def can_transform(self, source: IcebergType) -> bool:
@@ -293,7 +293,7 @@ class TruncateTransform(Transform[S, S]):
     def width(self) -> int:
         return self._width
 
-    def hash_function(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
         source_type = type(source)
         if source_type in {IntegerType, LongType}:
 
@@ -396,7 +396,7 @@ class UnknownTransform(Transform):
         super().__init__(**data)
         self._transform = transform
 
-    def hash_function(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
         raise AttributeError(f"Cannot apply unsupported transform: {self}")
 
     def can_transform(self, source: IcebergType) -> bool:
@@ -414,7 +414,7 @@ class VoidTransform(Transform, Singleton):
 
     __root__ = "void"
 
-    def hash_function(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
         return lambda v: None
 
     def can_transform(self, _: IcebergType) -> bool:
