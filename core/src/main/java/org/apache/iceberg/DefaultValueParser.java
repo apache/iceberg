@@ -47,12 +47,9 @@ public class DefaultValueParser {
   }
 
   private static final String KEYS = "keys";
-
   private static final String VALUES = "values";
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Object fromJson(Type type, JsonNode defaultValue) {
-
     if (defaultValue == null || defaultValue.isNull()) {
       return null;
     }
@@ -91,7 +88,7 @@ public class DefaultValueParser {
             "Cannot parse default as a %s value: %s", type, defaultValue);
         return defaultValue.textValue();
       case UUID:
-        Preconditions.checkArgument(defaultValue.isTextual(),
+        Preconditions.checkArgument(defaultValue.isTextual() && defaultValue.textValue().length() == 36,
             "Cannot parse default as a %s value: %s", type, defaultValue);
         UUID uuid;
         try {
@@ -113,9 +110,13 @@ public class DefaultValueParser {
         Preconditions.checkArgument(defaultValue.isTextual(),
             "Cannot parse default as a %s value: %s", type, defaultValue);
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return DateTimeUtil.isoDateTimeTzToMicros(defaultValue.textValue());
+          String timestampTz = defaultValue.textValue();
+          Preconditions.checkArgument(DateTimeUtil.timestamptzIsOfUTCZone(timestampTz),
+              "Cannot parse default as a %s value: %s, timezone must be UTC",
+              type, defaultValue);
+          return DateTimeUtil.isoTimestamptzToMicros(timestampTz);
         } else {
-          return DateTimeUtil.isoDateTimeToMicros(defaultValue.textValue());
+          return DateTimeUtil.isoTimestampToMicros(defaultValue.textValue());
         }
       case FIXED:
         Preconditions.checkArgument(
@@ -133,52 +134,64 @@ public class DefaultValueParser {
         byte[] binaryBytes = BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
         return ByteBuffer.wrap(binaryBytes);
       case LIST:
-        Preconditions.checkArgument(defaultValue.isArray(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
-        Type elementType = type.asListType().elementType();
-        return Lists.newArrayList(Iterables.transform(defaultValue, e -> fromJson(elementType, e)));
+        return listFromJson(type, defaultValue);
       case MAP:
-        Preconditions.checkArgument(
-            defaultValue.isObject() && defaultValue.has(KEYS) && defaultValue.has(VALUES) &&
-                defaultValue.get(KEYS).isArray() && defaultValue.get(VALUES).isArray(),
-            "Cannot parse %s to a %s value",
-            defaultValue, type);
-        JsonNode keys = defaultValue.get(KEYS);
-        JsonNode values = defaultValue.get(VALUES);
-        Preconditions.checkArgument(
-            keys.size() == values.size(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
-
-        ImmutableMap.Builder<Object, Object> mapBuilder = ImmutableMap.builder();
-
-        Iterator<JsonNode> keyIter = keys.iterator();
-        Type keyType = type.asMapType().keyType();
-        Iterator<JsonNode> valueIter = values.iterator();
-        Type valueType = type.asMapType().valueType();
-
-        while (keyIter.hasNext()) {
-          mapBuilder.put(fromJson(keyType, keyIter.next()), fromJson(valueType, valueIter.next()));
-        }
-
-        return mapBuilder.build();
+        return mapFromJson(type, defaultValue);
       case STRUCT:
-        Preconditions.checkArgument(defaultValue.isObject(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
-        Types.StructType struct = type.asStructType();
-        StructLike defaultRecord = GenericRecord.create(struct);
-
-        List<Types.NestedField> fields = struct.fields();
-        for (int pos = 0; pos < fields.size(); pos += 1) {
-          Types.NestedField field = fields.get(pos);
-          String idString = String.valueOf(field.fieldId());
-          if (defaultValue.has(idString)) {
-            defaultRecord.set(pos, fromJson(field.type(), defaultValue.get(idString)));
-          }
-        }
-        return defaultRecord;
+        return structFromJson(type, defaultValue);
       default:
         throw new UnsupportedOperationException(String.format("Type: %s is not supported", type));
     }
+  }
+
+  private static StructLike structFromJson(Type type, JsonNode defaultValue) {
+    Preconditions.checkArgument(defaultValue.isObject(),
+        "Cannot parse default as a %s value: %s", type, defaultValue);
+    Types.StructType struct = type.asStructType();
+    StructLike defaultRecord = GenericRecord.create(struct);
+
+    List<Types.NestedField> fields = struct.fields();
+    for (int pos = 0; pos < fields.size(); pos += 1) {
+      Types.NestedField field = fields.get(pos);
+      String idString = String.valueOf(field.fieldId());
+      if (defaultValue.has(idString)) {
+        defaultRecord.set(pos, fromJson(field.type(), defaultValue.get(idString)));
+      }
+    }
+    return defaultRecord;
+  }
+
+  private static Map<Object, Object> mapFromJson(Type type, JsonNode defaultValue) {
+    Preconditions.checkArgument(
+        defaultValue.isObject() && defaultValue.has(KEYS) && defaultValue.has(VALUES) &&
+            defaultValue.get(KEYS).isArray() && defaultValue.get(VALUES).isArray(),
+        "Cannot parse %s to a %s value",
+        defaultValue, type);
+    JsonNode keys = defaultValue.get(KEYS);
+    JsonNode values = defaultValue.get(VALUES);
+    Preconditions.checkArgument(
+        keys.size() == values.size(),
+        "Cannot parse default as a %s value: %s", type, defaultValue);
+
+    ImmutableMap.Builder<Object, Object> mapBuilder = ImmutableMap.builder();
+
+    Iterator<JsonNode> keyIter = keys.iterator();
+    Type keyType = type.asMapType().keyType();
+    Iterator<JsonNode> valueIter = values.iterator();
+    Type valueType = type.asMapType().valueType();
+
+    while (keyIter.hasNext()) {
+      mapBuilder.put(fromJson(keyType, keyIter.next()), fromJson(valueType, valueIter.next()));
+    }
+
+    return mapBuilder.build();
+  }
+
+  private static List<Object> listFromJson(Type type, JsonNode defaultValue) {
+    Preconditions.checkArgument(defaultValue.isArray(),
+        "Cannot parse default as a %s value: %s", type, defaultValue);
+    Type elementType = type.asListType().elementType();
+    return Lists.newArrayList(Iterables.transform(defaultValue, e -> fromJson(elementType, e)));
   }
 
   public static Object fromJson(Type type, String defaultValue) {
@@ -186,7 +199,8 @@ public class DefaultValueParser {
       JsonNode defaultValueJN = JsonUtil.mapper().readTree(defaultValue);
       return fromJson(type, defaultValueJN);
     } catch (IOException e) {
-      throw new IllegalArgumentException("Failed to parse: " + defaultValue + "; reason: " + e.getMessage(), e);
+      throw new IllegalArgumentException(
+          String.format("Failed to parse default as a %s value: %s", type, defaultValue), e);
     }
   }
 
@@ -209,7 +223,6 @@ public class DefaultValueParser {
     }
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(Type type, Object defaultValue, JsonGenerator generator)
       throws IOException {
     if (defaultValue == null) {
@@ -271,12 +284,18 @@ public class DefaultValueParser {
       case FIXED:
         Preconditions.checkArgument(
             defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
-        String fixedString = BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) defaultValue)));
-        int valueLength = fixedString.length();
+        ByteBuffer byteBufferDefaultValue = (ByteBuffer) defaultValue;
+        Preconditions.checkArgument(
+            byteBufferDefaultValue.hasArray() && byteBufferDefaultValue.arrayOffset() == 0 &&
+                byteBufferDefaultValue.position() == 0,
+            "Invalid default %s value: %s, not a valid bytebuffer representation",
+            type, defaultValue);
+        int actualLength = byteBufferDefaultValue.remaining();
         int expectedLength = ((Types.FixedType) type).length();
-        Preconditions.checkArgument(valueLength == expectedLength * 2,
+        Preconditions.checkArgument(actualLength == expectedLength,
             "Invalid default %s value: %s, incorrect length: %s",
-            type, defaultValue, valueLength);
+            type, defaultValue, actualLength);
+        String fixedString = BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) defaultValue)));
         generator.writeString(fixedString);
         break;
       case BINARY:

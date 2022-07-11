@@ -94,7 +94,7 @@ public class DateTimeUtil {
 
   public static String microsToIsoDateTimeTz(long micros) {
     LocalDateTime localDateTime = timestampFromMicros(micros);
-    return OffsetDateTime.of(localDateTime, ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+    return localDateTime.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
   }
 
   public static String microsToIsoDateTime(long micros) {
@@ -110,11 +110,16 @@ public class DateTimeUtil {
     return microsFromTime(LocalTime.parse(timeString, DateTimeFormatter.ISO_LOCAL_TIME));
   }
 
-  public static long isoDateTimeTzToMicros(String timestampString) {
+  public static long isoTimestamptzToMicros(String timestampString) {
     return microsFromTimestamptz(OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
   }
 
-  public static long isoDateTimeToMicros(String timestampString) {
+  public static boolean timestamptzIsOfUTCZone(String timestampString) {
+    OffsetDateTime offsetDateTime = OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME);
+    return offsetDateTime.getOffset().equals(ZoneOffset.UTC) && timestampString.endsWith("Z");
+  }
+
+  public static long isoTimestampToMicros(String timestampString) {
     return microsFromTimestamp(LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
   }
 }

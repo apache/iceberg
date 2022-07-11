@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.time.OffsetDateTime;
 import java.util.Locale;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -45,36 +44,36 @@ public class TestDefaultValueParser {
         {Types.DateType.get(), "\"2007-12-03\""},
         {Types.TimeType.get(), "\"10:15:30\""},
         {Types.TimestampType.withoutZone(), "\"2007-12-03T10:15:30\""},
-        {Types.TimestampType.withZone(), "\"2007-12-03T10:15:30+01:00\""},
+        {Types.TimestampType.withZone(), "\"2007-12-03T10:15:30Z\""},
         {Types.StringType.get(), "\"foo\""},
         {Types.UUIDType.get(), "\"eb26bdb1-a1d8-4aa6-990e-da940875492c\""},
         {Types.FixedType.ofLength(2), "\"111f\""},
         {Types.BinaryType.get(), "\"0000ff\""},
         {Types.DecimalType.of(9, 2), "123.45"},
         {Types.ListType.ofOptional(1, Types.IntegerType.get()), "[1, 2, 3]"},
-        {Types.MapType.ofOptional(1, 2, Types.IntegerType.get(), Types.StringType.get()),
+        {Types.MapType.ofOptional(2, 3, Types.IntegerType.get(), Types.StringType.get()),
          "{\"keys\": [1, 2], \"values\": [\"foo\", \"bar\"]}"},
         {Types.StructType.of(
-            required(1, "f1", Types.IntegerType.get(), "doc"),
-            optional(2, "f2", Types.StringType.get(), "doc")),
-         "{\"1\": 1, \"2\": \"bar\"}"},
+            required(4, "f1", Types.IntegerType.get()),
+            optional(5, "f2", Types.StringType.get())),
+         "{\"4\": 1, \"5\": \"bar\"}"},
         // deeply nested complex types
-        {Types.ListType.ofOptional(1, Types.StructType.of(
-            required(1, "f1", Types.IntegerType.get(), "doc"),
-            optional(2, "f2", Types.StringType.get(), "doc"))), "[{\"1\": 1, \"2\": \"bar\"}, {\"1\": 2, \"2\": " +
+        {Types.ListType.ofOptional(6, Types.StructType.of(
+            required(7, "f1", Types.IntegerType.get()),
+            optional(8, "f2", Types.StringType.get()))), "[{\"7\": 1, \"8\": \"bar\"}, {\"7\": 2, \"8\": " +
              "\"foo\"}]"},
-        {Types.MapType.ofOptional(1, 2, Types.IntegerType.get(), Types.StructType.of(
-            required(1, "f1", Types.IntegerType.get(), "doc"),
-            optional(2, "f2", Types.StringType.get(), "doc"))),
-         "{\"keys\": [1, 2], \"values\": [{\"1\": 1, \"2\": \"bar\"}, {\"1\": 2, \"2\": \"foo\"}]}"},
+        {Types.MapType.ofOptional(9, 10, Types.IntegerType.get(), Types.StructType.of(
+            required(11, "f1", Types.IntegerType.get()),
+            optional(12, "f2", Types.StringType.get()))),
+         "{\"keys\": [1, 2], \"values\": [{\"11\": 1, \"12\": \"bar\"}, {\"11\": 2, \"12\": \"foo\"}]}"},
         {Types.StructType.of(
-            required(1, "f1", Types.StructType.of(
-                optional(2, "ff1", Types.IntegerType.get(), "doc"),
-                optional(3, "ff2", Types.StringType.get(), "doc")), "doc"),
-            optional(4, "f2", Types.StructType.of(
-                optional(5, "ff1", Types.StringType.get(), "doc"),
-                optional(6, "ff2", Types.IntegerType.get(), "doc")), "doc")),
-         "{\"1\": {\"2\": 1, \"3\": \"bar\"}, \"4\": {\"5\": \"bar\", \"6\": 1}}"},
+            required(13, "f1", Types.StructType.of(
+                optional(14, "ff1", Types.IntegerType.get()),
+                optional(15, "ff2", Types.StringType.get()))),
+            optional(16, "f2", Types.StructType.of(
+                optional(17, "ff1", Types.StringType.get()),
+                optional(18, "ff2", Types.IntegerType.get())))),
+         "{\"13\": {\"14\": 1, \"15\": \"bar\"}, \"16\": {\"17\": \"bar\", \"18\": 1}}"},
         };
 
     for (Object[] typeWithDefault : typesWithDefaults) {
@@ -82,14 +81,7 @@ public class TestDefaultValueParser {
       String defaultValue = (String) typeWithDefault[1];
 
       String roundTripDefaultValue = defaultValueParseAndUnParseRoundTrip(type, defaultValue);
-      // Only if the type is a timestampWithZone type, the round-trip default value will always be standardized to the
-      // UTC time zone, which might be different in the original value, but they should represent the same instant
-      if (type.typeId() == Type.TypeID.TIMESTAMP && ((Types.TimestampType) type).shouldAdjustToUTC()) {
-        Assert.assertTrue(OffsetDateTime.parse(JsonUtil.mapper().readTree(defaultValue).textValue())
-            .isEqual(OffsetDateTime.parse(JsonUtil.mapper().readTree(roundTripDefaultValue).textValue())));
-      } else {
-        jsonStringEquals(defaultValue.toLowerCase(Locale.ROOT), roundTripDefaultValue.toLowerCase(Locale.ROOT));
-      }
+      jsonStringEquals(defaultValue.toLowerCase(Locale.ROOT), roundTripDefaultValue.toLowerCase(Locale.ROOT));
     }
   }
 
@@ -131,6 +123,16 @@ public class TestDefaultValueParser {
         IllegalArgumentException.class,
         () -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson));
     Assert.assertTrue(exception.getMessage().startsWith("Cannot parse default as a decimal(5, 2) value"));
+  }
+
+  @Test
+  public void testInvalidTimestamptz() {
+    Type expectedType = Types.TimestampType.withZone();
+    String defaultJson = "\"2007-12-03T10:15:30+01:00\"";
+    Exception exception = Assert.assertThrows(
+        IllegalArgumentException.class,
+        () -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson));
+    Assert.assertTrue(exception.getMessage().startsWith("Cannot parse default as a timestamptz value"));
   }
 
   // serialize to json and deserialize back should return the same result
