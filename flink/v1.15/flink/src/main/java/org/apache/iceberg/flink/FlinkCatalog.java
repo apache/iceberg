@@ -630,7 +630,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public List<String> listFunctions(String dbName) throws CatalogException {
-    return Lists.newArrayList(partitionFunctions.keySet());
+    return Collections.emptyList();
   }
 
   @Override
