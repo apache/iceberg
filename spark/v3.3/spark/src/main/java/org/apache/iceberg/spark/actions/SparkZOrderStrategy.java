@@ -178,6 +178,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
     Distribution distribution = Distributions.ordered(ordering);
 
     try {
+      tableCache().add(groupID, table());
       manager().stageTasks(table(), groupID, filesToRewrite);
 
       // Disable Adaptive Query Execution as this may change the output partitioning of our write
@@ -190,7 +191,7 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
 
       Dataset<Row> scanDF = cloneSession.read().format("iceberg")
           .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
-          .load(table().name());
+          .load(groupID);
 
       Column[] originalColumns = Arrays.stream(scanDF.schema().names())
           .map(n -> functions.col(n))
@@ -217,10 +218,11 @@ public class SparkZOrderStrategy extends SparkSortStrategy {
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
           .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
           .mode("append")
-          .save(table().name());
+          .save(groupID);
 
       return rewriteCoordinator().fetchNewDataFiles(table(), groupID);
     } finally {
+      tableCache().remove(groupID);
       manager().removeTasks(table(), groupID);
       rewriteCoordinator().clearRewrite(table(), groupID);
     }

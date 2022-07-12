@@ -48,7 +48,7 @@ import scala.runtime.BoxedUnit;
 /**
  * A procedure that rewrites datafiles in a table.
  *
- * @see org.apache.iceberg.spark.actions.SparkActions#rewriteDataFiles(Table, String)
+ * @see org.apache.iceberg.spark.actions.SparkActions#rewriteDataFiles(Table)
  */
 class RewriteDataFilesProcedure extends BaseProcedure {
 
@@ -95,7 +95,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
     return modifyIcebergTable(tableIdent, table -> {
       String quotedFullIdentifier = Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
-      RewriteDataFiles action = actions().rewriteDataFiles(table, quotedFullIdentifier);
+      RewriteDataFiles action = actions().rewriteDataFiles(table);
 
       String strategy = args.isNullAt(1) ? null : args.getString(1);
       String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
