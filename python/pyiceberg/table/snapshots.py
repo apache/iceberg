@@ -15,14 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 from enum import Enum
-from typing import (
-    Dict,
-    List,
-    Optional,
-    Union,
-)
+from typing import Dict, Optional, Union
 
-from pydantic import Field, root_validator
+from pydantic import Field, PrivateAttr, root_validator
 
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -52,6 +47,7 @@ class Summary(IcebergBaseModel):
     """
 
     __root__: Dict[str, Union[str, Operation]]
+    _additional_properties: Dict[str, str] = PrivateAttr()
 
     @root_validator
     def check_operation(cls, values: Dict[str, Dict[str, Union[str, Operation]]]) -> Dict[str, Dict[str, Union[str, Operation]]]:
@@ -62,8 +58,13 @@ class Summary(IcebergBaseModel):
             raise ValueError("Operation not set")
         return values
 
-    def __init__(self, operation: Optional[Operation] = None, __root__: Dict[str, Union[str, Operation]] = None, **data):
+    def __init__(
+        self, operation: Optional[Operation] = None, __root__: Optional[Dict[str, Union[str, Operation]]] = None, **data
+    ):
         super().__init__(__root__={"operation": operation, **data} if not __root__ else __root__)
+        self._additional_properties = {
+            k: v for k, v in self.__root__.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
+        }
 
     @property
     def operation(self) -> Operation:
@@ -71,14 +72,12 @@ class Summary(IcebergBaseModel):
         if isinstance(operation, Operation):
             return operation
         else:
-            # Should not happen
+            # Should never happen
             raise ValueError(f"Unknown type of operation: {operation}")
 
     @property
     def additional_properties(self) -> Dict[str, str]:
-        return {
-            k: v for k, v in self.__root__.items() if k != OPERATION  # type: ignore # We know that they are all string, and we don't want to check
-        }
+        return self._additional_properties
 
 
 class Snapshot(IcebergBaseModel):
@@ -86,9 +85,6 @@ class Snapshot(IcebergBaseModel):
     parent_snapshot_id: Optional[int] = Field(alias="parent-snapshot-id")
     sequence_number: Optional[int] = Field(alias="sequence-number", default=None)
     timestamp_ms: int = Field(alias="timestamp-ms")
-    manifest_list: Optional[str] = Field(
-        alias="manifest-list", description="Location of the snapshot's manifest list file", default=None
-    )
-    manifests: List[str] = Field(default_factory=list, repr=False, exclude=True)
+    manifest_list: str = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
     summary: Optional[Summary] = Field()
     schema_id: Optional[int] = Field(None, alias="schema-id")

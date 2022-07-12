@@ -19,10 +19,6 @@ from functools import cached_property
 from pydantic import BaseModel
 
 
-def test_encoder(**kwargs):
-    return kwargs
-
-
 class IcebergBaseModel(BaseModel):
     """
     This class extends the Pydantic BaseModel to set default values by overriding them.
@@ -42,7 +38,6 @@ class IcebergBaseModel(BaseModel):
         keep_untouched = (cached_property,)
         allow_population_by_field_name = True
         frozen = True
-        json_encoders = {"Summary": test_encoder}
 
     def dict(self, exclude_none: bool = True, **kwargs):
         return super().dict(exclude_none=exclude_none, **kwargs)
@@ -51,7 +46,7 @@ class IcebergBaseModel(BaseModel):
         # A small trick to exclude private properties. Properties are serialized by pydantic,
         # regardless if they start with an underscore.
         # This will look at the dict, and find the fields and exclude them
-        kwargs["exclude"] = set.union(
+        exclude = set.union(
             {field for field in self.__dict__ if field.startswith("_") and not field == "__root__"}, kwargs.get("exclude", set())
         )
-        return super().json(exclude_none=exclude_none, by_alias=by_alias, **kwargs)
+        return super().json(exclude_none=exclude_none, exclude=exclude, by_alias=by_alias, **kwargs)
