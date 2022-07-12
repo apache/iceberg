@@ -24,6 +24,7 @@ import java.util.Set;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.util.SortOrderUtil;
 
 /**
  * A rewrite strategy for data files which aims to reorder data with data files to optimally lay them out
@@ -48,7 +49,8 @@ public abstract class SortStrategy extends BinPackStrategy {
    * @return this for method chaining
    */
   public SortStrategy sortOrder(SortOrder order) {
-    this.sortOrder = order;
+    Preconditions.checkArgument(!order.isUnsorted(), "Cannot set strategy sort order: unsorted");
+    this.sortOrder = SortOrderUtil.buildSortOrder(table(), order);
     return this;
   }
 

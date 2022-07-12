@@ -39,14 +39,25 @@ public class TestFixtures {
       required(3, "dt", Types.StringType.get()));
 
   public static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .identity("dt")
-      .bucket("id", 1)
-      .build();
+          .identity("dt")
+          .bucket("id", 1)
+          .build();
 
   public static final RowType ROW_TYPE = FlinkSchemaUtil.convert(SCHEMA);
 
   public static final String DATABASE = "default";
   public static final String TABLE = "t";
+  public static final String SINK_TABLE = "t_sink";
 
   public static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DATABASE, TABLE);
+
+  public static final Schema TS_SCHEMA = new Schema(
+          required(1, "ts", Types.TimestampType.withoutZone()),
+          required(2, "str", Types.StringType.get()));
+
+  public static final PartitionSpec TS_SPEC = PartitionSpec.builderFor(TS_SCHEMA)
+          .hour("ts")
+          .build();
+
+  public static final RowType TS_ROW_TYPE = FlinkSchemaUtil.convert(TS_SCHEMA);
 }

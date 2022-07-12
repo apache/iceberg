@@ -279,10 +279,14 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
   @Test
   public void testSupportedReadsForParquetV2() throws Exception {
-    // Only float and double column types are written using plain encoding with Parquet V2
+    // Float and double column types are written using plain encoding with Parquet V2,
+    // also Parquet V2 will dictionary encode decimals that use fixed length binary
+    // (i.e. decimals > 8 bytes)
     Schema schema = new Schema(
             optional(102, "float_data", Types.FloatType.get()),
-            optional(103, "double_data", Types.DoubleType.get()));
+            optional(103, "double_data", Types.DoubleType.get()),
+            optional(104, "decimal_data", Types.DecimalType.of(25, 5))
+    );
 
     File dataFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", dataFile.delete());

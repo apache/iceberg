@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +35,7 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -241,30 +243,45 @@ class ManifestGroup {
 
     return Iterables.transform(
         matchingManifests,
-        manifest -> {
-          ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById)
-              .filterRows(dataFilter)
-              .filterPartitions(partitionFilter)
-              .caseSensitive(caseSensitive)
-              .select(columns);
+        manifest -> new CloseableIterable<T>() {
+          private CloseableIterable<T> iterable;
 
-          CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
-          if (ignoreDeleted) {
-            entries = reader.liveEntries();
+          @Override
+          public CloseableIterator<T> iterator() {
+            ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById)
+                .filterRows(dataFilter)
+                .filterPartitions(partitionFilter)
+                .caseSensitive(caseSensitive)
+                .select(columns);
+
+            CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
+            if (ignoreDeleted) {
+              entries = reader.liveEntries();
+            }
+
+            if (ignoreExisting) {
+              entries = CloseableIterable.filter(entries,
+                  entry -> entry.status() != ManifestEntry.Status.EXISTING);
+            }
+
+            if (evaluator != null) {
+              entries = CloseableIterable.filter(entries,
+                  entry -> evaluator.eval((GenericDataFile) entry.file()));
+            }
+
+            entries = CloseableIterable.filter(entries, manifestEntryPredicate);
+
+            iterable = entryFn.apply(manifest, entries);
+
+            return iterable.iterator();
           }
 
-          if (ignoreExisting) {
-            entries = CloseableIterable.filter(entries,
-                entry -> entry.status() != ManifestEntry.Status.EXISTING);
+          @Override
+          public void close() throws IOException {
+            if (iterable != null) {
+              iterable.close();
+            }
           }
-
-          if (evaluator != null) {
-            entries = CloseableIterable.filter(entries,
-                entry -> evaluator.eval((GenericDataFile) entry.file()));
-          }
-
-          entries = CloseableIterable.filter(entries, manifestEntryPredicate);
-          return entryFn.apply(manifest, entries);
         });
   }
 }

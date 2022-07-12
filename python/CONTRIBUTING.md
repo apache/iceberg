@@ -71,3 +71,17 @@ For Python, we use pytest in combination with coverage to maintain 90% code cove
 ```bash
 make test
 ```
+
+To pass additional arguments to pytest, you can use `PYTEST_ARGS`.
+
+*Run pytest in verbose mode*
+```sh
+make test PYTEST_ARGS="-v"
+```
+
+*Run pytest with pdb enabled*
+```sh
+make test PYTEST_ARGS="--pdb"
+```
+
+To see all available pytest arguments, run `make test PYTEST_ARGS="--help"`.

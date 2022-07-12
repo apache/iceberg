@@ -38,6 +38,13 @@ public interface FileIO extends Serializable, Closeable {
   InputFile newInputFile(String path);
 
   /**
+   * Get a {@link InputFile} instance to read bytes from the file at the given path, with a known file length.
+   */
+  default InputFile newInputFile(String path, long length) {
+    return newInputFile(path);
+  }
+
+  /**
    * Get a {@link OutputFile} instance to write bytes to the file at the given path.
    */
   OutputFile newOutputFile(String path);
@@ -62,7 +69,7 @@ public interface FileIO extends Serializable, Closeable {
   }
 
   /**
-   * @return the property map used to configure this FileIO
+   * Returns the property map used to configure this FileIO
    * @throws UnsupportedOperationException if this FileIO does not expose its configuration properties
    */
   default Map<String, String> properties() {

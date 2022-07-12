@@ -82,7 +82,7 @@ public class ManifestFiles {
   public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DATA,
         "Cannot read a delete manifest with a ManifestReader: %s", manifest);
-    InputFile file = io.newInputFile(manifest.path());
+    InputFile file = io.newInputFile(manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DATA_FILES);
   }
@@ -133,7 +133,7 @@ public class ManifestFiles {
                                                               Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s", manifest);
-    InputFile file = io.newInputFile(manifest.path());
+    InputFile file = io.newInputFile(manifest.path(), manifest.length());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
@@ -226,6 +226,7 @@ public class ManifestFiles {
     }
   }
 
+  @SuppressWarnings("Finally")
   private static ManifestFile copyManifestInternal(int formatVersion, ManifestReader<DataFile> reader,
                                                    OutputFile outputFile, long snapshotId,
                                                    SnapshotSummary.Builder summaryBuilder,

@@ -267,6 +267,10 @@ public class TableProperties {
   public static final String METADATA_DELETE_AFTER_COMMIT_ENABLED = "write.metadata.delete-after-commit.enabled";
   public static final boolean METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT = false;
 
+  public static final String METRICS_MAX_INFERRED_COLUMN_DEFAULTS =
+      "write.metadata.metrics.max-inferred-column-defaults";
+  public static final int METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT = 32;
+
   public static final String METRICS_MODE_COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
   public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
   public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";

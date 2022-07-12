@@ -128,11 +128,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
   class FixedLengthDecimalDictEncodedReader extends BaseDictEncodedReader {
     @Override
     protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      byte[] vectorBytes =
-          DecimalVectorUtil.padBigEndianBytes(
-              dict.decodeToBinary(currentVal).getBytesUnsafe(),
-              DecimalVector.TYPE_WIDTH);
-      ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
+      byte[] bytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
+      DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, bytes);
     }
   }
 

@@ -1,12 +1,12 @@
 org.slf4j:* = 1.7.25
-org.apache.avro:avro = 1.10.1
+org.apache.avro:avro = 1.10.2
 org.apache.calcite:* = 1.10.0
 org.apache.flink:* = 1.14.3
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:* = 2.3.8
 org.apache.httpcomponents.client5:* = 5.1
 org.apache.orc:* = 1.7.5
-org.apache.parquet:* = 1.12.2
+org.apache.parquet:* = 1.12.3
 org.apache.spark:spark-hive_2.11 = 2.4.8
 org.apache.spark:spark-avro_2.11 = 2.4.8
 org.apache.pig:pig = 0.14.0

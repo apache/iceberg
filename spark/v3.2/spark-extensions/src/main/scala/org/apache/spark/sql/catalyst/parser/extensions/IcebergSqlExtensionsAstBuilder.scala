@@ -26,6 +26,8 @@ import org.antlr.v4.runtime.tree.TerminalNode
 import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
+import org.apache.iceberg.SortOrder
+import org.apache.iceberg.UnboundSortOrder
 import org.apache.iceberg.expressions.Term
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.sql.AnalysisException
@@ -215,6 +217,10 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    */
   override def visitMultipartIdentifier(ctx: MultipartIdentifierContext): Seq[String] = withOrigin(ctx) {
     toSeq(ctx.parts).map(_.getText)
+  }
+
+  override def visitSingleOrder(ctx: SingleOrderContext): Seq[(Term, SortDirection, NullOrder)] = withOrigin(ctx) {
+    toSeq(ctx.order.fields).map(typedVisit[(Term, SortDirection, NullOrder)])
   }
 
   /**
