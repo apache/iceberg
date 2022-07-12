@@ -85,6 +85,6 @@ class Snapshot(IcebergBaseModel):
     parent_snapshot_id: Optional[int] = Field(alias="parent-snapshot-id")
     sequence_number: Optional[int] = Field(alias="sequence-number", default=None)
     timestamp_ms: int = Field(alias="timestamp-ms")
-    manifest_list: str = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
+    manifest_list: Optional[str] = Field(alias="manifest-list", description="Location of the snapshot's manifest list file")
     summary: Optional[Summary] = Field()
-    schema_id: Optional[int] = Field(None, alias="schema-id")
+    schema_id: Optional[int] = Field(alias="schema-id", default=None)

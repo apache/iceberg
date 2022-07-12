@@ -34,7 +34,7 @@ from pyiceberg.table.snapshots import Snapshot
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, UNSORTED_SORT_ORDER_ID, SortOrder
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
-_INITIAL_SEQUENCE_NUMBER = 0
+INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
 
@@ -333,7 +333,7 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
 
-    last_sequence_number: int = Field(alias="last-sequence-number", default=_INITIAL_SEQUENCE_NUMBER)
+    last_sequence_number: int = Field(alias="last-sequence-number", default=INITIAL_SEQUENCE_NUMBER)
     """The table’s highest assigned sequence number, a monotonically
     increasing long that tracks the order of snapshots in a table."""
 

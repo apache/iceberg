@@ -42,6 +42,21 @@ def test_serialize_snapshot():
     )
 
 
+def test_serialize_snapshot_without_sequence_number():
+    snapshot = Snapshot(
+        snapshot_id=25,
+        parent_snapshot_id=19,
+        timestamp_ms=1602638573590,
+        manifest_list="s3:/a/b/c.avro",
+        summary=Summary(Operation.APPEND),
+        schema_id=3,
+    )
+
+    actual = snapshot.json()
+    expected = """{"snapshot-id": 25, "parent-snapshot-id": 19, "timestamp-ms": 1602638573590, "manifest-list": "s3:/a/b/c.avro", "summary": {"operation": "append"}, "schema-id": 3}"""
+    assert actual == expected
+
+
 def test_serialize_snapshot_with_properties():
     snapshot = Snapshot(
         snapshot_id=25,
