@@ -14,15 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from pyiceberg import transforms
-from pyiceberg.schema import Schema
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
-<<<<<<< HEAD
-from pyiceberg.transforms import bucket
-from pyiceberg.types import IntegerType, StringType
-=======
-from pyiceberg.transforms import BucketTransform
->>>>>>> 6cc4a198c56c05ff103e6ecdf75fe50004af19da
+from pyiceberg.transforms import BucketTransform, TruncateTransform
 
 
 def test_partition_field_init():
@@ -41,13 +34,9 @@ def test_partition_field_init():
     )
 
 
-<<<<<<< HEAD
 def test_partition_spec_init():
-    bucket_transform = bucket(IntegerType(), 4)
-=======
-def test_partition_spec_init(table_schema_simple: Schema):
     bucket_transform: BucketTransform = BucketTransform(4)
->>>>>>> 6cc4a198c56c05ff103e6ecdf75fe50004af19da
+
     id_field1 = PartitionField(3, 1001, bucket_transform, "id")
     partition_spec1 = PartitionSpec(0, (id_field1,), 1001)
 
@@ -90,12 +79,8 @@ def test_serialize_partition_spec():
     partitioned = PartitionSpec(
         spec_id=3,
         fields=(
-            PartitionField(
-                source_id=1, field_id=1000, transform=transforms.truncate(StringType(), width=19), name="str_truncate"
-            ),
-            PartitionField(
-                source_id=2, field_id=1001, transform=transforms.bucket(IntegerType(), num_buckets=25), name="int_bucket"
-            ),
+            PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=19), name="str_truncate"),
+            PartitionField(source_id=2, field_id=1001, transform=BucketTransform(num_buckets=25), name="int_bucket"),
         ),
     )
     assert (
@@ -104,34 +89,15 @@ def test_serialize_partition_spec():
     )
 
 
-def test_deserialize_partition_spec(table_schema_simple: Schema):
+def test_deserialize_partition_spec():
     json_partition_spec = """{"spec-id": 3, "fields": [{"source-id": 1, "field-id": 1000, "transform": "truncate[19]", "name": "str_truncate"}, {"source-id": 2, "field-id": 1001, "transform": "bucket[25]", "name": "int_bucket"}], "last-assigned-field-id": 1001}"""
 
     spec = PartitionSpec.parse_raw(json_partition_spec)
 
-    # Should show unbound transforms, waiting for https://github.com/apache/iceberg/pull/5124
     assert spec == PartitionSpec(
         spec_id=3,
         fields=(
-            PartitionField(
-                source_id=1, field_id=1000, transform=transforms.truncate(StringType(), width=19), name="str_truncate"
-            ),
-            PartitionField(
-                source_id=2, field_id=1001, transform=transforms.bucket(IntegerType(), num_buckets=25), name="int_bucket"
-            ),
-        ),
-    )
-
-    spec.bind(table_schema_simple)
-
-    assert spec == PartitionSpec(
-        spec_id=3,
-        fields=(
-            PartitionField(
-                source_id=1, field_id=1000, transform=transforms.truncate(StringType(), width=19), name="str_truncate"
-            ),
-            PartitionField(
-                source_id=2, field_id=1001, transform=transforms.bucket(IntegerType(), num_buckets=25), name="int_bucket"
-            ),
+            PartitionField(source_id=1, field_id=1000, transform=TruncateTransform(width=19), name="str_truncate"),
+            PartitionField(source_id=2, field_id=1001, transform=BucketTransform(num_buckets=25), name="int_bucket"),
         ),
     )

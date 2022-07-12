@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from functools import cached_property
 from typing import (
     Any,
     Dict,
@@ -22,9 +23,8 @@ from typing import (
     Tuple,
 )
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field, root_validator
 
-from pyiceberg.schema import Schema
 from pyiceberg.transforms import Transform
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -69,13 +69,6 @@ class PartitionField(IcebergBaseModel):
     def __str__(self):
         return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
 
-    def bind(self, schema: Schema):
-        self.transform = (
-            self.transform.bind(schema.find_type(self.source_id))
-            if isinstance(self.transform, UnboundTransform)
-            else self.transform
-        )
-
 
 class PartitionSpec(IcebergBaseModel):
     """
@@ -90,9 +83,7 @@ class PartitionSpec(IcebergBaseModel):
 
     spec_id: int = Field(alias="spec-id")
     fields: Tuple[PartitionField, ...] = Field()
-    last_assigned_field_id: int = Field(alias="last-assigned-field-id")
-
-    _source_id_to_fields_map: Dict[int, List[PartitionField]] = PrivateAttr(default_factory=dict)
+    last_assigned_field_id: int = Field(alias="last-assigned-field-id", default=_PARTITION_DATA_ID_START)
 
     def __init__(
         self,
@@ -107,23 +98,14 @@ class PartitionSpec(IcebergBaseModel):
             data["fields"] = fields
         if last_assigned_field_id is not None:
             data["last-assigned-field-id"] = last_assigned_field_id
-
-        if not data.get("last-assigned-field-id"):
-            if fields := data.get("fields"):
-                data["last-assigned-field-id"] = max(field.field_id for field in fields)
-            else:
-                data["last-assigned-field-id"] = _PARTITION_DATA_ID_START
         super().__init__(**data)
 
-    def bind(self, schema: Schema):
-        for partition_field in self.fields:
-            # Lookup the column
-            source_column = schema.find_field(partition_field.source_id)
-            if not source_column:
-                raise ValueError(f"Cannot find source column: {partition_field.source_id}")
-            self._source_id_to_fields_map.get(partition_field.source_id, []).append(partition_field)
-            # Init the right transform impl based on the field
-            partition_field.bind(source_column.field_type)
+    @root_validator
+    def check_last_assigned_field_id(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        if values.get("last-assigned-field-id", _PARTITION_DATA_ID_START) == _PARTITION_DATA_ID_START:
+            if fields := values.get("fields"):
+                values["last-assigned-field-id"] = max(field.field_id for field in fields)
+        return values
 
     def __eq__(self, other: Any) -> bool:
         """
@@ -152,8 +134,17 @@ class PartitionSpec(IcebergBaseModel):
     def is_unpartitioned(self) -> bool:
         return not self.fields
 
+    @cached_property
+    def source_id_to_fields_map(self) -> Dict[int, List[PartitionField]]:
+        source_id_to_fields_map: Dict[int, List[PartitionField]] = {}
+        for partition_field in self.fields:
+            existing = source_id_to_fields_map.get(partition_field.source_id, [])
+            existing.append(partition_field)
+            source_id_to_fields_map[partition_field.source_id] = existing
+        return source_id_to_fields_map
+
     def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
-        return self._source_id_to_fields_map[field_id]
+        return self.source_id_to_fields_map[field_id]
 
     def compatible_with(self, other: "PartitionSpec") -> bool:
         """

@@ -25,7 +25,9 @@ from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import FromByteStream
 from pyiceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
+from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
+from pyiceberg.transforms import IdentityTransform
 from pyiceberg.types import LongType, NestedField
 
 EXAMPLE_TABLE_METADATA_V1 = {
@@ -140,7 +142,7 @@ def test_v2_metadata_parsing():
     assert table_metadata.last_column_id == 3
     assert table_metadata.schemas[0].schema_id == 0
     assert table_metadata.current_schema_id == 1
-    assert table_metadata.partition_specs[0]["spec-id"] == 0
+    assert table_metadata.partition_specs[0].spec_id == 0
     assert table_metadata.default_spec_id == 0
     assert table_metadata.last_partition_id == 1000
     assert table_metadata.properties["read.split.target.size"] == "134217728"
@@ -207,7 +209,7 @@ def test_serialize_v1():
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1).json()
     assert (
         table_metadata
-        == """{"location": "s3://bucket/test/location", "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order-id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "schema": {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
+        == """{"location": "s3://bucket/test/location", "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}], "last-assigned-field-id": 1000}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order-id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "schema": {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
     )
 
 
@@ -215,7 +217,7 @@ def test_serialize_v2():
     table_metadata = TableMetadataV2(**EXAMPLE_TABLE_METADATA_V2).json()
     assert (
         table_metadata
-        == """{"location": "s3://bucket/test/location", "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770, "sequence-number": 0, "summary": {"operation": "append"}, "manifest-list": "s3://a/b/1.avro"}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "timestamp-ms": 1555100955770, "sequence-number": 1, "summary": {"operation": "append"}, "manifest-list": "s3://a/b/2.avro", "schema-id": 1}], "snapshot-log": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770}, {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770}], "metadata-log": [], "sort-orders": [{"order-id": 3, "fields": [{"source-id": 2, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 3, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "last-sequence-number": 34}"""
+        == """{"location": "s3://bucket/test/location", "table-uuid": "9c12d441-03fe-4693-9a96-a0705ddf69c1", "last-updated-ms": 1602638573590, "last-column-id": 3, "schemas": [{"fields": [{"id": 1, "name": "x", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, {"fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 1, "identifier-field-ids": [1, 2]}], "current-schema-id": 1, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}], "last-assigned-field-id": 1000}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {"read.split.target.size": "134217728"}, "current-snapshot-id": 3055729675574597004, "snapshots": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770, "sequence-number": 0, "summary": {"operation": "append"}, "manifest-list": "s3://a/b/1.avro"}, {"snapshot-id": 3055729675574597004, "parent-snapshot-id": 3051729675574597004, "timestamp-ms": 1555100955770, "sequence-number": 1, "summary": {"operation": "append"}, "manifest-list": "s3://a/b/2.avro", "schema-id": 1}], "snapshot-log": [{"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770}, {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770}], "metadata-log": [], "sort-orders": [{"order-id": 3, "fields": [{"source-id": 2, "transform": "identity", "direction": "asc", "null-order": "nulls-first"}, {"source-id": 3, "transform": "bucket[4]", "direction": "desc", "null-order": "nulls-last"}]}], "default-sort-order-id": 3, "refs": {"main": {"snapshot-id": 3055729675574597004, "type": "branch"}}, "format-version": 2, "last-sequence-number": 34}"""
     )
 
 
@@ -234,7 +236,11 @@ def test_migrate_v1_partition_specs():
     assert len(table_metadata.partition_specs) == 1
     # Spec ID gets added automatically
     assert table_metadata.partition_specs == [
-        {"spec-id": 0, "fields": [{"field-id": 1000, "name": "x", "source-id": 1, "transform": "identity"}]}
+        PartitionSpec(
+            spec_id=0,
+            fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"),),
+            last_assigned_field_id=1000,
+        ),
     ]
 
 
@@ -506,7 +512,11 @@ def test_v1_write_metadata_for_v2():
         }
     ]
     assert metadata_v2["partition-specs"] == [
-        {"spec-id": 0, "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}
+        {
+            "spec-id": 0,
+            "last-assigned-field-id": 1000,
+            "fields": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}],
+        }
     ]
     assert metadata_v2["default-spec-id"] == 0
     assert metadata_v2["last-partition-id"] == 1000
