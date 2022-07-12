@@ -48,22 +48,22 @@ import scala.collection.JavaConverters;
  * have a different data and metadata directory allowing it to exist independently of the
  * source table.
  */
-public class BaseSnapshotTableSparkAction
-    extends BaseTableCreationSparkAction<SnapshotTable, SnapshotTable.Result>
+public class SnapshotTableSparkAction
+    extends BaseTableCreationSparkAction<SnapshotTableSparkAction>
     implements SnapshotTable {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseSnapshotTableSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SnapshotTableSparkAction.class);
 
   private StagingTableCatalog destCatalog;
   private Identifier destTableIdent;
   private String destTableLocation = null;
 
-  BaseSnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+  SnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
   }
 
   @Override
-  protected SnapshotTable self() {
+  protected SnapshotTableSparkAction self() {
     return this;
   }
 
@@ -78,7 +78,7 @@ public class BaseSnapshotTableSparkAction
   }
 
   @Override
-  public SnapshotTable as(String ident) {
+  public SnapshotTableSparkAction as(String ident) {
     String ctx = "snapshot destination";
     CatalogPlugin defaultCatalog = spark().sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark(), ident, defaultCatalog);
@@ -88,13 +88,13 @@ public class BaseSnapshotTableSparkAction
   }
 
   @Override
-  public SnapshotTable tableProperties(Map<String, String> properties) {
+  public SnapshotTableSparkAction tableProperties(Map<String, String> properties) {
     setProperties(properties);
     return this;
   }
 
   @Override
-  public SnapshotTable tableProperty(String property, String value) {
+  public SnapshotTableSparkAction tableProperty(String property, String value) {
     setProperty(property, value);
     return this;
   }
@@ -194,7 +194,7 @@ public class BaseSnapshotTableSparkAction
   }
 
   @Override
-  public SnapshotTable tableLocation(String location) {
+  public SnapshotTableSparkAction tableLocation(String location) {
     Preconditions.checkArgument(!sourceTableLocation().equals(location),
         "The snapshot table location cannot be same as the source table location. " +
         "This would mix snapshot table files with original table files.");

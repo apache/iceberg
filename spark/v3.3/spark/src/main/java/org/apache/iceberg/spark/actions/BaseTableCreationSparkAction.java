@@ -49,7 +49,7 @@ import org.apache.spark.sql.connector.catalog.V1Table;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 
-abstract class BaseTableCreationSparkAction<ThisT, R> extends BaseSparkAction<ThisT, R> {
+abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT> {
   private static final Set<String> ALLOWED_SOURCES = ImmutableSet.of("parquet", "avro", "orc", "hive");
   protected static final String LOCATION = "location";
   protected static final String ICEBERG_METADATA_FOLDER = "metadata";

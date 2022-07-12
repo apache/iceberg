@@ -79,14 +79,14 @@ import static org.apache.iceberg.MetadataTableType.ENTRIES;
  * and a custom spec id to {@link #specId(int)}. In addition, there is a way to configure a custom location
  * for new manifests via {@link #stagingLocation}.
  */
-public class BaseRewriteManifestsSparkAction
-    extends BaseSnapshotUpdateSparkAction<RewriteManifests, RewriteManifests.Result>
+public class RewriteManifestsSparkAction
+    extends BaseSnapshotUpdateSparkAction<RewriteManifestsSparkAction>
     implements RewriteManifests {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteManifestsSparkAction.class);
+  public static final String USE_CACHING = "use-caching";
+  public static final boolean USE_CACHING_DEFAULT = true;
 
-  private static final String USE_CACHING = "use-caching";
-  private static final boolean USE_CACHING_DEFAULT = true;
+  private static final Logger LOG = LoggerFactory.getLogger(RewriteManifestsSparkAction.class);
 
   private final Encoder<ManifestFile> manifestEncoder;
   private final Table table;
@@ -98,7 +98,7 @@ public class BaseRewriteManifestsSparkAction
   private Predicate<ManifestFile> predicate = manifest -> true;
   private String stagingLocation = null;
 
-  public BaseRewriteManifestsSparkAction(SparkSession spark, Table table) {
+  RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.manifestEncoder = Encoders.javaSerialization(ManifestFile.class);
     this.table = table;
@@ -119,25 +119,25 @@ public class BaseRewriteManifestsSparkAction
   }
 
   @Override
-  protected RewriteManifests self() {
+  protected RewriteManifestsSparkAction self() {
     return this;
   }
 
   @Override
-  public RewriteManifests specId(int specId) {
+  public RewriteManifestsSparkAction specId(int specId) {
     Preconditions.checkArgument(table.specs().containsKey(specId), "Invalid spec id %s", specId);
     this.spec = table.specs().get(specId);
     return this;
   }
 
   @Override
-  public RewriteManifests rewriteIf(Predicate<ManifestFile> newPredicate) {
+  public RewriteManifestsSparkAction rewriteIf(Predicate<ManifestFile> newPredicate) {
     this.predicate = newPredicate;
     return this;
   }
 
   @Override
-  public RewriteManifests stagingLocation(String newStagingLocation) {
+  public RewriteManifestsSparkAction stagingLocation(String newStagingLocation) {
     this.stagingLocation = newStagingLocation;
     return this;
   }

@@ -50,18 +50,18 @@ import scala.collection.JavaConverters;
  * previously referred to a non-Iceberg table will refer to the newly migrated Iceberg
  * table.
  */
-public class BaseMigrateTableSparkAction
-    extends BaseTableCreationSparkAction<MigrateTable, MigrateTable.Result>
+public class MigrateTableSparkAction
+    extends BaseTableCreationSparkAction<MigrateTableSparkAction>
     implements MigrateTable {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateTableSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(MigrateTableSparkAction.class);
   private static final String BACKUP_SUFFIX = "_BACKUP_";
 
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
   private final Identifier backupIdent;
 
-  public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+  MigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
@@ -70,7 +70,7 @@ public class BaseMigrateTableSparkAction
   }
 
   @Override
-  protected MigrateTable self() {
+  protected MigrateTableSparkAction self() {
     return this;
   }
 
@@ -85,13 +85,13 @@ public class BaseMigrateTableSparkAction
   }
 
   @Override
-  public MigrateTable tableProperties(Map<String, String> properties) {
+  public MigrateTableSparkAction tableProperties(Map<String, String> properties) {
     setProperties(properties);
     return this;
   }
 
   @Override
-  public MigrateTable tableProperty(String property, String value) {
+  public MigrateTableSparkAction tableProperty(String property, String value) {
     setProperty(property, value);
     return this;
   }
