@@ -225,7 +225,6 @@ project(':iceberg-api') {
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
-  tasks.test.dependsOn rootProject.tasks.buildInfo
 
   sourceSets {
     test {
