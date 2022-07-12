@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Locale;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
@@ -93,6 +94,6 @@ public class MetadataTableUtils {
   }
 
   private static String metadataTableName(String tableName, MetadataTableType type) {
-    return tableName + (tableName.contains("/") ? "#" : ".") + type;
+    return tableName + (tableName.contains("/") ? "#" : ".") + type.name().toLowerCase(Locale.ROOT);
   }
 }

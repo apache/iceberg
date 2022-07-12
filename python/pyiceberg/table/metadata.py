@@ -31,10 +31,11 @@ from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import Schema
 from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
+from pyiceberg.table.snapshots import Snapshot
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, UNSORTED_SORT_ORDER_ID, SortOrder
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
-_INITIAL_SEQUENCE_NUMBER = 0
+INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
 
@@ -143,7 +144,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id")
     """ID of the current table snapshot."""
 
-    snapshots: list = Field(default_factory=list)
+    snapshots: List[Snapshot] = Field(default_factory=list)
     """A list of valid snapshots. Valid snapshots are snapshots for which
     all data files exist in the file system. A data file must not be
     deleted from the file system until the last snapshot in which it was
@@ -333,7 +334,7 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
 
-    last_sequence_number: int = Field(alias="last-sequence-number", default=_INITIAL_SEQUENCE_NUMBER)
+    last_sequence_number: int = Field(alias="last-sequence-number", default=INITIAL_SEQUENCE_NUMBER)
     """The table’s highest assigned sequence number, a monotonically
     increasing long that tracks the order of snapshots in a table."""
 

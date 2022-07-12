@@ -135,8 +135,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
           io().deleteFile(newMetadataLocation);
         }
       } catch (RuntimeException e) {
-        LOG.error("Fail to cleanup metadata file at {}", newMetadataLocation, e);
-        throw e;
+        LOG.error("Failed to cleanup metadata file at {}", newMetadataLocation, e);
       }
     }
   }
