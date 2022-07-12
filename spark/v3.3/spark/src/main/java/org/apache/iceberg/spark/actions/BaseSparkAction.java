@@ -34,7 +34,6 @@ import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.actions.Action;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
@@ -59,7 +58,7 @@ import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 
-abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
+abstract class BaseSparkAction<ThisT> {
 
   protected static final String CONTENT_FILE = "Content File";
   protected static final String MANIFEST = "Manifest";
@@ -91,13 +90,11 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected abstract ThisT self();
 
-  @Override
   public ThisT option(String name, String value) {
     options.put(name, value);
     return self();
   }
 
-  @Override
   public ThisT options(Map<String, String> newOptions) {
     options.putAll(newOptions);
     return self();

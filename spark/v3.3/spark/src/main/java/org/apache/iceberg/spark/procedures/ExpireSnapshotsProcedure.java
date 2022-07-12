@@ -22,7 +22,7 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
+import org.apache.iceberg.spark.actions.ExpireSnapshotsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -108,7 +108,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       }
 
       if (streamResult != null) {
-        action.option(BaseExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
+        action.option(ExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
       }
 
       ExpireSnapshots.Result result = action.execute();
