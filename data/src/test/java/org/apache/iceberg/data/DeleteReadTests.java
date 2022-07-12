@@ -29,6 +29,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -84,7 +85,9 @@ public abstract class DeleteReadTests {
     this.tableName = "test";
     this.table = createTable(tableName, SCHEMA, SPEC);
     this.records = Lists.newArrayList();
-
+    table.updateProperties()
+            .set(TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "data", "true")
+            .commit();
     // records all use IDs that are in bucket id_bucket=0
     GenericRecord record = GenericRecord.create(table.schema());
     records.add(record.copy("id", 29, "data", "a"));
@@ -432,6 +435,46 @@ public abstract class DeleteReadTests {
     StructLikeSet expected = rowSetWithoutIds(table, records, 131);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
+  public void testEqualityDeleteWithBloomFilter() throws IOException {
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "h") // will be filtered
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+
+    table.newRowDelta()
+            .addDeletes(eqDeletes)
+            .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+
+    List<Record> filteredDataDeletes = Lists.newArrayList(
+            dataDelete.copy("data", "i"),
+            dataDelete.copy("data", "j"),
+            dataDelete.copy("data", "k")
+    );
+
+    DeleteFile filteredEqDeletes = FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), Row.of(0), filteredDataDeletes, deleteRowSchema);
+
+    table.newRowDelta()
+            .addDeletes(filteredEqDeletes)
+            .commit();
+
+    expected = rowSetWithoutIds(table, records, 29, 89);
+    actual = rowSet(tableName, table, "*");
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
 

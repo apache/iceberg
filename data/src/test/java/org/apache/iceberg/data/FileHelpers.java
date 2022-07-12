@@ -39,12 +39,14 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 
 public class FileHelpers {
   private FileHelpers() {
@@ -96,7 +98,7 @@ public class FileHelpers {
   public static DataFile writeDataFile(Table table, OutputFile out, List<Record> rows) throws IOException {
     FileFormat format = defaultFormat(table.properties());
     GenericAppenderFactory factory = new GenericAppenderFactory(table.schema());
-
+    factory.setAll(bloomFilterProperties(table.properties()));
     FileAppender<Record> writer = factory.newAppender(out, format);
     try (Closeable toClose = writer) {
       writer.addAll(rows);
@@ -138,5 +140,16 @@ public class FileHelpers {
   private static FileFormat defaultFormat(Map<String, String> properties) {
     String formatString = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+  }
+
+  private static Map<String, String> bloomFilterProperties(Map<String, String> properties) {
+    Map<String, String> bloomFilterColumns = Maps.newHashMap();
+    for (Map.Entry<String, String> entry : properties.entrySet()) {
+      String key = entry.getKey();
+      if (key.startsWith(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX)) {
+        bloomFilterColumns.put(key, entry.getValue());
+      }
+    }
+    return bloomFilterColumns;
   }
 }

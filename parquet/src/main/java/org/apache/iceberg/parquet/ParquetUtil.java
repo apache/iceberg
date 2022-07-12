@@ -20,6 +20,7 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
@@ -56,6 +57,7 @@ import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.hadoop.BloomFilterReader;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -373,5 +375,22 @@ public class ParquetUtil {
       }
     }
     return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
+  }
+
+  public static Map<BlockMetaData, BloomFilterReader> getParquetBloomFilters(ParquetFileReader reader) {
+    Map<BlockMetaData, BloomFilterReader> bloomFilterReaderMap = Maps.newHashMap();
+    for (BlockMetaData rowGroup : reader.getRowGroups()) {
+      bloomFilterReaderMap.put(rowGroup, reader.getBloomFilterDataReader(rowGroup));
+    }
+    return bloomFilterReaderMap;
+  }
+
+  public static ParquetFileReader openFile(org.apache.iceberg.io.InputFile input) {
+    try {
+      org.apache.parquet.io.InputFile parquetInput = ParquetIO.file(input);
+      return ParquetFileReader.open(parquetInput);
+    } catch (IOException e) {
+      throw new UncheckedIOException("failed to open parquet file reader!", e);
+    }
   }
 }
