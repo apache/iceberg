@@ -90,10 +90,10 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
  */
-public class BaseDeleteOrphanFilesSparkAction
-    extends BaseSparkAction<DeleteOrphanFiles, DeleteOrphanFiles.Result> implements DeleteOrphanFiles {
+public class DeleteOrphanFilesSparkAction
+    extends BaseSparkAction<DeleteOrphanFilesSparkAction> implements DeleteOrphanFiles {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteOrphanFilesSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
   private static final UserDefinedFunction filenameUDF = functions.udf((String path) -> {
     int lastIndex = path.lastIndexOf(File.separator);
     if (lastIndex == -1) {
@@ -119,7 +119,7 @@ public class BaseDeleteOrphanFilesSparkAction
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = null;
 
-  public BaseDeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
+  DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
 
     this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
@@ -133,35 +133,35 @@ public class BaseDeleteOrphanFilesSparkAction
   }
 
   @Override
-  protected DeleteOrphanFiles self() {
+  protected DeleteOrphanFilesSparkAction self() {
     return this;
   }
 
   @Override
-  public BaseDeleteOrphanFilesSparkAction executeDeleteWith(ExecutorService executorService) {
+  public DeleteOrphanFilesSparkAction executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
     return this;
   }
 
   @Override
-  public BaseDeleteOrphanFilesSparkAction location(String newLocation) {
+  public DeleteOrphanFilesSparkAction location(String newLocation) {
     this.location = newLocation;
     return this;
   }
 
   @Override
-  public BaseDeleteOrphanFilesSparkAction olderThan(long newOlderThanTimestamp) {
+  public DeleteOrphanFilesSparkAction olderThan(long newOlderThanTimestamp) {
     this.olderThanTimestamp = newOlderThanTimestamp;
     return this;
   }
 
   @Override
-  public BaseDeleteOrphanFilesSparkAction deleteWith(Consumer<String> newDeleteFunc) {
+  public DeleteOrphanFilesSparkAction deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
   }
 
-  public BaseDeleteOrphanFilesSparkAction compareToFileList(Dataset<Row> files) {
+  public DeleteOrphanFilesSparkAction compareToFileList(Dataset<Row> files) {
     StructType schema = files.schema();
 
     StructField filePathField = schema.apply(FILE_PATH);
