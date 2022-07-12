@@ -225,8 +225,10 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
     MetadataTableType metadataType;
     LoadTableResponse response;
+    TableIdentifier loadedIdent;
     try {
       response = loadInternal(context, identifier);
+      loadedIdent = identifier;
       metadataType = null;
 
     } catch (NoSuchTableException original) {
@@ -236,6 +238,7 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
           response = loadInternal(context, baseIdent);
+          loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
           // the base table does not exist
           throw original;
@@ -248,9 +251,9 @@ public class RESTSessionCatalog extends BaseSessionCatalog implements Configurab
 
     AuthSession session = tableSession(response.config(), session(context));
     RESTTableOperations ops = new RESTTableOperations(
-        client, paths.table(identifier), session::headers, tableFileIO(response.config()), response.tableMetadata());
+        client, paths.table(loadedIdent), session::headers, tableFileIO(response.config()), response.tableMetadata());
 
-    BaseTable table = new BaseTable(ops, fullTableName(identifier));
+    BaseTable table = new BaseTable(ops, fullTableName(loadedIdent));
     if (metadataType != null) {
       return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
     }
