@@ -15,9 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import reduce, singledispatch
-from typing import Generic, Tuple, TypeVar
+from typing import (
+    Generic,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
@@ -156,7 +162,7 @@ class Reference(UnboundTerm[T], BaseReference[T]):
         Returns:
             BoundReference: A reference bound to the specific field in the Iceberg schema
         """
-        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
+        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)  # pylint: disable=W0621
 
         if not field:
             raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
@@ -172,13 +178,33 @@ class Reference(UnboundTerm[T], BaseReference[T]):
 @dataclass(frozen=True)  # type: ignore[misc]
 class BoundPredicate(Bound[T], BooleanExpression):
     term: BoundReference[T]
-    literals: Tuple[Literal[T], ...]
+    literals: Union[Tuple[Literal[T], ...], Literal[T]]
+    literals_len_lb: int = field(init=False, repr=False, hash=False, compare=False, default=1)
+    literals_len_ub: Optional[int] = field(init=False, repr=False, hash=False, compare=False, default=1)
+
+    def __post_init__(self):
+        if not isinstance(self.literals, tuple):
+            object.__setattr__(self, "literals", (self.literals,))
+        if not (self.literals_len_lb <= len(self.literals) <= (self.literals_len_ub or float("inf"))):  # type: ignore
+            raise AttributeError(
+                f"{self.__class__} expects a number of literals between at least {self.literals_len_lb} and at most {self.literals_len_ub or float('inf')}"
+            )
 
 
 @dataclass(frozen=True)  # type: ignore[misc]
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
     term: Reference[T]
-    literals: Tuple[Literal[T], ...]
+    literals: Union[Tuple[Literal[T], ...], Literal[T]]
+    literals_len_lb: int = field(init=False, repr=False, hash=False, compare=False, default=1)
+    literals_len_ub: Optional[int] = field(init=False, repr=False, hash=False, compare=False, default=1)
+
+    def __post_init__(self):
+        if not isinstance(self.literals, tuple):
+            object.__setattr__(self, "literals", (self.literals,))
+        if not (self.literals_len_lb <= len(self.literals) <= (self.literals_len_ub or float("inf"))):  # type: ignore
+            raise AttributeError(
+                f"{self.__class__} expects a number of literals between at least {self.literals_len_lb} and at most {self.literals_len_ub or float('inf')}"
+            )
 
 
 class And(BooleanExpression):
@@ -285,46 +311,88 @@ class Not(BooleanExpression):
         return f"(not {self.child})"
 
 
+@dataclass(frozen=True)
 class AlwaysTrue(BooleanExpression, ABC, Singleton):
     """TRUE expression"""
 
     def __invert__(self) -> "AlwaysFalse":
         return AlwaysFalse()
 
-    def __repr__(self) -> str:
-        return "AlwaysTrue()"
 
-    def __str__(self) -> str:
-        return "true"
-
-
+@dataclass(frozen=True)
 class AlwaysFalse(BooleanExpression, ABC, Singleton):
     """FALSE expression"""
 
     def __invert__(self) -> "AlwaysTrue":
         return AlwaysTrue()
 
-    def __repr__(self) -> str:
-        return "AlwaysFalse()"
-
-    def __str__(self) -> str:
-        return "false"
-
 
 @dataclass(frozen=True)
 class BoundIn(BoundPredicate[T]):
+    literals_len_ub: Optional[int] = None
+
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
 
 
 @dataclass(frozen=True)
 class In(UnboundPredicate[T]):
+    literals_len_ub: Optional[int] = None
+
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
 
     def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn[T]:
         bound_ref = self.term.bind(schema, case_sensitive)
         return BoundIn(bound_ref, tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
+
+
+@dataclass(frozen=True)
+class BoundEQ(BoundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("EQ expressions do not support negation.")
+
+
+@dataclass(frozen=True)
+class EQ(UnboundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("EQ expressions do not support negation.")
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEQ[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundEQ(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+
+
+@dataclass(frozen=True)
+class BoundLT(BoundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("LT expressions do not support negation.")
+
+
+@dataclass(frozen=True)
+class LT(UnboundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("LT expressions do not support negation.")
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEQ[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundLT(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+
+
+@dataclass(frozen=True)
+class BoundGT(BoundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("GT expressions do not support negation.")
+
+
+@dataclass(frozen=True)
+class GT(UnboundPredicate[T]):
+    def __invert__(self):
+        raise TypeError("GT expressions do not support negation.")
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEQ[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundGT(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
 
 
 class BooleanExpressionVisitor(Generic[T], ABC):
