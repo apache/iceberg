@@ -21,7 +21,6 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -556,9 +555,9 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
       DictionaryDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
           extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final DecimalT[] cache;
-    private final DecimalFactory<DecimalT> decimalFactory;
-    private final Dictionary parquetDictionary;
     private final IntVector offsetVector;
+    protected final DecimalFactory<DecimalT> decimalFactory;
+    protected final Dictionary parquetDictionary;
 
     private DictionaryDecimalAccessor(
             IntVector vector,
@@ -571,28 +570,16 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
       this.cache = genericArray(decimalFactory.getGenericClass(), dictionary.getMaxId() + 1);
     }
 
-    protected long decodeToBinary(int dictId) {
-      return new BigInteger(parquetDictionary.decodeToBinary(dictId).getBytesUnsafe()).longValue();
-    }
-
-    protected long decodeToLong(int dictId) {
-      return parquetDictionary.decodeToLong(dictId);
-    }
-
-    protected int decodeToInt(int dictId) {
-      return parquetDictionary.decodeToInt(dictId);
-    }
-
     @Override
     public final DecimalT getDecimal(int rowId, int precision, int scale) {
       int offset = offsetVector.get(rowId);
       if (cache[offset] == null) {
-        cache[offset] = decimalFactory.ofLong(decode(offset), precision, scale);
+        cache[offset] = decode(offset, precision, scale);
       }
       return cache[offset];
     }
 
-    protected abstract long decode(int dictId);
+    protected abstract DecimalT decode(int dictId, int precision, int scale);
   }
 
   private static class
@@ -604,8 +591,10 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
 
     @Override
-    protected long decode(int dictId) {
-      return decodeToBinary(dictId);
+    protected DecimalT decode(int dictId, int precision, int scale) {
+      ByteBuffer byteBuffer = parquetDictionary.decodeToBinary(dictId).toByteBuffer();
+      BigDecimal value = DecimalUtility.getBigDecimalFromByteBuffer(byteBuffer, scale, byteBuffer.remaining());
+      return decimalFactory.ofBigDecimal(value, precision, scale);
     }
   }
 
@@ -617,8 +606,8 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
 
     @Override
-    protected long decode(int dictId) {
-      return decodeToLong(dictId);
+    protected DecimalT decode(int dictId, int precision, int scale) {
+      return decimalFactory.ofLong(parquetDictionary.decodeToLong(dictId), precision, scale);
     }
   }
 
@@ -630,8 +619,8 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
 
     @Override
-    protected long decode(int dictId) {
-      return decodeToInt(dictId);
+    protected DecimalT decode(int dictId, int precision, int scale) {
+      return decimalFactory.ofLong(parquetDictionary.decodeToInt(dictId), precision, scale);
     }
   }
 

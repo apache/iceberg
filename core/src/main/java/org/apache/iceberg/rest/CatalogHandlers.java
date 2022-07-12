@@ -20,6 +20,7 @@
 package org.apache.iceberg.rest;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -166,7 +167,7 @@ public class CatalogHandlers {
     }
 
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("created-at", OffsetDateTime.now().toString());
+    properties.put("created-at", OffsetDateTime.now(ZoneOffset.UTC).toString());
     properties.putAll(request.properties());
 
     String location;
@@ -243,7 +244,7 @@ public class CatalogHandlers {
       Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
       if (transaction instanceof BaseTransaction) {
         BaseTransaction baseTransaction = (BaseTransaction) transaction;
-        finalMetadata = create(baseTransaction.underlyingOps(), baseTransaction.startMetadata(), request);
+        finalMetadata = create(baseTransaction.underlyingOps(), request);
       } else {
         throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
       }
@@ -282,11 +283,11 @@ public class CatalogHandlers {
     return isCreate;
   }
 
-  private static TableMetadata create(TableOperations ops, TableMetadata start, UpdateTableRequest request) {
+  private static TableMetadata create(TableOperations ops, UpdateTableRequest request) {
     // the only valid requirement is that the table will be created
     request.requirements().forEach(requirement -> requirement.validate(ops.current()));
 
-    TableMetadata.Builder builder = TableMetadata.buildFrom(start);
+    TableMetadata.Builder builder = TableMetadata.buildFromEmpty();
     request.updates().forEach(update -> update.applyTo(builder));
 
     // create transactions do not retry. if the table exists, retrying is not a solution

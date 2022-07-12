@@ -563,7 +563,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   private static final Schema MANIFEST_PROJECTION = ManifestFile.schema()
-      .select("manifest_path", "added_snapshot_id", "deleted_data_files_count");
+      .select("manifest_path", "manifest_length", "added_snapshot_id", "deleted_data_files_count");
 
   private CloseableIterable<ManifestFile> readManifestFiles(Snapshot snapshot) {
     if (snapshot.manifestListLocation() != null) {

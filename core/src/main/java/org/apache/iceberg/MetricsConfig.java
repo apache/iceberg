@@ -29,6 +29,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.slf4j.Logger;
@@ -36,6 +38,8 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS;
+import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT;
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 @Immutable
@@ -45,9 +49,8 @@ public final class MetricsConfig implements Serializable {
   private static final Joiner DOT = Joiner.on('.');
 
   // Disable metrics by default for wide tables to prevent excessive metadata
-  private static final int MAX_COLUMNS = 32;
-  private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(),
-      MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT));
+  private static final MetricsMode DEFAULT_MODE = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+  private static final MetricsConfig DEFAULT = new MetricsConfig(ImmutableMap.of(), DEFAULT_MODE);
 
   private final Map<String, MetricsMode> columnModes;
   private final MetricsMode defaultMode;
@@ -96,7 +99,7 @@ public final class MetricsConfig implements Serializable {
    **/
   @Deprecated
   public static MetricsConfig fromProperties(Map<String, String> props) {
-    return from(props, null, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
+    return from(props, null, null);
   }
 
   /**
@@ -104,13 +107,7 @@ public final class MetricsConfig implements Serializable {
    * @param table iceberg table
    */
   public static MetricsConfig forTable(Table table) {
-    String defaultMode;
-    if (table.schema().columns().size() <= MAX_COLUMNS) {
-      defaultMode = DEFAULT_WRITE_METRICS_MODE_DEFAULT;
-    } else {
-      defaultMode = MetricsModes.None.get().toString();
-    }
-    return from(table.properties(), table.sortOrder(), defaultMode);
+    return from(table.properties(), table.schema(), table.sortOrder());
   }
 
   /**
@@ -136,50 +133,55 @@ public final class MetricsConfig implements Serializable {
   }
 
   /**
-   * Generate a MetricsConfig for all columns based on overrides, sortOrder, and defaultMode.
+   * Generate a MetricsConfig for all columns based on overrides, schema, and sort order.
+   *
    * @param props will be read for metrics overrides (write.metadata.metrics.column.*) and default
    *              (write.metadata.metrics.default)
+   * @param schema table schema
    * @param order sort order columns, will be promoted to truncate(16)
-   * @param defaultMode default, if not set by user property
    * @return metrics configuration
    */
-  private static MetricsConfig from(Map<String, String> props, SortOrder order, String defaultMode) {
+  private static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
+    int maxInferredDefaultColumns = maxInferredColumnDefaults(props);
     Map<String, MetricsMode> columnModes = Maps.newHashMap();
 
     // Handle user override of default mode
-    MetricsMode finalDefaultMode;
-    String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, defaultMode);
-    try {
-      finalDefaultMode = MetricsModes.fromString(defaultModeAsString);
-    } catch (IllegalArgumentException err) {
-      // User override was invalid, log the error and use the default
-      LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString, err);
-      finalDefaultMode = MetricsModes.fromString(defaultMode);
+    MetricsMode defaultMode;
+    String configuredDefault = props.get(DEFAULT_WRITE_METRICS_MODE);
+    if (configuredDefault != null) {
+      // a user-configured default mode is applied for all columns
+      defaultMode = parseMode(configuredDefault, DEFAULT_MODE, "default");
+
+    } else if (schema == null || schema.columns().size() <= maxInferredDefaultColumns) {
+      // there are less than the inferred limit, so the default is used everywhere
+      defaultMode = DEFAULT_MODE;
+
+    } else {
+      // an inferred default mode is applied to the first few columns, up to the limit
+      Schema subSchema = new Schema(schema.columns().subList(0, maxInferredDefaultColumns));
+      for (Integer id : TypeUtil.getProjectedIds(subSchema)) {
+        columnModes.put(subSchema.findColumnName(id), DEFAULT_MODE);
+      }
+
+      // all other columns don't use metrics
+      defaultMode = MetricsModes.None.get();
     }
 
     // First set sorted column with sorted column default (can be overridden by user)
-    MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(finalDefaultMode);
+    MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(defaultMode);
     Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
     sortedCols.forEach(sc -> columnModes.put(sc, sortedColDefaultMode));
 
     // Handle user overrides of defaults
-    MetricsMode finalDefaultModeVal = finalDefaultMode;
-    props.keySet().stream()
-        .filter(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))
-        .forEach(key -> {
-          String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
-          MetricsMode mode;
-          try {
-            mode = MetricsModes.fromString(props.get(key));
-          } catch (IllegalArgumentException err) {
-            // Mode was invalid, log the error and use the default
-            LOG.warn("Ignoring invalid metrics mode for column {}: {}", columnAlias, props.get(key), err);
-            mode = finalDefaultModeVal;
-          }
-          columnModes.put(columnAlias, mode);
-        });
+    for (String key : props.keySet()) {
+      if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
+        String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
+        MetricsMode mode = parseMode(props.get(key), defaultMode, "column " + columnAlias);
+        columnModes.put(columnAlias, mode);
+      }
+    }
 
-    return new MetricsConfig(columnModes, finalDefaultMode);
+    return new MetricsConfig(columnModes, defaultMode);
   }
 
   /**
@@ -192,6 +194,29 @@ public final class MetricsConfig implements Serializable {
       return MetricsModes.Truncate.withLength(16);
     } else {
       return defaultMode;
+    }
+  }
+
+  private static int maxInferredColumnDefaults(Map<String, String> properties) {
+    int maxInferredDefaultColumns = PropertyUtil.propertyAsInt(properties,
+        METRICS_MAX_INFERRED_COLUMN_DEFAULTS, METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT);
+    if (maxInferredDefaultColumns < 0) {
+      LOG.warn("Invalid value for {} (negative): {}, falling back to {}",
+          METRICS_MAX_INFERRED_COLUMN_DEFAULTS, maxInferredDefaultColumns,
+          METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT);
+      return METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT;
+    } else {
+      return maxInferredDefaultColumns;
+    }
+  }
+
+  private static MetricsMode parseMode(String modeString, MetricsMode fallback, String context) {
+    try {
+      return MetricsModes.fromString(modeString);
+    } catch (IllegalArgumentException err) {
+      // User override was invalid, log the error and use the default
+      LOG.warn("Ignoring invalid metrics mode ({}): {}", context, modeString, err);
+      return fallback;
     }
   }
 

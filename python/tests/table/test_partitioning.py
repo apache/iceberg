@@ -17,12 +17,16 @@
 from pyiceberg import transforms
 from pyiceberg.schema import Schema
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
+<<<<<<< HEAD
 from pyiceberg.transforms import bucket
 from pyiceberg.types import IntegerType, StringType
+=======
+from pyiceberg.transforms import BucketTransform
+>>>>>>> 6cc4a198c56c05ff103e6ecdf75fe50004af19da
 
 
 def test_partition_field_init():
-    bucket_transform = bucket(IntegerType(), 100)
+    bucket_transform = BucketTransform(100)
     partition_field = PartitionField(3, 1000, bucket_transform, "id")
 
     assert partition_field.source_id == 3
@@ -33,12 +37,17 @@ def test_partition_field_init():
     assert str(partition_field) == "1000: id: bucket[100](3)"
     assert (
         repr(partition_field)
-        == "PartitionField(source_id=3, field_id=1000, transform=transforms.bucket(source_type=IntegerType(), num_buckets=100), name='id')"
+        == "PartitionField(source_id=3, field_id=1000, transform=BucketTransform(num_buckets=100), name='id')"
     )
 
 
+<<<<<<< HEAD
 def test_partition_spec_init():
     bucket_transform = bucket(IntegerType(), 4)
+=======
+def test_partition_spec_init(table_schema_simple: Schema):
+    bucket_transform: BucketTransform = BucketTransform(4)
+>>>>>>> 6cc4a198c56c05ff103e6ecdf75fe50004af19da
     id_field1 = PartitionField(3, 1001, bucket_transform, "id")
     partition_spec1 = PartitionSpec(0, (id_field1,), 1001)
 
@@ -56,7 +65,7 @@ def test_partition_spec_init():
 
 
 def test_partition_compatible_with():
-    bucket_transform = bucket(IntegerType(), 4)
+    bucket_transform: BucketTransform = BucketTransform(4)
     field1 = PartitionField(3, 100, bucket_transform, "id")
     field2 = PartitionField(3, 102, bucket_transform, "id")
     lhs = PartitionSpec(0, (field1,), 1001)
