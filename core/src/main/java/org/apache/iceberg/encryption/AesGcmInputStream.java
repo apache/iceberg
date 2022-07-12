@@ -20,6 +20,7 @@
 package org.apache.iceberg.encryption;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -170,6 +171,34 @@ public class AesGcmInputStream extends SeekableInputStream {
     currentBlockIndex = Math.toIntExact(newPos / plainBlockSize);
     currentOffsetInPlainBlock = Math.toIntExact(newPos % plainBlockSize);
     plainStreamPosition = newPos;
+  }
+
+  @Override
+  public long skip(long n) {
+    if (n <= 0) {
+      return 0;
+    }
+    if (plainStreamPosition == plainStreamSize) {
+      return 0;
+    }
+
+    long newPosition = plainStreamPosition + n;
+    if (newPosition > plainStreamSize) {
+      long skipped = plainStreamSize - plainStreamPosition;
+      try {
+        seek(plainStreamSize);
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+      return skipped;
+    }
+
+    try {
+      seek(newPosition);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    return n;
   }
 
   @Override

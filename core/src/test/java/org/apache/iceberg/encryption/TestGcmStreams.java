@@ -95,6 +95,7 @@ public class TestGcmStreams {
 
         byte[] chunk = new byte[testFileSize];
 
+        // Test seek and read
         for (int n = 0; n < 100; n++) {
           int chunkLen = random.nextInt(testFileSize);
           int pos = random.nextInt(testFileSize);
@@ -106,12 +107,35 @@ public class TestGcmStreams {
           decryptedStream.seek(pos);
           int len = decryptedStream.read(chunk, 0, chunkLen);
           Assert.assertEquals("Read length", len, chunkLen);
-          Assert.assertEquals("Position", pos + len, decryptedStream.getPos());
+          long pos2 = decryptedStream.getPos();
+          Assert.assertEquals("Position", pos + len, pos2);
 
           ByteBuffer bb1 = ByteBuffer.wrap(chunk, 0, chunkLen);
           ByteBuffer bb2 = ByteBuffer.wrap(testFileContents, pos, chunkLen);
           Assert.assertEquals("Read contents", bb1, bb2);
+
+          // Test skip
+          long toSkip = random.nextInt(testFileSize);
+          long skipped = decryptedStream.skip(toSkip);
+          if (pos2 + toSkip < testFileSize) {
+            Assert.assertEquals("Skipped", toSkip, skipped);
+          } else {
+            Assert.assertEquals("Skipped", (testFileSize - pos2), skipped);
+          }
+          int pos3 = (int) decryptedStream.getPos();
+          Assert.assertEquals("Position", pos2 + skipped, pos3);
+
+          chunkLen = random.nextInt(testFileSize);
+          left = testFileSize - pos3;
+          if (left < chunkLen) {
+            chunkLen = left;
+          }
+          decryptedStream.read(chunk, 0, chunkLen);
+          bb1 = ByteBuffer.wrap(chunk, 0, chunkLen);
+          bb2 = ByteBuffer.wrap(testFileContents, pos3, chunkLen);
+          Assert.assertEquals("Read contents", bb1, bb2);
         }
+
         decryptedStream.close();
       }
     }
