@@ -70,6 +70,7 @@ public abstract class DeleteFilter<T> {
   private final int isDeletedColumnPosition;
 
   private PositionDeleteIndex deleteRowPositions = null;
+  private List<Predicate<T>> isInDeleteSets = null;
   private Predicate<T> eqDeleteRows = null;
 
   protected DeleteFilter(String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
@@ -132,7 +133,11 @@ public abstract class DeleteFilter<T> {
   }
 
   private List<Predicate<T>> applyEqDeletes() {
-    List<Predicate<T>> isInDeleteSets = Lists.newArrayList();
+    if (isInDeleteSets != null) {
+      return isInDeleteSets;
+    }
+
+    isInDeleteSets = Lists.newArrayList();
     if (eqDeletes.isEmpty()) {
       return isInDeleteSets;
     }

@@ -635,6 +635,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table = catalog.loadTable(metaIdent);
     Assertions.assertThat(table).isNotNull();
     Assertions.assertThat(table).isInstanceOf(FilesTable.class);
+
+    // check that the table metadata can be refreshed
+    table.refresh();
+
+    Assertions.assertThat(table.name()).isEqualTo(catalog.name() + "." + metaIdent);
   }
 
   @Test
