@@ -17,18 +17,18 @@
 # under the License.
 #
 
-name: "Python CI"
+name: "Open-API"
 on:
   push:
     branches:
-    - 'master'
-    - '0.**'
+      - 'master'
+      - '0.**'
     tags:
-    - 'apache-iceberg-**'
+      - 'apache-iceberg-**'
   pull_request:
     paths:
-    - '.github/workflows/open-api.yml'
-    - 'open-api/**'
+      - '.github/workflows/open-api.yml'
+      - 'open-api/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,10 +39,10 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v3
-      with:
-        python-version: 3.9
-    - name: Install
-      working-directory: ./python
-      run: pip install openapi-spec-validator && openapi-spec-validator open-api/rest-catalog-open-api.yaml
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
+        with:
+          python-version: 3.9
+      - name: Install
+        working-directory: ./open-api
+        run: pip install openapi-spec-validator && openapi-spec-validator rest-catalog-open-api.yaml

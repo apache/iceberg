@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,7 +39,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 
@@ -350,9 +348,7 @@ public class AllManifestsTable extends BaseMetadataTable {
       @Override
       public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
         if (isSnapshotRef(ref)) {
-          Comparator<Object> longComparator = Comparators.forType(Types.LongType.get());
-          boolean noneMatch = literalSet.stream().noneMatch(lit -> longComparator.compare(snapshotId, lit) == 0);
-          if (noneMatch) {
+          if (!literalSet.contains(snapshotId)) {
             return ROWS_CANNOT_MATCH;
           }
         }
@@ -362,9 +358,7 @@ public class AllManifestsTable extends BaseMetadataTable {
       @Override
       public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
         if (isSnapshotRef(ref)) {
-          Comparator<Object> longComparator = Comparators.forType(Types.LongType.get());
-          boolean anyMatch = literalSet.stream().anyMatch(lit -> longComparator.compare(snapshotId, lit) == 0);
-          if (anyMatch) {
+          if (literalSet.contains(snapshotId)) {
             return ROWS_CANNOT_MATCH;
           }
         }

@@ -25,8 +25,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkCachedTableCatalog;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -57,9 +60,14 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
   private static final String DEFAULT_CATALOG_NAME = "default_iceberg";
+  private static final String DEFAULT_CACHE_CATALOG_NAME = "default_cache_iceberg";
+  private static final String DEFAULT_CACHE_CATALOG = "spark.sql.catalog." + DEFAULT_CACHE_CATALOG_NAME;
   private static final String DEFAULT_CATALOG = "spark.sql.catalog." + DEFAULT_CATALOG_NAME;
   private static final String AT_TIMESTAMP = "at_timestamp_";
   private static final String SNAPSHOT_ID = "snapshot_id_";
+  private static final String[] EMPTY_NAMESPACE = new String[0];
+
+  private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
 
   @Override
   public String shortName() {
@@ -103,7 +111,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
   private Spark3Util.CatalogAndIdentifier catalogAndIdentifier(CaseInsensitiveStringMap options) {
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
     SparkSession spark = SparkSession.active();
-    setupDefaultSparkCatalog(spark);
+    setupDefaultSparkCatalogs(spark);
     String path = options.get("path");
 
     Long snapshotId = propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID);
@@ -123,11 +131,14 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
     CatalogManager catalogManager = spark.sessionState().catalogManager();
 
-    if (path.contains("/")) {
+    if (TABLE_CACHE.contains(path)) {
+      return new Spark3Util.CatalogAndIdentifier(
+          catalogManager.catalog(DEFAULT_CACHE_CATALOG_NAME),
+          Identifier.of(EMPTY_NAMESPACE, pathWithSelector(path, selector)));
+    } else if (path.contains("/")) {
       // contains a path. Return iceberg default catalog and a PathIdentifier
-      String newPath = (selector == null) ? path : path + "#" + selector;
       return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
-          new PathIdentifier(newPath));
+          new PathIdentifier(pathWithSelector(path, selector)));
     }
 
     final Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
@@ -141,6 +152,10 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     } else {
       return new Spark3Util.CatalogAndIdentifier(catalogAndIdentifier.catalog(), ident);
     }
+  }
+
+  private String pathWithSelector(String path, String selector) {
+    return (selector == null) ? path : path + "#" + selector;
   }
 
   private Identifier identifierWithSelector(Identifier ident, String selector) {
@@ -173,17 +188,19 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     return null;
   }
 
-  private static void setupDefaultSparkCatalog(SparkSession spark) {
-    if (spark.conf().contains(DEFAULT_CATALOG)) {
-      return;
+  private static void setupDefaultSparkCatalogs(SparkSession spark) {
+    if (!spark.conf().contains(DEFAULT_CATALOG)) {
+      ImmutableMap<String, String> config = ImmutableMap.of(
+          "type", "hive",
+          "default-namespace", "default",
+          "cache-enabled", "false" // the source should not use a cache
+      );
+      spark.conf().set(DEFAULT_CATALOG, SparkCatalog.class.getName());
+      config.forEach((key, value) -> spark.conf().set(DEFAULT_CATALOG + "." + key, value));
     }
-    ImmutableMap<String, String> config = ImmutableMap.of(
-        "type", "hive",
-        "default-namespace", "default",
-        "cache-enabled", "false" // the source should not use a cache
-    );
-    String catalogName = "org.apache.iceberg.spark.SparkCatalog";
-    spark.conf().set(DEFAULT_CATALOG, catalogName);
-    config.forEach((key, value) -> spark.conf().set(DEFAULT_CATALOG + "." + key, value));
+
+    if (!spark.conf().contains(DEFAULT_CACHE_CATALOG)) {
+      spark.conf().set(DEFAULT_CACHE_CATALOG, SparkCachedTableCatalog.class.getName());
+    }
   }
 }

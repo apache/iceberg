@@ -502,6 +502,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return storageDescriptor;
   }
 
+  @SuppressWarnings("ReverseDnsLookup")
   @VisibleForTesting
   long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
@@ -578,8 +579,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         io().deleteFile(metadataLocation);
       }
     } catch (RuntimeException e) {
-      LOG.error("Fail to cleanup metadata file at {}", metadataLocation, e);
-      throw e;
+      LOG.error("Failed to cleanup metadata file at {}", metadataLocation, e);
     } finally {
       unlock(lockId);
       tableLevelMutex.unlock();

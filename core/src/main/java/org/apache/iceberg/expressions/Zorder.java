@@ -17,24 +17,19 @@
  * under the License.
  */
 
-package org.apache.spark.sql.catalyst.plans.logical
+package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.NullOrder
-import org.apache.iceberg.Schema
-import org.apache.iceberg.SortDirection
-import org.apache.iceberg.SortOrder
-import org.apache.iceberg.expressions.Term
+import java.util.Arrays;
+import java.util.List;
 
-class SortOrderParserUtil {
+public class Zorder implements Term {
+  private final NamedReference<?>[] refs;
 
-  def collectSortOrder(tableSchema:Schema, sortOrder: Seq[(Term, SortDirection, NullOrder)]): SortOrder = {
-    val orderBuilder = SortOrder.builderFor(tableSchema)
-    sortOrder.foreach {
-      case (term, SortDirection.ASC, nullOrder) =>
-        orderBuilder.asc(term, nullOrder)
-      case (term, SortDirection.DESC, nullOrder) =>
-        orderBuilder.desc(term, nullOrder)
-    }
-    orderBuilder.build();
+  public Zorder(List<NamedReference<?>> refs) {
+    this.refs = refs.toArray(new NamedReference[0]);
+  }
+
+  public List<NamedReference<?>> refs() {
+    return Arrays.asList(refs);
   }
 }

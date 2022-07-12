@@ -358,8 +358,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     protected void nextVal(
         FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
       valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
-      byte[] vectorBytes = DecimalVectorUtil.padBigEndianBytes(byteArray, DecimalVector.TYPE_WIDTH);
-      ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
+      DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, byteArray);
     }
 
     @Override
@@ -370,11 +369,8 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         reader.fixedLengthDecimalDictEncodedReader()
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        byte[] vectorBytes =
-            DecimalVectorUtil.padBigEndianBytes(
-                dict.decodeToBinary(reader.readInteger()).getBytesUnsafe(),
-                DecimalVector.TYPE_WIDTH);
-        ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
+        byte[] bytes = dict.decodeToBinary(reader.readInteger()).getBytesUnsafe();
+        DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, bytes);
       }
     }
   }

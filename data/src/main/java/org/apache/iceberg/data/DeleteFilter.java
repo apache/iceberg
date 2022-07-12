@@ -70,6 +70,7 @@ public abstract class DeleteFilter<T> {
   private final int isDeletedColumnPosition;
 
   private PositionDeleteIndex deleteRowPositions = null;
+  private List<Predicate<T>> isInDeleteSets = null;
   private Predicate<T> eqDeleteRows = null;
 
   protected DeleteFilter(String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
@@ -132,7 +133,11 @@ public abstract class DeleteFilter<T> {
   }
 
   private List<Predicate<T>> applyEqDeletes() {
-    List<Predicate<T>> isInDeleteSets = Lists.newArrayList();
+    if (isInDeleteSets != null) {
+      return isInDeleteSets;
+    }
+
+    isInDeleteSets = Lists.newArrayList();
     if (eqDeletes.isEmpty()) {
       return isInDeleteSets;
     }
@@ -147,6 +152,7 @@ public abstract class DeleteFilter<T> {
       Iterable<DeleteFile> deletes = entry.getValue();
 
       Schema deleteSchema = TypeUtil.select(requiredSchema, ids);
+      InternalRecordWrapper wrapper = new InternalRecordWrapper(deleteSchema.asStruct());
 
       // a projection to select and reorder fields of the file schema to match the delete rows
       StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
@@ -159,9 +165,7 @@ public abstract class DeleteFilter<T> {
           CloseableIterable.concat(deleteRecords), Record::copy);
 
       StructLikeSet deleteSet = Deletes.toEqualitySet(
-          CloseableIterable.transform(
-              records, record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
-          deleteSchema.asStruct());
+          CloseableIterable.transform(records, wrapper::copyFor), deleteSchema.asStruct());
 
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
       isInDeleteSets.add(isInDeleteSet);

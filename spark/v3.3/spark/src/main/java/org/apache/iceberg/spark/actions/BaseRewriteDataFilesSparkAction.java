@@ -87,7 +87,6 @@ public class BaseRewriteDataFilesSparkAction
   );
 
   private final Table table;
-  private final String fullIdentifier;
 
   private Expression filter = Expressions.alwaysTrue();
   private int maxConcurrentFileGroupRewrites;
@@ -97,17 +96,9 @@ public class BaseRewriteDataFilesSparkAction
   private RewriteJobOrder rewriteJobOrder;
   private RewriteStrategy strategy = null;
 
-  @Deprecated
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
-    this.fullIdentifier = null;
-  }
-
-  protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table, String fullIdentifier) {
-    super(spark);
-    this.table = table;
-    this.fullIdentifier = fullIdentifier;
   }
 
   @Override
@@ -141,6 +132,8 @@ public class BaseRewriteDataFilesSparkAction
 
   @Override
   public RewriteDataFiles zOrder(String... columnNames) {
+    Preconditions.checkArgument(this.strategy == null,
+        "Cannot set strategy to zorder, it has already been set to %s", this.strategy);
     this.strategy = zOrderStrategy(columnNames);
     return this;
   }
@@ -437,7 +430,7 @@ public class BaseRewriteDataFilesSparkAction
   }
 
   private BinPackStrategy binPackStrategy() {
-    return new SparkBinPackStrategy(table, fullIdentifier, spark());
+    return new SparkBinPackStrategy(table, spark());
   }
 
   private SortStrategy sortStrategy() {

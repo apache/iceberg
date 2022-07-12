@@ -30,6 +30,7 @@ import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -38,24 +39,14 @@ import org.apache.spark.sql.internal.SQLConf;
 
 public class SparkBinPackStrategy extends BinPackStrategy {
   private final Table table;
-  private final String fullIdentifier;
   private final SparkSession spark;
+  private final SparkTableCache tableCache = SparkTableCache.get();
   private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
   private final FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
 
-  public SparkBinPackStrategy(Table table, String fullIdentifier, SparkSession spark) {
-    this.table = table;
-    this.spark = spark;
-    // Fallback if a quoted identifier is not supplied
-    this.fullIdentifier = fullIdentifier == null ? table.name() : fullIdentifier;
-  }
-
-  @Deprecated
   public SparkBinPackStrategy(Table table, SparkSession spark) {
     this.table = table;
     this.spark = spark;
-    // Fallback if a quoted identifier is not supplied
-    this.fullIdentifier = table.name();
   }
 
   @Override
@@ -67,6 +58,7 @@ public class SparkBinPackStrategy extends BinPackStrategy {
   public Set<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
     String groupID = UUID.randomUUID().toString();
     try {
+      tableCache.add(groupID, table);
       manager.stageTasks(table, groupID, filesToRewrite);
 
       // Disable Adaptive Query Execution as this may change the output partitioning of our write
@@ -77,7 +69,7 @@ public class SparkBinPackStrategy extends BinPackStrategy {
           .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputFileSize(filesToRewrite)))
           .option(SparkReadOptions.FILE_OPEN_COST, "0")
-          .load(fullIdentifier);
+          .load(groupID);
 
       // All files within a file group are written with the same spec, so check the first
       boolean requiresRepartition = !filesToRewrite.get(0).spec().equals(table.spec());
@@ -93,10 +85,11 @@ public class SparkBinPackStrategy extends BinPackStrategy {
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
           .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode)
           .mode("append")
-          .save(fullIdentifier);
+          .save(groupID);
 
       return rewriteCoordinator.fetchNewDataFiles(table, groupID);
     } finally {
+      tableCache.remove(groupID);
       manager.removeTasks(table, groupID);
       rewriteCoordinator.clearRewrite(table, groupID);
     }

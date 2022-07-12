@@ -24,7 +24,6 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.source.SparkScan.ReadTask;
@@ -60,7 +59,7 @@ abstract class SparkBatch implements Batch {
   @Override
   public InputPartition[] planInputPartitions() {
     // broadcast the table metadata as input partitions will be sent to executors
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
     InputPartition[] readTasks = new InputPartition[tasks().size()];

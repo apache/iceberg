@@ -133,7 +133,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
       throw new AlreadyExistsException(e,
           "Cannot commit %s because its Glue table already exists when trying to create one", tableName());
-    } catch (software.amazon.awssdk.services.glue.model.EntityNotFoundException e) {
+    } catch (EntityNotFoundException e) {
       throw new NotFoundException(e,
           "Cannot commit %s because Glue cannot find the requested entity", tableName());
     } catch (software.amazon.awssdk.services.glue.model.AccessDeniedException e) {
@@ -247,8 +247,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
         io().deleteFile(metadataLocation);
       }
     } catch (RuntimeException e) {
-      LOG.error("Fail to cleanup metadata file at {}", metadataLocation, e);
-      throw e;
+      LOG.error("Failed to cleanup metadata file at {}", metadataLocation, e);
     } finally {
       if (lockManager != null) {
         lockManager.release(commitLockEntityId, metadataLocation);

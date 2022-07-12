@@ -34,6 +34,7 @@ buildscript {
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.6.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.4.1"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
   }
 }
 
@@ -42,7 +43,7 @@ plugins {
 }
 
 try {
-  // apply this plugin in a try-catch block so that we can handle cases without .git directory
+  // apply these plugins in a try-catch block so that we can handle cases without .git directory
   apply plugin: 'com.palantir.git-version'
 } catch (Exception e) {
   project.logger.error(e.getMessage())
@@ -54,6 +55,28 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   project.ext.jdkVersion = '11'
 } else {
   throw new GradleException("This build must be run with JDK 8 or 11 but was executed with JDK " + JavaVersion.current())
+}
+
+apply plugin: 'com.gorylenko.gradle-git-properties'
+// git properties file for the root project for adding to the source tarball
+gitProperties {
+  gitPropertiesName = 'iceberg-build.properties'
+  gitPropertiesResourceDir = file("${rootDir}/build")
+  extProperty = 'gitProps'
+  failOnNoGitDirectory = true
+}
+generateGitProperties.outputs.upToDateWhen { false }
+
+if (file("${rootDir}/iceberg-build.properties").exists()) {
+  tasks.register('buildInfo', Exec) {
+    project.logger.info('Using build info from iceberg-build.properties')
+    commandLine 'cp', "${rootDir}/iceberg-build.properties", 'build/iceberg-build.properties'
+  }
+} else {
+  tasks.register('buildInfo') {
+    project.logger.info('Generating iceberg-build.properties from git')
+    dependsOn generateGitProperties
+  }
 }
 
 dependencyRecommendations {
@@ -199,6 +222,16 @@ project(':iceberg-api') {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly "com.google.errorprone:error_prone_annotations"
     testImplementation "org.apache.avro:avro"
+  }
+
+  tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
+
+  sourceSets {
+    test {
+      resources {
+        srcDir "${rootDir}/build"
+      }
+    }
   }
 }
 

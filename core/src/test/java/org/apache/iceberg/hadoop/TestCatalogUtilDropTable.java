@@ -60,6 +60,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
         .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
+    Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
+        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
@@ -90,6 +92,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
         .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
+    Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
+        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
     Mockito.doThrow(new RuntimeException()).when(fileIO).deleteFile(ArgumentMatchers.anyString());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);

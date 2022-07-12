@@ -28,7 +28,7 @@ repos:
       - id: check-yaml
       - id: check-ast
   - repo: https://github.com/ambv/black
-    rev: 22.3.0
+    rev: 22.6.0
     hooks:
       - id: black
   - repo: https://github.com/pre-commit/mirrors-isort
@@ -40,8 +40,9 @@ repos:
     rev: v0.961
     hooks:
       - id: mypy
+        args: [--config=python/pyproject.toml]
   - repo: https://github.com/hadialqattan/pycln
-    rev: v1.3.4
+    rev: v2.0.1
     hooks:
       - id: pycln
         args: [--config=python/pyproject.toml]
@@ -51,7 +52,7 @@ repos:
       - id: pyupgrade
         args: [--py38-plus]
   - repo: https://github.com/pycqa/pylint
-    rev: v2.14.3
+    rev: v2.14.4
     hooks:
       - id: pylint
         args: [ --rcfile=python/pylintrc ]
@@ -60,4 +61,4 @@ repos:
     hooks:
       - id: flake8
         args: [ "--ignore=E501,W503,E203" ]
-        additional_dependencies: [ flake8-bugbear==22.4.25, flake8-comprehensions==3.10.0 ]
+        additional_dependencies: [ flake8-bugbear==22.7.1, flake8-comprehensions==3.10.0 ]

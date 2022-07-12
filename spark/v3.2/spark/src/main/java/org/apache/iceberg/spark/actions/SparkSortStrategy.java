@@ -34,6 +34,7 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkDistributionAndOrderingUtil;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -63,6 +64,7 @@ public class SparkSortStrategy extends SortStrategy {
 
   private final Table table;
   private final SparkSession spark;
+  private final SparkTableCache tableCache = SparkTableCache.get();
   private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
   private final FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
 
@@ -114,6 +116,7 @@ public class SparkSortStrategy extends SortStrategy {
     Distribution distribution = Distributions.ordered(ordering);
 
     try {
+      tableCache.add(groupID, table);
       manager.stageTasks(table, groupID, filesToRewrite);
 
       // Disable Adaptive Query Execution as this may change the output partitioning of our write
@@ -126,7 +129,7 @@ public class SparkSortStrategy extends SortStrategy {
 
       Dataset<Row> scanDF = cloneSession.read().format("iceberg")
           .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
-          .load(table.name());
+          .load(groupID);
 
       // write the packed data into new files where each split becomes a new file
       SQLConf sqlConf = cloneSession.sessionState().conf();
@@ -139,10 +142,11 @@ public class SparkSortStrategy extends SortStrategy {
           .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, writeMaxFileSize())
           .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
           .mode("append") // This will only write files without modifying the table, see SparkWrite.RewriteFiles
-          .save(table.name());
+          .save(groupID);
 
       return rewriteCoordinator.fetchNewDataFiles(table, groupID);
     } finally {
+      tableCache.remove(groupID);
       manager.removeTasks(table, groupID);
       rewriteCoordinator.clearRewrite(table, groupID);
     }
@@ -158,6 +162,10 @@ public class SparkSortStrategy extends SortStrategy {
 
   protected double sizeEstimateMultiple() {
     return sizeEstimateMultiple;
+  }
+
+  protected SparkTableCache tableCache() {
+    return tableCache;
   }
 
   protected FileScanTaskSetManager manager() {

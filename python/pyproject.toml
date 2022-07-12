@@ -88,15 +88,31 @@ warn_redundant_casts = true
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = "mypy-pyarrow.*"
+module = "pyarrow.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "mypy-snappy.*"
+module = "snappy.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "mypy-zstandard.*"
+module = "zstandard.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pydantic.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pytest.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "fastavro.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mmh3.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]

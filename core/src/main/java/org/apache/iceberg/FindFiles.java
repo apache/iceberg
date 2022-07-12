@@ -212,8 +212,7 @@ public class FindFiles {
           .caseSensitive(caseSensitive)
           .entries();
 
-      return CloseableIterable.transform(entries,
-          entry -> includeColumnStats ? entry.file().copy() : entry.file().copyWithoutStats());
+      return CloseableIterable.transform(entries, entry -> entry.file().copy(includeColumnStats));
     }
   }
 }
