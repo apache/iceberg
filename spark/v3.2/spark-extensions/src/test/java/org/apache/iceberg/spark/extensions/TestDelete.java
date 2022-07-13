@@ -835,11 +835,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Snapshot currentSnapshot = table.currentSnapshot();
     if (mode(table) == COPY_ON_WRITE) {
       // copy-on-write is tested against v1 and such tables have different partition evolution behavior
-      // specifically, dropped partitions remain in the v1 table spec using the void transformation.
-      // that's why the number of changed partitions is 3 for copy-on-write
-      validateCopyOnWrite(currentSnapshot, "3", "4", "1");
+      // that's why the number of changed partitions is 4 for copy-on-write
+      validateCopyOnWrite(currentSnapshot, "4", "4", "1");
     } else {
-      validateMergeOnRead(currentSnapshot, "2", "3", null);
+      validateMergeOnRead(currentSnapshot, "3", "3", null);
     }
 
     assertEquals("Should have expected rows",
