@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner.MapJoiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -187,19 +186,15 @@ public class SnapshotSummary {
 
       metrics.addTo(builder);
       setIf(deletedDuplicateFiles > 0, builder, DELETED_DUPLICATE_FILES, deletedDuplicateFiles);
-      // Exclude the key that corresponds to PartitionSpec.unpartitioned().
-      // We might want to keep it if and only if the table has had its partition spec updated over time and the
-      // write hit two specs (unpartitioned / VOID and an actual bound partition spec).
-      Set<String> changedPartitions = partitionMetrics.keySet()
-          .stream()
-          .filter(partKey -> partKey != null && !partKey.isEmpty())
-          .collect(Collectors.toSet());
+      Set<String> changedPartitions = partitionMetrics.keySet();
       setIf(trustPartitionMetrics, builder, CHANGED_PARTITION_COUNT_PROP, changedPartitions.size());
 
       if (trustPartitionMetrics && changedPartitions.size() <= maxChangedPartitionsForSummaries) {
         setIf(changedPartitions.size() > 0, builder, PARTITION_SUMMARY_PROP, "true");
         for (String key : changedPartitions) {
-          setIf(key != null, builder, CHANGED_PARTITION_PREFIX + key, partitionSummary(partitionMetrics.get(key)));
+          // Don't write a summary for the table root of unpartitioned tables
+          setIf(key != null && !key.trim().isEmpty(), builder, CHANGED_PARTITION_PREFIX + key,
+              partitionSummary(partitionMetrics.get(key)));
         }
       }
 
