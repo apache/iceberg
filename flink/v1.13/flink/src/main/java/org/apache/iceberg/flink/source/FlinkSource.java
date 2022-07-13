@@ -184,6 +184,11 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder maxPlanningSnapshotCount(int newMaxPlanningSnapshotCount) {
+      contextBuilder.maxPlanningSnapshotCount(newMaxPlanningSnapshotCount);
+      return this;
+    }
+
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
