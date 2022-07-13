@@ -24,7 +24,7 @@ case class AlterBranchSnapshotRefRetentionExec(
                                                 catalog: TableCatalog,
                                                 ident: Identifier,
                                                 alterBranchRef: AlterBranchSnapshotRetention)
-extends LeafV2CommandExec {
+  extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 

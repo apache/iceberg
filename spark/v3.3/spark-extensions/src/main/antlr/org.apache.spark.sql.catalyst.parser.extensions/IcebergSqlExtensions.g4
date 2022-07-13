@@ -200,19 +200,12 @@ snapshotRefRetain
     : number
     ;
 
-timeUnit
-    : 'MONTHS'
-    | 'DAYS'
-    | 'HOURS'
-    | 'MINUTES'
-    ;
-
 snapshotRefRetainTimeUnit
-    : timeUnit
+    : identifier
     ;
 
 snapshotRetainTimeUnit
-    : timeUnit
+    : identifier
     ;
 
 ADD: 'ADD';
