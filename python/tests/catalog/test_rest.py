@@ -418,10 +418,13 @@ def test_update_namespace_properties_404():
         )
         m.post(
             f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/fokko/properties",
-            json={"error": {
-                "message": "Namespace does not exist: does_not_exists in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
-                "type": "NoSuchNamespaceException", "code": 404,
-                }},
+            json={
+                "error": {
+                    "message": "Namespace does not exist: does_not_exists in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
+                    "type": "NoSuchNamespaceException",
+                    "code": 404,
+                }
+            },
             status_code=404,
         )
         with pytest.raises(NoSuchNamespaceError) as e:
@@ -432,4 +435,9 @@ def test_update_namespace_properties_404():
 def test_update_namespace_properties():
     RestCatalog("rest", {}, "https://api.dev.tabulardata.io/ws/v1/").update_namespace_properties(
         ("does_not_exists",), {"abc"}, {"prop": "yes"}
+    )
+
+def test_load_table():
+    RestCatalog("rest", {}, "https://api.dev.tabulardata.io/ws/v1/").load_table(
+        ("examples", "fooshare")
     )

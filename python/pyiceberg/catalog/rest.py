@@ -124,24 +124,6 @@ class RestCatalog(Catalog):
         self.config = self._fetch_config()
         super().__init__(name, properties)
 
-    def _get_host(self, prefixed: bool = True) -> str:
-        """Resolves the endpoint based
-
-        Args:
-            prefixed: If the prefix return by the config needs to be appended
-
-        Returns:
-            The base url of the rest catalog
-        """
-        url = self.host
-        url = url if url.endswith("/") else url + "/"
-
-        if prefixed:
-            url += self.config.overrides.get(PREFIX, "")
-            url = url if url.endswith("/") else url + "/"
-
-        return url
-
     def _split_token(self, token: str) -> Tuple[str, str]:
         """Splits the token in a client id and secret
 
@@ -155,13 +137,34 @@ class RestCatalog(Catalog):
         return client, secret
 
     @property
-    def _headers(self) -> Dict[str, str]:
-        return {AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"}
+    def headers(self) -> Dict[str, str]:
+        return {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}",
+        }
+
+    def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
+        """Constructs the endpoint
+
+        Args:
+            prefixed: If the prefix return by the config needs to be appended
+
+        Returns:
+            The base url of the rest catalog
+        """
+
+        url = self.host
+        url = url if url.endswith("/") else url + "/"
+
+        if prefixed:
+            url += self.config.overrides.get(PREFIX, "")
+            url = url if url.endswith("/") else url + "/"
+
+        return url + endpoint.format(**kwargs)
 
     def _fetch_access_token(self) -> TokenResponse:
         client, secret = self._split_token(TOKEN)
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client, CLIENT_SECRET: secret, SCOPE: CATALOG_SCOPE}
-        response = requests.post(f"{self._get_host(prefixed=False)}{Endpoints.get_token}", data=data)
+        response = requests.post(self.url(Endpoints.get_token, prefixed=False), data=data)
         try:
             response.raise_for_status()
 
@@ -174,7 +177,7 @@ class RestCatalog(Catalog):
         return TokenResponse(**response.json())
 
     def _fetch_config(self) -> ConfigResponse:
-        response = requests.get(f"{self._get_host(prefixed=False)}{Endpoints.get_config}", headers=self._headers)
+        response = requests.get(self.url(Endpoints.get_config, prefixed=False), headers=self.headers)
         response.raise_for_status()
         return ConfigResponse(**response.json())
 
@@ -183,18 +186,14 @@ class RestCatalog(Catalog):
         return {"namespace": NAMESPACE_SEPARATOR.join(identifier[:-1]), "table": identifier[-1]}
 
     def create_table(
-        self,
-        identifier: Union[str, Identifier],
-        schema: Schema,
-        location: Optional[str] = None,
-        partition_spec: Optional[PartitionSpec] = None,
-        sort_order: Optional[Any] = None,
-        properties: Optional[Properties] = None,
+            self,
+            identifier: Union[str, Identifier],
+            schema: Schema,
+            location: Optional[str] = None,
+            partition_spec: Optional[PartitionSpec] = None,
+            sort_order: Optional[Any] = None,
+            properties: Optional[Properties] = None,
     ) -> Table:
-        url = f"{self._get_host()}{Endpoints.create_namespace}"
-        headers = {
-            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}",
-        }
         payload = {
             "name": self.identifier_to_tuple(identifier),
             "location": location,
@@ -202,13 +201,13 @@ class RestCatalog(Catalog):
             "partition-spec": partition_spec,
             "write-order": sort_order,
         }
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(self.url(Endpoints.create_namespace), json=payload, headers=self.headers)
         response.raise_for_status()
         return NamespaceResponse(**response.json())
 
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
-        response = requests.get(f"{self._get_host()}{Endpoints.list_tables.format(namespace=namespace)}", headers=self._headers)
+        response = requests.get(self.url(Endpoints.list_tables, namespace=namespace), headers=self.headers)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -221,7 +220,16 @@ class RestCatalog(Catalog):
         return [(*entry.namespace, entry.name) for entry in response.identifiers]
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        pass
+        response = requests.get(self.url(Endpoints.load_table, **self._split_namespace_and_table(identifier)),
+                                headers=self.headers)
+        try:
+            response.raise_for_status()
+        except HTTPError as exc:
+            code = exc.response.status_code
+            error = exc.response.json()["error"]
+            if code == 404:
+                raise NoSuchTableError(error["message"])
+        response = ListTablesResponse(**response.json())
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
         pass
@@ -232,13 +240,10 @@ class RestCatalog(Catalog):
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
         pass
 
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> NamespaceResponse:
-        url = f"{self._get_host()}{Endpoints.create_namespace}"
-        headers = {
-            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}",
-        }
+    def create_namespace(self, namespace: Union[str, Identifier],
+                         properties: Optional[Properties] = None) -> NamespaceResponse:
         payload = {"namespace": self.identifier_to_tuple(namespace), "properties": properties}
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(self.url(Endpoints.create_namespace), json=payload, headers=self.headers)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -250,9 +255,7 @@ class RestCatalog(Catalog):
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
-        url = f"{self._get_host()}{Endpoints.drop_namespace.format(namespace=namespace)}"
-        headers = {AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"}
-        response = requests.delete(url, headers=headers)
+        response = requests.delete(self.url(Endpoints.drop_namespace, namespace=namespace), headers=self.headers)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -262,18 +265,14 @@ class RestCatalog(Catalog):
                 raise NoSuchNamespaceError(error["message"])
 
     def list_namespaces(self) -> List[Identifier]:
-        url = f"{self._get_host()}{Endpoints.list_namespaces}"
-        headers = {AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(self.url(Endpoints.list_namespaces), headers=self.headers)
         response.raise_for_status()
         namespaces = ListNamespaceResponse(**response.json())
         return namespaces.namespaces
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
-        url = f"{self._get_host()}{Endpoints.load_namespace_metadata.format(namespace=namespace)}"
-        headers = {AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"}
-        response = requests.get(url, headers=headers)
+        response = requests.get(self.url(Endpoints.load_namespace_metadata, namespace=namespace), headers=self.headers)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -285,13 +284,13 @@ class RestCatalog(Catalog):
         return NamespaceResponse(**response.json()).properties
 
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
+            self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None,
+            updates: Optional[Properties] = None
     ) -> UpdateNamespacePropertiesResponse:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
-        url = f"{self._get_host()}{Endpoints.update_properties.format(namespace=namespace)}"
-        headers = {AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}"}
         payload = {"removals": list(removals), "updates": updates}
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload,
+                                 headers=self.headers)
         try:
             response.raise_for_status()
         except HTTPError as exc:
