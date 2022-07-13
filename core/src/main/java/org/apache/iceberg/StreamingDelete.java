@@ -28,7 +28,7 @@ import org.apache.iceberg.expressions.Expression;
  * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
  */
 public class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implements DeleteFiles {
-  StreamingDelete(String tableName, TableOperations ops) {
+  protected StreamingDelete(String tableName, TableOperations ops) {
     super(tableName, ops);
   }
 
