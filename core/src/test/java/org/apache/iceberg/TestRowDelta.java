@@ -823,7 +823,7 @@ public class TestRowDelta extends V2TableTestBase {
 
     Map<String, String> summary = snapshot.summary();
 
-    Assert.assertEquals("Should change 3 partitions", "3", summary.get(CHANGED_PARTITION_COUNT_PROP));
+    Assert.assertEquals("Should change 4 partitions", "4", summary.get(CHANGED_PARTITION_COUNT_PROP));
     Assert.assertEquals("Should add 1 data file", "1", summary.get(ADDED_FILES_PROP));
     Assert.assertEquals("Should have 4 data files", "4", summary.get(TOTAL_DATA_FILES_PROP));
     Assert.assertEquals("Should add 3 delete files", "3", summary.get(ADDED_DELETE_FILES_PROP));
