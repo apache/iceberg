@@ -52,10 +52,13 @@ import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, SupportsPushDownRequiredColumns,
     SupportsReportStatistics {
 
+  private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Filter[] NO_FILTERS = new Filter[0];
 
   private final SparkSession spark;
@@ -105,6 +108,8 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
         expr = SparkFilters.convert(filter);
       } catch (IllegalArgumentException e) {
         // converting to Iceberg Expression failed, so this expression cannot be pushed down
+        LOG.warn("Failed to convert filter to Iceberg expression, skipping push down for this expression: {}",
+            filter, e);
       }
 
       if (expr != null) {
@@ -114,6 +119,8 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
           pushed.add(filter);
         } catch (ValidationException e) {
           // binding to the table schema failed, so this expression cannot be pushed down
+          LOG.warn("Failed to bind expression to table schema, skipping push down for this expression: {}",
+              filter, e);
         }
       }
     }
