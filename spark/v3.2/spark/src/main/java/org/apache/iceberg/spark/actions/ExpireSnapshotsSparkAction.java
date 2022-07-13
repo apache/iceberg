@@ -65,13 +65,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * Deletes are still performed locally after retrieving the results from the Spark executors.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
-public class BaseExpireSnapshotsSparkAction
-    extends BaseSparkAction<ExpireSnapshots, ExpireSnapshots.Result> implements ExpireSnapshots {
+public class ExpireSnapshotsSparkAction
+    extends BaseSparkAction<ExpireSnapshotsSparkAction> implements ExpireSnapshots {
 
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseExpireSnapshotsSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsSparkAction.class);
 
   private final Table table;
   private final TableOperations ops;
@@ -89,7 +89,7 @@ public class BaseExpireSnapshotsSparkAction
   private ExecutorService deleteExecutorService = null;
   private Dataset<Row> expiredFiles = null;
 
-  public BaseExpireSnapshotsSparkAction(SparkSession spark, Table table) {
+  ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
@@ -100,30 +100,30 @@ public class BaseExpireSnapshotsSparkAction
   }
 
   @Override
-  protected ExpireSnapshots self() {
+  protected ExpireSnapshotsSparkAction self() {
     return this;
   }
 
   @Override
-  public BaseExpireSnapshotsSparkAction executeDeleteWith(ExecutorService executorService) {
+  public ExpireSnapshotsSparkAction executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
     return this;
   }
 
   @Override
-  public BaseExpireSnapshotsSparkAction expireSnapshotId(long snapshotId) {
+  public ExpireSnapshotsSparkAction expireSnapshotId(long snapshotId) {
     expiredSnapshotIds.add(snapshotId);
     return this;
   }
 
   @Override
-  public BaseExpireSnapshotsSparkAction expireOlderThan(long timestampMillis) {
+  public ExpireSnapshotsSparkAction expireOlderThan(long timestampMillis) {
     this.expireOlderThanValue = timestampMillis;
     return this;
   }
 
   @Override
-  public BaseExpireSnapshotsSparkAction retainLast(int numSnapshots) {
+  public ExpireSnapshotsSparkAction retainLast(int numSnapshots) {
     Preconditions.checkArgument(1 <= numSnapshots,
         "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
     this.retainLastValue = numSnapshots;
@@ -131,7 +131,7 @@ public class BaseExpireSnapshotsSparkAction
   }
 
   @Override
-  public BaseExpireSnapshotsSparkAction deleteWith(Consumer<String> newDeleteFunc) {
+  public ExpireSnapshotsSparkAction deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
   }

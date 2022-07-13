@@ -892,7 +892,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .withColumnRenamed("lastModified", "last_modified");
 
     DeleteOrphanFiles.Result result1 =
-        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+        actions.deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
             .deleteWith(s -> { })
             .execute();
@@ -901,7 +901,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         Iterables.isEmpty(result1.orphanFileLocations()));
 
     DeleteOrphanFiles.Result result2 =
-        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+        actions.deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
             .olderThan(System.currentTimeMillis())
             .deleteWith(s -> { })
@@ -912,7 +912,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         "Invalid file should be present", fs.exists(new Path(invalidFilePaths.get(0))));
 
     DeleteOrphanFiles.Result result3 =
-        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+        actions.deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
             .olderThan(System.currentTimeMillis())
             .execute();
@@ -940,7 +940,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .withColumnRenamed("lastModified", "last_modified");
 
     DeleteOrphanFiles.Result result4 =
-        ((BaseDeleteOrphanFilesSparkAction) actions.deleteOrphanFiles(table))
+        actions.deleteOrphanFiles(table)
             .compareToFileList(compareToFileListWithOutsideLocation)
             .deleteWith(s -> { })
             .execute();

@@ -50,13 +50,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * to determine which files should be deleted.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
-public class BaseDeleteReachableFilesSparkAction
-    extends BaseSparkAction<DeleteReachableFiles, DeleteReachableFiles.Result> implements DeleteReachableFiles {
+public class DeleteReachableFilesSparkAction
+    extends BaseSparkAction<DeleteReachableFilesSparkAction> implements DeleteReachableFiles {
 
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteReachableFilesSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(DeleteReachableFilesSparkAction.class);
 
   private final String metadataFileLocation;
   private final Consumer<String> defaultDelete = new Consumer<String>() {
@@ -70,30 +70,30 @@ public class BaseDeleteReachableFilesSparkAction
   private ExecutorService deleteExecutorService = null;
   private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
 
-  public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataFileLocation) {
+  DeleteReachableFilesSparkAction(SparkSession spark, String metadataFileLocation) {
     super(spark);
     this.metadataFileLocation = metadataFileLocation;
   }
 
   @Override
-  protected DeleteReachableFiles self() {
+  protected DeleteReachableFilesSparkAction self() {
     return this;
   }
 
   @Override
-  public DeleteReachableFiles io(FileIO fileIO) {
+  public DeleteReachableFilesSparkAction io(FileIO fileIO) {
     this.io = fileIO;
     return this;
   }
 
   @Override
-  public DeleteReachableFiles deleteWith(Consumer<String> newDeleteFunc) {
+  public DeleteReachableFilesSparkAction deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
   }
 
   @Override
-  public DeleteReachableFiles executeDeleteWith(ExecutorService executorService) {
+  public DeleteReachableFilesSparkAction executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
     return this;
   }
