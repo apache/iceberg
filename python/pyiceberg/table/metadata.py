@@ -353,8 +353,8 @@ class TableMetadata:
         format_version = data["format-version"]
 
         if format_version == 1:
-            return TableMetadataV1.parse_obj(data)
+            return TableMetadataV1(**data)
         elif format_version == 2:
-            return TableMetadataV2.parse_obj(data)
+            return TableMetadataV2(**data)
         else:
             raise ValidationError(f"Unknown format version: {format_version}")
