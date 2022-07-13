@@ -189,7 +189,7 @@ public class SnapshotSummary {
       Set<String> changedPartitions = partitionMetrics.keySet();
       setIf(trustPartitionMetrics, builder, CHANGED_PARTITION_COUNT_PROP, changedPartitions.size());
 
-      // Don't write a partition summary for updates strictly on the root partition
+      // Don't write a partition summary for updates strictly on the root partition, e.g. unpartitioned table updates
       boolean isPartitioned = changedPartitions.stream().anyMatch(partKey -> partKey != null && !partKey.isEmpty());
       if (trustPartitionMetrics && isPartitioned && changedPartitions.size() <= maxChangedPartitionsForSummaries) {
         builder.put(PARTITION_SUMMARY_PROP, "true");
