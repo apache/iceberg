@@ -300,7 +300,7 @@ public class TestDynamoDbCatalog {
 
   @Test
   public void testRegisterTable() {
-    Namespace namespace = Namespace.of(genRandomName());
+    Namespace namespace = Namespace.of("db1");
     catalog.createNamespace(namespace);
     TableIdentifier identifier = TableIdentifier.of(namespace, catalogTableName);
     catalog.createTable(identifier, SCHEMA);
@@ -316,7 +316,7 @@ public class TestDynamoDbCatalog {
 
   @Test
   public void testRegisterExistingTable() {
-    Namespace namespace = Namespace.of(genRandomName());
+    Namespace namespace = Namespace.of("db1");
     catalog.createNamespace(namespace);
     TableIdentifier identifier = TableIdentifier.of(namespace, catalogTableName);
     catalog.createTable(identifier, SCHEMA);

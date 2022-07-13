@@ -69,7 +69,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   @Override
   public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
     Preconditions.checkArgument(
-        (identifier != null) && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
     Preconditions.checkArgument(metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
