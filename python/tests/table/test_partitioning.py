@@ -38,7 +38,7 @@ def test_partition_spec_init():
     bucket_transform: BucketTransform = BucketTransform(4)
 
     id_field1 = PartitionField(3, 1001, bucket_transform, "id")
-    partition_spec1 = PartitionSpec(0, (id_field1,), 1001)
+    partition_spec1 = PartitionSpec(0, (id_field1,))
 
     assert partition_spec1.spec_id == 0
     assert partition_spec1 == partition_spec1
@@ -47,7 +47,7 @@ def test_partition_spec_init():
     assert not partition_spec1.is_unpartitioned()
     # only differ by PartitionField field_id
     id_field2 = PartitionField(3, 1002, bucket_transform, "id")
-    partition_spec2 = PartitionSpec(0, (id_field2,), 1001)
+    partition_spec2 = PartitionSpec(0, (id_field2,))
     assert partition_spec1 != partition_spec2
     assert partition_spec1.compatible_with(partition_spec2)
     assert partition_spec1.fields_by_source_id(3) == [id_field1]
@@ -57,13 +57,13 @@ def test_partition_compatible_with():
     bucket_transform: BucketTransform = BucketTransform(4)
     field1 = PartitionField(3, 100, bucket_transform, "id")
     field2 = PartitionField(3, 102, bucket_transform, "id")
-    lhs = PartitionSpec(0, (field1,), 1001)
-    rhs = PartitionSpec(0, (field1, field2), 1001)
+    lhs = PartitionSpec(0, (field1,))
+    rhs = PartitionSpec(0, (field1, field2))
     assert not lhs.compatible_with(rhs)
 
 
 def test_unpartitioned():
-    unpartitioned = PartitionSpec(1, (), 1000)
+    unpartitioned = PartitionSpec(1, ())
 
     assert not unpartitioned.fields
     assert unpartitioned.is_unpartitioned()
@@ -71,8 +71,8 @@ def test_unpartitioned():
 
 
 def test_serialize_unpartition_spec():
-    unpartitioned = PartitionSpec(1, (), 1000)
-    assert unpartitioned.json() == """{"spec-id": 1, "fields": [], "last-assigned-field-id": 1000}"""
+    unpartitioned = PartitionSpec(1, ())
+    assert unpartitioned.json() == """{"spec-id": 1, "fields": []}"""
 
 
 def test_serialize_partition_spec():
@@ -85,12 +85,12 @@ def test_serialize_partition_spec():
     )
     assert (
         partitioned.json()
-        == """{"spec-id": 3, "fields": [{"source-id": 1, "field-id": 1000, "transform": "truncate[19]", "name": "str_truncate"}, {"source-id": 2, "field-id": 1001, "transform": "bucket[25]", "name": "int_bucket"}], "last-assigned-field-id": 1001}"""
+        == """{"spec-id": 3, "fields": [{"source-id": 1, "field-id": 1000, "transform": "truncate[19]", "name": "str_truncate"}, {"source-id": 2, "field-id": 1001, "transform": "bucket[25]", "name": "int_bucket"}]}"""
     )
 
 
 def test_deserialize_partition_spec():
-    json_partition_spec = """{"spec-id": 3, "fields": [{"source-id": 1, "field-id": 1000, "transform": "truncate[19]", "name": "str_truncate"}, {"source-id": 2, "field-id": 1001, "transform": "bucket[25]", "name": "int_bucket"}], "last-assigned-field-id": 1001}"""
+    json_partition_spec = """{"spec-id": 3, "fields": [{"source-id": 1, "field-id": 1000, "transform": "truncate[19]", "name": "str_truncate"}, {"source-id": 2, "field-id": 1001, "transform": "bucket[25]", "name": "int_bucket"}]}"""
 
     spec = PartitionSpec.parse_raw(json_partition_spec)
 

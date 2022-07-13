@@ -23,7 +23,7 @@ from typing import (
     Tuple,
 )
 
-from pydantic import Field, root_validator
+from pydantic import Field
 
 from pyiceberg.transforms import Transform
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -78,34 +78,22 @@ class PartitionSpec(IcebergBaseModel):
         schema(Schema): the schema of data table
         spec_id(int): any change to PartitionSpec will produce a new specId
         fields(List[PartitionField): list of partition fields to produce partition values
-        last_assigned_field_id(int): auto-increment partition field id starting from PARTITION_DATA_ID_START
     """
 
     spec_id: int = Field(alias="spec-id")
     fields: Tuple[PartitionField, ...] = Field()
-    last_assigned_field_id: int = Field(alias="last-assigned-field-id", default=_PARTITION_DATA_ID_START)
 
     def __init__(
         self,
         spec_id: Optional[int] = None,
         fields: Optional[Tuple[PartitionField, ...]] = None,
-        last_assigned_field_id: Optional[int] = None,
         **data: Any,
     ):
         if spec_id is not None:
             data["spec-id"] = spec_id
         if fields is not None:
             data["fields"] = fields
-        if last_assigned_field_id is not None:
-            data["last-assigned-field-id"] = last_assigned_field_id
         super().__init__(**data)
-
-    @root_validator
-    def check_last_assigned_field_id(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        if values.get("last-assigned-field-id", _PARTITION_DATA_ID_START) == _PARTITION_DATA_ID_START:
-            if fields := values.get("fields"):
-                values["last-assigned-field-id"] = max(field.field_id for field in fields)
-        return values
 
     def __eq__(self, other: Any) -> bool:
         """
@@ -133,6 +121,12 @@ class PartitionSpec(IcebergBaseModel):
 
     def is_unpartitioned(self) -> bool:
         return not self.fields
+
+    @property
+    def last_assigned_field_id(self) -> int:
+        if self.fields:
+            return max(pf.field_id for pf in self.fields)
+        return _PARTITION_DATA_ID_START
 
     @cached_property
     def source_id_to_fields_map(self) -> Dict[int, List[PartitionField]]:
