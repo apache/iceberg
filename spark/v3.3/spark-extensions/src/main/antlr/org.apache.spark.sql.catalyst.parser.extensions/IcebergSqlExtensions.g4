@@ -75,6 +75,14 @@ statement
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
     | ALTER TABLE multipartIdentifier CREATE BRANCH identifier (AS OF VERSION snapshotId)?  (WITH SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)))? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #createBranch
     | ALTER TABLE multipartIdentifier REPLACE BRANCH identifier (AS OF VERSION snapshotId)?  (WITH SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)))? (RETAIN snapshotRefRetain snapshotRefRetainTimeUnit)?   #replaceBranch
+    | ALTER TABLE multipartIdentifier CREATE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #createTag
+    | ALTER TABLE multipartIdentifier REPLACE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #replaceTag
+    | ALTER TABLE multipartIdentifier DROP BRANCH identifier #removeBranch
+    | ALTER TABLE multipartIdentifier DROP TAG identifier #removeTag
+    | ALTER TABLE multipartIdentifier ALTER BRANCH identifier SET SNAPSHOT RETENTION (((numSnapshots SNAPSHOTS) | (snapshotRetain snapshotRetainTimeUnit)) | (numSnapshots SNAPSHOTS snapshotRetain snapshotRetainTimeUnit)) #alterBranchSnapshotRetention
+    | ALTER TABLE multipartIdentifier ALTER BRANCH identifier RETAIN snapshotRefRetain snapshotRefRetainTimeUnit #alterBranchRetention
+    | ALTER TABLE multipartIdentifier ALTER TAG identifier RETAIN snapshotRefRetain snapshotRefRetainTimeUnit #alterTagRetention
+    | ALTER TABLE multipartIdentifier RENAME BRANCH identifier TO newIdentifier #renameBranch
     ;
 
 writeSpec
@@ -157,6 +165,10 @@ identifier
     | nonReserved             #unquotedIdentifier
     ;
 
+newIdentifier
+    : identifier
+    ;
+
 quotedIdentifier
     : BACKQUOTED_IDENTIFIER
     ;
@@ -188,12 +200,19 @@ snapshotRefRetain
     : number
     ;
 
+timeUnit
+    : 'MONTHS'
+    | 'DAYS'
+    | 'HOURS'
+    | 'MINUTES'
+    ;
+
 snapshotRefRetainTimeUnit
-    : identifier
+    : timeUnit
     ;
 
 snapshotRetainTimeUnit
-    : identifier
+    : timeUnit
     ;
 
 ADD: 'ADD';
@@ -229,6 +248,9 @@ UNORDERED: 'UNORDERED';
 VERSION: 'VERSION';
 WITH: 'WITH';
 WRITE: 'WRITE';
+RENAME: 'RENAME';
+TO: 'TO';
+FOR: 'FOR';
 
 TRUE: 'TRUE';
 FALSE: 'FALSE';
