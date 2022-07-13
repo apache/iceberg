@@ -91,7 +91,7 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
             elif v.startswith(BUCKET):
                 return BucketTransform(num_buckets=BUCKET_PARSER.match(v))
             elif v.startswith(TRUNCATE):
-                return TruncateTransform(width=BUCKET_PARSER.match(v))
+                return TruncateTransform(width=TRUNCATE_PARSER.match(v))
             else:
                 return UnknownTransform(transform=v)
         return v

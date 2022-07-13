@@ -29,6 +29,7 @@ from pydantic import Field, root_validator
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import Schema
+from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import Snapshot
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, UNSORTED_SORT_ORDER_ID, SortOrder
@@ -54,8 +55,9 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default-spec-id is present in partition-specs"""
     default_spec_id = values["default_spec_id"]
 
-    for spec in values["partition_specs"]:
-        if spec["spec-id"] == default_spec_id:
+    partition_specs: List[PartitionSpec] = values["partition_specs"]
+    for spec in partition_specs:
+        if spec.spec_id == default_spec_id:
             return values
 
     raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
@@ -122,7 +124,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     current_schema_id: int = Field(alias="current-schema-id", default=DEFAULT_SCHEMA_ID)
     """ID of the table’s current schema."""
 
-    partition_specs: list = Field(alias="partition-specs", default_factory=list)
+    partition_specs: List[PartitionSpec] = Field(alias="partition-specs", default_factory=list)
     """A list of partition specs, stored as full partition spec objects."""
 
     default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
@@ -251,10 +253,9 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the partition_specs set, if not provided
         """
-        # This is going to be much nicer as soon as partition-spec is also migrated to pydantic
         if not data.get("partition_specs"):
             fields = data["partition_spec"]
-            data["partition_specs"] = [{"spec-id": INITIAL_SPEC_ID, "fields": fields}]
+            data["partition_specs"] = [PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=fields)]
         else:
             check_partition_specs(data["partition_specs"])
         return data
