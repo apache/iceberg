@@ -72,10 +72,11 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class BaseRewriteDataFilesSparkAction
-    extends BaseSnapshotUpdateSparkAction<RewriteDataFiles, RewriteDataFiles.Result> implements RewriteDataFiles {
+public class RewriteDataFilesSparkAction
+    extends BaseSnapshotUpdateSparkAction<RewriteDataFilesSparkAction>
+    implements RewriteDataFiles {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDataFilesSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesSparkAction.class);
   private static final Set<String> VALID_OPTIONS = ImmutableSet.of(
       MAX_CONCURRENT_FILE_GROUP_REWRITES,
       MAX_FILE_GROUP_SIZE_BYTES,
@@ -96,18 +97,18 @@ public class BaseRewriteDataFilesSparkAction
   private RewriteJobOrder rewriteJobOrder;
   private RewriteStrategy strategy = null;
 
-  protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
+  RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
   }
 
   @Override
-  protected RewriteDataFiles self() {
+  protected RewriteDataFilesSparkAction self() {
     return this;
   }
 
   @Override
-  public RewriteDataFiles binPack() {
+  public RewriteDataFilesSparkAction binPack() {
     Preconditions.checkArgument(this.strategy == null,
         "Cannot set strategy to binpack, it has already been set", this.strategy);
     this.strategy = binPackStrategy();
@@ -115,7 +116,7 @@ public class BaseRewriteDataFilesSparkAction
   }
 
   @Override
-  public RewriteDataFiles sort(SortOrder sortOrder) {
+  public RewriteDataFilesSparkAction sort(SortOrder sortOrder) {
     Preconditions.checkArgument(this.strategy == null,
         "Cannot set strategy to sort, it has already been set to %s", this.strategy);
     this.strategy = sortStrategy().sortOrder(sortOrder);
@@ -123,7 +124,7 @@ public class BaseRewriteDataFilesSparkAction
   }
 
   @Override
-  public RewriteDataFiles sort() {
+  public RewriteDataFilesSparkAction sort() {
     Preconditions.checkArgument(this.strategy == null,
         "Cannot set strategy to sort, it has already been set to %s", this.strategy);
     this.strategy = sortStrategy();
@@ -131,7 +132,7 @@ public class BaseRewriteDataFilesSparkAction
   }
 
   @Override
-  public RewriteDataFiles zOrder(String... columnNames) {
+  public RewriteDataFilesSparkAction zOrder(String... columnNames) {
     Preconditions.checkArgument(this.strategy == null,
         "Cannot set strategy to zorder, it has already been set to %s", this.strategy);
     this.strategy = zOrderStrategy(columnNames);
@@ -139,7 +140,7 @@ public class BaseRewriteDataFilesSparkAction
   }
 
   @Override
-  public RewriteDataFiles filter(Expression expression) {
+  public RewriteDataFilesSparkAction filter(Expression expression) {
     filter = Expressions.and(filter, expression);
     return this;
   }

@@ -29,10 +29,3 @@ class Table(ABC):
     """
 
     identifier: str | Identifier
-
-
-class PartitionSpec:
-    """Placeholder for Partition Specification
-
-    To be implemented by https://github.com/apache/iceberg/issues/4631
-    """

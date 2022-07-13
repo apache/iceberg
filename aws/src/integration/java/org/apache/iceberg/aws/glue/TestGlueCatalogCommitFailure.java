@@ -35,7 +35,6 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
@@ -246,7 +245,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
       table.refresh();
       table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
       throw new RuntimeException("Datacenter on fire");
-    }).when(spyOperations).persistGlueTable(Matchers.any(), Matchers.anyMap(), Matchers.any());
+    }).when(spyOperations).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
   }
 
   @Test
@@ -344,7 +343,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
           i.getArgument(1, Map.class),
           i.getArgument(2, TableMetadata.class));
       throw new RuntimeException("Datacenter on fire");
-    }).when(spyOps).persistGlueTable(Matchers.any(), Matchers.anyMap(), Matchers.any());
+    }).when(spyOps).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
   }
 
   private void failCommitAndThrowException(GlueTableOperations spyOps) {
@@ -353,7 +352,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   private void failCommitAndThrowException(GlueTableOperations spyOps, Exception exceptionToThrow) {
     Mockito.doThrow(exceptionToThrow)
-        .when(spyOps).persistGlueTable(Matchers.any(), Matchers.anyMap(), Matchers.any());
+        .when(spyOps).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
   }
 
   private void breakFallbackCatalogCommitCheck(GlueTableOperations spyOperations) {

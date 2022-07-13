@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.actions.RewriteManifestsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -82,10 +83,10 @@ class RewriteManifestsProcedure extends BaseProcedure {
     Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
 
     return modifyIcebergTable(tableIdent, table -> {
-      RewriteManifests action = actions().rewriteManifests(table);
+      RewriteManifestsSparkAction action = actions().rewriteManifests(table);
 
       if (useCaching != null) {
-        action.option("use-caching", useCaching.toString());
+        action.option(RewriteManifestsSparkAction.USE_CACHING, useCaching.toString());
       }
 
       RewriteManifests.Result result = action.execute();

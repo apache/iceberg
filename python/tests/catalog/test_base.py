@@ -34,7 +34,9 @@ from pyiceberg.exceptions import (
     NoSuchTableError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import PartitionSpec, Table
+from pyiceberg.table.base import Table
+from pyiceberg.table.metadata import INITIAL_SPEC_ID
+from pyiceberg.table.partitioning import PartitionSpec
 
 
 class InMemoryCatalog(Catalog):
@@ -159,7 +161,7 @@ TEST_TABLE_NAMESPACE = ("com", "organization", "department")
 TEST_TABLE_NAME = "my_table"
 TEST_TABLE_SCHEMA = Schema(schema_id=1)
 TEST_TABLE_LOCATION = "protocol://some/location"
-TEST_TABLE_PARTITION_SPEC = PartitionSpec()
+TEST_TABLE_PARTITION_SPEC = PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=())
 TEST_TABLE_PROPERTIES = {"key1": "value1", "key2": "value2"}
 NO_SUCH_TABLE_ERROR = "Table does not exist: \\('com', 'organization', 'department', 'my_table'\\)"
 TABLE_ALREADY_EXISTS_ERROR = "Table already exists: \\('com', 'organization', 'department', 'my_table'\\)"

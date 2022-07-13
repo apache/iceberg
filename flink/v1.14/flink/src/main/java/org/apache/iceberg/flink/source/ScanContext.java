@@ -82,6 +82,9 @@ public class ScanContext implements Serializable {
   private static final ConfigOption<Boolean> INCLUDE_COLUMN_STATS =
       ConfigOptions.key("include-column-stats").booleanType().defaultValue(false);
 
+  private static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT =
+      ConfigOptions.key("max-planning-snapshot-count").intType().defaultValue(Integer.MAX_VALUE);
+
   private final boolean caseSensitive;
   private final boolean exposeLocality;
   private final Long snapshotId;
@@ -95,6 +98,7 @@ public class ScanContext implements Serializable {
   private final Long splitOpenFileCost;
   private final boolean isStreaming;
   private final Duration monitorInterval;
+  private final int maxPlanningSnapshotCount;
 
   private final String nameMapping;
   private final Schema schema;
@@ -107,7 +111,8 @@ public class ScanContext implements Serializable {
                       Long startSnapshotTimestamp, Long startSnapshotId, Long endSnapshotId, Long asOfTimestamp,
                       Long splitSize, Integer splitLookback, Long splitOpenFileCost, boolean isStreaming,
                       Duration monitorInterval, String nameMapping, Schema schema, List<Expression> filters,
-                      long limit, boolean includeColumnStats, boolean exposeLocality, Integer planParallelism) {
+                      long limit, boolean includeColumnStats, boolean exposeLocality, Integer planParallelism,
+                      int maxPlanningSnapshotCount) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startingStrategy = startingStrategy;
@@ -120,6 +125,7 @@ public class ScanContext implements Serializable {
     this.splitOpenFileCost = splitOpenFileCost;
     this.isStreaming = isStreaming;
     this.monitorInterval = monitorInterval;
+    this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
 
     this.nameMapping = nameMapping;
     this.schema = schema;
@@ -225,6 +231,10 @@ public class ScanContext implements Serializable {
     return planParallelism;
   }
 
+  public int maxPlanningSnapshotCount() {
+    return maxPlanningSnapshotCount;
+  }
+
   public ScanContext copyWithAppendsBetween(Long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
@@ -244,6 +254,7 @@ public class ScanContext implements Serializable {
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
+        .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
         .build();
   }
 
@@ -266,6 +277,7 @@ public class ScanContext implements Serializable {
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
+        .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
         .build();
   }
 
@@ -293,6 +305,7 @@ public class ScanContext implements Serializable {
     private boolean includeColumnStats = INCLUDE_COLUMN_STATS.defaultValue();
     private boolean exposeLocality;
     private Integer planParallelism = FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
+    private int maxPlanningSnapshotCount = MAX_PLANNING_SNAPSHOT_COUNT.defaultValue();
 
     private Builder() {
     }
@@ -392,6 +405,11 @@ public class ScanContext implements Serializable {
       return this;
     }
 
+    public Builder maxPlanningSnapshotCount(int newMaxPlanningSnapshotCount) {
+      this.maxPlanningSnapshotCount = newMaxPlanningSnapshotCount;
+      return this;
+    }
+
     public Builder fromProperties(Map<String, String> properties) {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
@@ -409,14 +427,15 @@ public class ScanContext implements Serializable {
           .streaming(config.get(STREAMING))
           .monitorInterval(config.get(MONITOR_INTERVAL))
           .nameMapping(properties.get(DEFAULT_NAME_MAPPING))
-          .includeColumnStats(config.get(INCLUDE_COLUMN_STATS));
+          .includeColumnStats(config.get(INCLUDE_COLUMN_STATS))
+          .maxPlanningSnapshotCount(config.get(MAX_PLANNING_SNAPSHOT_COUNT));
     }
 
     public ScanContext build() {
       return new ScanContext(caseSensitive, snapshotId, startingStrategy, startSnapshotTimestamp,
           startSnapshotId, endSnapshotId, asOfTimestamp, splitSize, splitLookback,
           splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filters, limit, includeColumnStats, exposeLocality, planParallelism);
+          filters, limit, includeColumnStats, exposeLocality, planParallelism, maxPlanningSnapshotCount);
     }
   }
 }

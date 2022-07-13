@@ -24,7 +24,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.actions.BaseDeleteOrphanFilesSparkAction;
+import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -95,7 +95,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
             "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
 
     return withIcebergTable(tableIdent, table -> {
-      DeleteOrphanFiles action = actions().deleteOrphanFiles(table);
+      DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
 
       if (olderThanMillis != null) {
         boolean isTesting = Boolean.parseBoolean(spark().conf().get("spark.testing", "false"));
@@ -118,7 +118,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       }
 
       if (fileListView != null) {
-        ((BaseDeleteOrphanFilesSparkAction) action).compareToFileList(spark().table(fileListView));
+        action.compareToFileList(spark().table(fileListView));
       }
 
       DeleteOrphanFiles.Result result = action.execute();

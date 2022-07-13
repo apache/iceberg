@@ -21,7 +21,8 @@ from abc import ABC, abstractmethod
 
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import PartitionSpec, Table
+from pyiceberg.table.base import Table
+from pyiceberg.table.partitioning import PartitionSpec
 
 
 class Catalog(ABC):
