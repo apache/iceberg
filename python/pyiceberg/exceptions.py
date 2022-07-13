@@ -34,3 +34,7 @@ class AlreadyExistsError(Exception):
 
 class ValidationError(Exception):
     """Raises when there is an issue with the schema"""
+
+
+class BadCredentialsError(Exception):
+    """Raises when providing invalid credentials"""
