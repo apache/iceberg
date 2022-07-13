@@ -29,6 +29,6 @@ case class ReplaceTag(table: Seq[String], tag: String, snapshotId: Option[Long],
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"ReplaceTag  ${table.quoted} ${tag}"
+    s"ReplaceTag ${table.quoted} ${tag}"
   }
 }

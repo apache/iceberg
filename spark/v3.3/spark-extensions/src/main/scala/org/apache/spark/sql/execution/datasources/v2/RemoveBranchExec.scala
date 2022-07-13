@@ -37,9 +37,7 @@ case class RemoveBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-
-        iceberg.table.manageSnapshots().removeBranch(removeBranch.branch)
-          .commit()
+        iceberg.table.manageSnapshots().removeBranch(removeBranch.branch).commit()
 
       case table =>
         throw new UnsupportedOperationException(s"Cannot remove branch to non-Iceberg table: $table")

@@ -41,7 +41,7 @@ case class CreateTagExec(
         val snapshotId = createTag.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
         iceberg.table.manageSnapshots()
           .createTag(createTag.tag, snapshotId)
-          .setMaxRefAgeMs(createTag.tag, createTag.snapshotRefRetain.getOrElse(1L))
+          .setMaxRefAgeMs(createTag.tag, createTag.snapshotRefRetain.getOrElse(5 * 24 * 60 * 60 * 1000L))
           .commit()
 
       case table =>
@@ -52,6 +52,6 @@ case class CreateTagExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"createTag createTagExec.scala ${catalog.name}.${ident.quoted} ${createTag.tag}"
+    s"createTag ${catalog.name}.${ident.quoted} ${createTag.tag}"
   }
 }

@@ -28,6 +28,6 @@ case class RenameBranch(table: Seq[String], branch: String,newBranch: String)  e
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"RenameBranch  ${table.quoted} ${branch} to new branch: ${newBranch}"
+    s"RenameBranch ${table.quoted} ${branch} to new branch: ${newBranch}"
   }
 }

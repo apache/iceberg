@@ -37,9 +37,7 @@ case class RemoveTagExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-
-        iceberg.table.manageSnapshots().removeTag(removeTag.tag)
-          .commit()
+        iceberg.table.manageSnapshots().removeTag(removeTag.tag).commit()
 
       case table =>
         throw new UnsupportedOperationException(s"Cannot remove tag to non-Iceberg table: $table")

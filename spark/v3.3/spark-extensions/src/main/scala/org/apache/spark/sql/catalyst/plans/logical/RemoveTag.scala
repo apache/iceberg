@@ -28,6 +28,6 @@ case class RemoveTag(table: Seq[String], tag: String) extends LeafCommand {
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"RemoveTag  ${table.quoted} ${tag}"
+    s"RemoveTag ${table.quoted} ${tag}"
   }
 }

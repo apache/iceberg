@@ -29,6 +29,6 @@ case class AlterTagRefRetention(table: Seq[String], tag: String
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"AlterTagRetention  ${table.quoted} ${tag}"
+    s"AlterTagRetention ${table.quoted} ${tag}"
   }
 }

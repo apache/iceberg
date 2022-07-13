@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.parser.extensions
 
+import java.util.Locale
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.tree.ParseTree
@@ -117,7 +118,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     )
   }
 
-
+  /**
+   * Create an REMOVE BRANCH logical command.
+   */
   override def visitRemoveBranch(ctx: RemoveBranchContext): RemoveBranch = withOrigin(ctx) {
     RemoveBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
@@ -125,6 +128,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     )
   }
 
+  /**
+   * Create an RENAME BRANCH logical command.
+   */
   override def visitRenameBranch(ctx: RenameBranchContext): RenameBranch =  withOrigin(ctx) {
     RenameBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier()),
@@ -132,6 +138,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       ctx.newIdentifier().getText)
   }
 
+  /**
+   * Create an ALTER BRANCH RETENTION logical command.
+   */
   override def visitAlterBranchRetention(ctx: AlterBranchRetentionContext): AlterBranchRefRetention = withOrigin(ctx) {
     AlterBranchRefRetention(
       typedVisit[Seq[String]](ctx.multipartIdentifier()),
@@ -140,6 +149,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     )
   }
 
+  /**
+   * Create an ALTER BRANCH SNAPSHOT RETENTION logical command.
+   */
   override def visitAlterBranchSnapshotRetention(
                                                   ctx: AlterBranchSnapshotRetentionContext
                                                 ): AlterBranchSnapshotRetention = withOrigin(ctx) {
@@ -151,8 +163,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     )
   }
 
-
-
+  /**
+   * Create an CREATE TAG logical command.
+   */
   override def visitCreateTag(ctx: CreateTagContext): CreateTag =  withOrigin(ctx) {
     CreateTag(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
@@ -162,6 +175,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     )
   }
 
+  /**
+   * Create an REPLACE TAG logical command.
+   */
   override def visitReplaceTag(ctx: ReplaceTagContext): ReplaceTag =  withOrigin(ctx) {
     ReplaceTag(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
@@ -171,6 +187,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     )
   }
 
+  /**
+   * Create an REMOVE TAG logical command.
+   */
   override def visitRemoveTag(ctx: RemoveTagContext): RemoveTag = withOrigin(ctx) {
     RemoveTag(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
@@ -178,6 +197,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     )
   }
 
+  /**
+   * Create an ALTER TAG RETENTION logical command.
+   */
   override def visitAlterTagRetention(ctx: AlterTagRetentionContext): AlterTagRefRetention =  withOrigin(ctx) {
     AlterTagRefRetention(
       typedVisit[Seq[String]](ctx.multipartIdentifier()),
@@ -194,7 +216,6 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform))
   }
-
 
   /**
    * Create an REPLACE PARTITION FIELD logical command.
@@ -369,12 +390,13 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     ctx.accept(this).asInstanceOf[T]
   }
 
-  val timeUnit = (unit: String) => {
-    unit match {
+  private val timeUnit = (unit: String) => {
+    unit.toUpperCase(Locale.ENGLISH) match {
       case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
       case "DAYS" => 24 * 60 * 60 * 1000L
       case "HOURS" => 60 * 60 * 1000L
       case "MINUTES" => 60 * 1000L
+      case _ => throw new IllegalArgumentException("Invalid time unit: " + unit)
     }
   }
 }

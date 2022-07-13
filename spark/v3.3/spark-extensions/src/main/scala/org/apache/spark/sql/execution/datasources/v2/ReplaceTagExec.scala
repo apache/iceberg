@@ -41,7 +41,7 @@ case class ReplaceTagExec(
         val snapshotId = replaceTag.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
         iceberg.table.manageSnapshots()
           .replaceTag(replaceTag.tag, snapshotId)
-          .setMaxRefAgeMs(replaceTag.tag, replaceTag.snapshotRefRetain.getOrElse(1L))
+          .setMaxRefAgeMs(replaceTag.tag, replaceTag.snapshotRefRetain.getOrElse(5 * 24 * 60 * 60 * 1000L))
           .commit()
 
       case table =>
