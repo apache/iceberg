@@ -226,8 +226,10 @@ public abstract class DeleteFilter<T> {
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
-      PositionDeleteIndex positionIndex = Deletes.toPositionIndex(filePath, deletes);
-      Predicate<T> isDeleted = record -> positionIndex.isDeleted(pos(record));
+      if (deleteRowPositions == null) {
+        deleteRowPositions = Deletes.toPositionIndex(filePath, deletes);
+      }
+      Predicate<T> isDeleted = record -> deleteRowPositions.isDeleted(pos(record));
       return createDeleteIterable(records, isDeleted);
     }
 
