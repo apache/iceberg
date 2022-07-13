@@ -119,8 +119,8 @@ public class TestSnapshotSummary extends TableTestBase {
 
     Assert.assertEquals("Snapshot summary for unpartitioned table should have a changed partition count of 1 for the root partition",
         summary.get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP), "1");
-    Assert.assertNull("Summary for unpartitioned tables shouldn't have the partition summary included field",
-        summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP));
+    Assert.assertEquals("Summary for unpartitioned tables should have the partition summary included field set to false",
+        summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP), "false");
 
     // Ensure writes did happen.
     Assert.assertEquals(String.valueOf(UNPARTITIONED_FILE_WITH_STATS.fileSizeInBytes()),
