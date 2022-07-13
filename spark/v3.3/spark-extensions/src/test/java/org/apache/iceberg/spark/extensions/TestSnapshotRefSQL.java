@@ -21,11 +21,11 @@ package org.apache.iceberg.spark.extensions;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
@@ -202,16 +202,17 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
   public void testDropBranch() throws NoSuchTableException {
     Table table = createDefaultTableAndInsert2Row();
     String branchName = "b1";
-    sql(
-        "ALTER TABLE %s CREATE BRANCH %s",
-        tableName, branchName);
+
+    AssertHelpers.assertThrows("Cannot drop a branch that does not exist",
+        IllegalArgumentException.class, "Branch does not exist",
+        () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, branchName));
+
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
     table.refresh();
     SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(branchName);
     Assert.assertNotNull(ref1);
 
-    sql(
-        "ALTER TABLE %s DROP BRANCH %s",
-        tableName, branchName);
+    sql("ALTER TABLE %s DROP BRANCH %s", tableName, branchName);
     table.refresh();
     SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(branchName);
     Assert.assertNull(ref2);
@@ -221,21 +222,32 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
   public void testRenameBranch() throws NoSuchTableException {
     Table table = createDefaultTableAndInsert2Row();
     String branchName = "b1";
+    String newBranchName = "b2";
+
+    AssertHelpers.assertThrows("Cannot rename a branch that does not exist",
+        IllegalArgumentException.class, "Branch does not exist",
+        () -> sql("ALTER TABLE %s RENAME BRANCH %s TO %s", tableName, branchName, newBranchName));
+
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
     table.refresh();
     SnapshotRef ref = ((BaseTable) table).operations().current().ref(branchName);
     Assert.assertNotNull(ref);
-    String branchName2 = "b2";
-    sql("ALTER TABLE %s RENAME BRANCH %s TO %s", tableName, branchName, branchName2);
+
+    sql("ALTER TABLE %s RENAME BRANCH %s TO %s", tableName, branchName, newBranchName);
     table.refresh();
     ref = ((BaseTable) table).operations().current().ref(branchName);
     Assert.assertNull(ref);
-    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(branchName2);
+    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(newBranchName);
     Assert.assertNotNull(ref2);
+
+    String branchName3 = "noBranch";
+    AssertHelpers.assertThrows("Cannot rename an not exist branch",
+        IllegalArgumentException.class, "Branch does not exist: " + branchName3,
+        () -> sql("ALTER TABLE %s RENAME BRANCH %s TO %s", tableName, branchName3, newBranchName));
   }
 
   @Test
-  public void alterBranchRefRetention() throws NoSuchTableException {
+  public void testAlterBranchRefRetention() throws NoSuchTableException {
     Table table = createDefaultTableAndInsert2Row();
     String branchName = "b1";
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
@@ -243,14 +255,16 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s ALTER BRANCH %s RETAIN %d MINUTES", tableName, branchName, 1);
     table.refresh();
     SnapshotRef ref = ((BaseTable) table).operations().current().ref(branchName);
-    Assert.assertEquals(
-        "Invalid modification time.",
-        Optional.of(1 * 60 * 1000),
-        Optional.of(ref.maxRefAgeMs()));
+    Assert.assertEquals("Invalid modification time.", 60 * 1000, ref.maxRefAgeMs().longValue());
+
+    String branchName2 = "b2";
+    AssertHelpers.assertThrows("Cannot alter an not exist branch",
+        IllegalArgumentException.class, "Ref does not exist: " + branchName2,
+        () -> sql("ALTER TABLE %s ALTER BRANCH %s RETAIN %d MINUTES", tableName, branchName2, 1));
   }
 
   @Test
-  public void alterBranchSnapshotRetention() throws NoSuchTableException {
+  public void testAlterBranchSnapshotRetention() throws NoSuchTableException {
     Table table = createDefaultTableAndInsert2Row();
     String branchName = "b1";
     int snapshotNum = 5;
@@ -260,9 +274,8 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     table.refresh();
     SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(branchName);
     Assert.assertEquals(
-        "Invalid modification snapshot day time.",
-        Optional.of(7 * 24 * 60 * 60 * 1000L),
-        Optional.of(ref1.maxSnapshotAgeMs()));
+        "Invalid modification snapshot day time.", 7 * 24 * 60 * 60 * 1000L,
+        ref1.maxSnapshotAgeMs().longValue());
 
     snapshotNum = 4;
     days = 1;
@@ -271,13 +284,10 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     table.refresh();
     SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(branchName);
     Assert.assertEquals(
-        "Invalid modification snapshot day time.",
-        Optional.of(days * 24 * 60 * 60 * 1000L),
-        Optional.of(ref2.maxSnapshotAgeMs()));
+        "Invalid modification snapshot day time.", days * 24 * 60 * 60 * 1000L,
+        ref2.maxSnapshotAgeMs().longValue());
     Assert.assertEquals(
-        "Invalid modification snapshot retention number.",
-        Optional.of(snapshotNum),
-        Optional.of(ref2.minSnapshotsToKeep()));
+        "Invalid modification snapshot retention number.", snapshotNum, ref2.minSnapshotsToKeep().intValue());
   }
 
   @Test
@@ -291,7 +301,18 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     table.refresh();
     SnapshotRef ref = ((BaseTable) table).operations().current().ref(tagName);
     Assert.assertNotNull(ref);
-    Assert.assertEquals(ref.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000);
+    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000, ref.maxRefAgeMs().longValue());
+
+    AssertHelpers.assertThrows("Cannot create an exist tag",
+        IllegalArgumentException.class, "already exists",
+        () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN FOR %d DAYS",
+            tableName, tagName, snapshotId, maxRefAge));
+
+    String tagName2 = "t2";
+    AssertHelpers.assertThrows("Cannot set tag to unknown snapshot",
+        ValidationException.class, "unknown snapshot: 0",
+        () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN FOR %d DAYS",
+            tableName, tagName2, 0, maxRefAge));
   }
 
   @Test
@@ -306,7 +327,7 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
         tableName, tagName, snapshotId, maxRefAge);
     table.refresh();
     SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(tagName);
-    Assert.assertEquals(ref1.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000L);
+    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref1.maxRefAgeMs().longValue());
     Assert.assertEquals(snapshotId, ref1.snapshotId());
 
     List<SimpleRecord> records = ImmutableList.of(
@@ -323,8 +344,14 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
         tableName, tagName, snapshotId2, maxRefAge);
     table.refresh();
     SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(tagName);
-    Assert.assertEquals(ref2.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000L);
+    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref2.maxRefAgeMs().longValue());
     Assert.assertEquals(snapshotId2, ref2.snapshotId());
+
+    AssertHelpers.assertThrows("Cannot set tag to unknown snapshot",
+        ValidationException.class, "unknown snapshot: 0",
+        () -> sql(
+            "ALTER TABLE %s REPLACE TAG %s AS OF VERSION %d",
+            tableName, tagName, 0));
   }
 
   @Test
@@ -343,7 +370,7 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void AlterTagRefRetention() throws NoSuchTableException {
+  public void testAlterTagRefRetention() throws NoSuchTableException {
     Table table = createDefaultTableAndInsert2Row();
 
     long snapshotId = table.currentSnapshot().snapshotId();
@@ -362,7 +389,7 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
         tableName, tagName, snapshotId, maxRefAge);
     table.refresh();
     SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(tagName);
-    Assert.assertEquals(ref1.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000L);
+    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref1.maxRefAgeMs().longValue());
     Assert.assertEquals(snapshotId, ref1.snapshotId());
 
     maxRefAge = 6L;
@@ -371,7 +398,7 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
         tableName, tagName, maxRefAge);
     table.refresh();
     SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(tagName);
-    Assert.assertEquals(ref2.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000L);
+    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref2.maxRefAgeMs().longValue());
   }
 
   private Table createDefaultTableAndInsert2Row() throws NoSuchTableException {
