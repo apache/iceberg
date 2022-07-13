@@ -420,14 +420,56 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+    // Spark assumes that catalogs CASCADE by default. So if we have a namespace catalog
+    /// we need to attempt to recursively delete.
     if (asNamespaceCatalog != null) {
+      Namespace asNamespace = Namespace.of(namespace);
+      boolean exists = namespaceExists(namespace);
+
+      // TODO - Follow up
+      //
+      // If not exists, we can eagerly try to drop the namespace.
+      // If it throws, then that means that the user did not use IF EXISTS.
+      // If it does not throw, we can return false early as the user must have used IF EXISTS.
+
+      // Spark only throws the catalyst version of `NoSuchNamespaceException` if the namespace
+      // does not exist AND the user did not specify `IF EXISTS` in their query.
+      //
+      // If the namespace does not exist, but listNamespaces didn't throw an exception,
+      // we know the user used IF EXISTS and can return false early.
+      String[][] subNamespaces;
       try {
-        return asNamespaceCatalog.dropNamespace(Namespace.of(namespace));
+        subNamespaces = listNamespaces(namespace);
       } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
         throw new NoSuchNamespaceException(namespace);
       }
-    }
 
+      if (!exists && (subNamespaces == null || subNamespaces.length == 0)) {
+        return false;
+      }
+
+      // Recursively drop namespaces under the requested `namespace so that:
+      //   1) query has CASCADE in it and thus the base case will delete the tables
+      //      and then the namespace of those tables
+      //   2) query does not have CASCADE in it, so Spark will throw
+      //      as soon as it encounters a non-empty namespace.
+      for (String[] ns : subNamespaces) {
+        try {
+          boolean didDrop = dropNamespace(ns);
+          if (!didDrop) {
+            return false;
+          }
+        } catch (NoSuchNamespaceException e) {
+          // Spark says this sub-namespace doesn't exist. This is unlikely to happen as we just
+          // got it from a listing, but it could have been concurrently removed.
+          // In either case, the result is the same.
+        }
+      }
+
+      // Base case
+      Arrays.stream(listTables(namespace)).forEach(this::dropTable);
+      return asNamespaceCatalog.dropNamespace(asNamespace);
+    }
     return false;
   }
 

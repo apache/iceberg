@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.Arrays;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -109,6 +110,35 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
 
   @Override
   public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+    // Spark assumes that catalogs CASCADE by default. So we must recursively try deleting
+    // and Spark will handle things based on whether the query used IF EXISTS or CASCADE
+    //
+    // First check if the namespace exists.
+    //  - If it doesn't, we can try dropping it, with two possible outcomes:
+    //     1) throw a NoSuchNamespaceException - query did not use `IF EXISTS` when dropping
+    //     2) return false - query did use `IF EXISTS` when dropping.
+    boolean doesNamespaceExist = namespaceExists(namespace);
+    if (!doesNamespaceExist) {
+      return getSessionCatalog().dropNamespace(namespace);
+    }
+
+    // Recursively try to drop, since we know the namespace exists.
+    // Spark will guard against drops if the keyword CASCADE was not used.
+    String[][] subNamespaces = getSessionCatalog().listNamespaces(namespace);
+    for (String[] ns : subNamespaces) {
+      try {
+        dropNamespace(ns);
+      } catch (NoSuchNamespaceException e) {
+        // Do nothing. It's possible this namespace was removed concurrrently.
+      }
+    }
+
+    // Base case
+    try {
+      Arrays.stream(listTables(namespace)).forEach(tbl -> getSessionCatalog().dropTable(tbl));
+    } catch (NoSuchNamespaceException e) {
+      // Do nothing. It's possible this namespace was dropped concurrently.
+    }
     return getSessionCatalog().dropNamespace(namespace);
   }
 
