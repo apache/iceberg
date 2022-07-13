@@ -98,7 +98,7 @@ public class TestSnapshotSummary extends TableTestBase {
   }
 
   @Test
-  public void testSnapshotSummaryIsNotGeneratedForUnpartitionedTable() {
+  public void testPartitionSummaryIsNotGeneratedForUnpartitionedUpdate() {
     // Drop table and then recreate as unpartitioned
     cleanupTables();
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
@@ -117,8 +117,8 @@ public class TestSnapshotSummary extends TableTestBase {
 
     Map<String, String> summary = table.currentSnapshot().summary();
 
-    Assert.assertEquals("Snapshot summary for unpartitioned table should have changed partition count of zero",
-        summary.get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP), "0");
+    Assert.assertEquals("Snapshot summary for unpartitioned table should have a changed partition count of 1 for the root partition",
+        summary.get(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP), "1");
     Assert.assertNull("Summary for unpartitioned tables shouldn't have the partition summary included field",
         summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP));
 
@@ -131,7 +131,7 @@ public class TestSnapshotSummary extends TableTestBase {
   }
 
   @Test
-  public void testSnapshotSummaryIsGeneratedForPartitionedTable() {
+  public void testPartitionSummaryIsGeneratedForPartitionedUpdate() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
     Assert.assertFalse("Table should start partitioned", table.spec().isUnpartitioned());
 
