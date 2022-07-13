@@ -34,19 +34,7 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParserUtils.withOrigin
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
-import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
-import org.apache.spark.sql.catalyst.plans.logical.CallArgument
-import org.apache.spark.sql.catalyst.plans.logical.CallStatement
-import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
-import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
-import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
-import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceBranch
-import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
-import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
-import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.expressions
@@ -56,7 +44,6 @@ import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.LiteralValue
 import org.apache.spark.sql.connector.expressions.Transform
 import scala.jdk.CollectionConverters._
-
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
 
   private def toBuffer[T](list: java.util.List[T]): scala.collection.mutable.Buffer[T] = list.asScala
@@ -85,14 +72,6 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    * Create an ADD BRANCH logical command.
    */
   override def visitCreateBranch(ctx: CreateBranchContext): CreateBranch = withOrigin(ctx) {
-    val timeUnit: String => Long = {
-      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
-      case "DAYS" => 24 * 60 * 60 * 1000L
-      case "HOURS" => 60 * 60 * 1000L
-      case "MINUTES" => 1 * 1000L
-      case _ => throw new RuntimeException("unknown time unit!")
-    }
-
     CreateBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       ctx.identifier().getText,
@@ -107,20 +86,81 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    * Create an REPLACE BRANCH logical command.
    */
   override def visitReplaceBranch(ctx: ReplaceBranchContext): ReplaceBranch = withOrigin(ctx) {
-    val timeUnit: String => Long = {
-      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
-      case "DAYS" => 24 * 60 * 60 * 1000L
-      case "HOURS" => 60 * 60 * 1000L
-      case "MINUTES" => 1 * 1000L
-      case _ => throw new RuntimeException("unknown time unit!")
-    }
-
     ReplaceBranch(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       ctx.identifier().getText,
       Option(ctx.snapshotId()).map(_.getText.toLong),
       Option(ctx.numSnapshots()).map(_.getText.toLong),
       Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText)),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+
+  override def visitRemoveBranch(ctx: RemoveBranchContext): RemoveBranch = withOrigin(ctx) {
+    RemoveBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText
+    )
+  }
+
+  override def visitRenameBranch(ctx: RenameBranchContext): RenameBranch =  withOrigin(ctx) {
+    RenameBranch(
+      typedVisit[Seq[String]](ctx.multipartIdentifier()),
+      ctx.identifier().getText,
+      ctx.newIdentifier().getText)
+  }
+
+  override def visitAlterBranchRetention(ctx: AlterBranchRetentionContext): AlterBranchRefRetention = withOrigin(ctx) {
+    AlterBranchRefRetention(
+      typedVisit[Seq[String]](ctx.multipartIdentifier()),
+      ctx.identifier().getText,
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  override def visitAlterBranchSnapshotRetention(
+                                                  ctx: AlterBranchSnapshotRetentionContext
+                                                ): AlterBranchSnapshotRetention = withOrigin(ctx) {
+    AlterBranchSnapshotRetention(
+      typedVisit[Seq[String]](ctx.multipartIdentifier()),
+      ctx.identifier().getText,
+      Option(ctx.numSnapshots()).map(_.getText.toLong),
+      Option(ctx.snapshotRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRetainTimeUnit().getText))
+    )
+  }
+
+
+
+  override def visitCreateTag(ctx: CreateTagContext): CreateTag =  withOrigin(ctx) {
+    CreateTag(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  override def visitReplaceTag(ctx: ReplaceTagContext): ReplaceTag =  withOrigin(ctx) {
+    ReplaceTag(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText,
+      Option(ctx.snapshotId()).map(_.getText.toLong),
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    )
+  }
+
+  override def visitRemoveTag(ctx: RemoveTagContext): RemoveTag = withOrigin(ctx) {
+    RemoveTag(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.identifier().getText
+    )
+  }
+
+  override def visitAlterTagRetention(ctx: AlterTagRetentionContext): AlterTagRefRetention =  withOrigin(ctx) {
+    AlterTagRefRetention(
+      typedVisit[Seq[String]](ctx.multipartIdentifier()),
+      ctx.identifier().getText,
       Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
     )
   }
@@ -313,7 +353,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
       case "DAYS" => 24 * 60 * 60 * 1000L
       case "HOURS" => 60 * 60 * 1000L
-      case "MINUTES" => 1 * 1000L
+      case "MINUTES" => 60 * 1000L
     }
   }
 }

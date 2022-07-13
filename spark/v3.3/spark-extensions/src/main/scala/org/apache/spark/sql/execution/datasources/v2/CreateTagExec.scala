@@ -22,14 +22,13 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
-import org.apache.spark.sql.connector.catalog.Identifier
-import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.catalyst.plans.logical.CreateTag
+import org.apache.spark.sql.connector.catalog._
 
-case class CreateBranchExec(
+case class CreateTagExec(
                              catalog: TableCatalog,
                              ident: Identifier,
-                             createBranch: CreateBranch) extends LeafV2CommandExec {
+                             createTag: CreateTag) extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -39,23 +38,20 @@ case class CreateBranchExec(
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
 
-        val snapshotId = createBranch.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
+        val snapshotId = createTag.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
         iceberg.table.manageSnapshots()
-          .createBranch(createBranch.branch, snapshotId)
-          .setMinSnapshotsToKeep(createBranch.branch, createBranch.numSnapshots.getOrElse(1L).toInt)
-          // 5 days
-          .setMaxSnapshotAgeMs(createBranch.branch, createBranch.snapshotRetain.getOrElse(5 * 24 * 60 * 60 * 1000L))
-          .setMaxRefAgeMs(createBranch.branch, createBranch.snapshotRefRetain.getOrElse(Long.MaxValue))
+          .createTag(createTag.tag, snapshotId)
+          .setMaxRefAgeMs(createTag.tag, createTag.snapshotRefRetain.getOrElse(1L))
           .commit()
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot add branch to non-Iceberg table: $table")
+        throw new UnsupportedOperationException(s"Cannot create tag to non-Iceberg table: $table")
     }
 
     Nil
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateBranchExec ${catalog.name}.${ident.quoted} ${createBranch.branch}"
+    s"createTag createTagExec.scala ${catalog.name}.${ident.quoted} ${createTag.tag}"
   }
 }

@@ -21,12 +21,15 @@ package org.apache.iceberg.spark.extensions;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
 import org.junit.Assert;
@@ -193,5 +196,184 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     Assert.assertEquals(minSnapshotsToKeep3, ref3.minSnapshotsToKeep());
     Assert.assertEquals(maxSnapshotAge3 * 24 * 60 * 60 * 1000L, ref5.maxSnapshotAgeMs().longValue());
     Assert.assertEquals(maxRefAge3 * 24 * 60 * 60 * 1000L, ref5.maxRefAgeMs().longValue());
+  }
+
+  @Test
+  public void testDropBranch() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
+    sql(
+            "ALTER TABLE %s CREATE BRANCH %s",
+            tableName, branchName);
+    table.refresh();
+    SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(branchName);
+    Assert.assertNotNull(ref1);
+
+    sql(
+            "ALTER TABLE %s DROP BRANCH %s",
+            tableName,branchName);
+    table.refresh();
+    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(branchName);
+    Assert.assertNull(ref2);
+  }
+
+  @Test
+  public void testRenameBranch() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
+    sql(
+            "ALTER TABLE %s CREATE BRANCH %s",
+            tableName, branchName);
+    String branchName2 = "b2";
+    sql(
+            "ALTER TABLE %s RENAME BRANCH %s TO %s",
+            tableName,branchName,branchName2);
+    table.refresh();
+    SnapshotRef ref = ((BaseTable) table).operations().current().ref(branchName);
+    Assert.assertNull(ref);
+    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(branchName2);
+    Assert.assertNotNull(ref2);
+  }
+
+  @Test
+  public void alterBranchRefRetention() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
+    sql(
+            "ALTER TABLE %s CREATE BRANCH %s",
+            tableName, branchName);
+    table.refresh();
+    sql(
+            "ALTER TABLE %s ALTER BRANCH %s RETAIN %d MINUTES",
+            tableName, branchName,1);
+    table.refresh();
+    SnapshotRef ref = ((BaseTable) table).operations().current().ref(branchName);
+    Assert.assertEquals("Invalid modification time.",
+            Optional.of(Long.valueOf(1*60*1000)),
+            Optional.of(ref.maxRefAgeMs()));
+  }
+
+  @Test
+  public void alterBranchSnapshotRetention() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+    String branchName = "b1";
+    int snapshotNum=5;
+    int days=7;
+    sql(
+            "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION %d SNAPSHOTS %d DAYS",
+            tableName, branchName,snapshotNum,days);
+    table.refresh();
+    SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(branchName);
+    Assert.assertEquals("Invalid modification snapshot day time.",
+            Optional.of(Long.valueOf(7*24 * 60 * 60 * 1000L)),
+            Optional.of(ref1.maxSnapshotAgeMs()));
+
+    snapshotNum=4;
+    days=1;
+    sql(
+            "ALTER TABLE %s ALTER BRANCH %s SET SNAPSHOT RETENTION %d SNAPSHOTS %d DAYS",
+            tableName, branchName,snapshotNum,days);
+    table.refresh();
+    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(branchName);
+    Assert.assertEquals("Invalid modification snapshot day time.",
+            Optional.of(Long.valueOf(days*24 * 60 * 60 * 1000L)),
+            Optional.of(ref2.maxSnapshotAgeMs()));
+    Assert.assertEquals("Invalid modification snapshot retention number.",
+            Optional.of(snapshotNum),
+            Optional.of(ref2.minSnapshotsToKeep()));
+  }
+
+  @Test
+  public void testCreateTag() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    String tagName = "t1";
+    long maxRefAge = 10L;
+    sql(
+            "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN FOR %d DAYS",
+            tableName, tagName, snapshotId, maxRefAge);
+    table.refresh();
+    SnapshotRef ref = ((BaseTable) table).operations().current().ref(tagName);
+    Assert.assertNotNull(ref);
+    Assert.assertEquals(ref.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000);
+  }
+
+  @Test
+  public void testReplaceTag() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+    String tagName = "t1";
+    long maxRefAge = 10L;
+    sql(
+            "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN FOR %d DAYS",
+            tableName, tagName, snapshotId, maxRefAge);
+    table.refresh();
+    SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(tagName);
+    Assert.assertEquals(ref1.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000L);
+
+    maxRefAge = 9L;
+    sql(
+            "ALTER TABLE %s REPLACE TAG %s AS OF VERSION %d RETAIN FOR %d DAYS",
+            tableName, tagName, snapshotId, maxRefAge);
+    table.refresh();
+    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(tagName);
+    Assert.assertEquals(ref2.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000L);
+  }
+
+  @Test
+  public void testDropTag() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+    String tagName = "t1";
+    sql(
+            "ALTER TABLE %s CREATE TAG %s",
+            tableName,tagName);
+    table.refresh();
+    SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(tagName);
+    Assert.assertNotNull(ref1);
+
+    sql(
+            "ALTER TABLE %s DROP TAG %s",
+            tableName,tagName);
+    table.refresh();
+    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(tagName);
+    Assert.assertNull(ref2);
+  }
+
+  @Test
+  public void AlterTagRefRetention() throws NoSuchTableException {
+    Table table = createDefaultTableAndInsert2Row();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+    String tagName = "t1";
+    long maxRefAge = 7L;
+    sql(
+            "ALTER TABLE %s CREATE TAG %s RETAIN FOR %d DAYS",
+            tableName, tagName, maxRefAge);
+    table.refresh();
+    SnapshotRef ref1 = ((BaseTable) table).operations().current().ref(tagName);
+    Assert.assertEquals(ref1.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000L);
+
+    maxRefAge = 6L;
+    sql(
+            "ALTER TABLE %s ALTER TAG %s RETAIN %d DAYS",
+            tableName, tagName, maxRefAge);
+    table.refresh();
+    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(tagName);
+    Assert.assertEquals(ref2.maxRefAgeMs().longValue(), maxRefAge * 24 * 60 * 60 * 1000L);
+  }
+
+  private Table createDefaultTableAndInsert2Row() throws NoSuchTableException {
+    Assume.assumeTrue(catalogName.equalsIgnoreCase("testhive"));
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+
+    List<SimpleRecord> records = ImmutableList.of(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.writeTo(tableName).append();
+    Table table = validationCatalog.loadTable(tableIdent);
+    return table;
   }
 }

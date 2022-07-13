@@ -22,14 +22,13 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
-import org.apache.spark.sql.connector.catalog.Identifier
-import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.catalyst.plans.logical.RenameBranch
+import org.apache.spark.sql.connector.catalog._
 
-case class CreateBranchExec(
+case class RenameBranchExec(
                              catalog: TableCatalog,
                              ident: Identifier,
-                             createBranch: CreateBranch) extends LeafV2CommandExec {
+                             renameBranch: RenameBranch) extends LeafV2CommandExec {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
@@ -38,24 +37,16 @@ case class CreateBranchExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-
-        val snapshotId = createBranch.snapshotId.getOrElse(iceberg.table.currentSnapshot().snapshotId())
-        iceberg.table.manageSnapshots()
-          .createBranch(createBranch.branch, snapshotId)
-          .setMinSnapshotsToKeep(createBranch.branch, createBranch.numSnapshots.getOrElse(1L).toInt)
-          // 5 days
-          .setMaxSnapshotAgeMs(createBranch.branch, createBranch.snapshotRetain.getOrElse(5 * 24 * 60 * 60 * 1000L))
-          .setMaxRefAgeMs(createBranch.branch, createBranch.snapshotRefRetain.getOrElse(Long.MaxValue))
-          .commit()
+        iceberg.table().manageSnapshots().renameBranch(renameBranch.branch,renameBranch.newBranch).commit();
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot add branch to non-Iceberg table: $table")
+        throw new UnsupportedOperationException(s"Cannot rename branch to non-Iceberg table: $table")
     }
 
     Nil
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateBranchExec ${catalog.name}.${ident.quoted} ${createBranch.branch}"
+    s"RenameBranchExec ${catalog.name}.${ident.quoted} ${renameBranch.branch} to ${renameBranch.newBranch}"
   }
 }

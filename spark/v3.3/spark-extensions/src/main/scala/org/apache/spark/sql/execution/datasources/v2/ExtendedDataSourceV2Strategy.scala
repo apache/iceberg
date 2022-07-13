@@ -29,21 +29,7 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
-import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
-import org.apache.spark.sql.catalyst.plans.logical.Call
-import org.apache.spark.sql.catalyst.plans.logical.CreateBranch
-import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
-import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
-import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.MergeRows
-import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceBranch
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
-import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
-import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
-import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
+import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
@@ -68,6 +54,30 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
 
     case ReplaceBranch(IcebergCatalogAndIdentifier(catalog, ident), _, _, _, _, _) =>
       ReplaceBranchExec(catalog, ident, plan.asInstanceOf[ReplaceBranch]) :: Nil
+
+    case RemoveBranch(IcebergCatalogAndIdentifier(catalog, ident), _) =>
+      RemoveBranchExec(catalog, ident, plan.asInstanceOf[RemoveBranch]) :: Nil
+
+    case RenameBranch(IcebergCatalogAndIdentifier(catalog, ident),_,_) =>
+      RenameBranchExec(catalog,ident,plan.asInstanceOf[RenameBranch]) :: Nil
+
+    case AlterBranchRefRetention(IcebergCatalogAndIdentifier(catalog, ident),_,_) =>
+      AlterBranchRefRetentionExec(catalog,ident,plan.asInstanceOf[AlterBranchRefRetention]) :: Nil
+
+    case AlterBranchSnapshotRetention(IcebergCatalogAndIdentifier(catalog, ident),_,_,_) =>
+      AlterBranchSnapshotRefRetentionExec(catalog,ident,plan.asInstanceOf[AlterBranchSnapshotRetention]) :: Nil;
+
+    case CreateTag(IcebergCatalogAndIdentifier(catalog, ident), _, _, _) =>
+      CreateTagExec(catalog, ident, plan.asInstanceOf[CreateTag]) :: Nil
+
+    case ReplaceTag(IcebergCatalogAndIdentifier(catalog, ident), _, _, _) =>
+      ReplaceTagExec(catalog, ident, plan.asInstanceOf[ReplaceTag]) :: Nil
+
+    case RemoveTag(IcebergCatalogAndIdentifier(catalog, ident), _) =>
+      RemoveTagExec(catalog, ident, plan.asInstanceOf[RemoveTag]) :: Nil
+
+    case AlterTagRefRetention(IcebergCatalogAndIdentifier(catalog, ident),_,_) =>
+      AlterTagRefRetentionExec(catalog,ident,plan.asInstanceOf[AlterTagRefRetention]) :: Nil
 
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
