@@ -20,11 +20,15 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.io.TestableCloseableIterable.TestableCloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -60,7 +64,7 @@ public class TestCloseableIterable {
   }
 
   @Test
-  public void testConcateWithEmptyIterables() {
+  public void testConcatWithEmptyIterables() {
     CloseableIterable<Integer> iter = CloseableIterable.combine(Lists.newArrayList(1, 2, 3), () -> { });
     CloseableIterable<Integer> empty = CloseableIterable.empty();
 
@@ -81,5 +85,39 @@ public class TestCloseableIterable {
     AssertHelpers.assertThrows("should throw NoSuchElementException",
         NoSuchElementException.class,
         () -> Iterables.getLast(concat5));
+  }
+
+  @Test
+  public void testConcatWithEmpty() {
+    AtomicInteger counter = new AtomicInteger(0);
+    CloseableIterable.concat(Collections.emptyList()).forEach(c -> counter.incrementAndGet());
+    Assertions.assertThat(counter.get()).isEqualTo(0);
+  }
+
+  @Test
+  public void concatShouldOnlyEvaluateItemsOnce() throws IOException {
+    AtomicInteger counter = new AtomicInteger(0);
+    List<Integer> items = Lists.newArrayList(1, 2, 3, 4, 5);
+    Iterable<Integer> iterable = Iterables.filter(items, item -> {
+      counter.incrementAndGet();
+      return true;
+    });
+
+    Iterable<CloseableIterable<Integer>> transform =
+        Iterables.transform(iterable, item -> new CloseableIterable<Integer>() {
+          @Override
+          public void close() {
+          }
+
+          @Override
+          public CloseableIterator<Integer> iterator() {
+            return CloseableIterator.withClose(Collections.singletonList(item).iterator());
+          }
+        });
+
+    try (CloseableIterable<Integer> concat = CloseableIterable.concat(transform)) {
+      concat.forEach(c -> c++);
+    }
+    Assertions.assertThat(counter.get()).isEqualTo(items.size());
   }
 }
