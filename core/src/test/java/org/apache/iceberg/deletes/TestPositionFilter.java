@@ -112,7 +112,7 @@ public class TestPositionFilter {
 
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 3L, 4L, 7L, 9L));
 
-    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
+    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes.iterator());
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
@@ -137,7 +137,7 @@ public class TestPositionFilter {
 
     CloseableIterable<StructLike> actual = Deletes.streamingMarker(rows,
         row -> row.get(0, Long.class), /* row to position */
-        deletes,
+        deletes.iterator(),
         row -> row.set(2, true)  /* delete marker */
     );
     Assert.assertEquals("Filter should produce expected rows",
@@ -163,7 +163,7 @@ public class TestPositionFilter {
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(
         Lists.newArrayList(0L, 0L, 0L, 3L, 4L, 7L, 7L, 9L, 9L, 9L));
 
-    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
+    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes.iterator());
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
@@ -181,7 +181,7 @@ public class TestPositionFilter {
 
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 2L, 3L, 4L, 7L, 9L));
 
-    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
+    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes.iterator());
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(5L, 6L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
@@ -220,7 +220,7 @@ public class TestPositionFilter {
     CloseableIterable<StructLike> actual = Deletes.streamingFilter(
         rows,
         row -> row.get(0, Long.class),
-        Deletes.deletePositions("file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2)));
+        Deletes.deletePositions("file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2)).iterator());
 
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),

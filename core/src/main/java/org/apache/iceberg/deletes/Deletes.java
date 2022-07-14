@@ -109,13 +109,13 @@ public class Deletes {
 
   public static <T> CloseableIterable<T> streamingFilter(CloseableIterable<T> rows,
                                                          Function<T, Long> rowToPosition,
-                                                         CloseableIterable<Long> posDeletes) {
+                                                         CloseableIterator<Long> posDeletes) {
     return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
   }
 
   public static <T> CloseableIterable<T> streamingMarker(CloseableIterable<T> rows,
                                                          Function<T, Long> rowToPosition,
-                                                         CloseableIterable<Long> posDeletes,
+                                                         CloseableIterator<Long> posDeletes,
                                                          Consumer<T> markDeleted) {
     return new PositionStreamDeleteMarker<>(rows, rowToPosition, posDeletes, markDeleted);
   }
@@ -157,10 +157,10 @@ public class Deletes {
     private long nextDeletePos;
 
     PositionStreamDeleteIterable(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                 CloseableIterable<Long> deletePositions) {
+                                 CloseableIterator<Long> deletePositions) {
       this.rows = rows;
       this.rowToPosition = rowToPosition;
-      this.deletePosIterator = deletePositions.iterator();
+      this.deletePosIterator = deletePositions;
     }
 
     @Override
@@ -203,7 +203,7 @@ public class Deletes {
 
   private static class PositionStreamDeleteFilter<T> extends PositionStreamDeleteIterable<T> {
     private PositionStreamDeleteFilter(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                       CloseableIterable<Long> deletePositions) {
+                                       CloseableIterator<Long> deletePositions) {
       super(rows, rowToPosition, deletePositions);
     }
 
@@ -222,7 +222,7 @@ public class Deletes {
     private final Consumer<T> markDeleted;
 
     PositionStreamDeleteMarker(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                               CloseableIterable<Long> deletePositions, Consumer<T> markDeleted) {
+                               CloseableIterator<Long> deletePositions, Consumer<T> markDeleted) {
       super(rows, rowToPosition, deletePositions);
       this.markDeleted = markDeleted;
     }

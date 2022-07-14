@@ -38,6 +38,7 @@ import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
@@ -72,6 +73,7 @@ public abstract class DeleteFilter<T> {
   private PositionDeleteIndex deleteRowPositions = null;
   private List<Predicate<T>> isInDeleteSets = null;
   private Predicate<T> eqDeleteRows = null;
+  private CloseableIterator<Long> deletePositionIte;
 
   protected DeleteFilter(String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
@@ -128,6 +130,9 @@ public abstract class DeleteFilter<T> {
     return (Long) posAccessor.get(asStructLike(record));
   }
 
+  /**
+   * Please only close the last CloseableIterable if you want to reuse the filter
+   */
   public CloseableIterable<T> filter(CloseableIterable<T> records) {
     return applyEqDeletes(applyPosDeletes(records));
   }
@@ -232,10 +237,13 @@ public abstract class DeleteFilter<T> {
       return createDeleteIterable(records, isDeleted);
     }
 
-    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
+    if (deletePositionIte == null) {
+      List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
+      deletePositionIte = Deletes.deletePositions(filePath, deletes).iterator();
+    }
     return hasIsDeletedColumn ?
-        Deletes.streamingMarker(records, this::pos, Deletes.deletePositions(filePath, deletes), this::markRowDeleted) :
-        Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
+        Deletes.streamingMarker(records, this::pos, deletePositionIte, this::markRowDeleted) :
+        Deletes.streamingFilter(records, this::pos, deletePositionIte);
   }
 
   private CloseableIterable<T> createDeleteIterable(CloseableIterable<T> records, Predicate<T> isDeleted) {
