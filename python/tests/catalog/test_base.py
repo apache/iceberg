@@ -36,7 +36,9 @@ from pyiceberg.exceptions import (
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
 from pyiceberg.table.metadata import INITIAL_SPEC_ID
-from pyiceberg.table.partitioning import PartitionSpec
+from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V1
 
 
 class InMemoryCatalog(Catalog):
@@ -55,7 +57,8 @@ class InMemoryCatalog(Catalog):
         identifier: Union[str, Identifier],
         schema: Schema,
         location: Optional[str] = None,
-        partition_spec: Optional[PartitionSpec] = None,
+        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+        sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Optional[Properties] = None,
     ) -> Table:
 
@@ -68,8 +71,7 @@ class InMemoryCatalog(Catalog):
             if namespace not in self.__namespaces:
                 self.__namespaces[namespace] = {}
 
-            table = Table()
-            table.identifier = identifier
+            table = Table(identifier=identifier, metadata=EXAMPLE_TABLE_METADATA_V1)
             self.__tables[identifier] = table
             return table
 
@@ -102,9 +104,8 @@ class InMemoryCatalog(Catalog):
         if to_namespace not in self.__namespaces:
             self.__namespaces[to_namespace] = {}
 
-        table.identifier = to_identifier
-        self.__tables[to_identifier] = table
-        return table
+        self.__tables[to_identifier] = Table(identifier=to_identifier, metadata=table.metadata)
+        return self.__tables[to_identifier]
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
         namespace = Catalog.identifier_to_tuple(namespace)

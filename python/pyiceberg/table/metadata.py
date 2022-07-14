@@ -103,7 +103,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     """The table’s base location. This is used by writers to determine where
     to store data files, manifest files, and table metadata files."""
 
-    table_uuid: Optional[UUID] = Field(alias="table-uuid")
+    table_uuid: Optional[UUID] = Field(alias="table-uuid", default_factory=uuid4)
     """A UUID that identifies the table, generated when the table is created.
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
@@ -210,12 +210,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the defaults applied
         """
-        if "schema-id" not in data["schema"]:
+        if "schema" in data and "schema-id" not in data["schema"]:
             data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
-        if "last-partition-id" not in data:
+        if "partition-spec" in data and "last-partition-id" not in data:
             data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
-        if "table-uuid" not in data:
-            data["table-uuid"] = uuid4()
         return data
 
     @root_validator(skip_on_failure=True)
@@ -236,7 +234,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             schema = data["schema_"]
             data["schemas"] = [schema]
         else:
-            check_schemas(data["schemas"])
+            check_schemas(data)
         return data
 
     @root_validator(skip_on_failure=True)
@@ -257,7 +255,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             fields = data["partition_spec"]
             data["partition_specs"] = [PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=fields)]
         else:
-            check_partition_specs(data["partition_specs"])
+            check_partition_specs(data)
         return data
 
     @root_validator(skip_on_failure=True)
@@ -273,8 +271,8 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the sort_orders set, if not provided
         """
-        if sort_orders := data.get("sort_orders"):
-            check_sort_orders(sort_orders)
+        if not data.get("sort_orders"):
+            check_sort_orders(data)
         else:
             data["sort_orders"] = [UNSORTED_SORT_ORDER]
         return data
@@ -347,10 +345,10 @@ class TableMetadata:
 
     @staticmethod
     def parse_obj(data: dict) -> Union[TableMetadataV1, TableMetadataV2]:
-        if "format-version" not in data:
+        if "format-version" not in data and "format_version" not in data:
             raise ValidationError(f"Missing format-version in TableMetadata: {data}")
 
-        format_version = data["format-version"]
+        format_version = data.get("format-version", data.get("format_version"))
 
         if format_version == 1:
             return TableMetadataV1(**data)

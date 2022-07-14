@@ -18,11 +18,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
-from pyiceberg.table.partitioning import PartitionSpec
+from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 
 
 class Catalog(ABC):
@@ -57,7 +59,8 @@ class Catalog(ABC):
         identifier: str | Identifier,
         schema: Schema,
         location: str | None = None,
-        partition_spec: PartitionSpec | None = None,
+        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+        sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Properties | None = None,
     ) -> Table:
         """Create a table
@@ -195,7 +198,7 @@ class Catalog(ABC):
     @abstractmethod
     def update_namespace_properties(
         self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties | None = None
-    ) -> None:
+    ) -> Any:
         """Removes provided property keys and updates properties for a namespace.
 
         Args:

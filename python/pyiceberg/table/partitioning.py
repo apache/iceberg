@@ -81,7 +81,7 @@ class PartitionSpec(IcebergBaseModel):
     """
 
     spec_id: int = Field(alias="spec-id")
-    fields: Tuple[PartitionField, ...] = Field()
+    fields: Tuple[PartitionField, ...] = Field(default_factory=tuple)
 
     def __init__(
         self,
@@ -154,3 +154,6 @@ class PartitionSpec(IcebergBaseModel):
             and this_field.name == that_field.name
             for this_field, that_field in zip(self.fields, other.fields)
         )
+
+
+UNPARTITIONED_PARTITION_SPEC = PartitionSpec(spec_id=0)

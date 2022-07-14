@@ -20,6 +20,10 @@ class NoSuchTableError(Exception):
     """Raised when a referenced table is not found"""
 
 
+class TableAlreadyExistsError(Exception):
+    """Raised when creating a table with a name that already exists"""
+
+
 class NoSuchNamespaceError(Exception):
     """Raised when a referenced name-space is not found"""
 
@@ -38,3 +42,19 @@ class ValidationError(Exception):
 
 class BadCredentialsError(Exception):
     """Raises when providing invalid credentials"""
+
+
+class BadRequestError(Exception):
+    """Raises when an invalid request is being made"""
+
+
+class UnauthorizedError(Exception):
+    """Raises when you don't have the proper authorization"""
+
+
+class ServiceUnavailableError(Exception):
+    """Raises when the service doesn't respond"""
+
+
+class ServerError(Exception):
+    """Raises when there is an unhandled exception on the server side"""
