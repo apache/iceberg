@@ -47,37 +47,37 @@ public class PartitionTransformUdf {
 
   public static class Truncate extends ScalarFunction {
 
-    public static final Cache<Tuple2<Integer, Type>, Transform<Object, Object>> TRUNCATE_CACHE =
+    private static final Cache<Tuple2<Integer, Type>, Transform<Object, Object>> TRUNCATE_CACHE =
         Caffeine.newBuilder().build();
 
-    public static Transform<Object, Object> getTruncateTransform(int num, Type type) {
+    private static Transform<Object, Object> truncateTransform(int num, Type type) {
       return TRUNCATE_CACHE.get(Tuple2.of(num, type), key -> Transforms.truncate(type, num));
     }
 
     public int eval(int num, int value) {
-      Transform<Object, Object> truncate = getTruncateTransform(num, Types.IntegerType.get());
+      Transform<Object, Object> truncate = truncateTransform(num, Types.IntegerType.get());
       return (int) truncate.apply(value);
     }
 
     public long eval(int num, long value) {
-      Transform<Object, Object> truncate = getTruncateTransform(num, Types.LongType.get());
+      Transform<Object, Object> truncate = truncateTransform(num, Types.LongType.get());
       return (long) truncate.apply(value);
     }
 
     public String eval(int num, String value) {
-      Transform<Object, Object> truncate = getTruncateTransform(num, Types.StringType.get());
+      Transform<Object, Object> truncate = truncateTransform(num, Types.StringType.get());
       return (String) truncate.apply(value);
     }
 
     public byte[] eval(int num, byte[] value) {
-      Transform<Object, Object> truncate = getTruncateTransform(num, Types.BinaryType.get());
+      Transform<Object, Object> truncate = truncateTransform(num, Types.BinaryType.get());
       ByteBuffer wrap = ByteBuffer.wrap(value);
       ByteBuffer byteBuffer = (ByteBuffer) truncate.apply(wrap);
       return ByteBuffers.toByteArray(byteBuffer);
     }
 
     public BigDecimal eval(int num, BigDecimal value) {
-      Transform<Object, Object> truncate = getTruncateTransform(
+      Transform<Object, Object> truncate = truncateTransform(
           num,
           Types.DecimalType.of(value.precision(), value.scale()));
       return (BigDecimal) truncate.apply(value);
@@ -101,61 +101,61 @@ public class PartitionTransformUdf {
 
   public static class Bucket extends ScalarFunction {
 
-    public static final Cache<Pair<Integer, Type>, Transform<Object, Integer>> BUCKET_CACHE =
+    private static final Cache<Pair<Integer, Type>, Transform<Object, Integer>> BUCKET_CACHE =
         Caffeine.newBuilder().build();
 
-    public static Transform<Object, Integer> getBucketTransform(int num, Type type) {
+    private static Transform<Object, Integer> bucketTransform(int num, Type type) {
       return BUCKET_CACHE.get(Pair.of(num, type), key -> Transforms.bucket(type, num));
     }
 
     public int eval(int num, int value) {
-      Transform<Object, Integer> bucket = getBucketTransform(num, Types.IntegerType.get());
+      Transform<Object, Integer> bucket = bucketTransform(num, Types.IntegerType.get());
       return bucket.apply(value);
     }
 
     public int eval(int num, long value) {
-      Transform<Object, Integer> bucket = getBucketTransform(num, Types.LongType.get());
+      Transform<Object, Integer> bucket = bucketTransform(num, Types.LongType.get());
       return bucket.apply(value);
     }
 
     public int eval(int num, BigDecimal value) {
-      Transform<Object, Integer> bucket = getBucketTransform(
+      Transform<Object, Integer> bucket = bucketTransform(
           num,
           Types.DecimalType.of(value.precision(), value.scale()));
       return bucket.apply(value);
     }
 
     public int eval(int num, String value) {
-      Transform<Object, Integer> bucket = getBucketTransform(num, Types.StringType.get());
+      Transform<Object, Integer> bucket = bucketTransform(num, Types.StringType.get());
       return bucket.apply(value);
     }
 
     public int eval(int num, byte[] value) {
       ByteBuffer wrap = ByteBuffer.wrap(value);
-      Transform<Object, Integer> bucket = getBucketTransform(num, Types.BinaryType.get());
+      Transform<Object, Integer> bucket = bucketTransform(num, Types.BinaryType.get());
       return bucket.apply(wrap);
     }
 
     public int eval(int num, @DataTypeHint("DATE") LocalDate value) {
-      Transform<Object, Integer> bucket = getBucketTransform(num, Types.DateType.get());
+      Transform<Object, Integer> bucket = bucketTransform(num, Types.DateType.get());
       int days = DateTimeUtil.daysFromDate(value);
       return bucket.apply(days);
     }
 
     public int eval(int num, @DataTypeHint("TIME") LocalTime value) {
-      Transform<Object, Integer> bucket = getBucketTransform(num, Types.TimeType.get());
+      Transform<Object, Integer> bucket = bucketTransform(num, Types.TimeType.get());
       long micros = DateTimeUtil.microsFromTime(value);
       return bucket.apply(micros);
     }
 
     public int eval(int num, @DataTypeHint(value = "TIMESTAMP") LocalDateTime value) {
-      Transform<Object, Integer> bucket = getBucketTransform(num, Types.TimestampType.withoutZone());
+      Transform<Object, Integer> bucket = bucketTransform(num, Types.TimestampType.withoutZone());
       long micros = DateTimeUtil.microsFromTimestamp(value);
       return bucket.apply(micros);
     }
 
     public int eval(int num, @DataTypeHint(value = "TIMESTAMP_LTZ") Instant value) {
-      Transform<Object, Integer> bucket = getBucketTransform(num, Types.TimestampType.withZone());
+      Transform<Object, Integer> bucket = bucketTransform(num, Types.TimestampType.withZone());
       long micros = DateTimeUtil.microsFromInstant(value);
       return bucket.apply(micros);
     }
