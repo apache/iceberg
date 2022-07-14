@@ -19,8 +19,13 @@
 
 package org.apache.iceberg.rest.responses;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -36,6 +41,56 @@ import org.apache.iceberg.rest.RESTResponse;
  * an already staged table creation as part of a transaction.
  */
 public class LoadTableResponse implements RESTResponse {
+
+  private static final String METADATA_LOCATION = "metadata-location";
+  private static final String METADATA = "metadata";
+  private static final String CONFIG = "config";
+
+  public static void toJson(LoadTableResponse loadTable, JsonGenerator generator) throws IOException {
+    generator.writeStartObject();
+
+    generator.writeStringField(METADATA_LOCATION, loadTable.metadataLocation);
+
+    generator.writeFieldName(METADATA);
+    TableMetadataParser.toJson(loadTable.metadata, generator);
+
+    generator.writeObjectFieldStart(CONFIG);
+    for (Map.Entry<String, String> keyValue : loadTable.config.entrySet()) {
+      generator.writeStringField(keyValue.getKey(), keyValue.getValue());
+    }
+    generator.writeEndObject();
+
+    generator.writeEndObject();
+  }
+
+  public static LoadTableResponse fromJson(JsonNode node) {
+    Preconditions.checkArgument(node.isObject(),
+            "Cannot parse table response from a non-object: %s", node);
+
+    String metadataLocation = null;
+    JsonNode  metadataLocationNode = node.get(METADATA_LOCATION);
+    if(metadataLocationNode != null) {
+      metadataLocation = metadataLocationNode.asText();
+    }
+    TableMetadata metadata = TableMetadataParser.fromJson(node.get(METADATA));
+
+    JsonNode config = node.get(CONFIG);
+    ImmutableMap.Builder<String, String> configEntries = ImmutableMap.builder();
+
+    if (config != null) {
+      Preconditions.checkArgument(config.isObject(),
+              "Cannot parse config from a non-object: %s", node);
+      Iterator<String> configNames = config.fieldNames();
+      while (configNames.hasNext()) {
+        String configKey = configNames.next();
+        JsonNode configValue = config.get(configKey);
+        Preconditions.checkArgument(configValue.isTextual(), "Cannot parse config %s from non-string: %s", configKey, configValue);
+        configEntries.put(configKey, configValue.textValue());
+      }
+    }
+
+    return LoadTableResponse.builder().withMetadataLocation(metadataLocation).withTableMetadata(metadata).addAllConfig(configEntries.build()).build();
+  }
 
   private String metadataLocation;
   private TableMetadata metadata;
@@ -89,8 +144,15 @@ public class LoadTableResponse implements RESTResponse {
     private Builder() {
     }
 
+      public Builder withMetadataLocation(String metadataLocation) {
+          this.metadataLocation = metadataLocation;
+          return this;
+      }
+
     public Builder withTableMetadata(TableMetadata tableMetadata) {
-      this.metadataLocation = tableMetadata.metadataFileLocation();
+      if (this.metadataLocation == null) {
+        this.metadataLocation = tableMetadata.metadataFileLocation();
+      }
       this.metadata = tableMetadata;
       return this;
     }

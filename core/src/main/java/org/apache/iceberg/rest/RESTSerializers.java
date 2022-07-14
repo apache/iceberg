@@ -47,6 +47,7 @@ import org.apache.iceberg.rest.requests.UpdateRequirementParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -77,7 +78,9 @@ public class RESTSerializers {
         .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
         .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
         .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
-        .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer());
+        .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer())
+        .addSerializer(LoadTableResponse.class, new LoadTableResponseSerializer())
+        .addDeserializer(LoadTableResponse.class, new LoadTableResponseDeserializer());
     mapper.registerModule(module);
   }
 
@@ -244,6 +247,22 @@ public class RESTSerializers {
     public OAuthTokenResponse deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return OAuth2Util.tokenResponseFromJson(jsonNode);
+    }
+  }
+
+  public static class LoadTableResponseSerializer extends JsonSerializer<LoadTableResponse> {
+    @Override
+    public void serialize(LoadTableResponse tokenResponse, JsonGenerator gen, SerializerProvider serializers)
+            throws IOException {
+      LoadTableResponse.toJson(tokenResponse, gen);
+    }
+  }
+
+  public static class LoadTableResponseDeserializer extends JsonDeserializer<LoadTableResponse> {
+    @Override
+    public LoadTableResponse deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return LoadTableResponse.fromJson(jsonNode);
     }
   }
 }
