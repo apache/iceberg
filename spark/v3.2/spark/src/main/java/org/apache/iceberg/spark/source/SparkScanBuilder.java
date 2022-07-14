@@ -108,7 +108,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
         expr = SparkFilters.convert(filter);
       } catch (IllegalArgumentException e) {
         // converting to Iceberg Expression failed, so this expression cannot be pushed down
-        LOG.info("Failed to convert filter to Iceberg expression, skipping push down for this expression: {}.{}",
+        LOG.info("Failed to convert filter to Iceberg expression, skipping push down for this expression: {}. {}",
             filter, e.getMessage());
       }
 
@@ -119,7 +119,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
           pushed.add(filter);
         } catch (ValidationException e) {
           // binding to the table schema failed, so this expression cannot be pushed down
-          LOG.info("Failed to bind expression to table schema, skipping push down for this expression: {}.{}",
+          LOG.info("Failed to bind expression to table schema, skipping push down for this expression: {}. {}",
               filter, e.getMessage());
         }
       }
