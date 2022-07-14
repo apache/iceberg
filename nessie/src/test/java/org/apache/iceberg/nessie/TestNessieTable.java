@@ -388,7 +388,7 @@ public class TestNessieTable extends BaseTestIceberg {
     verifyCommitMetadata();
   }
 
-  private void testRegister(TableIdentifier identifier, String metadataVersionFiles) {
+  private void validateRegister(TableIdentifier identifier, String metadataVersionFiles) {
     Assertions.assertThat(catalog.registerTable(identifier, "file:" + metadataVersionFiles)).isNotNull();
     Table newTable = catalog.loadTable(identifier);
     Assertions.assertThat(newTable).isNotNull();
@@ -405,11 +405,11 @@ public class TestNessieTable extends BaseTestIceberg {
     ImmutableTableReference tableReference =
         ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
-    testRegister(identifier, metadataVersionFiles.get(0));
+    validateRegister(identifier, metadataVersionFiles.get(0));
   }
 
   @Test
-  public void testRegisterTableNegativeScenarios() throws NessieConflictException, NessieNotFoundException {
+  public void testRegisterTableFailureScenarios() throws NessieConflictException, NessieNotFoundException {
     List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     // Case 1: Branch does not exist
@@ -456,7 +456,7 @@ public class TestNessieTable extends BaseTestIceberg {
     List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
     Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
-    testRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
+    validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
   }
 
   @Test
@@ -466,9 +466,9 @@ public class TestNessieTable extends BaseTestIceberg {
     ImmutableTableReference tableReference =
         ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
-    testRegister(identifier, metadataVersionFiles.get(0));
+    validateRegister(identifier, metadataVersionFiles.get(0));
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
-    testRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
+    validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
   }
 
   @Test

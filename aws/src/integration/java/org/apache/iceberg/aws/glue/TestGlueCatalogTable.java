@@ -439,7 +439,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
   @Test
   public void testRegisterTable() {
     String namespace = createNamespace();
-    String tableName = "tb1";
+    String tableName = getRandomName();
     createTable(namespace, tableName);
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     Table table = glueCatalog.loadTable(identifier);
@@ -454,7 +454,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
   @Test
   public void testRegisterTableAlreadyExists() {
     String namespace = createNamespace();
-    String tableName = "tb1";
+    String tableName = getRandomName();
     createTable(namespace, tableName);
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     Table table = glueCatalog.loadTable(identifier);
