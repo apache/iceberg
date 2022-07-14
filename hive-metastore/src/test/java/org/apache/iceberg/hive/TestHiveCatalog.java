@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.hive;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -50,6 +52,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -709,5 +712,46 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     } finally {
       hiveCatalog.dropTable(tableIdent);
     }
+  }
+
+  @Test
+  public void testMigrateTables() throws IOException {
+    // we are considering migrating tables from Hadoop catalog to Hive Catalog
+    Map<String, String> hadoopCatalogProperties = ImmutableMap.of(
+        "catalogName", "hadoop",
+        "catalogImpl", "org.apache.iceberg.hadoop.HadoopCatalog",
+        "warehouse", temp.newFolder().getAbsolutePath());
+    HadoopCatalog hadoopCatalog = new HadoopCatalog();
+    hadoopCatalog.setConf(new Configuration());
+    hadoopCatalog.initialize("hadoop", hadoopCatalogProperties);
+    Map<String, String> hiveCatalogProperties = ImmutableMap.of(
+        "catalogName", "hive",
+        "catalogImpl", "org.apache.iceberg.hive.HiveCatalog",
+        "warehouse", catalog.getConf().get("hive.metastore.warehouse.dir"),
+        "uri", catalog.getConf().get("hive.metastore.uris"));
+    TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
+    TableIdentifier tableIdentifier1 = TableIdentifier.of(DB_NAME, "tbl1");
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    hadoopCatalog.createTable(tableIdentifier, schema);
+    hadoopCatalog.createTable(tableIdentifier1, schema);
+    List<TableIdentifier> listIdentifiers = new ArrayList<TableIdentifier>();
+    listIdentifiers.add(tableIdentifier);
+    listIdentifiers.add(tableIdentifier1);
+    List<TableIdentifier> migratedIdentifiers = CatalogUtil.migrateTables(listIdentifiers, hadoopCatalogProperties,
+        hiveCatalogProperties, hadoopCatalog.getConf(), catalog.getConf());
+    // to assert that migration was successful
+    migratedIdentifiers.forEach(tableIdentifiers -> {
+      Assert.assertNotNull(catalog.loadTable(tableIdentifiers));
+      Assert.assertTrue(catalog.dropTable(tableIdentifiers, false));
+    });
+
+    // Case : When list of tableIdentifiers is null
+    migratedIdentifiers = CatalogUtil.migrateTables(null, hadoopCatalogProperties, hiveCatalogProperties,
+        hadoopCatalog.getConf(), catalog.getConf());
+    // to assert that migration was successful
+    migratedIdentifiers.forEach(tableIdentifiers -> Assert.assertNotNull(catalog.loadTable(tableIdentifiers)));
   }
 }
