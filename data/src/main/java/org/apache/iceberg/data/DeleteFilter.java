@@ -222,17 +222,17 @@ public abstract class DeleteFilter<T> {
       return records;
     }
 
-    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
-
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
       if (deleteRowPositions == null) {
+        List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
         deleteRowPositions = Deletes.toPositionIndex(filePath, deletes);
       }
       Predicate<T> isDeleted = record -> deleteRowPositions.isDeleted(pos(record));
       return createDeleteIterable(records, isDeleted);
     }
 
+    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
     return hasIsDeletedColumn ?
         Deletes.streamingMarker(records, this::pos, Deletes.deletePositions(filePath, deletes), this::markRowDeleted) :
         Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(filePath, deletes));
