@@ -50,6 +50,6 @@ case class AlterTagRefRetentionExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"AlterTagRefExec ${catalog.name}.${ident.quoted} ${alterTagRefRetention.tag}"
+    s"alter tag reference life cycle for table:${catalog.name}.${ident.quoted},tag name is:${alterTagRefRetention.tag}"
   }
 }

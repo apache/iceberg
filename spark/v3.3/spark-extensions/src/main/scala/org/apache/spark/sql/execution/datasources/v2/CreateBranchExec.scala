@@ -56,6 +56,6 @@ case class CreateBranchExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateBranchExec ${catalog.name}.${ident.quoted} ${createBranch.branch}"
+    s"create branch operation for table:${catalog.name}.${ident.quoted}, branch name is:${createBranch.branch}"
   }
 }

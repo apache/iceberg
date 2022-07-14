@@ -52,6 +52,6 @@ case class ReplaceTagExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"ReplaceTag ${catalog.name}.${ident.quoted} ${replaceTag.tag}"
+    s"replace tag to new,tag name is:${replaceTag.tag},table name is:${catalog.name}.${ident.quoted} "
   }
 }

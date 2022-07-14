@@ -47,6 +47,6 @@ case class RemoveBranchExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"RemoveBranch ${catalog.name}.${ident.quoted} ${removeBranch.branch}"
+    s"remove branch for table:${catalog.name}.${ident.quoted},branch name is:${removeBranch.branch}"
   }
 }

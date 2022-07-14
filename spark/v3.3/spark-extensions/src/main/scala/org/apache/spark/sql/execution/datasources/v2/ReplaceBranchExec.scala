@@ -61,6 +61,6 @@ case class ReplaceBranchExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"ReplaceBranch ${catalog.name}.${ident.quoted} ${createBranch.branch}"
+    s"replace branch to new, branch name is:${createBranch.branch},table name is:${catalog.name}.${ident.quoted}"
   }
 }
