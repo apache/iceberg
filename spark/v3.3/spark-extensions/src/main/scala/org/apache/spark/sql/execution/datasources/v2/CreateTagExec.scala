@@ -52,6 +52,6 @@ case class CreateTagExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"createTag createTagExec.scala ${catalog.name}.${ident.quoted} ${createTag.tag}"
+    s"create tag operation for table:${catalog.name}.${ident.quoted}, tag name is: ${createTag.tag}"
   }
 }

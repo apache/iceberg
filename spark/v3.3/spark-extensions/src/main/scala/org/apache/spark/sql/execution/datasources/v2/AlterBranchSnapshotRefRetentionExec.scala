@@ -55,6 +55,7 @@ case class AlterBranchSnapshotRefRetentionExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"AlterBranchRefRetentionExec ${catalog.name}.${ident.quoted} ${alterBranchRef.branch}"
+    s"alter branch snapshot reference life cycle for table:${catalog.name}.${ident.quoted}," +
+      s"branch name is: ${alterBranchRef.branch}"
   }
 }

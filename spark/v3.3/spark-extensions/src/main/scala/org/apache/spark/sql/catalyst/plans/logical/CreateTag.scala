@@ -29,6 +29,6 @@ case class CreateTag(table: Seq[String], tag: String, snapshotId: Option[Long],
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateTage  ${table.quoted} ${tag}"
+    s"new instance for create tag:${tag} for table:${table.quoted} "
   }
 }
