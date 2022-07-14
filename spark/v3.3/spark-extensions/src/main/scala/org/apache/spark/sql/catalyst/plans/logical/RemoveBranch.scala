@@ -28,6 +28,6 @@ case class RemoveBranch(table: Seq[String], branch: String) extends LeafCommand 
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"RemoveBranch ${table.quoted} ${branch}"
+    s"Remove branch:${branch} for table:${table.quoted} "
   }
 }

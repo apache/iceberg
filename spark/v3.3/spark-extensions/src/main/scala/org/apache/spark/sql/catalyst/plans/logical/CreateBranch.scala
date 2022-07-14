@@ -29,6 +29,6 @@ case class CreateBranch(table: Seq[String], branch: String, snapshotId: Option[L
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"CreateBranch ${table.quoted} ${branch}"
+    s"Create branch:${branch} for table:${table.quoted} "
   }
 }

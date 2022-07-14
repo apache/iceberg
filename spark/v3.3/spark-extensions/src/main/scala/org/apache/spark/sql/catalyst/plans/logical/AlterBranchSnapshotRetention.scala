@@ -29,6 +29,6 @@ case class AlterBranchSnapshotRetention(table: Seq[String], branch: String,
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"AlterBranchSnapshotRetention ${table.quoted} ${branch}"
+    s"Alter branch:${branch} snapshot retention for table:${table.quoted} "
   }
 }

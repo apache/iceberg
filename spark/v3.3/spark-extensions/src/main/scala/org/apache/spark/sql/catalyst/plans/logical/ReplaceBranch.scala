@@ -29,6 +29,6 @@ case class ReplaceBranch(table: Seq[String], branch: String, snapshotId: Option[
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"ReplaceBranch ${table.quoted} ${branch}"
+    s"Replace branch:${branch} for table:${table.quoted} "
   }
 }
