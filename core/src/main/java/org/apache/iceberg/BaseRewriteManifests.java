@@ -257,7 +257,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
         .filter(manifest -> !currentManifests.contains(manifest))
         .findAny()
         .ifPresent(manifest -> {
-          throw new ValidationException("Manifest is missing: %s", manifest.path());
+          throw new ValidationException("Cannot commit RewriteManifests; " +
+                  "manifests that existed at the beginning of this rewrite have already been removed by another " +
+                  "operation. Manifest %s, which would be replaced by this operation, has already been removed.",
+                  manifest.path());
         });
   }
 
