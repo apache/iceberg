@@ -16,14 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.source;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.connector.ChangelogMode;
@@ -38,12 +42,16 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.flink.source.FlinkSource;
+import org.apache.iceberg.flink.FlinkConfigOptions;
+import org.apache.iceberg.flink.FlinkFilters;
+import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Flink Iceberg table source. */
+@Internal
 public class IcebergTableSource
     implements ScanTableSource,
         SupportsProjectionPushDown,
@@ -120,6 +128,28 @@ public class IcebergTableSource
         .build();
   }
 
+  private DataStreamSource<RowData> createFLIP27Stream(StreamExecutionEnvironment env) {
+    SplitAssignerType assignerType =
+        readableConfig.get(FlinkConfigOptions.TABLE_EXEC_SPLIT_ASSIGNER_TYPE);
+    IcebergSource<RowData> source =
+        IcebergSource.forRowData()
+            .tableLoader(loader)
+            .assignerFactory(assignerType.factory())
+            .properties(properties)
+            .project(getProjectedSchema())
+            .limit(limit)
+            .filters(filters)
+            .flinkConfig(readableConfig)
+            .build();
+    DataStreamSource stream =
+        env.fromSource(
+            source,
+            WatermarkStrategy.noWatermarks(),
+            source.name(),
+            TypeInformation.of(RowData.class));
+    return stream;
+  }
+
   private TableSchema getProjectedSchema() {
     if (projectedFields == null) {
       return schema;
@@ -173,7 +203,11 @@ public class IcebergTableSource
       @Override
       public DataStream<RowData> produceDataStream(
           ProviderContext providerContext, StreamExecutionEnvironment execEnv) {
-        return createDataStream(execEnv);
+        if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
+          return createFLIP27Stream(execEnv);
+        } else {
+          return createDataStream(execEnv);
+        }
       }
 
       @Override
