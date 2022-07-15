@@ -24,6 +24,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoUnit;
 
 public class DateTimeUtil {
@@ -94,7 +96,12 @@ public class DateTimeUtil {
 
   public static String microsToIsoTimestamptz(long micros) {
     LocalDateTime localDateTime = timestampFromMicros(micros);
-    return localDateTime.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+    DateTimeFormatter customNoOffsetTextISOFormatter = new DateTimeFormatterBuilder()
+        .parseCaseInsensitive()
+        .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        .appendOffset("+HH:MM:ss", "+00:00")
+        .toFormatter();
+    return localDateTime.atOffset(ZoneOffset.UTC).format(customNoOffsetTextISOFormatter);
   }
 
   public static String microsToIsoTimestamp(long micros) {
