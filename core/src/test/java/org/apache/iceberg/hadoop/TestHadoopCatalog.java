@@ -30,6 +30,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -215,6 +216,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     catalog.dropTable(testTable);
     Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
+  public void testDropTableWithoutPurge() throws Exception {
+    HadoopCatalog catalog = hadoopCatalog();
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
+    String metaLocation = catalog.defaultWarehouseLocation(testTable);
+
+    FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+
+    Path versionHintFile = ((HadoopTableOperations) ((HasTableOperations) table).operations()).versionHintFile();
+    Assert.assertTrue(fs.exists(versionHintFile));
+
+    catalog.dropTable(testTable, false);
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+    Assert.assertFalse(fs.exists(versionHintFile));
   }
 
   @Test

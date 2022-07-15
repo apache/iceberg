@@ -254,8 +254,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
           // Since the data files and the metadata files may store in different locations,
           // so it has to call dropTableData to force delete the data file.
           CatalogUtil.dropTableData(ops.io(), lastMetadata);
+          return fs.delete(tablePath, true /* recursive */);
+        } else {
+          // just drop the version-hint.txt file
+          return fs.delete(((HadoopTableOperations) ops).versionHintFile(), false /* recursive */);
         }
-        return fs.delete(tablePath, true /* recursive */);
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", tablePath);
