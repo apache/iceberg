@@ -35,6 +35,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
+import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -90,9 +91,14 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
 
   @Override
   public LoadTableResponse deserialize(String json) throws JsonProcessingException {
-    LoadTableResponse resp = mapper().readValue(json, LoadTableResponse.class);
+    LoadTableResponse resp = LoadTableResponse.fromJson(json);
     resp.validate();
     return resp;
+  }
+
+  @Override
+  public String serialize(LoadTableResponse response) throws JsonProcessingException {
+    return LoadTableResponse.toJson(response);
   }
 
   @Test

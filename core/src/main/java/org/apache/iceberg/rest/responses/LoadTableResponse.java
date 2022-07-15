@@ -22,15 +22,18 @@ package org.apache.iceberg.rest.responses;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.util.JsonUtil;
 
 /**
  * A REST response that is used when a table is successfully loaded.
@@ -45,6 +48,17 @@ public class LoadTableResponse implements RESTResponse {
   private static final String METADATA_LOCATION = "metadata-location";
   private static final String METADATA = "metadata";
   private static final String CONFIG = "config";
+
+  public static String toJson(LoadTableResponse response) {
+    try (StringWriter writer = new StringWriter()) {
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      toJson(response, generator);
+      generator.flush();
+      return writer.toString();
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
 
   public static void toJson(LoadTableResponse loadTable, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
@@ -63,15 +77,19 @@ public class LoadTableResponse implements RESTResponse {
     generator.writeEndObject();
   }
 
+  public static LoadTableResponse fromJson(String json) {
+    try {
+      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
+
   public static LoadTableResponse fromJson(JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
             "Cannot parse table response from a non-object: %s", node);
 
-    String metadataLocation = null;
-    JsonNode  metadataLocationNode = node.get(METADATA_LOCATION);
-    if(metadataLocationNode != null) {
-      metadataLocation = metadataLocationNode.asText();
-    }
+    String metadataLocation = JsonUtil.getStringOrNull(METADATA_LOCATION, node);
     TableMetadata metadata = TableMetadataParser.fromJson(node.get(METADATA));
 
     JsonNode config = node.get(CONFIG);
