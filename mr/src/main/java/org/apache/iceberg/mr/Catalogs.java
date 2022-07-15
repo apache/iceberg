@@ -243,7 +243,7 @@ public final class Catalogs {
   /**
    * This method is used for backward-compatible catalog configuration.
    * Collect all the catalog specific configuration from the global hive configuration.
-   * Note: this should be removed when the old catalog configuration is depracated.
+   * Note: this should be removed when the old catalog configuration is deprecated.
    * @param conf global hive configuration
    * @param catalogType type of the catalog
    * @param catalogProperties pre-populated catalog properties
