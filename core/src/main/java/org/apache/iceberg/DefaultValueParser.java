@@ -296,12 +296,12 @@ public class DefaultValueParser {
         Preconditions.checkArgument(byteBufferValue.remaining() == expectedLength,
             "Invalid default %s value: %s, incorrect length: %s",
             type, defaultValue, byteBufferValue.remaining());
-        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) defaultValue))));
+        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(byteBufferValue)));
         break;
       case BINARY:
         Preconditions.checkArgument(
             defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
-        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) defaultValue))));
+        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray((ByteBuffer) defaultValue)));
         break;
       case DECIMAL:
         Preconditions.checkArgument(
