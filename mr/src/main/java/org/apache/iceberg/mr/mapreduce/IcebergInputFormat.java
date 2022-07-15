@@ -57,8 +57,7 @@ import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -208,7 +207,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private T current;
     private CloseableIterator<T> currentIterator;
     private FileIO io;
-    private EncryptionManager encryptionManager;
+    private InputFilesDecryptor inputFilesDecryptor;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
@@ -219,7 +218,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       Table table = ((IcebergSplit) split).table();
       HiveIcebergStorageHandler.checkAndSetIoConfig(conf, table);
       this.io = table.io();
-      this.encryptionManager = table.encryption();
+      this.inputFilesDecryptor = new InputFilesDecryptor(task, io, table.encryption());
       this.tasks = task.files().iterator();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
       this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -275,9 +274,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> openTask(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
-      InputFile inputFile = encryptionManager.decrypt(EncryptedFiles.encryptedInput(
-          io.newInputFile(file.path().toString()),
-          file.keyMetadata()));
+      InputFile inputFile = inputFilesDecryptor.getInputFile(currentTask);
 
       CloseableIterable<T> iterable;
       switch (file.format()) {
