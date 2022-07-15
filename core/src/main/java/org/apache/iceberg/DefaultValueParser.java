@@ -81,7 +81,7 @@ public class DefaultValueParser {
         BigDecimal retDecimal;
         try {
           retDecimal = new BigDecimal(defaultValue.textValue());
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
           throw new IllegalArgumentException(String.format(
               "Cannot parse default as a %s value: %s",
               type, defaultValue), e);
@@ -118,7 +118,7 @@ public class DefaultValueParser {
             "Cannot parse default as a %s value: %s", type, defaultValue);
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
           String timestampTz = defaultValue.textValue();
-          Preconditions.checkArgument(DateTimeUtil.timestamptzIsOfUTCZone(timestampTz),
+          Preconditions.checkArgument(DateTimeUtil.isUTCTimestamptz(timestampTz),
               "Cannot parse default as a %s value: %s, timezone must be UTC",
               type, defaultValue);
           return DateTimeUtil.isoTimestamptzToMicros(timestampTz);
@@ -274,9 +274,9 @@ public class DefaultValueParser {
         Preconditions.checkArgument(
             defaultValue instanceof Long, "Invalid default %s value: %s", type, defaultValue);
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          generator.writeString(DateTimeUtil.microsToIsoDateTimeTz((Long) defaultValue));
+          generator.writeString(DateTimeUtil.microsToIsoTimestamptz((Long) defaultValue));
         } else {
-          generator.writeString(DateTimeUtil.microsToIsoDateTime((Long) defaultValue));
+          generator.writeString(DateTimeUtil.microsToIsoTimestamp((Long) defaultValue));
         }
         break;
       case STRING:
@@ -291,19 +291,12 @@ public class DefaultValueParser {
       case FIXED:
         Preconditions.checkArgument(
             defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
-        ByteBuffer byteBufferDefaultValue = (ByteBuffer) defaultValue;
-        Preconditions.checkArgument(
-            byteBufferDefaultValue.hasArray() && byteBufferDefaultValue.arrayOffset() == 0 &&
-                byteBufferDefaultValue.position() == 0,
-            "Invalid default %s value: %s, not a valid bytebuffer representation",
-            type, defaultValue);
-        int actualLength = byteBufferDefaultValue.remaining();
+        ByteBuffer byteBufferValue = (ByteBuffer) defaultValue;
         int expectedLength = ((Types.FixedType) type).length();
-        Preconditions.checkArgument(actualLength == expectedLength,
+        Preconditions.checkArgument(byteBufferValue.remaining() == expectedLength,
             "Invalid default %s value: %s, incorrect length: %s",
-            type, defaultValue, actualLength);
-        String fixedString = BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) defaultValue)));
-        generator.writeString(fixedString);
+            type, defaultValue, byteBufferValue.remaining());
+        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(((ByteBuffer) defaultValue))));
         break;
       case BINARY:
         Preconditions.checkArgument(
@@ -315,7 +308,12 @@ public class DefaultValueParser {
             defaultValue instanceof BigDecimal &&
                 ((BigDecimal) defaultValue).scale() == ((Types.DecimalType) type).scale(),
             "Invalid default %s value: %s", type, defaultValue);
-        generator.writeString(((BigDecimal) defaultValue).toPlainString());
+        BigDecimal decimalValue = (BigDecimal) defaultValue;
+        if (decimalValue.scale() >= 0) {
+          generator.writeString(decimalValue.toPlainString());
+        } else {
+          generator.writeString(decimalValue.toString());
+        }
         break;
       case LIST:
         Preconditions.checkArgument(defaultValue instanceof List, "Invalid default %s value: %s", type, defaultValue);
