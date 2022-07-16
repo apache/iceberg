@@ -49,4 +49,14 @@ public interface DeletedDataFileScanTask extends ChangelogScanTask, ContentScanT
   default ChangelogOperation operation() {
     return ChangelogOperation.DELETE;
   }
+
+  @Override
+  default long sizeBytes() {
+    return length() + existingDeletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+  }
+
+  @Override
+  default int filesCount() {
+    return 1 + existingDeletes().size();
+  }
 }

@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import org.apache.iceberg.BaseFileScanTask.OffsetsAwareSplitScanTaskIteratorImpl;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
@@ -40,8 +41,7 @@ public class TestOffsetsBasedSplitScanTaskIterator {
 
   private static void verify(List<Long> offsetRanges, long fileLen, List<List<Long>> offsetLenPairs) {
     List<FileScanTask> tasks = Lists.newArrayList(
-        new BaseFileScanTask.OffsetsAwareTargetSplitSizeScanTaskIterator(
-            offsetRanges, new MockFileScanTask(fileLen)));
+        new OffsetsAwareSplitScanTaskIteratorImpl(new MockFileScanTask(fileLen), offsetRanges));
     Assert.assertEquals("Number of tasks don't match", offsetLenPairs.size(), tasks.size());
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);

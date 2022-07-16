@@ -59,4 +59,16 @@ public interface DeletedRowsScanTask extends ChangelogScanTask, ContentScanTask<
   default ChangelogOperation operation() {
     return ChangelogOperation.DELETE;
   }
+
+  @Override
+  default long sizeBytes() {
+    return length() +
+        addedDeletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum() +
+        existingDeletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+  }
+
+  @Override
+  default int filesCount() {
+    return 1 + addedDeletes().size() + existingDeletes().size();
+  }
 }
