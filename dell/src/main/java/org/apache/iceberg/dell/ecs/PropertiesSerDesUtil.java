@@ -53,7 +53,7 @@ public class PropertiesSerDesUtil {
    */
   public static Map<String, String> read(byte[] content, String version) {
     Preconditions.checkArgument(
-        version.equals(CURRENT_VERSION), "Properties version is not match", version);
+        CURRENT_VERSION.equals(version), "Properties version is not match", version);
     Properties jdkProperties = new Properties();
     try (Reader reader =
         new InputStreamReader(new ByteArrayInputStream(content), StandardCharsets.UTF_8)) {
