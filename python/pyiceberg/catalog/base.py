@@ -18,13 +18,21 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, List
 
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+
+
+@dataclass
+class PropertiesUpdateSummary:
+    removed: List[str]
+    updated: List[str]
+    missing: List[str]
 
 
 class Catalog(ABC):
@@ -55,13 +63,13 @@ class Catalog(ABC):
 
     @abstractmethod
     def create_table(
-        self,
-        identifier: str | Identifier,
-        schema: Schema,
-        location: str | None = None,
-        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
-        sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Properties | None = None,
+            self,
+            identifier: str | Identifier,
+            schema: Schema,
+            location: str | None = None,
+            partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+            sort_order: SortOrder = UNSORTED_SORT_ORDER,
+            properties: Properties | None = None,
     ) -> Table:
         """Create a table
 
@@ -69,7 +77,8 @@ class Catalog(ABC):
             identifier: Table identifier.
             schema: Table's schema.
             location: Location for the table. Optional Argument.
-            partition_spec: PartitionSpec for the table. Optional Argument.
+            partition_spec: PartitionSpec for the table.
+            sort_order: SortOrder for the table.
             properties: Table properties that can be a string based dictionary. Optional Argument.
 
         Returns:
@@ -197,8 +206,8 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-        self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties | None = None
-    ) -> Any:
+            self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties | None = None
+    ) -> PropertiesUpdateSummary:
         """Removes provided property keys and updates properties for a namespace.
 
         Args:

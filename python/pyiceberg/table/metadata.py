@@ -38,6 +38,7 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
+DEFAULT_LAST_PARTITION_ID = 1000
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
@@ -84,12 +85,12 @@ class TableMetadataCommonFields(IcebergBaseModel):
     def current_schema(self) -> Schema:
         return next(schema for schema in self.schemas if schema.schema_id == self.current_schema_id)
 
-    @root_validator(pre=True)
+    @root_validator()
     def cleanup_snapshot_id(cls, data: Dict[str, Any]):
-        if data.get("current-snapshot-id") == -1:
+        if data.get("current_snapshot_id") == -1:
             # We treat -1 and None the same, by cleaning this up
             # in a pre-validator, we can simplify the logic later on
-            data["current-snapshot-id"] = None
+            data["current_snapshot_id"] = None
         return data
 
     @root_validator(skip_on_failure=True)
@@ -130,7 +131,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
     """ID of the “current” spec that writers should use by default."""
 
-    last_partition_id: int = Field(alias="last-partition-id")
+    last_partition_id: int = Field(alias="last-partition-id", default=DEFAULT_LAST_PARTITION_ID)
     """An integer; the highest assigned partition field ID across all
     partition specs for the table. This is used to ensure partition fields
     are always assigned an unused ID when evolving specs."""
@@ -196,26 +197,6 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # because bumping the version should be an explicit operation that is up
     # to the owner of the table.
 
-    @root_validator(pre=True)
-    def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Sets default values to be compatible with the format v2
-
-        Set some sensible defaults for V1, so we comply with the schema
-        this is in pre=True, meaning that this will be done before validation.
-        We don't want to make the fields optional, since they are required for V2
-
-        Args:
-            data: The raw arguments when initializing a V1 TableMetadata
-
-        Returns:
-            The TableMetadata with the defaults applied
-        """
-        if "schema" in data and "schema-id" not in data["schema"]:
-            data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
-        if "partition-spec" in data and "last-partition-id" not in data:
-            data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
-        return data
-
     @root_validator(skip_on_failure=True)
     def construct_schemas(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Converts the schema into schemas
@@ -272,9 +253,9 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             The TableMetadata with the sort_orders set, if not provided
         """
         if not data.get("sort_orders"):
-            check_sort_orders(data)
-        else:
             data["sort_orders"] = [UNSORTED_SORT_ORDER]
+        else:
+            check_sort_orders(data)
         return data
 
     def to_v2(self) -> "TableMetadataV2":

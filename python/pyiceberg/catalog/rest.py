@@ -29,7 +29,7 @@ from pydantic import Field
 from requests import HTTPError
 
 from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog
+from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
 from pyiceberg.exceptions import (
     AlreadyExistsError,
     BadCredentialsError,
@@ -39,7 +39,7 @@ from pyiceberg.exceptions import (
     ServerError,
     ServiceUnavailableError,
     TableAlreadyExistsError,
-    UnauthorizedError,
+    UnauthorizedError, RESTError,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
@@ -144,9 +144,9 @@ class RestCatalog(Catalog):
 
     host: str
 
-    def __init__(self, name: str, properties: Properties, host: str):
+    def __init__(self, name: str, properties: Properties, host: str, token: str):
         self.host = host
-        self.token = self._fetch_access_token()
+        self.token = self._fetch_access_token(token)
         self.config = self._fetch_config()
         super().__init__(name, properties)
 
@@ -185,8 +185,8 @@ class RestCatalog(Catalog):
 
         return url + endpoint.format(**kwargs)
 
-    def _fetch_access_token(self) -> TokenResponse:
-        client, secret = self._split_token(TOKEN)
+    def _fetch_access_token(self, token: str) -> TokenResponse:
+        client, secret = self._split_token(token)
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client, CLIENT_SECRET: secret, SCOPE: CATALOG_SCOPE}
         response = requests.post(self.url(Endpoints.get_token, prefixed=False), data=data)
         try:
@@ -217,7 +217,7 @@ class RestCatalog(Catalog):
             response = ErrorResponse(
                 error=ErrorResponseMessage(
                     message=f"Could not decode json payload: {exc.response.text}",
-                    type="UnhandledError",
+                    type="RESTError",
                     code=exc.response.status_code,
                 )
             )
@@ -234,7 +234,7 @@ class RestCatalog(Catalog):
         elif 500 <= code < 600:
             raise ServerError(response.error.message) from exc
         else:
-            raise RuntimeError(response.error.message) from exc
+            raise RESTError(response.error.message) from exc
 
     def create_table(
         self,
@@ -354,7 +354,7 @@ class RestCatalog(Catalog):
 
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
-    ) -> UpdateNamespacePropertiesResponse:
+    ) -> PropertiesUpdateSummary:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
         payload = {"removals": list(removals or []), "updates": updates}
         response = requests.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload, headers=self.headers)
@@ -362,4 +362,10 @@ class RestCatalog(Catalog):
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
-        return UpdateNamespacePropertiesResponse(**response.json())
+        parsed_response = UpdateNamespacePropertiesResponse(**response.json())
+        return PropertiesUpdateSummary(
+            removed=parsed_response.removed,
+            updated=parsed_response.updated,
+            missing=parsed_response.missing,
+        )
+

@@ -46,6 +46,8 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 T = TypeVar("T")
 
+DEFAULT_SCHEMA_ID = 0
+
 
 class Schema(IcebergBaseModel):
     """A table Schema
@@ -57,7 +59,7 @@ class Schema(IcebergBaseModel):
 
     type: Literal["struct"] = "struct"
     fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
-    schema_id: int = Field(alias="schema-id")
+    schema_id: int = Field(alias="schema-id", default=DEFAULT_SCHEMA_ID)
     identifier_field_ids: List[int] = Field(alias="identifier-field-ids", default_factory=list)
 
     _name_to_id: Dict[str, int] = PrivateAttr()

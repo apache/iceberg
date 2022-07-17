@@ -27,6 +27,7 @@ from pyiceberg.serializers import FromByteStream
 from pyiceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER
 from pyiceberg.transforms import IdentityTransform
 from pyiceberg.types import LongType, NestedField
 
@@ -207,7 +208,7 @@ def test_updating_metadata():
 
 def test_serialize_v1():
     table_metadata = TableMetadataV1(**EXAMPLE_TABLE_METADATA_V1).json()
-    expected = """{"location": "s3://bucket/test/location", "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "schema": {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
+    expected = """{"location": "s3://bucket/test/location", "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c", "last-updated-ms": 1602638573874, "last-column-id": 3, "schemas": [{"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}], "current-schema-id": 0, "partition-specs": [{"spec-id": 0, "fields": [{"source-id": 1, "field-id": 1000, "transform": "identity", "name": "x"}]}], "default-spec-id": 0, "last-partition-id": 1000, "properties": {}, "snapshots": [{"snapshot-id": 1925, "timestamp-ms": 1602638573822}], "snapshot-log": [], "metadata-log": [], "sort-orders": [{"order-id": 0, "fields": []}], "default-sort-order-id": 0, "refs": {}, "format-version": 1, "schema": {"type": "struct", "fields": [{"id": 1, "name": "x", "type": "long", "required": true}, {"id": 2, "name": "y", "type": "long", "required": true, "doc": "comment"}, {"id": 3, "name": "z", "type": "long", "required": true}], "schema-id": 0, "identifier-field-ids": []}, "partition-spec": [{"name": "x", "transform": "identity", "source-id": 1, "field-id": 1000}]}"""
     assert table_metadata == expected
 
 
@@ -516,7 +517,7 @@ def test_v1_write_metadata_for_v2():
     ]
     assert metadata_v2["default-spec-id"] == 0
     assert metadata_v2["last-partition-id"] == 1000
-    assert metadata_v2["sort-orders"] == []
+    assert metadata_v2["sort-orders"] == [{'fields': [], 'order-id': 0}]
     assert metadata_v2["default-sort-order-id"] == 0
     # Deprecated fields
     assert "schema" not in metadata_v2

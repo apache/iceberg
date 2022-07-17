@@ -58,3 +58,7 @@ class ServiceUnavailableError(Exception):
 
 class ServerError(Exception):
     """Raises when there is an unhandled exception on the server side"""
+
+
+class RESTError(Exception):
+    """Raises when there is an unknown response from the REST Catalog"""

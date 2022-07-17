@@ -19,6 +19,7 @@ from uuid import UUID
 import pytest
 import requests_mock
 
+from pyiceberg.catalog.base import PropertiesUpdateSummary
 from pyiceberg.catalog.rest import RestCatalog, TokenResponse, UpdateNamespacePropertiesResponse
 from pyiceberg.exceptions import (
     AlreadyExistsError,
@@ -43,15 +44,15 @@ from pyiceberg.types import (
 )
 
 TEST_HOST = "https://iceberg-test-catalog/"
+TEST_TOKEN = "client:secret"
 
 
 def test_token_200():
     with requests_mock.Mocker() as m:
-        token = "eyJ0eXAiOiJK"
         m.post(
             f"{TEST_HOST}oauth/tokens",
             json={
-                "access_token": token,
+                "access_token": TEST_TOKEN,
                 "token_type": "Bearer",
                 "expires_in": 86400,
                 "warehouse_id": "8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -66,8 +67,8 @@ def test_token_200():
             status_code=200,
         )
 
-        assert RestCatalog("rest", {}, TEST_HOST).token == TokenResponse(
-            access_token=token,
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).token == TokenResponse(
+            access_token=TEST_TOKEN,
             token_type="Bearer",
             expires_in=86400,
             warehouse_id="8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -92,7 +93,7 @@ def test_token_401():
         )
 
         with pytest.raises(BadCredentialsError) as e:
-            RestCatalog("rest", {}, TEST_HOST)
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN)
         assert message in str(e.value)
 
 
@@ -126,7 +127,7 @@ def test_list_tables_200():
             status_code=200,
         )
 
-        assert RestCatalog("rest", {}, TEST_HOST).list_tables(namespace) == [("examples", "fooshare")]
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_tables(namespace) == [("examples", "fooshare")]
 
 
 def test_list_tables_404():
@@ -145,7 +146,7 @@ def test_list_tables_404():
             status_code=404,
         )
         with pytest.raises(NoSuchTableError) as e:
-            RestCatalog("rest", {}, TEST_HOST).list_tables(namespace)
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_tables(namespace)
         assert "Namespace does not exist" in str(e.value)
 
 
@@ -157,7 +158,12 @@ def test_list_namespaces_200():
             json={"namespaces": [["default"], ["examples"], ["fokko"], ["system"]]},
             status_code=200,
         )
-        assert RestCatalog("rest", {}, TEST_HOST).list_namespaces() == [("default",), ("examples",), ("fokko",), ("system",)]
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_namespaces() == [
+            ("default",),
+            ("examples",),
+            ("fokko",),
+            ("system",),
+        ]
 
 
 def test_create_namespace_200():
@@ -169,7 +175,7 @@ def test_create_namespace_200():
             json={"namespace": [namespace], "properties": {}},
             status_code=200,
         )
-        RestCatalog("rest", {}, TEST_HOST).create_namespace(namespace)
+        RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).create_namespace(namespace)
 
 
 def test_create_namespace_409():
@@ -188,7 +194,7 @@ def test_create_namespace_409():
             status_code=409,
         )
         with pytest.raises(AlreadyExistsError) as e:
-            RestCatalog("rest", {}, TEST_HOST).create_namespace(namespace)
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).create_namespace(namespace)
         assert "Namespace already exists" in str(e.value)
 
 
@@ -208,7 +214,7 @@ def test_drop_namespace_404():
             status_code=404,
         )
         with pytest.raises(NoSuchNamespaceError) as e:
-            RestCatalog("rest", {}, TEST_HOST).drop_namespace(namespace)
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_namespace(namespace)
         assert "Namespace does not exist" in str(e.value)
 
 
@@ -221,7 +227,7 @@ def test_load_namespace_properties_200():
             json={"namespace": ["fokko"], "properties": {"prop": "yes"}},
             status_code=204,
         )
-        assert RestCatalog("rest", {}, TEST_HOST).load_namespace_properties(namespace) == {"prop": "yes"}
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_namespace_properties(namespace) == {"prop": "yes"}
 
 
 def test_load_namespace_properties_404():
@@ -240,7 +246,7 @@ def test_load_namespace_properties_404():
             status_code=404,
         )
         with pytest.raises(NoSuchNamespaceError) as e:
-            RestCatalog("rest", {}, TEST_HOST).load_namespace_properties(namespace)
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_namespace_properties(namespace)
         assert "Namespace does not exist" in str(e.value)
 
 
@@ -252,9 +258,11 @@ def test_update_namespace_properties_200():
             json={"removed": [], "updated": ["prop"], "missing": ["abc"]},
             status_code=200,
         )
-        response = RestCatalog("rest", {}, TEST_HOST).update_namespace_properties(("fokko",), {"abc"}, {"prop": "yes"})
+        response = RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).update_namespace_properties(
+            ("fokko",), {"abc"}, {"prop": "yes"}
+        )
 
-        assert response == UpdateNamespacePropertiesResponse(removed=[], updated=["prop"], missing=["abc"])
+        assert response == PropertiesUpdateSummary(removed=[], updated=["prop"], missing=["abc"])
 
 
 def test_update_namespace_properties_404():
@@ -272,7 +280,7 @@ def test_update_namespace_properties_404():
             status_code=404,
         )
         with pytest.raises(NoSuchNamespaceError) as e:
-            RestCatalog("rest", {}, TEST_HOST).update_namespace_properties(("fokko",), {"abc"}, {"prop": "yes"})
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).update_namespace_properties(("fokko",), {"abc"}, {"prop": "yes"})
         assert "Namespace does not exist" in str(e.value)
 
 
@@ -351,7 +359,7 @@ def test_load_table_200():
             },
             status_code=200,
         )
-        table = RestCatalog("rest", {}, TEST_HOST).load_table(("fokko", "table"))
+        table = RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_table(("fokko", "table"))
         assert table == Table(
             identifier=("fokko", "table"),
             metadata_location=None,
@@ -447,7 +455,7 @@ def test_load_table_404():
         )
 
         with pytest.raises(NoSuchTableError) as e:
-            RestCatalog("rest", {}, TEST_HOST).load_table(("fokko", "does_not_exists"))
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_table(("fokko", "does_not_exists"))
         assert "Table does not exist" in str(e.value)
 
 
@@ -467,7 +475,7 @@ def test_drop_table_404():
         )
 
         with pytest.raises(NoSuchTableError) as e:
-            RestCatalog("rest", {}, TEST_HOST).drop_table(("fokko", "does_not_exists"))
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_table(("fokko", "does_not_exists"))
         assert "Table does not exist" in str(e.value)
 
 
@@ -532,7 +540,7 @@ def test_create_table_200(table_schema_simple: Schema):
             },
             status_code=200,
         )
-        table = RestCatalog("rest", {}, TEST_HOST).create_table(
+        table = RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).create_table(
             identifier=("fokko", "fokko2"),
             schema=table_schema_simple,
             location=None,
@@ -606,7 +614,7 @@ def test_create_table_409(table_schema_simple: Schema):
         )
 
         with pytest.raises(TableAlreadyExistsError) as e:
-            RestCatalog("rest", {}, TEST_HOST).create_table(
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).create_table(
                 identifier=("fokko", "fokko2"),
                 schema=table_schema_simple,
                 location=None,
@@ -629,7 +637,7 @@ def test_delete_namespace_204():
             json={},
             status_code=204,
         )
-        RestCatalog("rest", {}, TEST_HOST).drop_namespace(namespace)
+        RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_namespace(namespace)
 
 
 def test_delete_table_204():
@@ -640,7 +648,7 @@ def test_delete_table_204():
             json={},
             status_code=204,
         )
-        RestCatalog("rest", {}, TEST_HOST).drop_table(("example", "fokko"))
+        RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_table(("example", "fokko"))
 
 
 def test_delete_table_404():
@@ -658,5 +666,5 @@ def test_delete_table_404():
             status_code=404,
         )
         with pytest.raises(NoSuchTableError) as e:
-            RestCatalog("rest", {}, TEST_HOST).drop_table(("example", "fokko"))
+            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_table(("example", "fokko"))
         assert "Table does not exist" in str(e.value)
