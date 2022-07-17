@@ -254,7 +254,7 @@ public class SchemaParser {
   }
 
   public static Schema fromJson(JsonNode json) {
-    Type  type = typeFromJson(json);
+    Type type  = typeFromJson(json);
     Preconditions.checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
         "Cannot create schema, not a struct type: %s", type);
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, json);
