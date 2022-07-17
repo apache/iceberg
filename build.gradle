@@ -64,6 +64,8 @@ gitProperties {
   gitPropertiesResourceDir = file("${rootDir}/build")
   extProperty = 'gitProps'
   failOnNoGitDirectory = true
+  keys = ['git.branch', 'git.build.version', 'git.closest.tag.name','git.commit.id.abbrev', 'git.commit.id',
+          'git.commit.message.short', 'git.commit.time', 'git.tags']
 }
 generateGitProperties.outputs.upToDateWhen { false }
 
