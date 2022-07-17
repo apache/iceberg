@@ -36,10 +36,11 @@ from pyiceberg.exceptions import (
     BadRequestError,
     NoSuchNamespaceError,
     NoSuchTableError,
+    RESTError,
     ServerError,
     ServiceUnavailableError,
     TableAlreadyExistsError,
-    UnauthorizedError, RESTError,
+    UnauthorizedError,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
@@ -368,4 +369,3 @@ class RestCatalog(Catalog):
             updated=parsed_response.updated,
             missing=parsed_response.missing,
         )
-

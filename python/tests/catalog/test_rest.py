@@ -20,7 +20,7 @@ import pytest
 import requests_mock
 
 from pyiceberg.catalog.base import PropertiesUpdateSummary
-from pyiceberg.catalog.rest import RestCatalog, TokenResponse, UpdateNamespacePropertiesResponse
+from pyiceberg.catalog.rest import RestCatalog, TokenResponse
 from pyiceberg.exceptions import (
     AlreadyExistsError,
     BadCredentialsError,
