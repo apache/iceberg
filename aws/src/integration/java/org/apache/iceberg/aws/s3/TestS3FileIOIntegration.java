@@ -37,6 +37,7 @@ import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
@@ -49,6 +50,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.PartitionMetadata;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.kms.model.CreateAliasRequest;
 import software.amazon.awssdk.services.kms.model.ListAliasesRequest;
 import software.amazon.awssdk.services.kms.model.ListAliasesResponse;
 import software.amazon.awssdk.services.kms.model.ScheduleKeyDeletionRequest;
@@ -62,7 +64,7 @@ import software.amazon.awssdk.services.s3.model.Permission;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3control.S3ControlClient;
-import software.amazon.awssdk.utils.ImmutableMap;
+import software.amazon.awssdk.services.s3control.model.CreateAccessPointRequest;
 import software.amazon.awssdk.utils.IoUtils;
 
 public class TestS3FileIOIntegration {
@@ -80,26 +82,32 @@ public class TestS3FileIOIntegration {
   private static byte[] contentBytes;
   private static String content;
   private static String kmsKeyArn;
+  private static String kmsKeyAlias;
   private static int deletionBatchSize;
   private String objectKey;
   private String objectUri;
 
   @BeforeClass
   public static void beforeClass() {
-    clientFactory = AwsClientFactories.defaultFactory();
+    clientFactory = AwsClientFactories.from(
+        ImmutableMap.of(AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_APACHE));
     s3 = clientFactory.s3();
     kms = clientFactory.kms();
     s3Control = AwsIntegTestUtil.createS3ControlClient(AwsIntegTestUtil.testRegion());
     crossRegionS3Control = AwsIntegTestUtil.createS3ControlClient(AwsIntegTestUtil.testCrossRegion());
     bucketName = AwsIntegTestUtil.testBucketName();
     crossRegionBucketName = AwsIntegTestUtil.testCrossRegionBucketName();
-    accessPointName = UUID.randomUUID().toString();
-    crossRegionAccessPointName = UUID.randomUUID().toString();
+    accessPointName = "icebergawsci-" + UUID.randomUUID();
+    crossRegionAccessPointName = "icebergawsci-" + UUID.randomUUID();
     prefix = UUID.randomUUID().toString();
     contentBytes = new byte[1024 * 1024 * 10];
     deletionBatchSize = 3;
     content = new String(contentBytes, StandardCharsets.UTF_8);
     kmsKeyArn = kms.createKey().keyMetadata().arn();
+    kms.createAlias(CreateAliasRequest.builder()
+        .targetKeyId(kmsKeyArn)
+        .aliasName("alias/iceberg-aws-ci-" + UUID.randomUUID())
+        .build());
 
     AwsIntegTestUtil.createAccessPoint(s3Control, accessPointName, bucketName);
     AwsIntegTestUtil.createAccessPoint(crossRegionS3Control, crossRegionAccessPointName, crossRegionBucketName);
@@ -171,6 +179,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewOutputStreamWithAccessPoint() throws Exception {
+    waitForIamConsistency();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     s3FileIO.initialize(ImmutableMap.of(AwsProperties.S3_ACCESS_POINTS_PREFIX + bucketName,
         testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
@@ -371,5 +380,9 @@ public class TestS3FileIOIntegration {
     // format: arn:aws:s3:region:account-id:accesspoint/resource
     return String.format("arn:%s:s3:%s:%s:accesspoint/%s",
         PartitionMetadata.of(Region.of(region)).id(), region, AwsIntegTestUtil.testAccountId(), accessPoint);
+  }
+
+  private void waitForIamConsistency() throws Exception {
+    Thread.sleep(10000); // sleep to make sure IAM up to date
   }
 }

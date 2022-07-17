@@ -296,6 +296,6 @@ public class TestDynamoDbCatalog {
   }
 
   private static String genRandomName() {
-    return UUID.randomUUID().toString().replace("-", "");
+    return "IcebergAwsCI_" + UUID.randomUUID().toString().replace("-", "");
   }
 }

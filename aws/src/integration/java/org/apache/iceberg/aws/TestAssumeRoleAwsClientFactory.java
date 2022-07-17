@@ -55,7 +55,7 @@ public class TestAssumeRoleAwsClientFactory {
 
   @Before
   public void before() {
-    roleName = UUID.randomUUID().toString();
+    roleName = "iceberg-aws-ci-" + UUID.randomUUID();
     iam = IamClient.builder()
         .region(Region.AWS_GLOBAL)
         .httpClientBuilder(UrlConnectionHttpClient.builder())
