@@ -177,6 +177,10 @@ public class TableProperties {
   public static final String AVRO_COMPRESSION_LEVEL_DEFAULT = null;
 
   public static final String ORC_STRIPE_SIZE_BYTES = "write.orc.stripe-size-bytes";
+
+  public static final String ORC_BLOOM_FILTER_COLUMNS = "write.orc.bloom.filter.columns";
+  public static final String ORC_BLOOM_FILTER_FPP = "write.orc.bloom.filter.fpp";
+
   public static final String DELETE_ORC_STRIPE_SIZE_BYTES = "write.delete.orc.stripe-size-bytes";
   public static final long ORC_STRIPE_SIZE_BYTES_DEFAULT = 64L * 1024 * 1024; // 64 MB
 
