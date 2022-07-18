@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.util.List;
-import java.util.function.Function;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -31,7 +30,9 @@ public class MetadataLogTable extends BaseMetadataTable {
   private static final Schema METADATA_LOG_SCHEMA = new Schema(
       Types.NestedField.required(1, "timestamp_millis", Types.LongType.get()),
       Types.NestedField.required(2, "file", Types.StringType.get()),
-      Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get())
+      Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
+      Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),
+      Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get())
   );
 
   MetadataLogTable(TableOperations ops, Table table) {
@@ -68,7 +69,7 @@ public class MetadataLogTable extends BaseMetadataTable {
         schema(),
         scan.schema(),
         metadataLogEntries,
-        convertMetadataLogEntryFunc(table())
+        metadataLogEntry -> MetadataLogTable.metadataLogTableToRow(metadataLogEntry, table())
     );
   }
 
@@ -92,22 +93,24 @@ public class MetadataLogTable extends BaseMetadataTable {
     }
   }
 
-  private static Function<TableMetadata.MetadataLogEntry, StaticDataTask.Row> convertMetadataLogEntryFunc(Table table) {
-    return metadataLogEntry -> {
-      long latestSnapshotId;
-      try {
-        latestSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, metadataLogEntry.timestampMillis());
-      } catch (Exception e) {
-        // implies this metadata file was created at table creation
-        latestSnapshotId = -1;
-      }
+  private static StaticDataTask.Row metadataLogTableToRow(TableMetadata.MetadataLogEntry metadataLogEntry,
+                                                          Table table) {
+    Long latestSnapshotId = null;
+    Snapshot latestSnapshot = null;
+    try {
+      latestSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, metadataLogEntry.timestampMillis());
+      latestSnapshot = table.snapshot(latestSnapshotId);
+    } catch (IllegalArgumentException ignored) {
+      // implies this metadata file was created at table creation
+    }
 
-      return StaticDataTask.Row.of(
-          metadataLogEntry.timestampMillis() * 1000,
-          metadataLogEntry.file(),
-          // latest snapshot in this file corresponding to the log entry
-          latestSnapshotId == -1 ? null : latestSnapshotId
-      );
-    };
+    return StaticDataTask.Row.of(
+        metadataLogEntry.timestampMillis(),
+        metadataLogEntry.file(),
+        // latest snapshot in this file corresponding to the log entry
+        latestSnapshotId,
+        latestSnapshot != null ? latestSnapshot.schemaId() : null,
+        latestSnapshot != null ? latestSnapshot.sequenceNumber() : null
+    );
   }
 }
