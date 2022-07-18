@@ -34,10 +34,12 @@ import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogFunction;
+import org.apache.flink.table.catalog.CatalogFunctionImpl;
 import org.apache.flink.table.catalog.CatalogPartition;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.CatalogTableImpl;
+import org.apache.flink.table.catalog.FunctionLanguage;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
@@ -69,6 +71,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.flink.sink.PartitionTransformUdf;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -96,6 +99,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
+  private final Map<String, CatalogFunction> partitionFunctions;
 
   public FlinkCatalog(
       String catalogName,
@@ -107,6 +111,7 @@ public class FlinkCatalog extends AbstractCatalog {
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
+    this.partitionFunctions = Maps.newHashMap();
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
@@ -119,6 +124,7 @@ public class FlinkCatalog extends AbstractCatalog {
     // Create the default database if it does not exist.
     try {
       createDatabase(getDefaultDatabase(), ImmutableMap.of(), true);
+      registerPartitionFunction(getDefaultDatabase());
     } catch (DatabaseAlreadyExistException e) {
       // Ignore the exception if it's already exist.
     }
@@ -161,12 +167,25 @@ public class FlinkCatalog extends AbstractCatalog {
         .collect(Collectors.toList());
   }
 
+  public void registerPartitionFunction(String databaseName) {
+    partitionFunctions.putIfAbsent(databaseName + ".buckets",
+        new CatalogFunctionImpl(PartitionTransformUdf.Bucket.class.getName(), FunctionLanguage.JAVA));
+    partitionFunctions.putIfAbsent(databaseName + ".truncates",
+        new CatalogFunctionImpl(PartitionTransformUdf.Truncate.class.getName(), FunctionLanguage.JAVA));
+  }
+
+  public void deregisterPartitionFunction(String databaseName) {
+    partitionFunctions.remove(databaseName + ".buckets");
+    partitionFunctions.remove(databaseName + ".truncates");
+  }
+
   @Override
   public CatalogDatabase getDatabase(String databaseName) throws DatabaseNotExistException, CatalogException {
     if (asNamespaceCatalog == null) {
       if (!getDefaultDatabase().equals(databaseName)) {
         throw new DatabaseNotExistException(getName(), databaseName);
       } else {
+        registerPartitionFunction(databaseName);
         return new CatalogDatabaseImpl(Maps.newHashMap(), "");
       }
     } else {
@@ -174,6 +193,7 @@ public class FlinkCatalog extends AbstractCatalog {
         Map<String, String> metadata =
             Maps.newHashMap(asNamespaceCatalog.loadNamespaceMetadata(toNamespace(databaseName)));
         String comment = metadata.remove("comment");
+        registerPartitionFunction(databaseName);
         return new CatalogDatabaseImpl(metadata, comment);
       } catch (NoSuchNamespaceException e) {
         throw new DatabaseNotExistException(getName(), databaseName, e);
@@ -195,6 +215,7 @@ public class FlinkCatalog extends AbstractCatalog {
   public void createDatabase(String name, CatalogDatabase database, boolean ignoreIfExists)
       throws DatabaseAlreadyExistException, CatalogException {
     createDatabase(name, mergeComment(database.getProperties(), database.getComment()), ignoreIfExists);
+    registerPartitionFunction(name);
   }
 
   private void createDatabase(String databaseName, Map<String, String> metadata, boolean ignoreIfExists)
@@ -233,6 +254,7 @@ public class FlinkCatalog extends AbstractCatalog {
         if (!success && !ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name);
         }
+        deregisterPartitionFunction(name);
       } catch (NoSuchNamespaceException e) {
         if (!ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name, e);
@@ -624,7 +646,12 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public CatalogFunction getFunction(ObjectPath functionPath) throws FunctionNotExistException, CatalogException {
-    throw new FunctionNotExistException(getName(), functionPath);
+    CatalogFunction catalogFunction = partitionFunctions.get(functionPath.getFullName());
+    if (catalogFunction == null) {
+      throw new FunctionNotExistException(getName(), functionPath);
+    } else {
+      return catalogFunction;
+    }
   }
 
   @Override
