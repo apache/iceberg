@@ -156,6 +156,10 @@ class ManifestGroup {
    * @return a {@link CloseableIterable} of {@link FileScanTask}
    */
   public CloseableIterable<FileScanTask> planFiles() {
+    return planFiles(FileScanTaskFactory.builder());
+  }
+
+  public <T extends ScanTask> CloseableIterable<T> planFiles(ScanTaskFactory.Builder<T> taskFactoryBuilder) {
     LoadingCache<Integer, ResidualEvaluator> residualCache = Caffeine.newBuilder().build(specId -> {
       PartitionSpec spec = specsById.get(specId);
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
@@ -169,14 +173,18 @@ class ManifestGroup {
       select(ManifestReader.withStatsColumns(columns));
     }
 
-    Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
-      int specId = manifest.partitionSpecId();
+    LoadingCache<Integer, ScanTaskFactory<T>> taskFactoryCache = Caffeine.newBuilder().build(specId -> {
       PartitionSpec spec = specsById.get(specId);
-      String schemaString = SchemaParser.toJson(spec.schema());
-      String specString = PartitionSpecParser.toJson(spec);
       ResidualEvaluator residuals = residualCache.get(specId);
-      return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-          e.file().copy(!dropStats), deleteFiles.forEntry(e), schemaString, specString, residuals));
+      return taskFactoryBuilder
+          .dropStats(dropStats)
+          .build(spec, deleteFiles, residuals);
+    });
+
+    Iterable<CloseableIterable<T>> tasks = entries((manifest, entries) -> {
+      int specId = manifest.partitionSpecId();
+      ScanTaskFactory<T> taskFactory = taskFactoryCache.get(specId);
+      return taskFactory.createTasks(entries);
     });
 
     if (executorService != null) {
@@ -278,5 +286,85 @@ class ManifestGroup {
             }
           }
         });
+  }
+
+  abstract static class ScanTaskFactory<T extends ScanTask> {
+    private final String schemaAsString;
+    private final String specAsString;
+    private final DeleteFileIndex deletes;
+    private final ResidualEvaluator residuals;
+    private final boolean dropStats;
+
+    ScanTaskFactory(PartitionSpec spec, DeleteFileIndex deletes, ResidualEvaluator residuals, boolean dropStats) {
+      this.schemaAsString = SchemaParser.toJson(spec.schema());
+      this.specAsString = PartitionSpecParser.toJson(spec);
+      this.deletes = deletes;
+      this.residuals = residuals;
+      this.dropStats = dropStats;
+    }
+
+    abstract CloseableIterable<T> createTasks(CloseableIterable<ManifestEntry<DataFile>> entries);
+
+    String schemaAsString() {
+      return schemaAsString;
+    }
+
+    String specAsString() {
+      return specAsString;
+    }
+
+    DeleteFileIndex deletes() {
+      return deletes;
+    }
+
+    ResidualEvaluator residuals() {
+      return residuals;
+    }
+
+    boolean shouldKeepStats() {
+      return !dropStats;
+    }
+
+    abstract static class Builder<T extends ScanTask> {
+      private boolean dropStats = false;
+
+      boolean dropStats() {
+        return dropStats;
+      }
+
+      Builder<T> dropStats(boolean newDropStats) {
+        this.dropStats = newDropStats;
+        return this;
+      }
+
+      abstract ScanTaskFactory<T> build(PartitionSpec spec, DeleteFileIndex deletes, ResidualEvaluator residuals);
+    }
+  }
+
+  private static class FileScanTaskFactory extends ScanTaskFactory<FileScanTask> {
+
+    FileScanTaskFactory(PartitionSpec spec, DeleteFileIndex deletes, ResidualEvaluator residuals, boolean dropStats) {
+      super(spec, deletes, residuals, dropStats);
+    }
+
+    @Override
+    CloseableIterable<FileScanTask> createTasks(CloseableIterable<ManifestEntry<DataFile>> entries) {
+      return CloseableIterable.transform(entries, entry -> {
+        DataFile dataFile = entry.file().copy(shouldKeepStats());
+        DeleteFile[] deleteFiles = deletes().forEntry(entry);
+        return new BaseFileScanTask(dataFile, deleteFiles, schemaAsString(), specAsString(), residuals());
+      });
+    }
+
+    static Builder builder() {
+      return new Builder();
+    }
+
+    static class Builder extends ScanTaskFactory.Builder<FileScanTask> {
+      @Override
+      ScanTaskFactory<FileScanTask> build(PartitionSpec spec, DeleteFileIndex deletes, ResidualEvaluator residuals) {
+        return new FileScanTaskFactory(spec, deletes, residuals, dropStats());
+      }
+    }
   }
 }
