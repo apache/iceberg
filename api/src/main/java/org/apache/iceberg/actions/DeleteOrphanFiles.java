@@ -83,7 +83,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
 
   /**
    * Pass a mode for handling the files that cannot be determined if they are orphan
-   * The allowed modes are "IGNORE", "ERROR"
+   * The allowed modes are "IGNORE", "ERROR", "DELETE"
    * Default prefixMismatchMode is "ERROR".
    *
    * @param mode mode for handling files that cannot be determined if they are orphan
@@ -130,6 +130,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * Defines the Delete Orphan files behaviour when there is mismatch in prefix(scheme/authority)
    * ERROR - Throws an exception when prefix mismatch
    * IGNORE - No action when prefix mismatch
+   * DELETE - Delete the files when prefix mismatch
    */
   enum PrefixMismatchMode {
     ERROR, IGNORE, DELETE

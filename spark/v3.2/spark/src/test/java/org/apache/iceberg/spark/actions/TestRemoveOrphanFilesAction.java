@@ -983,7 +983,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     List<String> actualFiles = Lists.newArrayList("s3a://bucket1/dir1/dir2/file1");
     AssertHelpers.assertThrows("Test remove orphan files with equal schemes",
         ValidationException.class,
-        "Conflicting authorities/schemes found: [(s3a, s3)]",
+        "Conflicting authorities/schemes found: [(s3, s3a)]",
         () -> executeTest(validFiles,
             actualFiles,
             Lists.newArrayList(),
@@ -1007,7 +1007,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
     AssertHelpers.assertThrows("Test remove orphan files with equal authorities",
         ValidationException.class,
-        "Conflicting authorities/schemes found: [(servicename2, servicename1)]",
+        "Conflicting authorities/schemes found: [(servicename1, servicename2)]",
         () -> executeTest(validFiles,
             actualFiles,
             Lists.newArrayList(),
