@@ -49,6 +49,7 @@ import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 class GlueTableOperations extends BaseMetastoreTableOperations {
 
@@ -144,6 +145,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           "Cannot commit %s because Glue encountered a validation exception " +
               "while accessing requested resources",
           tableName());
+    } catch (S3Exception e) {
+      throw e;
+    } catch (software.amazon.awssdk.services.glue.model.GlueException e) {
+      throw e;
     } catch (RuntimeException persistFailure) {
       LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
           fullTableName, persistFailure);
