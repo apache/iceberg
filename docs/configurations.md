@@ -1,8 +1,6 @@
 ---
-title: "Configurations"
-url: configurations
-aliases:
-    - config
+title: "Configuration"
+url: configuration
 menu: main
 weight: 1201
 ---
@@ -23,7 +21,7 @@ weight: 1201
  - limitations under the License.
  -->
 
-# Configurations
+# Configuration
 
 ### Table Read Properties
 
@@ -110,9 +108,9 @@ The value of these properties are not persisted as a part of the table metadata.
 
 ### Compatibility Flags
 
-| Property                                      | Default  | Description                                                   |
-| --------------------------------------------- | -------- | ------------------------------------------------------------- |
-| compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs    |
+| Property                                      | Default  | Description                                                                               |
+| --------------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs; Not required for v2 tables    |
 
 ### Catalog Properties
 
