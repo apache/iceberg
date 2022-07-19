@@ -40,17 +40,16 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
-import software.amazon.awssdk.services.glue.model.GlueException;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 
 class GlueTableOperations extends BaseMetastoreTableOperations {
 
@@ -146,14 +145,19 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           "Cannot commit %s because Glue encountered a validation exception " +
               "while accessing requested resources",
           tableName());
-    } catch (S3Exception e) {
-      throw e;
-    } catch (GlueException e) {
-      throw e;
     } catch (RuntimeException persistFailure) {
       LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
           fullTableName, persistFailure);
       commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+
+      if (persistFailure instanceof AwsServiceException) {
+        int statusCode = ((AwsServiceException) persistFailure).statusCode();
+        if (statusCode > 500 && statusCode < 600) {
+          commitStatus = CommitStatus.FAILURE;
+        }
+      } else {
+        throw persistFailure;
+      }
 
       switch (commitStatus) {
         case SUCCESS:

@@ -362,7 +362,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
     Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
   }
-  
+
   private Table setupTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
