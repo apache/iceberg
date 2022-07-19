@@ -15,15 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import (
-    Generic,
-    Optional,
-    Tuple,
-    TypeVar,
-    Union,
-)
+from typing import Generic, Tuple, TypeVar, Union
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
@@ -179,32 +173,28 @@ class Reference(UnboundTerm[T], BaseReference[T]):
 class BoundPredicate(Bound[T], BooleanExpression):
     term: BoundReference[T]
     literals: Union[Tuple[Literal[T], ...], Literal[T]]
-    literals_len_lb: int = field(init=False, repr=False, hash=False, compare=False, default=1)
-    literals_len_ub: Optional[int] = field(init=False, repr=False, hash=False, compare=False, default=1)
 
-    def __post_init__(self):
-        if not isinstance(self.literals, tuple):
-            object.__setattr__(self, "literals", (self.literals,))
-        if not (self.literals_len_lb <= len(self.literals) <= (self.literals_len_ub or float("inf"))):  # type: ignore
-            raise AttributeError(
-                f"{self.__class__} expects a number of literals between at least {self.literals_len_lb} and at most {self.literals_len_ub or float('inf')}"
-            )
+    def __new__(cls, term: BoundReference[T], literals: Union[Tuple[Literal[T], ...], Literal[T]]):
+        self = super().__new__(cls)
+        object.__setattr__(self, "literals", literals if isinstance(literals, tuple) else (literals,))
+        if cls != BoundIn and len(self.literals) > 1:  # type: ignore
+            raise AttributeError(f"{cls.__name__} cannot contain more than a single literal. Got {self.literals}.")
+        object.__setattr__(self, "term", term)
+        return self
 
 
 @dataclass(frozen=True)  # type: ignore[misc]
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
     term: Reference[T]
     literals: Union[Tuple[Literal[T], ...], Literal[T]]
-    literals_len_lb: int = field(init=False, repr=False, hash=False, compare=False, default=1)
-    literals_len_ub: Optional[int] = field(init=False, repr=False, hash=False, compare=False, default=1)
 
-    def __post_init__(self):
-        if not isinstance(self.literals, tuple):
-            object.__setattr__(self, "literals", (self.literals,))
-        if not (self.literals_len_lb <= len(self.literals) <= (self.literals_len_ub or float("inf"))):  # type: ignore
-            raise AttributeError(
-                f"{self.__class__} expects a number of literals between at least {self.literals_len_lb} and at most {self.literals_len_ub or float('inf')}"
-            )
+    def __new__(cls, term: Reference[T], literals: Union[Tuple[Literal[T], ...], Literal[T]]):
+        self = super().__new__(cls)
+        object.__setattr__(self, "literals", literals if isinstance(literals, tuple) else (literals,))
+        if cls != In and len(self.literals) > 1:  # type: ignore
+            raise AttributeError(f"{cls.__name__} cannot contain more than a single literal. Got {self.literals}.")
+        object.__setattr__(self, "term", term)
+        return self
 
 
 class And(BooleanExpression):
@@ -329,7 +319,9 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
 
 @dataclass(frozen=True)
 class BoundIn(BoundPredicate[T]):
-    literals_len_ub: Optional[int] = None
+    def __post_init__(self, *args, **kwargs):  # pylint: disable=W0613
+        if not self.literals:
+            raise AttributeError("In literals must contain at least one literal.")
 
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
@@ -337,7 +329,9 @@ class BoundIn(BoundPredicate[T]):
 
 @dataclass(frozen=True)
 class In(UnboundPredicate[T]):
-    literals_len_ub: Optional[int] = None
+    def __post_init__(self, *args, **kwargs):  # pylint: disable=W0613
+        if not self.literals:
+            raise AttributeError("In literals must contain at least one literal.")
 
     def __invert__(self):
         raise TypeError("In expressions do not support negation.")
