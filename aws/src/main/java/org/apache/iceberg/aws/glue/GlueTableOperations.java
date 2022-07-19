@@ -148,7 +148,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     } catch (RuntimeException persistFailure) {
       LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
           fullTableName, persistFailure);
-      commitStatus = checkCommitStatus(newMetadataLocation, metadata);
 
       if (persistFailure instanceof AwsServiceException) {
         int statusCode = ((AwsServiceException) persistFailure).statusCode();
@@ -157,6 +156,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
         } else {
           throw persistFailure;
         }
+      } else {
+        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
       }
 
       switch (commitStatus) {

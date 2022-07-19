@@ -338,7 +338,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 3, metadataFileCount(ops.current()));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
   }
 
   @Test
@@ -360,7 +360,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 3, metadataFileCount(ops.current()));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
   }
 
   @Test
