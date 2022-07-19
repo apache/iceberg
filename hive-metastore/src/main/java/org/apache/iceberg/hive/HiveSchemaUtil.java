@@ -19,13 +19,17 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -54,7 +58,18 @@ public final class HiveSchemaUtil {
    * @return An equivalent Iceberg Schema
    */
   public static Schema convert(List<FieldSchema> fieldSchemas) {
-    return convert(fieldSchemas, false);
+    return convert(fieldSchemas, false, Collections.emptySet());
+  }
+
+  /**
+   * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema. If some of the types are not convertible
+   * then exception is thrown.
+   * @param fieldSchemas The list of the columns.
+   * @param identifierFieldNames The names of the identifier fields for the schema.
+   * @return An equivalent Iceberg Schema.
+   */
+  public static Schema convert(List<FieldSchema> fieldSchemas, Set<String> identifierFieldNames) {
+    return convert(fieldSchemas, false, identifierFieldNames);
   }
 
   /**
@@ -63,9 +78,10 @@ public final class HiveSchemaUtil {
    * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
    *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
    *                    thrown.
+   * @param identifierFieldNames The names of the identifier fields for the schema.
    * @return An equivalent Iceberg Schema
    */
-  public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert) {
+  public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert, Set<String> identifierFieldNames) {
     List<String> names = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
     List<TypeInfo> typeInfos = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
     List<String> comments = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
@@ -75,7 +91,48 @@ public final class HiveSchemaUtil {
       typeInfos.add(TypeInfoUtils.getTypeInfoFromTypeString(col.getType()));
       comments.add(col.getComment());
     }
-    return HiveSchemaConverter.convert(names, typeInfos, comments, autoConvert);
+    Schema schema = HiveSchemaConverter.convert(names, typeInfos, comments, autoConvert);
+    return rebuildSchemaWithIdentifierFieldIds(schema, identifierFieldNames);
+  }
+
+  /**
+   * Rebuild a schema with given schema and identifier fields.
+   * @param schema The origin schema.
+   * @param identifierFieldNames The names of the identifier fields in the new schema.
+   * @return New schema with IdentifierFieldIds.
+   */
+  @VisibleForTesting
+  static Schema rebuildSchemaWithIdentifierFieldIds(Schema schema, Set<String> identifierFieldNames) {
+    if (identifierFieldNames.size() == 0) {
+      return schema;
+    }
+
+    // Identifier fields in nested field are not supported, so we just check the first level columns.
+    Map<String, Types.NestedField> columnsMap = schema.columns().stream()
+        .collect(Collectors.toMap(Types.NestedField::name, field -> field));
+    Set<Integer> identifierFieldIds = identifierFieldNames.stream()
+        .map(name -> {
+          Types.NestedField field = columnsMap.get(name);
+          if (field == null) {
+            // Does not exist or in nested field.
+            throw new IllegalArgumentException(
+                String.format("Cannot add field `%s` as an identifier field: " +
+                    "the field must exist on the root level", name));
+          }
+          if (!field.type().isPrimitiveType()) {
+            // Field is nested.
+            throw new IllegalArgumentException(
+                String.format("Cannot add field `%s` as an identifier field: " +
+                    "only primitive fields are allowed", name));
+          }
+          return field.fieldId();
+        }).collect(Collectors.toSet());
+
+    // IdentifierFieldIds must be required.
+    List<Types.NestedField> columns = schema.columns().stream()
+        .map(column -> identifierFieldIds.contains(column.fieldId()) ? column.asRequired() : column)
+        .collect(Collectors.toList());
+    return new Schema(columns, identifierFieldIds);
   }
 
   /**
@@ -110,10 +167,13 @@ public final class HiveSchemaUtil {
    * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
    *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
    *                    thrown.
+   * @param identifierFieldNames The names of the identifier fields for the schema.
    * @return The Iceberg schema
    */
-  public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments, boolean autoConvert) {
-    return HiveSchemaConverter.convert(names, types, comments, autoConvert);
+  public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments, boolean autoConvert,
+      Set<String> identifierFieldNames) {
+    Schema schema = HiveSchemaConverter.convert(names, types, comments, autoConvert);
+    return rebuildSchemaWithIdentifierFieldIds(schema, identifierFieldNames);
   }
 
   /**

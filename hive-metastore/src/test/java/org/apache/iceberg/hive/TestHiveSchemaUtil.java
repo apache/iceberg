@@ -29,6 +29,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -168,6 +169,64 @@ public class TestHiveSchemaUtil {
         Arrays.asList("customer comment"));
 
     Assert.assertEquals(expected.asStruct(), schema.asStruct());
+  }
+
+  @Test
+  public void testRebuildSchemaWithIdentifierFieldIds() {
+    Schema actualSchema = HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
+        COMPLEX_ICEBERG_SCHEMA,
+        ImmutableSet.of("id", "name"));
+
+    List<Types.NestedField> columns = Lists.newArrayList(COMPLEX_ICEBERG_SCHEMA.columns());
+    columns.set(0, columns.get(0).asRequired());
+    columns.set(1, columns.get(1).asRequired());
+    Schema expectedSchema = new Schema(columns, ImmutableSet.of(0, 1));
+
+    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+  }
+
+  @Test
+  public void testRebuildSchemaWithIdentifierFieldIdsError() {
+    Assert.assertThrows(
+        "Cannot add field `not_exist_column` as an identifier field: the field must exist on the root level",
+        IllegalArgumentException.class,
+        () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
+            COMPLEX_ICEBERG_SCHEMA,
+            ImmutableSet.of("id", "not_exist_column")));
+    Assert.assertThrows(
+        "Cannot add field `employee_info.id` as an identifier field: the field must exist on the root level",
+        IllegalArgumentException.class,
+        () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
+            COMPLEX_ICEBERG_SCHEMA,
+            ImmutableSet.of("id", "employee_info.id")));
+    Assert.assertThrows(
+        "Cannot add field `employee_info` as an identifier field: only primitive fields are allowed",
+        IllegalArgumentException.class,
+        () -> HiveSchemaUtil.rebuildSchemaWithIdentifierFieldIds(
+            COMPLEX_ICEBERG_SCHEMA,
+            ImmutableSet.of("id", "employee_info")));
+  }
+
+  @Test
+  public void testConvertToIcebergSchemaWithIdentifierFieldIds() {
+    List<Types.NestedField> columns = Lists.newArrayList(COMPLEX_ICEBERG_SCHEMA.columns());
+    columns.set(0, columns.get(0).asRequired());
+    columns.set(1, columns.get(1).asRequired());
+    Schema expectedSchema = new Schema(columns, ImmutableSet.of(0, 1));
+
+    ImmutableSet<String> identifierFieldNames = ImmutableSet.of("id", "name");
+
+    Assert.assertEquals(
+        expectedSchema.asStruct(),
+        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA, identifierFieldNames).asStruct());
+
+    Assert.assertEquals(
+        expectedSchema.asStruct(),
+        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA, false, identifierFieldNames).asStruct());
+
+    Assert.assertEquals(
+        expectedSchema.asStruct(),
+        HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA, true, identifierFieldNames).asStruct());
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {

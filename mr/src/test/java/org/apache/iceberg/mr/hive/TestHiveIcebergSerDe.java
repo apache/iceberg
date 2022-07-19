@@ -22,6 +22,7 @@ package org.apache.iceberg.mr.hive;
 import java.io.File;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.iceberg.Schema;
@@ -32,6 +33,8 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -76,6 +79,28 @@ public class TestHiveIcebergSerDe {
     container.set(record);
 
     Assert.assertEquals(record, serDe.deserialize(container));
+  }
+
+  @Test
+  public void testGetIdentifierFieldSet() {
+    // default separator ','
+    Set<String> identifierFieldSet1 = HiveIcebergSerDe.getIdentifierFieldSet(ImmutableMap.of(
+        InputFormatConfig.IDENTIFIER_FIELD_NAMES, "c1,c2,c3"));
+    Assert.assertEquals(ImmutableSet.of("c1", "c2", "c3"), identifierFieldSet1);
+
+    // ' '
+    String separator2 = " ";
+    Set<String> identifierFieldSet2 = HiveIcebergSerDe.getIdentifierFieldSet(ImmutableMap.of(
+        InputFormatConfig.IDENTIFIER_FIELD_NAMES, "c1 c2 c3",
+        InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR, separator2));
+    Assert.assertEquals(ImmutableSet.of("c1", "c2", "c3"), identifierFieldSet2);
+
+    // regex
+    String separator3 = " +";
+    Set<String> identifierFieldSet3 = HiveIcebergSerDe.getIdentifierFieldSet(ImmutableMap.of(
+        InputFormatConfig.IDENTIFIER_FIELD_NAMES, "c1      c2    c3",
+        InputFormatConfig.IDENTIFIER_FIELDS_SEPARATOR, separator3));
+    Assert.assertEquals(ImmutableSet.of("c1", "c2", "c3"), identifierFieldSet3);
   }
 
 }
