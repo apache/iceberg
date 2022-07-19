@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
@@ -147,7 +148,17 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     } catch (RuntimeException persistFailure) {
       LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
           fullTableName, persistFailure);
-      commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+
+      if (persistFailure instanceof AwsServiceException) {
+        int statusCode = ((AwsServiceException) persistFailure).statusCode();
+        if (statusCode >= 500 && statusCode < 600) {
+          commitStatus = CommitStatus.FAILURE;
+        } else {
+          throw persistFailure;
+        }
+      } else {
+        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+      }
 
       switch (commitStatus) {
         case SUCCESS:
