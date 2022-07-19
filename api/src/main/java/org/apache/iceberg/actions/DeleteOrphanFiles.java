@@ -82,37 +82,49 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
 
   /**
-   * Pass a mode for handling the files that cannot be determined if they are orphan
-   * The allowed modes are "IGNORE", "ERROR", "DELETE"
-   * Default prefixMismatchMode is "ERROR".
+   * Passes a prefix mismatch mode that determines how this action should handle situations when
+   * the metadata references files that match listed/provided files except for authority/scheme.
+   * <p>
+   * Possible values are "ERROR", "IGNORE", "DELETE". The default mismatch mode is "ERROR",
+   * which means an exception is thrown whenever there is a mismatch in authority/scheme.
+   * It's the recommended mismatch mode and should be changed only in some rare circumstances.
+   * If there is a mismatch, use {@link #newEqualSchemes(Map)} (Map)} and {@link #newEqualAuthorities(Map)} (Map)}
+   * to resolve conflicts by providing equivalent schemes and authorities. If it is impossible
+   * to determine whether the conflicting authorities/schemes are equal, set the prefix mismatch
+   * mode to "IGNORE" to skip files with mismatches. If you have manually inspected all conflicting
+   * authorities/schemes, provided equivalent schemes/authorities and are absolutely confident
+   * the remaining ones are different, set the prefix mismatch mode to "DELETE" to consider files
+   * with mismatches as orphan. It will be impossible to recover files after deletion,
+   * so the "DELETE" prefix mismatch mode must be used with extreme caution.
    *
-   * @param mode mode for handling files that cannot be determined if they are orphan
+   * @param mode mode for handling prefix mismatches
    * @return this for method chaining
    */
-  default DeleteOrphanFiles prefixMismatchMode(PrefixMismatchMode mode) {
+  default DeleteOrphanFiles newPrefixMismatchMode(PrefixMismatchMode mode) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement prefixMismatchMode");
   }
 
   /**
-   * Pass a Map with a String key and comma separated list of schemes  to be considered equal when finding orphan files.
-   * example: Map("s3", "s3a, s3, s3n")
+   * Passes schemes that should be considered equal.
+   * <p>
+   * The key may include a comma-separated list of schemes. For instance, Map("s3a,s3,s3n", "s3").
    *
    * @param equalSchemes list of equal schemes
    * @return this for method chaining
    */
-  default DeleteOrphanFiles equalSchemes(Map<String, String> equalSchemes) {
+  default DeleteOrphanFiles newEqualSchemes(Map<String, String> equalSchemes) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement equalSchemes");
   }
 
   /**
-   * Pass a Map with a String key and comma separated list of authorities  to be considered
-   * equal when finding orphan files.
-   * example: Map("servicename", "sname1, sname2")
+   * Passes authorities that should be considered equal.
+   * <p>
+   * The key may include a comma-separate list of authorities. For instance, Map("s1name,s2name", "servicename").
    *
-   * @param equalAuthorities list of equal schemes
+   * @param equalAuthorities list of equal authorities
    * @return this for method chaining
    */
-  default DeleteOrphanFiles equalAuthorities(Map<String, String> equalAuthorities) {
+  default DeleteOrphanFiles newEqualAuthorities(Map<String, String> equalAuthorities) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement equalAuthorities");
   }
 
@@ -127,12 +139,13 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
   }
 
   /**
-   * Defines the Delete Orphan files behaviour when there is mismatch in prefix(scheme/authority)
-   * ERROR - Throws an exception when prefix mismatch
-   * IGNORE - No action when prefix mismatch
-   * DELETE - Delete the files when prefix mismatch
+   * Defines the action behavior when location prefixes (scheme/authority) mismatch.
+   * <p>
+   * {@link #ERROR} - throw an exception.
+   * {@link #IGNORE} - no action.
+   * {@link #DELETE} - delete files.
    */
   enum PrefixMismatchMode {
-    ERROR, IGNORE, DELETE
+    ERROR, IGNORE, DELETE;
   }
 }

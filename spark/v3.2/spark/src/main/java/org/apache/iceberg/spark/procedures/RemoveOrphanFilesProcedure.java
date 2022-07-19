@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -148,11 +148,12 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         action.compareToFileList(spark().table(fileListView));
       }
       Preconditions.checkArgument(prefixMismatchMode == null ||
-              Lists.newArrayList("ignore", "error").contains(prefixMismatchMode.toLowerCase()),
+                      Arrays.stream(DeleteOrphanFiles.PrefixMismatchMode.values()).anyMatch(mode ->
+                              mode.name().equals(prefixMismatchMode)),
           String.format("Invalid prefix mismatch mode: %s", prefixMismatchMode));
-      action.equalSchemes(equalSchemes);
-      action.equalAuthorities(equalAuthorities);
-      action.prefixMismatchMode(DeleteOrphanFiles.PrefixMismatchMode.valueOf(prefixMismatchMode));
+      action.newEqualSchemes(equalSchemes);
+      action.newEqualAuthorities(equalAuthorities);
+      action.newPrefixMismatchMode(DeleteOrphanFiles.PrefixMismatchMode.valueOf(prefixMismatchMode));
 
       DeleteOrphanFiles.Result result = action.execute();
 

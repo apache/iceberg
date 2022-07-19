@@ -49,6 +49,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -979,25 +980,26 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   @Test
   public void testPathsWithEqualSchemes() {
-    List<String> validFiles = Lists.newArrayList("s3://bucket1/dir1/dir2/file1");
+    List<String> validFiles = Lists.newArrayList("s3n://bucket1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("s3a://bucket1/dir1/dir2/file1");
     AssertHelpers.assertThrows("Test remove orphan files with equal schemes",
         ValidationException.class,
-        "Conflicting authorities/schemes found: [(s3, s3a)]",
+        "Conflicting authorities/schemes: [(s3n, s3a)]",
         () -> executeTest(validFiles,
             actualFiles,
             Lists.newArrayList(),
-            null,
-            null,
+            ImmutableMap.of(),
+                ImmutableMap.of(),
             DeleteOrphanFiles.PrefixMismatchMode.ERROR));
 
     Map<String, String> equalSchemes = Maps.newHashMap();
-    equalSchemes.put("s3, s3a", "s3");
+    equalSchemes.put("s3n", "s3");
+    equalSchemes.put("s3a", "s3");
     executeTest(validFiles,
         actualFiles,
         Lists.newArrayList(),
         equalSchemes,
-        null,
+            ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.ERROR);
   }
 
@@ -1007,20 +1009,21 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
     AssertHelpers.assertThrows("Test remove orphan files with equal authorities",
         ValidationException.class,
-        "Conflicting authorities/schemes found: [(servicename1, servicename2)]",
+        "Conflicting authorities/schemes: [(servicename1, servicename2)]",
         () -> executeTest(validFiles,
             actualFiles,
             Lists.newArrayList(),
-            null,
-            null,
+                ImmutableMap.of(),
+                ImmutableMap.of(),
             DeleteOrphanFiles.PrefixMismatchMode.ERROR));
 
     Map<String, String> equalAuthorities = Maps.newHashMap();
-    equalAuthorities.put("servicename1, servicename2", "servicename");
+    equalAuthorities.put("servicename1", "servicename");
+    equalAuthorities.put("servicename2", "servicename");
     executeTest(validFiles,
         actualFiles,
         Lists.newArrayList(),
-        null,
+            ImmutableMap.of(),
         equalAuthorities,
         DeleteOrphanFiles.PrefixMismatchMode.ERROR);
   }
@@ -1033,15 +1036,15 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     executeTest(validFiles,
         actualFiles,
         Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1"),
-        null,
-        null,
+            ImmutableMap.of(),
+            ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.DELETE);
   }
 
   private void executeTest(List<String> validFiles,
                            List<String> actualFiles,
                            List<String> expectedOrphanFiles) {
-    executeTest(validFiles, actualFiles, expectedOrphanFiles, null, null,
+    executeTest(validFiles, actualFiles, expectedOrphanFiles, ImmutableMap.of(), ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.IGNORE);
   }
 
