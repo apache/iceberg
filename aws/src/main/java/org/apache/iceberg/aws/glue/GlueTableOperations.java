@@ -164,7 +164,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           break;
         case FAILURE:
           throw new CommitFailedException(persistFailure,
-                "Cannot commit %s due to unexpected exception", tableName());
+              "Cannot commit %s due to unexpected exception", tableName());
         case UNKNOWN:
           throw new CommitStateUnknownException(persistFailure);
       }
