@@ -173,6 +173,7 @@ public class TestS3FileIO {
       for (int j = 1; j <= numObjects; j++) {
         String key = "object-" + j;
         paths.add("s3://" + bucketName + "/" + key);
+        s3mock.putObject(builder -> builder.bucket(bucketName).key(key).build(), RequestBody.empty());
       }
     }
     s3FileIO.deleteFiles(paths);
@@ -217,9 +218,9 @@ public class TestS3FileIO {
   @Test
   public void testPrefixDelete() {
     String prefix = "s3://bucket/path/to/delete";
-    List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
+    List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1001);
 
-    scaleSizes.parallelStream().forEach(scale -> {
+    scaleSizes.forEach(scale -> {
       String scalePrefix = String.format("%s/%s/", prefix, scale);
 
       createRandomObjects(scalePrefix, scale);
