@@ -46,6 +46,7 @@ import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
+import software.amazon.awssdk.services.glue.model.GlueException;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
@@ -147,7 +148,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           tableName());
     } catch (S3Exception e) {
       throw e;
-    } catch (software.amazon.awssdk.services.glue.model.GlueException e) {
+    } catch (GlueException e) {
       throw e;
     } catch (RuntimeException persistFailure) {
       LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
