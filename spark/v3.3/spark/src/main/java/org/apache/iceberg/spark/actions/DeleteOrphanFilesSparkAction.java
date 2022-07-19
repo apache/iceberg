@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.File;
 import java.io.IOException;
@@ -68,50 +70,53 @@ import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.GC_ENABLED;
-import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
-
 /**
- * An action that removes orphan metadata, data and delete files by listing a given location and comparing
- * the actual files in that location with content and metadata files referenced by all valid snapshots.
- * The location must be accessible for listing via the Hadoop {@link FileSystem}.
- * <p>
- * By default, this action cleans up the table location returned by {@link Table#location()} and
- * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can be modified
- * by passing a custom location to {@link #location} and a custom timestamp to {@link #olderThan(long)}.
- * For example, someone might point this action to the data folder to clean up only orphan data files.
- * <p>
- * Configure an alternative delete method using {@link #deleteWith(Consumer)}.
- * <p>
- * For full control of the set of files being evaluated, use the {@link #compareToFileList(Dataset)} argument.  This
- * skips the directory listing - any files in the dataset provided which are not found in table metadata will
- * be deleted, using the same {@link Table#location()} and {@link #olderThan(long)} filtering as above.
- * <p>
- * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
- * the state of the table if another operation is writing at the same time.
+ * An action that removes orphan metadata, data and delete files by listing a given location and
+ * comparing the actual files in that location with content and metadata files referenced by all
+ * valid snapshots. The location must be accessible for listing via the Hadoop {@link FileSystem}.
+ *
+ * <p>By default, this action cleans up the table location returned by {@link Table#location()} and
+ * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can
+ * be modified by passing a custom location to {@link #location} and a custom timestamp to {@link
+ * #olderThan(long)}. For example, someone might point this action to the data folder to clean up
+ * only orphan data files.
+ *
+ * <p>Configure an alternative delete method using {@link #deleteWith(Consumer)}.
+ *
+ * <p>For full control of the set of files being evaluated, use the {@link
+ * #compareToFileList(Dataset)} argument. This skips the directory listing - any files in the
+ * dataset provided which are not found in table metadata will be deleted, using the same {@link
+ * Table#location()} and {@link #olderThan(long)} filtering as above.
+ *
+ * <p><em>Note:</em> It is dangerous to call this action with a short retention interval as it might
+ * corrupt the state of the table if another operation is writing at the same time.
  */
-public class DeleteOrphanFilesSparkAction
-    extends BaseSparkAction<DeleteOrphanFilesSparkAction> implements DeleteOrphanFiles {
+public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFilesSparkAction>
+    implements DeleteOrphanFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
-  private static final UserDefinedFunction filenameUDF = functions.udf((String path) -> {
-    int lastIndex = path.lastIndexOf(File.separator);
-    if (lastIndex == -1) {
-      return path;
-    } else {
-      return path.substring(lastIndex + 1);
-    }
-  }, DataTypes.StringType);
+  private static final UserDefinedFunction filenameUDF =
+      functions.udf(
+          (String path) -> {
+            int lastIndex = path.lastIndexOf(File.separator);
+            if (lastIndex == -1) {
+              return path;
+            } else {
+              return path.substring(lastIndex + 1);
+            }
+          },
+          DataTypes.StringType);
 
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
   private final Table table;
-  private final Consumer<String> defaultDelete = new Consumer<String>() {
-    @Override
-    public void accept(String file) {
-      table.io().deleteFile(file);
-    }
-  };
+  private final Consumer<String> defaultDelete =
+      new Consumer<String>() {
+        @Override
+        public void accept(String file) {
+          table.io().deleteFile(file);
+        }
+      };
 
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
@@ -123,7 +128,8 @@ public class DeleteOrphanFilesSparkAction
     super(spark);
 
     this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
-    this.partitionDiscoveryParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
+    this.partitionDiscoveryParallelism =
+        spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
     this.location = table.location();
 
@@ -204,23 +210,24 @@ public class DeleteOrphanFilesSparkAction
     if (location != null) {
       options.add("location=" + location);
     }
-    return String.format("Deleting orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
+    return String.format(
+        "Deleting orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
   }
 
   private DeleteOrphanFiles.Result doExecute() {
     Dataset<Row> validContentFileDF = buildValidContentFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
     Dataset<Row> validFileDF = validContentFileDF.union(validMetadataFileDF);
-    Dataset<Row> actualFileDF = compareToFileList == null ? buildActualFileDF() : filteredCompareToFileList();
+    Dataset<Row> actualFileDF =
+        compareToFileList == null ? buildActualFileDF() : filteredCompareToFileList();
 
     Column actualFileName = filenameUDF.apply(actualFileDF.col(FILE_PATH));
     Column validFileName = filenameUDF.apply(validFileDF.col(FILE_PATH));
     Column nameEqual = actualFileName.equalTo(validFileName);
     Column actualContains = actualFileDF.col(FILE_PATH).contains(validFileDF.col(FILE_PATH));
     Column joinCond = nameEqual.and(actualContains);
-    List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
-        .as(Encoders.STRING())
-        .collectAsList();
+    List<String> orphanFiles =
+        actualFileDF.join(validFileDF, joinCond, "leftanti").as(Encoders.STRING()).collectAsList();
 
     Tasks.foreach(orphanFiles)
         .noRetry()
@@ -240,7 +247,8 @@ public class DeleteOrphanFilesSparkAction
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
 
     // list at most 3 levels and only dirs that have less than 10 direct sub dirs on the driver
-    listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, pathFilter, matchingFiles);
+    listDirRecursively(
+        location, predicate, hadoopConf.value(), 3, 10, subDirs, pathFilter, matchingFiles);
 
     JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
 
@@ -252,17 +260,22 @@ public class DeleteOrphanFilesSparkAction
     JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
 
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
-    JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(
-        listDirsRecursively(conf, olderThanTimestamp, pathFilter)
-    );
+    JavaRDD<String> matchingLeafFileRDD =
+        subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp, pathFilter));
 
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
     return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF(FILE_PATH);
   }
 
   private static void listDirRecursively(
-      String dir, Predicate<FileStatus> predicate, Configuration conf, int maxDepth,
-      int maxDirectSubDirs, List<String> remainingSubDirs, PathFilter pathFilter, List<String> matchingFiles) {
+      String dir,
+      Predicate<FileStatus> predicate,
+      Configuration conf,
+      int maxDepth,
+      int maxDirectSubDirs,
+      List<String> remainingSubDirs,
+      PathFilter pathFilter,
+      List<String> matchingFiles) {
 
     // stop listing whenever we reach the max depth
     if (maxDepth <= 0) {
@@ -292,7 +305,14 @@ public class DeleteOrphanFilesSparkAction
 
       for (String subDir : subDirs) {
         listDirRecursively(
-            subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, pathFilter, matchingFiles);
+            subDir,
+            predicate,
+            conf,
+            maxDepth - 1,
+            maxDirectSubDirs,
+            remainingSubDirs,
+            pathFilter,
+            matchingFiles);
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -300,9 +320,7 @@ public class DeleteOrphanFilesSparkAction
   }
 
   private static FlatMapFunction<Iterator<String>, String> listDirsRecursively(
-      Broadcast<SerializableConfiguration> conf,
-      long olderThanTimestamp,
-      PathFilter pathFilter) {
+      Broadcast<SerializableConfiguration> conf, long olderThanTimestamp, PathFilter pathFilter) {
 
     return dirs -> {
       List<String> subDirs = Lists.newArrayList();
@@ -313,13 +331,22 @@ public class DeleteOrphanFilesSparkAction
       int maxDepth = 2000;
       int maxDirectSubDirs = Integer.MAX_VALUE;
 
-      dirs.forEachRemaining(dir -> {
-        listDirRecursively(
-                dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, pathFilter, files);
-      });
+      dirs.forEachRemaining(
+          dir -> {
+            listDirRecursively(
+                dir,
+                predicate,
+                conf.value().value(),
+                maxDepth,
+                maxDirectSubDirs,
+                subDirs,
+                pathFilter,
+                files);
+          });
 
       if (!subDirs.isEmpty()) {
-        throw new RuntimeException("Could not list subdirectories, reached maximum subdirectory depth: " + maxDepth);
+        throw new RuntimeException(
+            "Could not list subdirectories, reached maximum subdirectory depth: " + maxDepth);
       }
 
       return files.iterator();
@@ -327,9 +354,9 @@ public class DeleteOrphanFilesSparkAction
   }
 
   /**
-   * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be marked
-   * as hidden by {@link HiddenPathFilter} due to a partition field that starts with one of the characters that
-   * indicate a hidden path.
+   * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be
+   * marked as hidden by {@link HiddenPathFilter} due to a partition field that starts with one of
+   * the characters that indicate a hidden path.
    */
   @VisibleForTesting
   static class PartitionAwareHiddenPathFilter implements PathFilter, Serializable {
@@ -342,7 +369,8 @@ public class DeleteOrphanFilesSparkAction
 
     @Override
     public boolean accept(Path path) {
-      boolean isHiddenPartitionPath = hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
+      boolean isHiddenPartitionPath =
+          hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
       return isHiddenPartitionPath || HiddenPathFilter.get().accept(path);
     }
 
@@ -351,14 +379,20 @@ public class DeleteOrphanFilesSparkAction
         return HiddenPathFilter.get();
       }
 
-      Set<String> partitionNames = specs.values().stream()
-          .map(PartitionSpec::fields)
-          .flatMap(List::stream)
-          .filter(partitionField -> partitionField.name().startsWith("_") || partitionField.name().startsWith("."))
-          .map(partitionField -> partitionField.name() + "=")
-          .collect(Collectors.toSet());
+      Set<String> partitionNames =
+          specs.values().stream()
+              .map(PartitionSpec::fields)
+              .flatMap(List::stream)
+              .filter(
+                  partitionField ->
+                      partitionField.name().startsWith("_")
+                          || partitionField.name().startsWith("."))
+              .map(partitionField -> partitionField.name() + "=")
+              .collect(Collectors.toSet());
 
-      return partitionNames.isEmpty() ? HiddenPathFilter.get() : new PartitionAwareHiddenPathFilter(partitionNames);
+      return partitionNames.isEmpty()
+          ? HiddenPathFilter.get()
+          : new PartitionAwareHiddenPathFilter(partitionNames);
     }
   }
 }

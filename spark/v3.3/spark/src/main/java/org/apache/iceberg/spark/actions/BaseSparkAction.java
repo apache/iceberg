@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.lit;
 
 import java.util.Iterator;
 import java.util.List;
@@ -53,10 +56,6 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import scala.Tuple2;
-
-import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
-import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.lit;
 
 abstract class BaseSparkAction<ThisT> {
 
@@ -127,21 +126,28 @@ abstract class BaseSparkAction<ThisT> {
 
   // builds a DF of delete and data file path and type by reading all manifests
   protected Dataset<Row> buildValidContentFileWithTypeDF(Table table) {
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    Broadcast<Table> tableBroadcast =
+        sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
 
-    Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
-        .selectExpr(
-            "content",
-            "path",
-            "length",
-            "partition_spec_id as partitionSpecId",
-            "added_snapshot_id as addedSnapshotId")
-        .dropDuplicates("path")
-        .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
-        .as(Encoders.bean(ManifestFileBean.class));
+    Dataset<ManifestFileBean> allManifests =
+        loadMetadataTable(table, ALL_MANIFESTS)
+            .selectExpr(
+                "content",
+                "path",
+                "length",
+                "partition_spec_id as partitionSpecId",
+                "added_snapshot_id as addedSnapshotId")
+            .dropDuplicates("path")
+            .repartition(
+                spark
+                    .sessionState()
+                    .conf()
+                    .numShufflePartitions()) // avoid adaptive execution combining tasks
+            .as(Encoders.bean(ManifestFileBean.class));
 
     return allManifests
-        .flatMap(new ReadManifest(tableBroadcast), Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
+        .flatMap(
+            new ReadManifest(tableBroadcast), Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
         .toDF(FILE_PATH, FILE_TYPE);
   }
 
@@ -160,16 +166,20 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
-    return buildOtherMetadataFileDF(table, false /* include all reachable previous metadata locations */);
+    return buildOtherMetadataFileDF(
+        table, false /* include all reachable previous metadata locations */);
   }
 
   protected Dataset<Row> buildAllReachableOtherMetadataFileDF(Table table) {
-    return buildOtherMetadataFileDF(table, true /* include all reachable previous metadata locations */);
+    return buildOtherMetadataFileDF(
+        table, true /* include all reachable previous metadata locations */);
   }
 
-  private Dataset<Row> buildOtherMetadataFileDF(Table table, boolean includePreviousMetadataLocations) {
+  private Dataset<Row> buildOtherMetadataFileDF(
+      Table table, boolean includePreviousMetadataLocations) {
     List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, includePreviousMetadataLocations));
+    otherMetadataFiles.addAll(
+        ReachableFileUtil.metadataFileLocations(table, includePreviousMetadataLocations));
     otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
     return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF(FILE_PATH);
   }
@@ -190,7 +200,8 @@ abstract class BaseSparkAction<ThisT> {
     return SparkTableUtil.loadMetadataTable(spark, table, type);
   }
 
-  private static class ReadManifest implements FlatMapFunction<ManifestFileBean, Tuple2<String, String>> {
+  private static class ReadManifest
+      implements FlatMapFunction<ManifestFileBean, Tuple2<String, String>> {
     private final Broadcast<Table> table;
 
     ReadManifest(Broadcast<Table> table) {
@@ -205,7 +216,8 @@ abstract class BaseSparkAction<ThisT> {
     public CloseableIterator<Tuple2<String, String>> entries(ManifestFileBean manifest) {
       FileIO io = table.getValue().io();
       Map<Integer, PartitionSpec> specs = table.getValue().specs();
-      ImmutableList<String> projection = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name());
+      ImmutableList<String> projection =
+          ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name());
 
       switch (manifest.content()) {
         case DATA:
@@ -217,7 +229,8 @@ abstract class BaseSparkAction<ThisT> {
               ManifestFiles.readDeleteManifest(manifest, io, specs).select(projection).iterator(),
               ReadManifest::contentFileWithType);
         default:
-          throw new IllegalArgumentException("Unsupported manifest content type:" + manifest.content());
+          throw new IllegalArgumentException(
+              "Unsupported manifest content type:" + manifest.content());
       }
     }
 

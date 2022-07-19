@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.List;
@@ -71,9 +73,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @RunWith(Parameterized.class)
 public class TestSparkReaderDeletes extends DeleteReadTests {
 
@@ -97,15 +96,18 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     metastore.start();
     HiveConf hiveConf = metastore.hiveConf();
 
-    spark = SparkSession.builder()
-        .master("local[2]")
-        .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-        .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-        .enableHiveSupport()
-        .getOrCreate();
+    spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
+            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .enableHiveSupport()
+            .getOrCreate();
 
-    catalog = (HiveCatalog)
-        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
+    catalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
     try {
       catalog.createNamespace(Namespace.of("default"));
@@ -130,14 +132,15 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
     if (vectorized) {
-      table.updateProperties()
+      table
+          .updateProperties()
           .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true")
-          .set(TableProperties.PARQUET_BATCH_SIZE, "4") // split 7 records to two batches to cover more code paths
+          .set(
+              TableProperties.PARQUET_BATCH_SIZE,
+              "4") // split 7 records to two batches to cover more code paths
           .commit();
     } else {
-      table.updateProperties()
-          .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false")
-          .commit();
+      table.updateProperties().set(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false").commit();
     }
     return table;
   }
@@ -153,16 +156,20 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   public StructLikeSet rowSet(String name, Types.StructType projection, String... columns) {
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .load(TableIdentifier.of("default", name).toString())
-        .selectExpr(columns);
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", name).toString())
+            .selectExpr(columns);
 
     StructLikeSet set = StructLikeSet.create(projection);
-    df.collectAsList().forEach(row -> {
-      SparkStructLike rowWrapper = new SparkStructLike(projection);
-      set.add(rowWrapper.wrap(row));
-    });
+    df.collectAsList()
+        .forEach(
+            row -> {
+              SparkStructLike rowWrapper = new SparkStructLike(projection);
+              set.add(rowWrapper.wrap(row));
+            });
 
     return set;
   }
@@ -172,31 +179,39 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29
-        dataDelete.copy("data", "d"), // id = 89
-        dataDelete.copy("data", "g") // id = 122
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.newFile()),
+            TestHelpers.Row.of(0),
+            dataDeletes,
+            deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(eqDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(eqDeletes).commit();
 
     Types.StructType projection = table.schema().select("*").asStruct();
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .load(TableIdentifier.of("default", tableName).toString())
-        .filter("data = 'a'") // select a deleted row
-        .selectExpr("*");
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", tableName).toString())
+            .filter("data = 'a'") // select a deleted row
+            .selectExpr("*");
 
     StructLikeSet actual = StructLikeSet.create(projection);
-    df.collectAsList().forEach(row -> {
-      SparkStructLike rowWrapper = new SparkStructLike(projection);
-      actual.add(rowWrapper.wrap(row));
-    });
+    df.collectAsList()
+        .forEach(
+            row -> {
+              SparkStructLike rowWrapper = new SparkStructLike(projection);
+              actual.add(rowWrapper.wrap(row));
+            });
 
     Assert.assertEquals("Table should contain no rows", 0, actual.size());
   }
@@ -205,44 +220,57 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   public void testReadEqualityDeleteRows() throws IOException {
     Schema deleteSchema1 = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteSchema1);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29
-        dataDelete.copy("data", "d") // id = 89
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d") // id = 89
+            );
 
     Schema deleteSchema2 = table.schema().select("id");
     Record idDelete = GenericRecord.create(deleteSchema2);
-    List<Record> idDeletes = Lists.newArrayList(
-        idDelete.copy("id", 121), // id = 121
-        idDelete.copy("id", 122) // id = 122
-    );
+    List<Record> idDeletes =
+        Lists.newArrayList(
+            idDelete.copy("id", 121), // id = 121
+            idDelete.copy("id", 122) // id = 122
+            );
 
-    DeleteFile eqDelete1 = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteSchema1);
+    DeleteFile eqDelete1 =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.newFile()),
+            TestHelpers.Row.of(0),
+            dataDeletes,
+            deleteSchema1);
 
-    DeleteFile eqDelete2 = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), idDeletes, deleteSchema2);
+    DeleteFile eqDelete2 =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.newFile()),
+            TestHelpers.Row.of(0),
+            idDeletes,
+            deleteSchema2);
 
-    table.newRowDelta()
-        .addDeletes(eqDelete1)
-        .addDeletes(eqDelete2)
-        .commit();
+    table.newRowDelta().addDeletes(eqDelete1).addDeletes(eqDelete2).commit();
 
     StructLikeSet expectedRowSet = rowSetWithIds(29, 89, 121, 122);
 
     Types.StructType type = table.schema().asStruct();
     StructLikeSet actualRowSet = StructLikeSet.create(type);
 
-    CloseableIterable<CombinedScanTask> tasks = TableScanUtil.planTasks(
-        table.newScan().planFiles(),
-        TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
-        TableProperties.SPLIT_LOOKBACK_DEFAULT,
-        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    CloseableIterable<CombinedScanTask> tasks =
+        TableScanUtil.planTasks(
+            table.newScan().planFiles(),
+            TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
+            TableProperties.SPLIT_LOOKBACK_DEFAULT,
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
     for (CombinedScanTask task : tasks) {
-      try (EqualityDeleteRowReader reader = new EqualityDeleteRowReader(task, table, table.schema(), false)) {
+      try (EqualityDeleteRowReader reader =
+          new EqualityDeleteRowReader(task, table, table.schema(), false)) {
         while (reader.next()) {
-          actualRowSet.add(new InternalRowWrapper(SparkSchemaUtil.convert(table.schema())).wrap(reader.get().copy()));
+          actualRowSet.add(
+              new InternalRowWrapper(SparkSchemaUtil.convert(table.schema()))
+                  .wrap(reader.get().copy()));
         }
       }
     }
@@ -253,18 +281,22 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testPosDeletesAllRowsInBatch() throws IOException {
-    // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all deleted.
-    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 0L), // id = 29
-        Pair.of(dataFile.path(), 1L), // id = 43
-        Pair.of(dataFile.path(), 2L), // id = 61
-        Pair.of(dataFile.path(), 3L) // id = 89
-    );
+    // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all
+    // deleted.
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 0L), // id = 29
+            Pair.of(dataFile.path(), 1L), // id = 43
+            Pair.of(dataFile.path(), 2L), // id = 61
+            Pair.of(dataFile.path(), 3L) // id = 89
+            );
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
@@ -279,24 +311,29 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   public void testPosDeletesWithDeletedColumn() throws IOException {
     Assume.assumeFalse(vectorized);
 
-    // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all deleted.
-    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 0L), // id = 29
-        Pair.of(dataFile.path(), 1L), // id = 43
-        Pair.of(dataFile.path(), 2L), // id = 61
-        Pair.of(dataFile.path(), 3L) // id = 89
-    );
+    // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all
+    // deleted.
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 0L), // id = 29
+            Pair.of(dataFile.path(), 1L), // id = 43
+            Pair.of(dataFile.path(), 2L), // id = 61
+            Pair.of(dataFile.path(), 3L) // id = 89
+            );
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
     StructLikeSet expected = expectedRowSet(29, 43, 61, 89);
-    StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
+    StructLikeSet actual =
+        rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
   }
@@ -308,21 +345,26 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29
-        dataDelete.copy("data", "d"), // id = 89
-        dataDelete.copy("data", "g") // id = 122
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.newFile()),
+            TestHelpers.Row.of(0),
+            dataDeletes,
+            deleteRowSchema);
 
-    table.newRowDelta()
-        .addDeletes(eqDeletes)
-        .commit();
+    table.newRowDelta().addDeletes(eqDeletes).commit();
 
     StructLikeSet expected = expectedRowSet(29, 89, 122);
-    StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
+    StructLikeSet actual =
+        rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
   }
@@ -333,31 +375,41 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-        dataDelete.copy("data", "a"), // id = 29
-        dataDelete.copy("data", "d"), // id = 89
-        dataDelete.copy("data", "g") // id = 122
-    );
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, dataSchema);
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.newFile()),
+            TestHelpers.Row.of(0),
+            dataDeletes,
+            dataSchema);
 
-    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 3L), // id = 89
-        Pair.of(dataFile.path(), 5L) // id = 121
-    );
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 3L), // id = 89
+            Pair.of(dataFile.path(), 5L) // id = 121
+            );
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addDeletes(eqDeletes)
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
     StructLikeSet expected = expectedRowSet(29, 89, 121, 122);
-    StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
+    StructLikeSet actual =
+        rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
   }
@@ -366,17 +418,20 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   public void testFilterOnDeletedMetadataColumn() throws IOException {
     Assume.assumeFalse(vectorized);
 
-    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
-        Pair.of(dataFile.path(), 0L), // id = 29
-        Pair.of(dataFile.path(), 1L), // id = 43
-        Pair.of(dataFile.path(), 2L), // id = 61
-        Pair.of(dataFile.path(), 3L) // id = 89
-    );
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile.path(), 0L), // id = 29
+            Pair.of(dataFile.path(), 1L), // id = 43
+            Pair.of(dataFile.path(), 2L), // id = 61
+            Pair.of(dataFile.path(), 3L) // id = 89
+            );
 
-    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
 
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())
         .commit();
@@ -384,35 +439,43 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet expected = expectedRowSetWithNonDeletesOnly(29, 43, 61, 89);
 
     // get non-deleted rows
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .load(TableIdentifier.of("default", tableName).toString())
-        .select("id", "data", "_deleted")
-        .filter("_deleted = false");
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", tableName).toString())
+            .select("id", "data", "_deleted")
+            .filter("_deleted = false");
 
     Types.StructType projection = PROJECTION_SCHEMA.asStruct();
     StructLikeSet actual = StructLikeSet.create(projection);
-    df.collectAsList().forEach(row -> {
-      SparkStructLike rowWrapper = new SparkStructLike(projection);
-      actual.add(rowWrapper.wrap(row));
-    });
+    df.collectAsList()
+        .forEach(
+            row -> {
+              SparkStructLike rowWrapper = new SparkStructLike(projection);
+              actual.add(rowWrapper.wrap(row));
+            });
 
     Assert.assertEquals("Table should contain expected row", expected, actual);
 
     StructLikeSet expectedDeleted = expectedRowSetWithDeletesOnly(29, 43, 61, 89);
 
     // get deleted rows
-    df = spark.read()
-        .format("iceberg")
-        .load(TableIdentifier.of("default", tableName).toString())
-        .select("id", "data", "_deleted")
-        .filter("_deleted = true");
+    df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", tableName).toString())
+            .select("id", "data", "_deleted")
+            .filter("_deleted = true");
 
     StructLikeSet actualDeleted = StructLikeSet.create(projection);
-    df.collectAsList().forEach(row -> {
-      SparkStructLike rowWrapper = new SparkStructLike(projection);
-      actualDeleted.add(rowWrapper.wrap(row));
-    });
+    df.collectAsList()
+        .forEach(
+            row -> {
+              SparkStructLike rowWrapper = new SparkStructLike(projection);
+              actualDeleted.add(rowWrapper.wrap(row));
+            });
 
     Assert.assertEquals("Table should contain expected row", expectedDeleted, actualDeleted);
   }
@@ -422,15 +485,16 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     Assume.assumeFalse(vectorized);
 
     StructLikeSet expected = expectedRowSet();
-    StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
+    StructLikeSet actual =
+        rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
     Assert.assertEquals("Table should contain expected row", expected, actual);
   }
 
-  private static final Schema PROJECTION_SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()),
-      required(2, "data", Types.StringType.get()),
-      MetadataColumns.IS_DELETED
-  );
+  private static final Schema PROJECTION_SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get()),
+          required(2, "data", Types.StringType.get()),
+          MetadataColumns.IS_DELETED);
 
   private static StructLikeSet expectedRowSet(int... idsToRemove) {
     return expectedRowSet(false, false, idsToRemove);
@@ -444,21 +508,24 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     return expectedRowSet(true, false, idsToRemove);
   }
 
-  private static StructLikeSet expectedRowSet(boolean removeDeleted, boolean removeNonDeleted, int... idsToRemove) {
+  private static StructLikeSet expectedRowSet(
+      boolean removeDeleted, boolean removeNonDeleted, int... idsToRemove) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
     List<Record> records = recordsWithDeletedColumn();
     // mark rows deleted
-    records.forEach(record -> {
-      if (deletedIds.contains(record.getField("id"))) {
-        record.setField(MetadataColumns.IS_DELETED.name(), true);
-      }
-    });
+    records.forEach(
+        record -> {
+          if (deletedIds.contains(record.getField("id"))) {
+            record.setField(MetadataColumns.IS_DELETED.name(), true);
+          }
+        });
 
     records.removeIf(record -> deletedIds.contains(record.getField("id")) && removeDeleted);
     records.removeIf(record -> !deletedIds.contains(record.getField("id")) && removeNonDeleted);
 
     StructLikeSet set = StructLikeSet.create(PROJECTION_SCHEMA.asStruct());
-    records.forEach(record -> set.add(new InternalRecordWrapper(PROJECTION_SCHEMA.asStruct()).wrap(record)));
+    records.forEach(
+        record -> set.add(new InternalRecordWrapper(PROJECTION_SCHEMA.asStruct()).wrap(record)));
 
     return set;
   }

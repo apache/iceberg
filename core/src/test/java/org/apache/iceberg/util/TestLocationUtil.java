@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import org.apache.iceberg.AssertHelpers;
@@ -28,30 +27,38 @@ public class TestLocationUtil {
   @Test
   public void testStripTrailingSlash() {
     String pathWithoutTrailingSlash = "s3://bucket/db/tbl";
-    Assert.assertEquals("Should have no trailing slashes", pathWithoutTrailingSlash,
+    Assert.assertEquals(
+        "Should have no trailing slashes",
+        pathWithoutTrailingSlash,
         LocationUtil.stripTrailingSlash(pathWithoutTrailingSlash));
 
-    String pathWithSingleTrailingSlash = pathWithoutTrailingSlash  + "/";
-    Assert.assertEquals("Should have no trailing slashes", pathWithoutTrailingSlash,
+    String pathWithSingleTrailingSlash = pathWithoutTrailingSlash + "/";
+    Assert.assertEquals(
+        "Should have no trailing slashes",
+        pathWithoutTrailingSlash,
         LocationUtil.stripTrailingSlash(pathWithSingleTrailingSlash));
 
-    String pathWithMultipleTrailingSlash = pathWithoutTrailingSlash  + "////";
-    Assert.assertEquals("Should have no trailing slashes", pathWithoutTrailingSlash,
+    String pathWithMultipleTrailingSlash = pathWithoutTrailingSlash + "////";
+    Assert.assertEquals(
+        "Should have no trailing slashes",
+        pathWithoutTrailingSlash,
         LocationUtil.stripTrailingSlash(pathWithMultipleTrailingSlash));
 
     String pathWithOnlySlash = "////";
-    Assert.assertEquals("Should have no trailing slashes", "",
-        LocationUtil.stripTrailingSlash(pathWithOnlySlash));
+    Assert.assertEquals(
+        "Should have no trailing slashes", "", LocationUtil.stripTrailingSlash(pathWithOnlySlash));
   }
 
   @Test
   public void testStripTrailingSlashWithInvalidPath() {
-    String [] invalidPaths = new String[] {null, ""};
+    String[] invalidPaths = new String[] {null, ""};
 
     for (String invalidPath : invalidPaths) {
-      AssertHelpers.assertThrows("path must be valid", IllegalArgumentException.class, "path must not be null or empty",
+      AssertHelpers.assertThrows(
+          "path must be valid",
+          IllegalArgumentException.class,
+          "path must not be null or empty",
           () -> LocationUtil.stripTrailingSlash(invalidPath));
     }
-
   }
 }

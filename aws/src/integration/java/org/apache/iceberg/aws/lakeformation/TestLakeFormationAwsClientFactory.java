@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.lakeformation;
 
 import java.util.Map;
@@ -45,7 +44,8 @@ import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
 
 public class TestLakeFormationAwsClientFactory {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TestLakeFormationAwsClientFactory.class);
+  private static final Logger LOG =
+      LoggerFactory.getLogger(TestLakeFormationAwsClientFactory.class);
   private static final int IAM_PROPAGATION_DELAY = 10000;
   private static final int ASSUME_ROLE_SESSION_DURATION = 3600;
 
@@ -57,62 +57,82 @@ public class TestLakeFormationAwsClientFactory {
   @Before
   public void before() {
     roleName = UUID.randomUUID().toString();
-    iam = IamClient.builder()
-        .region(Region.AWS_GLOBAL)
-        .httpClientBuilder(UrlConnectionHttpClient.builder())
-        .build();
-    CreateRoleResponse response = iam.createRole(CreateRoleRequest.builder()
-        .roleName(roleName)
-        .assumeRolePolicyDocument("{" +
-            "\"Version\":\"2012-10-17\"," +
-            "\"Statement\":[{" +
-            "\"Effect\":\"Allow\"," +
-            "\"Principal\":{" +
-            "\"AWS\":\"arn:aws:iam::" + AwsIntegTestUtil.testAccountId() + ":root\"}," +
-            "\"Action\": [\"sts:AssumeRole\"," +
-            "\"sts:TagSession\"]}]}")
-        .maxSessionDuration(ASSUME_ROLE_SESSION_DURATION)
-        .build());
+    iam =
+        IamClient.builder()
+            .region(Region.AWS_GLOBAL)
+            .httpClientBuilder(UrlConnectionHttpClient.builder())
+            .build();
+    CreateRoleResponse response =
+        iam.createRole(
+            CreateRoleRequest.builder()
+                .roleName(roleName)
+                .assumeRolePolicyDocument(
+                    "{"
+                        + "\"Version\":\"2012-10-17\","
+                        + "\"Statement\":[{"
+                        + "\"Effect\":\"Allow\","
+                        + "\"Principal\":{"
+                        + "\"AWS\":\"arn:aws:iam::"
+                        + AwsIntegTestUtil.testAccountId()
+                        + ":root\"},"
+                        + "\"Action\": [\"sts:AssumeRole\","
+                        + "\"sts:TagSession\"]}]}")
+                .maxSessionDuration(ASSUME_ROLE_SESSION_DURATION)
+                .build());
     assumeRoleProperties = Maps.newHashMap();
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
     assumeRoleProperties.put(AwsProperties.GLUE_LAKEFORMATION_ENABLED, "true");
     assumeRoleProperties.put(AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_APACHE);
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, response.role().arn());
-    assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX +
-        LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER, "emr");
+    assumeRoleProperties.put(
+        AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX
+            + LakeFormationAwsClientFactory.LF_AUTHORIZED_CALLER,
+        "emr");
     policyName = UUID.randomUUID().toString();
   }
 
   @After
   public void after() {
-    iam.deleteRolePolicy(DeleteRolePolicyRequest.builder().roleName(roleName).policyName(policyName).build());
+    iam.deleteRolePolicy(
+        DeleteRolePolicyRequest.builder().roleName(roleName).policyName(policyName).build());
     iam.deleteRole(DeleteRoleRequest.builder().roleName(roleName).build());
   }
 
   @Test
   public void testLakeFormationEnabledGlueCatalog() throws Exception {
     String glueArnPrefix = "arn:aws:glue:*:" + AwsIntegTestUtil.testAccountId();
-    iam.putRolePolicy(PutRolePolicyRequest.builder()
-        .roleName(roleName)
-        .policyName(policyName)
-        .policyDocument("{" +
-            "\"Version\":\"2012-10-17\"," +
-            "\"Statement\":[{" +
-            "\"Sid\":\"policy1\"," +
-            "\"Effect\":\"Allow\"," +
-            "\"Action\":[\"glue:CreateDatabase\",\"glue:DeleteDatabase\"," +
-            "\"glue:Get*\",\"lakeformation:GetDataAccess\"]," +
-            "\"Resource\":[\"" + glueArnPrefix + ":catalog\"," +
-            "\"" + glueArnPrefix + ":database/allowed_*\"," +
-            "\"" + glueArnPrefix + ":table/allowed_*/*\"," +
-            "\"" + glueArnPrefix + ":userDefinedFunction/allowed_*/*\"]}]}")
-        .build());
+    iam.putRolePolicy(
+        PutRolePolicyRequest.builder()
+            .roleName(roleName)
+            .policyName(policyName)
+            .policyDocument(
+                "{"
+                    + "\"Version\":\"2012-10-17\","
+                    + "\"Statement\":[{"
+                    + "\"Sid\":\"policy1\","
+                    + "\"Effect\":\"Allow\","
+                    + "\"Action\":[\"glue:CreateDatabase\",\"glue:DeleteDatabase\","
+                    + "\"glue:Get*\",\"lakeformation:GetDataAccess\"],"
+                    + "\"Resource\":[\""
+                    + glueArnPrefix
+                    + ":catalog\","
+                    + "\""
+                    + glueArnPrefix
+                    + ":database/allowed_*\","
+                    + "\""
+                    + glueArnPrefix
+                    + ":table/allowed_*/*\","
+                    + "\""
+                    + glueArnPrefix
+                    + ":userDefinedFunction/allowed_*/*\"]}]}")
+            .build());
     waitForIamConsistency();
 
     GlueCatalog glueCatalog = new GlueCatalog();
     assumeRoleProperties.put("warehouse", "s3://path");
     glueCatalog.initialize("test", assumeRoleProperties);
-    Namespace deniedNamespace = Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""));
+    Namespace deniedNamespace =
+        Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""));
     try {
       glueCatalog.createNamespace(deniedNamespace);
       Assert.fail("Access to Glue should be denied");
@@ -123,7 +143,8 @@ public class TestLakeFormationAwsClientFactory {
       throw e;
     }
 
-    Namespace allowedNamespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
+    Namespace allowedNamespace =
+        Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
       glueCatalog.createNamespace(allowedNamespace);
     } catch (GlueException e) {

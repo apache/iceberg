@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Collection;
@@ -30,7 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
-abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> implements Scan<ThisT, T, G> {
+abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
+    implements Scan<ThisT, T, G> {
   private final TableOperations ops;
   private final Table table;
   private final Schema schema;
@@ -89,7 +89,8 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> i
 
   @Override
   public ThisT filter(Expression expr) {
-    return newRefinedScan(ops, table, schema, context.filterRows(Expressions.and(context.rowFilter(), expr)));
+    return newRefinedScan(
+        ops, table, schema, context.filterRows(Expressions.and(context.rowFilter(), expr)));
   }
 
   @Override
@@ -109,33 +110,36 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> i
 
   @Override
   public long targetSplitSize() {
-    long tableValue = ops.current().propertyAsLong(
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
+    long tableValue =
+        ops.current()
+            .propertyAsLong(TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
     return PropertyUtil.propertyAsLong(context.options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 
   @Override
   public int splitLookback() {
-    int tableValue = ops.current().propertyAsInt(
-        TableProperties.SPLIT_LOOKBACK,
-        TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    return PropertyUtil.propertyAsInt(context.options(), TableProperties.SPLIT_LOOKBACK, tableValue);
+    int tableValue =
+        ops.current()
+            .propertyAsInt(TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    return PropertyUtil.propertyAsInt(
+        context.options(), TableProperties.SPLIT_LOOKBACK, tableValue);
   }
 
   @Override
   public long splitOpenFileCost() {
-    long tableValue = ops.current().propertyAsLong(
-        TableProperties.SPLIT_OPEN_FILE_COST,
-        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
-    return PropertyUtil.propertyAsLong(context.options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
+    long tableValue =
+        ops.current()
+            .propertyAsLong(
+                TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    return PropertyUtil.propertyAsLong(
+        context.options(), TableProperties.SPLIT_OPEN_FILE_COST, tableValue);
   }
 
   /**
    * Resolve the schema to be projected lazily.
    *
-   * If there are selected columns from scan context, selected columns are projected to the table schema.
-   * Otherwise, projected schema from scan context shall be returned.
+   * <p>If there are selected columns from scan context, selected columns are projected to the table
+   * schema. Otherwise, projected schema from scan context shall be returned.
    *
    * @param context scan context
    * @param schema table schema
@@ -148,8 +152,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> i
 
       // all of the filter columns are required
       requiredFieldIds.addAll(
-          Binder.boundReferences(schema.asStruct(),
-              Collections.singletonList(context.rowFilter()), context.caseSensitive()));
+          Binder.boundReferences(
+              schema.asStruct(),
+              Collections.singletonList(context.rowFilter()),
+              context.caseSensitive()));
 
       // all of the projection columns are required
       Set<Integer> selectedIds;

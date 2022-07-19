@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.List;
@@ -35,26 +34,22 @@ class SparkTypeVisitor<T> {
       List<T> fieldResults = Lists.newArrayListWithExpectedSize(fields.length);
 
       for (StructField field : fields) {
-        fieldResults.add(visitor.field(
-            field,
-            visit(field.dataType(), visitor)));
+        fieldResults.add(visitor.field(field, visit(field.dataType(), visitor)));
       }
 
       return visitor.struct((StructType) type, fieldResults);
 
     } else if (type instanceof MapType) {
-      return visitor.map((MapType) type,
+      return visitor.map(
+          (MapType) type,
           visit(((MapType) type).keyType(), visitor),
           visit(((MapType) type).valueType(), visitor));
 
     } else if (type instanceof ArrayType) {
-      return visitor.array(
-          (ArrayType) type,
-          visit(((ArrayType) type).elementType(), visitor));
+      return visitor.array((ArrayType) type, visit(((ArrayType) type).elementType(), visitor));
 
     } else if (type instanceof UserDefinedType) {
-      throw new UnsupportedOperationException(
-          "User-defined types are not supported");
+      throw new UnsupportedOperationException("User-defined types are not supported");
 
     } else {
       return visitor.atomic(type);

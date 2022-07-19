@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.io.File;
@@ -63,13 +62,12 @@ public class TestFlinkIcebergSink {
   public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
       MiniClusterResource.createWithClassloaderCheckDisabled();
 
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
-  private static final TypeInformation<Row> ROW_TYPE_INFO = new RowTypeInfo(
-      SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
-  private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
-      SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+  private static final TypeInformation<Row> ROW_TYPE_INFO =
+      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+  private static final DataFormatConverters.RowConverter CONVERTER =
+      new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
   private String tablePath;
   private Table table;
@@ -83,18 +81,18 @@ public class TestFlinkIcebergSink {
   @Parameterized.Parameters(name = "format={0}, parallelism = {1}, partitioned = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-        {"avro", 1, true},
-        {"avro", 1, false},
-        {"avro", 2, true},
-        {"avro", 2, false},
-        {"orc", 1, true},
-        {"orc", 1, false},
-        {"orc", 2, true},
-        {"orc", 2, false},
-        {"parquet", 1, true},
-        {"parquet", 1, false},
-        {"parquet", 2, true},
-        {"parquet", 2, false}
+      {"avro", 1, true},
+      {"avro", 1, false},
+      {"avro", 2, true},
+      {"avro", 2, false},
+      {"orc", 1, true},
+      {"orc", 1, false},
+      {"orc", 2, true},
+      {"orc", 2, false},
+      {"parquet", 1, true},
+      {"parquet", 1, false},
+      {"parquet", 2, true},
+      {"parquet", 2, false}
     };
   }
 
@@ -115,10 +113,12 @@ public class TestFlinkIcebergSink {
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     table = SimpleDataUtil.createTable(tablePath, props, partitioned);
 
-    env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
-        .enableCheckpointing(100)
-        .setParallelism(parallelism)
-        .setMaxParallelism(parallelism);
+    env =
+        StreamExecutionEnvironment.getExecutionEnvironment(
+                MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
+            .enableCheckpointing(100)
+            .setParallelism(parallelism)
+            .setMaxParallelism(parallelism);
 
     tableLoader = TableLoader.fromHadoopTable(tablePath);
   }
@@ -133,13 +133,10 @@ public class TestFlinkIcebergSink {
 
   @Test
   public void testWriteRowData() throws Exception {
-    List<Row> rows = Lists.newArrayList(
-        Row.of(1, "hello"),
-        Row.of(2, "world"),
-        Row.of(3, "foo")
-    );
-    DataStream<RowData> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
-        .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
     FlinkSink.forRowData(dataStream)
         .table(table)
@@ -164,11 +161,11 @@ public class TestFlinkIcebergSink {
         Row.of(2, prefix + "ccc"),
         Row.of(3, prefix + "aaa"),
         Row.of(3, prefix + "bbb"),
-        Row.of(3, prefix + "ccc")
-    );
+        Row.of(3, prefix + "ccc"));
   }
 
-  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode) throws Exception {
+  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
+      throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
@@ -202,7 +199,8 @@ public class TestFlinkIcebergSink {
 
   @Test
   public void testJobNoneDistributeMode() throws Exception {
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
@@ -218,12 +216,15 @@ public class TestFlinkIcebergSink {
 
   @Test
   public void testJobHashDistributionMode() {
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    AssertHelpers.assertThrows("Does not support range distribution-mode now.",
-        IllegalArgumentException.class, "Flink does not support 'range' write distribution mode now.",
+    AssertHelpers.assertThrows(
+        "Does not support range distribution-mode now.",
+        IllegalArgumentException.class,
+        "Flink does not support 'range' write distribution mode now.",
         () -> {
           testWriteRow(null, DistributionMode.RANGE);
           return null;
@@ -232,16 +233,20 @@ public class TestFlinkIcebergSink {
 
   @Test
   public void testJobNullDistributionMode() throws Exception {
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
     testWriteRow(null, null);
 
     if (partitioned) {
-      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
-      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
-      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
     }
   }
 
@@ -249,9 +254,12 @@ public class TestFlinkIcebergSink {
   public void testPartitionWriteMode() throws Exception {
     testWriteRow(null, DistributionMode.HASH);
     if (partitioned) {
-      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
-      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
-      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
     }
   }
 
@@ -259,9 +267,12 @@ public class TestFlinkIcebergSink {
   public void testShuffleByPartitionWithSchema() throws Exception {
     testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
     if (partitioned) {
-      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
-      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
-      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
+      Assert.assertEquals(
+          "There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
     }
   }
 
@@ -279,17 +290,19 @@ public class TestFlinkIcebergSink {
     Table rightTable = SimpleDataUtil.createTable(rightTablePath, props, partitioned);
     TableLoader rightTableLoader = TableLoader.fromHadoopTable(rightTablePath);
 
-    env = StreamExecutionEnvironment
-        .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
-        .enableCheckpointing(100)
-        .setParallelism(parallelism)
-        .setMaxParallelism(parallelism);
+    env =
+        StreamExecutionEnvironment.getExecutionEnvironment(
+                MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
+            .enableCheckpointing(100)
+            .setParallelism(parallelism)
+            .setMaxParallelism(parallelism);
     env.getConfig().disableAutoGeneratedUIDs();
 
     List<Row> leftRows = createRows("left-");
-    DataStream<Row> leftStream = env.fromCollection(leftRows, ROW_TYPE_INFO)
-        .name("leftCustomSource")
-        .uid("leftCustomSource");
+    DataStream<Row> leftStream =
+        env.fromCollection(leftRows, ROW_TYPE_INFO)
+            .name("leftCustomSource")
+            .uid("leftCustomSource");
     FlinkSink.forRow(leftStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(leftTable)
         .tableLoader(leftTableLoader)
@@ -299,9 +312,10 @@ public class TestFlinkIcebergSink {
         .append();
 
     List<Row> rightRows = createRows("right-");
-    DataStream<Row> rightStream = env.fromCollection(rightRows, ROW_TYPE_INFO)
-        .name("rightCustomSource")
-        .uid("rightCustomSource");
+    DataStream<Row> rightStream =
+        env.fromCollection(rightRows, ROW_TYPE_INFO)
+            .name("rightCustomSource")
+            .uid("rightCustomSource");
     FlinkSink.forRow(rightStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(rightTable)
         .tableLoader(rightTableLoader)
@@ -326,14 +340,17 @@ public class TestFlinkIcebergSink {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
-        .setAll(newProps);
+    FlinkSink.Builder builder =
+        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+            .table(table)
+            .tableLoader(tableLoader)
+            .writeParallelism(parallelism)
+            .setAll(newProps);
 
-    AssertHelpers.assertThrows("Should fail with invalid distribution mode.",
-        IllegalArgumentException.class, "No enum constant org.apache.iceberg.DistributionMode.UNRECOGNIZED",
+    AssertHelpers.assertThrows(
+        "Should fail with invalid distribution mode.",
+        IllegalArgumentException.class,
+        "No enum constant org.apache.iceberg.DistributionMode.UNRECOGNIZED",
         () -> {
           builder.append();
 
@@ -351,14 +368,17 @@ public class TestFlinkIcebergSink {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .writeParallelism(parallelism)
-        .setAll(newProps);
+    FlinkSink.Builder builder =
+        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+            .table(table)
+            .tableLoader(tableLoader)
+            .writeParallelism(parallelism)
+            .setAll(newProps);
 
-    AssertHelpers.assertThrows("Should fail with invalid file format.",
-        IllegalArgumentException.class, "No enum constant org.apache.iceberg.FileFormat.UNRECOGNIZED",
+    AssertHelpers.assertThrows(
+        "Should fail with invalid file format.",
+        IllegalArgumentException.class,
+        "No enum constant org.apache.iceberg.FileFormat.UNRECOGNIZED",
         () -> {
           builder.append();
 

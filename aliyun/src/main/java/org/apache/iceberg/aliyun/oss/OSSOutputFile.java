@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -33,8 +32,10 @@ class OSSOutputFile extends BaseOSSFile implements OutputFile {
     super(client, uri, aliyunProperties, metrics);
   }
 
-  static OSSOutputFile fromLocation(OSS client, String location, AliyunProperties aliyunProperties) {
-    return new OSSOutputFile(client, new OSSURI(location), aliyunProperties, MetricsContext.nullMetrics());
+  static OSSOutputFile fromLocation(
+      OSS client, String location, AliyunProperties aliyunProperties) {
+    return new OSSOutputFile(
+        client, new OSSURI(location), aliyunProperties, MetricsContext.nullMetrics());
   }
 
   @Override

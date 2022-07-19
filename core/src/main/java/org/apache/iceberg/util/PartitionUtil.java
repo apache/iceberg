@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.List;
@@ -32,19 +31,21 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class PartitionUtil {
-  private PartitionUtil() {
-  }
+  private PartitionUtil() {}
 
   public static Map<Integer, ?> constantsMap(FileScanTask task) {
     return constantsMap(task, null, (type, constant) -> constant);
   }
 
-  public static Map<Integer, ?> constantsMap(FileScanTask task, BiFunction<Type, Object, Object> convertConstant) {
+  public static Map<Integer, ?> constantsMap(
+      FileScanTask task, BiFunction<Type, Object, Object> convertConstant) {
     return constantsMap(task, null, convertConstant);
   }
 
-  public static Map<Integer, ?> constantsMap(FileScanTask task, Types.StructType partitionType,
-                                             BiFunction<Type, Object, Object> convertConstant) {
+  public static Map<Integer, ?> constantsMap(
+      FileScanTask task,
+      Types.StructType partitionType,
+      BiFunction<Type, Object, Object> convertConstant) {
     PartitionSpec spec = task.spec();
     StructLike partitionData = task.file().partition();
 
@@ -65,7 +66,9 @@ public class PartitionUtil {
     if (partitionType != null) {
       if (partitionType.fields().size() > 0) {
         StructLike coercedPartition = coercePartition(partitionType, spec, partitionData);
-        idToConstant.put(MetadataColumns.PARTITION_COLUMN_ID, convertConstant.apply(partitionType, coercedPartition));
+        idToConstant.put(
+            MetadataColumns.PARTITION_COLUMN_ID,
+            convertConstant.apply(partitionType, coercedPartition));
       } else {
         // use null as some query engines may not be able to handle empty structs
         idToConstant.put(MetadataColumns.PARTITION_COLUMN_ID, null);
@@ -77,7 +80,9 @@ public class PartitionUtil {
     for (int pos = 0; pos < fields.size(); pos += 1) {
       PartitionField field = fields.get(pos);
       if (field.transform().isIdentity()) {
-        Object converted = convertConstant.apply(partitionFields.get(pos).type(), partitionData.get(pos, Object.class));
+        Object converted =
+            convertConstant.apply(
+                partitionFields.get(pos).type(), partitionData.get(pos, Object.class));
         idToConstant.put(field.sourceId(), converted);
       }
     }
@@ -86,8 +91,10 @@ public class PartitionUtil {
   }
 
   // adapts the provided partition data to match the table partition type
-  private static StructLike coercePartition(Types.StructType partitionType, PartitionSpec spec, StructLike partition) {
-    StructProjection projection = StructProjection.createAllowMissing(spec.partitionType(), partitionType);
+  private static StructLike coercePartition(
+      Types.StructType partitionType, PartitionSpec spec, StructLike partition) {
+    StructProjection projection =
+        StructProjection.createAllowMissing(spec.partitionType(), partitionType);
     projection.wrap(partition);
     return projection;
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
@@ -25,8 +24,8 @@ import org.apache.spark.sql.SparkSession;
 /**
  * An action to rewrite data files.
  *
- * @deprecated since 0.14.0, will be removed in 1.0.0;
- *             use {@link SparkActions} and {@link RewriteDataFilesSparkAction} instead.
+ * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
+ *     RewriteDataFilesSparkAction} instead.
  */
 @Deprecated
 public class BaseRewriteDataFilesSparkAction extends RewriteDataFilesSparkAction {

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.util.Collections;
@@ -41,15 +40,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class TypeUtil {
 
-  private TypeUtil() {
-  }
+  private TypeUtil() {}
 
   /**
    * Project extracts particular fields from a schema by ID.
-   * <p>
-   * Unlike {@link TypeUtil#select(Schema, Set)}, project will pick out only the fields enumerated. Structs that are
-   * explicitly projected are empty unless sub-fields are explicitly projected. Maps and lists cannot be explicitly
-   * selected in fieldIds.
+   *
+   * <p>Unlike {@link TypeUtil#select(Schema, Set)}, project will pick out only the fields
+   * enumerated. Structs that are explicitly projected are empty unless sub-fields are explicitly
+   * projected. Maps and lists cannot be explicitly selected in fieldIds.
+   *
    * @param schema to project fields from
    * @param fieldIds list of explicit fields to extract
    * @return the schema with all fields fields not selected removed
@@ -161,8 +160,8 @@ public class TypeUtil {
     return indexer.byId();
   }
 
-  public static Map<Integer, String> indexQuotedNameById(Types.StructType struct,
-                                                         Function<String, String> quotingFunc) {
+  public static Map<Integer, String> indexQuotedNameById(
+      Types.StructType struct, Function<String, String> quotingFunc) {
     IndexByName indexer = new IndexByName(quotingFunc);
     visit(struct, indexer);
     return indexer.byId();
@@ -170,8 +169,9 @@ public class TypeUtil {
 
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
     Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
-    indexByName(struct).forEach((name, integer) ->
-        indexByLowerCaseName.put(name.toLowerCase(Locale.ROOT), integer));
+    indexByName(struct)
+        .forEach(
+            (name, integer) -> indexByLowerCaseName.put(name.toLowerCase(Locale.ROOT), integer));
     return indexByLowerCaseName;
   }
 
@@ -202,7 +202,8 @@ public class TypeUtil {
    * @return a structurally identical schema with new ids assigned by the nextId function
    */
   public static Schema assignFreshIds(Schema schema, NextID nextId) {
-    Types.StructType struct = TypeUtil.visit(schema.asStruct(), new AssignFreshIds(nextId)).asStructType();
+    Types.StructType struct =
+        TypeUtil.visit(schema.asStruct(), new AssignFreshIds(nextId)).asStructType();
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
@@ -215,12 +216,14 @@ public class TypeUtil {
    * @return a structurally identical schema with new ids assigned by the nextId function
    */
   public static Schema assignFreshIds(int schemaId, Schema schema, NextID nextId) {
-    Types.StructType struct = TypeUtil.visit(schema.asStruct(), new AssignFreshIds(nextId)).asStructType();
+    Types.StructType struct =
+        TypeUtil.visit(schema.asStruct(), new AssignFreshIds(nextId)).asStructType();
     return new Schema(schemaId, struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
   /**
-   * Assigns ids to match a given schema, and fresh ids from the {@link NextID nextId function} for all other fields.
+   * Assigns ids to match a given schema, and fresh ids from the {@link NextID nextId function} for
+   * all other fields.
    *
    * @param schema a schema
    * @param baseSchema a schema with existing IDs to copy by name
@@ -228,23 +231,31 @@ public class TypeUtil {
    * @return a structurally identical schema with new ids assigned by the nextId function
    */
   public static Schema assignFreshIds(Schema schema, Schema baseSchema, NextID nextId) {
-    Types.StructType struct = TypeUtil
-        .visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId))
-        .asStructType();
+    Types.StructType struct =
+        TypeUtil.visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId))
+            .asStructType();
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
   /**
-   * Get the identifier fields in the fresh schema based on the identifier fields in the base schema.
+   * Get the identifier fields in the fresh schema based on the identifier fields in the base
+   * schema.
+   *
    * @param freshSchema fresh schema
    * @param baseSchema base schema
    * @return identifier fields in the fresh schema
    */
-  public static Set<Integer> refreshIdentifierFields(Types.StructType freshSchema, Schema baseSchema) {
+  public static Set<Integer> refreshIdentifierFields(
+      Types.StructType freshSchema, Schema baseSchema) {
     Map<String, Integer> nameToId = TypeUtil.indexByName(freshSchema);
     Set<String> identifierFieldNames = baseSchema.identifierFieldNames();
-    identifierFieldNames.forEach(name -> Preconditions.checkArgument(nameToId.containsKey(name),
-        "Cannot find ID for identifier field %s in schema %s", name, freshSchema));
+    identifierFieldNames.forEach(
+        name ->
+            Preconditions.checkArgument(
+                nameToId.containsKey(name),
+                "Cannot find ID for identifier field %s in schema %s",
+                name,
+                freshSchema));
     return identifierFieldNames.stream().map(nameToId::get).collect(Collectors.toSet());
   }
 
@@ -261,11 +272,11 @@ public class TypeUtil {
 
   /**
    * Reassigns ids in a schema from another schema.
-   * <p>
-   * Ids are determined by field names. If a field in the schema cannot be found in the source
+   *
+   * <p>Ids are determined by field names. If a field in the schema cannot be found in the source
    * schema, this will throw IllegalArgumentException.
-   * <p>
-   * This will not alter a schema's structure, nullability, or types.
+   *
+   * <p>This will not alter a schema's structure, nullability, or types.
    *
    * @param schema the schema to have ids reassigned
    * @param idSourceSchema the schema from which field ids will be used
@@ -309,8 +320,8 @@ public class TypeUtil {
         }
 
         Types.DecimalType toDecimal = (Types.DecimalType) to;
-        return fromDecimal.scale() == toDecimal.scale() &&
-            fromDecimal.precision() <= toDecimal.precision();
+        return fromDecimal.scale() == toDecimal.scale()
+            && fromDecimal.precision() <= toDecimal.precision();
     }
 
     return false;
@@ -319,13 +330,14 @@ public class TypeUtil {
   /**
    * Check whether we could write the iceberg table with the user-provided write schema.
    *
-   * @param tableSchema      the table schema written in iceberg meta data.
-   * @param writeSchema      the user-provided write schema.
+   * @param tableSchema the table schema written in iceberg meta data.
+   * @param writeSchema the user-provided write schema.
    * @param checkNullability If true, not allow to write optional values to a required field.
-   * @param checkOrdering    If true, not allow input schema to have different ordering than table schema.
+   * @param checkOrdering If true, not allow input schema to have different ordering than table
+   *     schema.
    */
-  public static void validateWriteSchema(Schema tableSchema, Schema writeSchema,
-                                         Boolean checkNullability, Boolean checkOrdering) {
+  public static void validateWriteSchema(
+      Schema tableSchema, Schema writeSchema, Boolean checkNullability, Boolean checkOrdering) {
     String errMsg = "Cannot write incompatible dataset to table with schema:";
     checkSchemaCompatibility(errMsg, tableSchema, writeSchema, checkNullability, checkOrdering);
   }
@@ -339,14 +351,24 @@ public class TypeUtil {
    * @param checkNullability whether to check field nullability
    * @param checkOrdering whether to check field ordering
    */
-  public static void validateSchema(String context, Schema expectedSchema, Schema providedSchema,
-                                    boolean checkNullability, boolean checkOrdering) {
-    String errMsg = String.format("Provided %s schema is incompatible with expected schema:", context);
-    checkSchemaCompatibility(errMsg, expectedSchema, providedSchema, checkNullability, checkOrdering);
+  public static void validateSchema(
+      String context,
+      Schema expectedSchema,
+      Schema providedSchema,
+      boolean checkNullability,
+      boolean checkOrdering) {
+    String errMsg =
+        String.format("Provided %s schema is incompatible with expected schema:", context);
+    checkSchemaCompatibility(
+        errMsg, expectedSchema, providedSchema, checkNullability, checkOrdering);
   }
 
-  private static void checkSchemaCompatibility(String errMsg, Schema schema, Schema providedSchema,
-                                               boolean checkNullability, boolean checkOrdering) {
+  private static void checkSchemaCompatibility(
+      String errMsg,
+      Schema schema,
+      Schema providedSchema,
+      boolean checkNullability,
+      boolean checkOrdering) {
     List<String> errors;
     if (checkNullability) {
       errors = CheckCompatibility.writeCompatibilityErrors(schema, providedSchema, checkOrdering);
@@ -372,19 +394,15 @@ public class TypeUtil {
     }
   }
 
-  /**
-   * Interface for passing a function that assigns column IDs.
-   */
+  /** Interface for passing a function that assigns column IDs. */
   public interface NextID {
     int get();
   }
 
   public static class SchemaVisitor<T> {
-    public void beforeField(Types.NestedField field) {
-    }
+    public void beforeField(Types.NestedField field) {}
 
-    public void afterField(Types.NestedField field) {
-    }
+    public void afterField(Types.NestedField field) {}
 
     public void beforeListElement(Types.NestedField elementField) {
       beforeField(elementField);
@@ -560,12 +578,12 @@ public class TypeUtil {
 
   /**
    * Used to traverse types with traversals other than pre-order.
-   * <p>
-   * This passes a {@link Supplier} to each {@link CustomOrderSchemaVisitor visitor} method that
+   *
+   * <p>This passes a {@link Supplier} to each {@link CustomOrderSchemaVisitor visitor} method that
    * returns the result of traversing child types. Structs are passed an {@link Iterable} that
    * traverses child fields during iteration.
-   * <p>
-   * An example use is assigning column IDs, which should be done with a post-order traversal.
+   *
+   * <p>An example use is assigning column IDs, which should be done with a post-order traversal.
    *
    * @param type a type to traverse with a visitor
    * @param visitor a custom order visitor
@@ -576,11 +594,10 @@ public class TypeUtil {
     switch (type.typeId()) {
       case STRUCT:
         Types.StructType struct = type.asNestedType().asStructType();
-        List<VisitFieldFuture<T>> results = Lists
-            .newArrayListWithExpectedSize(struct.fields().size());
+        List<VisitFieldFuture<T>> results =
+            Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
-          results.add(
-              new VisitFieldFuture<>(field, visitor));
+          results.add(new VisitFieldFuture<>(field, visitor));
         }
 
         return visitor.struct(struct, Iterables.transform(results, VisitFieldFuture::get));
@@ -591,7 +608,8 @@ public class TypeUtil {
 
       case MAP:
         Types.MapType map = type.asNestedType().asMapType();
-        return visitor.map(map,
+        return visitor.map(
+            map,
             new VisitFuture<>(map.keyType(), visitor),
             new VisitFuture<>(map.valueType(), visitor));
 
@@ -601,14 +619,14 @@ public class TypeUtil {
   }
 
   static int decimalMaxPrecision(int numBytes) {
-    Preconditions.checkArgument(numBytes >= 0 && numBytes < 24,
-        "Unsupported decimal length: %s", numBytes);
+    Preconditions.checkArgument(
+        numBytes >= 0 && numBytes < 24, "Unsupported decimal length: %s", numBytes);
     return MAX_PRECISION[numBytes];
   }
 
   public static int decimalRequiredBytes(int precision) {
-    Preconditions.checkArgument(precision >= 0 && precision < 40,
-        "Unsupported decimal precision: %s", precision);
+    Preconditions.checkArgument(
+        precision >= 0 && precision < 40, "Unsupported decimal precision: %s", precision);
     return REQUIRED_LENGTH[precision];
   }
 

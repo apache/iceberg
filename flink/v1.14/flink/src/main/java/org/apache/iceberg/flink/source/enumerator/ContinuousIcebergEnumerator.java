@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
@@ -42,8 +41,8 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
   private final ContinuousSplitPlanner splitPlanner;
 
   /**
-   * snapshotId for the last enumerated snapshot. next incremental enumeration
-   * should be based off this as the starting position.
+   * snapshotId for the last enumerated snapshot. next incremental enumeration should be based off
+   * this as the starting position.
    */
   private final AtomicReference<IcebergEnumeratorPosition> enumeratorPosition;
 
@@ -91,30 +90,36 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
     return new IcebergEnumeratorState(enumeratorPosition.get(), assigner.state());
   }
 
-  /**
-   * This method is executed in an IO thread pool.
-   */
+  /** This method is executed in an IO thread pool. */
   private ContinuousEnumerationResult discoverSplits() {
     return splitPlanner.planSplits(enumeratorPosition.get());
   }
 
-  /**
-   * This method is executed in a single coordinator thread.
-   */
+  /** This method is executed in a single coordinator thread. */
   private void processDiscoveredSplits(ContinuousEnumerationResult result, Throwable error) {
     if (error == null) {
       if (!Objects.equals(result.fromPosition(), enumeratorPosition.get())) {
-        // Multiple discoverSplits() may be triggered with the same starting snapshot to the I/O thread pool.
-        // E.g., the splitDiscoveryInterval is very short (like 10 ms in some unit tests) or the thread
-        // pool is busy and multiple discovery actions are executed concurrently. Discovery result should
-        // only be accepted if the starting position matches the enumerator position (like compare-and-swap).
-        LOG.info("Skip {} discovered splits because the scan starting position doesn't match " +
-                "the current enumerator position: enumerator position = {}, scan starting position = {}",
-            result.splits().size(), enumeratorPosition.get(), result.fromPosition());
+        // Multiple discoverSplits() may be triggered with the same starting snapshot to the I/O
+        // thread pool.
+        // E.g., the splitDiscoveryInterval is very short (like 10 ms in some unit tests) or the
+        // thread
+        // pool is busy and multiple discovery actions are executed concurrently. Discovery result
+        // should
+        // only be accepted if the starting position matches the enumerator position (like
+        // compare-and-swap).
+        LOG.info(
+            "Skip {} discovered splits because the scan starting position doesn't match "
+                + "the current enumerator position: enumerator position = {}, scan starting position = {}",
+            result.splits().size(),
+            enumeratorPosition.get(),
+            result.fromPosition());
       } else {
         assigner.onDiscoveredSplits(result.splits());
-        LOG.info("Added {} splits discovered between ({}, {}] to the assigner",
-            result.splits().size(), result.fromPosition(), result.toPosition());
+        LOG.info(
+            "Added {} splits discovered between ({}, {}] to the assigner",
+            result.splits().size(),
+            result.fromPosition(),
+            result.toPosition());
         // update the enumerator position even if there is no split discovered
         // or the toPosition is empty (e.g. for empty table).
         enumeratorPosition.set(result.toPosition());

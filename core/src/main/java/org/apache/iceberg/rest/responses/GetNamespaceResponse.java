@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import java.util.Map;
@@ -28,9 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
 
-/**
- * Represents a REST response to fetch a namespace and its metadata properties
- */
+/** Represents a REST response to fetch a namespace and its metadata properties */
 public class GetNamespaceResponse implements RESTResponse {
 
   private Namespace namespace;
@@ -73,10 +70,9 @@ public class GetNamespaceResponse implements RESTResponse {
 
   public static class Builder {
     private Namespace namespace;
-    private final ImmutableMap.Builder<String, String> properties =  ImmutableMap.builder();
+    private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public Builder withNamespace(Namespace ns) {
       Preconditions.checkNotNull(ns, "Invalid namespace: null");
@@ -86,9 +82,9 @@ public class GetNamespaceResponse implements RESTResponse {
 
     public Builder setProperties(Map<String, String> props) {
       Preconditions.checkNotNull(props, "Invalid properties map: null");
-      Preconditions.checkArgument(!props.containsKey(null),
-          "Invalid property: null");
-      Preconditions.checkArgument(!props.containsValue(null),
+      Preconditions.checkArgument(!props.containsKey(null), "Invalid property: null");
+      Preconditions.checkArgument(
+          !props.containsValue(null),
           "Invalid value for properties %s: null",
           Maps.filterValues(props, Objects::isNull).keySet());
       properties.putAll(props);
@@ -100,4 +96,3 @@ public class GetNamespaceResponse implements RESTResponse {
     }
   }
 }
-

@@ -16,32 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * {@code RangeReadable} is an interface that allows for implementations
- * of {@link InputFile} streams to perform positional, range-based reads, which
- * are more efficient than unbounded reads in many cloud provider object stores.
+ * {@code RangeReadable} is an interface that allows for implementations of {@link InputFile}
+ * streams to perform positional, range-based reads, which are more efficient than unbounded reads
+ * in many cloud provider object stores.
  *
- * Thread safety is not a requirement of the interface and is left to the
- * implementation.
+ * <p>Thread safety is not a requirement of the interface and is left to the implementation.
  *
- * If the implementation is also a {@link SeekableInputStream}, the position
- * of the stream is not required to be updated based on the positional reads
- * performed by this interface.  Usage of {@link SeekableInputStream} should
- * always seek to the appropriate position for {@link java.io.InputStream}
- * based reads.
- *
+ * <p>If the implementation is also a {@link SeekableInputStream}, the position of the stream is not
+ * required to be updated based on the positional reads performed by this interface. Usage of {@link
+ * SeekableInputStream} should always seek to the appropriate position for {@link
+ * java.io.InputStream} based reads.
  */
 public interface RangeReadable extends Closeable {
 
   /**
-   * Fill the provided buffer with the contents of the input source starting
-   * at {@code position} for the given {@code offset} and {@code length}.
+   * Fill the provided buffer with the contents of the input source starting at {@code position} for
+   * the given {@code offset} and {@code length}.
    *
    * @param position start position of the read
    * @param buffer target buffer to copy data
@@ -51,8 +47,7 @@ public interface RangeReadable extends Closeable {
   void readFully(long position, byte[] buffer, int offset, int length) throws IOException;
 
   /**
-   * Fill the entire buffer with the contents of the input source starting
-   * at {@code position}.
+   * Fill the entire buffer with the contents of the input source starting at {@code position}.
    *
    * @param position start position of the read
    * @param buffer target buffer to copy data
@@ -70,7 +65,7 @@ public interface RangeReadable extends Closeable {
    * @return the actual number of bytes read
    * @throws IOException if an error occurs while reading
    */
-  int readTail(byte [] buffer, int offset, int length) throws IOException;
+  int readTail(byte[] buffer, int offset, int length) throws IOException;
 
   /**
    * Read the full size of the buffer from the end of the file.
@@ -79,7 +74,7 @@ public interface RangeReadable extends Closeable {
    * @return the actual number of bytes read
    * @throws IOException if an error occurs while reading
    */
-  default int readTail(byte [] buffer) throws IOException {
+  default int readTail(byte[] buffer) throws IOException {
     return readTail(buffer, 0, buffer.length);
   }
 }

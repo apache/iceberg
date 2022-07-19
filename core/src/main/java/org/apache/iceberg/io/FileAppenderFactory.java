@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import org.apache.iceberg.FileFormat;
@@ -45,29 +44,32 @@ public interface FileAppenderFactory<T> {
    * Create a new {@link DataWriter}.
    *
    * @param outputFile an OutputFile used to create an output stream.
-   * @param format     a file format
-   * @param partition  a tuple of partition values
+   * @param format a file format
+   * @param partition a tuple of partition values
    * @return a newly created {@link DataWriter} for rows
    */
-  DataWriter<T> newDataWriter(EncryptedOutputFile outputFile, FileFormat format, StructLike partition);
+  DataWriter<T> newDataWriter(
+      EncryptedOutputFile outputFile, FileFormat format, StructLike partition);
 
   /**
    * Create a new {@link EqualityDeleteWriter}.
    *
    * @param outputFile an OutputFile used to create an output stream.
-   * @param format     a file format
-   * @param partition  a tuple of partition values
+   * @param format a file format
+   * @param partition a tuple of partition values
    * @return a newly created {@link EqualityDeleteWriter} for equality deletes
    */
-  EqualityDeleteWriter<T> newEqDeleteWriter(EncryptedOutputFile outputFile, FileFormat format, StructLike partition);
+  EqualityDeleteWriter<T> newEqDeleteWriter(
+      EncryptedOutputFile outputFile, FileFormat format, StructLike partition);
 
   /**
    * Create a new {@link PositionDeleteWriter}.
    *
    * @param outputFile an OutputFile used to create an output stream.
-   * @param format     a file format
-   * @param partition  a tuple of partition values
+   * @param format a file format
+   * @param partition a tuple of partition values
    * @return a newly created {@link PositionDeleteWriter} for position deletes
    */
-  PositionDeleteWriter<T> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format, StructLike partition);
+  PositionDeleteWriter<T> newPosDeleteWriter(
+      EncryptedOutputFile outputFile, FileFormat format, StructLike partition);
 }

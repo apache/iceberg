@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.EOFException;
@@ -27,8 +26,7 @@ import java.nio.ByteBuffer;
 
 public class IOUtil {
   // not meant to be instantiated
-  private IOUtil() {
-  }
+  private IOUtil() {}
 
   private static final int WRITE_CHUNK_SIZE = 8192;
 
@@ -42,7 +40,8 @@ public class IOUtil {
    * @throws EOFException if the end of the stream is reached before reading length bytes
    * @throws IOException if there is an error while reading
    */
-  public static void readFully(InputStream stream, byte[] bytes, int offset, int length) throws IOException {
+  public static void readFully(InputStream stream, byte[] bytes, int offset, int length)
+      throws IOException {
     int bytesRead = readRemaining(stream, bytes, offset, length);
     if (bytesRead < length) {
       throw new EOFException(
@@ -50,9 +49,7 @@ public class IOUtil {
     }
   }
 
-  /**
-   * Writes a buffer into a stream, making multiple write calls if necessary.
-   */
+  /** Writes a buffer into a stream, making multiple write calls if necessary. */
   public static void writeFully(OutputStream outputStream, ByteBuffer buffer) throws IOException {
     if (!buffer.hasRemaining()) {
       return;
@@ -66,8 +63,8 @@ public class IOUtil {
   }
 
   /**
-   * Reads into a buffer from a stream, making multiple read calls if necessary
-   * returning the number of bytes read until end of stream.
+   * Reads into a buffer from a stream, making multiple read calls if necessary returning the number
+   * of bytes read until end of stream.
    *
    * @param stream an InputStream to read from
    * @param bytes a buffer to write into
@@ -76,7 +73,8 @@ public class IOUtil {
    * @return the number of bytes read
    * @throws IOException if there is an error while reading
    */
-  public static int readRemaining(InputStream stream, byte[] bytes, int offset, int length) throws IOException {
+  public static int readRemaining(InputStream stream, byte[] bytes, int offset, int length)
+      throws IOException {
     int pos = offset;
     int remaining = length;
     while (remaining > 0) {

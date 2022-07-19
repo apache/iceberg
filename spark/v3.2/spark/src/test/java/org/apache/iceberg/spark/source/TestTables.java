@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
@@ -42,15 +41,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 // TODO: Use the copy of this from core.
 class TestTables {
-  private TestTables() {
-  }
+  private TestTables() {}
 
   static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
     TestTableOperations ops = new TestTableOperations(name);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
-    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of()));
+    ops.commit(
+        null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of()));
     return new TestTable(ops, name);
   }
 
@@ -166,8 +165,8 @@ class TestTables {
 
     @Override
     public LocationProvider locationProvider() {
-      Preconditions.checkNotNull(current,
-          "Current metadata should not be null when locationProvider is called");
+      Preconditions.checkNotNull(
+          current, "Current metadata should not be null when locationProvider is called");
       return LocationProviders.locationsFor(current.location(), current.properties());
     }
 

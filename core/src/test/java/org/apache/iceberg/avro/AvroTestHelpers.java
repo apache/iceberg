@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
+
+import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 
 import java.util.Arrays;
 import java.util.List;
@@ -30,16 +31,12 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
-
 class AvroTestHelpers {
 
-  private AvroTestHelpers() {
-  }
+  private AvroTestHelpers() {}
 
   static Schema.Field optionalField(int id, String name, Schema schema) {
     return addId(id, new Schema.Field(name, toOption(schema), null, JsonProperties.NULL_VALUE));
-
   }
 
   static Schema.Field requiredField(int id, String name, Schema schema) {
@@ -130,7 +127,9 @@ class AvroTestHelpers {
         Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
         break;
       case STRUCT:
-        Assertions.assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
+        Assertions.assertThat(expected)
+            .as("Expected should be a Record")
+            .isInstanceOf(Record.class);
         Assertions.assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
         assertEquals(type.asStructType(), (Record) expected, (Record) actual);
         break;

@@ -16,8 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
+
+import static org.apache.iceberg.TableProperties.DELETE_ORC_BLOCK_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
+import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION_STRATEGY;
+import static org.apache.iceberg.TableProperties.DELETE_ORC_STRIPE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.DELETE_ORC_WRITE_BATCH_SIZE;
+import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
+import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT;
+import static org.apache.iceberg.TableProperties.ORC_STRIPE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.ORC_STRIPE_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE;
+import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE_DEFAULT;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -68,33 +83,13 @@ import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
-import static org.apache.iceberg.TableProperties.DELETE_ORC_BLOCK_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.DELETE_ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.DELETE_ORC_STRIPE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.DELETE_ORC_WRITE_BATCH_SIZE;
-import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.ORC_BLOCK_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_DEFAULT;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
-import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT;
-import static org.apache.iceberg.TableProperties.ORC_STRIPE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.ORC_STRIPE_SIZE_BYTES_DEFAULT;
-import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE;
-import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE_DEFAULT;
-
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ORC {
 
-  /**
-   * @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead
-   */
-  @Deprecated
-  private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
+  /** @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead */
+  @Deprecated private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
 
-  private ORC() {
-  }
+  private ORC() {}
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
@@ -134,6 +129,7 @@ public class ORC {
 
     /**
      * Setting a specific configuration value for the writer.
+     *
      * @param property The property to set
      * @param value The value to set
      * @return The resulting builder for chaining purposes
@@ -149,7 +145,8 @@ public class ORC {
       return this;
     }
 
-    public WriteBuilder createWriterFunc(BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
+    public WriteBuilder createWriterFunc(
+        BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;
       return this;
     }
@@ -179,7 +176,8 @@ public class ORC {
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
+    private WriteBuilder createContextFunc(
+        Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
       return this;
     }
@@ -205,9 +203,14 @@ public class ORC {
       OrcConf.COMPRESSION_STRATEGY.setString(conf, context.compressionStrategy().name());
       OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, overwrite);
 
-      return new OrcFileAppender<>(schema,
-          this.file, createWriterFunc, conf, metadata,
-          context.vectorizedRowBatchSize(), metricsConfig);
+      return new OrcFileAppender<>(
+          schema,
+          this.file,
+          createWriterFunc,
+          conf,
+          metadata,
+          context.vectorizedRowBatchSize(),
+          metricsConfig);
     }
 
     private static class Context {
@@ -237,8 +240,12 @@ public class ORC {
         return compressionStrategy;
       }
 
-      private Context(long stripeSize, long blockSize, int vectorizedRowBatchSize,
-          CompressionKind compressionKind, CompressionStrategy compressionStrategy) {
+      private Context(
+          long stripeSize,
+          long blockSize,
+          int vectorizedRowBatchSize,
+          CompressionKind compressionKind,
+          CompressionStrategy compressionStrategy) {
         this.stripeSize = stripeSize;
         this.blockSize = blockSize;
         this.vectorizedRowBatchSize = vectorizedRowBatchSize;
@@ -247,52 +254,71 @@ public class ORC {
       }
 
       static Context dataContext(Map<String, String> config) {
-        long stripeSize = PropertyUtil.propertyAsLong(config, OrcConf.STRIPE_SIZE.getAttribute(),
-            ORC_STRIPE_SIZE_BYTES_DEFAULT);
+        long stripeSize =
+            PropertyUtil.propertyAsLong(
+                config, OrcConf.STRIPE_SIZE.getAttribute(), ORC_STRIPE_SIZE_BYTES_DEFAULT);
         stripeSize = PropertyUtil.propertyAsLong(config, ORC_STRIPE_SIZE_BYTES, stripeSize);
         Preconditions.checkArgument(stripeSize > 0, "Stripe size must be > 0");
 
-        long blockSize = PropertyUtil.propertyAsLong(config, OrcConf.BLOCK_SIZE.getAttribute(),
-            ORC_BLOCK_SIZE_BYTES_DEFAULT);
+        long blockSize =
+            PropertyUtil.propertyAsLong(
+                config, OrcConf.BLOCK_SIZE.getAttribute(), ORC_BLOCK_SIZE_BYTES_DEFAULT);
         blockSize = PropertyUtil.propertyAsLong(config, ORC_BLOCK_SIZE_BYTES, blockSize);
         Preconditions.checkArgument(blockSize > 0, "Block size must be > 0");
 
-        int vectorizedRowBatchSize = PropertyUtil.propertyAsInt(config,
-            ORC_WRITE_BATCH_SIZE, ORC_WRITE_BATCH_SIZE_DEFAULT);
-        Preconditions.checkArgument(vectorizedRowBatchSize > 0, "VectorizedRow batch size must be > 0");
+        int vectorizedRowBatchSize =
+            PropertyUtil.propertyAsInt(config, ORC_WRITE_BATCH_SIZE, ORC_WRITE_BATCH_SIZE_DEFAULT);
+        Preconditions.checkArgument(
+            vectorizedRowBatchSize > 0, "VectorizedRow batch size must be > 0");
 
-        String codecAsString = PropertyUtil.propertyAsString(config, OrcConf.COMPRESS.getAttribute(),
-            ORC_COMPRESSION_DEFAULT);
+        String codecAsString =
+            PropertyUtil.propertyAsString(
+                config, OrcConf.COMPRESS.getAttribute(), ORC_COMPRESSION_DEFAULT);
         codecAsString = PropertyUtil.propertyAsString(config, ORC_COMPRESSION, codecAsString);
         CompressionKind compressionKind = toCompressionKind(codecAsString);
 
-        String strategyAsString = PropertyUtil.propertyAsString(config, OrcConf.COMPRESSION_STRATEGY.getAttribute(),
-            ORC_COMPRESSION_STRATEGY_DEFAULT);
-        strategyAsString = PropertyUtil.propertyAsString(config, ORC_COMPRESSION_STRATEGY, strategyAsString);
+        String strategyAsString =
+            PropertyUtil.propertyAsString(
+                config,
+                OrcConf.COMPRESSION_STRATEGY.getAttribute(),
+                ORC_COMPRESSION_STRATEGY_DEFAULT);
+        strategyAsString =
+            PropertyUtil.propertyAsString(config, ORC_COMPRESSION_STRATEGY, strategyAsString);
         CompressionStrategy compressionStrategy = toCompressionStrategy(strategyAsString);
 
-        return new Context(stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
+        return new Context(
+            stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
       }
 
       static Context deleteContext(Map<String, String> config) {
         Context dataContext = dataContext(config);
 
-        long stripeSize = PropertyUtil.propertyAsLong(config, DELETE_ORC_STRIPE_SIZE_BYTES, dataContext.stripeSize());
+        long stripeSize =
+            PropertyUtil.propertyAsLong(
+                config, DELETE_ORC_STRIPE_SIZE_BYTES, dataContext.stripeSize());
 
-        long blockSize = PropertyUtil.propertyAsLong(config, DELETE_ORC_BLOCK_SIZE_BYTES, dataContext.blockSize());
+        long blockSize =
+            PropertyUtil.propertyAsLong(
+                config, DELETE_ORC_BLOCK_SIZE_BYTES, dataContext.blockSize());
 
-        int vectorizedRowBatchSize = PropertyUtil.propertyAsInt(config,
-            DELETE_ORC_WRITE_BATCH_SIZE, dataContext.vectorizedRowBatchSize());
+        int vectorizedRowBatchSize =
+            PropertyUtil.propertyAsInt(
+                config, DELETE_ORC_WRITE_BATCH_SIZE, dataContext.vectorizedRowBatchSize());
 
         String codecAsString = config.get(DELETE_ORC_COMPRESSION);
-        CompressionKind compressionKind = codecAsString != null ? toCompressionKind(codecAsString) :
-            dataContext.compressionKind();
+        CompressionKind compressionKind =
+            codecAsString != null
+                ? toCompressionKind(codecAsString)
+                : dataContext.compressionKind();
 
         String strategyAsString = config.get(DELETE_ORC_COMPRESSION_STRATEGY);
         CompressionStrategy compressionStrategy =
-            strategyAsString != null ? toCompressionStrategy(strategyAsString) : dataContext.compressionStrategy();
+            strategyAsString != null
+                ? toCompressionStrategy(strategyAsString)
+                : dataContext.compressionStrategy();
 
-        return new Context(stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
+        return new Context(
+            stripeSize, blockSize, vectorizedRowBatchSize, compressionKind, compressionStrategy);
       }
 
       private static CompressionKind toCompressionKind(String codecAsString) {
@@ -307,7 +333,8 @@ public class ORC {
         try {
           return CompressionStrategy.valueOf(strategyAsString.toUpperCase(Locale.ENGLISH));
         } catch (IllegalArgumentException e) {
-          throw new IllegalArgumentException("Unsupported compression strategy: " + strategyAsString);
+          throw new IllegalArgumentException(
+              "Unsupported compression strategy: " + strategyAsString);
         }
       }
     }
@@ -372,7 +399,8 @@ public class ORC {
       return this;
     }
 
-    public DataWriteBuilder createWriterFunc(BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
+    public DataWriteBuilder createWriterFunc(
+        BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
       appenderBuilder.createWriterFunc(writerFunction);
       return this;
     }
@@ -399,11 +427,13 @@ public class ORC {
 
     public <T> DataWriter<T> build() {
       Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
-      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
           "Partition must not be null when creating data writer for partitioned spec");
 
       FileAppender<T> fileAppender = appenderBuilder.build();
-      return new DataWriter<>(fileAppender, FileFormat.ORC, location, spec, partition, keyMetadata, sortOrder);
+      return new DataWriter<>(
+          fileAppender, FileFormat.ORC, location, spec, partition, keyMetadata, sortOrder);
     }
   }
 
@@ -465,7 +495,8 @@ public class ORC {
       return this;
     }
 
-    public DeleteWriteBuilder createWriterFunc(BiFunction<Schema, TypeDescription, OrcRowWriter<?>> newWriterFunc) {
+    public DeleteWriteBuilder createWriterFunc(
+        BiFunction<Schema, TypeDescription, OrcRowWriter<?>> newWriterFunc) {
       this.createWriterFunc = newWriterFunc;
       return this;
     }
@@ -511,18 +542,25 @@ public class ORC {
     }
 
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() {
-      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema");
-      Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
-      Preconditions.checkState(createWriterFunc != null,
+      Preconditions.checkState(
+          rowSchema != null, "Cannot create equality delete file without a schema");
+      Preconditions.checkState(
+          equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
+      Preconditions.checkState(
+          createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
-      Preconditions.checkArgument(spec != null, "Spec must not be null when creating equality delete writer");
-      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+      Preconditions.checkArgument(
+          spec != null, "Spec must not be null when creating equality delete writer");
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
 
       meta("delete-type", "equality");
-      meta("delete-field-ids", IntStream.of(equalityFieldIds)
-          .mapToObj(Objects::toString)
-          .collect(Collectors.joining(", ")));
+      meta(
+          "delete-field-ids",
+          IntStream.of(equalityFieldIds)
+              .mapToObj(Objects::toString)
+              .collect(Collectors.joining(", ")));
 
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
@@ -530,16 +568,26 @@ public class ORC {
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
-          appenderBuilder.build(), FileFormat.ORC, location, spec, partition, keyMetadata,
-          sortOrder, equalityFieldIds);
+          appenderBuilder.build(),
+          FileFormat.ORC,
+          location,
+          spec,
+          partition,
+          keyMetadata,
+          sortOrder,
+          equalityFieldIds);
     }
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() {
-      Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
-      Preconditions.checkArgument(spec != null, "Spec must not be null when creating position delete writer");
-      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+      Preconditions.checkState(
+          equalityFieldIds == null, "Cannot create position delete file using delete field ids");
+      Preconditions.checkArgument(
+          spec != null, "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
-      Preconditions.checkArgument(rowSchema == null || createWriterFunc != null,
+      Preconditions.checkArgument(
+          rowSchema == null || createWriterFunc != null,
           "Create function should be provided if we write row data");
 
       meta("delete-type", "position");
@@ -548,14 +596,19 @@ public class ORC {
         Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema);
         appenderBuilder.schema(deleteSchema);
 
-        appenderBuilder.createWriterFunc((schema, typeDescription) ->
-            GenericOrcWriters.positionDelete(createWriterFunc.apply(deleteSchema, typeDescription), pathTransformFunc));
+        appenderBuilder.createWriterFunc(
+            (schema, typeDescription) ->
+                GenericOrcWriters.positionDelete(
+                    createWriterFunc.apply(deleteSchema, typeDescription), pathTransformFunc));
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
-        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not write row data itself
-        appenderBuilder.createWriterFunc((schema, typeDescription) -> GenericOrcWriters.positionDelete(
-                GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
+        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
+        // write row data itself
+        appenderBuilder.createWriterFunc(
+            (schema, typeDescription) ->
+                GenericOrcWriters.positionDelete(
+                    GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
       }
 
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
@@ -592,7 +645,8 @@ public class ORC {
         this.conf = new Configuration();
       }
 
-      // We need to turn positional schema evolution off since we use column name based schema evolution for projection
+      // We need to turn positional schema evolution off since we use column name based schema
+      // evolution for projection
       this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
     }
 
@@ -626,7 +680,8 @@ public class ORC {
     }
 
     public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> readerFunction) {
-      Preconditions.checkArgument(this.batchedReaderFunc == null,
+      Preconditions.checkArgument(
+          this.batchedReaderFunc == null,
           "Reader function cannot be set since the batched version is already set");
       this.readerFunc = readerFunction;
       return this;
@@ -637,8 +692,10 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder createBatchedReaderFunc(Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction) {
-      Preconditions.checkArgument(this.readerFunc == null,
+    public ReadBuilder createBatchedReaderFunc(
+        Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction) {
+      Preconditions.checkArgument(
+          this.readerFunc == null,
           "Batched reader function cannot be set since the non-batched version is already set");
       this.batchedReaderFunc = batchReaderFunction;
       return this;
@@ -656,8 +713,18 @@ public class ORC {
 
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcIterable<>(file, conf, schema, nameMapping, start, length, readerFunc, caseSensitive, filter,
-          batchedReaderFunc, recordsPerBatch);
+      return new OrcIterable<>(
+          file,
+          conf,
+          schema,
+          nameMapping,
+          start,
+          length,
+          readerFunc,
+          caseSensitive,
+          filter,
+          batchedReaderFunc,
+          recordsPerBatch);
     }
   }
 

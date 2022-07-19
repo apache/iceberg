@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.ManifestFile;
@@ -27,8 +26,8 @@ public class BaseRewriteManifestsActionResult implements RewriteManifests.Result
   private final Iterable<ManifestFile> rewrittenManifests;
   private final Iterable<ManifestFile> addedManifests;
 
-  public BaseRewriteManifestsActionResult(Iterable<ManifestFile> rewrittenManifests,
-                                          Iterable<ManifestFile> addedManifests) {
+  public BaseRewriteManifestsActionResult(
+      Iterable<ManifestFile> rewrittenManifests, Iterable<ManifestFile> addedManifests) {
     this.rewrittenManifests = rewrittenManifests;
     this.addedManifests = addedManifests;
   }

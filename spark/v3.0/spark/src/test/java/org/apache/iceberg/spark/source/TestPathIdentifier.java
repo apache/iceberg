@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,16 +43,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestPathIdentifier extends SparkTestBase {
 
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      required(2, "data", Types.StringType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
   private File tableLocation;
   private PathIdentifier identifier;
   private SparkCatalog sparkCatalog;
@@ -72,17 +70,16 @@ public class TestPathIdentifier extends SparkTestBase {
 
   @Test
   public void testPathIdentifier() throws TableAlreadyExistsException, NoSuchTableException {
-    SparkTable table = sparkCatalog.createTable(identifier,
-        SparkSchemaUtil.convert(SCHEMA),
-        new Transform[0],
-        ImmutableMap.of());
+    SparkTable table =
+        sparkCatalog.createTable(
+            identifier, SparkSchemaUtil.convert(SCHEMA), new Transform[0], ImmutableMap.of());
 
     Assert.assertEquals(table.table().location(), tableLocation.getAbsolutePath());
     Assertions.assertThat(table.table()).isInstanceOf(BaseTable.class);
-    Assertions.assertThat(((BaseTable) table.table()).operations()).isInstanceOf(HadoopTableOperations.class);
+    Assertions.assertThat(((BaseTable) table.table()).operations())
+        .isInstanceOf(HadoopTableOperations.class);
 
     Assert.assertEquals(sparkCatalog.loadTable(identifier), table);
     Assert.assertTrue(sparkCatalog.dropTable(identifier));
   }
 }
-

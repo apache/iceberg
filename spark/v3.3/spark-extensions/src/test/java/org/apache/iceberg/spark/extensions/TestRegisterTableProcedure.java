@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.util.List;
@@ -41,15 +40,12 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
   private final String targetName;
 
   public TestRegisterTableProcedure(
-      String catalogName,
-      String implementation,
-      Map<String, String> config) {
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
     targetName = tableName("register_table");
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @After
   public void dropTables() {
@@ -59,13 +55,15 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testRegisterTable() throws NoSuchTableException, ParseException {
-    Assume.assumeTrue("Register only implemented on Hive Catalogs",
+    Assume.assumeTrue(
+        "Register only implemented on Hive Catalogs",
         spark.conf().get("spark.sql.catalog." + catalogName + ".type").equals("hive"));
 
     long numRows = 1000;
 
     sql("CREATE TABLE %s (id int, data string) using ICEBERG", tableName);
-    spark.range(0, numRows)
+    spark
+        .range(0, numRows)
         .withColumn("data", functions.col("id").cast(DataTypes.StringType))
         .writeTo(tableName)
         .append();
@@ -73,17 +71,22 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     long originalFileCount = (long) scalarSql("SELECT COUNT(*) from %s.files", tableName);
     long currentSnapshotId = table.currentSnapshot().snapshotId();
-    String metadataJson = ((HiveTableOperations) (((HasTableOperations) table).operations())).currentMetadataLocation();
+    String metadataJson =
+        ((HiveTableOperations) (((HasTableOperations) table).operations()))
+            .currentMetadataLocation();
 
-    List<Object[]> result = sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
+    List<Object[]> result =
+        sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
     Assert.assertEquals("Current Snapshot is not correct", currentSnapshotId, result.get(0)[0]);
 
     List<Object[]> original = sql("SELECT * FROM %s", tableName);
     List<Object[]> registered = sql("SELECT * FROM %s", targetName);
     assertEquals("Registered table rows should match original table rows", original, registered);
-    Assert.assertEquals("Should have the right row count in the procedure result",
-        numRows, result.get(0)[1]);
-    Assert.assertEquals("Should have the right datafile count in the procedure result",
-        originalFileCount, result.get(0)[2]);
+    Assert.assertEquals(
+        "Should have the right row count in the procedure result", numRows, result.get(0)[1]);
+    Assert.assertEquals(
+        "Should have the right datafile count in the procedure result",
+        originalFileCount,
+        result.get(0)[2]);
   }
 }

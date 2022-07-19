@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import java.util.function.Consumer;
@@ -34,13 +33,12 @@ import org.apache.iceberg.exceptions.ServiceUnavailableException;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 
 /**
- * A set of consumers to handle errors for requests for table entities or for namespace entities,
- * to throw the correct exception.
+ * A set of consumers to handle errors for requests for table entities or for namespace entities, to
+ * throw the correct exception.
  */
 public class ErrorHandlers {
 
-  private ErrorHandlers() {
-  }
+  private ErrorHandlers() {}
 
   public static Consumer<ErrorResponse> namespaceErrorHandler() {
     return baseNamespaceErrorHandler().andThen(defaultErrorHandler());
@@ -70,8 +68,8 @@ public class ErrorHandlers {
   }
 
   /**
-   * Table level error handlers.
-   * Should be chained wih the {@link #defaultErrorHandler}, which takes care of common cases.
+   * Table level error handlers. Should be chained wih the {@link #defaultErrorHandler}, which takes
+   * care of common cases.
    */
   private static Consumer<ErrorResponse> baseTableErrorHandler() {
     return error -> {
@@ -89,8 +87,8 @@ public class ErrorHandlers {
   }
 
   /**
-   * Request error handlers specifically for CRUD ops on namespaces.
-   * Should be chained wih the {@link #defaultErrorHandler}, which takes care of common cases.
+   * Request error handlers specifically for CRUD ops on namespaces. Should be chained wih the
+   * {@link #defaultErrorHandler}, which takes care of common cases.
    */
   private static Consumer<ErrorResponse> baseNamespaceErrorHandler() {
     return error -> {
@@ -106,8 +104,8 @@ public class ErrorHandlers {
   }
 
   /**
-   * Request error handler that handles the common cases that are included with all responses,
-   * such as 400, 500, etc.
+   * Request error handler that handles the common cases that are included with all responses, such
+   * as 400, 500, etc.
    */
   public static Consumer<ErrorResponse> defaultErrorHandler() {
     return error -> {
@@ -133,4 +131,3 @@ public class ErrorHandlers {
     };
   }
 }
-

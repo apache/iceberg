@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
 
 import java.lang.reflect.Array;
@@ -37,9 +36,11 @@ public class InternalRecordWrapper implements StructLike {
 
   @SuppressWarnings("unchecked")
   public InternalRecordWrapper(Types.StructType struct) {
-    this(struct.fields().stream()
-        .map(field -> converter(field.type()))
-        .toArray(length -> (Function<Object, Object>[]) Array.newInstance(Function.class, length)));
+    this(
+        struct.fields().stream()
+            .map(field -> converter(field.type()))
+            .toArray(
+                length -> (Function<Object, Object>[]) Array.newInstance(Function.class, length)));
   }
 
   private InternalRecordWrapper(Function<Object, Object>[] transforms) {

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import org.apache.flink.table.data.RowData;
@@ -27,8 +26,7 @@ import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class RandomRowData {
-  private RandomRowData() {
-  }
+  private RandomRowData() {}
 
   public static Iterable<RowData> generate(Schema schema, int numRecords, long seed) {
     return convert(schema, RandomGenericData.generate(schema, numRecords, seed));

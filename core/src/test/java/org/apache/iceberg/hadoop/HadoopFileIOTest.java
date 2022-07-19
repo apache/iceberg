@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,17 +39,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 public class HadoopFileIOTest {
   private final Random random = new Random(1);
 
   private FileSystem fs;
   private HadoopFileIO hadoopFileIO;
 
-  @TempDir
-  static File tempDir;
+  @TempDir static File tempDir;
 
   @BeforeEach
   public void before() throws Exception {
@@ -63,15 +61,21 @@ public class HadoopFileIOTest {
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
 
-    scaleSizes.parallelStream().forEach(scale -> {
-      Path scalePath = new Path(parent, Integer.toString(scale));
+    scaleSizes
+        .parallelStream()
+        .forEach(
+            scale -> {
+              Path scalePath = new Path(parent, Integer.toString(scale));
 
-      createRandomFiles(scalePath, scale);
-      assertEquals((long) scale, Streams.stream(hadoopFileIO.listPrefix(scalePath.toUri().toString())).count());
-    });
+              createRandomFiles(scalePath, scale);
+              assertEquals(
+                  (long) scale,
+                  Streams.stream(hadoopFileIO.listPrefix(scalePath.toUri().toString())).count());
+            });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertEquals(totalFiles, Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count());
+    assertEquals(
+        totalFiles, Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count());
   }
 
   @Test
@@ -80,19 +84,26 @@ public class HadoopFileIOTest {
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
 
-    scaleSizes.parallelStream().forEach(scale -> {
-      Path scalePath = new Path(parent, Integer.toString(scale));
+    scaleSizes
+        .parallelStream()
+        .forEach(
+            scale -> {
+              Path scalePath = new Path(parent, Integer.toString(scale));
 
-      createRandomFiles(scalePath, scale);
-      hadoopFileIO.deletePrefix(scalePath.toUri().toString());
+              createRandomFiles(scalePath, scale);
+              hadoopFileIO.deletePrefix(scalePath.toUri().toString());
 
-      // Hadoop filesystem will throw if the path does not exist
-      assertThrows(UncheckedIOException.class, () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator());
-    });
+              // Hadoop filesystem will throw if the path does not exist
+              assertThrows(
+                  UncheckedIOException.class,
+                  () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator());
+            });
 
     hadoopFileIO.deletePrefix(parent.toUri().toString());
     // Hadoop filesystem will throw if the path does not exist
-    assertThrows(UncheckedIOException.class, () -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator());
+    assertThrows(
+        UncheckedIOException.class,
+        () -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator());
   }
 
   @Test
@@ -118,13 +129,16 @@ public class HadoopFileIOTest {
   }
 
   private void createRandomFiles(Path parent, int count) {
-    random.ints(count).parallel().forEach(i -> {
-          try {
-            fs.createNewFile(new Path(parent, "file-" + i));
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        }
-    );
+    random
+        .ints(count)
+        .parallel()
+        .forEach(
+            i -> {
+              try {
+                fs.createNewFile(new Path(parent, "file-" + i));
+              } catch (IOException e) {
+                throw new UncheckedIOException(e);
+              }
+            });
   }
 }

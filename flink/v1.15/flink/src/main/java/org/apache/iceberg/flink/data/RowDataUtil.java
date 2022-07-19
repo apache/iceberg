@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.math.BigDecimal;
@@ -38,9 +37,7 @@ import org.apache.iceberg.util.DateTimeUtil;
 
 public class RowDataUtil {
 
-  private RowDataUtil() {
-
-  }
+  private RowDataUtil() {}
 
   public static Object convertConstant(Type type, Object value) {
     if (value == null) {
@@ -76,12 +73,13 @@ public class RowDataUtil {
   }
 
   /**
-   * Similar to the private {@link RowDataSerializer#copyRowData(RowData, RowData)} method.
-   * This skips the check the arity of rowType and from,
-   * because the from RowData may contains additional column for position deletes.
-   * Using {@link RowDataSerializer#copy(RowData, RowData)} will fail the arity check.
+   * Similar to the private {@link RowDataSerializer#copyRowData(RowData, RowData)} method. This
+   * skips the check the arity of rowType and from, because the from RowData may contains additional
+   * column for position deletes. Using {@link RowDataSerializer#copy(RowData, RowData)} will fail
+   * the arity check.
    */
-  public static RowData clone(RowData from, RowData reuse, RowType rowType, TypeSerializer[] fieldSerializers) {
+  public static RowData clone(
+      RowData from, RowData reuse, RowType rowType, TypeSerializer[] fieldSerializers) {
     GenericRowData ret;
     if (reuse instanceof GenericRowData) {
       ret = (GenericRowData) reuse;
@@ -99,5 +97,4 @@ public class RowDataUtil {
     }
     return ret;
   }
-
 }

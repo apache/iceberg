@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.Files.localOutput;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,8 +53,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.Files.localOutput;
-
 @RunWith(Parameterized.class)
 public class TestParquetScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
@@ -72,12 +71,11 @@ public class TestParquetScan extends AvroDataTest {
     currentSpark.stop();
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Parameterized.Parameters(name = "vectorized = {0}")
   public static Object[] parameters() {
-    return new Object[] { false, true };
+    return new Object[] {false, true};
   }
 
   private final boolean vectorized;
@@ -88,18 +86,20 @@ public class TestParquetScan extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    Assume.assumeTrue("Cannot handle non-string map keys in parquet-avro",
-        null == TypeUtil.find(
-            schema,
-            type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
+    Assume.assumeTrue(
+        "Cannot handle non-string map keys in parquet-avro",
+        null
+            == TypeUtil.find(
+                schema,
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
 
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     dataFolder.mkdirs();
 
-    File parquetFile = new File(dataFolder,
-        FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
+    File parquetFile =
+        new File(dataFolder, FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
 
     HadoopTables tables = new HadoopTables(CONF);
     Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
@@ -110,24 +110,25 @@ public class TestParquetScan extends AvroDataTest {
 
     List<GenericData.Record> expected = RandomData.generateList(tableSchema, 100, 1L);
 
-    try (FileAppender<GenericData.Record> writer = Parquet.write(localOutput(parquetFile))
-        .schema(tableSchema)
-        .build()) {
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(localOutput(parquetFile)).schema(tableSchema).build()) {
       writer.addAll(expected);
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withFileSizeInBytes(parquetFile.length())
-        .withPath(parquetFile.toString())
-        .withRecordCount(100)
-        .build();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withFileSizeInBytes(parquetFile.length())
+            .withPath(parquetFile.toString())
+            .withRecordCount(100)
+            .build();
 
     table.newAppend().appendFile(file).commit();
-    table.updateProperties().set(TableProperties.PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized)).commit();
+    table
+        .updateProperties()
+        .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized))
+        .commit();
 
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> df = spark.read().format("iceberg").load(location.toString());
 
     List<Row> rows = df.collectAsList();
     Assert.assertEquals("Should contain 100 rows", 100, rows.size());

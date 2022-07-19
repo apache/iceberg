@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -116,7 +115,8 @@ public class UnboundPartitionSpec {
       return name;
     }
 
-    private UnboundPartitionField(String transformAsString, int sourceId, Integer partitionId, String name) {
+    private UnboundPartitionField(
+        String transformAsString, int sourceId, Integer partitionId, String name) {
       this.transformAsString = transformAsString;
       this.sourceId = sourceId;
       this.partitionId = partitionId;

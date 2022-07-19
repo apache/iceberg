@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.PartitionSpec;
@@ -25,23 +26,18 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestFixtures {
 
-  private TestFixtures() {
+  private TestFixtures() {}
 
-  }
+  public static final Schema SCHEMA =
+      new Schema(
+          required(1, "data", Types.StringType.get()),
+          required(2, "id", Types.LongType.get()),
+          required(3, "dt", Types.StringType.get()));
 
-  public static final Schema SCHEMA = new Schema(
-      required(1, "data", Types.StringType.get()),
-      required(2, "id", Types.LongType.get()),
-      required(3, "dt", Types.StringType.get()));
-
-  public static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .identity("dt")
-      .bucket("id", 1)
-      .build();
+  public static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("dt").bucket("id", 1).build();
 
   public static final RowType ROW_TYPE = FlinkSchemaUtil.convert(SCHEMA);
 

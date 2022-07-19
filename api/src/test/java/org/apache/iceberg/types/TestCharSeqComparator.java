@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.util.Comparator;
@@ -27,10 +26,10 @@ import org.junit.Test;
 
 /**
  * Tests the comparator returned by CharSequence literals.
- * <p>
- * The tests use assertTrue instead of assertEquals because the return value is not necessarily one
- * of {-1, 0, 1}. It is also more clear to compare the return value to 0 because the same operation
- * can be used: a &lt; b is equivalent to compare(a, b) &lt; 0.
+ *
+ * <p>The tests use assertTrue instead of assertEquals because the return value is not necessarily
+ * one of {-1, 0, 1}. It is also more clear to compare the return value to 0 because the same
+ * operation can be used: a &lt; b is equivalent to compare(a, b) &lt; 0.
  */
 public class TestCharSeqComparator {
   @Test
@@ -39,12 +38,10 @@ public class TestCharSeqComparator {
     Utf8 s2 = new Utf8("abc");
 
     Comparator<CharSequence> stringComp = Literal.of(s1).comparator();
-    Assert.assertEquals("Should consider String and Utf8 equal",
-        0, stringComp.compare(s1, s2));
+    Assert.assertEquals("Should consider String and Utf8 equal", 0, stringComp.compare(s1, s2));
 
     Comparator<CharSequence> utf8Comp = Literal.of(s2).comparator();
-    Assert.assertEquals("Should consider String and Utf8 equal",
-        0, utf8Comp.compare(s1, s2));
+    Assert.assertEquals("Should consider String and Utf8 equal", 0, utf8Comp.compare(s1, s2));
   }
 
   @Test
@@ -55,15 +52,17 @@ public class TestCharSeqComparator {
     Comparator<CharSequence> cmp = Literal.of(s1).comparator();
 
     // Sanity check that String.compareTo gives the same result
-    Assert.assertTrue("When one string is a substring of the other, the longer is greater",
-        s1.compareTo(s2) < 0);
-    Assert.assertTrue("When one string is a substring of the other, the longer is greater",
-        s2.compareTo(s1) > 0);
+    Assert.assertTrue(
+        "When one string is a substring of the other, the longer is greater", s1.compareTo(s2) < 0);
+    Assert.assertTrue(
+        "When one string is a substring of the other, the longer is greater", s2.compareTo(s1) > 0);
 
     // Test the comparator
-    Assert.assertTrue("When one string is a substring of the other, the longer is greater",
+    Assert.assertTrue(
+        "When one string is a substring of the other, the longer is greater",
         cmp.compare(s1, s2) < 0);
-    Assert.assertTrue("When one string is a substring of the other, the longer is greater",
+    Assert.assertTrue(
+        "When one string is a substring of the other, the longer is greater",
         cmp.compare(s2, s1) > 0);
   }
 
@@ -76,16 +75,12 @@ public class TestCharSeqComparator {
     Comparator<CharSequence> cmp = Literal.of(s1).comparator();
 
     // Sanity check that String.compareTo gives the same result
-    Assert.assertTrue("First difference takes precedence over length",
-        s1.compareTo(s2) > 0);
-    Assert.assertTrue("First difference takes precedence over length",
-        s2.compareTo(s1) < 0);
+    Assert.assertTrue("First difference takes precedence over length", s1.compareTo(s2) > 0);
+    Assert.assertTrue("First difference takes precedence over length", s2.compareTo(s1) < 0);
 
     // Test the comparator
-    Assert.assertTrue("First difference takes precedence over length",
-        cmp.compare(s1, s2) > 0);
-    Assert.assertTrue("First difference takes precedence over length",
-        cmp.compare(s2, s1) < 0);
+    Assert.assertTrue("First difference takes precedence over length", cmp.compare(s1, s2) > 0);
+    Assert.assertTrue("First difference takes precedence over length", cmp.compare(s2, s1) < 0);
   }
 
   @Test

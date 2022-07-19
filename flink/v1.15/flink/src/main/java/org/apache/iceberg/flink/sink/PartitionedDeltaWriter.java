@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
@@ -41,17 +40,27 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
 
   private final Map<PartitionKey, RowDataDeltaWriter> writers = Maps.newHashMap();
 
-  PartitionedDeltaWriter(PartitionSpec spec,
-                         FileFormat format,
-                         FileAppenderFactory<RowData> appenderFactory,
-                         OutputFileFactory fileFactory,
-                         FileIO io,
-                         long targetFileSize,
-                         Schema schema,
-                         RowType flinkSchema,
-                         List<Integer> equalityFieldIds,
-                         boolean upsert) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, flinkSchema, equalityFieldIds,
+  PartitionedDeltaWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<RowData> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize,
+      Schema schema,
+      RowType flinkSchema,
+      List<Integer> equalityFieldIds,
+      boolean upsert) {
+    super(
+        spec,
+        format,
+        appenderFactory,
+        fileFactory,
+        io,
+        targetFileSize,
+        schema,
+        flinkSchema,
+        equalityFieldIds,
         upsert);
     this.partitionKey = new PartitionKey(spec, schema);
   }
@@ -62,7 +71,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
 
     RowDataDeltaWriter writer = writers.get(partitionKey);
     if (writer == null) {
-      // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
+      // NOTICE: we need to copy a new partition key here, in case of messing up the keys in
+      // writers.
       PartitionKey copiedKey = partitionKey.copy();
       writer = new RowDataDeltaWriter(copiedKey);
       writers.put(copiedKey, writer);

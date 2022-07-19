@@ -16,15 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
-
-import java.util.List;
-import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.util.Tasks;
 
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
@@ -35,11 +27,18 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.util.List;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.Tasks;
+
 /**
  * Sets the current snapshot directly or by rolling back.
- * <p>
- * This update is not exposed though the Table API. Instead, it is a package-private part of the Transaction API
- * intended for use in {@link ManageSnapshots}.
+ *
+ * <p>This update is not exposed though the Table API. Instead, it is a package-private part of the
+ * Transaction API intended for use in {@link ManageSnapshots}.
  */
 class SetSnapshotOperation implements PendingUpdate<Snapshot> {
 
@@ -53,10 +52,11 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
     this.base = ops.current();
   }
 
-
   public SetSnapshotOperation setCurrentSnapshot(long snapshotId) {
-    ValidationException.check(base.snapshot(snapshotId) != null,
-        "Cannot roll back to unknown snapshot id: %s", snapshotId);
+    ValidationException.check(
+        base.snapshot(snapshotId) != null,
+        "Cannot roll back to unknown snapshot id: %s",
+        snapshotId);
 
     this.targetSnapshotId = snapshotId;
 
@@ -66,8 +66,8 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
   public SetSnapshotOperation rollbackToTime(long timestampMillis) {
     // find the latest snapshot by timestamp older than timestampMillis
     Snapshot snapshot = findLatestAncestorOlderThan(base, timestampMillis);
-    Preconditions.checkArgument(snapshot != null,
-        "Cannot roll back, no valid snapshot older than: %s", timestampMillis);
+    Preconditions.checkArgument(
+        snapshot != null, "Cannot roll back, no valid snapshot older than: %s", timestampMillis);
 
     this.targetSnapshotId = snapshot.snapshotId();
     this.isRollback = true;
@@ -77,11 +77,14 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
 
   public SetSnapshotOperation rollbackTo(long snapshotId) {
     TableMetadata current = base;
-    ValidationException.check(current.snapshot(snapshotId) != null,
-        "Cannot roll back to unknown snapshot id: %s", snapshotId);
+    ValidationException.check(
+        current.snapshot(snapshotId) != null,
+        "Cannot roll back to unknown snapshot id: %s",
+        snapshotId);
     ValidationException.check(
         isCurrentAncestor(current, snapshotId),
-        "Cannot roll back to snapshot, not an ancestor of the current state: %s", snapshotId);
+        "Cannot roll back to snapshot, not an ancestor of the current state: %s",
+        snapshotId);
     return setCurrentSnapshot(snapshotId);
   }
 
@@ -94,8 +97,10 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
       return base.currentSnapshot();
     }
 
-    ValidationException.check(!isRollback || isCurrentAncestor(base, targetSnapshotId),
-        "Cannot roll back to %s: not an ancestor of the current table state", targetSnapshotId);
+    ValidationException.check(
+        !isRollback || isCurrentAncestor(base, targetSnapshotId),
+        "Cannot roll back to %s: not an ancestor of the current table state",
+        targetSnapshotId);
 
     return base.snapshot(targetSnapshotId);
   }
@@ -110,22 +115,27 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(taskOps -> {
-          Snapshot snapshot = apply();
-          TableMetadata updated = TableMetadata.buildFrom(base)
-              .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
-              .build();
+        .run(
+            taskOps -> {
+              Snapshot snapshot = apply();
+              TableMetadata updated =
+                  TableMetadata.buildFrom(base)
+                      .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
+                      .build();
 
-          if (updated.changes().isEmpty()) {
-            // do not commit if the metadata has not changed. for example, this may happen when setting the current
-            // snapshot to an ID that is already current. note that this check uses identity.
-            return;
-          }
+              if (updated.changes().isEmpty()) {
+                // do not commit if the metadata has not changed. for example, this may happen when
+                // setting the current
+                // snapshot to an ID that is already current. note that this check uses identity.
+                return;
+              }
 
-          // if the table UUID is missing, add it here. the UUID will be re-created each time this operation retries
-          // to ensure that if a concurrent operation assigns the UUID, this operation will not fail.
-          taskOps.commit(base, updated.withUUID());
-        });
+              // if the table UUID is missing, add it here. the UUID will be re-created each time
+              // this operation retries
+              // to ensure that if a concurrent operation assigns the UUID, this operation will not
+              // fail.
+              taskOps.commit(base, updated.withUUID());
+            });
   }
 
   /**
@@ -140,8 +150,8 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
     Snapshot result = null;
     for (Long snapshotId : currentAncestors(meta)) {
       Snapshot snapshot = meta.snapshot(snapshotId);
-      if (snapshot.timestampMillis() < timestampMillis &&
-          snapshot.timestampMillis() > snapshotTimestamp) {
+      if (snapshot.timestampMillis() < timestampMillis
+          && snapshot.timestampMillis() > snapshotTimestamp) {
         result = snapshot;
         snapshotTimestamp = snapshot.timestampMillis();
       }

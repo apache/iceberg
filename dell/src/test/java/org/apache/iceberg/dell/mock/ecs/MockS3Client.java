@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.mock.ecs;
 
 import com.emc.object.Protocol;
@@ -94,26 +93,30 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 
-/**
- * Memorized s3 client used in tests.
- */
+/** Memorized s3 client used in tests. */
 public class MockS3Client implements S3Client {
 
   /**
    * The object data of this client.
-   * <p>
-   * Current {@link S3ObjectMetadata} only store the user metadata.
+   *
+   * <p>Current {@link S3ObjectMetadata} only store the user metadata.
    */
   private final Map<ObjectId, ObjectData> objectData = Maps.newConcurrentMap();
 
   @Override
   public PutObjectResult putObject(PutObjectRequest request) {
     ObjectId objectId = new ObjectId(request.getBucketName(), request.getKey());
-    ObjectData data = ObjectData.create(convertContent(request.getEntity()), request.getObjectMetadata());
+    ObjectData data =
+        ObjectData.create(convertContent(request.getEntity()), request.getObjectMetadata());
     if (request.getIfMatch() != null) {
       // Compare and swap
-      if (this.objectData.computeIfPresent(objectId, (ignored, oldData) ->
-          oldData.createFullMetadata().getETag().equals(request.getIfMatch()) ? data : oldData) != data) {
+      if (this.objectData.computeIfPresent(
+              objectId,
+              (ignored, oldData) ->
+                  oldData.createFullMetadata().getETag().equals(request.getIfMatch())
+                      ? data
+                      : oldData)
+          != data) {
         throw new S3Exception("", 412, "PreconditionFailed", "");
       }
     } else if (request.getIfNoneMatch() != null) {
@@ -155,7 +158,8 @@ public class MockS3Client implements S3Client {
       return ((byte[]) entity).clone();
     }
 
-    throw new IllegalArgumentException(String.format("Invalid object entity type %s", entity.getClass()));
+    throw new IllegalArgumentException(
+        String.format("Invalid object entity type %s", entity.getClass()));
   }
 
   @Override
@@ -190,12 +194,13 @@ public class MockS3Client implements S3Client {
       throw new S3Exception("", 404, "NoSuchKey", "");
     }
 
-    GetObjectResult<InputStream> result = new GetObjectResult<InputStream>() {
-      @Override
-      public S3ObjectMetadata getObjectMetadata() {
-        return data.createFullMetadata();
-      }
-    };
+    GetObjectResult<InputStream> result =
+        new GetObjectResult<InputStream>() {
+          @Override
+          public S3ObjectMetadata getObjectMetadata() {
+            return data.createFullMetadata();
+          }
+        };
     result.setObject(data.createInputStream(Range.fromOffset(0)));
     return result;
   }
@@ -213,7 +218,8 @@ public class MockS3Client implements S3Client {
     List<S3Object> objectResults = Lists.newArrayListWithCapacity(maxKeys);
     Set<String> prefixResults = Sets.newHashSet();
     String nextMarker = null;
-    for (Map.Entry<ObjectId, ObjectData> entry : objectData.entrySet().stream()
+    for (Map.Entry<ObjectId, ObjectData> entry :
+        objectData.entrySet().stream()
             .sorted(Map.Entry.comparingByKey())
             .collect(Collectors.toList())) {
       ObjectId id = entry.getKey();
@@ -244,20 +250,20 @@ public class MockS3Client implements S3Client {
       }
     }
 
-    ListObjectsResult result = new ListObjectsResult() {
-      @Override
-      public List<String> getCommonPrefixes() {
-        return prefixResults.stream().sorted().collect(Collectors.toList());
-      }
-    };
+    ListObjectsResult result =
+        new ListObjectsResult() {
+          @Override
+          public List<String> getCommonPrefixes() {
+            return prefixResults.stream().sorted().collect(Collectors.toList());
+          }
+        };
     result.setObjects(objectResults);
     result.setNextMarker(nextMarker);
     return result;
   }
 
   @Override
-  public void destroy() {
-  }
+  public void destroy() {}
 
   @Override
   @Deprecated
@@ -479,8 +485,7 @@ public class MockS3Client implements S3Client {
   }
 
   @Override
-  public <T> GetObjectResult<T> getObject(
-      GetObjectRequest request, Class<T> objectType) {
+  public <T> GetObjectResult<T> getObject(GetObjectRequest request, Class<T> objectType) {
     return wontImplement();
   }
 
@@ -565,7 +570,8 @@ public class MockS3Client implements S3Client {
   }
 
   @Override
-  public InitiateMultipartUploadResult initiateMultipartUpload(InitiateMultipartUploadRequest request) {
+  public InitiateMultipartUploadResult initiateMultipartUpload(
+      InitiateMultipartUploadRequest request) {
     return wontImplement();
   }
 
@@ -590,7 +596,8 @@ public class MockS3Client implements S3Client {
   }
 
   @Override
-  public CompleteMultipartUploadResult completeMultipartUpload(CompleteMultipartUploadRequest request) {
+  public CompleteMultipartUploadResult completeMultipartUpload(
+      CompleteMultipartUploadRequest request) {
     return wontImplement();
   }
 

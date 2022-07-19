@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.FileNotFoundException;
@@ -39,8 +38,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * {@link InputFile} implementation using the Hadoop {@link FileSystem} API.
- * <p>
- * This class is based on Parquet's HadoopInputFile.
+ *
+ * <p>This class is based on Parquet's HadoopInputFile.
  */
 public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   public static final String[] NO_LOCATION_PREFERENCE = new String[0];
@@ -58,8 +57,8 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
     return new HadoopInputFile(fs, location.toString(), conf);
   }
 
-  public static HadoopInputFile fromLocation(CharSequence location, long length,
-                                             Configuration conf) {
+  public static HadoopInputFile fromLocation(
+      CharSequence location, long length, Configuration conf) {
     FileSystem fs = Util.getFs(new Path(location.toString()), conf);
     if (length > 0) {
       return new HadoopInputFile(fs, location.toString(), length, conf);
@@ -72,8 +71,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
     return new HadoopInputFile(fs, location.toString(), fs.getConf());
   }
 
-  public static HadoopInputFile fromLocation(CharSequence location, long length,
-                                             FileSystem fs) {
+  public static HadoopInputFile fromLocation(CharSequence location, long length, FileSystem fs) {
     return new HadoopInputFile(fs, location.toString(), length, fs.getConf());
   }
 
@@ -99,7 +97,8 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
     return new HadoopInputFile(fs, path, conf);
   }
 
-  public static HadoopInputFile fromPath(Path path, long length, FileSystem fs, Configuration conf) {
+  public static HadoopInputFile fromPath(
+      Path path, long length, FileSystem fs, Configuration conf) {
     return new HadoopInputFile(fs, path, length, conf);
   }
 
@@ -119,7 +118,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   private HadoopInputFile(FileSystem fs, String location, Configuration conf) {
     this.fs = fs;
     this.location = location;
-    this.path =  new Path(location);
+    this.path = new Path(location);
     this.conf = conf;
   }
 
@@ -127,7 +126,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
     Preconditions.checkArgument(length >= 0, "Invalid file length: %s", length);
     this.fs = fs;
     this.location = location;
-    this.path =  new Path(location);
+    this.path = new Path(location);
     this.conf = conf;
     this.length = length;
   }

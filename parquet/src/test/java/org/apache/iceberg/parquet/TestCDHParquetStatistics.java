@@ -16,19 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import org.apache.parquet.column.statistics.Statistics;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 /**
- * Tests for Parquet 1.5.0-Stats which cannot be evaluated like later versions of Parquet stats. They are intercepted
- * by the hasNonNullButNoMinMax function which always returns ROWS_MAY_MATCH
+ * Tests for Parquet 1.5.0-Stats which cannot be evaluated like later versions of Parquet stats.
+ * They are intercepted by the hasNonNullButNoMinMax function which always returns ROWS_MAY_MATCH
  */
 public class TestCDHParquetStatistics {
 
@@ -38,7 +37,8 @@ public class TestCDHParquetStatistics {
     when(cdhBinaryColumnStats.getMaxBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getMinBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getNumNulls()).thenReturn(0L);
-    Assert.assertTrue(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(cdhBinaryColumnStats, 50L));
+    Assert.assertTrue(
+        ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(cdhBinaryColumnStats, 50L));
   }
 
   @Test
@@ -47,7 +47,8 @@ public class TestCDHParquetStatistics {
     when(cdhBinaryColumnStats.getMaxBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getMinBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getNumNulls()).thenReturn(-1L);
-    Assert.assertTrue(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(cdhBinaryColumnStats, 50L));
+    Assert.assertTrue(
+        ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(cdhBinaryColumnStats, 50L));
   }
 
   @Test
@@ -56,7 +57,8 @@ public class TestCDHParquetStatistics {
     when(cdhBinaryColumnStats.getMaxBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getMinBytes()).thenReturn(null);
     when(cdhBinaryColumnStats.getNumNulls()).thenReturn(50L);
-    Assert.assertFalse(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(cdhBinaryColumnStats, 50L));
+    Assert.assertFalse(
+        ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(cdhBinaryColumnStats, 50L));
   }
 
   @Test
@@ -65,7 +67,8 @@ public class TestCDHParquetStatistics {
     when(normalBinaryColumnStats.getMaxBytes()).thenReturn(new byte[2]);
     when(normalBinaryColumnStats.getMinBytes()).thenReturn(new byte[2]);
     when(normalBinaryColumnStats.getNumNulls()).thenReturn(0L);
-    Assert.assertFalse(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(normalBinaryColumnStats, 50L));
+    Assert.assertFalse(
+        ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(normalBinaryColumnStats, 50L));
   }
 
   @Test
@@ -74,7 +77,8 @@ public class TestCDHParquetStatistics {
     when(normalBinaryColumnStats.getMaxBytes()).thenReturn(new byte[2]);
     when(normalBinaryColumnStats.getMinBytes()).thenReturn(new byte[2]);
     when(normalBinaryColumnStats.getNumNulls()).thenReturn(-1L);
-    Assert.assertFalse(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(normalBinaryColumnStats, 50L));
+    Assert.assertFalse(
+        ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(normalBinaryColumnStats, 50L));
   }
 
   @Test
@@ -83,6 +87,7 @@ public class TestCDHParquetStatistics {
     when(normalBinaryColumnStats.getMaxBytes()).thenReturn(new byte[2]);
     when(normalBinaryColumnStats.getMinBytes()).thenReturn(new byte[2]);
     when(normalBinaryColumnStats.getNumNulls()).thenReturn(50L);
-    Assert.assertFalse(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(normalBinaryColumnStats, 50L));
+    Assert.assertFalse(
+        ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(normalBinaryColumnStats, 50L));
   }
 }

@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -45,21 +47,17 @@ import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestDataFileSerialization {
 
-  private static final Schema DATE_SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()),
-      optional(4, "double", Types.DoubleType.get()));
+  private static final Schema DATE_SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "data", Types.StringType.get()),
+          required(3, "date", Types.StringType.get()),
+          optional(4, "double", Types.DoubleType.get()));
 
-  private static final PartitionSpec PARTITION_SPEC = PartitionSpec
-      .builderFor(DATE_SCHEMA)
-      .identity("date")
-      .build();
+  private static final PartitionSpec PARTITION_SPEC =
+      PartitionSpec.builderFor(DATE_SCHEMA).identity("date").build();
 
   private static final Map<Integer, Long> COLUMN_SIZES = Maps.newHashMap();
   private static final Map<Integer, Long> VALUE_COUNTS = Maps.newHashMap();
@@ -81,40 +79,43 @@ public class TestDataFileSerialization {
     UPPER_BOUNDS.put(1, longToBuffer(4L));
   }
 
-  private static final Metrics METRICS = new Metrics(
-      5L, null, VALUE_COUNTS, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS);
+  private static final Metrics METRICS =
+      new Metrics(
+          5L, null, VALUE_COUNTS, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS);
 
-  private static final DataFile DATA_FILE = DataFiles
-      .builder(PARTITION_SPEC)
-      .withPath("/path/to/data-1.parquet")
-      .withFileSizeInBytes(1234)
-      .withPartitionPath("date=2018-06-08")
-      .withMetrics(METRICS)
-      .withSplitOffsets(ImmutableList.of(4L))
-      .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(34))
-      .withSortOrder(SortOrder.unsorted())
-      .build();
+  private static final DataFile DATA_FILE =
+      DataFiles.builder(PARTITION_SPEC)
+          .withPath("/path/to/data-1.parquet")
+          .withFileSizeInBytes(1234)
+          .withPartitionPath("date=2018-06-08")
+          .withMetrics(METRICS)
+          .withSplitOffsets(ImmutableList.of(4L))
+          .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(34))
+          .withSortOrder(SortOrder.unsorted())
+          .build();
 
-  private static final DeleteFile POS_DELETE_FILE = FileMetadata.deleteFileBuilder(PARTITION_SPEC)
-      .ofPositionDeletes()
-      .withPath("/path/to/pos-delete.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("date=2018-06-08")
-      .withMetrics(METRICS)
-      .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(35))
-      .withRecordCount(23)
-      .build();
+  private static final DeleteFile POS_DELETE_FILE =
+      FileMetadata.deleteFileBuilder(PARTITION_SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/pos-delete.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("date=2018-06-08")
+          .withMetrics(METRICS)
+          .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(35))
+          .withRecordCount(23)
+          .build();
 
-  private static final DeleteFile EQ_DELETE_FILE = FileMetadata.deleteFileBuilder(PARTITION_SPEC)
-      .ofEqualityDeletes(2, 3)
-      .withPath("/path/to/equality-delete.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("date=2018-06-08")
-      .withMetrics(METRICS)
-      .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(35))
-      .withRecordCount(23)
-      .withSortOrder(SortOrder.unsorted())
-      .build();
+  private static final DeleteFile EQ_DELETE_FILE =
+      FileMetadata.deleteFileBuilder(PARTITION_SPEC)
+          .ofEqualityDeletes(2, 3)
+          .withPath("/path/to/equality-delete.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("date=2018-06-08")
+          .withMetrics(METRICS)
+          .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(35))
+          .withRecordCount(23)
+          .withSortOrder(SortOrder.unsorted())
+          .build();
 
   @Test
   public void testJavaSerialization() throws Exception {
@@ -130,7 +131,8 @@ public class TestDataFileSerialization {
       out.writeObject(EQ_DELETE_FILE.copy());
     }
 
-    try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+    try (ObjectInputStream in =
+        new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
         Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
@@ -139,13 +141,17 @@ public class TestDataFileSerialization {
 
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
-        Assertions.assertThat(obj).as("Should be a position DeleteFile").isInstanceOf(DeleteFile.class);
+        Assertions.assertThat(obj)
+            .as("Should be a position DeleteFile")
+            .isInstanceOf(DeleteFile.class);
         TestHelpers.assertEquals(POS_DELETE_FILE, (DeleteFile) obj);
       }
 
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
-        Assertions.assertThat(obj).as("Should be a equality DeleteFile").isInstanceOf(DeleteFile.class);
+        Assertions.assertThat(obj)
+            .as("Should be a equality DeleteFile")
+            .isInstanceOf(DeleteFile.class);
         TestHelpers.assertEquals(EQ_DELETE_FILE, (DeleteFile) obj);
       }
     }

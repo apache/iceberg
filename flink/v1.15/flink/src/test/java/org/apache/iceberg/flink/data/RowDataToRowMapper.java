@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -40,8 +39,8 @@ public class RowDataToRowMapper extends RichMapFunction<RowData, Row> {
 
   @Override
   public void open(Configuration parameters) throws Exception {
-    this.converter = DataStructureConverters.getConverter(
-        TypeConversions.fromLogicalToDataType(rowType));
+    this.converter =
+        DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
   }
 
   @Override

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
@@ -39,8 +38,10 @@ public class TestAvroEncoderUtil extends AvroDataTest {
       byte[] serializedData = AvroEncoderUtil.encode(record, avroSchema);
       GenericData.Record expectedRecord = AvroEncoderUtil.decode(serializedData);
 
-      // Fallback to compare the record's string, because its equals implementation will depend on the avro schema.
-      // While the avro schema will convert the 'map' type to be a list of key/value pairs for non-string keys, it
+      // Fallback to compare the record's string, because its equals implementation will depend on
+      // the avro schema.
+      // While the avro schema will convert the 'map' type to be a list of key/value pairs for
+      // non-string keys, it
       // would be failing to read the 'array' from a 'map'.
       Assert.assertEquals(expectedRecord.toString(), record.toString());
 

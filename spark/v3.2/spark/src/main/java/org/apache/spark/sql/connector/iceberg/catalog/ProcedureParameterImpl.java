@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.catalog;
 
 import java.util.Objects;
 import org.apache.spark.sql.types.DataType;
 
-/**
- * A {@link ProcedureParameter} implementation.
- */
+/** A {@link ProcedureParameter} implementation. */
 class ProcedureParameterImpl implements ProcedureParameter {
   private final String name;
   private final DataType dataType;
@@ -60,9 +57,9 @@ class ProcedureParameterImpl implements ProcedureParameter {
     }
 
     ProcedureParameterImpl that = (ProcedureParameterImpl) other;
-    return required == that.required &&
-        Objects.equals(name, that.name) &&
-        Objects.equals(dataType, that.dataType);
+    return required == that.required
+        && Objects.equals(name, that.name)
+        && Objects.equals(dataType, that.dataType);
   }
 
   @Override
@@ -72,6 +69,7 @@ class ProcedureParameterImpl implements ProcedureParameter {
 
   @Override
   public String toString() {
-    return String.format("ProcedureParameter(name='%s', type=%s, required=%b)", name, dataType, required);
+    return String.format(
+        "ProcedureParameter(name='%s', type=%s, required=%b)", name, dataType, required);
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.deletes;
 
 import java.io.IOException;
@@ -44,9 +43,15 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   private final SortOrder sortOrder;
   private DeleteFile deleteFile = null;
 
-  public EqualityDeleteWriter(FileAppender<T> appender, FileFormat format, String location,
-                              PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
-                              SortOrder sortOrder, int... equalityFieldIds) {
+  public EqualityDeleteWriter(
+      FileAppender<T> appender,
+      FileFormat format,
+      String location,
+      PartitionSpec spec,
+      StructLike partition,
+      EncryptionKeyMetadata keyMetadata,
+      SortOrder sortOrder,
+      int... equalityFieldIds) {
     this.appender = appender;
     this.format = format;
     this.location = location;
@@ -91,16 +96,17 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   public void close() throws IOException {
     if (deleteFile == null) {
       appender.close();
-      this.deleteFile = FileMetadata.deleteFileBuilder(spec)
-          .ofEqualityDeletes(equalityFieldIds)
-          .withFormat(format)
-          .withPath(location)
-          .withPartition(partition)
-          .withEncryptionKeyMetadata(keyMetadata)
-          .withFileSizeInBytes(appender.length())
-          .withMetrics(appender.metrics())
-          .withSortOrder(sortOrder)
-          .build();
+      this.deleteFile =
+          FileMetadata.deleteFileBuilder(spec)
+              .ofEqualityDeletes(equalityFieldIds)
+              .withFormat(format)
+              .withPath(location)
+              .withPartition(partition)
+              .withEncryptionKeyMetadata(keyMetadata)
+              .withFileSizeInBytes(appender.length())
+              .withMetrics(appender.metrics())
+              .withSortOrder(sortOrder)
+              .build();
     }
   }
 

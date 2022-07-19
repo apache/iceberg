@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.util.Iterator;
@@ -34,28 +33,32 @@ import org.junit.Assert;
 public class TestRowDataWrapper extends RecordWrapperTest {
 
   /**
-   * Flink's time type has been truncated to millis seconds, so we need a customized assert method to check the
-   * values.
+   * Flink's time type has been truncated to millis seconds, so we need a customized assert method
+   * to check the values.
    */
   @Override
   public void testTime() {
-    generateAndValidate(new Schema(TIME.fields()), (message, expectedWrapper, actualWrapper) -> {
-      for (int pos = 0; pos < TIME.fields().size(); pos++) {
-        Object expected = expectedWrapper.get().get(pos, Object.class);
-        Object actual = actualWrapper.get().get(pos, Object.class);
-        if (expected == actual) {
-          return;
-        }
+    generateAndValidate(
+        new Schema(TIME.fields()),
+        (message, expectedWrapper, actualWrapper) -> {
+          for (int pos = 0; pos < TIME.fields().size(); pos++) {
+            Object expected = expectedWrapper.get().get(pos, Object.class);
+            Object actual = actualWrapper.get().get(pos, Object.class);
+            if (expected == actual) {
+              return;
+            }
 
-        if (expected == null || actual == null) {
-          Assert.fail(String.format("The expected value is %s but actual value is %s", expected, actual));
-        }
+            if (expected == null || actual == null) {
+              Assert.fail(
+                  String.format(
+                      "The expected value is %s but actual value is %s", expected, actual));
+            }
 
-        int expectedMilliseconds = (int) ((long) expected / 1000_000);
-        int actualMilliseconds = (int) ((long) actual / 1000_000);
-        Assert.assertEquals(message, expectedMilliseconds, actualMilliseconds);
-      }
-    });
+            int expectedMilliseconds = (int) ((long) expected / 1000_000);
+            int actualMilliseconds = (int) ((long) actual / 1000_000);
+            Assert.assertEquals(message, expectedMilliseconds, actualMilliseconds);
+          }
+        });
   }
 
   @Override
@@ -65,7 +68,8 @@ public class TestRowDataWrapper extends RecordWrapperTest {
     Iterable<RowData> rowDataList = RandomRowData.generate(schema, numRecords, 101L);
 
     InternalRecordWrapper recordWrapper = new InternalRecordWrapper(schema.asStruct());
-    RowDataWrapper rowDataWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
+    RowDataWrapper rowDataWrapper =
+        new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
 
     Iterator<Record> actual = recordList.iterator();
     Iterator<RowData> expected = rowDataList.iterator();
@@ -79,8 +83,10 @@ public class TestRowDataWrapper extends RecordWrapperTest {
       StructLike recordStructLike = recordWrapper.wrap(actual.next());
       StructLike rowDataStructLike = rowDataWrapper.wrap(expected.next());
 
-      assertMethod.assertEquals("Should have expected StructLike values",
-          actualWrapper.set(recordStructLike), expectedWrapper.set(rowDataStructLike));
+      assertMethod.assertEquals(
+          "Should have expected StructLike values",
+          actualWrapper.set(recordStructLike),
+          expectedWrapper.set(rowDataStructLike));
     }
 
     Assert.assertFalse("Shouldn't have more record", actual.hasNext());

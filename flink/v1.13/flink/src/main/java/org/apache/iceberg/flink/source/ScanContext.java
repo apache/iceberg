@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 import java.io.Serializable;
 import java.time.Duration;
@@ -29,11 +30,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-
-/**
- * Context object with optional arguments for a Flink Scan.
- */
+/** Context object with optional arguments for a Flink Scan. */
 class ScanContext implements Serializable {
 
   private static final long serialVersionUID = 1L;
@@ -85,10 +82,22 @@ class ScanContext implements Serializable {
   private final List<Expression> filters;
   private final long limit;
 
-  private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
-                      Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
-                      boolean isStreaming, Duration monitorInterval, String nameMapping,
-                      Schema schema, List<Expression> filters, long limit, boolean exposeLocality) {
+  private ScanContext(
+      boolean caseSensitive,
+      Long snapshotId,
+      Long startSnapshotId,
+      Long endSnapshotId,
+      Long asOfTimestamp,
+      Long splitSize,
+      Integer splitLookback,
+      Long splitOpenFileCost,
+      boolean isStreaming,
+      Duration monitorInterval,
+      String nameMapping,
+      Schema schema,
+      List<Expression> filters,
+      long limit,
+      boolean exposeLocality) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -228,8 +237,7 @@ class ScanContext implements Serializable {
     private long limit = -1L;
     private boolean exposeLocality;
 
-    private Builder() {
-    }
+    private Builder() {}
 
     Builder caseSensitive(boolean newCaseSensitive) {
       this.caseSensitive = newCaseSensitive;
@@ -324,10 +332,22 @@ class ScanContext implements Serializable {
     }
 
     public ScanContext build() {
-      return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
-          endSnapshotId, asOfTimestamp, splitSize, splitLookback,
-          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filters, limit, exposeLocality);
+      return new ScanContext(
+          caseSensitive,
+          snapshotId,
+          startSnapshotId,
+          endSnapshotId,
+          asOfTimestamp,
+          splitSize,
+          splitLookback,
+          splitOpenFileCost,
+          isStreaming,
+          monitorInterval,
+          nameMapping,
+          projectedSchema,
+          filters,
+          limit,
+          exposeLocality);
     }
   }
 }

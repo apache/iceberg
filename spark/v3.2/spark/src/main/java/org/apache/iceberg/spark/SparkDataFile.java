@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
@@ -79,10 +78,12 @@ public class SparkDataFile implements DataFile {
     }
 
     Map<String, Integer> positions = Maps.newHashMap();
-    type.fields().forEach(field -> {
-      String fieldName = field.name();
-      positions.put(fieldName, fieldPosition(fieldName, sparkType));
-    });
+    type.fields()
+        .forEach(
+            field -> {
+              String fieldName = field.name();
+              positions.put(fieldName, fieldPosition(fieldName, sparkType));
+            });
 
     filePathPosition = positions.get("file_path");
     fileFormatPosition = positions.get("file_format");
@@ -156,23 +157,29 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public Map<Integer, Long> nullValueCounts() {
-    return wrapped.isNullAt(nullValueCountsPosition) ? null : wrapped.getJavaMap(nullValueCountsPosition);
+    return wrapped.isNullAt(nullValueCountsPosition)
+        ? null
+        : wrapped.getJavaMap(nullValueCountsPosition);
   }
 
   @Override
   public Map<Integer, Long> nanValueCounts() {
-    return wrapped.isNullAt(nanValueCountsPosition) ? null : wrapped.getJavaMap(nanValueCountsPosition);
+    return wrapped.isNullAt(nanValueCountsPosition)
+        ? null
+        : wrapped.getJavaMap(nanValueCountsPosition);
   }
 
   @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
-    Map<?, ?> lowerBounds = wrapped.isNullAt(lowerBoundsPosition) ? null : wrapped.getJavaMap(lowerBoundsPosition);
+    Map<?, ?> lowerBounds =
+        wrapped.isNullAt(lowerBoundsPosition) ? null : wrapped.getJavaMap(lowerBoundsPosition);
     return convert(lowerBoundsType, lowerBounds);
   }
 
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
-    Map<?, ?> upperBounds = wrapped.isNullAt(upperBoundsPosition) ? null : wrapped.getJavaMap(upperBoundsPosition);
+    Map<?, ?> upperBounds =
+        wrapped.isNullAt(upperBoundsPosition) ? null : wrapped.getJavaMap(upperBoundsPosition);
     return convert(upperBoundsType, upperBounds);
   }
 

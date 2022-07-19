@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws;
 
 import java.util.Map;
@@ -37,7 +36,8 @@ public class TestDefaultAwsClientFactory {
     properties.put(AwsProperties.S3FILEIO_ENDPOINT, "https://unknown:1234");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     S3Client s3Client = factory.s3();
-    AssertHelpers.assertThrowsCause("Should refuse connection to unknown endpoint",
+    AssertHelpers.assertThrowsCause(
+        "Should refuse connection to unknown endpoint",
         SdkClientException.class,
         "Unable to execute HTTP request: unknown",
         () -> s3Client.getObject(GetObjectRequest.builder().bucket("bucket").key("key").build()));
@@ -50,7 +50,8 @@ public class TestDefaultAwsClientFactory {
     properties.put(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY, "unknown");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     S3Client s3Client = factory.s3();
-    AssertHelpers.assertThrows("Should fail request because of bad access key",
+    AssertHelpers.assertThrows(
+        "Should fail request because of bad access key",
         S3Exception.class,
         "The AWS Access Key Id you provided does not exist in our records",
         () -> s3Client.getObject(GetObjectRequest.builder().bucket("bucket").key("key").build()));
@@ -62,7 +63,8 @@ public class TestDefaultAwsClientFactory {
     properties.put(AwsProperties.DYNAMODB_ENDPOINT, "https://unknown:1234");
     AwsClientFactory factory = AwsClientFactories.from(properties);
     DynamoDbClient dynamoDbClient = factory.dynamo();
-    AssertHelpers.assertThrowsCause("Should refuse connection to unknown endpoint",
+    AssertHelpers.assertThrowsCause(
+        "Should refuse connection to unknown endpoint",
         SdkClientException.class,
         "Unable to execute HTTP request: unknown",
         dynamoDbClient::listTables);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.pig;
 
 import java.io.IOException;
@@ -65,7 +64,8 @@ import org.apache.pig.impl.util.UDFContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredicatePushdown, LoadPushDown {
+public class IcebergStorage extends LoadFunc
+    implements LoadMetadata, LoadPredicatePushdown, LoadPushDown {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergStorage.class);
 
   public static final String PIG_ICEBERG_TABLES_IMPL = "pig.iceberg.tables.impl";
@@ -124,7 +124,6 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     return SchemaUtil.convert(schema);
   }
 
-
   @Override
   public ResourceStatistics getStatistics(String location, Job job) {
     LOG.info("[{}]: getStatistics() -> : {}", signature, location);
@@ -167,8 +166,19 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
   @Override
   public ImmutableList<OpType> getSupportedExpressionTypes() {
     LOG.info("[{}]: getSupportedExpressionTypes()", signature);
-    return ImmutableList.of(OpType.OP_AND, OpType.OP_OR, OpType.OP_EQ, OpType.OP_NE, OpType.OP_NOT, OpType.OP_GE,
-        OpType.OP_GT, OpType.OP_LE, OpType.OP_LT, OpType.OP_BETWEEN, OpType.OP_IN, OpType.OP_NULL);
+    return ImmutableList.of(
+        OpType.OP_AND,
+        OpType.OP_OR,
+        OpType.OP_EQ,
+        OpType.OP_NE,
+        OpType.OP_NOT,
+        OpType.OP_GE,
+        OpType.OP_GT,
+        OpType.OP_LE,
+        OpType.OP_LT,
+        OpType.OP_BETWEEN,
+        OpType.OP_IN,
+        OpType.OP_NULL);
   }
 
   @Override
@@ -183,7 +193,8 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     storeInUDFContext(IcebergPigInputFormat.ICEBERG_FILTER_EXPRESSION, icebergExpression);
   }
 
-  private org.apache.iceberg.expressions.Expression convert(Expression expression) throws IOException {
+  private org.apache.iceberg.expressions.Expression convert(Expression expression)
+      throws IOException {
     OpType op = expression.getOpType();
 
     if (expression instanceof BinaryExpression) {
@@ -199,12 +210,12 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
           BetweenExpression between = (BetweenExpression) rhs;
           return Expressions.and(
               convert(OpType.OP_GE, (Column) lhs, (Const) between.getLower()),
-              convert(OpType.OP_LE, (Column) lhs, (Const) between.getUpper())
-          );
+              convert(OpType.OP_LE, (Column) lhs, (Const) between.getUpper()));
         case OP_IN:
-          return ((InExpression) rhs).getValues().stream()
-              .map(value -> convert(OpType.OP_EQ, (Column) lhs, (Const) value))
-              .reduce(Expressions.alwaysFalse(), Expressions::or);
+          return ((InExpression) rhs)
+              .getValues().stream()
+                  .map(value -> convert(OpType.OP_EQ, (Column) lhs, (Const) value))
+                  .reduce(Expressions.alwaysFalse(), Expressions::or);
         default:
           if (lhs instanceof Column && rhs instanceof Const) {
             return convert(op, (Column) lhs, (Const) rhs);
@@ -217,9 +228,12 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
       Expression unary = ((UnaryExpression) expression).getExpression();
 
       switch (op) {
-        case OP_NOT:  return Expressions.not(convert(unary));
-        case OP_NULL: return Expressions.isNull(((Column) unary).getName());
-        default: throw new FrontendException("Unsupported unary operator" + op);
+        case OP_NOT:
+          return Expressions.not(convert(unary));
+        case OP_NULL:
+          return Expressions.isNull(((Column) unary).getName());
+        default:
+          throw new FrontendException("Unsupported unary operator" + op);
       }
     }
 
@@ -231,16 +245,23 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     Object value = constant.getValue();
 
     switch (op) {
-      case OP_GE: return Expressions.greaterThanOrEqual(name, value);
-      case OP_GT: return Expressions.greaterThan(name, value);
-      case OP_LE: return Expressions.lessThanOrEqual(name, value);
-      case OP_LT: return Expressions.lessThan(name, value);
-      case OP_EQ: return NaNUtil.isNaN(value) ? Expressions.isNaN(name) : Expressions.equal(name, value);
-      case OP_NE: return NaNUtil.isNaN(value) ? Expressions.notNaN(name) : Expressions.notEqual(name, value);
+      case OP_GE:
+        return Expressions.greaterThanOrEqual(name, value);
+      case OP_GT:
+        return Expressions.greaterThan(name, value);
+      case OP_LE:
+        return Expressions.lessThanOrEqual(name, value);
+      case OP_LT:
+        return Expressions.lessThan(name, value);
+      case OP_EQ:
+        return NaNUtil.isNaN(value) ? Expressions.isNaN(name) : Expressions.equal(name, value);
+      case OP_NE:
+        return NaNUtil.isNaN(value) ? Expressions.notNaN(name) : Expressions.notEqual(name, value);
     }
 
     throw new RuntimeException(
-        String.format("[%s]: Failed to pushdown expression: %s %s %s", signature, col, op, constant));
+        String.format(
+            "[%s]: Failed to pushdown expression: %s %s %s", signature, col, op, constant));
   }
 
   @Override
@@ -253,8 +274,10 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
     LOG.info("[{}]: pushProjection() -> {}", signature, requiredFieldList);
 
     try {
-      List<String> projection = requiredFieldList.getFields()
-          .stream().map(RequiredField::getAlias).collect(Collectors.toList());
+      List<String> projection =
+          requiredFieldList.getFields().stream()
+              .map(RequiredField::getAlias)
+              .collect(Collectors.toList());
 
       storeInUDFContext(IcebergPigInputFormat.ICEBERG_PROJECTED_FIELDS, (Serializable) projection);
     } catch (IOException e) {
@@ -270,14 +293,17 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
   }
 
   private void storeInUDFContext(String key, Serializable value) throws IOException {
-    Properties properties = UDFContext.getUDFContext().getUDFProperties(this.getClass(), new String[]{signature});
+    Properties properties =
+        UDFContext.getUDFContext().getUDFProperties(this.getClass(), new String[] {signature});
 
     properties.setProperty(key, ObjectSerializer.serialize(value));
   }
 
   private void copyUDFContextToScopedConfiguration(Configuration conf, String key) {
-    String value = UDFContext.getUDFContext()
-        .getUDFProperties(this.getClass(), new String[]{signature}).getProperty(key);
+    String value =
+        UDFContext.getUDFContext()
+            .getUDFProperties(this.getClass(), new String[] {signature})
+            .getProperty(key);
 
     if (value != null) {
       conf.set(key + '.' + signature, value);
@@ -291,7 +317,8 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
   private Table load(String location, Job job) throws IOException {
     if (iceberg == null) {
-      Class<?> tablesImpl = job.getConfiguration().getClass(PIG_ICEBERG_TABLES_IMPL, HadoopTables.class);
+      Class<?> tablesImpl =
+          job.getConfiguration().getClass(PIG_ICEBERG_TABLES_IMPL, HadoopTables.class);
       LOG.info("Initializing iceberg tables implementation: {}", tablesImpl);
       iceberg = (Tables) ReflectionUtils.newInstance(tablesImpl, job.getConfiguration());
     }
@@ -310,5 +337,4 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
 
     return result;
   }
-
 }

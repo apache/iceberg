@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.Deque;
@@ -28,7 +27,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public abstract class AvroSchemaWithTypeVisitor<T> {
-  public static <T> T visit(org.apache.iceberg.Schema iSchema, Schema schema, AvroSchemaWithTypeVisitor<T> visitor) {
+  public static <T> T visit(
+      org.apache.iceberg.Schema iSchema, Schema schema, AvroSchemaWithTypeVisitor<T> visitor) {
     return visit(iSchema.asStruct(), schema, visitor);
   }
 
@@ -45,7 +45,9 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
 
       case MAP:
         Types.MapType map = iType != null ? iType.asMapType() : null;
-        return visitor.map(map, schema,
+        return visitor.map(
+            map,
+            schema,
             visit(map != null ? map.valueType() : null, schema.getValueType(), visitor));
 
       default:
@@ -53,11 +55,12 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
     }
   }
 
-  private static <T> T visitRecord(Types.StructType struct, Schema record, AvroSchemaWithTypeVisitor<T> visitor) {
+  private static <T> T visitRecord(
+      Types.StructType struct, Schema record, AvroSchemaWithTypeVisitor<T> visitor) {
     // check to make sure this hasn't been visited before
     String name = record.getFullName();
-    Preconditions.checkState(!visitor.recordLevels.contains(name),
-        "Cannot process recursive Avro record %s", name);
+    Preconditions.checkState(
+        !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
 
     visitor.recordLevels.push(name);
 
@@ -93,16 +96,21 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
     if (array.getLogicalType() instanceof LogicalMap || (type != null && type.isMapType())) {
       Preconditions.checkState(
           AvroSchemaUtil.isKeyValueSchema(array.getElementType()),
-          "Cannot visit invalid logical map type: %s", array);
+          "Cannot visit invalid logical map type: %s",
+          array);
       Types.MapType map = type != null ? type.asMapType() : null;
       List<Schema.Field> keyValueFields = array.getElementType().getFields();
-      return visitor.map(map, array,
+      return visitor.map(
+          map,
+          array,
           visit(map != null ? map.keyType() : null, keyValueFields.get(0).schema(), visitor),
           visit(map != null ? map.valueType() : null, keyValueFields.get(1).schema(), visitor));
 
     } else {
       Types.ListType list = type != null ? type.asListType() : null;
-      return visitor.array(list, array,
+      return visitor.array(
+          list,
+          array,
           visit(list != null ? list.elementType() : null, array.getElementType(), visitor));
     }
   }

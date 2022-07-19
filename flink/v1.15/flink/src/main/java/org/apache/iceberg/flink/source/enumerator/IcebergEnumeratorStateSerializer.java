@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
@@ -32,17 +31,21 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 @Internal
-public class IcebergEnumeratorStateSerializer implements SimpleVersionedSerializer<IcebergEnumeratorState> {
+public class IcebergEnumeratorStateSerializer
+    implements SimpleVersionedSerializer<IcebergEnumeratorState> {
 
-  public static final IcebergEnumeratorStateSerializer INSTANCE = new IcebergEnumeratorStateSerializer();
+  public static final IcebergEnumeratorStateSerializer INSTANCE =
+      new IcebergEnumeratorStateSerializer();
 
   private static final int VERSION = 1;
 
   private static final ThreadLocal<DataOutputSerializer> SERIALIZER_CACHE =
       ThreadLocal.withInitial(() -> new DataOutputSerializer(1024));
 
-  private final IcebergEnumeratorPositionSerializer positionSerializer = IcebergEnumeratorPositionSerializer.INSTANCE;
-  private final IcebergSourceSplitSerializer splitSerializer = IcebergSourceSplitSerializer.INSTANCE;
+  private final IcebergEnumeratorPositionSerializer positionSerializer =
+      IcebergEnumeratorPositionSerializer.INSTANCE;
+  private final IcebergSourceSplitSerializer splitSerializer =
+      IcebergSourceSplitSerializer.INSTANCE;
 
   @Override
   public int getVersion() {
@@ -108,7 +111,8 @@ public class IcebergEnumeratorStateSerializer implements SimpleVersionedSerializ
       in.read(splitBytes);
       IcebergSourceSplit split = splitSerializer.deserialize(splitSerializerVersion, splitBytes);
       String statusName = in.readUTF();
-      pendingSplits.add(new IcebergSourceSplitState(split, IcebergSourceSplitStatus.valueOf(statusName)));
+      pendingSplits.add(
+          new IcebergSourceSplitState(split, IcebergSourceSplitStatus.valueOf(statusName)));
     }
     return new IcebergEnumeratorState(enumeratorPosition, pendingSplits);
   }

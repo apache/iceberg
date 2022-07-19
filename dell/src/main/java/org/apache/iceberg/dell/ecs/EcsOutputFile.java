@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
@@ -30,25 +29,29 @@ import org.apache.iceberg.metrics.MetricsContext;
 class EcsOutputFile extends BaseEcsFile implements OutputFile {
 
   public static EcsOutputFile fromLocation(String location, S3Client client) {
-    return new EcsOutputFile(client, new EcsURI(location), new DellProperties(), MetricsContext.nullMetrics());
+    return new EcsOutputFile(
+        client, new EcsURI(location), new DellProperties(), MetricsContext.nullMetrics());
   }
 
-  public static EcsOutputFile fromLocation(String location, S3Client client, DellProperties dellProperties) {
-    return new EcsOutputFile(client, new EcsURI(location), dellProperties, MetricsContext.nullMetrics());
+  public static EcsOutputFile fromLocation(
+      String location, S3Client client, DellProperties dellProperties) {
+    return new EcsOutputFile(
+        client, new EcsURI(location), dellProperties, MetricsContext.nullMetrics());
   }
 
-  static EcsOutputFile fromLocation(String location, S3Client client, DellProperties dellProperties,
-      MetricsContext metrics) {
+  static EcsOutputFile fromLocation(
+      String location, S3Client client, DellProperties dellProperties, MetricsContext metrics) {
     return new EcsOutputFile(client, new EcsURI(location), dellProperties, metrics);
   }
 
-  EcsOutputFile(S3Client client, EcsURI uri, DellProperties dellProperties, MetricsContext metrics) {
+  EcsOutputFile(
+      S3Client client, EcsURI uri, DellProperties dellProperties, MetricsContext metrics) {
     super(client, uri, dellProperties, metrics);
   }
 
   /**
-   * Create an output stream for the specified location if the target object
-   * does not exist in ECS at the time of invocation.
+   * Create an output stream for the specified location if the target object does not exist in ECS
+   * at the time of invocation.
    *
    * @return output stream
    */

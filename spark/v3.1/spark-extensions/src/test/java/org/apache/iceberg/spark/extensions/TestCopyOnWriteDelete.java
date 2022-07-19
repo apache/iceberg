@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
@@ -25,8 +24,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class TestCopyOnWriteDelete extends TestDelete {
 
-  public TestCopyOnWriteDelete(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, Boolean vectorized, String distributionMode) {
+  public TestCopyOnWriteDelete(
+      String catalogName,
+      String implementation,
+      Map<String, String> config,
+      String fileFormat,
+      Boolean vectorized,
+      String distributionMode) {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hive;
 
 import java.util.Collections;
@@ -39,5 +38,4 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL + TimeUnit.SECONDS.toMillis(5));
     Assert.assertNull(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri));
   }
-
 }

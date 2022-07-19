@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
@@ -34,8 +33,7 @@ import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.data.Record;
 
 class GenericWriters {
-  private GenericWriters() {
-  }
+  private GenericWriters() {}
 
   static ValueWriter<LocalDate> dates() {
     return DateWriter.INSTANCE;
@@ -63,8 +61,7 @@ class GenericWriters {
   private static class DateWriter implements ValueWriter<LocalDate> {
     private static final DateWriter INSTANCE = new DateWriter();
 
-    private DateWriter() {
-    }
+    private DateWriter() {}
 
     @Override
     public void write(LocalDate date, Encoder encoder) throws IOException {
@@ -75,8 +72,7 @@ class GenericWriters {
   private static class TimeWriter implements ValueWriter<LocalTime> {
     private static final TimeWriter INSTANCE = new TimeWriter();
 
-    private TimeWriter() {
-    }
+    private TimeWriter() {}
 
     @Override
     public void write(LocalTime time, Encoder encoder) throws IOException {
@@ -87,8 +83,7 @@ class GenericWriters {
   private static class TimestampWriter implements ValueWriter<LocalDateTime> {
     private static final TimestampWriter INSTANCE = new TimestampWriter();
 
-    private TimestampWriter() {
-    }
+    private TimestampWriter() {}
 
     @Override
     public void write(LocalDateTime timestamp, Encoder encoder) throws IOException {
@@ -99,8 +94,7 @@ class GenericWriters {
   private static class TimestamptzWriter implements ValueWriter<OffsetDateTime> {
     private static final TimestamptzWriter INSTANCE = new TimestamptzWriter();
 
-    private TimestamptzWriter() {
-    }
+    private TimestamptzWriter() {}
 
     @Override
     public void write(OffsetDateTime timestamptz, Encoder encoder) throws IOException {

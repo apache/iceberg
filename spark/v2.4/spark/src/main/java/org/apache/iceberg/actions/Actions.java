@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
@@ -26,8 +25,9 @@ import org.apache.spark.sql.SparkSession;
 /**
  * An API for interacting with actions in Spark.
  *
- * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for backward compatibility.
- * This implementation is no longer maintained, the new implementation is available with Spark 3.x
+ * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+ *     backward compatibility. This implementation is no longer maintained, the new implementation
+ *     is available with Spark 3.x
  */
 @Deprecated
 public class Actions {
@@ -46,9 +46,12 @@ public class Actions {
       String className = implClass();
       try {
         implConstructor =
-            DynConstructors.builder().hiddenImpl(className, SparkSession.class, Table.class).buildChecked();
+            DynConstructors.builder()
+                .hiddenImpl(className, SparkSession.class, Table.class)
+                .buildChecked();
       } catch (NoSuchMethodException e) {
-        throw new IllegalArgumentException("Cannot find appropriate Actions implementation on the classpath.", e);
+        throw new IllegalArgumentException(
+            "Cannot find appropriate Actions implementation on the classpath.", e);
       }
     }
     return implConstructor;
@@ -63,9 +66,9 @@ public class Actions {
   }
 
   /**
-   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction}
-   * in Spark 2.4 for backward compatibility.
-   * This implementation is no longer maintained, the new implementation is available with Spark 3.x
+   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+   *     backward compatibility. This implementation is no longer maintained, the new implementation
+   *     is available with Spark 3.x
    */
   @Deprecated
   public static Actions forTable(SparkSession spark, Table table) {
@@ -73,9 +76,9 @@ public class Actions {
   }
 
   /**
-   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction}
-   * in Spark 2.4 for backward compatibility.
-   * This implementation is no longer maintained, the new implementation is available with Spark 3.x
+   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+   *     backward compatibility. This implementation is no longer maintained, the new implementation
+   *     is available with Spark 3.x
    */
   @Deprecated
   public static Actions forTable(Table table) {
@@ -83,9 +86,9 @@ public class Actions {
   }
 
   /**
-   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction}
-   * in Spark 2.4 for backward compatibility.
-   * This implementation is no longer maintained, the new implementation is available with Spark 3.x
+   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+   *     backward compatibility. This implementation is no longer maintained, the new implementation
+   *     is available with Spark 3.x
    */
   @Deprecated
   public RewriteDataFilesAction rewriteDataFiles() {
@@ -99,5 +102,4 @@ public class Actions {
   protected Table table() {
     return table;
   }
-
 }

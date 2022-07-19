@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -37,18 +36,21 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.SerializableMap;
 
-/**
- * Base class for both {@link DataFile} and {@link DeleteFile}.
- */
+/** Base class for both {@link DataFile} and {@link DeleteFile}. */
 abstract class BaseFile<F>
-    implements ContentFile<F>, IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
+    implements ContentFile<F>,
+        IndexedRecord,
+        StructLike,
+        SpecificData.SchemaConstructable,
+        Serializable {
   static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
-  static final PartitionData EMPTY_PARTITION_DATA = new PartitionData(EMPTY_STRUCT_TYPE) {
-    @Override
-    public PartitionData copy() {
-      return this; // this does not change
-    }
-  };
+  static final PartitionData EMPTY_PARTITION_DATA =
+      new PartitionData(EMPTY_STRUCT_TYPE) {
+        @Override
+        public PartitionData copy() {
+          return this; // this does not change
+        }
+      };
 
   private int[] fromProjectionPos;
   private Types.StructType partitionType;
@@ -77,9 +79,7 @@ abstract class BaseFile<F>
   // cached schema
   private transient Schema avroSchema = null;
 
-  /**
-   * Used by Avro reflection to instantiate this class when reading manifest files.
-   */
+  /** Used by Avro reflection to instantiate this class when reading manifest files. */
   BaseFile(Schema avroSchema) {
     this.avroSchema = avroSchema;
 
@@ -116,12 +116,24 @@ abstract class BaseFile<F>
     this.partitionData = new PartitionData(partitionType);
   }
 
-  BaseFile(int specId, FileContent content, String filePath, FileFormat format,
-           PartitionData partition, long fileSizeInBytes, long recordCount,
-           Map<Integer, Long> columnSizes, Map<Integer, Long> valueCounts,
-           Map<Integer, Long> nullValueCounts, Map<Integer, Long> nanValueCounts,
-           Map<Integer, ByteBuffer> lowerBounds, Map<Integer, ByteBuffer> upperBounds, List<Long> splitOffsets,
-           int[] equalityFieldIds, Integer sortOrderId, ByteBuffer keyMetadata) {
+  BaseFile(
+      int specId,
+      FileContent content,
+      String filePath,
+      FileFormat format,
+      PartitionData partition,
+      long fileSizeInBytes,
+      long recordCount,
+      Map<Integer, Long> columnSizes,
+      Map<Integer, Long> valueCounts,
+      Map<Integer, Long> nullValueCounts,
+      Map<Integer, Long> nanValueCounts,
+      Map<Integer, ByteBuffer> lowerBounds,
+      Map<Integer, ByteBuffer> upperBounds,
+      List<Long> splitOffsets,
+      int[] equalityFieldIds,
+      Integer sortOrderId,
+      ByteBuffer keyMetadata) {
     this.partitionSpecId = specId;
     this.content = content;
     this.filePath = filePath;
@@ -183,18 +195,23 @@ abstract class BaseFile<F>
       this.upperBounds = null;
     }
     this.fromProjectionPos = toCopy.fromProjectionPos;
-    this.keyMetadata = toCopy.keyMetadata == null ? null : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
-    this.splitOffsets = toCopy.splitOffsets == null ? null :
-        Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length);
-    this.equalityIds = toCopy.equalityIds != null ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length) : null;
+    this.keyMetadata =
+        toCopy.keyMetadata == null
+            ? null
+            : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
+    this.splitOffsets =
+        toCopy.splitOffsets == null
+            ? null
+            : Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length);
+    this.equalityIds =
+        toCopy.equalityIds != null
+            ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
+            : null;
     this.sortOrderId = toCopy.sortOrderId;
   }
 
-  /**
-   * Constructor for Java serialization.
-   */
-  BaseFile() {
-  }
+  /** Constructor for Java serialization. */
+  BaseFile() {}
 
   @Override
   public int specId() {

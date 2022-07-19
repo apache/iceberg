@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
@@ -30,7 +29,8 @@ import org.mockito.Mockito;
 
 public class TestDuplicateSnapshotIDs extends SparkExtensionsTestBase {
 
-  public TestDuplicateSnapshotIDs(String catalogName, String implementation, Map<String, String> config) {
+  public TestDuplicateSnapshotIDs(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -44,7 +44,8 @@ public class TestDuplicateSnapshotIDs extends SparkExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s ", tableName);
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    try (MockedStatic<SnapshotIdGeneratorUtil> utilities = Mockito.mockStatic(SnapshotIdGeneratorUtil.class)) {
+    try (MockedStatic<SnapshotIdGeneratorUtil> utilities =
+        Mockito.mockStatic(SnapshotIdGeneratorUtil.class)) {
       utilities.when(SnapshotIdGeneratorUtil::generateSnapshotID).thenReturn(42L, 42L, 43L);
       // use 42L as snapshot id for the insert
       sql("INSERT INTO TABLE %s SELECT 1, 'a' ", tableName);
@@ -54,15 +55,15 @@ public class TestDuplicateSnapshotIDs extends SparkExtensionsTestBase {
     // use regular snapshot id logic for the insert
     sql("INSERT INTO TABLE %s SELECT 3, 'c' ", tableName);
 
-    ImmutableList<Object[]> expectedRows = ImmutableList.of(
-            row(1L, "a"),
-            row(2L, "b"),
-            row(3L, "c")
-    );
-    assertEquals("should have all the rows", expectedRows, sql("SELECT * from %s order by id", tableName));
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"));
+    assertEquals(
+        "should have all the rows", expectedRows, sql("SELECT * from %s order by id", tableName));
     Assert.assertEquals(sql("SELECT * from %s.snapshots", tableName).size(), 3);
-    Assert.assertEquals(sql("SELECT * from %s.snapshots where snapshot_id = 42L", tableName).size(), 1);
-    Assert.assertEquals(sql("SELECT * from %s.snapshots where snapshot_id = 43L", tableName).size(), 1);
+    Assert.assertEquals(
+        sql("SELECT * from %s.snapshots where snapshot_id = 42L", tableName).size(), 1);
+    Assert.assertEquals(
+        sql("SELECT * from %s.snapshots where snapshot_id = 43L", tableName).size(), 1);
   }
 
   @Test
@@ -70,7 +71,8 @@ public class TestDuplicateSnapshotIDs extends SparkExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s ", tableName);
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    try (MockedStatic<SnapshotIdGeneratorUtil> utilities = Mockito.mockStatic(SnapshotIdGeneratorUtil.class)) {
+    try (MockedStatic<SnapshotIdGeneratorUtil> utilities =
+        Mockito.mockStatic(SnapshotIdGeneratorUtil.class)) {
       utilities.when(SnapshotIdGeneratorUtil::generateSnapshotID).thenReturn(42L);
       // use 42L as snapshot id for the insert
       sql("INSERT INTO TABLE %s SELECT 1, 'a' ", tableName);
@@ -78,7 +80,8 @@ public class TestDuplicateSnapshotIDs extends SparkExtensionsTestBase {
     // use regular snapshot id logic for the inserts
     sql("INSERT INTO TABLE %s SELECT 2, 'b' ", tableName);
     sql("INSERT INTO TABLE %s SELECT 3, 'c' ", tableName);
-    try (MockedStatic<SnapshotIdGeneratorUtil> utilities = Mockito.mockStatic(SnapshotIdGeneratorUtil.class)) {
+    try (MockedStatic<SnapshotIdGeneratorUtil> utilities =
+        Mockito.mockStatic(SnapshotIdGeneratorUtil.class)) {
       utilities.when(SnapshotIdGeneratorUtil::generateSnapshotID).thenReturn(42L, 43L);
       // use 42L as snapshot id for the insert and retry with 43L.
       sql("INSERT INTO TABLE %s SELECT 4, 'd' ", tableName);
@@ -86,16 +89,14 @@ public class TestDuplicateSnapshotIDs extends SparkExtensionsTestBase {
     // use regular snapshot id logic for the insert
     sql("INSERT INTO TABLE %s SELECT 5, 'e' ", tableName);
 
-    ImmutableList<Object[]> expectedRows = ImmutableList.of(
-            row(1L, "a"),
-            row(2L, "b"),
-            row(3L, "c"),
-            row(4L, "d"),
-            row(5L, "e")
-    );
-    assertEquals("should have all the rows", expectedRows, sql("SELECT * from %s order by id", tableName));
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d"), row(5L, "e"));
+    assertEquals(
+        "should have all the rows", expectedRows, sql("SELECT * from %s order by id", tableName));
     Assert.assertEquals(sql("SELECT * from %s.snapshots", tableName).size(), 5);
-    Assert.assertEquals(sql("SELECT * from %s.snapshots where snapshot_id = 42L", tableName).size(), 1);
-    Assert.assertEquals(sql("SELECT * from %s.snapshots where snapshot_id = 43L", tableName).size(), 1);
+    Assert.assertEquals(
+        sql("SELECT * from %s.snapshots where snapshot_id = 42L", tableName).size(), 1);
+    Assert.assertEquals(
+        sql("SELECT * from %s.snapshots where snapshot_id = 43L", tableName).size(), 1);
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import org.apache.flink.table.types.logical.DayTimeIntervalType;

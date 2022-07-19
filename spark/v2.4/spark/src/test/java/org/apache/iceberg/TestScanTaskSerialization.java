@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -50,19 +51,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestScanTaskSerialization extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "c1", Types.IntegerType.get()),
-      optional(2, "c2", Types.StringType.get()),
-      optional(3, "c3", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "c1", Types.IntegerType.get()),
+          optional(2, "c2", Types.StringType.get()),
+          optional(3, "c3", Types.StringType.get()));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private String tableLocation = null;
 
@@ -86,7 +84,9 @@ public class TestScanTaskSerialization extends SparkTestBase {
 
     try (Input in = new Input(new FileInputStream(data))) {
       Object obj = kryo.readClassAndObject(in);
-      Assertions.assertThat(obj).as("Should be a BaseCombinedScanTask").isInstanceOf(BaseCombinedScanTask.class);
+      Assertions.assertThat(obj)
+          .as("Should be a BaseCombinedScanTask")
+          .isInstanceOf(BaseCombinedScanTask.class);
       TaskCheckHelper.assertEquals(scanTask, (BaseCombinedScanTask) obj);
     }
   }
@@ -100,9 +100,12 @@ public class TestScanTaskSerialization extends SparkTestBase {
       out.writeObject(scanTask);
     }
 
-    try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+    try (ObjectInputStream in =
+        new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       Object obj = in.readObject();
-      Assertions.assertThat(obj).as("Should be a BaseCombinedScanTask").isInstanceOf(BaseCombinedScanTask.class);
+      Assertions.assertThat(obj)
+          .as("Should be a BaseCombinedScanTask")
+          .isInstanceOf(BaseCombinedScanTask.class);
       TaskCheckHelper.assertEquals(scanTask, (BaseCombinedScanTask) obj);
     }
   }
@@ -112,16 +115,15 @@ public class TestScanTaskSerialization extends SparkTestBase {
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "AAAA"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
-    );
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
     writeRecords(records1);
 
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
-        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
-    );
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(
+            new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD"));
     writeRecords(records2);
 
     table.refresh();
@@ -136,10 +138,6 @@ public class TestScanTaskSerialization extends SparkTestBase {
   }
 
   private void writeDF(Dataset<Row> df) {
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
   }
 }

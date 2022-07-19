@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
@@ -42,12 +44,9 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.GC_ENABLED;
-import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
-
 /**
- * An implementation of {@link DeleteReachableFiles} that uses metadata tables in Spark
- * to determine which files should be deleted.
+ * An implementation of {@link DeleteReachableFiles} that uses metadata tables in Spark to determine
+ * which files should be deleted.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
 public class DeleteReachableFilesSparkAction
@@ -59,12 +58,13 @@ public class DeleteReachableFilesSparkAction
   private static final Logger LOG = LoggerFactory.getLogger(DeleteReachableFilesSparkAction.class);
 
   private final String metadataFileLocation;
-  private final Consumer<String> defaultDelete = new Consumer<String>() {
-    @Override
-    public void accept(String file) {
-      io.deleteFile(file);
-    }
-  };
+  private final Consumer<String> defaultDelete =
+      new Consumer<String>() {
+        @Override
+        public void accept(String file) {
+          io.deleteFile(file);
+        }
+      };
 
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = null;
@@ -115,7 +115,8 @@ public class DeleteReachableFilesSparkAction
 
     Dataset<Row> reachableFileDF = buildReachableFileDF(metadata).distinct();
 
-    boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
+    boolean streamResults =
+        PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
     if (streamResults) {
       return deleteFiles(reachableFileDF.toLocalIterator());
     } else {
@@ -144,40 +145,45 @@ public class DeleteReachableFilesSparkAction
     AtomicLong otherFilesCount = new AtomicLong(0L);
 
     Tasks.foreach(deleted)
-        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
+        .retry(3)
+        .stopRetryOn(NotFoundException.class)
+        .suppressFailureWhenFinished()
         .executeWith(deleteExecutorService)
-        .onFailure((fileInfo, exc) -> {
-          String file = fileInfo.getString(0);
-          String type = fileInfo.getString(1);
-          LOG.warn("Delete failed for {}: {}", type, file, exc);
-        })
-        .run(fileInfo -> {
-          String file = fileInfo.getString(0);
-          String type = fileInfo.getString(1);
-          deleteFunc.accept(file);
-          switch (type) {
-            case CONTENT_FILE:
-              dataFileCount.incrementAndGet();
-              LOG.trace("Deleted Content File: {}", file);
-              break;
-            case MANIFEST:
-              manifestCount.incrementAndGet();
-              LOG.debug("Deleted Manifest: {}", file);
-              break;
-            case MANIFEST_LIST:
-              manifestListCount.incrementAndGet();
-              LOG.debug("Deleted Manifest List: {}", file);
-              break;
-            case OTHERS:
-              otherFilesCount.incrementAndGet();
-              LOG.debug("Others: {}", file);
-              break;
-          }
-        });
+        .onFailure(
+            (fileInfo, exc) -> {
+              String file = fileInfo.getString(0);
+              String type = fileInfo.getString(1);
+              LOG.warn("Delete failed for {}: {}", type, file, exc);
+            })
+        .run(
+            fileInfo -> {
+              String file = fileInfo.getString(0);
+              String type = fileInfo.getString(1);
+              deleteFunc.accept(file);
+              switch (type) {
+                case CONTENT_FILE:
+                  dataFileCount.incrementAndGet();
+                  LOG.trace("Deleted Content File: {}", file);
+                  break;
+                case MANIFEST:
+                  manifestCount.incrementAndGet();
+                  LOG.debug("Deleted Manifest: {}", file);
+                  break;
+                case MANIFEST_LIST:
+                  manifestListCount.incrementAndGet();
+                  LOG.debug("Deleted Manifest List: {}", file);
+                  break;
+                case OTHERS:
+                  otherFilesCount.incrementAndGet();
+                  LOG.debug("Others: {}", file);
+                  break;
+              }
+            });
 
-    long filesCount = dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
+    long filesCount =
+        dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
     LOG.info("Total files removed: {}", filesCount);
-    return new BaseDeleteReachableFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
-        otherFilesCount.get());
+    return new BaseDeleteReachableFilesActionResult(
+        dataFileCount.get(), manifestCount.get(), manifestListCount.get(), otherFilesCount.get());
   }
 }
