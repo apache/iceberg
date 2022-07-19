@@ -152,11 +152,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
 
       if (persistFailure instanceof AwsServiceException) {
         int statusCode = ((AwsServiceException) persistFailure).statusCode();
-        if (statusCode > 500 && statusCode < 600) {
+        if (statusCode >= 500 && statusCode < 600) {
           commitStatus = CommitStatus.FAILURE;
+        } else {
+          throw persistFailure;
         }
-      } else {
-        throw persistFailure;
       }
 
       switch (commitStatus) {
@@ -164,7 +164,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           break;
         case FAILURE:
           throw new CommitFailedException(persistFailure,
-              "Cannot commit %s due to unexpected exception", tableName());
+                  "Cannot commit %s due to unexpected exception", tableName());
         case UNKNOWN:
           throw new CommitStateUnknownException(persistFailure);
       }

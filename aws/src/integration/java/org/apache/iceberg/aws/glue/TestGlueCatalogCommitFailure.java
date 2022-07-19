@@ -328,7 +328,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     TableMetadata metadataV2 = updateTable(table, ops);
 
     GlueTableOperations spyOps = Mockito.spy(ops);
-    failCommitAndThrowException(spyOps, S3Exception.builder().build());
+    failCommitAndThrowException(spyOps, S3Exception.builder().statusCode(300).build());
 
     AssertHelpers.assertThrows(
             null,
@@ -338,7 +338,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    Assert.assertEquals("No new metadata files should exist", 3, metadataFileCount(ops.current()));
   }
 
   @Test
@@ -350,11 +350,33 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     TableMetadata metadataV2 = updateTable(table, ops);
 
     GlueTableOperations spyOps = Mockito.spy(ops);
-    failCommitAndThrowException(spyOps, GlueException.builder().build());
+    failCommitAndThrowException(spyOps, GlueException.builder().statusCode(300).build());
 
     AssertHelpers.assertThrows(
             null,
             GlueException.class,
+            () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 3, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testInternalServerErrorRetryCommit() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, GlueException.builder().statusCode(500).build());
+
+    AssertHelpers.assertThrows(
+            null,
+            CommitFailedException.class,
             () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
