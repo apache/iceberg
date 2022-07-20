@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import reduce, singledispatch
 from typing import Generic, TypeVar
 
@@ -175,14 +175,14 @@ class BoundPredicate(Bound[T], BooleanExpression):
     def __init__(self, term: BoundReference[T], literals: tuple[Literal[T], ...] | Literal[T]):
         self._term = term
         self._literals = literals if isinstance(literals, tuple) else (literals,)
-        self.__validate_literals()
+        self._validate_literals()
 
-    def __validate_literals(self):
+    def _validate_literals(self):
         if len(self.literals) != 1:
             raise AttributeError(f"{self.__class__.__name__} must have exactly 1 literal.")
 
     @property
-    def term(self) -> Reference[T]:
+    def term(self) -> BoundReference[T]:
         return self._term
 
     @property
@@ -192,17 +192,22 @@ class BoundPredicate(Bound[T], BooleanExpression):
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({str(self.term)}, {str(self.literals)})"
 
-    def __repr__(self) -> repr:
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({repr(self.term)}, {repr(self.literals)})"
+
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or (type(self)==type(other) and self.term == other.term and self.literals == other.literals)
+
+
 
 
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
     def __init__(self, term: Reference[T], literals: tuple[Literal[T], ...] | Literal[T]):
         self._term = term
         self._literals = literals if isinstance(literals, tuple) else (literals,)
-        self.__validate_literals()
+        self._validate_literals()
 
-    def __validate_literals(self):
+    def _validate_literals(self):
         if len(self.literals) != 1:
             raise AttributeError(f"{self.__class__.__name__} must have exactly 1 literal.")
 
@@ -217,9 +222,11 @@ class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({str(self.term)}, {str(self.literals)})"
 
-    def __repr__(self) -> repr:
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({repr(self.term)}, {repr(self.literals)})"
 
+    def __eq__(self, other) -> bool:
+        return id(self) == id(other) or (type(self)==type(other) and self.term == other.term and self.literals == other.literals)
 
 class And(BooleanExpression):
     """AND operation expression - logical conjunction"""
@@ -366,7 +373,7 @@ class NotNaN(BooleanExpression):
 
 
 class BoundIn(BoundPredicate[T]):
-    def __validate_literals(self):
+    def _validate_literals(self):  # pylint: disable=W0238
         if not self.literals:
             raise AttributeError("BoundIn must contain at least 1 literal.")
 
@@ -375,7 +382,7 @@ class BoundIn(BoundPredicate[T]):
 
 
 class In(UnboundPredicate[T]):
-    def __validate_literals(self):
+    def _validate_literals(self):  # pylint: disable=W0238
         if not self.literals:
             raise AttributeError("In must contain at least 1 literal.")
 
@@ -388,7 +395,7 @@ class In(UnboundPredicate[T]):
 
 
 class BoundNotIn(BoundPredicate[T]):
-    def __validate_literals(self):
+    def _validate_literals(self):  # pylint: disable=W0238
         if not self.literals:
             raise AttributeError("BoundNotIn must contain at least 1 literal.")
 
@@ -397,7 +404,7 @@ class BoundNotIn(BoundPredicate[T]):
 
 
 class NotIn(UnboundPredicate[T]):
-    def __validate_literals(self):
+    def _validate_literals(self):  # pylint: disable=W0238
         if not self.literals:
             raise AttributeError("NotIn must contain at least 1 literal.")
 

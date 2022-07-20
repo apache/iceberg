@@ -20,7 +20,6 @@ from decimal import Decimal
 from typing import List
 
 import pytest
-
 from pyiceberg.expressions import base
 from pyiceberg.expressions.literals import LongLiteral, StringLiteral, literal
 from pyiceberg.schema import Accessor
@@ -397,23 +396,12 @@ def test_eq(exp, testexpra, testexprb):
             base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
         ),
         (
-            base.BoundIn(base.Reference("foo"), (literal("hello"), literal("world"))),
-            base.BoundNotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
-        ),
-        (
             base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
             base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
         ),
-        (
-            base.BoundNotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
-            base.BoundIn(base.Reference("foo"), (literal("hello"), literal("world"))),
-        ),
-        (base.Lt(base.Reference("foo"), literal("hello")), base.GtEq(base.Reference("foo"), literal("hello"))),
-        (base.BoundLt(base.Reference("foo"), literal("hello")), base.BoundGtEq(base.Reference("foo"), literal("hello"))),
-        (base.Gt(base.Reference("foo"), literal("hello")), base.LtEq(base.Reference("foo"), literal("hello"))),
-        (base.BoundGt(base.Reference("foo"), literal("hello")), base.BoundLtEq(base.Reference("foo"), literal("hello"))),
-        (base.Eq(base.Reference("foo"), literal("hello")), base.NotEq(base.Reference("foo"), literal("hello"))),
-        (base.BoundEq(base.Reference("foo"), literal("hello")), base.BoundNotEq(base.Reference("foo"), literal("hello"))),
+        (base.Gt(base.Reference("foo"), literal(5)), base.LtEq(base.Reference("foo"), literal(5))),
+        (base.Lt(base.Reference("foo"), literal(5)), base.GtEq(base.Reference("foo"), literal(5))),
+        (base.Eq(base.Reference("foo"), literal(5)), base.NotEq(base.Reference("foo"), literal(5))),
         (
             ExpressionA(),
             ExpressionB(),
