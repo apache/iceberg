@@ -36,11 +36,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
-import org.assertj.core.api.Assertions;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -72,7 +72,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-
 
 @RunWith(MockitoJUnitRunner.class)
 public class TestS3OutputStream {
@@ -124,12 +123,12 @@ public class TestS3OutputStream {
     doThrow(mockException).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
     Assertions.assertThatThrownBy(() -> {
-              try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-                stream.write(randomData(10 * 1024 * 1024));
-              }
-            })
-            .isInstanceOf(mockException.getClass())
-            .hasMessageContaining(mockException.getMessage());
+      try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
+        stream.write(randomData(10 * 1024 * 1024));
+      }
+    })
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
 
     verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
@@ -138,15 +137,15 @@ public class TestS3OutputStream {
   public void testAbortMultipart() {
     RuntimeException mockException = new RuntimeException("mock completeMultipartUpload failure");
     doThrow(mockException).when(s3mock)
-            .completeMultipartUpload((CompleteMultipartUploadRequest) any());
+        .completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
     Assertions.assertThatThrownBy(() -> {
-              try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-                stream.write(randomData(10 * 1024 * 1024));
-              }
-            })
-            .isInstanceOf(mockException.getClass())
-            .hasMessageContaining(mockException.getMessage());
+      try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
+        stream.write(randomData(10 * 1024 * 1024));
+      }
+    })
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
 
     verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
@@ -180,7 +179,8 @@ public class TestS3OutputStream {
       writeAndVerify(s3mock, randomURI(), data, arrayWrite);
       ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor =
           ArgumentCaptor.forClass(PutObjectRequest.class);
-      verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
+      verify(s3mock, times(1)).putObject(
+          putObjectRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
       checkTags(putObjectRequestArgumentCaptor);
@@ -190,7 +190,8 @@ public class TestS3OutputStream {
       data = randomData(6 * 1024 * 1024);
       writeAndVerify(s3mock, randomURI(), data, arrayWrite);
       putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-      verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
+      verify(s3mock, times(1)).putObject(
+          putObjectRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
       checkTags(putObjectRequestArgumentCaptor);
@@ -201,7 +202,8 @@ public class TestS3OutputStream {
       writeAndVerify(s3mock, randomURI(), data, arrayWrite);
       ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor =
           ArgumentCaptor.forClass(UploadPartRequest.class);
-      verify(s3mock, times(2)).uploadPart(uploadPartRequestArgumentCaptor.capture(),
+      verify(s3mock, times(2)).uploadPart(
+          uploadPartRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
       reset(s3mock);
@@ -211,7 +213,8 @@ public class TestS3OutputStream {
       writeAndVerify(s3mock, randomURI(), data, arrayWrite);
       uploadPartRequestArgumentCaptor =
           ArgumentCaptor.forClass(UploadPartRequest.class);
-      verify(s3mock, times(5)).uploadPart(uploadPartRequestArgumentCaptor.capture(),
+      verify(s3mock, times(5)).uploadPart(
+          uploadPartRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
       reset(s3mock);
@@ -268,7 +271,7 @@ public class TestS3OutputStream {
     return null;
   }
 
-  private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {
+  private void writeAndVerify(S3Client client, S3URI uri, byte[] data, boolean arrayWrite) {
     try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
@@ -296,14 +299,15 @@ public class TestS3OutputStream {
 
   private byte[] readS3Data(S3URI uri) {
     ResponseBytes<GetObjectResponse> data =
-        s3.getObject(GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
-        ResponseTransformer.toBytes());
+        s3.getObject(
+            GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
+            ResponseTransformer.toBytes());
 
     return data.asByteArray();
   }
 
   private byte[] randomData(int size) {
-    byte [] result = new byte[size];
+    byte[] result = new byte[size];
     random.nextBytes(result);
     return result;
   }
