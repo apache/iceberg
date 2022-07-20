@@ -269,10 +269,10 @@ class S3OutputStream extends PositionOutputStream {
      * upload should be persisted and thrown back to the caller to make sure
      * the underlying file represented by this stream is not used in the completedDataFiles
      * of a manifest.
-     * see: https://github.com/apache/iceberg/issues/5310a
+     * see: https://github.com/apache/iceberg/issues/5310
       */
     if(closeFailureState != null){
-      throw new IllegalStateException("close called on a closed stream which failed to close and complete successfully earlier at: "+closeFailureState.getFailureAt()
+      throw new IllegalStateException("close called on a closed stream which failed to close completely earlier at: "+closeFailureState.getFailureAt()
               , closeFailureState.getFailure());
     }
 
