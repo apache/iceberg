@@ -251,6 +251,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     abstract void complete(W closedWriter);
 
     public void write(T record) throws IOException {
+      Preconditions.checkNotNull(currentWriter, "The currentWriter shouldn't be null");
       write(currentWriter, record);
       this.currentRows++;
 
@@ -286,19 +287,21 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     private void closeCurrent() throws IOException {
-      if (currentWriter != null) {
-        currentWriter.close();
+      try{
+        if (currentWriter != null) {
+          currentWriter.close();
 
-        if (currentRows == 0L) {
-          try {
-            io.deleteFile(currentFile.encryptingOutputFile());
-          } catch (UncheckedIOException e) {
-            // the file may not have been created, and it isn't worth failing the job to clean up, skip deleting
+          if (currentRows == 0L) {
+            try {
+              io.deleteFile(currentFile.encryptingOutputFile());
+            } catch (UncheckedIOException e) {
+              // the file may not have been created, and it isn't worth failing the job to clean up, skip deleting
+            }
+          } else {
+            complete(currentWriter);
           }
-        } else {
-          complete(currentWriter);
         }
-
+      }finally {
         this.currentFile = null;
         this.currentWriter = null;
         this.currentRows = 0;

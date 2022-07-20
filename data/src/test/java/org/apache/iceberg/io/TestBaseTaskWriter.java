@@ -43,6 +43,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.mockito.Mockito;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 
 @RunWith(Parameterized.class)
 public class TestBaseTaskWriter extends TableTestBase {
@@ -190,6 +194,88 @@ public class TestBaseTaskWriter extends TableTestBase {
     rowDelta.commit();
 
     Assert.assertEquals("Should have expected records", expectedRowSet(expected), actualRowSet("*"));
+  }
+
+  @Test
+  public void testCloseFailureOnRollThenFurtherWritesShouldFail() throws IOException {
+    List<Record> records = Lists.newArrayListWithCapacity(8000);
+    for (int i = 0; i < 2000; i++) {
+      records.add(createRecord(i, "aaa"));
+      records.add(createRecord(i, "bbb"));
+      records.add(createRecord(i, "ccc"));
+      records.add(createRecord(i, "ddd"));
+    }
+
+    FileAppenderFactory appender = Mockito.spy(FileAppenderFactory.class);
+    DataWriter dataWriter = Mockito.mock(DataWriter.class);
+    Mockito.doReturn(dataWriter).when(appender).newDataWriter(any(), any(), any());
+    long targetSize = 4L;
+    Mockito.doReturn(targetSize).when(dataWriter).length();
+    Mockito.doThrow(new RuntimeException("mock failure on dataWriter close")).when(dataWriter).close();
+
+    assertThatThrownBy(() -> {
+      WriteResult result;
+      try (TestTaskWriter taskWriter = new TestTaskWriter(table.spec(), format, appender, fileFactory, table.io(), targetSize)) {
+        for (Record record : records) {
+          try {
+            taskWriter.write(record);
+          } catch (RuntimeException e) {
+            if (!e.getMessage().contains("mock failure on dataWriter close")) {
+              throw e;
+            }
+            // ignore mocked failure on roll, so that next write goes through
+            // this is to mock scenario where Flink ProcessFunction user defined code
+            // can catch all exceptions on write in processElement and ignore roll over failures
+          }
+        }
+      }
+    })
+    .isInstanceOf(NullPointerException.class)
+    .hasMessageContaining("The currentWriter shouldn't be null");
+
+    Mockito.verify(dataWriter, Mockito.times(1)).close();
+  }
+
+  @Test
+  public void testCloseFailureOnRollThenCompleteShouldBeNoOp() throws IOException {
+    List<Record> records = Lists.newArrayListWithCapacity(8000);
+    for (int i = 0; i < 2000; i++) {
+      records.add(createRecord(i, "aaa"));
+      records.add(createRecord(i, "bbb"));
+      records.add(createRecord(i, "ccc"));
+      records.add(createRecord(i, "ddd"));
+    }
+
+    FileAppenderFactory appender = Mockito.spy(FileAppenderFactory.class);
+    DataWriter dataWriter = Mockito.mock(DataWriter.class);
+    Mockito.doReturn(dataWriter).when(appender).newDataWriter(any(), any(), any());
+    long targetSize = 4L;
+    Mockito.doReturn(targetSize).when(dataWriter).length();
+    Mockito.doThrow(new RuntimeException("mock failure on dataWriter close")).when(dataWriter).close();
+
+    WriteResult result;
+    try (TestTaskWriter taskWriter = new TestTaskWriter(table.spec(), format, appender, fileFactory, table.io(), targetSize)) {
+      for (Record record : records) {
+        try {
+          taskWriter.write(record);
+        } catch (RuntimeException e) {
+          if (!e.getMessage().contains("mock failure on dataWriter close")) {
+            throw e;
+          }
+          break; // stop further writes to test call to complete
+          // ignore mocked failure on roll, so that next write goes through
+          // this is to mock scenario where Flink ProcessFunction user defined code
+          // can catch all exceptions on write in processElement and ignore roll over failures
+        }
+      }
+
+      // Complete should be no-op if
+      result = taskWriter.complete();
+      Assert.assertEquals(0, result.dataFiles().length);
+      Assert.assertEquals(0, result.deleteFiles().length);
+    }
+
+    Mockito.verify(dataWriter, Mockito.times(1)).close();
   }
 
   private StructLikeSet expectedRowSet(Iterable<Record> records) {
