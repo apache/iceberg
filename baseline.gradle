@@ -44,11 +44,10 @@ subprojects {
 
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
-      // don't run spotlessCheck during gradle check task
-      enforceCheck = false
       java {
         target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java'
-        googleJavaFormat()
+        // we use an older version of google-java-format that is compatible with JDK 8
+        googleJavaFormat("1.7")
         removeUnusedImports()
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
