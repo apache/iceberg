@@ -76,9 +76,12 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>
  * This supports the following catalog configuration options:
  * <ul>
- *   <li><code>type</code> - catalog type, "hive" or "hadoop"</li>
+ *   <li><code>type</code> - catalog type, "hive" or "hadoop".
+ *       To specify a non-hive or hadoop catalog, use the <code>catalog-impl</code> option.
+ *   </li>
  *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)</li>
  *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)</li>
+ *   <li><code>catalog-impl</code> - a custom {@link Catalog} implementation to use</li>
  *   <li><code>default-namespace</code> - a namespace to use as the default</li>
  *   <li><code>cache-enabled</code> - whether to enable catalog cache</li>
  *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from catalog cache.
@@ -86,8 +89,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *   </li>
  * </ul>
  * <p>
- * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
- * {@link #buildIcebergCatalog(String, CaseInsensitiveStringMap)}.
  */
 public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
