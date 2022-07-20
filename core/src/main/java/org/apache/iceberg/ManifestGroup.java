@@ -249,7 +249,7 @@ class ManifestGroup {
                 .caseSensitive(caseSensitive)
                 .select(columns);
 
-            CloseableIterable<ManifestEntry<DataFile>> entries = null;
+            CloseableIterable<ManifestEntry<DataFile>> entries;
             if (ignoreDeleted) {
               entries = reader.liveEntries();
             } else {
