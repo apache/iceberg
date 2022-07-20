@@ -22,7 +22,6 @@ package org.apache.iceberg.io;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -81,26 +80,26 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
 
   @Override
   public void close() throws IOException {
-      /* As close is called couple times from BaseTaskWriter
-        on rollToNewFile and close, we don't want to create a data file
-        if appender.close was already called and failed due to an internal close failure.
-        Subsequent call to close after failure should not create a data file and keep it null.
-        We have observed appender.close failed when S3OutputStream.close fails and subsequent call
-        from flink tries to close the writer and use the data file which was never uploaded.
-      */
-      if (closed.compareAndSet(false, true)) {
-        appender.close();
-        this.dataFile = DataFiles.builder(spec)
-                .withFormat(format)
-                .withPath(location)
-                .withPartition(partition)
-                .withEncryptionKeyMetadata(keyMetadata)
-                .withFileSizeInBytes(appender.length())
-                .withMetrics(appender.metrics())
-                .withSplitOffsets(appender.splitOffsets())
-                .withSortOrder(sortOrder)
-                .build();
-      }
+    /* As close is called couple times from BaseTaskWriter
+      on rollToNewFile and close, we don't want to create a data file
+      if appender.close was already called and failed due to an internal close failure.
+      Subsequent call to close after failure should not create a data file and keep it null.
+      We have observed appender.close failed when S3OutputStream.close fails and subsequent call
+      from flink tries to close the writer and use the data file which was never uploaded.
+    */
+    if (closed.compareAndSet(false, true)) {
+      appender.close();
+      this.dataFile = DataFiles.builder(spec)
+          .withFormat(format)
+          .withPath(location)
+          .withPartition(partition)
+          .withEncryptionKeyMetadata(keyMetadata)
+          .withFileSizeInBytes(appender.length())
+          .withMetrics(appender.metrics())
+          .withSplitOffsets(appender.splitOffsets())
+          .withSortOrder(sortOrder)
+          .build();
+    }
   }
 
   public DataFile toDataFile() {

@@ -287,7 +287,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     private void closeCurrent() throws IOException {
-      try{
+      try {
         if (currentWriter != null) {
           currentWriter.close();
 
@@ -301,7 +301,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
             complete(currentWriter);
           }
         }
-      }finally {
+      } finally {
         this.currentFile = null;
         this.currentWriter = null;
         this.currentRows = 0;
