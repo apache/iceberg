@@ -14,6 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from importlib import metadata
+import re
 
-__version__ = metadata.version(__package__)
+from pyiceberg import __version__
+
+
+def test_version_format():
+    # should be in the format of 0.14.0 or 0.14.0.dev0
+    assert re.search(r"\d+.\d+.\d+(.dev\d+)?", __version__)

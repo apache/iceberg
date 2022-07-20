@@ -17,7 +17,7 @@
 
 [tool.poetry]
 name = "pyiceberg"
-version = "0.0.1rc1"
+version = "0.14.0.dev0"
 readme = "README.md"
 homepage = "https://iceberg.apache.org/"
 repository = "https://github.com/apache/iceberg/"
