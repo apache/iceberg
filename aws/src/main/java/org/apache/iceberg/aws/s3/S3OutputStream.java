@@ -262,7 +262,7 @@ class S3OutputStream extends PositionOutputStream {
 
     /**
      * As calls to close() are used to mark a stream as completed and add the file
-     * to the completed data files in BaseTaskWriter we cannot just return if this
+     * to the completed data files in BaseTaskWriter, we cannot just return if this
      * was already closed with failure to upload.
      *
      * As close 'completes' the upload and staging files are cleanup, any failure to
@@ -272,8 +272,8 @@ class S3OutputStream extends PositionOutputStream {
      * see: https://github.com/apache/iceberg/issues/5310
       */
     if(closeFailureState != null){
-      throw new IllegalStateException("close called on a closed stream which failed to close completely earlier at: "+closeFailureState.getFailureAt()
-              , closeFailureState.getFailure());
+      throw new IllegalStateException("close called on a closed stream which failed to close completely earlier at: " + closeFailureState.getFailureAt(),
+              closeFailureState.getFailure());
     }
 
     if (closed) {
