@@ -31,7 +31,6 @@ import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseCombinedScanTask;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
@@ -87,7 +86,7 @@ public class TestSparkBaseDataReader {
 
   // Main reader class to test base class iteration logic.
   // Keeps track of iterator closure.
-  private static class ClosureTrackingReader extends BaseDataReader<Integer, FileScanTask, CombinedScanTask> {
+  private static class ClosureTrackingReader extends BaseDataReader<Integer, FileScanTask> {
     private Map<String, CloseableIntegerRange> tracker = Maps.newHashMap();
 
     ClosureTrackingReader(Table table, List<FileScanTask> tasks) {

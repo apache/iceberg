@@ -44,14 +44,13 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-class BatchDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>>
-    extends BaseDataReader<ColumnarBatch, CST, G> {
+class BatchDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<ColumnarBatch, TaskT> {
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
   private final int batchSize;
 
-  BatchDataReader(G task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
+  BatchDataReader(ScanTaskGroup<TaskT> task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
     super(table, task);
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -60,7 +59,7 @@ class BatchDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CS
   }
 
   @Override
-  CloseableIterator<ColumnarBatch> open(CST task) {
+  CloseableIterator<ColumnarBatch> open(TaskT task) {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(task.file().path().toString(), task.start(), task.length());
 
@@ -120,7 +119,7 @@ class BatchDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CS
     return iter.iterator();
   }
 
-  protected SparkDeleteFilter deleteFilter(CST task) {
+  protected SparkDeleteFilter deleteFilter(TaskT task) {
     Preconditions.checkArgument(task.isFileScanTask(), "Only FileScanTask is supported for delete filtering");
     return task.asFileScanTask().deletes().isEmpty() ?
         null : new SparkDeleteFilter(task.asFileScanTask(), table().schema(), expectedSchema, this);

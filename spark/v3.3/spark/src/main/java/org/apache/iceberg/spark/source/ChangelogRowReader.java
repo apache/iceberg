@@ -34,7 +34,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 
 public class ChangelogRowReader {
 
-  class ChangelogAddedRowReader extends RowDataReader<AddedRowsScanTask, BaseScanTaskGroup<AddedRowsScanTask>> {
+  class ChangelogAddedRowReader extends RowDataReader<AddedRowsScanTask> {
 
     ChangelogAddedRowReader(BaseScanTaskGroup<AddedRowsScanTask> task, Table table, Schema expectedSchema,
                             boolean caseSensitive) {
@@ -48,8 +48,7 @@ public class ChangelogRowReader {
     }
   }
 
-  class ChangelogFileLevelDeletedRowReader extends
-      RowDataReader<DeletedDataFileScanTask, BaseScanTaskGroup<DeletedDataFileScanTask>> {
+  class ChangelogFileLevelDeletedRowReader extends RowDataReader<DeletedDataFileScanTask> {
 
     ChangelogFileLevelDeletedRowReader(BaseScanTaskGroup<DeletedDataFileScanTask> task, Table table,
                                        Schema expectedSchema, boolean caseSensitive) {
@@ -63,8 +62,7 @@ public class ChangelogRowReader {
     }
   }
 
-  class ChangelogRowLevelDeletedRowReader extends
-      RowDataReader<DeletedRowsScanTask, BaseScanTaskGroup<DeletedRowsScanTask>> {
+  class ChangelogRowLevelDeletedRowReader extends RowDataReader<DeletedRowsScanTask> {
 
     ChangelogRowLevelDeletedRowReader(BaseScanTaskGroup<DeletedRowsScanTask> task, Table table, Schema expectedSchema,
                                       boolean caseSensitive) {

@@ -43,15 +43,14 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-class RowDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>>
-    extends BaseDataReader<InternalRow, CST, G> {
+class RowDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<InternalRow, TaskT> {
 
   private final Schema tableSchema;
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
 
-  RowDataReader(G task, Table table, Schema expectedSchema, boolean caseSensitive) {
+  RowDataReader(ScanTaskGroup<TaskT> task, Table table, Schema expectedSchema, boolean caseSensitive) {
     super(table, task);
     this.tableSchema = table.schema();
     this.expectedSchema = expectedSchema;
@@ -60,7 +59,7 @@ class RowDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>
   }
 
   @Override
-  CloseableIterator<InternalRow> open(CST task) {
+  CloseableIterator<InternalRow> open(TaskT task) {
     SparkDeleteFilter deletes = deleteFilter(task);
 
     // schema or rows returned by readers
@@ -81,7 +80,7 @@ class RowDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>
     return expectedSchema;
   }
 
-  protected CloseableIterable<InternalRow> open(CST task, Schema readSchema, Map<Integer, ?> idToConstant) {
+  protected CloseableIterable<InternalRow> open(TaskT task, Schema readSchema, Map<Integer, ?> idToConstant) {
     CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
       iter = newDataIterable(task.asDataTask(), readSchema);
@@ -113,7 +112,7 @@ class RowDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>
 
   private CloseableIterable<InternalRow> newAvroIterable(
       InputFile location,
-      CST task,
+      TaskT task,
       Schema projection,
       Map<Integer, ?> idToConstant) {
     Avro.ReadBuilder builder = Avro.read(location)
@@ -131,7 +130,7 @@ class RowDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>
 
   private CloseableIterable<InternalRow> newParquetIterable(
       InputFile location,
-      CST task,
+      TaskT task,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
     Parquet.ReadBuilder builder = Parquet.read(location)
@@ -151,7 +150,7 @@ class RowDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>
 
   private CloseableIterable<InternalRow> newOrcIterable(
       InputFile location,
-      CST task,
+      TaskT task,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
     Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
@@ -178,7 +177,7 @@ class RowDataReader<CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>
     return asSparkRows;
   }
 
-  protected SparkDeleteFilter deleteFilter(CST task) {
+  protected SparkDeleteFilter deleteFilter(TaskT task) {
     Preconditions.checkArgument(task.isFileScanTask(), "Only FileScanTask is supported for delete filtering");
     return new SparkDeleteFilter(task.asFileScanTask(), tableSchema, expectedSchema(), this);
   }

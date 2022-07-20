@@ -64,26 +64,26 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
-abstract class BaseDataReader<T, CST extends ContentScanTask<?>, G extends ScanTaskGroup<CST>>
+abstract class BaseDataReader<T, TaskT extends ContentScanTask<?>>
     implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseDataReader.class);
 
   private final Table table;
-  private final Iterator<CST> tasks;
+  private final Iterator<TaskT> tasks;
   private final Map<String, InputFile> inputFiles;
 
   private CloseableIterator<T> currentIterator;
   private T current = null;
-  private CST currentTask = null;
+  private TaskT currentTask = null;
 
-  BaseDataReader(Table table, G task) {
+  BaseDataReader(Table table, ScanTaskGroup<TaskT> task) {
     this.table = table;
     this.tasks = task.tasks().iterator();
     this.inputFiles = inputFiles(task);
     this.currentIterator = CloseableIterator.empty();
   }
 
-  private Map<String, InputFile> inputFiles(G task) {
+  private Map<String, InputFile> inputFiles(ScanTaskGroup<TaskT> task) {
     Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
     Stream<ContentFile> dataFileStream = task.tasks().stream()
         .flatMap(contentScanTask -> {
@@ -145,7 +145,7 @@ abstract class BaseDataReader<T, CST extends ContentScanTask<?>, G extends ScanT
     return current;
   }
 
-  abstract CloseableIterator<T> open(CST task);
+  abstract CloseableIterator<T> open(TaskT task);
 
   @Override
   public void close() throws IOException {
@@ -160,7 +160,7 @@ abstract class BaseDataReader<T, CST extends ContentScanTask<?>, G extends ScanT
     }
   }
 
-  protected InputFile getInputFile(CST task) {
+  protected InputFile getInputFile(TaskT task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
     return inputFiles.get(task.file().path().toString());
   }
@@ -169,7 +169,7 @@ abstract class BaseDataReader<T, CST extends ContentScanTask<?>, G extends ScanT
     return inputFiles.get(location);
   }
 
-  protected Map<Integer, ?> constantsMap(CST task, Schema readSchema) {
+  protected Map<Integer, ?> constantsMap(TaskT task, Schema readSchema) {
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
       StructType partitionType = Partitioning.partitionType(table);
       return PartitionUtil.constantsMap(task, partitionType, BaseDataReader::convertConstant);
