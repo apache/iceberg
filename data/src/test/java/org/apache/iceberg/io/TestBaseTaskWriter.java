@@ -215,7 +215,13 @@ public class TestBaseTaskWriter extends TableTestBase {
 
     assertThatThrownBy(() -> {
       WriteResult result;
-      try (TestTaskWriter taskWriter = new TestTaskWriter(table.spec(), format, appender, fileFactory, table.io(), targetSize)) {
+      try (TestTaskWriter taskWriter = new TestTaskWriter(
+          table.spec(),
+          format,
+          appender,
+          fileFactory,
+          table.io(),
+          targetSize)) {
         for (Record record : records) {
           try {
             taskWriter.write(record);
@@ -230,8 +236,8 @@ public class TestBaseTaskWriter extends TableTestBase {
         }
       }
     })
-    .isInstanceOf(NullPointerException.class)
-    .hasMessageContaining("The currentWriter shouldn't be null");
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("The currentWriter shouldn't be null");
 
     Mockito.verify(dataWriter, Mockito.times(1)).close();
   }
@@ -254,7 +260,13 @@ public class TestBaseTaskWriter extends TableTestBase {
     Mockito.doThrow(new RuntimeException("mock failure on dataWriter close")).when(dataWriter).close();
 
     WriteResult result;
-    try (TestTaskWriter taskWriter = new TestTaskWriter(table.spec(), format, appender, fileFactory, table.io(), targetSize)) {
+    try (TestTaskWriter taskWriter = new TestTaskWriter(
+        table.spec(),
+        format,
+        appender,
+        fileFactory,
+        table.io(),
+        targetSize)) {
       for (Record record : records) {
         try {
           taskWriter.write(record);

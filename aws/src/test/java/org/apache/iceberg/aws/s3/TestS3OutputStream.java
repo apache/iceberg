@@ -184,7 +184,7 @@ public class TestS3OutputStream {
     }).collect(Collectors.toList());
 
     Assert.assertEquals(callsToClose, failures.size());
-    Assert.assertEquals(failures.get(0), failures.get(callsToClose-1).getCause());
+    Assert.assertEquals(failures.get(0), failures.get(callsToClose - 1).getCause());
   }
 
   @Test
