@@ -27,21 +27,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -144,6 +139,27 @@ public class TestS3OutputStream {
     S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties, nullMetrics());
     stream.close();
     stream.close();
+  }
+
+  @Test
+  public void testCloseFailureShouldPersistOnFutureClose() throws IOException {
+    Mockito.doThrow(new IllegalStateException("mock failure to completeUploads on close"))
+              .when(s3mock).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics());
+
+    int callsToClose = 2;
+    List<Exception> failures = IntStream.range(0, callsToClose).mapToObj(i -> {
+      Exception failure = null;
+      try {
+        stream.close();
+      } catch (Exception e) {
+        failure = e;
+      }
+      return failure;
+    }).collect(Collectors.toList());
+
+    Assert.assertEquals(callsToClose, failures.size());
+    Assert.assertEquals(failures.get(0), failures.get(callsToClose-1).getCause());
   }
 
   @Test
