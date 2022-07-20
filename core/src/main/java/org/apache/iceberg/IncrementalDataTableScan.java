@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 class IncrementalDataTableScan extends DataTableScan {
@@ -130,6 +131,9 @@ class IncrementalDataTableScan extends DataTableScan {
       if (snapshot.operation().equals(DataOperations.APPEND)) {
         snapshots.add(snapshot);
       } else if (snapshot.operation().equals(DataOperations.OVERWRITE)) {
+        if (incrementalPullIgnoreOverwrite(table)) {
+          continue;
+        }
         throw new UnsupportedOperationException(
             String.format(
                 "Found %s operation, cannot support incremental data in snapshots (%s, %s]",
@@ -137,6 +141,13 @@ class IncrementalDataTableScan extends DataTableScan {
       }
     }
     return snapshots;
+  }
+
+  private static boolean incrementalPullIgnoreOverwrite(Table table) {
+    return PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.INCREMENTAL_PULL_IGNORE_OVERWRITE,
+        TableProperties.INCREMENTAL_PULL_IGNORE_OVERWRITE_DEFAULT);
   }
 
   private void validateSnapshotIdsRefinement(long newFromSnapshotId, long newToSnapshotId) {
