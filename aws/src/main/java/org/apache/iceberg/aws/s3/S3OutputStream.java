@@ -329,7 +329,6 @@ class S3OutputStream extends PositionOutputStream {
         multiPartMap.values()
             .stream()
             .map(CompletableFuture::join)
-            .sorted(Comparator.comparing(CompletedPart::partNumber))
             .collect(Collectors.toList());
 
     CompleteMultipartUploadRequest request = CompleteMultipartUploadRequest.builder()
