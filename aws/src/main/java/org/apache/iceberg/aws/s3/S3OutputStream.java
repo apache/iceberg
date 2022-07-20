@@ -271,9 +271,11 @@ class S3OutputStream extends PositionOutputStream {
      * of a manifest.
      * see: https://github.com/apache/iceberg/issues/5310
       */
-    if(closeFailureState != null){
-      throw new IllegalStateException("close called on a closed stream which failed to close completely earlier at: " + closeFailureState.getFailureAt(),
-              closeFailureState.getFailure());
+    if (closeFailureState != null) {
+      throw new IllegalStateException(
+          "close called on a closed stream which failed to close completely earlier at: " +
+              closeFailureState.getFailureAt(),
+          closeFailureState.getFailure());
     }
 
     if (closed) {
@@ -286,7 +288,7 @@ class S3OutputStream extends PositionOutputStream {
     try {
       stream.close();
       completeUploads();
-    } catch (Exception e){
+    } catch (Exception e) {
       closeFailureState = new CloseFailureState(e);
       throw e;
     } finally {
@@ -521,16 +523,16 @@ class S3OutputStream extends PositionOutputStream {
     private long failureAt;
     private Throwable failure;
 
-    public CloseFailureState(Throwable failure) {
+    CloseFailureState(Throwable failure) {
       this.failureAt = System.currentTimeMillis();
       this.failure = failure;
     }
 
-    public Instant getFailureAt() {
+    Instant getFailureAt() {
       return Instant.ofEpochMilli(failureAt);
     }
 
-    public Throwable getFailure() {
+    Throwable getFailure() {
       return failure;
     }
   }
