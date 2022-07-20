@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import reduce, singledispatch
 from typing import Generic, TypeVar
 
@@ -171,40 +171,54 @@ class Reference(UnboundTerm[T], BaseReference[T]):
         return BoundReference(field=field, accessor=accessor)
 
 
-@dataclass(frozen=True)  # type: ignore[misc]
 class BoundPredicate(Bound[T], BooleanExpression):
-    term: BoundReference[T]
-    literals: tuple[Literal[T], ...] | Literal[T]
-    negated: bool = False
+    def __init__(self, term: BoundReference[T], literals: tuple[Literal[T], ...] | Literal[T]):
+        self._term = term
+        self._literals = literals if isinstance(literals, tuple) else (literals,)
+        self.__validate_literals()
 
-    def __new__(cls, term: BoundReference[T], literals: tuple[Literal[T], ...] | Literal[T]):
-        self = super().__new__(cls)
-        object.__setattr__(self, "literals", literals if isinstance(literals, tuple) else (literals,))
-        if cls != BoundIn and len(self.literals) > 1:  # type: ignore
-            raise AttributeError(f"{cls.__name__} cannot contain more than a single literal. Got {self.literals}.")
-        object.__setattr__(self, "term", term)
-        return self
+    def __validate_literals(self):
+        if len(self.literals) != 1:
+            raise AttributeError(f"{self.__class__.__name__} must have exactly 1 literal.")
 
-    def __invert__(self):
-        return self.__class__(self.term, self.literals, not self.negated)
+    @property
+    def term(self) -> Reference[T]:
+        return self._term
+
+    @property
+    def literals(self) -> tuple[Literal[T], ...]:
+        return self._literals
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({str(self.term)}, {str(self.literals)})"
+
+    def __repr__(self) -> repr:
+        return f"{self.__class__.__name__}({repr(self.term)}, {repr(self.literals)})"
 
 
-@dataclass(frozen=True)  # type: ignore[misc]
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
-    term: Reference[T]
-    literals: tuple[Literal[T], ...] | Literal[T]
-    negated: bool = False
+    def __init__(self, term: Reference[T], literals: tuple[Literal[T], ...] | Literal[T]):
+        self._term = term
+        self._literals = literals if isinstance(literals, tuple) else (literals,)
+        self.__validate_literals()
 
-    def __new__(cls, term: Reference[T], literals: tuple[Literal[T], ...] | Literal[T]):
-        self = super().__new__(cls)
-        object.__setattr__(self, "literals", literals if isinstance(literals, tuple) else (literals,))
-        if cls != In and len(self.literals) > 1:  # type: ignore
-            raise AttributeError(f"{cls.__name__} cannot contain more than a single literal. Got {self.literals}.")
-        object.__setattr__(self, "term", term)
-        return self
+    def __validate_literals(self):
+        if len(self.literals) != 1:
+            raise AttributeError(f"{self.__class__.__name__} must have exactly 1 literal.")
 
-    def __invert__(self):
-        return self.__class__(self.term, self.literals, not self.negated)
+    @property
+    def term(self) -> Reference[T]:
+        return self._term
+
+    @property
+    def literals(self) -> tuple[Literal[T], ...]:
+        return self._literals
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({str(self.term)}, {str(self.literals)})"
+
+    def __repr__(self) -> repr:
+        return f"{self.__class__.__name__}({repr(self.term)}, {repr(self.literals)})"
 
 
 class And(BooleanExpression):
@@ -352,51 +366,131 @@ class NotNaN(BooleanExpression):
 
 
 class BoundIn(BoundPredicate[T]):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __validate_literals(self):
         if not self.literals:
-            raise AttributeError("In literals must have at least one literal.")
+            raise AttributeError("BoundIn must contain at least 1 literal.")
+
+    def __invert__(self) -> BoundNotIn[T]:
+        return BoundNotIn(self.term, self.literals)
 
 
 class In(UnboundPredicate[T]):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __validate_literals(self):
         if not self.literals:
-            raise AttributeError("In literals must have at least one literal.")
+            raise AttributeError("In must contain at least 1 literal.")
+
+    def __invert__(self) -> NotIn[T]:
+        return NotIn(self.term, self.literals)
 
     def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn[T]:
         bound_ref = self.term.bind(schema, case_sensitive)
         return BoundIn(bound_ref, tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
 
 
-class BoundEQ(BoundPredicate[T]):
-    ...
+class BoundNotIn(BoundPredicate[T]):
+    def __validate_literals(self):
+        if not self.literals:
+            raise AttributeError("BoundNotIn must contain at least 1 literal.")
+
+    def __invert__(self) -> BoundIn[T]:
+        return BoundIn(self.term, self.literals)
 
 
-class EQ(UnboundPredicate[T]):
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEQ[T]:
+class NotIn(UnboundPredicate[T]):
+    def __validate_literals(self):
+        if not self.literals:
+            raise AttributeError("NotIn must contain at least 1 literal.")
+
+    def __invert__(self) -> In[T]:
+        return In(self.term, self.literals)
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundNotIn[T]:
         bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundEQ(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+        return BoundNotIn(bound_ref, tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
 
 
-class BoundLT(BoundPredicate[T]):
-    ...
+class BoundEq(BoundPredicate[T]):
+    def __invert__(self) -> BoundNotEq[T]:
+        return BoundNotEq(self.term, self.literals)
 
 
-class LT(UnboundPredicate[T]):
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEQ[T]:
+class Eq(UnboundPredicate[T]):
+    def __invert__(self) -> NotEq[T]:
+        return NotEq(self.term, self.literals)
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEq[T]:
         bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundLT(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+        return BoundEq(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
 
 
-class BoundGT(BoundPredicate[T]):
-    ...
+class BoundNotEq(BoundPredicate[T]):
+    def __invert__(self) -> BoundEq[T]:
+        return BoundEq(self.term, self.literals)
 
 
-class GT(UnboundPredicate[T]):
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEQ[T]:
+class NotEq(UnboundPredicate[T]):
+    def __invert__(self) -> Eq[T]:
+        return Eq(self.term, self.literals)
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundNotEq[T]:
         bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundGT(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+        return BoundNotEq(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+
+
+class BoundLt(BoundPredicate[T]):
+    def __invert__(self) -> BoundGtEq[T]:
+        return BoundGtEq(self.term, self.literals)
+
+
+class Lt(UnboundPredicate[T]):
+    def __invert__(self) -> GtEq[T]:
+        return GtEq(self.term, self.literals)
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEq[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundLt(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+
+
+class BoundGtEq(BoundPredicate[T]):
+    def __invert__(self) -> BoundLt[T]:
+        return BoundLt(self.term, self.literals)
+
+
+class GtEq(UnboundPredicate[T]):
+    def __invert__(self) -> Lt[T]:
+        return Lt(self.term, self.literals)
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEq[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundGtEq(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+
+
+class BoundGt(BoundPredicate[T]):
+    def __invert__(self) -> BoundLtEq[T]:
+        return BoundLtEq(self.term, self.literals)
+
+
+class Gt(UnboundPredicate[T]):
+    def __invert__(self) -> LtEq[T]:
+        return LtEq(self.term, self.literals)
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEq[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundGt(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
+
+
+class BoundLtEq(BoundPredicate[T]):
+    def __invert__(self) -> BoundGt[T]:
+        return BoundGt(self.term, self.literals)
+
+
+class LtEq(UnboundPredicate[T]):
+    def __invert__(self) -> Gt[T]:
+        return Gt(self.term, self.literals)
+
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundEq[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundLtEq(bound_ref, self.literals[0].to(bound_ref.field.field_type))  # type: ignore
 
 
 class BooleanExpressionVisitor(Generic[T], ABC):

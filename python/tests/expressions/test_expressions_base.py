@@ -166,6 +166,174 @@ def test_strs(op, string):
             True,
             False,
         ),
+        (
+            base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.NotIn(base.Reference("not_foo"), (literal("hello"), literal("world"))),
+            "table_schema_simple",
+            False,
+            False,
+        ),
+        (
+            base.NotIn(base.Reference("Bar"), (literal("hello"), literal("world"))),
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.NotIn(base.Reference("Bar"), (literal("hello"), literal("world"))),
+            "table_schema_simple",
+            True,
+            False,
+        ),
+        (
+            base.NotEq(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.NotEq(base.Reference("not_foo"), literal("hello")),
+            "table_schema_simple",
+            False,
+            False,
+        ),
+        (
+            base.NotEq(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.NotEq(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            True,
+            False,
+        ),
+        (
+            base.Eq(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.Eq(base.Reference("not_foo"), literal("hello")),
+            "table_schema_simple",
+            False,
+            False,
+        ),
+        (
+            base.Eq(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.Eq(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            True,
+            False,
+        ),
+        (
+            base.Gt(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.Gt(base.Reference("not_foo"), literal("hello")),
+            "table_schema_simple",
+            False,
+            False,
+        ),
+        (
+            base.Gt(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.Gt(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            True,
+            False,
+        ),
+        (
+            base.Lt(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.Lt(base.Reference("not_foo"), literal("hello")),
+            "table_schema_simple",
+            False,
+            False,
+        ),
+        (
+            base.Lt(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.Lt(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            True,
+            False,
+        ),
+        (
+            base.GtEq(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.GtEq(base.Reference("not_foo"), literal("hello")),
+            "table_schema_simple",
+            False,
+            False,
+        ),
+        (
+            base.GtEq(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.GtEq(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            True,
+            False,
+        ),
+        (
+            base.LtEq(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
+            True,
+            True,
+        ),
+        (
+            base.LtEq(base.Reference("not_foo"), literal("hello")),
+            "table_schema_simple",
+            False,
+            False,
+        ),
+        (
+            base.LtEq(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            False,
+            True,
+        ),
+        (
+            base.LtEq(base.Reference("Bar"), literal("hello")),
+            "table_schema_simple",
+            True,
+            False,
+        ),
     ],
 )
 def test_bind(a, schema, case_sensitive, success, request):
@@ -210,21 +378,50 @@ def test_eq(exp, testexpra, testexprb):
 
 
 @pytest.mark.parametrize(
-    "lhs, rhs, raises",
+    "lhs, rhs",
     [
-        (base.And(ExpressionA(), ExpressionB()), base.Or(ExpressionB(), ExpressionA()), False),
-        (base.Or(ExpressionA(), ExpressionB()), base.And(ExpressionB(), ExpressionA()), False),
-        (base.Not(ExpressionA()), ExpressionA(), False),
-        (base.In(base.Reference("foo"), (literal("hello"), literal("world"))), None, True),
-        (ExpressionA(), ExpressionB(), False),
+        (
+            base.And(ExpressionA(), ExpressionB()),
+            base.Or(ExpressionB(), ExpressionA()),
+        ),
+        (
+            base.Or(ExpressionA(), ExpressionB()),
+            base.And(ExpressionB(), ExpressionA()),
+        ),
+        (
+            base.Not(ExpressionA()),
+            ExpressionA(),
+        ),
+        (
+            base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+        ),
+        (
+            base.BoundIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.BoundNotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+        ),
+        (
+            base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
+        ),
+        (
+            base.BoundNotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+            base.BoundIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+        ),
+        (base.Lt(base.Reference("foo"), literal("hello")), base.GtEq(base.Reference("foo"), literal("hello"))),
+        (base.BoundLt(base.Reference("foo"), literal("hello")), base.BoundGtEq(base.Reference("foo"), literal("hello"))),
+        (base.Gt(base.Reference("foo"), literal("hello")), base.LtEq(base.Reference("foo"), literal("hello"))),
+        (base.BoundGt(base.Reference("foo"), literal("hello")), base.BoundLtEq(base.Reference("foo"), literal("hello"))),
+        (base.Eq(base.Reference("foo"), literal("hello")), base.NotEq(base.Reference("foo"), literal("hello"))),
+        (base.BoundEq(base.Reference("foo"), literal("hello")), base.BoundNotEq(base.Reference("foo"), literal("hello"))),
+        (
+            ExpressionA(),
+            ExpressionB(),
+        ),
     ],
 )
-def test_negate(lhs, rhs, raises):
-    if not raises:
-        assert ~lhs == rhs
-    else:
-        with pytest.raises(TypeError):
-            ~lhs  # pylint: disable=W0104
+def test_negate(lhs, rhs):
+    assert ~lhs == rhs
 
 
 @pytest.mark.parametrize(
