@@ -324,7 +324,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testMetadataLogMetatable() throws Exception {
+  public void testMetadataLogs() throws Exception {
     // Create table and insert data
     sql("CREATE TABLE %s (id bigint, data string) " +
         "USING iceberg " +
@@ -356,8 +356,8 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     List<TableMetadata.MetadataLogEntry> metadataLogEntries = Lists.newArrayList(tableMetadata.previousFiles());
 
     // Check metadataLog table
-    List<Object[]> metadataLogs = sql("SELECT * FROM %s.metadata_log", tableName);
-    assertEquals("MetadataLogTable result should match the metadataLog entries",
+    List<Object[]> metadataLogs = sql("SELECT * FROM %s.metadata_logs", tableName);
+    assertEquals("MetadataLogsTable result should match the metadataLog entries",
         ImmutableList.of(
             row(
                 metadataLogEntries.get(0).timestampMillis(),
@@ -384,7 +384,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     // test filtering
     List<Object[]> metadataLogWithFilters =
-        sql("SELECT * FROM %s.metadata_log WHERE latest_snapshot_id = %s", tableName, currentSnapshotId);
+        sql("SELECT * FROM %s.metadata_logs WHERE latest_snapshot_id = %s", tableName, currentSnapshotId);
     Assert.assertEquals("metadataLog table should return 1 row", 1, metadataLogWithFilters.size());
     assertEquals("Result should match the latest snapshot entry",
         ImmutableList.of(row(
@@ -399,7 +399,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     List<String> metadataFiles =
         metadataLogEntries.stream().map(TableMetadata.MetadataLogEntry::file).collect(Collectors.toList());
     metadataFiles.add(tableMetadata.metadataFileLocation());
-    List<Object[]> metadataLogWithProjection = sql("SELECT file FROM %s.metadata_log", tableName);
+    List<Object[]> metadataLogWithProjection = sql("SELECT file FROM %s.metadata_logs", tableName);
     Assert.assertEquals("metadataLog table should return 3 rows", 3, metadataLogWithProjection.size());
     assertEquals("metadataLog entry should be of same file",
         metadataFiles.stream().map(this::row).collect(Collectors.toList()),

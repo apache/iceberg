@@ -25,9 +25,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 
-public class MetadataLogTable extends BaseMetadataTable {
+public class MetadataLogsTable extends BaseMetadataTable {
 
-  private static final Schema METADATA_LOG_SCHEMA = new Schema(
+  private static final Schema METADATA_LOGS_SCHEMA = new Schema(
       Types.NestedField.required(1, "timestamp_millis", Types.LongType.get()),
       Types.NestedField.required(2, "file", Types.StringType.get()),
       Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
@@ -35,17 +35,17 @@ public class MetadataLogTable extends BaseMetadataTable {
       Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get())
   );
 
-  MetadataLogTable(TableOperations ops, Table table) {
+  MetadataLogsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".metadata_log");
   }
 
-  MetadataLogTable(TableOperations ops, Table table, String name) {
+  MetadataLogsTable(TableOperations ops, Table table, String name) {
     super(ops, table, name);
   }
 
   @Override
   MetadataTableType metadataTableType() {
-    return MetadataTableType.METADATA_LOG;
+    return MetadataTableType.METADATA_LOGS;
   }
 
   @Override
@@ -55,7 +55,7 @@ public class MetadataLogTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    return METADATA_LOG_SCHEMA;
+    return METADATA_LOGS_SCHEMA;
   }
 
   private DataTask task(TableScan scan) {
@@ -69,17 +69,17 @@ public class MetadataLogTable extends BaseMetadataTable {
         schema(),
         scan.schema(),
         metadataLogEntries,
-        metadataLogEntry -> MetadataLogTable.metadataLogTableToRow(metadataLogEntry, table())
+        metadataLogEntry -> MetadataLogsTable.metadataLogsTableToRow(metadataLogEntry, table())
     );
   }
 
   private class MetadataLogScan extends StaticTableScan {
     MetadataLogScan(TableOperations ops, Table table) {
-      super(ops, table, METADATA_LOG_SCHEMA, MetadataTableType.METADATA_LOG, MetadataLogTable.this::task);
+      super(ops, table, METADATA_LOGS_SCHEMA, MetadataTableType.METADATA_LOGS, MetadataLogsTable.this::task);
     }
 
     MetadataLogScan(TableOperations ops, Table table, TableScanContext context) {
-      super(ops, table, METADATA_LOG_SCHEMA, MetadataTableType.METADATA_LOG, MetadataLogTable.this::task, context);
+      super(ops, table, METADATA_LOGS_SCHEMA, MetadataTableType.METADATA_LOGS, MetadataLogsTable.this::task, context);
     }
 
     @Override
@@ -89,11 +89,11 @@ public class MetadataLogTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
-      return CloseableIterable.withNoopClose(MetadataLogTable.this.task(this));
+      return CloseableIterable.withNoopClose(MetadataLogsTable.this.task(this));
     }
   }
 
-  private static StaticDataTask.Row metadataLogTableToRow(TableMetadata.MetadataLogEntry metadataLogEntry,
+  private static StaticDataTask.Row metadataLogsTableToRow(TableMetadata.MetadataLogEntry metadataLogEntry,
                                                           Table table) {
     Long latestSnapshotId = null;
     Snapshot latestSnapshot = null;
