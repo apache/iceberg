@@ -36,7 +36,7 @@ public class MetadataLogsTable extends BaseMetadataTable {
   );
 
   MetadataLogsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".metadata_log");
+    this(ops, table, table.name() + ".metadata_logs");
   }
 
   MetadataLogsTable(TableOperations ops, Table table, String name) {
@@ -69,7 +69,7 @@ public class MetadataLogsTable extends BaseMetadataTable {
         schema(),
         scan.schema(),
         metadataLogEntries,
-        metadataLogEntry -> MetadataLogsTable.metadataLogsTableToRow(metadataLogEntry, table())
+        metadataLogEntry -> MetadataLogsTable.metadataLogToRow(metadataLogEntry, table())
     );
   }
 
@@ -93,8 +93,7 @@ public class MetadataLogsTable extends BaseMetadataTable {
     }
   }
 
-  private static StaticDataTask.Row metadataLogsTableToRow(TableMetadata.MetadataLogEntry metadataLogEntry,
-                                                          Table table) {
+  private static StaticDataTask.Row metadataLogToRow(TableMetadata.MetadataLogEntry metadataLogEntry, Table table) {
     Long latestSnapshotId = null;
     Snapshot latestSnapshot = null;
     try {
