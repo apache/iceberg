@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.function.Function;
+
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -43,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -117,6 +121,38 @@ public class TestParquetDataWriter {
     }
 
     Assert.assertEquals("Written records should match", records, writtenRecords);
+  }
+
+  @Test
+  public void testDataWriterWithCloseFailureShouldNotReturnDataFile() throws IOException {
+    File localFile = temp.newFile();
+    OutputFile file = Files.localOutput(localFile);
+
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA)
+            .withOrderId(10)
+            .asc("id")
+            .build();
+
+
+
+    DataWriter<Record> dataWriter = Parquet.writeData(file)
+            .schema(SCHEMA)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .withSortOrder(sortOrder)
+            .build();
+    try {
+      for (int i=0;i<records.size();i++) {
+        if(i==records.size()-1){
+          // to mock write failure
+          localFile.delete();
+        }
+        dataWriter.write(records.get(i));
+      }
+    } finally {
+      dataWriter.close();
+    }
   }
 
   @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
