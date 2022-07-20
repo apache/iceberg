@@ -40,6 +40,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -119,28 +120,28 @@ public class TestS3OutputStream {
 
   @Test
   public void testAbortAfterFailedPartUpload() {
-    doThrow(new RuntimeException("mock uploadPart failure")).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+    doThrow(new RuntimeException("mock uploadPart failure"))
+            .when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-      stream.write(randomData(10 * 1024 * 1024));
-    } catch (Exception e) {
-      // ignore failure for testing
-    } finally {
-      verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
-    }
+    Assertions.assertThrows(RuntimeException.class, ()->{
+      try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
+        stream.write(randomData(10 * 1024 * 1024));
+      }
+    });
+    verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
   public void testAbortMultipart() {
-    doThrow(new RuntimeException("mock completeMultipartUpload failure")).when(s3mock).completeMultipartUpload((CompleteMultipartUploadRequest) any());
+    doThrow(new RuntimeException("mock completeMultipartUpload failure"))
+            .when(s3mock).completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-      stream.write(randomData(10 * 1024 * 1024));
-    } catch (Exception e) {
-      // ignore failure for testing
-    } finally {
-      verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
-    }
+    Assertions.assertThrows(RuntimeException.class, ()->{
+      try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
+        stream.write(randomData(10 * 1024 * 1024));
+      }
+    });
+    verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
