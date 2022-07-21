@@ -17,15 +17,15 @@
 
 from typing import Dict, Optional, Union
 
-from pydantic import Field, Extra
+from pydantic import Field
 
 from pyiceberg.catalog.base import Identifier
 from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
-class Table(IcebergBaseModel, extra=Extra.forbid):
+class Table(IcebergBaseModel):
     identifier: Union[str, Identifier] = Field()
-    metadata_location: Optional[str] = Field(alias='metadata-location', default=None)
+    metadata_location: Optional[str] = Field(alias="metadata-location", default=None)
     metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
     config: Dict[str, str] = Field(default_factory=dict)
