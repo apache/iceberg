@@ -450,6 +450,18 @@ public class InclusiveMetricsEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean endsWith(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Handle cases that definitely match, such as endsWith("b") when the bounds are ["a", "b"].
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: Handle cases that definitely not match, such as notEndsWith("x") when the bounds are ["a", "b"].
+      return ROWS_MIGHT_MATCH;
+    }
+
     private boolean mayContainNull(Integer id) {
       return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) != 0);
     }

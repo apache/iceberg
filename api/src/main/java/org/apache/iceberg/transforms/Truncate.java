@@ -288,6 +288,7 @@ abstract class Truncate<T> implements Transform<T, T> {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
         switch (pred.op()) {
           case STARTS_WITH:
+          case ENDS_WITH:
             if (pred.literal().value().length() < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {
@@ -297,6 +298,7 @@ abstract class Truncate<T> implements Transform<T, T> {
             return ProjectionUtil.truncateArray(name, pred, this);
 
           case NOT_STARTS_WITH:
+          case NOT_ENDS_WITH:
             if (pred.literal().value().length() < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {
@@ -327,6 +329,7 @@ abstract class Truncate<T> implements Transform<T, T> {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
         switch (pred.op()) {
           case STARTS_WITH:
+          case ENDS_WITH:
             if (pred.literal().value().length() < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {
@@ -336,6 +339,7 @@ abstract class Truncate<T> implements Transform<T, T> {
             return null;
 
           case NOT_STARTS_WITH:
+          case NOT_ENDS_WITH:
             if (pred.literal().value().length() < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {

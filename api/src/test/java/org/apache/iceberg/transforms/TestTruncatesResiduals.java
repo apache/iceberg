@@ -30,6 +30,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -188,5 +189,11 @@ public class TestTruncatesResiduals {
     assertResidualValue(spec, notStartsWith("value", "bcd"), "cd", Expression.Operation.TRUE);
     assertResidualPredicate(spec, notStartsWith("value", "bcd"), "bcd");
     assertResidualPredicate(spec, notStartsWith("value", "bcd"), "bcdd");
+
+    // ends with
+    assertResidualValue(spec, endsWith("value", "bcd"), "ab", Expression.Operation.FALSE);
+    assertResidualPredicate(spec, endsWith("value", "bcd"), "dbc");
+    assertResidualValue(spec, endsWith("value", "bcd"), "ab", Expression.Operation.FALSE);
+    assertResidualPredicate(spec, endsWith("value", "bcd"), "dbbc");
   }
 }
