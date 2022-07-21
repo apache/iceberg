@@ -26,7 +26,6 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -41,26 +40,16 @@ import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public abstract class BaseRowReader<TaskT extends ScanTask> extends BaseReader<InternalRow, TaskT> {
+public abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
   private final Schema tableSchema;
-  private final Schema expectedSchema;
-  private final String nameMapping;
-  private final boolean caseSensitive;
 
-  BaseRowReader(Table table, ScanTaskGroup<TaskT> taskGroup, Schema expectedSchema, boolean caseSensitive) {
-    super(table, taskGroup);
+  BaseRowReader(Table table, ScanTaskGroup<T> taskGroup, Schema expectedSchema, boolean caseSensitive) {
+    super(table, taskGroup, expectedSchema, caseSensitive);
     this.tableSchema = table.schema();
-    this.expectedSchema = expectedSchema;
-    this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-    this.caseSensitive = caseSensitive;
   }
 
   protected Schema tableSchema() {
     return tableSchema;
-  }
-
-  protected Schema expectedSchema() {
-    return expectedSchema;
   }
 
   protected CloseableIterable<InternalRow> newIterable(InputFile file, FileFormat format, long start, long length,
@@ -93,8 +82,8 @@ public abstract class BaseRowReader<TaskT extends ScanTask> extends BaseReader<I
         .split(start, length)
         .createReaderFunc(readSchema -> new SparkAvroReader(projection, readSchema, idToConstant));
 
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    if (nameMapping() != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping()));
     }
 
     return builder.build();
@@ -113,10 +102,10 @@ public abstract class BaseRowReader<TaskT extends ScanTask> extends BaseReader<I
         .project(readSchema)
         .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
         .filter(residual)
-        .caseSensitive(caseSensitive);
+        .caseSensitive(caseSensitive());
 
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    if (nameMapping() != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping()));
     }
 
     return builder.build();
@@ -137,10 +126,10 @@ public abstract class BaseRowReader<TaskT extends ScanTask> extends BaseReader<I
         .split(start, length)
         .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(residual)
-        .caseSensitive(caseSensitive);
+        .caseSensitive(caseSensitive());
 
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    if (nameMapping() != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping()));
     }
 
     return builder.build();

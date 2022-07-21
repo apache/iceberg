@@ -20,28 +20,16 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.Set;
-import org.apache.arrow.vector.NullCheckingForGet;
-import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
-import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
@@ -49,84 +37,30 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class BatchDataReader<TaskT extends ContentScanTask<?>> extends BaseReader<ColumnarBatch, TaskT> {
+class BatchDataReader extends BaseBatchReader<FileScanTask> {
   private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
 
-  private final Schema expectedSchema;
-  private final String nameMapping;
-  private final boolean caseSensitive;
-  private final int batchSize;
-
-  BatchDataReader(ScanTaskGroup<TaskT> task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
-    super(table, task);
-    this.expectedSchema = expectedSchema;
-    this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-    this.caseSensitive = caseSensitive;
-    this.batchSize = size;
+  BatchDataReader(ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive,
+                  int size) {
+    super(table, task, expectedSchema, caseSensitive, size);
   }
 
   @Override
-  CloseableIterator<ColumnarBatch> open(TaskT task) {
+  CloseableIterator<ColumnarBatch> open(FileScanTask task) {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(task.file().path().toString(), task.start(), task.length());
 
-    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema);
+    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
 
-    CloseableIterable<ColumnarBatch> iter;
     InputFile location = getInputFile(task.file().path().toString());
     Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
-    if (task.file().format() == FileFormat.PARQUET) {
-      SparkDeleteFilter deleteFilter = deleteFilter(task);
-      // get required schema for filtering out equality-delete rows in case equality-delete uses columns are
-      // not selected.
-      Schema requiredSchema = requiredSchema(deleteFilter);
 
-      Parquet.ReadBuilder builder = Parquet.read(location)
-          .project(requiredSchema)
-          .split(task.start(), task.length())
-          .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(requiredSchema,
-              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED, idToConstant,
-              deleteFilter))
-          .recordsPerBatch(batchSize)
-          .filter(task.residual())
-          .caseSensitive(caseSensitive)
-          // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
-          // without worrying about subsequent reads clobbering over each other. This improves
-          // read performance as every batch read doesn't have to pay the cost of allocating memory.
-          .reuseContainers();
-
-      if (nameMapping != null) {
-        builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-      }
-
-      iter = builder.build();
-    } else if (task.file().format() == FileFormat.ORC) {
-      Set<Integer> constantFieldIds = idToConstant.keySet();
-      Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
-      Sets.SetView<Integer> constantAndMetadataFieldIds = Sets.union(constantFieldIds, metadataFieldIds);
-      Schema schemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(expectedSchema, constantAndMetadataFieldIds);
-      ORC.ReadBuilder builder = ORC.read(location)
-          .project(schemaWithoutConstantAndMetadataFields)
-          .split(task.start(), task.length())
-          .createBatchedReaderFunc(fileSchema -> VectorizedSparkOrcReaders.buildReader(expectedSchema, fileSchema,
-              idToConstant))
-          .recordsPerBatch(batchSize)
-          .filter(task.residual())
-          .caseSensitive(caseSensitive);
-
-      if (nameMapping != null) {
-        builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-      }
-
-      iter = builder.build();
-    } else {
-      throw new UnsupportedOperationException(
-          "Format: " + task.file().format() + " not supported for batched reads");
-    }
+    CloseableIterable<ColumnarBatch> iter = newBatchIterable(location, task.file().format(), task.start(),
+        task.length(), task.residual(), idToConstant, deleteFilter(task));
     return iter.iterator();
   }
 
-  protected Map<Integer, ?> constantsMap(TaskT task, Schema readSchema) {
+  protected Map<Integer, ?> constantsMap(FileScanTask task, Schema readSchema) {
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
       Types.StructType partitionType = Partitioning.partitionType(table());
       return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
@@ -135,22 +69,13 @@ class BatchDataReader<TaskT extends ContentScanTask<?>> extends BaseReader<Colum
     }
   }
 
-  protected SparkDeleteFilter deleteFilter(TaskT task) {
-    Preconditions.checkArgument(task.isFileScanTask(), "Only FileScanTask is supported for delete filtering");
+  protected SparkDeleteFilter deleteFilter(FileScanTask task) {
     return task.asFileScanTask().deletes().isEmpty() ?
-        null : new SparkDeleteFilter(task.asFileScanTask(), table().schema(), expectedSchema, this);
-  }
-
-  private Schema requiredSchema(DeleteFilter deleteFilter) {
-    if (deleteFilter != null && deleteFilter.hasEqDeletes()) {
-      return deleteFilter.requiredSchema();
-    } else {
-      return expectedSchema;
-    }
+        null : new SparkDeleteFilter(task.asFileScanTask(), table().schema(), expectedSchema(), this);
   }
 
   @Override
-  protected void printError(Exception e, TaskT task) {
+  protected void printError(Exception e, FileScanTask task) {
     if (task != null && !task.isDataTask()) {
       LOG.error("Error reading file: {}", task.file().path(), e);
     }

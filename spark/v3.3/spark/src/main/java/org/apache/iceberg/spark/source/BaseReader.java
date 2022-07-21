@@ -31,8 +31,10 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.io.CloseableIterator;
@@ -59,6 +61,9 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
+  private final Schema expectedSchema;
+  private final boolean caseSensitive;
+  private final String nameMapping;
   private final Iterator<TaskT> tasks;
   private final Map<String, InputFile> inputFiles;
 
@@ -66,11 +71,26 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private T current = null;
   private TaskT currentTask = null;
 
-  BaseReader(Table table, ScanTaskGroup<TaskT> task) {
+  BaseReader(Table table, ScanTaskGroup<TaskT> task, Schema expectedSchema, boolean caseSensitive) {
     this.table = table;
     this.tasks = task.tasks().iterator();
     this.inputFiles = inputFiles(task);
     this.currentIterator = CloseableIterator.empty();
+    this.expectedSchema = expectedSchema;
+    this.caseSensitive = caseSensitive;
+    this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+  }
+
+  protected Schema expectedSchema() {
+    return expectedSchema;
+  }
+
+  protected boolean caseSensitive() {
+    return caseSensitive;
+  }
+
+  protected String nameMapping() {
+    return nameMapping;
   }
 
   private Map<String, InputFile> inputFiles(ScanTaskGroup<TaskT> task) {
