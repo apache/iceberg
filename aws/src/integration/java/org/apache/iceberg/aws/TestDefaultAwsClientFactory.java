@@ -23,13 +23,28 @@ import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Test;
+import com.amazonaws.services.glue.model.GetDatabaseRequest;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class TestDefaultAwsClientFactory {
+
+  @Test
+  public void testGlueEndpointOverride() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.GLUE_CATALOG_ENDPOINT, "https://unknown:1234");
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+    GlueClient glueClient = factory.glue();
+    GetDatabaseRequest getDatabaseRequest = new GetDatabaseRequest().withName("TEST");
+    AssertHelpers.assertThrowsCause("Should refuse connection to unknown endpoint",
+        SdkClientException.class,
+        "Unable to execute HTTP request: unknown",
+        () -> glueClient.getDatabase(getDatabaseRequest).getDatabase());
+  }
 
   @Test
   public void testS3FileIoEndpointOverride() {
