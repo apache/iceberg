@@ -51,8 +51,8 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   }
 
   /**
-   * The Hadoop implementation delegates to the Hadoop delegates to the
-   * FileSystem.Statistics implementation and therefore does not require
+   * The Hadoop implementation delegates to the FileSystem.Statistics
+   * implementation and therefore does not require
    * support for operations like unit() and count() as the counter
    * values are not directly consumed.
    *
