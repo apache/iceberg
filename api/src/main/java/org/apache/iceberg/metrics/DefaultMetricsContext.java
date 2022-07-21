@@ -17,25 +17,29 @@
  * under the License.
  */
 
-package org.apache.iceberg.dell;
+package org.apache.iceberg.metrics;
 
-import com.emc.object.s3.S3Client;
-import java.io.Serializable;
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-public interface DellClientFactory extends Serializable {
+/**
+ * A default {@link MetricsContext} implementation that uses native Java counters/timers.
+ */
+public class DefaultMetricsContext implements MetricsContext {
 
-  /**
-   * Create a Dell EMC ECS S3 client
-   *
-   * @return Dell EMC ECS S3 client
-   */
-  S3Client ecsS3();
+  @Override
+  public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
+    if (Integer.class.equals(type)) {
+      return (Counter<T>) new IntCounter();
+    }
 
-  /**
-   * Initialize Dell EMC ECS client factory from catalog properties.
-   *
-   * @param properties catalog properties
-   */
-  void initialize(Map<String, String> properties);
+    if (Long.class.equals(type)) {
+      return (Counter<T>) new LongCounter();
+    }
+    throw new IllegalArgumentException(String.format("Counter for type %s is not supported", type.getName()));
+  }
+
+  @Override
+  public Timer timer(String name, TimeUnit unit) {
+    return new DefaultTimer(unit);
+  }
 }

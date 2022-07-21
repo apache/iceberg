@@ -16,26 +16,3 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.apache.iceberg.dell;
-
-import com.emc.object.s3.S3Client;
-import java.io.Serializable;
-import java.util.Map;
-
-public interface DellClientFactory extends Serializable {
-
-  /**
-   * Create a Dell EMC ECS S3 client
-   *
-   * @return Dell EMC ECS S3 client
-   */
-  S3Client ecsS3();
-
-  /**
-   * Initialize Dell EMC ECS client factory from catalog properties.
-   *
-   * @param properties catalog properties
-   */
-  void initialize(Map<String, String> properties);
-}

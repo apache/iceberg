@@ -65,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -285,16 +286,18 @@ public class HiveTableTest extends HiveTableBaseTest {
     Assert.assertEquals("Schema should match expected", expectedSchema.asStruct(), icebergTable.schema().asStruct());
   }
 
-  @Test(expected = CommitFailedException.class)
+  @Test
   public void testFailure() throws TException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     org.apache.hadoop.hive.metastore.api.Table table = metastoreClient.getTable(DB_NAME, TABLE_NAME);
     String dummyLocation = "dummylocation";
     table.getParameters().put(METADATA_LOCATION_PROP, dummyLocation);
     metastoreClient.alter_table(DB_NAME, TABLE_NAME, table);
-    icebergTable.updateSchema()
-        .addColumn("data", Types.LongType.get())
-        .commit();
+    Assertions.assertThatThrownBy(() -> icebergTable.updateSchema()
+                    .addColumn("data", Types.LongType.get())
+                    .commit())
+            .isInstanceOf(CommitFailedException.class)
+            .hasMessageContaining("is not same as the current table metadata location 'dummylocation'");
   }
 
   @Test

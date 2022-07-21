@@ -20,6 +20,7 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.math.BigInteger;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -65,9 +66,11 @@ public class DecimalVectorUtilTest {
     assertEquals(BigInteger.ZERO, result);
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testPadBigEndianBytesOverflow() {
     byte[] bytes = new byte[17];
-    DecimalVectorUtil.padBigEndianBytes(bytes, 16);
+    Assertions.assertThatThrownBy(() -> DecimalVectorUtil.padBigEndianBytes(bytes, 16))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Buffer size of 17 is larger than requested size of 16");
   }
 }

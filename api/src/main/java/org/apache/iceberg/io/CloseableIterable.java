@@ -118,12 +118,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <E> CloseableIterable<E> concat(Iterable<CloseableIterable<E>> iterable) {
-    Iterator<CloseableIterable<E>> iterables = iterable.iterator();
-    if (!iterables.hasNext()) {
-      return empty();
-    } else {
-      return new ConcatCloseableIterable<>(iterable);
-    }
+    return new ConcatCloseableIterable<>(iterable);
   }
 
   class ConcatCloseableIterable<E> extends CloseableGroup implements CloseableIterable<E> {
@@ -148,8 +143,6 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       private ConcatCloseableIterator(Iterable<CloseableIterable<E>> inputs) {
         this.iterables = inputs.iterator();
-        this.currentIterable = iterables.next();
-        this.currentIterator = currentIterable.iterator();
       }
 
       @Override
@@ -158,13 +151,15 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
           return false;
         }
 
-        if (currentIterator.hasNext()) {
+        if (null != currentIterator && currentIterator.hasNext()) {
           return true;
         }
 
         while (iterables.hasNext()) {
           try {
-            currentIterable.close();
+            if (null != currentIterable) {
+              currentIterable.close();
+            }
           } catch (IOException e) {
             throw new RuntimeIOException(e, "Failed to close iterable");
           }
@@ -178,7 +173,9 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
         }
 
         try {
-          currentIterable.close();
+          if (null != currentIterable) {
+            currentIterable.close();
+          }
         } catch (IOException e) {
           throw new RuntimeIOException(e, "Failed to close iterable");
         }
