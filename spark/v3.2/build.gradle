@@ -136,7 +136,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
   dependencies {
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
 
-    compileOnly "org.scala-lang:scala-library:${scalaVersion}"
+    compileOnly "org.scala-lang:scala-library"
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly project(':iceberg-api')
     compileOnly project(':iceberg-core')
