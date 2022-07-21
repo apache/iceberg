@@ -50,6 +50,11 @@ class LongCounter implements MetricsContext.Counter<Long> {
   }
 
   @Override
+  public Long value() {
+    return counter.get();
+  }
+
+  @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("counter", counter)
