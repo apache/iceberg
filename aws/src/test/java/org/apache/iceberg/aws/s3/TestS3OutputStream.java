@@ -73,6 +73,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+
 @RunWith(MockitoJUnitRunner.class)
 public class TestS3OutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);
@@ -179,8 +180,7 @@ public class TestS3OutputStream {
       writeAndVerify(s3mock, randomURI(), data, arrayWrite);
       ArgumentCaptor<PutObjectRequest> putObjectRequestArgumentCaptor =
           ArgumentCaptor.forClass(PutObjectRequest.class);
-      verify(s3mock, times(1)).putObject(
-          putObjectRequestArgumentCaptor.capture(),
+      verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
       checkTags(putObjectRequestArgumentCaptor);
@@ -190,8 +190,7 @@ public class TestS3OutputStream {
       data = randomData(6 * 1024 * 1024);
       writeAndVerify(s3mock, randomURI(), data, arrayWrite);
       putObjectRequestArgumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
-      verify(s3mock, times(1)).putObject(
-          putObjectRequestArgumentCaptor.capture(),
+      verify(s3mock, times(1)).putObject(putObjectRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkPutObjectRequestContent(data, putObjectRequestArgumentCaptor);
       checkTags(putObjectRequestArgumentCaptor);
@@ -202,8 +201,7 @@ public class TestS3OutputStream {
       writeAndVerify(s3mock, randomURI(), data, arrayWrite);
       ArgumentCaptor<UploadPartRequest> uploadPartRequestArgumentCaptor =
           ArgumentCaptor.forClass(UploadPartRequest.class);
-      verify(s3mock, times(2)).uploadPart(
-          uploadPartRequestArgumentCaptor.capture(),
+      verify(s3mock, times(2)).uploadPart(uploadPartRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
       reset(s3mock);
@@ -213,8 +211,7 @@ public class TestS3OutputStream {
       writeAndVerify(s3mock, randomURI(), data, arrayWrite);
       uploadPartRequestArgumentCaptor =
           ArgumentCaptor.forClass(UploadPartRequest.class);
-      verify(s3mock, times(5)).uploadPart(
-          uploadPartRequestArgumentCaptor.capture(),
+      verify(s3mock, times(5)).uploadPart(uploadPartRequestArgumentCaptor.capture(),
           (RequestBody) any());
       checkUploadPartRequestContent(data, uploadPartRequestArgumentCaptor);
       reset(s3mock);
@@ -271,7 +268,7 @@ public class TestS3OutputStream {
     return null;
   }
 
-  private void writeAndVerify(S3Client client, S3URI uri, byte[] data, boolean arrayWrite) {
+  private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {
     try (S3OutputStream stream = new S3OutputStream(client, uri, properties, nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
@@ -299,15 +296,14 @@ public class TestS3OutputStream {
 
   private byte[] readS3Data(S3URI uri) {
     ResponseBytes<GetObjectResponse> data =
-        s3.getObject(
-            GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
-            ResponseTransformer.toBytes());
+        s3.getObject(GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
+        ResponseTransformer.toBytes());
 
     return data.asByteArray();
   }
 
   private byte[] randomData(int size) {
-    byte[] result = new byte[size];
+    byte [] result = new byte[size];
     random.nextBytes(result);
     return result;
   }
