@@ -102,12 +102,18 @@ public class LoadTableResponse implements RESTResponse {
       while (configNames.hasNext()) {
         String configKey = configNames.next();
         JsonNode configValue = config.get(configKey);
-        Preconditions.checkArgument(configValue.isTextual(), "Cannot parse config %s from non-string: %s", configKey, configValue);
+        Preconditions.checkArgument(
+                configValue.isTextual(), "Cannot parse config %s from non-string: %s", configKey, configValue);
         configEntries.put(configKey, configValue.textValue());
       }
     }
 
-    return LoadTableResponse.builder().withMetadataLocation(metadataLocation).withTableMetadata(metadata).addAllConfig(configEntries.build()).build();
+    return LoadTableResponse
+            .builder()
+            .withMetadataLocation(metadataLocation)
+            .withTableMetadata(metadata)
+            .addAllConfig(configEntries.build())
+            .build();
   }
 
   private String metadataLocation;
@@ -162,10 +168,10 @@ public class LoadTableResponse implements RESTResponse {
     private Builder() {
     }
 
-      public Builder withMetadataLocation(String metadataLocation) {
-          this.metadataLocation = metadataLocation;
-          return this;
-      }
+    public Builder withMetadataLocation(String location) {
+      this.metadataLocation = location;
+      return this;
+    }
 
     public Builder withTableMetadata(TableMetadata tableMetadata) {
       if (this.metadataLocation == null) {
