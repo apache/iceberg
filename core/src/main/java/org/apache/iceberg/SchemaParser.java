@@ -183,13 +183,16 @@ public class SchemaParser {
       return Types.fromPrimitiveString(json.asText());
 
     } else if (json.isObject()) {
-      String type = json.get(TYPE).asText();
-      if (STRUCT.equals(type)) {
-        return structFromJson(json);
-      } else if (LIST.equals(type)) {
-        return listFromJson(json);
-      } else if (MAP.equals(type)) {
-        return mapFromJson(json);
+      JsonNode typeObj = json.get(TYPE);
+      if (typeObj != null) {
+        String type =  typeObj.asText();
+        if (STRUCT.equals(type)) {
+          return structFromJson(json);
+        } else if (LIST.equals(type)) {
+          return listFromJson(json);
+        } else if (MAP.equals(type)) {
+          return mapFromJson(json);
+        }
       }
     }
 
@@ -255,7 +258,7 @@ public class SchemaParser {
 
   public static Schema fromJson(JsonNode json) {
     Type type = typeFromJson(json);
-    Preconditions.checkArgument(type != null && type.isNestedType() && type.asNestedType().isStructType(),
+    Preconditions.checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
         "Cannot create schema, not a struct type: %s", type);
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, json);
     Set<Integer> identifierFieldIds = JsonUtil.getIntegerSetOrNull(IDENTIFIER_FIELD_IDS, json);
