@@ -46,6 +46,11 @@ public interface DeletedDataFileScanTask extends ChangelogScanTask, ContentScanT
   List<DeleteFile> existingDeletes();
 
   @Override
+  default List<DeleteFile> referencedDeleteFiles() {
+    return existingDeletes();
+  }
+
+  @Override
   default ChangelogOperation operation() {
     return ChangelogOperation.DELETE;
   }

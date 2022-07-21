@@ -20,47 +20,34 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataTask;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.data.SparkAvroReader;
-import org.apache.iceberg.spark.data.SparkOrcReader;
-import org.apache.iceberg.spark.data.SparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-class RowDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<InternalRow, TaskT> {
+class RowDataReader extends BaseRowReader<FileScanTask> {
+  private static final Logger LOG = LoggerFactory.getLogger(RowDataReader.class);
 
-  private final Schema tableSchema;
-  private final Schema expectedSchema;
-  private final String nameMapping;
-  private final boolean caseSensitive;
-
-  RowDataReader(ScanTaskGroup<TaskT> task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(table, task);
-    this.tableSchema = table.schema();
-    this.expectedSchema = expectedSchema;
-    this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-    this.caseSensitive = caseSensitive;
+  RowDataReader(ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive) {
+    super(table, task, expectedSchema, caseSensitive);
   }
 
   @Override
-  CloseableIterator<InternalRow> open(TaskT task) {
-    SparkDeleteFilter deletes = deleteFilter(task);
+  CloseableIterator<InternalRow> open(FileScanTask task) {
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task, tableSchema(), expectedSchema(), this);
 
     // schema or rows returned by readers
     Schema requiredSchema = deletes.requiredSchema();
@@ -72,102 +59,27 @@ class RowDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<Int
     return deletes.filter(open(task, requiredSchema, idToConstant)).iterator();
   }
 
-  protected Schema tableSchema() {
-    return tableSchema;
+  protected Map<Integer, ?> constantsMap(FileScanTask task, Schema readSchema) {
+    if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
+      Types.StructType partitionType = Partitioning.partitionType(table());
+      return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
+    } else {
+      return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
+    }
   }
 
-  protected Schema expectedSchema() {
-    return expectedSchema;
-  }
-
-  protected CloseableIterable<InternalRow> open(TaskT task, Schema readSchema, Map<Integer, ?> idToConstant) {
+  protected CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
     CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
       iter = newDataIterable(task.asDataTask(), readSchema);
     } else {
-      InputFile location = getInputFile(task);
+      InputFile location = getInputFile(task.file().path().toString());
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
-
-      switch (task.file().format()) {
-        case PARQUET:
-          iter = newParquetIterable(location, task, readSchema, idToConstant);
-          break;
-
-        case AVRO:
-          iter = newAvroIterable(location, task, readSchema, idToConstant);
-          break;
-
-        case ORC:
-          iter = newOrcIterable(location, task, readSchema, idToConstant);
-          break;
-
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot read unknown format: " + task.file().format());
-      }
+      iter = newIterable(location, task.file().format(), task.start(), task.length(), task.residual(), readSchema,
+          idToConstant);
     }
 
     return iter;
-  }
-
-  private CloseableIterable<InternalRow> newAvroIterable(
-      InputFile location,
-      TaskT task,
-      Schema projection,
-      Map<Integer, ?> idToConstant) {
-    Avro.ReadBuilder builder = Avro.read(location)
-        .reuseContainers()
-        .project(projection)
-        .split(task.start(), task.length())
-        .createReaderFunc(readSchema -> new SparkAvroReader(projection, readSchema, idToConstant));
-
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-    }
-
-    return builder.build();
-  }
-
-  private CloseableIterable<InternalRow> newParquetIterable(
-      InputFile location,
-      TaskT task,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    Parquet.ReadBuilder builder = Parquet.read(location)
-        .reuseContainers()
-        .split(task.start(), task.length())
-        .project(readSchema)
-        .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
-        .filter(task.residual())
-        .caseSensitive(caseSensitive);
-
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-    }
-
-    return builder.build();
-  }
-
-  private CloseableIterable<InternalRow> newOrcIterable(
-      InputFile location,
-      TaskT task,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
-        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
-
-    ORC.ReadBuilder builder = ORC.read(location)
-        .project(readSchemaWithoutConstantAndMetadataFields)
-        .split(task.start(), task.length())
-        .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
-        .filter(task.residual())
-        .caseSensitive(caseSensitive);
-
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-    }
-
-    return builder.build();
   }
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
@@ -177,8 +89,10 @@ class RowDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<Int
     return asSparkRows;
   }
 
-  protected SparkDeleteFilter deleteFilter(TaskT task) {
-    Preconditions.checkArgument(task.isFileScanTask(), "Only FileScanTask is supported for delete filtering");
-    return new SparkDeleteFilter(task.asFileScanTask(), tableSchema, expectedSchema(), this);
+  @Override
+  protected void printError(Exception e, FileScanTask task) {
+    if (task != null && !task.isDataTask()) {
+      LOG.error("Error reading file: {}", task.file().path(), e);
+    }
   }
 }

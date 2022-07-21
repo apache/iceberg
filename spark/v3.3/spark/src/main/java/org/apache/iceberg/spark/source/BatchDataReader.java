@@ -25,6 +25,7 @@ import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -41,10 +42,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-class BatchDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<ColumnarBatch, TaskT> {
+class BatchDataReader<TaskT extends ContentScanTask<?>> extends BaseReader<ColumnarBatch, TaskT> {
+  private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
+
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
@@ -66,7 +73,7 @@ class BatchDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<C
     Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema);
 
     CloseableIterable<ColumnarBatch> iter;
-    InputFile location = getInputFile(task);
+    InputFile location = getInputFile(task.file().path().toString());
     Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
     if (task.file().format() == FileFormat.PARQUET) {
       SparkDeleteFilter deleteFilter = deleteFilter(task);
@@ -119,6 +126,15 @@ class BatchDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<C
     return iter.iterator();
   }
 
+  protected Map<Integer, ?> constantsMap(TaskT task, Schema readSchema) {
+    if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
+      Types.StructType partitionType = Partitioning.partitionType(table());
+      return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
+    } else {
+      return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
+    }
+  }
+
   protected SparkDeleteFilter deleteFilter(TaskT task) {
     Preconditions.checkArgument(task.isFileScanTask(), "Only FileScanTask is supported for delete filtering");
     return task.asFileScanTask().deletes().isEmpty() ?
@@ -130,6 +146,13 @@ class BatchDataReader<TaskT extends ContentScanTask<?>> extends BaseDataReader<C
       return deleteFilter.requiredSchema();
     } else {
       return expectedSchema;
+    }
+  }
+
+  @Override
+  protected void printError(Exception e, TaskT task) {
+    if (task != null && !task.isDataTask()) {
+      LOG.error("Error reading file: {}", task.file().path(), e);
     }
   }
 }

@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
  * A scan task over a range of bytes in a single data file.
@@ -31,6 +32,16 @@ public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanT
    * @return a list of delete files to apply
    */
   List<DeleteFile> deletes();
+
+  @Override
+  default List<DataFile> referencedDataFiles() {
+    return ImmutableList.of(file());
+  }
+
+  @Override
+  default List<DeleteFile> referencedDeleteFiles() {
+    return deletes();
+  }
 
   @Override
   default long sizeBytes() {

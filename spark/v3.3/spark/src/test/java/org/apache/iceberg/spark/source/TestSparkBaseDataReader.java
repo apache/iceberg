@@ -86,7 +86,7 @@ public class TestSparkBaseDataReader {
 
   // Main reader class to test base class iteration logic.
   // Keeps track of iterator closure.
-  private static class ClosureTrackingReader extends BaseDataReader<Integer, FileScanTask> {
+  private static class ClosureTrackingReader extends BaseReader<Integer, FileScanTask> {
     private Map<String, CloseableIntegerRange> tracker = Maps.newHashMap();
 
     ClosureTrackingReader(Table table, List<FileScanTask> tasks) {

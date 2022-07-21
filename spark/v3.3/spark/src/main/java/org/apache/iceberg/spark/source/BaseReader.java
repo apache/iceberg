@@ -29,29 +29,20 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
-import org.apache.iceberg.AddedRowsScanTask;
-import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.DeletedDataFileScanTask;
-import org.apache.iceberg.DeletedRowsScanTask;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.Decimal;
@@ -64,9 +55,8 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
-abstract class BaseDataReader<T, TaskT extends ContentScanTask<?>>
-    implements Closeable {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseDataReader.class);
+abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
   private final Iterator<TaskT> tasks;
@@ -76,7 +66,7 @@ abstract class BaseDataReader<T, TaskT extends ContentScanTask<?>>
   private T current = null;
   private TaskT currentTask = null;
 
-  BaseDataReader(Table table, ScanTaskGroup<TaskT> task) {
+  BaseReader(Table table, ScanTaskGroup<TaskT> task) {
     this.table = table;
     this.tasks = task.tasks().iterator();
     this.inputFiles = inputFiles(task);
@@ -85,23 +75,9 @@ abstract class BaseDataReader<T, TaskT extends ContentScanTask<?>>
 
   private Map<String, InputFile> inputFiles(ScanTaskGroup<TaskT> task) {
     Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-    Stream<ContentFile> dataFileStream = task.tasks().stream()
-        .flatMap(contentScanTask -> {
-          Stream<ContentFile> stream = Stream.of(contentScanTask.file());
-          if (contentScanTask.isFileScanTask()) {
-            stream = Stream.concat(stream, contentScanTask.asFileScanTask().deletes().stream());
-          } else if (contentScanTask instanceof AddedRowsScanTask) {
-            stream = Stream.concat(stream, ((AddedRowsScanTask) contentScanTask).deletes().stream());
-          } else if (contentScanTask instanceof DeletedDataFileScanTask) {
-            stream = Stream.concat(stream, ((DeletedDataFileScanTask) contentScanTask).existingDeletes().stream());
-          } else if (contentScanTask instanceof DeletedRowsScanTask) {
-            stream = Stream.concat(stream, ((DeletedRowsScanTask) contentScanTask).addedDeletes().stream());
-            stream = Stream.concat(stream, ((DeletedRowsScanTask) contentScanTask).existingDeletes().stream());
-          }
-          return stream;
-        });
-
-    dataFileStream
+    task.tasks().stream()
+        .flatMap(scanTask -> Stream.concat(scanTask.referencedDataFiles().stream(),
+            scanTask.referencedDeleteFiles().stream()))
         .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
     Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
         .map(entry -> EncryptedFiles.encryptedInput(table.io().newInputFile(entry.getKey()), entry.getValue()));
@@ -134,11 +110,13 @@ abstract class BaseDataReader<T, TaskT extends ContentScanTask<?>>
         }
       }
     } catch (IOException | RuntimeException e) {
-      if (currentTask != null && !currentTask.isDataTask()) {
-        LOG.error("Error reading file: {}", getInputFile(currentTask).location(), e);
-      }
+      printError(e, currentTask);
       throw e;
     }
+  }
+
+  protected void printError(Exception exception, TaskT task) {
+    LOG.error("Error reading task {}", task, exception);
   }
 
   public T get() {
@@ -160,22 +138,8 @@ abstract class BaseDataReader<T, TaskT extends ContentScanTask<?>>
     }
   }
 
-  protected InputFile getInputFile(TaskT task) {
-    Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return inputFiles.get(task.file().path().toString());
-  }
-
   protected InputFile getInputFile(String location) {
     return inputFiles.get(location);
-  }
-
-  protected Map<Integer, ?> constantsMap(TaskT task, Schema readSchema) {
-    if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
-      StructType partitionType = Partitioning.partitionType(table);
-      return PartitionUtil.constantsMap(task, partitionType, BaseDataReader::convertConstant);
-    } else {
-      return PartitionUtil.constantsMap(task, BaseDataReader::convertConstant);
-    }
   }
 
   protected static Object convertConstant(Type type, Object value) {

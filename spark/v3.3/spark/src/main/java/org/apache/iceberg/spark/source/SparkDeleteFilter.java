@@ -31,16 +31,16 @@ import org.apache.spark.sql.catalyst.InternalRow;
 
 public class SparkDeleteFilter extends DeleteFilter<InternalRow> {
   private final InternalRowWrapper asStructLike;
-  private final BaseDataReader reader;
+  private final BaseReader reader;
 
-  SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema, BaseDataReader reader) {
+  SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema, BaseReader reader) {
     super(task.file().path().toString(), task.deletes(), tableSchema, requestedSchema);
     this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     this.reader =  reader;
   }
 
   SparkDeleteFilter(String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema,
-                    BaseDataReader reader) {
+                    BaseReader reader) {
     super(filePath, deletes, tableSchema, requestedSchema);
     this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     this.reader = reader;

@@ -19,81 +19,66 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.Map;
 import org.apache.iceberg.AddedRowsScanTask;
-import org.apache.iceberg.BaseScanTaskGroup;
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.DeletedRowsScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class ChangelogRowReader {
-
-  class ChangelogAddedRowReader extends RowDataReader<AddedRowsScanTask> {
-
-    ChangelogAddedRowReader(BaseScanTaskGroup<AddedRowsScanTask> task, Table table, Schema expectedSchema,
+public class ChangelogRowReader extends BaseRowReader<ChangelogScanTask> {
+  public ChangelogRowReader(Table table, ScanTaskGroup<ChangelogScanTask> taskGroup, Schema expectedSchema,
                             boolean caseSensitive) {
-      super(task, table, expectedSchema, caseSensitive);
-    }
+    super(table, taskGroup, expectedSchema, caseSensitive);
+  }
 
-    @Override
-    protected SparkDeleteFilter deleteFilter(AddedRowsScanTask task) {
-      return new SparkDeleteFilter(task.file().path().toString(), task.deletes(), tableSchema(), expectedSchema(),
-          this);
+  @Override
+  CloseableIterator<InternalRow> open(ChangelogScanTask task) {
+    if (task instanceof AddedRowsScanTask) {
+      return openAddedRowsScanTask((AddedRowsScanTask) task);
+    } else if (task instanceof DeletedRowsScanTask) {
+      return openDeletedRowsScanTask((DeletedRowsScanTask) task);
+    } else if (task instanceof DeletedDataFileScanTask) {
+      return openDeletedDataFileScanTask((DeletedDataFileScanTask) task);
+    } else {
+      throw new IllegalArgumentException("Unsupported task type: " + task.getClass().getName());
     }
   }
 
-  class ChangelogFileLevelDeletedRowReader extends RowDataReader<DeletedDataFileScanTask> {
-
-    ChangelogFileLevelDeletedRowReader(BaseScanTaskGroup<DeletedDataFileScanTask> task, Table table,
-                                       Schema expectedSchema, boolean caseSensitive) {
-      super(task, table, expectedSchema, caseSensitive);
-    }
-
-    @Override
-    protected SparkDeleteFilter deleteFilter(DeletedDataFileScanTask task) {
-      return new SparkDeleteFilter(task.file().path().toString(), task.existingDeletes(), tableSchema(),
-          expectedSchema(), this);
-    }
+  CloseableIterator<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task.file().path().toString(), task.deletes(), tableSchema(),
+        expectedSchema(), this);
+    return null;
   }
 
-  class ChangelogRowLevelDeletedRowReader extends RowDataReader<DeletedRowsScanTask> {
+  private CloseableIterator<InternalRow> openDeletedDataFileScanTask(DeletedDataFileScanTask task) {
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task.file().path().toString(), task.existingDeletes(),
+        tableSchema(), expectedSchema(), this);
+    return null;
+  }
 
-    ChangelogRowLevelDeletedRowReader(BaseScanTaskGroup<DeletedRowsScanTask> task, Table table, Schema expectedSchema,
-                                      boolean caseSensitive) {
-      super(task, table, expectedSchema, caseSensitive);
-    }
+  CloseableIterator<InternalRow> openDeletedRowsScanTask(DeletedRowsScanTask task) {
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task.file().path().toString(), task.existingDeletes(),
+        tableSchema(), expectedSchema(), this);
 
-    @Override
-    CloseableIterator<InternalRow> open(DeletedRowsScanTask task) {
-      SparkDeleteFilter deletes = deleteFilter(task);
-
-      // schema or rows returned by readers
-      Schema requiredSchema = deletes.requiredSchema();
-      Map<Integer, ?> idToConstant = constantsMap(task, requiredSchema);
-      DataFile file = task.file();
-
-      // update the current file for Spark's filename() function
-      InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
-
-      CloseableIterable<InternalRow> iterable = deletes.filter(open(task, requiredSchema, idToConstant));
-
-      // create a new iterator that will filter out the deleted rows
-      SparkDeleteFilter currentDeleteFilter = new SparkDeleteFilter(
-          task.file().path().toString(), task.addedDeletes(), tableSchema(), expectedSchema(), this);
-
-      return currentDeleteFilter.filter(iterable).iterator();
-    }
-
-    @Override
-    protected SparkDeleteFilter deleteFilter(DeletedRowsScanTask task) {
-      return new SparkDeleteFilter(task.file().path().toString(), task.existingDeletes(), tableSchema(),
-          expectedSchema(), this);
-    }
+//    // schema or rows returned by readers
+//    Schema requiredSchema = deletes.requiredSchema();
+//    Map<Integer, ?> idToConstant = constantsMap(task, requiredSchema);
+//    DataFile file = task.file();
+//
+//    // update the current file for Spark's filename() function
+//    InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
+//
+//    CloseableIterable<InternalRow> iterable = deletes.filter(open(task, requiredSchema, idToConstant));
+//
+//    // create a new iterator that will filter out the deleted rows
+//    SparkDeleteFilter currentDeleteFilter = new SparkDeleteFilter(
+//        task.file().path().toString(), task.addedDeletes(), tableSchema(), expectedSchema(), this);
+//
+//    return currentDeleteFilter.filter(iterable).iterator();
+    return null;
   }
 }

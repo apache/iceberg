@@ -20,6 +20,8 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
  * A scan task.
@@ -41,6 +43,24 @@ public interface ScanTask extends Serializable {
    */
   default int filesCount() {
     return 1;
+  }
+
+  /**
+   * A list of {@link DataFile data files} involved.
+   *
+   * @return a list of data files
+   */
+  default List<DataFile> referencedDataFiles() {
+    return ImmutableList.of();
+  }
+
+  /**
+   * A list of {@link DeleteFile delete files} involved.
+   *
+   * @return a list of delete files
+   */
+  default List<DeleteFile> referencedDeleteFiles()  {
+    return ImmutableList.of();
   }
 
   /**
