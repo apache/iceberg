@@ -18,7 +18,7 @@ import re
 
 from pyiceberg import __version__
 
-VERSION_REGEX = re.compile(r"\d+.\d+.\d+(.dev\d+)?")
+VERSION_REGEX = re.compile(r"^\d+.\d+.\d+(.(dev|rc)\d+)?$")
 
 
 def test_version_format():
