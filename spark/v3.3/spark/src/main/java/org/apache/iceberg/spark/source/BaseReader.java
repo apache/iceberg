@@ -136,7 +136,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   }
 
   protected void printError(Exception exception, TaskT task) {
-    LOG.error("Error reading task {}", task, exception);
   }
 
   public T get() {

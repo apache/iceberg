@@ -57,6 +57,11 @@ public interface DeletedRowsScanTask extends ChangelogScanTask, ContentScanTask<
   List<DeleteFile> existingDeletes();
 
   @Override
+  default List<DataFile> referencedDataFiles() {
+    return ImmutableList.of(file());
+  }
+
+  @Override
   default List<DeleteFile> referencedDeleteFiles() {
     ImmutableList.Builder<DeleteFile> builder = ImmutableList.builder();
     return builder.addAll(addedDeletes()).addAll(existingDeletes()).build();
