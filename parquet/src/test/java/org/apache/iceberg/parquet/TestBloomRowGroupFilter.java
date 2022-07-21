@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
@@ -754,8 +755,8 @@ public class TestBloomRowGroupFilter {
     for (int i = 1; i <= 1000; i += 1) {
       byte[] byteArray = new byte[1000];
       rd.nextBytes(byteArray);
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("string", new String(byteArray)))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("string",
+          new String(byteArray, Charset.forName("UTF-8")))).shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (shouldRead) {
         falsePositiveCount++;
       }
@@ -1086,7 +1087,7 @@ public class TestBloomRowGroupFilter {
     for (int i = 0; i < 1000; i += 1) {
       byte[] byteArray = new byte[100];
       rd.nextBytes(byteArray);
-      String random = new String(byteArray);
+      String random = new String(byteArray, Charset.forName("UTF-8"));
       shouldRead = new ParquetBloomRowGroupFilter(
           SCHEMA,
           in("no_nulls", random.substring(0, 10), random.substring(10))
