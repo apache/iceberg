@@ -21,8 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -30,16 +28,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 class BatchDataReader extends BaseBatchReader<FileScanTask> {
-  private static final Logger LOG = LoggerFactory.getLogger(BatchDataReader.class);
-
   BatchDataReader(ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive,
                   int size) {
     super(table, task, expectedSchema, caseSensitive, size);
@@ -60,24 +52,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask> {
     return iter.iterator();
   }
 
-  protected Map<Integer, ?> constantsMap(FileScanTask task, Schema readSchema) {
-    if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
-      Types.StructType partitionType = Partitioning.partitionType(table());
-      return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
-    } else {
-      return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
-    }
-  }
-
-  protected SparkDeleteFilter deleteFilter(FileScanTask task) {
-    return task.asFileScanTask().deletes().isEmpty() ?
-        null : new SparkDeleteFilter(task.asFileScanTask(), table().schema(), expectedSchema(), this);
-  }
-
-  @Override
-  protected void printError(Exception e, FileScanTask task) {
-    if (task != null && !task.isDataTask()) {
-      LOG.error("Error reading file: {}", task.file().path(), e);
-    }
+  private SparkDeleteFilter deleteFilter(FileScanTask task) {
+    return task.deletes().isEmpty() ? null : new SparkDeleteFilter(task, table().schema(), expectedSchema(), this);
   }
 }

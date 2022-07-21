@@ -19,14 +19,21 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.Map;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ChangelogScanTask;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 public class ChangelogRowReader extends BaseRowReader<ChangelogScanTask> {
@@ -44,41 +51,52 @@ public class ChangelogRowReader extends BaseRowReader<ChangelogScanTask> {
     } else if (task instanceof DeletedDataFileScanTask) {
       return openDeletedDataFileScanTask((DeletedDataFileScanTask) task);
     } else {
-      throw new IllegalArgumentException("Unsupported task type: " + task.getClass().getName());
+      throw new IllegalArgumentException("Unsupported changelog scan task type: " + task.getClass().getName());
     }
   }
 
   CloseableIterator<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
     SparkDeleteFilter deletes = new SparkDeleteFilter(task.file().path().toString(), task.deletes(), tableSchema(),
         expectedSchema(), this);
-    return null;
+
+    return deletes.filter(internalRowIterable(task, deletes.requiredSchema())).iterator();
   }
 
   private CloseableIterator<InternalRow> openDeletedDataFileScanTask(DeletedDataFileScanTask task) {
     SparkDeleteFilter deletes = new SparkDeleteFilter(task.file().path().toString(), task.existingDeletes(),
         tableSchema(), expectedSchema(), this);
-    return null;
+
+    return deletes.filter(internalRowIterable(task, deletes.requiredSchema())).iterator();
   }
 
   CloseableIterator<InternalRow> openDeletedRowsScanTask(DeletedRowsScanTask task) {
-    SparkDeleteFilter deletes = new SparkDeleteFilter(task.file().path().toString(), task.existingDeletes(),
+    SparkDeleteFilter existingDeleteFilter = new SparkDeleteFilter(task.file().path().toString(),
+        task.existingDeletes(), tableSchema(), expectedSchema(), this);
+
+    SparkDeleteFilter addedDeleteFilter = new SparkDeleteFilter(task.file().path().toString(), task.addedDeletes(),
         tableSchema(), expectedSchema(), this);
 
-//    // schema or rows returned by readers
-//    Schema requiredSchema = deletes.requiredSchema();
-//    Map<Integer, ?> idToConstant = constantsMap(task, requiredSchema);
-//    DataFile file = task.file();
-//
-//    // update the current file for Spark's filename() function
-//    InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
-//
-//    CloseableIterable<InternalRow> iterable = deletes.filter(open(task, requiredSchema, idToConstant));
-//
-//    // create a new iterator that will filter out the deleted rows
-//    SparkDeleteFilter currentDeleteFilter = new SparkDeleteFilter(
-//        task.file().path().toString(), task.addedDeletes(), tableSchema(), expectedSchema(), this);
-//
-//    return currentDeleteFilter.filter(iterable).iterator();
-    return null;
+    // todo merge two schemas
+//  Schema requiredSchema = existingDeleteFilter.requiredSchema() + addedDeleteFilter.requiredSchema();
+    Schema requiredSchema = existingDeleteFilter.requiredSchema();
+
+    // todo find the deletes instead of remaining rows
+    return addedDeleteFilter.filter(existingDeleteFilter.filter(internalRowIterable(task, requiredSchema)))
+        .iterator();
+  }
+
+  private CloseableIterable<InternalRow> internalRowIterable(ContentScanTask<DataFile> task, Schema readSchema) {
+    // schema or rows returned by readers
+    Map<Integer, ?> idToConstant = constantsMap(task, readSchema);
+
+    String filePath = task.file().path().toString();
+
+    // update the current file for Spark's filename() function
+    InputFileBlockHolder.set(filePath, task.start(), task.length());
+
+    InputFile location = getInputFile(filePath);
+    Preconditions.checkNotNull(location, "Could not find InputFile");
+    return newIterable(location, task.file().format(), task.start(), task.length(), task.residual(), readSchema,
+        idToConstant);
   }
 }

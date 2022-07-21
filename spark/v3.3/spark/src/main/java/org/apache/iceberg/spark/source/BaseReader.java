@@ -26,9 +26,13 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -42,9 +46,11 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.Decimal;
@@ -130,12 +136,14 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         }
       }
     } catch (IOException | RuntimeException e) {
-      printError(e, currentTask);
+      if (currentTask != null && !currentTask.referencedDataFiles().isEmpty()) {
+        String filePaths = currentTask.referencedDataFiles().stream()
+            .map(file -> file.path().toString())
+            .collect(Collectors.joining(", "));
+        LOG.error("Error reading file(s): {}", filePaths, e);
+      }
       throw e;
     }
-  }
-
-  protected void printError(Exception exception, TaskT task) {
   }
 
   public T get() {
@@ -159,6 +167,15 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   protected InputFile getInputFile(String location) {
     return inputFiles.get(location);
+  }
+
+  protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
+    if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
+      Types.StructType partitionType = Partitioning.partitionType(table);
+      return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
+    } else {
+      return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
+    }
   }
 
   protected static Object convertConstant(Type type, Object value) {

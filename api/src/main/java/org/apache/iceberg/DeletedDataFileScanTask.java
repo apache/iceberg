@@ -48,7 +48,7 @@ public interface DeletedDataFileScanTask extends ChangelogScanTask, ContentScanT
 
   @Override
   default List<DataFile> referencedDataFiles() {
-    return ImmutableList.of(file());
+    return file() == null ? ImmutableList.of() : ImmutableList.of(file());
   }
 
   @Override

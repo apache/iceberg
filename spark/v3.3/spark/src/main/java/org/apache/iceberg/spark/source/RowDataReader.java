@@ -22,8 +22,6 @@ package org.apache.iceberg.spark.source;
 import java.util.Map;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -31,16 +29,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 class RowDataReader extends BaseRowReader<FileScanTask> {
-  private static final Logger LOG = LoggerFactory.getLogger(RowDataReader.class);
-
   RowDataReader(ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive) {
     super(table, task, expectedSchema, caseSensitive);
   }
@@ -59,15 +51,6 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
     return deletes.filter(open(task, requiredSchema, idToConstant)).iterator();
   }
 
-  protected Map<Integer, ?> constantsMap(FileScanTask task, Schema readSchema) {
-    if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
-      Types.StructType partitionType = Partitioning.partitionType(table());
-      return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
-    } else {
-      return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
-    }
-  }
-
   protected CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
     CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
@@ -84,15 +67,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
     StructInternalRow row = new StructInternalRow(readSchema.asStruct());
-    CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(
-        task.asDataTask().rows(), row::setStruct);
+    CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(task.asDataTask().rows(), row::setStruct);
     return asSparkRows;
-  }
-
-  @Override
-  protected void printError(Exception e, FileScanTask task) {
-    if (task != null && !task.isDataTask()) {
-      LOG.error("Error reading file: {}", task.file().path(), e);
-    }
   }
 }
