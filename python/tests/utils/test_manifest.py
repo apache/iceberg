@@ -16,18 +16,19 @@
 # under the License.
 from pyiceberg.manifest import (
     DataFile,
+    FieldSummary,
     FileFormat,
-    Manifest,
     ManifestEntry,
     ManifestFile,
-    Partition,
+    read_manifest_entry,
+    read_manifest_list,
 )
 from tests.io.test_io_base import LocalInputFile
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str):
     input_file = LocalInputFile(generated_manifest_entry_file)
-    assert list(Manifest().read_manifest_entry(input_file)) == [
+    assert list(read_manifest_entry(input_file)) == [
         ManifestEntry(
             status=1,
             snapshot_id=8744736658442914487,
@@ -261,7 +262,7 @@ def test_read_manifest_entry(generated_manifest_entry_file: str):
 
 def test_read_manifest_list(generated_manifest_file_file: str):
     input_file = LocalInputFile(generated_manifest_file_file)
-    assert list(Manifest().read_manifest_list(input_file)) == [
+    assert list(read_manifest_list(input_file)) == [
         ManifestFile(
             manifest_path="/home/iceberg/warehouse/nyc/taxis_partitioned/metadata/0125c686-8aa6-4502-bdcc-b6d17ca41a3b-m0.avro",
             manifest_length=7989,
@@ -271,7 +272,7 @@ def test_read_manifest_list(generated_manifest_file_file: str):
             existing_data_files_count=0,
             deleted_data_files_count=0,
             partitions=[
-                Partition(
+                FieldSummary(
                     contains_null=True, contains_nan=False, lower_bound=b"\x01\x00\x00\x00", upper_bound=b"\x02\x00\x00\x00"
                 )
             ],

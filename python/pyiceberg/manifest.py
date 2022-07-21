@@ -25,6 +25,8 @@ from typing import (
     Union,
 )
 
+from pydantic import Field
+
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import AvroStruct
 from pyiceberg.io.base import InputFile
@@ -39,6 +41,23 @@ from pyiceberg.types import (
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
+class DataFileContent(int, Enum):
+    DATA = 0
+    POSITION_DELETES = 1
+    EQUALITY_DELETES = 2
+
+
+class ManifestContent(int, Enum):
+    DATA = 0
+    DELETES = 1
+
+
+class ManifestEntryStatus(int, Enum):
+    EXISTING = 0
+    ADDED = 1
+    DELETED = 2
+
+
 class FileFormat(str, Enum):
     AVRO = "AVRO"
     PARQUET = "PARQUET"
@@ -46,70 +65,76 @@ class FileFormat(str, Enum):
 
 
 class DataFile(IcebergBaseModel):
-    file_path: str
-    file_format: FileFormat
-    partition: Dict[str, Any]
-    record_count: int
-    file_size_in_bytes: int
-    block_size_in_bytes: int
-    column_sizes: Optional[Dict[int, int]]
-    value_counts: Optional[Dict[int, int]]
-    null_value_counts: Optional[Dict[int, int]]
-    nan_value_counts: Optional[Dict[int, int]]
-    lower_bounds: Optional[Dict[int, bytes]]
-    upper_bounds: Optional[Dict[int, bytes]]
-    key_metadata: Optional[bytes]
-    split_offsets: Optional[List[int]]
-    sort_order_id: Optional[int]
+    content: DataFileContent = Field(default=DataFileContent.DATA)
+    file_path: str = Field()
+    file_format: FileFormat = Field()
+    partition: Dict[str, Any] = Field()
+    record_count: int = Field()
+    file_size_in_bytes: int = Field()
+    block_size_in_bytes: Optional[int] = Field()
+    column_sizes: Optional[Dict[int, int]] = Field()
+    value_counts: Optional[Dict[int, int]] = Field()
+    null_value_counts: Optional[Dict[int, int]] = Field()
+    nan_value_counts: Optional[Dict[int, int]] = Field()
+    distinct_counts: Optional[Dict[int, int]] = Field()
+    lower_bounds: Optional[Dict[int, bytes]] = Field()
+    upper_bounds: Optional[Dict[int, bytes]] = Field()
+    key_metadata: Optional[bytes] = Field()
+    split_offsets: Optional[List[int]] = Field()
+    equality_ids: Optional[List[int]] = Field()
+    sort_order_id: Optional[int] = Field()
 
 
 class ManifestEntry(IcebergBaseModel):
-    status: int
-    snapshot_id: Optional[int]
-    data_file: DataFile
+    status: ManifestEntryStatus = Field()
+    snapshot_id: Optional[int] = Field()
+    sequence_number: Optional[int] = Field()
+    data_file: DataFile = Field()
 
 
-class Partition(IcebergBaseModel):
-    contains_null: bool
-    contains_nan: Optional[bool]
-    lower_bound: Optional[bytes]
-    upper_bound: Optional[bytes]
+class FieldSummary(IcebergBaseModel):
+    contains_null: bool = Field()
+    contains_nan: Optional[bool] = Field()
+    lower_bound: Optional[bytes] = Field()
+    upper_bound: Optional[bytes] = Field()
 
 
 class ManifestFile(IcebergBaseModel):
-    manifest_path: str
-    manifest_length: int
-    partition_spec_id: int
-    added_snapshot_id: Optional[int]
-    added_data_files_count: Optional[int]
-    existing_data_files_count: Optional[int]
-    deleted_data_files_count: Optional[int]
-    partitions: Optional[List[Partition]]
-    added_rows_count: Optional[int]
-    existing_rows_counts: Optional[int]
-    deleted_rows_count: Optional[int]
+    manifest_path: str = Field()
+    manifest_length: int = Field()
+    partition_spec_id: int = Field()
+    content: ManifestContent = Field(default=ManifestContent.DATA)
+    sequence_number: int = Field(default=0)
+    min_sequence_number: int = Field(default=0)
+    added_snapshot_id: Optional[int] = Field()
+    added_data_files_count: Optional[int] = Field()
+    existing_data_files_count: Optional[int] = Field()
+    deleted_data_files_count: Optional[int] = Field()
+    added_rows_count: Optional[int] = Field()
+    existing_rows_counts: Optional[int] = Field()
+    deleted_rows_count: Optional[int] = Field()
+    partitions: Optional[List[FieldSummary]] = Field()
+    key_metadata: Optional[bytes] = Field()
 
 
-class Manifest:
-    @staticmethod
-    def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
-        with AvroFile(input_file) as reader:
-            schema = reader.schema
-            for record in reader:
-                dict_repr = convert_pos_to_dict(schema, record)
-                yield ManifestEntry(**dict_repr)
+def read_manifest_entry(input_file: InputFile) -> Iterator[ManifestEntry]:
+    with AvroFile(input_file) as reader:
+        schema = reader.schema
+        for record in reader:
+            dict_repr = _convert_pos_to_dict(schema, record)
+            yield ManifestEntry(**dict_repr)
 
-    @staticmethod
-    def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
-        with AvroFile(input_file) as reader:
-            schema = reader.schema
-            for record in reader:
-                dict_repr = convert_pos_to_dict(schema, record)
-                yield ManifestFile(**dict_repr)
+
+def read_manifest_list(input_file: InputFile) -> Iterator[ManifestFile]:
+    with AvroFile(input_file) as reader:
+        schema = reader.schema
+        for record in reader:
+            dict_repr = _convert_pos_to_dict(schema, record)
+            yield ManifestFile(**dict_repr)
 
 
 @singledispatch
-def convert_pos_to_dict(schema: Union[Schema, IcebergType], struct: AvroStruct) -> Dict[str, Any]:
+def _convert_pos_to_dict(schema: Union[Schema, IcebergType], struct: AvroStruct) -> Dict[str, Any]:
     """Converts the positions in the field names
 
     This makes it easy to map it onto a Pydantic model. Might change later on depending on the performance
@@ -124,32 +149,32 @@ def convert_pos_to_dict(schema: Union[Schema, IcebergType], struct: AvroStruct) 
     raise NotImplementedError(f"Cannot traverse non-type: {schema}")
 
 
-@convert_pos_to_dict.register(Schema)
+@_convert_pos_to_dict.register
 def _(schema: Schema, struct: AvroStruct) -> Dict[str, Any]:
-    return convert_pos_to_dict(schema.as_struct(), struct)
+    return _convert_pos_to_dict(schema.as_struct(), struct)
 
 
-@convert_pos_to_dict.register(StructType)
+@_convert_pos_to_dict.register
 def _(struct_type: StructType, values: AvroStruct) -> Dict[str, Any]:
     """Iterates over all the fields in the dict, and gets the data from the struct"""
-    return {field.name: convert_pos_to_dict(field.field_type, values.get(pos)) for pos, field in enumerate(struct_type.fields)}
+    return {field.name: _convert_pos_to_dict(field.field_type, values.get(pos)) for pos, field in enumerate(struct_type.fields)}
 
 
-@convert_pos_to_dict.register(ListType)
-def _(list_type: ListType, values: List[Any]) -> List[Any]:
+@_convert_pos_to_dict.register
+def _(list_type: ListType, values: List[Any]) -> Any:
     """In the case of a list, we'll go over the elements in the list to handle complex types"""
-    return [convert_pos_to_dict(list_type.element_type, value) for value in values]
+    return [_convert_pos_to_dict(list_type.element_type, value) for value in values]
 
 
-@convert_pos_to_dict.register(MapType)
+@_convert_pos_to_dict.register
 def _(map_type: MapType, values: Dict) -> Dict:
     """In the case of a map, we both traverse over the key and value to handle complex types"""
     return {
-        convert_pos_to_dict(map_type.key_type, key): convert_pos_to_dict(map_type.value_type, value)
+        _convert_pos_to_dict(map_type.key_type, key): _convert_pos_to_dict(map_type.value_type, value)
         for key, value in values.items()
     }
 
 
-@convert_pos_to_dict.register(PrimitiveType)
-def _(primitive: PrimitiveType, value: Any) -> Any:
+@_convert_pos_to_dict.register
+def _(primitive: PrimitiveType, value: Any) -> Any:  # pylint: disable=unused-argument
     return value
