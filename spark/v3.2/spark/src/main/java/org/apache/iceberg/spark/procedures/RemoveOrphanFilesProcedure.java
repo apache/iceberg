@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
