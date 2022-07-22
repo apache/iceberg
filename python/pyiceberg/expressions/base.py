@@ -172,7 +172,7 @@ class Reference(UnboundTerm[T], BaseReference[T]):
 
 
 class BoundPredicate(Bound[T], BooleanExpression):
-    def __init__(self, term: BoundTerm[T], literals: Optional[tuple[Literal[T], ...] | Literal[T]]):
+    def __init__(self, term: BoundTerm[T], literals: Optional[tuple[Literal[T], ...] | Literal[T]] = None):
         self._term = term
         self._literals = literals if isinstance(literals, tuple) else (literals and (literals,))
         self._validate_literals()
@@ -202,7 +202,7 @@ class BoundPredicate(Bound[T], BooleanExpression):
 
 
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
-    def __init__(self, term: UnboundTerm[T], literals: tuple[Literal[T], ...] | Literal[T]):
+    def __init__(self, term: UnboundTerm[T], literals: Optional[tuple[Literal[T], ...] | Literal[T]] = None):
         self._term = term
         self._literals = literals if isinstance(literals, tuple) else (literals,)
         self._validate_literals()
