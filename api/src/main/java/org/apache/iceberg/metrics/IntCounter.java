@@ -50,6 +50,11 @@ class IntCounter implements MetricsContext.Counter<Integer> {
   }
 
   @Override
+  public Integer value() {
+    return counter.get();
+  }
+
+  @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("counter", counter)

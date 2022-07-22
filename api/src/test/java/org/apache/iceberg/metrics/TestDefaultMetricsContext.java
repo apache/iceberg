@@ -39,7 +39,7 @@ public class TestDefaultMetricsContext {
     MetricsContext metricsContext = new DefaultMetricsContext();
     MetricsContext.Counter<Integer> counter = metricsContext.counter("test", Integer.class, MetricsContext.Unit.COUNT);
     counter.increment(5);
-    Assertions.assertThat(counter.count()).isPresent().get().isEqualTo(5);
+    Assertions.assertThat(counter.value()).isEqualTo(5);
   }
 
   @Test
@@ -50,7 +50,7 @@ public class TestDefaultMetricsContext {
     Assertions.assertThatThrownBy(counter::increment)
         .isInstanceOf(ArithmeticException.class)
         .hasMessage("integer overflow");
-    Assertions.assertThat(counter.count()).isPresent().get().isEqualTo(Integer.MAX_VALUE);
+    Assertions.assertThat(counter.value()).isEqualTo(Integer.MAX_VALUE);
   }
 
   @Test
@@ -58,7 +58,7 @@ public class TestDefaultMetricsContext {
     MetricsContext metricsContext = new DefaultMetricsContext();
     MetricsContext.Counter<Long> counter = metricsContext.counter("test", Long.class, MetricsContext.Unit.COUNT);
     counter.increment(5L);
-    Assertions.assertThat(counter.count()).isPresent().get().isEqualTo(5L);
+    Assertions.assertThat(counter.value()).isEqualTo(5L);
   }
 
   @Test
@@ -69,7 +69,7 @@ public class TestDefaultMetricsContext {
     Assertions.assertThatThrownBy(counter::increment)
         .isInstanceOf(ArithmeticException.class)
         .hasMessage("long overflow");
-    Assertions.assertThat(counter.count()).isPresent().get().isEqualTo(Long.MAX_VALUE);
+    Assertions.assertThat(counter.value()).isEqualTo(Long.MAX_VALUE);
   }
 
   @Test
