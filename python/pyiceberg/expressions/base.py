@@ -263,7 +263,7 @@ class And(BooleanExpression):
         return f"And({repr(self.left)}, {repr(self.right)})"
 
     def __str__(self) -> str:
-        return f"({self.left} and {self.right})"
+        return f"And({str(self.left)}, {str(self.right)})"
 
 
 class Or(BooleanExpression):
@@ -301,7 +301,7 @@ class Or(BooleanExpression):
         return f"Or({repr(self.left)}, {repr(self.right)})"
 
     def __str__(self) -> str:
-        return f"({self.left} or {self.right})"
+        return f"Or({str(self.left)}, {str(self.right)})"
 
 
 class Not(BooleanExpression):
@@ -329,7 +329,7 @@ class Not(BooleanExpression):
         return f"Not({repr(self.child)})"
 
     def __str__(self) -> str:
-        return f"(not {self.child})"
+        return f"Not({str(self.child)})"
 
 
 @dataclass(frozen=True)
