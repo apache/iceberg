@@ -20,6 +20,7 @@ from decimal import Decimal
 from typing import List
 
 import pytest
+
 from pyiceberg.expressions import base
 from pyiceberg.expressions.literals import LongLiteral, StringLiteral, literal
 from pyiceberg.schema import Accessor
@@ -129,9 +130,9 @@ def test_reprs(op, rep):
 @pytest.mark.parametrize(
     "op, string",
     [
-        (base.And(ExpressionA(), ExpressionB()), "(testexpra and testexprb)"),
-        (base.Or(ExpressionA(), ExpressionB()), "(testexpra or testexprb)"),
-        (base.Not(ExpressionA()), "(not testexpra)"),
+        (base.And(ExpressionA(), ExpressionB()), "And(testexpra, testexprb)"),
+        (base.Or(ExpressionA(), ExpressionB()), "Or(testexpra, testexprb)"),
+        (base.Not(ExpressionA()), "Not(testexpra)"),
     ],
 )
 def test_strs(op, string):
