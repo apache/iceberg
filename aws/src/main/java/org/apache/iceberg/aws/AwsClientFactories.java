@@ -30,10 +30,12 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.core.client.builder.SdkClientBuilder;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -84,12 +86,16 @@ public class AwsClientFactories {
 
   static class DefaultAwsClientFactory implements AwsClientFactory {
 
+    private String s3Region;
     private String s3Endpoint;
     private String s3AccessKeyId;
     private String s3SecretAccessKey;
     private String s3SessionToken;
     private Boolean s3PathStyleAccess;
     private Boolean s3UseArnRegionEnabled;
+    private String kmsRegion;
+    private String glueRegion;
+    private String dynamoDbRegion;
     private String dynamoDbEndpoint;
     private String httpClientType;
 
@@ -101,6 +107,7 @@ public class AwsClientFactories {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
+          .applyMutation(builder -> configureRegion(builder, s3Region))
           .serviceConfiguration(s3Configuration(s3PathStyleAccess, s3UseArnRegionEnabled))
           .credentialsProvider(credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -108,12 +115,18 @@ public class AwsClientFactories {
 
     @Override
     public GlueClient glue() {
-      return GlueClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
+      return GlueClient.builder()
+          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .applyMutation(builder -> configureRegion(builder, glueRegion))
+          .build();
     }
 
     @Override
     public KmsClient kms() {
-      return KmsClient.builder().httpClientBuilder(configureHttpClientBuilder(httpClientType)).build();
+      return KmsClient.builder()
+          .httpClientBuilder(configureHttpClientBuilder(httpClientType))
+          .applyMutation(builder -> configureRegion(builder, kmsRegion))
+          .build();
     }
 
     @Override
@@ -121,11 +134,13 @@ public class AwsClientFactories {
       return DynamoDbClient.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, dynamoDbEndpoint))
+          .applyMutation(builder -> configureRegion(builder, dynamoDbRegion))
           .build();
     }
 
     @Override
     public void initialize(Map<String, String> properties) {
+      this.s3Region = properties.get(AwsProperties.S3FILEIO_REGION);
       this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
       this.s3AccessKeyId = properties.get(AwsProperties.S3FILEIO_ACCESS_KEY_ID);
       this.s3SecretAccessKey = properties.get(AwsProperties.S3FILEIO_SECRET_ACCESS_KEY);
@@ -140,17 +155,21 @@ public class AwsClientFactories {
           AwsProperties.S3_USE_ARN_REGION_ENABLED,
           AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT
       );
-
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
-          "S3 client access key ID and secret access key must be set at the same time");
+          "S3 client access key ID and secret access key must be set at the same time"
+      );
+
+      this.kmsRegion = properties.get(AwsProperties.KMS_REGION);
+      this.glueRegion = properties.get(AwsProperties.GLUE_REGION);
+      this.dynamoDbRegion = properties.get(AwsProperties.DYNAMODB_REGION);
       this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
       this.httpClientType = PropertyUtil.propertyAsString(properties,
           AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
     }
   }
 
-  public static SdkHttpClient.Builder configureHttpClientBuilder(String httpClientType) {
+  public static SdkHttpClient.Builder<?> configureHttpClientBuilder(String httpClientType) {
     String clientType = httpClientType;
     if (Strings.isNullOrEmpty(clientType)) {
       clientType = AwsProperties.HTTP_CLIENT_TYPE_DEFAULT;
@@ -165,7 +184,13 @@ public class AwsClientFactories {
     }
   }
 
-  public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
+  public static void configureRegion(AwsClientBuilder<?, ?> builder, String region) {
+    if (region != null) {
+      builder.region(Region.of(region));
+    }
+  }
+
+  public static void configureEndpoint(SdkClientBuilder<?, ?> builder, String endpoint) {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }
