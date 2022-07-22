@@ -182,24 +182,24 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
     Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref1.maxRefAgeMs().longValue());
     Assert.assertEquals(snapshotId, ref1.snapshotId());
 
-    maxRefAge = 6L;
-    sql(
-        "ALTER TABLE %s ALTER TAG %s RETAIN %d DAYS",
-        tableName, tagName, maxRefAge);
-    table.refresh();
-    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(tagName);
-    Assert.assertEquals(maxRefAge * 24 * 60 * 60 * 1000L, ref2.maxRefAgeMs().longValue());
-    Assert.assertEquals(snapshotId, ref2.snapshotId());
-
     String tagName2 = "t2";
     AssertHelpers.assertThrows("Cannot alter tag that does not exist",
-        IllegalArgumentException.class, String.format("Tag does not exist: %s", tagName2),
-        () -> sql("ALTER TABLE %s DROP TAG %s",
-            tableName, tagName2));
+        IllegalArgumentException.class, String.format("does not exist: %s", tagName2),
+        () -> sql("ALTER TABLE %s ALTER TAG %s RETAIN FOR %d DAYS",
+            tableName, "t2", maxRefAge));
+
+    long maxRefAge2 = 6L;
+    sql(
+        "ALTER TABLE %s ALTER TAG %s RETAIN FOR %d DAYS",
+        tableName, tagName, maxRefAge2);
+    table.refresh();
+    SnapshotRef ref2 = ((BaseTable) table).operations().current().ref(tagName);
+    Assert.assertEquals(maxRefAge2 * 24 * 60 * 60 * 1000L, ref2.maxRefAgeMs().longValue());
+    Assert.assertEquals(snapshotId, ref2.snapshotId());
 
     AssertHelpers.assertThrows("Max reference age must be greater than 0",
         IllegalArgumentException.class, "Max reference age must be greater than 0",
-        () -> sql("ALTER TABLE %s ALTER TAG %s RETAIN %d DAYS",
+        () -> sql("ALTER TABLE %s ALTER TAG %s RETAIN FOR %d DAYS",
             tableName, tagName, -1));
   }
 

@@ -76,7 +76,7 @@ statement
     | ALTER TABLE multipartIdentifier CREATE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #createTag
     | ALTER TABLE multipartIdentifier REPLACE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #replaceTag
     | ALTER TABLE multipartIdentifier DROP TAG identifier #removeTag
-    | ALTER TABLE multipartIdentifier ALTER TAG identifier RETAIN snapshotRefRetain snapshotRefRetainTimeUnit #alterTagRetention
+    | ALTER TABLE multipartIdentifier ALTER TAG identifier RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit #alterTagRetention
     ;
 
 writeSpec
