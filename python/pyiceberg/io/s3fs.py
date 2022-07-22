@@ -159,7 +159,7 @@ class S3fsOutputFile(OutputFile):
         """Checks whether the location exists"""
         return self._s3.lexists(self.location)
 
-    def create(self, overwrite: bool = False) -> OutputStream:
+    def create(self, overwrite: bool = False) -> S3fsOutputStream:
         """Create an S3fsOutputStream for reading the contents of the file
 
         Args:
