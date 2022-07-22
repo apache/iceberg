@@ -32,6 +32,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.ScanTask;
@@ -40,6 +41,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.io.CloseableIterator;
@@ -48,6 +50,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -55,6 +58,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -230,5 +234,33 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       default:
     }
     return value;
+  }
+
+  protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
+    private final InternalRowWrapper asStructLike;
+
+    SparkDeleteFilter(String filePath, List<DeleteFile> deletes, Schema requestedSchema) {
+      super(filePath, deletes, table.schema(), requestedSchema);
+      this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
+    }
+
+    SparkDeleteFilter(String filePath, List<DeleteFile> deletes) {
+      this(filePath, deletes, expectedSchema);
+    }
+
+    @Override
+    protected StructLike asStructLike(InternalRow row) {
+      return asStructLike.wrap(row);
+    }
+
+    @Override
+    protected InputFile getInputFile(String location) {
+      return BaseReader.this.getInputFile(location);
+    }
+
+    @Override
+    protected void markRowDeleted(InternalRow row) {
+      row.setBoolean(columnIsDeletedPosition(), true);
+    }
   }
 }

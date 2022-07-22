@@ -26,7 +26,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,20 +45,19 @@ class BatchDataReader extends BaseBatchReader<FileScanTask> {
 
   @Override
   CloseableIterator<ColumnarBatch> open(FileScanTask task) {
+    String filePath = task.file().path().toString();
+
     // update the current file for Spark's filename() function
-    InputFileBlockHolder.set(task.file().path().toString(), task.start(), task.length());
+    InputFileBlockHolder.set(filePath, task.start(), task.length());
 
     Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
 
-    InputFile location = getInputFile(task.file().path().toString());
-    Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
+    InputFile inputFile = getInputFile(filePath);
+    Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
-    CloseableIterable<ColumnarBatch> iter = newBatchIterable(location, task.file().format(), task.start(),
-        task.length(), task.residual(), idToConstant, deleteFilter(task));
-    return iter.iterator();
-  }
+    SparkDeleteFilter deleteFilter = new SparkDeleteFilter(filePath, task.deletes());
 
-  private SparkDeleteFilter deleteFilter(FileScanTask task) {
-    return task.deletes().isEmpty() ? null : new SparkDeleteFilter(task, table().schema(), expectedSchema(), this);
+    return newBatchIterable(inputFile, task.file().format(), task.start(), task.length(), task.residual(),
+        idToConstant, deleteFilter).iterator();
   }
 }

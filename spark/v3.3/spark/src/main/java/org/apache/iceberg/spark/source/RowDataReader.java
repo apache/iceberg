@@ -46,30 +46,28 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
 
   @Override
   CloseableIterator<InternalRow> open(FileScanTask task) {
-    SparkDeleteFilter deletes = new SparkDeleteFilter(task, table().schema(), expectedSchema(), this);
+    String filePath = task.file().path().toString();
+    SparkDeleteFilter deleteFilter = new SparkDeleteFilter(filePath, task.deletes());
 
     // schema or rows returned by readers
-    Schema requiredSchema = deletes.requiredSchema();
+    Schema requiredSchema = deleteFilter.requiredSchema();
     Map<Integer, ?> idToConstant = constantsMap(task, requiredSchema);
 
     // update the current file for Spark's filename() function
-    InputFileBlockHolder.set(task.file().path().toString(), task.start(), task.length());
+    InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    return deletes.filter(open(task, requiredSchema, idToConstant)).iterator();
+    return deleteFilter.filter(open(task, requiredSchema, idToConstant)).iterator();
   }
 
   protected CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
-    CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
-      iter = newDataIterable(task.asDataTask(), readSchema);
+      return newDataIterable(task.asDataTask(), readSchema);
     } else {
-      InputFile file = getInputFile(task.file().path().toString());
-      Preconditions.checkNotNull(file, "Could not find InputFile associated with FileScanTask");
-      iter = newIterable(file, task.file().format(), task.start(), task.length(), task.residual(), readSchema,
+      InputFile inputFile = getInputFile(task.file().path().toString());
+      Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
+      return newIterable(inputFile, task.file().format(), task.start(), task.length(), task.residual(), readSchema,
           idToConstant);
     }
-
-    return iter;
   }
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
