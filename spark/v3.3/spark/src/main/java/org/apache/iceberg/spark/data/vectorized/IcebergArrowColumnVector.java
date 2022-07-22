@@ -22,9 +22,7 @@ package org.apache.iceberg.spark.data.vectorized;
 import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
-import org.apache.iceberg.arrow.vectorized.VectorHolder.ConstantVectorHolder;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -151,12 +149,6 @@ public class IcebergArrowColumnVector extends ColumnVector {
   @Override
   public ArrowColumnVector getChild(int ordinal) {
     return accessor.childColumn(ordinal);
-  }
-
-  static ColumnVector forHolder(VectorHolder holder, int numRows) {
-    return holder.isDummy() ?
-        new ConstantColumnVector(Types.IntegerType.get(), numRows, ((ConstantVectorHolder) holder).getConstant()) :
-        new IcebergArrowColumnVector(holder);
   }
 
   public ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> vectorAccessor() {

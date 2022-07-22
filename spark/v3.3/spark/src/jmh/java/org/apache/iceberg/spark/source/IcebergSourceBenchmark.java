@@ -44,6 +44,7 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 @Fork(1)
 @State(Scope.Benchmark)
@@ -116,6 +117,10 @@ public abstract class IcebergSourceBenchmark {
 
   protected void materialize(Dataset<?> ds) {
     ds.queryExecution().toRdd().toJavaRDD().foreach(record -> { });
+  }
+
+  protected void materialize(Dataset<?> ds, Blackhole blackhole) {
+    blackhole.consume(ds.queryExecution().toRdd().toJavaRDD().count());
   }
 
   protected void appendAsFile(Dataset<Row> ds) {
