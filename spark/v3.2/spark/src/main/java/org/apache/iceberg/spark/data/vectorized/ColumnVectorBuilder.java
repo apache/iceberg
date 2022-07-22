@@ -21,21 +21,12 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder.ConstantVectorHolder;
-import org.apache.iceberg.arrow.vectorized.VectorHolder.IsDeletedVectorHolder;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnVector;
 
-public class ColumnVectorBuilder {
-  private final VectorHolder holder;
-  private final int numRows;
-
+class ColumnVectorBuilder {
   private boolean[] isDeleted;
   private int[] rowIdMapping;
-
-  public ColumnVectorBuilder(VectorHolder holder, int numRows) {
-    this.holder = holder;
-    this.numRows = numRows;
-  }
 
   public ColumnVectorBuilder withDeletedRows(int[] rowIdMappingArray, boolean[] isDeletedArray) {
     this.rowIdMapping = rowIdMappingArray;
@@ -43,13 +34,13 @@ public class ColumnVectorBuilder {
     return this;
   }
 
-  public ColumnVector build() {
+  public ColumnVector build(VectorHolder holder, int numRows) {
     if (holder.isDummy()) {
-      if (holder instanceof IsDeletedVectorHolder) {
-        return new DeletedMetaColumnVector(Types.BooleanType.get(), isDeleted);
+      if (holder instanceof VectorHolder.DeletedVectorHolder) {
+        return new DeletedColumnVector(Types.BooleanType.get(), isDeleted);
       } else if (holder instanceof ConstantVectorHolder) {
         return new ConstantColumnVector(Types.IntegerType.get(), numRows,
-            ((ConstantVectorHolder) holder).getConstant());
+            ((ConstantVectorHolder<?>) holder).getConstant());
       } else {
         throw new IllegalStateException("Unknown dummy vector holder: " + holder);
       }

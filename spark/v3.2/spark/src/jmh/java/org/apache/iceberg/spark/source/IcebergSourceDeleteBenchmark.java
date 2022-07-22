@@ -53,6 +53,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -84,7 +85,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readIceberg(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false");
+    tableProperties.put(PARQUET_VECTORIZATION_ENABLED, "false");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
@@ -97,7 +98,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readIcebergWithIsDeletedColumn(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false");
+    tableProperties.put(PARQUET_VECTORIZATION_ENABLED, "false");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = false");
@@ -110,7 +111,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readDeletedRows(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "false");
+    tableProperties.put(PARQUET_VECTORIZATION_ENABLED, "false");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = true");
@@ -123,7 +124,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readIcebergVectorized(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true");
+    tableProperties.put(PARQUET_VECTORIZATION_ENABLED, "true");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
@@ -136,7 +137,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readIcebergWithIsDeletedColumnVectorized(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true");
+    tableProperties.put(PARQUET_VECTORIZATION_ENABLED, "true");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = false");
@@ -149,7 +150,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readDeletedRowsVectorized(Blackhole blackhole) {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true");
+    tableProperties.put(PARQUET_VECTORIZATION_ENABLED, "true");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = true");

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
+import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.DeletedVectorReader;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -42,23 +43,13 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  * {@linkplain VectorizedArrowReader VectorReader(s)}.
  */
 public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
+  private final boolean hasIsDeletedColumn;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
-  private final boolean hasIsDeletedColumn;
 
   public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
     super(readers);
-    this.hasIsDeletedColumn = hasDeletedVectorReader(readers);
-  }
-
-  private boolean hasDeletedVectorReader(List<VectorizedReader<?>> readers) {
-    for (VectorizedReader reader : readers) {
-      if (reader instanceof VectorizedArrowReader.DeletedVectorReader) {
-        return true;
-      }
-    }
-
-    return false;
+    this.hasIsDeletedColumn = readers.stream().anyMatch(reader -> reader instanceof DeletedVectorReader);
   }
 
   @Override
@@ -124,6 +115,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     ColumnVector[] readDataToColumnVectors() {
       ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
 
+      ColumnVectorBuilder columnVectorBuilder = new ColumnVectorBuilder();
       for (int i = 0; i < readers.length; i += 1) {
         vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
         int numRowsInVector = vectorHolders[i].numValues();
@@ -132,9 +124,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
             "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
             numRowsToRead);
 
-        arrowColumnVectors[i] = new ColumnVectorBuilder(vectorHolders[i], numRowsInVector)
-            .withDeletedRows(rowIdMapping, isDeleted)
-            .build();
+        arrowColumnVectors[i] = columnVectorBuilder.withDeletedRows(rowIdMapping, isDeleted)
+            .build(vectorHolders[i], numRowsInVector);
       }
       return arrowColumnVectors;
     }
