@@ -20,6 +20,9 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
+import java.util.stream.Stream;
+
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -38,8 +41,13 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
   }
 
   @Override
+  protected Stream<ContentFile<?>> referencedFiles(FileScanTask task) {
+    return Stream.concat(Stream.of(task.file()), task.deletes().stream());
+  }
+
+  @Override
   CloseableIterator<InternalRow> open(FileScanTask task) {
-    SparkDeleteFilter deletes = new SparkDeleteFilter(task, tableSchema(), expectedSchema(), this);
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task, table().schema(), expectedSchema(), this);
 
     // schema or rows returned by readers
     Schema requiredSchema = deletes.requiredSchema();
@@ -56,9 +64,9 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
     if (task.isDataTask()) {
       iter = newDataIterable(task.asDataTask(), readSchema);
     } else {
-      InputFile location = getInputFile(task.file().path().toString());
-      Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
-      iter = newIterable(location, task.file().format(), task.start(), task.length(), task.residual(), readSchema,
+      InputFile file = getInputFile(task.file().path().toString());
+      Preconditions.checkNotNull(file, "Could not find InputFile associated with FileScanTask");
+      iter = newIterable(file, task.file().format(), task.start(), task.length(), task.residual(), readSchema,
           idToConstant);
     }
 

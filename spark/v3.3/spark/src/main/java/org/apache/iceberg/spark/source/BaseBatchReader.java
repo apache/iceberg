@@ -28,11 +28,9 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -41,7 +39,7 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
-public abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
+abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final int batchSize;
 
   BaseBatchReader(Table table, ScanTaskGroup<T> taskGroup, Schema expectedSchema, boolean caseSensitive,
@@ -71,9 +69,10 @@ public abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<Col
                                                               SparkDeleteFilter deleteFilter) {
     // get required schema for filtering out equality-delete rows in case equality-delete uses columns are
     // not selected.
-    Schema requiredSchema = requiredSchema(deleteFilter);
+    Schema requiredSchema = deleteFilter != null && deleteFilter.hasEqDeletes() ?
+        deleteFilter.requiredSchema() : expectedSchema();
 
-    Parquet.ReadBuilder builder = Parquet.read(location)
+    return Parquet.read(location)
         .project(requiredSchema)
         .split(start, length)
         .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(requiredSchema,
@@ -85,21 +84,9 @@ public abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<Col
         // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
         // without worrying about subsequent reads clobbering over each other. This improves
         // read performance as every batch read doesn't have to pay the cost of allocating memory.
-        .reuseContainers();
-
-    if (nameMapping() != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping()));
-    }
-
-    return builder.build();
-  }
-
-  private Schema requiredSchema(DeleteFilter deleteFilter) {
-    if (deleteFilter != null && deleteFilter.hasEqDeletes()) {
-      return deleteFilter.requiredSchema();
-    } else {
-      return expectedSchema();
-    }
+        .reuseContainers()
+        .withNameMapping(nameMapping())
+        .build();
   }
 
   private CloseableIterable<ColumnarBatch> newOrcIterable(InputFile location, long start, long length,
@@ -108,19 +95,16 @@ public abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<Col
     Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
     Sets.SetView<Integer> constantAndMetadataFieldIds = Sets.union(constantFieldIds, metadataFieldIds);
     Schema schemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(expectedSchema(), constantAndMetadataFieldIds);
-    ORC.ReadBuilder builder = ORC.read(location)
+
+    return ORC.read(location)
         .project(schemaWithoutConstantAndMetadataFields)
         .split(start, length)
         .createBatchedReaderFunc(fileSchema -> VectorizedSparkOrcReaders.buildReader(expectedSchema(), fileSchema,
             idToConstant))
         .recordsPerBatch(batchSize)
         .filter(residual)
-        .caseSensitive(caseSensitive());
-
-    if (nameMapping() != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping()));
-    }
-
-    return builder.build();
+        .caseSensitive(caseSensitive())
+        .withNameMapping(nameMapping())
+        .build();
   }
 }

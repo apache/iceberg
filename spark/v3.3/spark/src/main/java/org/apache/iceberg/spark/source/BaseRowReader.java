@@ -30,7 +30,6 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -40,16 +39,9 @@ import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
-  private final Schema tableSchema;
-
+abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
   BaseRowReader(Table table, ScanTaskGroup<T> taskGroup, Schema expectedSchema, boolean caseSensitive) {
     super(table, taskGroup, expectedSchema, caseSensitive);
-    this.tableSchema = table.schema();
-  }
-
-  protected Schema tableSchema() {
-    return tableSchema;
   }
 
   protected CloseableIterable<InternalRow> newIterable(InputFile file, FileFormat format, long start, long length,
@@ -70,68 +62,43 @@ public abstract class BaseRowReader<T extends ScanTask> extends BaseReader<Inter
     }
   }
 
-  private CloseableIterable<InternalRow> newAvroIterable(
-      InputFile location,
-      long start,
-      long length,
-      Schema projection,
-      Map<Integer, ?> idToConstant) {
-    Avro.ReadBuilder builder = Avro.read(location)
+  private CloseableIterable<InternalRow> newAvroIterable(InputFile file, long start, long length, Schema projection,
+                                                         Map<Integer, ?> idToConstant) {
+    return Avro.read(file)
         .reuseContainers()
         .project(projection)
         .split(start, length)
-        .createReaderFunc(readSchema -> new SparkAvroReader(projection, readSchema, idToConstant));
-
-    if (nameMapping() != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping()));
-    }
-
-    return builder.build();
+        .createReaderFunc(readSchema -> new SparkAvroReader(projection, readSchema, idToConstant))
+        .withNameMapping(nameMapping())
+        .build();
   }
 
-  private CloseableIterable<InternalRow> newParquetIterable(
-      InputFile location,
-      long start,
-      long length,
-      Expression residual,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    Parquet.ReadBuilder builder = Parquet.read(location)
+  private CloseableIterable<InternalRow> newParquetIterable(InputFile file, long start, long length,
+                                                            Expression residual, Schema readSchema,
+                                                            Map<Integer, ?> idToConstant) {
+    return Parquet.read(file)
         .reuseContainers()
         .split(start, length)
         .project(readSchema)
         .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
         .filter(residual)
-        .caseSensitive(caseSensitive());
-
-    if (nameMapping() != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping()));
-    }
-
-    return builder.build();
+        .caseSensitive(caseSensitive())
+        .withNameMapping(nameMapping())
+        .build();
   }
 
-  private CloseableIterable<InternalRow> newOrcIterable(
-      InputFile location,
-      long start,
-      long length,
-      Expression residual,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
+  private CloseableIterable<InternalRow> newOrcIterable(InputFile file, long start, long length, Expression residual,
+                                                        Schema readSchema, Map<Integer, ?> idToConstant) {
     Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
         Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
 
-    ORC.ReadBuilder builder = ORC.read(location)
+    return ORC.read(file)
         .project(readSchemaWithoutConstantAndMetadataFields)
         .split(start, length)
         .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(residual)
-        .caseSensitive(caseSensitive());
-
-    if (nameMapping() != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping()));
-    }
-
-    return builder.build();
+        .caseSensitive(caseSensitive())
+        .withNameMapping(nameMapping())
+        .build();
   }
 }

@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
@@ -43,6 +44,8 @@ import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -69,22 +72,24 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final Table table;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
-  private final String nameMapping;
+  private final NameMapping nameMapping;
+  private final ScanTaskGroup<TaskT> taskGroup;
   private final Iterator<TaskT> tasks;
-  private final Map<String, InputFile> inputFiles;
 
+  private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
   private T current = null;
   private TaskT currentTask = null;
 
-  BaseReader(Table table, ScanTaskGroup<TaskT> task, Schema expectedSchema, boolean caseSensitive) {
+  BaseReader(Table table, ScanTaskGroup<TaskT> taskGroup, Schema expectedSchema, boolean caseSensitive) {
     this.table = table;
-    this.tasks = task.tasks().iterator();
-    this.inputFiles = inputFiles(task);
+    this.taskGroup = taskGroup;
+    this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
-    this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    this.nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
   }
 
   protected Schema expectedSchema() {
@@ -95,25 +100,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     return caseSensitive;
   }
 
-  protected String nameMapping() {
+  protected NameMapping nameMapping() {
     return nameMapping;
-  }
-
-  private Map<String, InputFile> inputFiles(ScanTaskGroup<TaskT> task) {
-    Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-    task.tasks().stream()
-        .flatMap(scanTask -> Stream.concat(scanTask.referencedDataFiles().stream(),
-            scanTask.referencedDeleteFiles().stream()))
-        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
-    Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
-        .map(entry -> EncryptedFiles.encryptedInput(table.io().newInputFile(entry.getKey()), entry.getValue()));
-
-    // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-    Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encrypted::iterator);
-
-    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.tasks().size());
-    decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-    return ImmutableMap.copyOf(files);
   }
 
   protected Table table() {
@@ -136,8 +124,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         }
       }
     } catch (IOException | RuntimeException e) {
-      if (currentTask != null && !currentTask.referencedDataFiles().isEmpty()) {
-        String filePaths = currentTask.referencedDataFiles().stream()
+      if (currentTask != null && !currentTask.isDataTask()) {
+        String filePaths = referencedFiles(currentTask)
             .map(file -> file.path().toString())
             .collect(Collectors.joining(", "));
         LOG.error("Error reading file(s): {}", filePaths, e);
@@ -166,8 +154,28 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   }
 
   protected InputFile getInputFile(String location) {
-    return inputFiles.get(location);
+    return inputFiles().get(location);
   }
+
+  private Map<String, InputFile> inputFiles() {
+    if (lazyInputFiles == null) {
+      Stream<EncryptedInputFile> encryptedFiles = taskGroup.tasks().stream()
+          .flatMap(this::referencedFiles)
+          .map(file ->
+              EncryptedFiles.encryptedInput(table.io().newInputFile(file.path().toString()), file.keyMetadata()));
+
+      // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
+      Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encryptedFiles::iterator);
+
+      Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(taskGroup.tasks().size());
+      decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
+      this.lazyInputFiles = ImmutableMap.copyOf(files);
+    }
+
+    return lazyInputFiles;
+  }
+
+  protected abstract Stream<ContentFile<?>> referencedFiles(TaskT task);
 
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
