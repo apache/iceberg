@@ -980,11 +980,11 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   @Test
   public void testPathsWithEqualSchemes() {
-    List<String> validFiles = Lists.newArrayList("s3n://bucket1/dir1/dir2/file1");
-    List<String> actualFiles = Lists.newArrayList("s3a://bucket1/dir1/dir2/file1");
+    List<String> validFiles = Lists.newArrayList("scheme1://bucket1/dir1/dir2/file1");
+    List<String> actualFiles = Lists.newArrayList("scheme2://bucket1/dir1/dir2/file1");
     AssertHelpers.assertThrows("Test remove orphan files with equal schemes",
         ValidationException.class,
-        "Conflicting authorities/schemes: [(s3n, s3a)]",
+        "Conflicting authorities/schemes: [(scheme1, scheme2)]",
         () -> executeTest(validFiles,
             actualFiles,
             Lists.newArrayList(),
@@ -993,8 +993,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             DeleteOrphanFiles.PrefixMismatchMode.ERROR));
 
     Map<String, String> equalSchemes = Maps.newHashMap();
-    equalSchemes.put("s3n", "s3");
-    equalSchemes.put("s3a", "s3");
+    equalSchemes.put("scheme1", "scheme");
+    equalSchemes.put("scheme2", "scheme");
     executeTest(validFiles,
         actualFiles,
         Lists.newArrayList(),
