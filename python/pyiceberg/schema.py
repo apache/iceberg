@@ -572,10 +572,6 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
         True
     """
 
-    @staticmethod
-    def _wrap_leaves(result: Dict[Position, Accessor], position: Position = 0) -> Dict[Position, Accessor]:
-        return {field_id: Accessor(position, inner=inner) for field_id, inner in result.items()}
-
     def schema(self, schema: Schema, struct_result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
         return struct_result
 
