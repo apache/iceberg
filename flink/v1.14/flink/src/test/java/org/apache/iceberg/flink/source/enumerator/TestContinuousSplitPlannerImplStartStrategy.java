@@ -156,7 +156,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
     // emtpy table
     AssertHelpers.assertThrows("Should detect invalid starting snapshot timestamp",
         IllegalArgumentException.class,
-        "Cannot find a snapshot older than 1970-01-01 00:00:00.001",
+        "Cannot find a snapshot older than 1970-01-01T00:00:00.001+00:00",
         () -> ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContextInvalidSnapshotTimestamp));
 
     appendThreeSnapshots();
