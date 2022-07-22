@@ -56,6 +56,16 @@ from tests.catalog.test_base import InMemoryCatalog
 from tests.io.test_io import LocalInputFile
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--endpoint-url", action="store", default="http://localhost:9000", help="The S3 endpoint URL for tests marked as s3"
+    )
+    parser.addoption("--aws-access-key-id", action="store", default="admin", help="The AWS access key ID for tests marked as s3")
+    parser.addoption(
+        "--aws-secret-access-key", action="store", default="password", help="The AWS secret access key ID for tests marked as s3"
+    )
+
+
 class FooStruct:
     """An example of an object that abides by StructProtocol"""
 
@@ -1111,3 +1121,13 @@ def iceberg_manifest_entry_schema() -> Schema:
         schema_id=1,
         identifier_field_ids=[],
     )
+
+
+@pytest.fixture
+def s3fs_fileio(request):
+    client_kwargs = {
+        "endpoint_url": request.config.getoption("--endpoint-url"),
+        "aws_access_key_id": request.config.getoption("--aws-access-key-id"),
+        "aws_secret_access_key": request.config.getoption("--aws-secret-access-key"),
+    }
+    return s3fs.S3fsFileIO(client_kwargs=client_kwargs)
