@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.stream.Stream;
-
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
