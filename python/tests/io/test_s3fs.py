@@ -148,6 +148,7 @@ def test_checking_if_a_file_exists(s3fs_fileio):
 
     filename = str(uuid.uuid4())
     output_file = s3fs_fileio.new_output(location=f"s3://testbucket/{filename}")
+    assert not output_file.exists()
     f = output_file.create()
     f.write(b"foo")
     f.close()
@@ -171,10 +172,6 @@ def test_closing_a_file(s3fs_fileio):
     assert not f.closed()
     f.close()
     assert f.closed()
-
-    with pytest.raises(ValueError) as exc_info:
-        f.write(b"foo")
-    assert "Cannot write bytes, file closed" in str(exc_info.value)
 
     input_file = s3fs_fileio.new_input(location=f"s3://testbucket/{filename}")
     f = input_file.open()
