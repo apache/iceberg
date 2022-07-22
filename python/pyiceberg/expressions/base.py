@@ -19,7 +19,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
@@ -172,28 +172,28 @@ class Reference(UnboundTerm[T], BaseReference[T]):
 
 
 class BoundPredicate(Bound[T], BooleanExpression):
-    def __init__(self, term: BoundTerm[T], literals: Optional[tuple[Literal[T], ...] | Literal[T]] = None):
+    def __init__(self, term: BoundTerm[T], literals: tuple[Literal[T], ...] | Literal[T] | None = None):
         self._term = term
         self._literals = literals if isinstance(literals, tuple) else (literals and (literals,))
         self._validate_literals()
 
     def _validate_literals(self):
-        if literals is None or len(self.literals) != 1:
+        if self.literals is None or len(self.literals) != 1:
             raise AttributeError(f"{self.__class__.__name__} must have exactly 1 literal.")
 
     @property
-    def term(self) -> BoundReference[T]:
+    def term(self) -> BoundTerm[T]:
         return self._term
 
     @property
     def literals(self) -> tuple[Literal[T], ...]:
-        return self._literals
+        return self._literals  # type: ignore
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}({str(self.term)}, {str(self.literals)})"
+        return f"{self.__class__.__name__}({str(self.term)}{self.literals and ', '+str(self.literals)})"
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({repr(self.term)}, {repr(self.literals)})"
+        return f"{self.__class__.__name__}({repr(self.term)}{self.literals and ', '+repr(self.literals)})"
 
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (
@@ -202,28 +202,28 @@ class BoundPredicate(Bound[T], BooleanExpression):
 
 
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
-    def __init__(self, term: UnboundTerm[T], literals: Optional[tuple[Literal[T], ...] | Literal[T]] = None):
+    def __init__(self, term: UnboundTerm[T], literals: tuple[Literal[T], ...] | Literal[T] | None = None):
         self._term = term
-        self._literals = literals if isinstance(literals, tuple) else (literals,)
+        self._literals = literals if isinstance(literals, tuple) else (literals and (literals,))
         self._validate_literals()
 
     def _validate_literals(self):
-        if len(self.literals) != 1:
+        if self.literals is None or len(self.literals) != 1:
             raise AttributeError(f"{self.__class__.__name__} must have exactly 1 literal.")
 
     @property
-    def term(self) -> Reference[T]:
+    def term(self) -> UnboundTerm[T]:
         return self._term
 
     @property
     def literals(self) -> tuple[Literal[T], ...]:
-        return self._literals
+        return self._literals  # type: ignore
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}({str(self.term)}, {str(self.literals)})"
+        return f"{self.__class__.__name__}({str(self.term)}{self.literals and ', '+str(self.literals)})"
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({repr(self.term)}, {repr(self.literals)})"
+        return f"{self.__class__.__name__}({repr(self.term)}{self.literals and ', '+repr(self.literals)})"
 
     def __eq__(self, other) -> bool:
         return id(self) == id(other) or (
@@ -351,7 +351,6 @@ class AlwaysFalse(BooleanExpression, ABC, Singleton):
         return AlwaysTrue()
 
 
-@dataclass(frozen=True)
 class IsNull(UnboundPredicate[T]):
     def __invert__(self) -> NotNull:
         return NotNull(self.term)
@@ -360,8 +359,11 @@ class IsNull(UnboundPredicate[T]):
         if self.literals is not None:
             raise AttributeError("Null is a unary predicate and takes no Literals.")
 
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIsNull[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundIsNull(bound_ref)
 
-@dataclass(frozen=True)
+
 class BoundIsNull(BoundPredicate[T]):
     def __invert__(self) -> BoundNotNull:
         return BoundNotNull(self.term)
@@ -371,7 +373,6 @@ class BoundIsNull(BoundPredicate[T]):
             raise AttributeError("Null is a unary predicate and takes no Literals.")
 
 
-@dataclass(frozen=True)
 class NotNull(UnboundPredicate[T]):
     def __invert__(self) -> IsNull:
         return IsNull(self.term)
@@ -380,8 +381,11 @@ class NotNull(UnboundPredicate[T]):
         if self.literals is not None:
             raise AttributeError("NotNull is a unary predicate and takes no Literals.")
 
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundNotNull[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundNotNull(bound_ref)
 
-@dataclass(frozen=True)
+
 class BoundNotNull(BoundPredicate[T]):
     def __invert__(self) -> BoundIsNull:
         return BoundIsNull(self.term)
@@ -391,7 +395,6 @@ class BoundNotNull(BoundPredicate[T]):
             raise AttributeError("NotNull is a unary predicate and takes no Literals.")
 
 
-@dataclass(frozen=True)
 class IsNaN(UnboundPredicate[T]):
     def __invert__(self) -> NotNaN:
         return NotNaN(self.term)
@@ -400,8 +403,11 @@ class IsNaN(UnboundPredicate[T]):
         if self.literals is not None:
             raise AttributeError("IsNaN is a unary predicate and takes no Literals.")
 
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIsNaN[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundIsNaN(bound_ref)
 
-@dataclass(frozen=True)
+
 class BoundIsNaN(BoundPredicate[T]):
     def __invert__(self) -> BoundNotNaN:
         return BoundNotNaN(self.term)
@@ -411,7 +417,6 @@ class BoundIsNaN(BoundPredicate[T]):
             raise AttributeError("IsNaN is a unary predicate and takes no Literals.")
 
 
-@dataclass(frozen=True)
 class NotNaN(UnboundPredicate[T]):
     def __invert__(self) -> IsNaN:
         return IsNaN(self.term)
@@ -420,8 +425,11 @@ class NotNaN(UnboundPredicate[T]):
         if self.literals is not None:
             raise AttributeError("NotNaN is a unary predicate and takes no Literals.")
 
+    def bind(self, schema: Schema, case_sensitive: bool) -> BoundNotNaN[T]:
+        bound_ref = self.term.bind(schema, case_sensitive)
+        return BoundNotNaN(bound_ref)
 
-@dataclass(frozen=True)
+
 class BoundNotNaN(BoundPredicate[T]):
     def __invert__(self) -> BoundIsNaN:
         return BoundIsNaN(self.term)
