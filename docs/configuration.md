@@ -79,6 +79,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.object-storage.enabled       | false              | Enables the object storage location provider that adds a hash component to file paths |
 | write.data.path                    | table location + /data | Base location for data files |
 | write.metadata.path                | table location + /metadata | Base location for metadata files |
+| write.upsert.enabled               | false              | Enables upsert mode (currently flink only) |
 | write.delete.mode                  | copy-on-write      | Mode used for delete commands: copy-on-write or merge-on-read (v2 only) |
 | write.delete.isolation-level       | serializable       | Isolation level for delete commands: serializable or snapshot |
 | write.update.mode                  | copy-on-write      | Mode used for update commands: copy-on-write or merge-on-read (v2 only) |
