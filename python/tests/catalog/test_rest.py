@@ -20,7 +20,7 @@ import pytest
 import requests_mock
 
 from pyiceberg.catalog.base import PropertiesUpdateSummary
-from pyiceberg.catalog.rest import RestCatalog, TokenResponse
+from pyiceberg.catalog.rest import RestCatalog, RestTable, TokenResponse
 from pyiceberg.exceptions import (
     AlreadyExistsError,
     BadCredentialsError,
@@ -550,7 +550,7 @@ def test_create_table_200(table_schema_simple: Schema):
             sort_order=SortOrder(1, SortField(source_id=2, transform=IdentityTransform())),
             properties={"owner": "fokko"},
         )
-        assert table == Table(
+        assert table == RestTable(
             identifier=("fokko", "fokko2"),
             metadata_location=None,
             metadata=TableMetadataV1(

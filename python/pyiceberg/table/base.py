@@ -15,7 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 
 from pydantic import Field
 
@@ -28,4 +28,3 @@ class Table(IcebergBaseModel):
     identifier: Union[str, Identifier] = Field()
     metadata_location: Optional[str] = Field(alias="metadata-location", default=None)
     metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
-    config: Dict[str, str] = Field(default_factory=dict)

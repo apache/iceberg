@@ -81,28 +81,30 @@ TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange"
 NAMESPACE_SEPARATOR = b"\x1F".decode("UTF-8")
 
 
+class RestTable(Table):
+    config: Properties = Field(default_factory=dict)
+
+
 class CreateTableRequest(IcebergBaseModel):
     name: str = Field()
     location: Optional[str] = Field()
     table_schema: Schema = Field(alias="schema")
     partition_spec: Optional[PartitionSpec] = Field(alias="partition-spec")
     write_order: Optional[SortOrder] = Field(alias="write-order")
-    stage_creation: bool = Field(alias="stage-creation", default=False)
-    properties: Dict[str, str] = Field(default_factory=dict)
+    stage_create: bool = Field(alias="stage-create", default=False)
+    properties: Properties = Field(default_factory=dict)
 
 
 class TokenResponse(IcebergBaseModel):
     access_token: str = Field()
     token_type: str = Field()
     expires_in: int = Field()
-    warehouse_id: str = Field()
-    region: str = Field()
     issued_token_type: str = Field()
 
 
 class ConfigResponse(IcebergBaseModel):
-    defaults: Dict[str, str] = Field()
-    overrides: Dict[str, str] = Field()
+    defaults: Properties = Field()
+    overrides: Properties = Field()
 
 
 class ListNamespaceResponse(IcebergBaseModel):
@@ -164,7 +166,7 @@ class RestCatalog(Catalog):
         return client, secret
 
     @property
-    def headers(self) -> Dict[str, str]:
+    def headers(self) -> Properties:
         return {AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}", "Content-type": "application/json"}
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
@@ -202,7 +204,7 @@ class RestCatalog(Catalog):
         response.raise_for_status()
         return ConfigResponse(**response.json())
 
-    def _split_namespace_and_table(self, identifier: Union[str, Identifier]) -> Dict[str, str]:
+    def _split_namespace_and_table(self, identifier: Union[str, Identifier]) -> Properties:
         identifier = self.identifier_to_tuple(identifier)
         return {"namespace": NAMESPACE_SEPARATOR.join(identifier[:-1]), "table": identifier[-1]}
 
@@ -245,7 +247,7 @@ class RestCatalog(Catalog):
         partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Optional[Properties] = None,
-    ) -> Table:
+    ) -> RestTable:
         namespace_and_table = self._split_namespace_and_table(identifier)
         properties = properties or {}
         request = CreateTableRequest(
@@ -267,7 +269,7 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {409: TableAlreadyExistsError})
 
-        return Table(identifier=identifier, **response.json())
+        return RestTable(identifier=identifier, **response.json())
 
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace or ""))
