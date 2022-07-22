@@ -23,16 +23,13 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -42,10 +39,8 @@ import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,8 +72,6 @@ public class FlinkSource {
 
   /** Source builder to build {@link DataStream}. */
   public static class Builder {
-    private static final Set<String> FILE_SYSTEM_SUPPORT_LOCALITY = ImmutableSet.of("hdfs");
-
     private StreamExecutionEnvironment env;
     private Table table;
     private TableLoader tableLoader;
@@ -220,7 +213,9 @@ public class FlinkSource {
       } else {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
-      contextBuilder.exposeLocality(localityEnabled());
+
+      contextBuilder.exposeLocality(
+          SourceUtil.isLocalityEnabled(table, readableConfig, exposeLocality));
       contextBuilder.planParallelism(
           readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
 
@@ -237,7 +232,18 @@ public class FlinkSource {
           FlinkCompatibilityUtil.toTypeInfo(FlinkSchemaUtil.convert(context.project()));
 
       if (!context.isStreaming()) {
-        int parallelism = inferParallelism(format, context);
+        int parallelism =
+            SourceUtil.inferParallelism(
+                readableConfig,
+                context.limit(),
+                () -> {
+                  try {
+                    return format.createInputSplits(0).length;
+                  } catch (IOException e) {
+                    throw new UncheckedIOException(
+                        "Failed to create iceberg input splits for table: " + table, e);
+                  }
+                });
         if (env.getMaxParallelism() > 0) {
           parallelism = Math.min(parallelism, env.getMaxParallelism());
         }
@@ -251,68 +257,6 @@ public class FlinkSource {
         return env.addSource(function, monitorFunctionName)
             .transform(readerOperatorName, typeInfo, StreamingReaderOperator.factory(format));
       }
-    }
-
-    int inferParallelism(FlinkInputFormat format, ScanContext context) {
-      int parallelism =
-          readableConfig.get(ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM);
-      if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM)) {
-        int maxInferParallelism =
-            readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
-        Preconditions.checkState(
-            maxInferParallelism >= 1,
-            FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX.key()
-                + " cannot be less than 1");
-        int splitNum;
-        try {
-          FlinkInputSplit[] splits = format.createInputSplits(0);
-          splitNum = splits.length;
-        } catch (IOException e) {
-          throw new UncheckedIOException(
-              "Failed to create iceberg input splits for table: " + table, e);
-        }
-
-        parallelism = Math.min(splitNum, maxInferParallelism);
-      }
-
-      if (context.limit() > 0) {
-        int limit =
-            context.limit() >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) context.limit();
-        parallelism = Math.min(parallelism, limit);
-      }
-
-      // parallelism must be positive.
-      parallelism = Math.max(1, parallelism);
-      return parallelism;
-    }
-
-    private boolean localityEnabled() {
-      Boolean localityEnabled =
-          this.exposeLocality != null
-              ? this.exposeLocality
-              : readableConfig.get(
-                  FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO);
-
-      if (localityEnabled != null && !localityEnabled) {
-        return false;
-      }
-
-      FileIO fileIO = table.io();
-      if (fileIO instanceof HadoopFileIO) {
-        HadoopFileIO hadoopFileIO = (HadoopFileIO) fileIO;
-        try {
-          String scheme =
-              new Path(table.location()).getFileSystem(hadoopFileIO.getConf()).getScheme();
-          return FILE_SYSTEM_SUPPORT_LOCALITY.contains(scheme);
-        } catch (IOException e) {
-          LOG.warn(
-              "Failed to determine whether the locality information can be exposed for table: {}",
-              table,
-              e);
-        }
-      }
-
-      return false;
     }
   }
 

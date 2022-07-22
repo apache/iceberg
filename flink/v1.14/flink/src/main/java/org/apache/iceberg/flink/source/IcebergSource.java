@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.connector.source.Boundedness;
@@ -35,11 +36,13 @@ import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerFactory;
@@ -55,6 +58,7 @@ import org.apache.iceberg.flink.source.reader.ReaderMetricsContext;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,24 +71,64 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final ReaderFunction<T> readerFunction;
   private final SplitAssignerFactory assignerFactory;
 
+  // Can't use SerializableTable as enumerator needs a regular table
+  // that can discover table changes
+  private transient Table table;
+
   IcebergSource(
       TableLoader tableLoader,
       ScanContext scanContext,
       ReaderFunction<T> readerFunction,
-      SplitAssignerFactory assignerFactory) {
+      SplitAssignerFactory assignerFactory,
+      Table table) {
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
     this.readerFunction = readerFunction;
     this.assignerFactory = assignerFactory;
+    this.table = table;
   }
 
-  private static Table loadTable(TableLoader tableLoader) {
-    tableLoader.open();
-    try (TableLoader loader = tableLoader) {
-      return loader.loadTable();
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to close table loader", e);
+  String name() {
+    return "IcebergSource-" + lazyTable().name();
+  }
+
+  private String planningThreadName() {
+    // Ideally, operatorId should be used as the threadPoolName as Flink guarantees its uniqueness
+    // within a job. SplitEnumeratorContext doesn't expose the OperatorCoordinator.Context, which
+    // would contain the OperatorID. Need to discuss with Flink community whether it is ok to expose
+    // a public API like the protected method "OperatorCoordinator.Context getCoordinatorContext()"
+    // from SourceCoordinatorContext implementation. For now, <table name>-<random UUID> is used as
+    // the unique thread pool name.
+    return lazyTable().name() + "-" + UUID.randomUUID();
+  }
+
+  private List<IcebergSourceSplit> planSplitsForBatch(String threadName) {
+    ExecutorService workerPool =
+        ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
+    try {
+      List<IcebergSourceSplit> splits =
+          FlinkSplitPlanner.planIcebergSourceSplits(lazyTable(), scanContext, workerPool);
+      LOG.info(
+          "Discovered {} splits from table {} during job initialization",
+          splits.size(),
+          lazyTable().name());
+      return splits;
+    } finally {
+      workerPool.shutdown();
     }
+  }
+
+  private Table lazyTable() {
+    if (table == null) {
+      tableLoader.open();
+      try (TableLoader loader = tableLoader) {
+        this.table = loader.loadTable();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close table loader", e);
+      }
+    }
+
+    return table;
   }
 
   @Override
@@ -123,7 +167,6 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private SplitEnumerator<IcebergSourceSplit, IcebergEnumeratorState> createEnumerator(
       SplitEnumeratorContext<IcebergSourceSplit> enumContext,
       @Nullable IcebergEnumeratorState enumState) {
-    Table table = loadTable(tableLoader);
     SplitAssigner assigner;
     if (enumState == null) {
       assigner = assignerFactory.createAssigner();
@@ -131,27 +174,20 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       LOG.info(
           "Iceberg source restored {} splits from state for table {}",
           enumState.pendingSplits().size(),
-          table.name());
+          lazyTable().name());
       assigner = assignerFactory.createAssigner(enumState.pendingSplits());
     }
 
     if (scanContext.isStreaming()) {
-      // Ideally, operatorId should be used as the threadPoolName as Flink guarantees its uniqueness
-      // within a job.
-      // SplitEnumeratorContext doesn't expose the OperatorCoordinator.Context, which would contain
-      // the OperatorID.
-      // Need to discuss with Flink community whether it is ok to expose a public API like the
-      // protected method
-      // "OperatorCoordinator.Context getCoordinatorContext()" from SourceCoordinatorContext
-      // implementation.
-      // For now, <table name>-<random UUID> is used as the unique thread pool name.
       ContinuousSplitPlanner splitPlanner =
-          new ContinuousSplitPlannerImpl(
-              table, scanContext, table.name() + "-" + UUID.randomUUID());
+          new ContinuousSplitPlannerImpl(lazyTable(), scanContext, planningThreadName());
       return new ContinuousIcebergEnumerator(
           enumContext, assigner, scanContext, splitPlanner, enumState);
     } else {
-      return new StaticIcebergEnumerator(enumContext, assigner, table, scanContext, enumState);
+      List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
+      assigner.onDiscoveredSplits(splits);
+      return new StaticIcebergEnumerator(
+          enumContext, assigner, lazyTable(), scanContext, enumState);
     }
   }
 
@@ -173,6 +209,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     // optional
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
+    private TableSchema projectedFlinkSchema;
+    private Boolean exposeLocality;
 
     Builder() {}
 
@@ -266,6 +304,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    public Builder project(TableSchema newProjectedFlinkSchema) {
+      this.projectedFlinkSchema = newProjectedFlinkSchema;
+      return this;
+    }
+
     public Builder filters(List<Expression> newFilters) {
       this.contextBuilder.filters(newFilters);
       return this;
@@ -286,34 +329,48 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    public Builder exposeLocality(boolean newExposeLocality) {
+      this.exposeLocality = newExposeLocality;
+      return this;
+    }
+
     public Builder properties(Map<String, String> properties) {
       contextBuilder.fromProperties(properties);
       return this;
     }
 
     public IcebergSource<T> build() {
+      Table table;
+      try (TableLoader loader = tableLoader) {
+        loader.open();
+        table = tableLoader.loadTable();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+
+      Schema icebergSchema = table.schema();
+      if (projectedFlinkSchema != null) {
+        contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedFlinkSchema));
+      }
+
       ScanContext context = contextBuilder.build();
       if (readerFunction == null) {
-        try (TableLoader loader = tableLoader) {
-          loader.open();
-          Table table = tableLoader.loadTable();
-          RowDataReaderFunction rowDataReaderFunction =
-              new RowDataReaderFunction(
-                  flinkConfig,
-                  table.schema(),
-                  context.project(),
-                  context.nameMapping(),
-                  context.caseSensitive(),
-                  table.io(),
-                  table.encryption());
-          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
-        }
+        RowDataReaderFunction rowDataReaderFunction =
+            new RowDataReaderFunction(
+                flinkConfig,
+                table.schema(),
+                context.project(),
+                context.nameMapping(),
+                context.caseSensitive(),
+                table.io(),
+                table.encryption());
+        this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
       }
 
       checkRequired();
-      return new IcebergSource<T>(tableLoader, context, readerFunction, splitAssignerFactory);
+      // Since builder already load the table, pass it to the source to avoid double loading
+      return new IcebergSource<T>(
+          tableLoader, context, readerFunction, splitAssignerFactory, table);
     }
 
     private void checkRequired() {
