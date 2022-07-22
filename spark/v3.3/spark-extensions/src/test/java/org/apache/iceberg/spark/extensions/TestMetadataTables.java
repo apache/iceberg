@@ -28,12 +28,16 @@ import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.commons.collections.ListUtils;
 import org.apache.iceberg.FileContent;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -317,6 +321,89 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
     Assert.assertEquals("Metadata table should return two files", 2, actualFiles.size());
     TestHelpers.assertEqualsSafe(filesTableSchema.asStruct(), expectedFiles, actualFiles);
+  }
+
+  @Test
+  public void testMetadataLogs() throws Exception {
+    // Create table and insert data
+    sql("CREATE TABLE %s (id bigint, data string) " +
+        "USING iceberg " +
+        "PARTITIONED BY (data) " +
+        "TBLPROPERTIES " +
+        "('format-version'='2')", tableName);
+
+    List<SimpleRecord> recordsA = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "a")
+    );
+    spark.createDataset(recordsA, Encoders.bean(SimpleRecord.class))
+        .writeTo(tableName)
+        .append();
+
+    List<SimpleRecord> recordsB = Lists.newArrayList(
+        new SimpleRecord(1, "b"),
+        new SimpleRecord(2, "b")
+    );
+    spark.createDataset(recordsB, Encoders.bean(SimpleRecord.class))
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Long currentSnapshotId = table.currentSnapshot().snapshotId();
+    TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
+    Snapshot currentSnapshot = tableMetadata.currentSnapshot();
+    Snapshot parentSnapshot = table.snapshot(currentSnapshot.parentId());
+    List<TableMetadata.MetadataLogEntry> metadataLogEntries = Lists.newArrayList(tableMetadata.previousFiles());
+
+    // Check metadataLog table
+    List<Object[]> metadataLogs = sql("SELECT * FROM %s.metadata_logs", tableName);
+    assertEquals("MetadataLogsTable result should match the metadataLog entries",
+        ImmutableList.of(
+            row(
+                metadataLogEntries.get(0).timestampMillis(),
+                metadataLogEntries.get(0).file(),
+                null,
+                null,
+                null
+            ),
+            row(
+                metadataLogEntries.get(1).timestampMillis(),
+                metadataLogEntries.get(1).file(),
+                parentSnapshot.snapshotId(),
+                parentSnapshot.schemaId(),
+                parentSnapshot.sequenceNumber()
+            ),
+            row(
+                currentSnapshot.timestampMillis(),
+                tableMetadata.metadataFileLocation(),
+                currentSnapshot.snapshotId(),
+                currentSnapshot.schemaId(),
+                currentSnapshot.sequenceNumber()
+            )),
+        metadataLogs);
+
+    // test filtering
+    List<Object[]> metadataLogWithFilters =
+        sql("SELECT * FROM %s.metadata_logs WHERE latest_snapshot_id = %s", tableName, currentSnapshotId);
+    Assert.assertEquals("metadataLog table should return 1 row", 1, metadataLogWithFilters.size());
+    assertEquals("Result should match the latest snapshot entry",
+        ImmutableList.of(row(
+            tableMetadata.currentSnapshot().timestampMillis(),
+            tableMetadata.metadataFileLocation(),
+            tableMetadata.currentSnapshot().snapshotId(),
+            tableMetadata.currentSnapshot().schemaId(),
+            tableMetadata.currentSnapshot().sequenceNumber())),
+        metadataLogWithFilters);
+
+    // test projection
+    List<String> metadataFiles =
+        metadataLogEntries.stream().map(TableMetadata.MetadataLogEntry::file).collect(Collectors.toList());
+    metadataFiles.add(tableMetadata.metadataFileLocation());
+    List<Object[]> metadataLogWithProjection = sql("SELECT file FROM %s.metadata_logs", tableName);
+    Assert.assertEquals("metadataLog table should return 3 rows", 3, metadataLogWithProjection.size());
+    assertEquals("metadataLog entry should be of same file",
+        metadataFiles.stream().map(this::row).collect(Collectors.toList()),
+        metadataLogWithProjection);
   }
 
   /**
