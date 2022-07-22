@@ -1105,13 +1105,15 @@ components:
       properties:
         snapshot-id:
           type: integer
+        parent-snapshot-id:
+          type: integer
+        sequence-number:
+          type: integer
         timestamp-ms:
           type: integer
         manifest-list:
           type: string
           description: Location of the snapshot's manifest list file
-        schema-id:
-          type: integer
         summary:
           type: object
           required:
@@ -1122,6 +1124,8 @@ components:
               enum: ["append", "replace", "overwrite", "delete"]
             additionalProperties:
               type: string
+        schema-id:
+          type: integer
 
     SnapshotReference:
       type: object
