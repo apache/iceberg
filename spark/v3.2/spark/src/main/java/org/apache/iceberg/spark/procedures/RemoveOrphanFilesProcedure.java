@@ -58,7 +58,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("file_list_view", DataTypes.StringType),
       ProcedureParameter.optional("equal_schemes", STRING_MAP),
       ProcedureParameter.optional("equal_authorities", STRING_MAP),
-      ProcedureParameter.optional("prefix_mismatch_mode", STRING_MAP),
+      ProcedureParameter.optional("prefix_mismatch_mode", DataTypes.StringType),
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -100,6 +100,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
             "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
+
     Map<String, String> equalSchemes = Maps.newHashMap();
     if (!args.isNullAt(6)) {
       args.getMap(6).foreach(DataTypes.StringType, DataTypes.StringType,
@@ -118,8 +119,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           });
     }
 
-    String prefixMismatchMode = args.isNullAt(8) ?
-        DeleteOrphanFiles.PrefixMismatchMode.ERROR.toString() : args.getString(8);
+    DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode = args.isNullAt(8) ? null :
+        DeleteOrphanFiles.PrefixMismatchMode.valueOf(args.getString(8));
 
     return withIcebergTable(tableIdent, table -> {
       DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
@@ -147,13 +148,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       if (fileListView != null) {
         action.compareToFileList(spark().table(fileListView));
       }
-      Preconditions.checkArgument(prefixMismatchMode == null ||
-                      Arrays.stream(DeleteOrphanFiles.PrefixMismatchMode.values()).anyMatch(mode ->
-                              mode.name().equals(prefixMismatchMode)),
-          String.format("Invalid prefix mismatch mode: %s", prefixMismatchMode));
-      action.newEqualSchemes(equalSchemes);
-      action.newEqualAuthorities(equalAuthorities);
-      action.newPrefixMismatchMode(DeleteOrphanFiles.PrefixMismatchMode.valueOf(prefixMismatchMode));
+
+      action.equalSchemes(equalSchemes);
+      action.equalAuthorities(equalAuthorities);
+      action.prefixMismatchMode(prefixMismatchMode);
 
       DeleteOrphanFiles.Result result = action.execute();
 

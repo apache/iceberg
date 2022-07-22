@@ -20,26 +20,35 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.io.IOException;
+import java.net.URI;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -399,5 +408,70 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
+  }
+
+  @Test
+  public void testRemoveOrphanFilesProcedureWithPrefixMode() throws NoSuchTableException, ParseException {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String location = table.location();
+    Path originalPath = new Path(location);
+
+    URI uri = originalPath.toUri();
+    Path newParentPath = new Path("file1", uri.getAuthority(), uri.getPath());
+
+    DataFile dataFile1 = DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(new Path(newParentPath, "path/to/data-a.parquet").toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 = DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(new Path(newParentPath, "path/to/data-b.parquet").toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    table.newFastAppend()
+            .appendFile(dataFile1)
+            .appendFile(dataFile2)
+            .commit();
+
+    List<FilePathLastModifiedRecord> allFiles = Lists.newArrayList(
+            new FilePathLastModifiedRecord(new Path(originalPath, "path/to/data-a.parquet").toString(),
+                    new Timestamp(10000)),
+            new FilePathLastModifiedRecord(new Path(originalPath, "path/to/data-b.parquet").toString(),
+                    new Timestamp(10000)));
+    allFiles.addAll(ReachableFileUtil.metadataFileLocations(table, true).stream().map(file ->
+            new FilePathLastModifiedRecord(file, new Timestamp(10000))).collect(Collectors.toList()));
+    allFiles.add(new FilePathLastModifiedRecord(ReachableFileUtil.versionHintLocation(table),
+            new Timestamp(10000)));
+    allFiles.addAll(TestHelpers.dataManifests(table).stream().map(manifestFile ->
+            new FilePathLastModifiedRecord(manifestFile.path(), new Timestamp(10000))).collect(Collectors.toList()));
+
+    Dataset<Row> compareToFileList = spark.createDataFrame(allFiles,
+                    FilePathLastModifiedRecord.class).withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+    String fileListViewName = "files_view";
+    compareToFileList.createOrReplaceTempView(fileListViewName);
+    List<Object[]> orphanFiles = sql(
+            "CALL %s.system.remove_orphan_files(" +
+                    "table => '%s'," +
+                    "equal_schemes => map('file1', 'file')," +
+                    "file_list_view => '%s')",
+            catalogName, tableIdent, fileListViewName);
+    Assert.assertEquals(0, orphanFiles.size());
+
+    // Test with no equal schemes
+    AssertHelpers.assertThrows("Should complain about removing orphan files",
+            ValidationException.class, "Conflicting authorities/schemes: [(file1, file)]",
+            () -> sql(
+                    "CALL %s.system.remove_orphan_files(" +
+                            "table => '%s'," +
+                            "file_list_view => '%s')",
+                    catalogName, tableIdent, fileListViewName));
+
+    // Drop table in afterEach has purge and fails due to invalid scheme "file1" used in this test
+    // Dropping the table here
+    sql("DROP TABLE %s", tableName);
   }
 }

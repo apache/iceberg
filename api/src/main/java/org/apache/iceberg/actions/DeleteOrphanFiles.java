@@ -88,7 +88,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * Possible values are "ERROR", "IGNORE", "DELETE". The default mismatch mode is "ERROR",
    * which means an exception is thrown whenever there is a mismatch in authority/scheme.
    * It's the recommended mismatch mode and should be changed only in some rare circumstances.
-   * If there is a mismatch, use {@link #newEqualSchemes(Map)} (Map)} and {@link #newEqualAuthorities(Map)} (Map)}
+   * If there is a mismatch, use {@link #equalSchemes(Map)} (Map)} and {@link #equalAuthorities(Map)} (Map)}
    * to resolve conflicts by providing equivalent schemes and authorities. If it is impossible
    * to determine whether the conflicting authorities/schemes are equal, set the prefix mismatch
    * mode to "IGNORE" to skip files with mismatches. If you have manually inspected all conflicting
@@ -97,10 +97,10 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * with mismatches as orphan. It will be impossible to recover files after deletion,
    * so the "DELETE" prefix mismatch mode must be used with extreme caution.
    *
-   * @param mode mode for handling prefix mismatches
+   * @param newPrefixMismatchMode mode for handling prefix mismatches
    * @return this for method chaining
    */
-  default DeleteOrphanFiles newPrefixMismatchMode(PrefixMismatchMode mode) {
+  default DeleteOrphanFiles prefixMismatchMode(PrefixMismatchMode newPrefixMismatchMode) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement prefixMismatchMode");
   }
 
@@ -109,10 +109,10 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * <p>
    * The key may include a comma-separated list of schemes. For instance, Map("s3a,s3,s3n", "s3").
    *
-   * @param equalSchemes list of equal schemes
+   * @param newEqualSchemes list of equal schemes
    * @return this for method chaining
    */
-  default DeleteOrphanFiles newEqualSchemes(Map<String, String> equalSchemes) {
+  default DeleteOrphanFiles equalSchemes(Map<String, String> newEqualSchemes) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement equalSchemes");
   }
 
@@ -121,10 +121,10 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * <p>
    * The key may include a comma-separate list of authorities. For instance, Map("s1name,s2name", "servicename").
    *
-   * @param equalAuthorities list of equal authorities
+   * @param newEqualAuthorities list of equal authorities
    * @return this for method chaining
    */
-  default DeleteOrphanFiles newEqualAuthorities(Map<String, String> equalAuthorities) {
+  default DeleteOrphanFiles equalAuthorities(Map<String, String> newEqualAuthorities) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement equalAuthorities");
   }
 

@@ -1057,7 +1057,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Dataset<Row> validFilesDF = spark.createDataset(validFiles, Encoders.STRING()).toDF();
     Dataset<Row> actualFilesDF = spark.createDataset(actualFiles, Encoders.STRING()).toDF();
 
-    List<String> orphanFiles = BaseDeleteOrphanFilesSparkAction.findOrphanFiles(
+    List<String> orphanFiles = DeleteOrphanFilesSparkAction.findOrphanFiles(
         spark,
         actualFilesDF,
         validFilesDF,
