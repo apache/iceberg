@@ -30,15 +30,19 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.AlterTagRefRetention
 import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.CreateTag
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeRows
 import org.apache.spark.sql.catalyst.plans.logical.NoStatsUnaryNode
+import org.apache.spark.sql.catalyst.plans.logical.RemoveTag
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
@@ -60,6 +64,18 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
 
     case AddPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform, name) =>
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
+
+    case CreateTag(IcebergCatalogAndIdentifier(catalog, ident), _, _, _) =>
+      CreateTagExec(catalog, ident, plan.asInstanceOf[CreateTag]) :: Nil
+
+    case ReplaceTag(IcebergCatalogAndIdentifier(catalog, ident), _, _, _) =>
+      ReplaceTagExec(catalog, ident, plan.asInstanceOf[ReplaceTag]) :: Nil
+
+    case RemoveTag(IcebergCatalogAndIdentifier(catalog, ident), _) =>
+      RemoveTagExec(catalog, ident, plan.asInstanceOf[RemoveTag]) :: Nil
+
+    case AlterTagRefRetention(IcebergCatalogAndIdentifier(catalog, ident),_,_) =>
+      AlterTagRefRetentionExec(catalog,ident,plan.asInstanceOf[AlterTagRefRetention]) :: Nil
 
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil

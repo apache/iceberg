@@ -73,6 +73,10 @@ statement
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
+    | ALTER TABLE multipartIdentifier CREATE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #createTag
+    | ALTER TABLE multipartIdentifier REPLACE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #replaceTag
+    | ALTER TABLE multipartIdentifier DROP TAG identifier #removeTag
+    | ALTER TABLE multipartIdentifier ALTER TAG identifier RETAIN snapshotRefRetain snapshotRefRetainTimeUnit #alterTagRetention
     ;
 
 writeSpec
@@ -168,10 +172,22 @@ fieldList
     ;
 
 nonReserved
-    : ADD | ALTER | AS | ASC | BY | CALL | DESC | DROP | FIELD | FIRST | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
-    | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | WITH | IDENTIFIER_KW | FIELDS | SET
-    | TRUE | FALSE
+    : ADD | ALTER | AS | ASC | BY | CALL | CREATE |  DESC | DROP | FIELD | FIRST | LAST | NULLS | OF | ORDERED
+    | PARTITION | TABLE | WRITE | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | VERSION | WITH | IDENTIFIER_KW | FIELDS
+    | SET | TRUE | TAG | FALSE
     | MAP
+    ;
+
+snapshotId
+    : number
+    ;
+
+snapshotRefRetain
+    : number
+    ;
+
+snapshotRefRetainTimeUnit
+    : identifier
     ;
 
 ADD: 'ADD';
@@ -180,6 +196,7 @@ AS: 'AS';
 ASC: 'ASC';
 BY: 'BY';
 CALL: 'CALL';
+CREATE: 'CREATE';
 DESC: 'DESC';
 DISTRIBUTED: 'DISTRIBUTED';
 DROP: 'DROP';
@@ -189,15 +206,21 @@ FIRST: 'FIRST';
 LAST: 'LAST';
 LOCALLY: 'LOCALLY';
 NULLS: 'NULLS';
+OF: 'OF';
 ORDERED: 'ORDERED';
 PARTITION: 'PARTITION';
 REPLACE: 'REPLACE';
+RETAIN: 'RETAIN';
+RETENTION: 'RETENTION';
 IDENTIFIER_KW: 'IDENTIFIER';
 SET: 'SET';
 TABLE: 'TABLE';
+TAG: 'TAG';
 UNORDERED: 'UNORDERED';
+VERSION: 'VERSION';
 WITH: 'WITH';
 WRITE: 'WRITE';
+FOR: 'FOR';
 
 TRUE: 'TRUE';
 FALSE: 'FALSE';

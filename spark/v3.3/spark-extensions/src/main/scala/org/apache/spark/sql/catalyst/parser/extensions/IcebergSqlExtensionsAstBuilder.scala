@@ -19,10 +19,12 @@
 
 package org.apache.spark.sql.catalyst.parser.extensions
 
+import java.util.Locale
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.TerminalNode
+import org.apache.commons.lang3.StringUtils
 import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
@@ -37,14 +39,18 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParserUtils.withOrigin
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.AlterTagRefRetention
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.CreateTag
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
+import org.apache.spark.sql.catalyst.plans.logical.RemoveTag
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
@@ -82,6 +88,68 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   /**
+   * Create an CREATE TAG logical command.
+   */
+  override def visitCreateTag(ctx: CreateTagContext): CreateTag = withOrigin(ctx) {
+    val tagName = ctx.identifier().getText
+    val snapshotId = Option(ctx.snapshotId()).map(_.getText.toLong)
+    val snapshotRefRetain =
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    validateTag(tagName, snapshotId, snapshotRefRetain)
+
+    CreateTag(typedVisit[Seq[String]](ctx.multipartIdentifier), tagName, snapshotId, snapshotRefRetain)
+  }
+
+  /**
+   * Create an REPLACE TAG logical command.
+   */
+  override def visitReplaceTag(ctx: ReplaceTagContext): ReplaceTag = withOrigin(ctx) {
+    val tagName = ctx.identifier().getText
+    val snapshotId = Option(ctx.snapshotId()).map(_.getText.toLong)
+    val snapshotRefRetain =
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    validateTag(tagName, snapshotId, snapshotRefRetain)
+
+    ReplaceTag(typedVisit[Seq[String]](ctx.multipartIdentifier), tagName, snapshotId, snapshotRefRetain)
+  }
+
+  /**
+   * Create an REMOVE TAG logical command.
+   */
+  override def visitRemoveTag(ctx: RemoveTagContext): RemoveTag = withOrigin(ctx) {
+    val tagName = ctx.identifier().getText
+    validateTag(tagName, Option.empty[Long], Option.empty[Long])
+
+    RemoveTag(typedVisit[Seq[String]](ctx.multipartIdentifier), ctx.identifier().getText)
+  }
+
+  /**
+   * Create an ALTER TAG RETENTION logical command.
+   */
+  override def visitAlterTagRetention(ctx: AlterTagRetentionContext): AlterTagRefRetention = withOrigin(ctx) {
+    val tagName = ctx.identifier().getText
+    val snapshotRefRetain =
+      Option(ctx.snapshotRefRetain()).map(_.getText.toLong * timeUnit(ctx.snapshotRefRetainTimeUnit().getText))
+    validateTag(tagName, Option.empty[Long], snapshotRefRetain)
+
+    AlterTagRefRetention(typedVisit[Seq[String]](ctx.multipartIdentifier()), tagName, snapshotRefRetain)
+  }
+
+  private def validateTag(tagName: String, snapshotId: Option[Long], snapshotRefRetain: Option[Long]): Unit = {
+    if (StringUtils.isBlank(tagName)) {
+      throw new IllegalArgumentException("Tag name can not be empty or null.")
+    }
+
+    if (snapshotId.nonEmpty && snapshotId.get <= 0) {
+      throw new IllegalArgumentException("Snapshot ID:" + snapshotId.get + " must be greater than 0.")
+    }
+
+    if (snapshotRefRetain.nonEmpty && snapshotRefRetain.get <= 0) {
+      throw new IllegalArgumentException("Max reference age must be greater than 0")
+    }
+  }
+
+  /**
    * Create a DROP PARTITION FIELD logical command.
    */
   override def visitDropPartitionField(ctx: DropPartitionFieldContext): DropPartitionField = withOrigin(ctx) {
@@ -89,7 +157,6 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform))
   }
-
 
   /**
    * Create an REPLACE PARTITION FIELD logical command.
@@ -266,6 +333,16 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   private def typedVisit[T](ctx: ParseTree): T = {
     ctx.accept(this).asInstanceOf[T]
+  }
+
+  private val timeUnit = (unit: String) => {
+    unit.toUpperCase(Locale.ENGLISH) match {
+      case "MONTHS" => 30 * 24 * 60 * 60 * 1000L
+      case "DAYS" => 24 * 60 * 60 * 1000L
+      case "HOURS" => 60 * 60 * 1000L
+      case "MINUTES" => 60 * 1000L
+      case _ => throw new IllegalArgumentException("Invalid time unit: " + unit)
+    }
   }
 }
 
