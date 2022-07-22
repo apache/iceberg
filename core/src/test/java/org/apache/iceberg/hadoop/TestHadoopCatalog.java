@@ -30,12 +30,15 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -47,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -588,5 +592,34 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
             " properties.",
         "table-key5",
         table.properties().get("key5"));
+  }
+
+  @Test
+  public void testRegisterTable() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    TableIdentifier identifier2 = TableIdentifier.of("a", "t2");
+    HadoopCatalog catalog = hadoopCatalog();
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((HadoopTableOperations) ops).current().metadataFileLocation();
+    Assertions.assertThat(catalog.registerTable(identifier2, metadataLocation)).isNotNull();
+    Assertions.assertThat(catalog.loadTable(identifier2)).isNotNull();
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
+    Assertions.assertThat(catalog.dropTable(identifier2)).isTrue();
+  }
+
+  @Test
+  public void testRegisterExistingTable() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    HadoopCatalog catalog = hadoopCatalog();
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((HadoopTableOperations) ops).current().metadataFileLocation();
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
   }
 }

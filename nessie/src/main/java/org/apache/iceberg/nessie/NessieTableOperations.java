@@ -152,7 +152,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       }
     }
 
-    String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+    String newMetadataLocation = (base == null) && (metadata.metadataFileLocation() != null) ?
+        metadata.metadataFileLocation() : writeNewMetadata(metadata, currentVersion() + 1);
 
     boolean delete = true;
     try {

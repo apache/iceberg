@@ -39,7 +39,9 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
@@ -56,6 +58,7 @@ import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableTableReference;
 import org.projectnessie.model.LogResponse.LogEntry;
 import org.projectnessie.model.Operation;
+import org.projectnessie.model.Tag;
 
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -383,6 +386,89 @@ public class TestNessieTable extends BaseTestIceberg {
         .exists();
 
     verifyCommitMetadata();
+  }
+
+  private void validateRegister(TableIdentifier identifier, String metadataVersionFiles) {
+    Assertions.assertThat(catalog.registerTable(identifier, "file:" + metadataVersionFiles)).isNotNull();
+    Table newTable = catalog.loadTable(identifier);
+    Assertions.assertThat(newTable).isNotNull();
+    TableOperations ops = ((HasTableOperations) newTable).operations();
+    String metadataLocation = ((NessieTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThat("file:" + metadataVersionFiles).isEqualTo(metadataLocation);
+    Assertions.assertThat(catalog.dropTable(identifier, false)).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableWithGivenBranch() {
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    validateRegister(identifier, metadataVersionFiles.get(0));
+  }
+
+  @Test
+  public void testRegisterTableFailureScenarios() throws NessieConflictException, NessieNotFoundException {
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
+    // Case 1: Branch does not exist
+    ImmutableTableReference defaultTableReference =
+        ImmutableTableReference.builder().reference("default").name(TABLE_NAME).build();
+    TableIdentifier defaultIdentifier = TableIdentifier.of(DB_NAME, defaultTableReference.toString());
+    Assertions.assertThatThrownBy(
+        () -> catalog.registerTable(
+            defaultIdentifier, "file:" + metadataVersionFiles.get(0)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Nessie ref 'default' does not exist");
+    // Case 2: Table Already Exists
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: db.tbl");
+    // Case 3: Registering using a tag
+    ImmutableTableReference branchTableReference =
+        ImmutableTableReference.builder().reference(BRANCH).name(TABLE_NAME).build();
+    TableIdentifier branchIdentifier = TableIdentifier.of(DB_NAME, branchTableReference.toString());
+    Assertions.assertThat(catalog.dropTable(branchIdentifier, false)).isTrue();
+    String hash = api.getReference().refName(BRANCH).get().getHash();
+    api.createReference().sourceRefName(BRANCH).reference(Tag.of("tag_1", hash)).create();
+    ImmutableTableReference tagTableReference =
+        ImmutableTableReference.builder().reference("tag_1").name(TABLE_NAME).build();
+    TableIdentifier tagIdentifier = TableIdentifier.of(DB_NAME, tagTableReference.toString());
+    Assertions.assertThatThrownBy(
+        () -> catalog.registerTable(
+            tagIdentifier, "file:" + metadataVersionFiles.get(0)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("You can only mutate tables when using a branch without a hash or timestamp.");
+    // Case 4: non-null metadata path with null metadata location
+    Assertions.assertThatThrownBy(
+        () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0) + "invalidName"))
+        .isInstanceOf(NotFoundException.class);
+    // Case 5: null identifier
+    Assertions.assertThatThrownBy(
+        () -> catalog.registerTable(null, "file:" + metadataVersionFiles.get(0) + "invalidName"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid identifier: null");
+  }
+
+  @Test
+  public void testRegisterTableWithDefaultBranch() {
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
+    Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
+    validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
+  }
+
+  @Test
+  public void testRegisterTableMoreThanOneBranch() {
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    validateRegister(identifier, metadataVersionFiles.get(0));
+    Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
+    validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
   }
 
   @Test
