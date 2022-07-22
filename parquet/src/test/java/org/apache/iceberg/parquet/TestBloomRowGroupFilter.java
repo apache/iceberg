@@ -750,13 +750,10 @@ public class TestBloomRowGroupFilter {
       Assert.assertTrue("Should read: string within range", shouldRead);
     }
 
-    Random rd = new Random();
     int falsePositiveCount = 0;
     for (int i = 1; i <= 1000; i += 1) {
-      byte[] byteArray = new byte[1000];
-      rd.nextBytes(byteArray);
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("string",
-          new String(byteArray, Charset.forName("UTF-8")))).shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+          "test string " + i)).shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (shouldRead) {
         falsePositiveCount++;
       }
@@ -1082,15 +1079,11 @@ public class TestBloomRowGroupFilter {
         .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     Assert.assertTrue("Should read: in on no nulls column (empty string is within the set)", shouldRead);
 
-    Random rd = new Random();
     int falsePositiveCount = 0;
     for (int i = 0; i < 1000; i += 1) {
-      byte[] byteArray = new byte[100];
-      rd.nextBytes(byteArray);
-      String random = new String(byteArray, Charset.forName("UTF-8"));
       shouldRead = new ParquetBloomRowGroupFilter(
           SCHEMA,
-          in("no_nulls", random.substring(0, 10), random.substring(10))
+          in("no_nulls", "test" + i, "abc" + i)
       ).shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       if (shouldRead) {
         falsePositiveCount++;
