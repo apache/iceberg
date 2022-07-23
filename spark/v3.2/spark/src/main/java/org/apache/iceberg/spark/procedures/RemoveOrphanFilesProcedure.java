@@ -150,7 +150,9 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
       action.equalSchemes(equalSchemes);
       action.equalAuthorities(equalAuthorities);
-      action.prefixMismatchMode(prefixMismatchMode);
+      if (prefixMismatchMode != null) {
+        action.prefixMismatchMode(prefixMismatchMode);
+      }
 
       DeleteOrphanFiles.Result result = action.execute();
 
