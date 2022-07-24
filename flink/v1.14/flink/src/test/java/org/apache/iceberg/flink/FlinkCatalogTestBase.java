@@ -131,7 +131,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     return conf.get(HiveConf.ConfVars.METASTOREURIS.varname);
   }
 
-  static String toWithClause(Map<String, String> props) {
+  public static String toWithClause(Map<String, String> props) {
     StringBuilder builder = new StringBuilder();
     builder.append("(");
     int propCount = 0;

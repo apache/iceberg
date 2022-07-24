@@ -20,22 +20,20 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.RewriteResult;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.TaskContext;
@@ -66,15 +64,16 @@ public class RowDataRewriter implements Serializable {
     this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 
-  public List<DataFile> rewriteDataForTasks(JavaRDD<CombinedScanTask> taskRDD) {
-    JavaRDD<List<DataFile>> dataFilesRDD = taskRDD.map(this::rewriteDataForTask);
+  public RewriteResult rewriteDataForTasks(JavaRDD<CombinedScanTask> taskRDD) {
+    List<RewriteResult> rewriteResults = taskRDD.map(this::rewriteDataForTask)
+        .collect();
 
-    return dataFilesRDD.collect().stream()
-        .flatMap(Collection::stream)
-        .collect(Collectors.toList());
+    return RewriteResult.builder()
+        .merge(rewriteResults)
+        .build();
   }
 
-  private List<DataFile> rewriteDataForTask(CombinedScanTask task) throws Exception {
+  private RewriteResult rewriteDataForTask(CombinedScanTask task) throws Exception {
     TaskContext context = TaskContext.get();
     int partitionId = context.partitionId();
     long taskId = context.taskAttemptId();
@@ -110,6 +109,12 @@ public class RowDataRewriter implements Serializable {
           structType);
     }
 
+    RewriteResult.Builder resultBuilder = RewriteResult.builder();
+    for (FileScanTask scanTask : task.files()) {
+      resultBuilder.addDataFilesToDelete(scanTask.file());
+      resultBuilder.addDeleteFilesToDelete(scanTask.deletes());
+    }
+
     try {
       while (dataReader.next()) {
         InternalRow row = dataReader.get();
@@ -120,8 +125,11 @@ public class RowDataRewriter implements Serializable {
       dataReader = null;
 
       writer.close();
-      return Lists.newArrayList(writer.dataFiles());
 
+      // Add the data files only because deletions from delete files has been eliminated.
+      return resultBuilder
+          .addDataFilesToAdd(writer.dataFiles())
+          .build();
     } catch (Throwable originalThrowable) {
       try {
         LOG.error("Aborting task", originalThrowable);
