@@ -33,7 +33,7 @@ import org.apache.iceberg.rest.RESTResponse;
  * <p>
  * The catalog properties, with overrides and defaults applied, should be used to configure the catalog and for all
  * subsequent requests after this initial config request.
- * <p>
+ * </p>
  * Configuration from the server consists of two sets of key/value pairs.
  * <ul>
  *   <li> defaults - properties that should be used as default configuration </li>

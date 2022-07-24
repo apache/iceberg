@@ -34,6 +34,7 @@ import org.apache.iceberg.rest.RESTResponse;
  * of its metadata, to reduce code duplication. This includes using this class as the response for
  * {@link org.apache.iceberg.rest.requests.CreateTableRequest}, including when that request is used to commit
  * an already staged table creation as part of a transaction.
+ * </p>
  */
 public class LoadTableResponse implements RESTResponse {
 
