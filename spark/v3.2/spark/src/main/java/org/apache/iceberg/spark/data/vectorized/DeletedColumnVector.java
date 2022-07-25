@@ -19,78 +19,105 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
-import org.apache.iceberg.arrow.vectorized.VectorHolder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
+import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class ColumnVectorWithFilter extends IcebergArrowColumnVector {
-  private final int[] rowIdMapping;
+public class DeletedColumnVector extends ColumnVector {
+  private final boolean[] isDeleted;
 
-  public ColumnVectorWithFilter(VectorHolder holder, int[] rowIdMapping) {
-    super(holder);
-    this.rowIdMapping = rowIdMapping;
+  public DeletedColumnVector(Type type, boolean[] isDeleted) {
+    super(SparkSchemaUtil.convert(type));
+    Preconditions.checkArgument(isDeleted != null, "Boolean array isDeleted cannot be null");
+    this.isDeleted = isDeleted;
+  }
+
+  @Override
+  public void close() {
+  }
+
+  @Override
+  public boolean hasNull() {
+    return false;
+  }
+
+  @Override
+  public int numNulls() {
+    return 0;
   }
 
   @Override
   public boolean isNullAt(int rowId) {
-    return nullabilityHolder().isNullAt(rowIdMapping[rowId]) == 1;
+    return false;
   }
 
   @Override
   public boolean getBoolean(int rowId) {
-    return accessor().getBoolean(rowIdMapping[rowId]);
+    return isDeleted[rowId];
+  }
+
+  @Override
+  public byte getByte(int rowId) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public short getShort(int rowId) {
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public int getInt(int rowId) {
-    return accessor().getInt(rowIdMapping[rowId]);
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public long getLong(int rowId) {
-    return accessor().getLong(rowIdMapping[rowId]);
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public float getFloat(int rowId) {
-    return accessor().getFloat(rowIdMapping[rowId]);
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public double getDouble(int rowId) {
-    return accessor().getDouble(rowIdMapping[rowId]);
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public ColumnarArray getArray(int rowId) {
-    if (isNullAt(rowId)) {
-      return null;
-    }
-    return accessor().getArray(rowIdMapping[rowId]);
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public ColumnarMap getMap(int ordinal) {
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public Decimal getDecimal(int rowId, int precision, int scale) {
-    if (isNullAt(rowId)) {
-      return null;
-    }
-    return accessor().getDecimal(rowIdMapping[rowId], precision, scale);
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public UTF8String getUTF8String(int rowId) {
-    if (isNullAt(rowId)) {
-      return null;
-    }
-    return accessor().getUTF8String(rowIdMapping[rowId]);
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public byte[] getBinary(int rowId) {
-    if (isNullAt(rowId)) {
-      return null;
-    }
-    return accessor().getBinary(rowIdMapping[rowId]);
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public ColumnVector getChild(int ordinal) {
+    throw new UnsupportedOperationException();
   }
 }

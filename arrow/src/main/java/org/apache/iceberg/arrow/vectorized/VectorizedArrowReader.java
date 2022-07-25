@@ -517,5 +517,32 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
   }
 
+  /**
+   * A Dummy Vector Reader which doesn't actually read files. Instead, it returns a
+   * Deleted Vector Holder which indicates whether a given row is deleted.
+   */
+  public static class DeletedVectorReader extends VectorizedArrowReader {
+    public DeletedVectorReader() {
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      return VectorHolder.deletedVectorHolder(numValsToRead);
+    }
+
+    @Override
+    public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
+    }
+
+    @Override
+    public String toString() {
+      return "DeletedVectorReader";
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+    }
+  }
+
 }
 

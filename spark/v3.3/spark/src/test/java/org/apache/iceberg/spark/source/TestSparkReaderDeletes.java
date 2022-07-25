@@ -65,7 +65,6 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.jetbrains.annotations.NotNull;
 import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -277,8 +276,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testPosDeletesWithDeletedColumn() throws IOException {
-    Assume.assumeFalse(vectorized);
-
     // read.parquet.vectorization.batch-size is set to 4, so the 4 rows in the first batch are all deleted.
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 0L), // id = 29
@@ -303,8 +300,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testEqualityDeleteWithDeletedColumn() throws IOException {
-    Assume.assumeFalse(vectorized);
-
     String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
@@ -329,8 +324,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testMixedPosAndEqDeletesWithDeletedColumn() throws IOException {
-    Assume.assumeFalse(vectorized);
-
     Schema dataSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(dataSchema);
     List<Record> dataDeletes = Lists.newArrayList(
@@ -364,8 +357,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testFilterOnDeletedMetadataColumn() throws IOException {
-    Assume.assumeFalse(vectorized);
-
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 0L), // id = 29
         Pair.of(dataFile.path(), 1L), // id = 43
@@ -419,8 +410,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testIsDeletedColumnWithoutDeleteFile() {
-    Assume.assumeFalse(vectorized);
-
     StructLikeSet expected = expectedRowSet();
     StructLikeSet actual = rowSet(tableName, PROJECTION_SCHEMA.asStruct(), "id", "data", "_deleted");
     Assert.assertEquals("Table should contain expected row", expected, actual);

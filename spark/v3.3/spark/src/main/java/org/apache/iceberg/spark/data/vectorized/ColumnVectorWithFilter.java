@@ -20,10 +20,7 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
-import org.apache.iceberg.arrow.vectorized.VectorHolder.ConstantVectorHolder;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.Decimal;
-import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -95,11 +92,5 @@ public class ColumnVectorWithFilter extends IcebergArrowColumnVector {
       return null;
     }
     return accessor().getBinary(rowIdMapping[rowId]);
-  }
-
-  public static ColumnVector forHolder(VectorHolder holder, int[] rowIdMapping, int numRows) {
-    return holder.isDummy() ?
-        new ConstantColumnVector(Types.IntegerType.get(), numRows, ((ConstantVectorHolder) holder).getConstant()) :
-        new ColumnVectorWithFilter(holder, rowIdMapping);
   }
 }
