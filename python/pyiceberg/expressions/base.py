@@ -158,7 +158,7 @@ class Reference(UnboundTerm[T], BaseReference[T]):
         Returns:
             BoundReference: A reference bound to the specific field in the Iceberg schema
         """
-        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)  # pylint: disable=W0621
+        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)  # pylint: disable=redefined-outer-name
 
         if not field:
             raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
