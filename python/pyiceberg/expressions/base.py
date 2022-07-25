@@ -172,9 +172,12 @@ class Reference(UnboundTerm[T], BaseReference[T]):
 
 
 class BoundPredicate(Bound[T], BooleanExpression):
+    _term: BoundTerm[T]
+    _literals: tuple[Literal[T]]
+
     def __init__(self, term: BoundTerm[T], literals: tuple[Literal[T], ...] | Literal[T] | None = None):
         self._term = term
-        self._literals = literals if isinstance(literals, tuple) else (literals and (literals,))
+        self._literals = literals if isinstance(literals, tuple) else (literals and (literals,))  # type: ignore
         self._validate_literals()
 
     def _validate_literals(self):
@@ -202,9 +205,12 @@ class BoundPredicate(Bound[T], BooleanExpression):
 
 
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
+    _term: UnboundTerm[T]
+    _literals: tuple[Literal[T]]
+
     def __init__(self, term: UnboundTerm[T], literals: tuple[Literal[T], ...] | Literal[T] | None = None):
         self._term = term
-        self._literals = literals if isinstance(literals, tuple) else (literals and (literals,))
+        self._literals = literals if isinstance(literals, tuple) else (literals and (literals,))  # type: ignore
         self._validate_literals()
 
     def _validate_literals(self):
