@@ -156,11 +156,7 @@ class ManifestGroup {
    * @return a {@link CloseableIterable} of {@link FileScanTask}
    */
   public CloseableIterable<FileScanTask> planFiles() {
-    return plan((entries, ctx) -> CloseableIterable.transform(entries, entry -> {
-      DataFile dataFile = entry.file().copy(ctx.shouldKeepStats());
-      DeleteFile[] deleteFiles = ctx.deletes().forEntry(entry);
-      return new BaseFileScanTask(dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
-    }));
+    return plan(ManifestGroup::createFileScanTasks);
   }
 
   public <T extends ScanTask> CloseableIterable<T> plan(CreateTasksFunction<T> createTasksFunc) {
@@ -288,6 +284,15 @@ class ManifestGroup {
             }
           }
         });
+  }
+
+  private static CloseableIterable<FileScanTask> createFileScanTasks(CloseableIterable<ManifestEntry<DataFile>> entries,
+                                                                     TaskContext ctx) {
+    return CloseableIterable.transform(entries, entry -> {
+      DataFile dataFile = entry.file().copy(ctx.shouldKeepStats());
+      DeleteFile[] deleteFiles = ctx.deletes().forEntry(entry);
+      return new BaseFileScanTask(dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
+    });
   }
 
   @FunctionalInterface
