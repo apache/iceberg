@@ -33,7 +33,6 @@ import java.nio.file.Files;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -104,7 +103,6 @@ class S3OutputStream extends PositionOutputStream {
 
   private long pos = 0;
   private boolean closed = false;
-  private CloseFailureState closeFailureState;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
   S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics)
@@ -242,25 +240,6 @@ class S3OutputStream extends PositionOutputStream {
 
   @Override
   public void close() throws IOException {
-
-    /**
-     * As calls to close() are used to mark a stream as completed and add the file
-     * to the completed data files in BaseTaskWriter, we cannot just return if this
-     * was already closed with failure to upload.
-     *
-     * As close 'completes' the upload and staging files are cleanup, any failure to
-     * upload should be persisted and thrown back to the caller to make sure
-     * the underlying file represented by this stream is not used in the completedDataFiles
-     * of a manifest.
-     * see: https://github.com/apache/iceberg/issues/5310
-      */
-    if (closeFailureState != null) {
-      throw new IllegalStateException(
-          "close called on a closed stream which failed to close completely earlier at: " +
-              closeFailureState.getFailureAt(),
-          closeFailureState.getFailure());
-    }
-
     if (closed) {
       return;
     }
@@ -270,10 +249,8 @@ class S3OutputStream extends PositionOutputStream {
 
     try {
       stream.close();
+
       completeUploads();
-    } catch (Exception e) {
-      closeFailureState = new CloseFailureState(e);
-      throw e;
     } finally {
       cleanUpStagingFiles();
     }
@@ -478,24 +455,6 @@ class S3OutputStream extends PositionOutputStream {
 
     public boolean hasDigest() {
       return digest != null;
-    }
-  }
-
-  private static class CloseFailureState {
-    private long failureAt;
-    private Throwable failure;
-
-    CloseFailureState(Throwable failure) {
-      this.failureAt = System.currentTimeMillis();
-      this.failure = failure;
-    }
-
-    Instant getFailureAt() {
-      return Instant.ofEpochMilli(failureAt);
-    }
-
-    Throwable getFailure() {
-      return failure;
     }
   }
 }
