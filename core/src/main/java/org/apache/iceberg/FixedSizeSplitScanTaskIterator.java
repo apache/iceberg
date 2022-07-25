@@ -19,27 +19,26 @@
 
 package org.apache.iceberg;
 
-import java.util.Iterator;
-
 /**
  * An iterator that splits tasks using a fixed target split size.
  *
  * @param <T> the Java type of tasks produced by this iterator
  */
-abstract class FixedSizeSplitScanTaskIterator<T extends ScanTask> implements Iterator<T> {
+class FixedSizeSplitScanTaskIterator<T extends ScanTask> implements SplitScanTaskIterator<T> {
   private final T parentTask;
   private final long splitSize;
+  private final CreateSplitTaskFunction<T> createSplitTaskFunc;
   private long offset;
   private long remainingLength;
 
-  FixedSizeSplitScanTaskIterator(T parentTask, long parentTaskLength, long splitSize) {
+  FixedSizeSplitScanTaskIterator(T parentTask, long parentTaskLength, long splitSize,
+                                 CreateSplitTaskFunction<T> createSplitTaskFunc) {
     this.parentTask = parentTask;
     this.splitSize = splitSize;
+    this.createSplitTaskFunc = createSplitTaskFunc;
     this.offset = 0;
     this.remainingLength = parentTaskLength;
   }
-
-  protected abstract T newSplitTask(T parent, long splitTaskOffset, long splitTaskLength);
 
   @Override
   public boolean hasNext() {
@@ -49,7 +48,7 @@ abstract class FixedSizeSplitScanTaskIterator<T extends ScanTask> implements Ite
   @Override
   public T next() {
     long length = Math.min(splitSize, remainingLength);
-    T splitTask = newSplitTask(parentTask, offset, length);
+    T splitTask = createSplitTaskFunc.apply(parentTask, offset, length);
     offset += length;
     remainingLength -= length;
     return splitTask;

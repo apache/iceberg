@@ -44,6 +44,11 @@ class BaseDeletedRowsScanTask
   }
 
   @Override
+  protected DeletedRowsScanTask newSplitTask(DeletedRowsScanTask parentTask, long offset, long length) {
+    return new SplitDeletedRowsScanTask(parentTask, offset, length);
+  }
+
+  @Override
   public List<DeleteFile> addedDeletes() {
     return ImmutableList.copyOf(addedDeletes);
   }
@@ -53,21 +58,11 @@ class BaseDeletedRowsScanTask
     return ImmutableList.copyOf(existingDeletes);
   }
 
-  @Override
-  protected Iterable<DeletedRowsScanTask> splitUsingOffsets(List<Long> offsets) {
-    return () -> new OffsetsAwareSplitScanTaskIteratorImpl(this, offsets);
-  }
-
-  @Override
-  protected Iterable<DeletedRowsScanTask> splitUsingFixedSize(long targetSplitSize) {
-    return () -> new FixedSizeSplitScanTaskIteratorImpl(this, targetSplitSize);
-  }
-
-  private static class SplitScanTaskImpl
-      extends SplitScanTask<SplitScanTaskImpl, DeletedRowsScanTask, DataFile>
+  private static class SplitDeletedRowsScanTask
+      extends SplitScanTask<SplitDeletedRowsScanTask, DeletedRowsScanTask, DataFile>
       implements DeletedRowsScanTask {
 
-    SplitScanTaskImpl(DeletedRowsScanTask parentTask, long offset, long length) {
+    SplitDeletedRowsScanTask(DeletedRowsScanTask parentTask, long offset, long length) {
       super(parentTask, offset, length);
     }
 
@@ -82,35 +77,9 @@ class BaseDeletedRowsScanTask
     }
 
     @Override
-    public SplitScanTaskImpl merge(ScanTask other) {
-      SplitScanTaskImpl that = (SplitScanTaskImpl) other;
-      return new SplitScanTaskImpl(parentTask(), start(), length() + that.length());
-    }
-  }
-
-  private static class OffsetsAwareSplitScanTaskIteratorImpl
-      extends OffsetsAwareSplitScanTaskIterator<DeletedRowsScanTask> {
-
-    OffsetsAwareSplitScanTaskIteratorImpl(DeletedRowsScanTask parentTask, List<Long> offsets) {
-      super(parentTask, parentTask.length(), offsets);
-    }
-
-    @Override
-    protected DeletedRowsScanTask newSplitTask(DeletedRowsScanTask parentTask, long offset, long length) {
-      return new SplitScanTaskImpl(parentTask, offset, length);
-    }
-  }
-
-  private static class FixedSizeSplitScanTaskIteratorImpl
-      extends FixedSizeSplitScanTaskIterator<DeletedRowsScanTask> {
-
-    FixedSizeSplitScanTaskIteratorImpl(DeletedRowsScanTask parentTask, long splitSize) {
-      super(parentTask, parentTask.length(), splitSize);
-    }
-
-    @Override
-    protected DeletedRowsScanTask newSplitTask(DeletedRowsScanTask parentTask, long offset, long length) {
-      return new SplitScanTaskImpl(parentTask, offset, length);
+    public SplitDeletedRowsScanTask merge(ScanTask other) {
+      SplitDeletedRowsScanTask that = (SplitDeletedRowsScanTask) other;
+      return new SplitDeletedRowsScanTask(parentTask(), start(), length() + that.length());
     }
   }
 }

@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile> implements FileScanTask {
@@ -40,42 +39,13 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
   }
 
   @Override
+  protected FileScanTask newSplitTask(FileScanTask parentTask, long offset, long length) {
+    return new SplitScanTask(offset, length, parentTask);
+  }
+
+  @Override
   public List<DeleteFile> deletes() {
     return ImmutableList.copyOf(deletes);
-  }
-
-  @Override
-  protected Iterable<FileScanTask> splitUsingOffsets(List<Long> offsets) {
-    return () -> new OffsetsAwareSplitScanTaskIteratorImpl(this, offsets);
-  }
-
-  @Override
-  protected Iterable<FileScanTask> splitUsingFixedSize(long targetSplitSize) {
-    return () -> new FixedSizeSplitScanTaskIteratorImpl(this, targetSplitSize);
-  }
-
-  @VisibleForTesting
-  static class OffsetsAwareSplitScanTaskIteratorImpl extends OffsetsAwareSplitScanTaskIterator<FileScanTask> {
-    OffsetsAwareSplitScanTaskIteratorImpl(FileScanTask parentTask, List<Long> offsets) {
-      super(parentTask, parentTask.length(), offsets);
-    }
-
-    @Override
-    protected FileScanTask newSplitTask(FileScanTask parentTask, long offset, long length) {
-      return new SplitScanTask(offset, length, parentTask);
-    }
-  }
-
-  @VisibleForTesting
-  static class FixedSizeSplitScanTaskIteratorImpl extends FixedSizeSplitScanTaskIterator<FileScanTask> {
-    FixedSizeSplitScanTaskIteratorImpl(FileScanTask parentTask, long splitSize) {
-      super(parentTask, parentTask.length(), splitSize);
-    }
-
-    @Override
-    protected FileScanTask newSplitTask(FileScanTask parentTask, long offset, long length) {
-      return new SplitScanTask(offset, length, parentTask);
-    }
   }
 
   private static final class SplitScanTask implements FileScanTask, MergeableScanTask<SplitScanTask> {

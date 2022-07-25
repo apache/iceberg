@@ -19,14 +19,16 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Ordering;
 
-abstract class BaseContentScanTask<ThisT, F extends ContentFile<F>>
+abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends ContentFile<F>>
     implements ContentScanTask<F>, SplittableScanTask<ThisT> {
+
+  private static final Ordering<Comparable<Long>> OFFSET_ORDERING = Ordering.natural();
 
   private final F file;
   private final String schemaString;
@@ -44,9 +46,7 @@ abstract class BaseContentScanTask<ThisT, F extends ContentFile<F>>
 
   protected abstract ThisT self();
 
-  protected abstract Iterable<ThisT> splitUsingOffsets(List<Long> offsets);
-
-  protected abstract Iterable<ThisT> splitUsingFixedSize(long targetSplitSize);
+  protected abstract ThisT newSplitTask(ThisT parentTask, long offset, long length);
 
   @Override
   public F file() {
@@ -83,10 +83,10 @@ abstract class BaseContentScanTask<ThisT, F extends ContentFile<F>>
   @Override
   public Iterable<ThisT> split(long targetSplitSize) {
     if (file.format().isSplittable()) {
-      if (file.splitOffsets() != null) {
-        return splitUsingOffsets(file.splitOffsets());
+      if (file.splitOffsets() != null && OFFSET_ORDERING.isOrdered(file.splitOffsets())) {
+        return () -> new OffsetsAwareSplitScanTaskIterator<>(self(), length(), file.splitOffsets(), this::newSplitTask);
       } else {
-        return splitUsingFixedSize(targetSplitSize);
+        return () -> new FixedSizeSplitScanTaskIterator<>(self(), length(), targetSplitSize, this::newSplitTask);
       }
     }
 

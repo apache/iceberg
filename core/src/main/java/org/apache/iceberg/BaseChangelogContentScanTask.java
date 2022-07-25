@@ -23,7 +23,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-abstract class BaseChangelogContentScanTask<ThisT, F extends ContentFile<F>>
+abstract class BaseChangelogContentScanTask
+    <ThisT extends ContentScanTask<F> & ChangelogScanTask, F extends ContentFile<F>>
     extends BaseContentScanTask<ThisT, F>
     implements ChangelogScanTask {
 
@@ -58,20 +59,21 @@ abstract class BaseChangelogContentScanTask<ThisT, F extends ContentFile<F>>
         .toString();
   }
 
-  abstract static class SplitScanTask<ThisT, T extends ContentScanTask<F> & ChangelogScanTask, F extends ContentFile<F>>
+  abstract static class SplitScanTask
+      <ThisT, ParentT extends ContentScanTask<F> & ChangelogScanTask, F extends ContentFile<F>>
       implements ContentScanTask<F>, ChangelogScanTask, MergeableScanTask<ThisT> {
 
-    private final T parentTask;
+    private final ParentT parentTask;
     private final long offset;
     private final long length;
 
-    protected SplitScanTask(T parentTask, long offset, long length) {
+    protected SplitScanTask(ParentT parentTask, long offset, long length) {
       this.parentTask = parentTask;
       this.offset = offset;
       this.length = length;
     }
 
-    protected T parentTask() {
+    protected ParentT parentTask() {
       return parentTask;
     }
 

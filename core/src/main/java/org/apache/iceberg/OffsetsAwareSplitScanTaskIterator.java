@@ -19,25 +19,33 @@
 
 package org.apache.iceberg;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Ordering;
 
 /**
  * An iterator that splits tasks using split offsets such as row group offsets in Parquet.
  *
  * @param <T> the Java type of tasks produced by this iterator
  */
-abstract class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements Iterator<T> {
+class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScanTaskIterator<T> {
+  private static final Ordering<Comparable<Long>> OFFSET_ORDERING = Ordering.natural();
+
   private final T parentTask;
+  private final CreateSplitTaskFunction<T> createSplitTaskFunc;
   private final List<Long> offsets;
   private final List<Long> splitSizes;
-  private int sizeIdx = 0;
+  private int sizeIndex = 0;
 
-  OffsetsAwareSplitScanTaskIterator(T parentTask, long parentTaskLength, List<Long> offsetList) {
+  OffsetsAwareSplitScanTaskIterator(T parentTask, long parentTaskLength, List<Long> offsetList,
+                                    CreateSplitTaskFunction<T> createSplitTaskFunc) {
+    Preconditions.checkArgument(OFFSET_ORDERING.isStrictlyOrdered(offsetList), "Offsets must be sorted in asc order");
+
     this.parentTask = parentTask;
+    this.createSplitTaskFunc = createSplitTaskFunc;
     this.offsets = ImmutableList.copyOf(offsetList);
     this.splitSizes = Lists.newArrayListWithCapacity(offsets.size());
     if (offsets.size() > 0) {
@@ -49,11 +57,9 @@ abstract class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements 
     }
   }
 
-  protected abstract T newSplitTask(T parent, long splitTaskOffset, long splitTaskLength);
-
   @Override
   public boolean hasNext() {
-    return sizeIdx < splitSizes.size();
+    return sizeIndex < splitSizes.size();
   }
 
   @Override
@@ -61,9 +67,9 @@ abstract class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements 
     if (!hasNext()) {
       throw new NoSuchElementException();
     }
-    int offsetIdx = sizeIdx;
-    long currentSize = splitSizes.get(sizeIdx);
-    sizeIdx += 1; // create 1 split per offset
-    return newSplitTask(parentTask, offsets.get(offsetIdx), currentSize);
+    long offset = offsets.get(sizeIndex);
+    long splitSize = splitSizes.get(sizeIndex);
+    sizeIndex += 1; // create 1 split per offset
+    return createSplitTaskFunc.apply(parentTask, offset, splitSize);
   }
 }
