@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile> implements FileScanTask {
@@ -48,7 +49,8 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     return ImmutableList.copyOf(deletes);
   }
 
-  private static final class SplitScanTask implements FileScanTask, MergeableScanTask<SplitScanTask> {
+  @VisibleForTesting
+  static final class SplitScanTask implements FileScanTask, MergeableScanTask<SplitScanTask> {
     private final long len;
     private final long offset;
     private final FileScanTask fileScanTask;
