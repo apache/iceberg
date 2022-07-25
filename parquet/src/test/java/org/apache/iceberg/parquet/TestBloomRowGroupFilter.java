@@ -22,7 +22,6 @@ package org.apache.iceberg.parquet;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
@@ -168,12 +167,12 @@ public class TestBloomRowGroupFilter {
 
   static {
     RANDOM_UUIDS = Lists.newArrayList();
+    Random rd = new Random(12345);
     for (int i = 0; i < INT_VALUE_COUNT; i += 1) {
-      RANDOM_UUIDS.add(UUID.randomUUID());
+      RANDOM_UUIDS.add(new UUID(rd.nextLong(), rd.nextLong()));
     }
 
     RANDOM_BYTES = Lists.newArrayList();
-    Random rd = new Random();
     for (int i = 1; i <= INT_VALUE_COUNT; i += 1) {
       byte[] byteArray = new byte[i];
       rd.nextBytes(byteArray);
@@ -460,7 +459,7 @@ public class TestBloomRowGroupFilter {
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     Assert.assertTrue("Should read: and(true, true, true)", shouldRead);
 
-     // AND filters that refer different columns ("id", "long", "binary")
+    // AND filters that refer different columns ("id", "long", "binary")
     shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, and(equal("id", INT_MIN_VALUE - 25),
         equal("long", LONG_BASE + 30), equal("binary", RANDOM_BYTES.get(30))))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
@@ -547,50 +546,28 @@ public class TestBloomRowGroupFilter {
 
   @Test
   public void testIntegerEq() {
-    for (int i = INT_MIN_VALUE; i <= INT_MAX_VALUE; i++) {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("id", i))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: integer within range", shouldRead);
-    }
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      int random = rd.nextInt();
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("id", random))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
+      if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
+        Assert.assertTrue("Should read: integer within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: integer outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
   public void testLongEq() {
-    for (int i = INT_MIN_VALUE; i <= INT_MAX_VALUE; i++) {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("long", LONG_BASE + i))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: long within range", shouldRead);
-    }
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      long random = rd.nextLong();
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("long", random))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
+      if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
+        Assert.assertTrue("Should read: long within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: long outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
@@ -601,21 +578,14 @@ public class TestBloomRowGroupFilter {
       Assert.assertTrue("Should read: binary within range", shouldRead);
     }
 
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 1; i <= 1000; i += 1) {
+    Random rd = new Random(54321);
+    for (int i = 1; i <= 10; i += 1) {
       byte[] byteArray = new byte[i];
       rd.nextBytes(byteArray);
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("binary", byteArray))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
-      }
+      Assert.assertFalse("Should not read: cannot match a new generated binary", shouldRead);
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
@@ -627,20 +597,10 @@ public class TestBloomRowGroupFilter {
       Assert.assertTrue("Should read: decimal within range", shouldRead);
     }
 
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      BigDecimal random = new BigDecimal(BigInteger.valueOf(rd.nextInt(1000000)), 2);
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("int_decimal", random))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
-      }
-    }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
+    boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA,
+        equal("int_decimal", new BigDecimal("1234.56")))
+        .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+    Assert.assertFalse("Should not read: decimal outside range", shouldRead);
   }
 
   @Test
@@ -652,20 +612,10 @@ public class TestBloomRowGroupFilter {
       Assert.assertTrue("Should read: decimal within range", shouldRead);
     }
 
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      BigDecimal random = new BigDecimal(BigInteger.valueOf(rd.nextInt()), 2);
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("long_decimal", random))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
-      }
-    }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
+    boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA,
+        equal("long_decimal", new BigDecimal("1234.56")))
+        .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+    Assert.assertFalse("Should not read: decimal outside range", shouldRead);
   }
 
   @Test
@@ -677,90 +627,49 @@ public class TestBloomRowGroupFilter {
       Assert.assertTrue("Should read: decimal within range", shouldRead);
     }
 
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      BigDecimal random = new BigDecimal(BigInteger.valueOf(rd.nextInt()), 2);
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("fixed_decimal", random))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
-      }
-    }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
+    boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA,
+        equal("fixed_decimal", new BigDecimal("1234.56")))
+        .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+    Assert.assertFalse("Should not read: decimal outside range", shouldRead);
   }
 
   @Test
   public void testDoubleEq() {
-    for (int i = INT_MIN_VALUE; i <= INT_MAX_VALUE; i++) {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("double", DOUBLE_BASE + i))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: double within range", shouldRead);
-    }
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      double random = rd.nextDouble();
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("double", random))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
+      if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
+        Assert.assertTrue("Should read: double within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: double outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
   public void testFloatEq() {
-    for (int i = INT_MIN_VALUE; i <= INT_MAX_VALUE; i++) {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("float", FLOAT_BASE + i))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: float within range", shouldRead);
-    }
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      float random = rd.nextFloat();
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("float", random))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
+      if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
+        Assert.assertTrue("Should read: float within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: float outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
   public void testStringEq() {
-    for (int i = INT_MIN_VALUE; i <= INT_MAX_VALUE; i++) {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("string", BINARY_PREFIX + i))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: string within range", shouldRead);
-    }
-
-    int falsePositiveCount = 0;
-    for (int i = 1; i <= 1000; i += 1) {
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("string",
-          "test string " + i)).shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
+      if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
+        Assert.assertTrue("Should read: string within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: string outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
@@ -771,18 +680,11 @@ public class TestBloomRowGroupFilter {
       Assert.assertTrue("Should read: uuid within range", shouldRead);
     }
 
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("uuid", UUID.randomUUID().toString()))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
-      }
-    }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
+    Random rd = new Random(1357);
+    boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA,
+        equal("uuid", new UUID(rd.nextLong(), rd.nextLong()).toString()))
+        .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+    Assert.assertFalse("Should not read: cannot match a new generated random uuid", shouldRead);
   }
 
   @Test
@@ -798,102 +700,58 @@ public class TestBloomRowGroupFilter {
 
   @Test
   public void testTimeEq() {
-    for (int i = 0; i < INT_VALUE_COUNT; i++) {
+    for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
       Instant ins = instant.plusSeconds(i * 86400);
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("time", ins.toEpochMilli()))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: time within range", shouldRead);
-    }
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      Instant ins = instant.plusSeconds((rd.nextInt(10000) + INT_VALUE_COUNT) * 86400);
-      boolean read = new ParquetBloomRowGroupFilter(SCHEMA, equal("time", ins.toEpochMilli()))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (read) {
-        falsePositiveCount++;
+      if (i >= 0 && i < INT_VALUE_COUNT) {
+        Assert.assertTrue("Should read: time within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: time outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
   public void testDateEq() {
-    for (int i = 0; i < INT_VALUE_COUNT; i++) {
+    for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
       Instant ins = instant.plusSeconds(i * 86400);
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("date", ins.getEpochSecond()))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: date within range", shouldRead);
-    }
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      Instant ins = instant.plusSeconds((rd.nextInt(10000) + INT_VALUE_COUNT) * 86400);
-      boolean read = new ParquetBloomRowGroupFilter(SCHEMA, equal("date", ins.getEpochSecond()))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (read) {
-        falsePositiveCount++;
+      if (i >= 0 && i < INT_VALUE_COUNT) {
+        Assert.assertTrue("Should read: date within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: date outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
   public void testTimestampEq() {
-    for (int i = 0; i < INT_VALUE_COUNT; i++) {
+    for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
       Instant ins = instant.plusSeconds(i * 86400);
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamp", ins.toEpochMilli()))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: timestamp within range", shouldRead);
-    }
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      Instant ins = instant.plusSeconds((rd.nextInt(10000) + INT_VALUE_COUNT) * 86400);
-      boolean read = new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamp", ins.toEpochMilli()))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (read) {
-        falsePositiveCount++;
+      if (i >= 0 && i < INT_VALUE_COUNT) {
+        Assert.assertTrue("Should read: timestamp within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: timestamp outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
   public void testTimestamptzEq() {
-    for (int i = 0; i < INT_VALUE_COUNT; i++) {
+    for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
       Instant ins = instant.plusSeconds(i * 86400);
       boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamptz", ins.toEpochMilli()))
           .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      Assert.assertTrue("Should read: timestamptz within range", shouldRead);
-    }
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      Instant ins = instant.plusSeconds((rd.nextInt(10000) + INT_VALUE_COUNT) * 86400);
-      boolean read = new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamptz", ins.toEpochMilli()))
-          .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (read) {
-        falsePositiveCount++;
+      if (i >= 0 && i < INT_VALUE_COUNT) {
+        Assert.assertTrue("Should read: timestamptz within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: timestamptz outside range", shouldRead);
       }
     }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
@@ -1041,23 +899,6 @@ public class TestBloomRowGroupFilter {
         in("id", IntStream.range(INT_MIN_VALUE - 10, INT_MIN_VALUE - 1).boxed().collect(Collectors.toList()))
     ).shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     Assert.assertFalse("Should not read: value outside range", shouldRead);
-
-    Random rd = new Random();
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      int random = rd.nextInt(1000);
-      shouldRead = new ParquetBloomRowGroupFilter(
-          SCHEMA,
-          in("id", INT_MIN_VALUE - random * i, INT_MIN_VALUE - random * 2 * i, INT_MAX_VALUE + random * i)
-      ).shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
-      }
-    }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
@@ -1074,24 +915,13 @@ public class TestBloomRowGroupFilter {
         .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     Assert.assertFalse("Should not read: some_nulls values are not within the set", shouldRead);
 
+    shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, in("no_nulls", "aaa", "bbb"))
+        .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+    Assert.assertFalse("Should not read: in on no nulls column (empty string is not within the set)", shouldRead);
+
     shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, in("no_nulls", "aaa", ""))
         .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     Assert.assertTrue("Should read: in on no nulls column (empty string is within the set)", shouldRead);
-
-    int falsePositiveCount = 0;
-    for (int i = 0; i < 1000; i += 1) {
-      shouldRead = new ParquetBloomRowGroupFilter(
-          SCHEMA,
-          in("no_nulls", "test" + i, "abc" + i)
-      ).shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
-      if (shouldRead) {
-        falsePositiveCount++;
-      }
-    }
-
-    // The falsePositiveCount should be less than 1000 * 0.01, in which 0.01 is the default fpp.
-    // Add 10 for some error margin.
-    Assert.assertTrue(falsePositiveCount <= 20);
   }
 
   @Test
