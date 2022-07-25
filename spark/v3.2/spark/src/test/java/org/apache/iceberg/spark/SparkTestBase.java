@@ -39,6 +39,7 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -54,6 +55,7 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 public abstract class SparkTestBase {
 
   protected static final Object ANY = new Object();
+  protected static final List<String> FORMATS = Lists.newArrayList("orc", "parquet", "avro");
 
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;

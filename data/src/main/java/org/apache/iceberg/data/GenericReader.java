@@ -125,7 +125,7 @@ class GenericReader implements Serializable {
 
       case ORC:
         Schema projectionWithoutConstantAndMetadataFields = TypeUtil.selectNot(fileProjection,
-            Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
+            Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()), true);
         ORC.ReadBuilder orc = ORC.read(input)
             .project(projectionWithoutConstantAndMetadataFields)
             .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(fileProjection, fileSchema, partition))
