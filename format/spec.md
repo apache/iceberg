@@ -865,7 +865,7 @@ Note that the string map case is for maps where the key type is a string. Using 
 
 Values should be stored in Parquet using the types and logical type annotations in the table below. Column IDs are required.
 
-Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes#lists).
+Lists must use the [3-level representation](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#lists).
 
 | Type               | Parquet physical type                                              | Logical type                                | Notes                                                          |
 |--------------------|--------------------------------------------------------------------|---------------------------------------------|----------------------------------------------------------------|
