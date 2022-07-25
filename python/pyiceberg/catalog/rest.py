@@ -14,6 +14,7 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
+from json import JSONDecodeError
 from typing import (
     Dict,
     List,
@@ -28,6 +29,7 @@ import requests
 from pydantic import Field
 from requests import HTTPError
 
+from pyiceberg import __version__
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
 from pyiceberg.exceptions import (
@@ -35,12 +37,11 @@ from pyiceberg.exceptions import (
     BadCredentialsError,
     BadRequestError,
     NoSuchNamespaceError,
-    NoSuchTableError,
     RESTError,
     ServerError,
     ServiceUnavailableError,
     TableAlreadyExistsError,
-    UnauthorizedError,
+    UnauthorizedError, ForbiddenError, AuthorizationExpiredError,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
@@ -143,14 +144,14 @@ class ErrorResponse(IcebergBaseModel):
 
 class RestCatalog(Catalog):
     token: TokenResponse
-    config: ConfigResponse
+    config: Properties
 
     host: str
 
     def __init__(self, name: str, properties: Properties, host: str, token: str):
         self.host = host
         self.token = self._fetch_access_token(token)
-        self.config = self._fetch_config()
+        self.config = self._fetch_config(properties)
         super().__init__(name, properties)
 
     def _split_token(self, token: str) -> Tuple[str, str]:
@@ -167,7 +168,11 @@ class RestCatalog(Catalog):
 
     @property
     def headers(self) -> Properties:
-        return {AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}", "Content-type": "application/json"}
+        return {
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}",
+            "Content-type": "application/json",
+            "X-Client-Version": __version__,
+        }
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
         """Constructs the endpoint
@@ -180,10 +185,10 @@ class RestCatalog(Catalog):
         """
 
         url = self.host
-        url = url if url.endswith("/") else url + "/"
+        url = url + "v1/" if url.endswith("/") else url + "/v1/"
 
         if prefixed:
-            url += self.config.overrides.get(PREFIX, "")
+            url += self.config.get(PREFIX, "")
             url = url if url.endswith("/") else url + "/"
 
         return url + endpoint.format(**kwargs)
@@ -191,7 +196,9 @@ class RestCatalog(Catalog):
     def _fetch_access_token(self, token: str) -> TokenResponse:
         client, secret = self._split_token(token)
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client, CLIENT_SECRET: secret, SCOPE: CATALOG_SCOPE}
-        response = requests.post(self.url(Endpoints.get_token, prefixed=False), data=data)
+        url = self.url(Endpoints.get_token, prefixed=False)
+        # Uses application/x-www-form-urlencoded by default
+        response = requests.post(url=url, data=data)
         try:
             response.raise_for_status()
         except HTTPError as exc:
@@ -199,23 +206,27 @@ class RestCatalog(Catalog):
 
         return TokenResponse(**response.json())
 
-    def _fetch_config(self) -> ConfigResponse:
+    def _fetch_config(self, properties: Properties) -> Properties:
         response = requests.get(self.url(Endpoints.get_config, prefixed=False), headers=self.headers)
         response.raise_for_status()
-        return ConfigResponse(**response.json())
+        config_response = ConfigResponse(**response.json())
+        config = config_response.defaults
+        config.update(properties)
+        config.update(config_response.overrides)
+        return config
 
-    def _split_namespace_and_table(self, identifier: Union[str, Identifier]) -> Properties:
+    def _split_identifier_for_path(self, identifier: Union[str, Identifier]) -> Properties:
         identifier = self.identifier_to_tuple(identifier)
         return {"namespace": NAMESPACE_SEPARATOR.join(identifier[:-1]), "table": identifier[-1]}
 
-    def _split_namespace_and_name(self, identifier: Union[str, Identifier]) -> Dict[str, Union[Tuple[str, ...], str]]:
+    def _split_identifier_for_json(self, identifier: Union[str, Identifier]) -> Dict[str, Union[Tuple[str, ...], str]]:
         identifier = self.identifier_to_tuple(identifier)
         return {"namespace": identifier[:-1], "name": identifier[-1]}
 
     def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]):
         try:
             response = ErrorResponse(**exc.response.json())
-        except Exception:  # pylint: disable=W0012,W0703
+        except JSONDecodeError:
             # In the case we don't have a proper response
             response = ErrorResponse(
                 error=ErrorResponseMessage(
@@ -227,11 +238,17 @@ class RestCatalog(Catalog):
 
         code = exc.response.status_code
         if code in error_handler:
-            raise error_handler[code](response) from exc
+            raise error_handler[code](response.error.message) from exc
         elif code == 400:
             raise BadRequestError(response.error.message) from exc
         elif code == 401:
             raise UnauthorizedError(response.error.message) from exc
+        elif code == 403:
+            raise ForbiddenError(response.error.message) from exc
+        elif code == 419:
+            raise AuthorizationExpiredError(response.error.message)
+        elif code == 501:
+            raise NotImplementedError(response.error.message)
         elif code == 503:
             raise ServiceUnavailableError(response.error.message) from exc
         elif 500 <= code < 600:
@@ -247,8 +264,8 @@ class RestCatalog(Catalog):
         partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Optional[Properties] = None,
-    ) -> RestTable:
-        namespace_and_table = self._split_namespace_and_table(identifier)
+    ) -> Table:
+        namespace_and_table = self._split_identifier_for_path(identifier)
         properties = properties or {}
         request = CreateTableRequest(
             name=namespace_and_table["table"],
@@ -269,7 +286,7 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {409: TableAlreadyExistsError})
 
-        return RestTable(identifier=identifier, **response.json())
+        return RestTable(identifier=(self.name,) + identifier, **response.json())
 
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace or ""))
@@ -280,47 +297,47 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchTableError})
+            self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
         response = ListTablesResponse(**response.json())
 
-        return [(*entry.namespace, entry.name) for entry in response.identifiers]
+        return [(self.name, *entry.namespace, entry.name) for entry in response.identifiers]
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         response = requests.get(
-            self.url(Endpoints.load_table, prefixed=True, **self._split_namespace_and_table(identifier)), headers=self.headers
+            self.url(Endpoints.load_table, prefixed=True, **self._split_identifier_for_path(identifier)), headers=self.headers
         )
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchTableError})
-        return Table(identifier=identifier, **response.json())
+            self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
+        return Table(identifier=(self.name,) + identifier, **response.json())
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
         response = requests.delete(
-            self.url(Endpoints.drop_table, prefixed=True, purge=purge_requested, **self._split_namespace_and_table(identifier)),
+            self.url(Endpoints.drop_table, prefixed=True, purge=purge_requested, **self._split_identifier_for_path(identifier)),
             headers=self.headers,
         )
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchTableError})
+            self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
-        raise NotImplementedError("Not implemented")
+        self.drop_table(identifier=identifier, purge_requested=True)
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]):
         payload = {
-            "source": self._split_namespace_and_name(from_identifier),
-            "destination": self._split_namespace_and_name(to_identifier),
+            "source": self._split_identifier_for_json(from_identifier),
+            "destination": self._split_identifier_for_json(to_identifier),
         }
         response = requests.post(self.url(Endpoints.rename_table), json=payload, headers=self.headers)
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchTableError, 409: TableAlreadyExistsError})
+            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: TableAlreadyExistsError})
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
-        payload = {"namespace": self.identifier_to_tuple(namespace), "properties": properties}
+        payload = {"namespace": self.identifier_to_tuple(namespace), "properties": properties or {}}
         response = requests.post(self.url(Endpoints.create_namespace), json=payload, headers=self.headers)
         try:
             response.raise_for_status()

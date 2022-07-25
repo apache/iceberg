@@ -16,10 +16,6 @@
 #  under the License.
 
 
-class NoSuchTableError(Exception):
-    """Raised when a referenced table is not found"""
-
-
 class TableAlreadyExistsError(Exception):
     """Raised when creating a table with a name that already exists"""
 
@@ -40,25 +36,33 @@ class ValidationError(Exception):
     """Raises when there is an issue with the schema"""
 
 
-class BadCredentialsError(Exception):
+class RESTError(Exception):
+    """Raises when there is an unknown response from the REST Catalog"""
+
+
+class BadCredentialsError(RESTError):
     """Raises when providing invalid credentials"""
 
 
-class BadRequestError(Exception):
+class BadRequestError(RESTError):
     """Raises when an invalid request is being made"""
 
 
-class UnauthorizedError(Exception):
+class UnauthorizedError(RESTError):
     """Raises when you don't have the proper authorization"""
 
 
-class ServiceUnavailableError(Exception):
+class ServiceUnavailableError(RESTError):
     """Raises when the service doesn't respond"""
 
 
-class ServerError(Exception):
+class ServerError(RESTError):
     """Raises when there is an unhandled exception on the server side"""
 
 
-class RESTError(Exception):
-    """Raises when there is an unknown response from the REST Catalog"""
+class ForbiddenError(RESTError):
+    """Raises when you don't have the credentials to perform the action on the REST catalog"""
+
+
+class AuthorizationExpiredError(RESTError):
+    """When the credentials are expired when performing an action on the REST catalog"""

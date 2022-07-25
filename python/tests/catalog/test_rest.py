@@ -25,7 +25,6 @@ from pyiceberg.exceptions import (
     AlreadyExistsError,
     BadCredentialsError,
     NoSuchNamespaceError,
-    NoSuchTableError,
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
@@ -127,7 +126,7 @@ def test_list_tables_200():
             status_code=200,
         )
 
-        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_tables(namespace) == [("examples", "fooshare")]
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_tables(namespace) == [("rest", "examples", "fooshare")]
 
 
 def test_list_tables_404():
@@ -145,7 +144,7 @@ def test_list_tables_404():
             },
             status_code=404,
         )
-        with pytest.raises(NoSuchTableError) as e:
+        with pytest.raises(NoSuchNamespaceErrorError) as e:
             RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_tables(namespace)
         assert "Namespace does not exist" in str(e.value)
 
@@ -447,14 +446,14 @@ def test_load_table_404():
             json={
                 "error": {
                     "message": "Table does not exist: examples.does_not_exists in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
-                    "type": "NoSuchTableException",
+                    "type": "NoSuchNamespaceErrorException",
                     "code": 404,
                 }
             },
             status_code=404,
         )
 
-        with pytest.raises(NoSuchTableError) as e:
+        with pytest.raises(NoSuchNamespaceErrorError) as e:
             RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_table(("fokko", "does_not_exists"))
         assert "Table does not exist" in str(e.value)
 
@@ -467,14 +466,14 @@ def test_drop_table_404():
             json={
                 "error": {
                     "message": "Table does not exist: fokko.does_not_exists in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
-                    "type": "NoSuchTableException",
+                    "type": "NoSuchNamespaceErrorException",
                     "code": 404,
                 }
             },
             status_code=404,
         )
 
-        with pytest.raises(NoSuchTableError) as e:
+        with pytest.raises(NoSuchNamespaceErrorError) as e:
             RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_table(("fokko", "does_not_exists"))
         assert "Table does not exist" in str(e.value)
 
@@ -659,12 +658,12 @@ def test_delete_table_404():
             json={
                 "error": {
                     "message": "Table does not exist: fokko.fokko2 in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
-                    "type": "NoSuchTableException",
+                    "type": "NoSuchNamespaceErrorException",
                     "code": 404,
                 }
             },
             status_code=404,
         )
-        with pytest.raises(NoSuchTableError) as e:
+        with pytest.raises(NoSuchNamespaceErrorError) as e:
             RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_table(("example", "fokko"))
         assert "Table does not exist" in str(e.value)
