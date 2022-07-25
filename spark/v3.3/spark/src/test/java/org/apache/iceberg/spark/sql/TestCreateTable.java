@@ -50,6 +50,17 @@ public class TestCreateTable extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testTransformIgnoreCase() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+    sql("CREATE TABLE IF NOT EXISTS %s (id BIGINT NOT NULL, ts timestamp) " +
+        "USING iceberg partitioned by (HOURS(ts))", tableName);
+    Assert.assertTrue("Table should already exist", validationCatalog.tableExists(tableIdent));
+    sql("CREATE TABLE IF NOT EXISTS %s (id BIGINT NOT NULL, ts timestamp) " +
+        "USING iceberg partitioned by (hours(ts))", tableName);
+    Assert.assertTrue("Table should already exist", validationCatalog.tableExists(tableIdent));
+  }
+
+  @Test
   public void testCreateTable() {
     Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
 

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -59,26 +60,26 @@ public class ReaderMetricsContext implements MetricsContext {
     switch (name) {
       case ASSIGNED_SPLITS:
         ValidationException.check(type == Long.class, "'%s' requires Long type", ASSIGNED_SPLITS);
-        return (Counter<T>) longCounter(assignedSplits::addAndGet);
+        return (Counter<T>) longCounter(assignedSplits::addAndGet, assignedSplits::get);
       case ASSIGNED_BYTES:
         ValidationException.check(type == Long.class, "'%s' requires Integer type", ASSIGNED_BYTES);
-        return (Counter<T>) longCounter(assignedBytes::addAndGet);
+        return (Counter<T>) longCounter(assignedBytes::addAndGet, assignedBytes::get);
       case FINISHED_SPLITS:
         ValidationException.check(type == Long.class, "'%s' requires Long type", FINISHED_SPLITS);
-        return (Counter<T>) longCounter(finishedSplits::addAndGet);
+        return (Counter<T>) longCounter(finishedSplits::addAndGet, finishedSplits::get);
       case FINISHED_BYTES:
         ValidationException.check(type == Long.class, "'%s' requires Integer type", FINISHED_BYTES);
-        return (Counter<T>) longCounter(finishedBytes::addAndGet);
+        return (Counter<T>) longCounter(finishedBytes::addAndGet, finishedBytes::get);
       case SPLIT_READER_FETCH_CALLS:
         ValidationException.check(type == Long.class, "'%s' requires Integer type", SPLIT_READER_FETCH_CALLS);
-        return (Counter<T>) longCounter(splitReaderFetchCalls::addAndGet);
+        return (Counter<T>) longCounter(splitReaderFetchCalls::addAndGet, splitReaderFetchCalls::get);
       default:
         throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
     }
   }
 
-  private Counter<Long> longCounter(Consumer<Long> consumer) {
-    return  new Counter<Long>() {
+  private Counter<Long> longCounter(Consumer<Long> consumer, Supplier<Long> supplier) {
+    return new Counter<Long>() {
       @Override
       public void increment() {
         increment(1L);
@@ -87,6 +88,11 @@ public class ReaderMetricsContext implements MetricsContext {
       @Override
       public void increment(Long amount) {
         consumer.accept(amount);
+      }
+
+      @Override
+      public Long value() {
+        return supplier.get();
       }
     };
   }

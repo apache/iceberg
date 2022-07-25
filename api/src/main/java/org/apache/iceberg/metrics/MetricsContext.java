@@ -66,9 +66,20 @@ public interface MetricsContext extends Serializable {
      * Reporting count is optional if the counter is reporting externally.
      *
      * @return current count if available
+     * @deprecated Use {@link Counter#value()}
      */
+    @Deprecated
     default Optional<T> count() {
       return Optional.empty();
+    }
+
+    /**
+     * Reports the current count.
+     *
+     * @return The current count
+     */
+    default T value() {
+      throw new UnsupportedOperationException("Count is not supported.");
     }
 
     default Unit unit() {

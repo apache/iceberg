@@ -677,9 +677,9 @@ String getProjectVersion() {
   }
 
   try {
-    // we're fetching the version from the latest tag (prefixed with 'release-base-'),
+    // we're fetching the version from the latest tag (prefixed with 'apache-iceberg-'),
     // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
-    String version = gitVersion(prefix: 'release-base-')
+    String version = gitVersion(prefix: 'apache-iceberg-')
     Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
     Matcher matcher = pattern.matcher(version)
     if (matcher.matches()) {
