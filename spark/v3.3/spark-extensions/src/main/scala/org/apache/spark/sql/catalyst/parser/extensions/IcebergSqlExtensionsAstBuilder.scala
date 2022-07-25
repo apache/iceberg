@@ -137,11 +137,11 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   private def validateTag(tagName: String, snapshotId: Option[Long], snapshotRefRetain: Option[Long]): Unit = {
     if (StringUtils.isBlank(tagName)) {
-      throw new IllegalArgumentException("Tag name can not be empty or null.")
+      throw new IllegalArgumentException("Tag name can not be empty or null")
     }
 
     if (snapshotId.nonEmpty && snapshotId.get <= 0) {
-      throw new IllegalArgumentException("Snapshot ID:" + snapshotId.get + " must be greater than 0.")
+      throw new IllegalArgumentException("Snapshot id must be greater than 0")
     }
 
     if (snapshotRefRetain.nonEmpty && snapshotRefRetain.get <= 0) {

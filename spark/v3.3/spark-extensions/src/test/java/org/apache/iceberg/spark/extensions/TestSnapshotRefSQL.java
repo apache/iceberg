@@ -65,7 +65,7 @@ public class TestSnapshotRefSQL extends SparkExtensionsTestBase {
             tableName, tagName, snapshotId, maxRefAge));
 
     AssertHelpers.assertThrows("Tag name can not be empty or null.",
-        IllegalArgumentException.class, "Tag name can not be empty or null.",
+        IllegalArgumentException.class, "Tag name can not be empty or null",
         () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN FOR %d DAYS",
             tableName, "` `", snapshotId, maxRefAge));
 
