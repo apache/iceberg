@@ -204,7 +204,7 @@ class BoundPredicate(Bound[T], BooleanExpression):
         )
 
 
-class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
+class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
     _term: UnboundTerm[T]
     _literals: tuple[Literal[T], ...]
 
