@@ -615,20 +615,15 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             Record file = (Record) record.get("data_file");
             if (partitionMatch(file, partValue)) {
-              asMetadataRecord(file, expectedContent);
-              expected.add(file);
+              Record expectedRecord =
+                  TestHelpers.asMetadataRecordWithMetrics(table, file, expectedContent);
+              expected.add(expectedRecord);
             }
           }
         }
       }
     }
     return expected;
-  }
-
-  // Populate certain fields derived in the metadata tables
-  private void asMetadataRecord(Record file, FileContent content) {
-    file.put(0, content.id());
-    file.put(3, 0); // specId
   }
 
   private boolean partitionMatch(Record file, String partValue) {

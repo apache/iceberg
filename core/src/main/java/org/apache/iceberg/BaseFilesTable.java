@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
@@ -32,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
 /** Base class logic for files metadata tables */
@@ -48,10 +50,12 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     if (partitionType.fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition
       // field
-      return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
-    } else {
-      return schema;
+      schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     }
+
+    return TypeUtil.join(
+        schema,
+        MetricsUtil.readableMetricsSchema(table().schema(), schema, DataFile.NEXT_ID_TO_ASSIGN));
   }
 
   private static CloseableIterable<FileScanTask> planFiles(
@@ -140,15 +144,26 @@ abstract class BaseFilesTable extends BaseMetadataTable {
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
+
+    private static final Schema PROJECTION_FOR_READABLE_METRICS =
+        new Schema(
+            DataFile.COLUMN_SIZES,
+            DataFile.VALUE_COUNTS,
+            DataFile.NULL_VALUE_COUNTS,
+            DataFile.NAN_VALUE_COUNTS,
+            DataFile.LOWER_BOUNDS,
+            DataFile.UPPER_BOUNDS);
+
     private final FileIO io;
     private final Map<Integer, PartitionSpec> specsById;
     private final ManifestFile manifest;
-    private final Schema schema;
+    private final Schema dataTableSchema;
+    private final Schema projection;
 
     ManifestReadTask(
         Table table,
         ManifestFile manifest,
-        Schema schema,
+        Schema projection,
         String schemaString,
         String specString,
         ResidualEvaluator residuals) {
@@ -156,24 +171,47 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       this.io = table.io();
       this.specsById = Maps.newHashMap(table.specs());
       this.manifest = manifest;
-      this.schema = schema;
+      this.dataTableSchema = table.schema();
+      this.projection = projection;
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
-      return CloseableIterable.transform(manifestEntries(), file -> (StructLike) file);
+      Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
+
+      if (readableMetricsField == null) {
+        return CloseableIterable.transform(files(projection), file -> (StructLike) file);
+      } else {
+        Set<Integer> readableMetricsIds = TypeUtil.getProjectedIds(readableMetricsField.type());
+        Schema fileProjection = TypeUtil.selectNot(projection, readableMetricsIds);
+
+        // If readable_metrics is selected,
+        // original metrics columns need to be selected for readable_metrics derivation
+        Schema projectionForMetrics =
+            TypeUtil.join(fileProjection, PROJECTION_FOR_READABLE_METRICS);
+        return CloseableIterable.transform(files(projectionForMetrics), this::withReadableMetrics);
+      }
     }
 
-    private CloseableIterable<? extends ContentFile<?>> manifestEntries() {
+    private CloseableIterable<? extends ContentFile<?>> files(Schema fileProjection) {
       switch (manifest.content()) {
         case DATA:
-          return ManifestFiles.read(manifest, io, specsById).project(schema);
+          return ManifestFiles.read(manifest, io, specsById).project(fileProjection);
         case DELETES:
-          return ManifestFiles.readDeleteManifest(manifest, io, specsById).project(schema);
+          return ManifestFiles.readDeleteManifest(manifest, io, specsById).project(fileProjection);
         default:
           throw new IllegalArgumentException(
               "Unsupported manifest content type:" + manifest.content());
       }
+    }
+
+    private StructLike withReadableMetrics(ContentFile<?> file) {
+      int structSize = projection.columns().size();
+      StructType projectedMetricType =
+          projection.findField(MetricsUtil.READABLE_METRICS).type().asStructType();
+      MetricsUtil.ReadableMetricsStruct readableMetrics =
+          MetricsUtil.readableMetricsStruct(dataTableSchema, file, projectedMetricType);
+      return new ContentFileStructWithMetrics(structSize, (StructLike) file, readableMetrics);
     }
 
     @Override
@@ -184,6 +222,45 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     @VisibleForTesting
     ManifestFile manifest() {
       return manifest;
+    }
+  }
+
+  static class ContentFileStructWithMetrics implements StructLike {
+    private final int structSize;
+    private final StructLike fileAsStruct;
+    private final MetricsUtil.ReadableMetricsStruct readableMetrics;
+
+    ContentFileStructWithMetrics(
+        int structSize,
+        StructLike fileAsStruct,
+        MetricsUtil.ReadableMetricsStruct readableMetrics) {
+      this.structSize = structSize;
+      this.fileAsStruct = fileAsStruct;
+      this.readableMetrics = readableMetrics;
+    }
+
+    @Override
+    public int size() {
+      return structSize;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      if (pos < (structSize - 1)) {
+        return fileAsStruct.get(pos, javaClass);
+      } else if (pos == (structSize - 1)) {
+        return javaClass.cast(readableMetrics);
+      } else {
+        throw new IllegalArgumentException(
+            String.format(
+                "Illegal position access for ContentFileStructWithMetrics: %d, max allowed is %d",
+                pos, (structSize - 1)));
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("ContentFileStructWithMetrics is read only");
     }
   }
 }

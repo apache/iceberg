@@ -234,6 +234,16 @@ public class Schema implements Serializable {
   }
 
   /**
+   * Returns a map for this schema between field id and qualified field names. Initializes the map,
+   * if it has not been initialized by calls to {@link #findColumnName(int)}.
+   *
+   * @return a map of field id to qualified field names
+   */
+  public Map<Integer, String> idToName() {
+    return lazyIdToName();
+  }
+
+  /**
    * Returns the underlying {@link StructType struct type} for this schema.
    *
    * @return the StructType version of this schema.
