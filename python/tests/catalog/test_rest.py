@@ -19,8 +19,8 @@ from uuid import UUID
 import pytest
 import requests_mock
 
-from pyiceberg.catalog.base import PropertiesUpdateSummary
-from pyiceberg.catalog.rest import RestCatalog, RestTable, TokenResponse
+from pyiceberg.catalog.base import PropertiesUpdateSummary, Table
+from pyiceberg.catalog.rest import RestCatalog, TokenResponse
 from pyiceberg.exceptions import (
     AlreadyExistsError,
     BadCredentialsError,
@@ -28,7 +28,6 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import Table
 from pyiceberg.table.metadata import TableMetadataV1
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
@@ -543,7 +542,7 @@ def test_create_table_200(table_schema_simple: Schema):
             sort_order=SortOrder(1, SortField(source_id=2, transform=IdentityTransform())),
             properties={"owner": "fokko"},
         )
-        assert table == RestTable(
+        assert table == Table(
             identifier=("rest", "fokko", "fokko2"),
             metadata_location=None,
             metadata=TableMetadataV1(
@@ -587,7 +586,6 @@ def test_create_table_200(table_schema_simple: Schema):
                 ),
                 partition_spec=[],
             ),
-            config={"client.factory": "io.tabular.iceberg.catalog.TabularAwsClientFactory", "region": "us-west-2"},
         )
 
 

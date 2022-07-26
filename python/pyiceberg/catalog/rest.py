@@ -47,6 +47,7 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
+from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
@@ -84,7 +85,9 @@ TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange"
 NAMESPACE_SEPARATOR = b"\x1F".decode("UTF-8")
 
 
-class RestTable(Table):
+class TableResponse(IcebergBaseModel):
+    metadata_location: Optional[str] = Field(alias="metadata-location", default=None)
+    metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
     config: Properties = Field(default_factory=dict)
 
 
@@ -291,7 +294,13 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {409: TableAlreadyExistsError})
 
-        return RestTable(identifier=(self.name,) + self.identifier_to_tuple(identifier), **response.json())
+        table_response = TableResponse(**response.json())
+
+        return Table(
+            identifier=(self.name,) + self.identifier_to_tuple(identifier),
+            metadata_location=table_response.metadata_location,
+            metadata=table_response.metadata,
+        )
 
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace or ""))
@@ -315,7 +324,14 @@ class RestCatalog(Catalog):
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
-        return Table(identifier=(self.name,) + self.identifier_to_tuple(identifier), **response.json())
+
+        table_response = TableResponse(**response.json())
+
+        return Table(
+            identifier=(self.name,) + self.identifier_to_tuple(identifier),
+            metadata_location=table_response.metadata_location,
+            metadata=table_response.metadata,
+        )
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
         response = requests.delete(

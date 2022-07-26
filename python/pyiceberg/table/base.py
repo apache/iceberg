@@ -26,5 +26,5 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 class Table(IcebergBaseModel):
     identifier: Union[str, Identifier] = Field()
-    metadata_location: Optional[str] = Field(alias="metadata-location", default=None)
+    metadata_location: Optional[str] = Field()
     metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
