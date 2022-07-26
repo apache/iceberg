@@ -26,9 +26,11 @@ import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
+import org.apache.iceberg.hadoop.HadoopTables
 import org.apache.iceberg.spark.ExtendedParser
 import org.apache.iceberg.spark.ExtendedParser.RawOrderField
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.source.SparkBatchQueryScan
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
@@ -52,6 +54,7 @@ import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.execution.command.ExplainCommand
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
@@ -172,7 +175,12 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         case tableCatalog: TableCatalog =>
           Try(tableCatalog.loadTable(catalogAndIdentifier.identifier))
             .map(isIcebergTable)
-            .getOrElse(false)
+            .getOrElse(SparkSession.active.table(s"${multipartIdent.mkString(".")}").queryExecution
+              .executedPlan.collect {
+              case BatchScanExec(_, scan, _) if scan.isInstanceOf[SparkBatchQueryScan] =>
+                val ht = new HadoopTables(SparkSession.active.sparkContext.hadoopConfiguration)
+                ht.exists(scan.asInstanceOf[SparkBatchQueryScan].tableScan().table().location())
+            }.contains(true))
 
         case _ =>
           false
