@@ -17,13 +17,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, Field
 from functools import reduce, singledispatch
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, ClassVar
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
-from pyiceberg.types import NestedField
+from pyiceberg.types import NestedField, DoubleType, FloatType
 from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
@@ -105,6 +105,9 @@ class BaseReference(Generic[T], Term, ABC):
 class BoundTerm(Bound[T], Term):
     """Represents a bound term."""
 
+    @abstractmethod
+    def ref(self) -> BoundReference[T]:
+        ...
 
 class UnboundTerm(Unbound[T, BoundTerm[T]], Term):
     """Represents an unbound term."""
@@ -130,6 +133,9 @@ class BoundReference(BoundTerm[T], BaseReference[T]):
             Any: The value at the referenced field's position in `struct`
         """
         return self.accessor.get(struct)
+
+    def ref(self) -> BoundReference[T]:
+        return self
 
 
 @dataclass(frozen=True)
@@ -204,6 +210,7 @@ class BoundPredicate(Bound[T], BooleanExpression):
         )
 
 
+# TODO: this should still exist as a parent, but term should be abstract
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
     _term: UnboundTerm[T]
     _literals: tuple[Literal[T], ...]
@@ -342,7 +349,7 @@ class Not(BooleanExpression):
 
 
 @dataclass(frozen=True)
-class AlwaysTrue(BooleanExpression, ABC, Singleton):
+class AlwaysTrue(BooleanExpression, Singleton):
     """TRUE expression"""
 
     def __invert__(self) -> AlwaysFalse:
@@ -350,99 +357,96 @@ class AlwaysTrue(BooleanExpression, ABC, Singleton):
 
 
 @dataclass(frozen=True)
-class AlwaysFalse(BooleanExpression, ABC, Singleton):
+class AlwaysFalse(BooleanExpression, Singleton):
     """FALSE expression"""
 
     def __invert__(self) -> AlwaysTrue:
         return AlwaysTrue()
 
 
-class IsNull(UnboundPredicate[T]):
-    def __invert__(self) -> NotNull:
-        return NotNull(self.term)
+@dataclass(frozen=True)
+class UnaryPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
+    inverse: ClassVar[type]
+    as_bound: ClassVar[type]
+    term: UnboundTerm[T]
 
-    def _validate_literals(self):  # pylint: disable=W0238
-        if self.literals is not None:
-            raise AttributeError("Null is a unary predicate and takes no Literals.")
+    def __invert__(self) -> inverse:
+        return self.inverse(self.term)
 
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIsNull[T]:
-        bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundIsNull(bound_ref)
-
-
-class BoundIsNull(BoundPredicate[T]):
-    def __invert__(self) -> BoundNotNull:
-        return BoundNotNull(self.term)
-
-    def _validate_literals(self):  # pylint: disable=W0238
-        if self.literals:
-            raise AttributeError("Null is a unary predicate and takes no Literals.")
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
+        bound_term = self.term.bind(schema, case_sensitive)
+        return self.as_bound(bound_term)
 
 
-class NotNull(UnboundPredicate[T]):
-    def __invert__(self) -> IsNull:
-        return IsNull(self.term)
+@dataclass(frozen=True)
+class BoundUnaryPredicate(Bound[T], BooleanExpression):
+    inverse: ClassVar[type]
+    term: BoundTerm[T]
 
-    def _validate_literals(self):  # pylint: disable=W0238
-        if self.literals:
-            raise AttributeError("NotNull is a unary predicate and takes no Literals.")
-
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundNotNull[T]:
-        bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundNotNull(bound_ref)
+    def __invert__(self) -> inverse:
+        return self.inverse(self.term)
 
 
-class BoundNotNull(BoundPredicate[T]):
-    def __invert__(self) -> BoundIsNull:
-        return BoundIsNull(self.term)
-
-    def _validate_literals(self):  # pylint: disable=W0238
-        if self.literals:
-            raise AttributeError("NotNull is a unary predicate and takes no Literals.")
+class IsNull(UnaryPredicate[T]):
+    pass
 
 
-class IsNaN(UnboundPredicate[T]):
-    def __invert__(self) -> NotNaN:
-        return NotNaN(self.term)
-
-    def _validate_literals(self):  # pylint: disable=W0238
-        if self.literals:
-            raise AttributeError("IsNaN is a unary predicate and takes no Literals.")
-
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIsNaN[T]:
-        bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundIsNaN(bound_ref)
+class NotNull(UnaryPredicate[T]):
+    pass
 
 
-class BoundIsNaN(BoundPredicate[T]):
-    def __invert__(self) -> BoundNotNaN:
-        return BoundNotNaN(self.term)
-
-    def _validate_literals(self):  # pylint: disable=W0238
-        if self.literals:
-            raise AttributeError("IsNaN is a unary predicate and takes no Literals.")
+class BoundIsNull(BoundUnaryPredicate[T]):
+    def __new__(cls, term: BoundTerm[T]):
+        if term.ref().field.required:
+            return AlwaysFalse()
+        return super().__new__(cls)
 
 
-class NotNaN(UnboundPredicate[T]):
-    def __invert__(self) -> IsNaN:
-        return IsNaN(self.term)
-
-    def _validate_literals(self):  # pylint: disable=W0238
-        if self.literals:
-            raise AttributeError("NotNaN is a unary predicate and takes no Literals.")
-
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundNotNaN[T]:
-        bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundNotNaN(bound_ref)
+class BoundNotNull(BoundUnaryPredicate[T]):
+    def __new__(cls, term: BoundTerm[T]):
+        if term.ref().field.required:
+            return AlwaysTrue()
+        return super().__new__(cls)
 
 
-class BoundNotNaN(BoundPredicate[T]):
-    def __invert__(self) -> BoundIsNaN:
-        return BoundIsNaN(self.term)
+IsNull.inverse = NotNull
+IsNull.as_bound = BoundIsNull
+NotNull.inverse = IsNull
+NotNull.as_bound = BoundNotNull
+BoundIsNull.inverse = BoundNotNull
+BoundNotNull.inverse = BoundIsNull
 
-    def _validate_literals(self):  # pylint: disable=W0238
-        if self.literals:
-            raise AttributeError("NotNaN is a unary predicate and takes no Literals.")
+
+class IsNaN(UnaryPredicate[T]):
+    pass
+
+
+class NotNaN(UnaryPredicate[T]):
+    pass
+
+
+class BoundIsNaN(BoundUnaryPredicate[T]):
+    def __new__(cls, term: BoundTerm[T]):
+        bound_type = term.ref().field.field_type
+        if bound_type == FloatType() or bound_type == DoubleType():
+            return super().__new__(cls)
+        return AlwaysFalse()
+
+
+class BoundNotNaN(BoundUnaryPredicate[T]):
+    def __new__(cls, term: BoundTerm[T]):
+        bound_type = term.ref().field.field_type
+        if bound_type == FloatType() or bound_type == DoubleType():
+            return super().__new__(cls)
+        return AlwaysTrue()
+
+
+IsNaN.inverse = NotNaN
+IsNaN.as_bound = BoundIsNaN
+NotNaN.inverse = IsNaN
+NotNaN.as_bound = BoundNotNaN
+BoundIsNaN.inverse = BoundNotNaN
+BoundNotNaN.inverse = BoundIsNaN
 
 
 class BoundIn(BoundPredicate[T]):

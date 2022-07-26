@@ -22,9 +22,10 @@ from typing import List
 import pytest
 
 from pyiceberg.expressions import base
+from pyiceberg.expressions.base import BoundReference
 from pyiceberg.expressions.literals import LongLiteral, StringLiteral, literal
-from pyiceberg.schema import Accessor
-from pyiceberg.types import IntegerType, NestedField, StringType
+from pyiceberg.schema import Accessor, Schema
+from pyiceberg.types import IntegerType, NestedField, StringType, FloatType, DoubleType
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -125,6 +126,78 @@ def _(obj: ExpressionB, visitor: BooleanExpressionVisitor) -> List:
 )
 def test_reprs(op, rep):
     assert repr(op) == rep
+
+
+def test_isnull_inverse():
+    assert ~base.IsNull(base.Reference("a")) == base.NotNull(base.Reference("a"))
+
+
+def test_isnull_bind():
+    schema = Schema(NestedField(2, "a", IntegerType()), schema_id=1)
+    bound = base.BoundIsNull(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.IsNull(base.Reference("a")).bind(schema) == bound
+
+
+def test_isnull_bind_required():
+    schema = Schema(NestedField(2, "a", IntegerType(), required=True), schema_id=1)
+    assert base.IsNull(base.Reference("a")).bind(schema) == base.AlwaysFalse()
+
+
+def test_notnull_inverse():
+    assert ~base.NotNull(base.Reference("a")) == base.IsNull(base.Reference("a"))
+
+
+def test_notnull_bind():
+    schema = Schema(NestedField(2, "a", IntegerType()), schema_id=1)
+    bound = base.BoundNotNull(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.NotNull(base.Reference("a")).bind(schema) == bound
+
+
+def test_notnull_bind_required():
+    schema = Schema(NestedField(2, "a", IntegerType(), required=True), schema_id=1)
+    assert base.NotNull(base.Reference("a")).bind(schema) == base.AlwaysTrue()
+
+
+def test_isnan_inverse():
+    assert ~base.IsNaN(base.Reference("f")) == base.NotNaN(base.Reference("f"))
+
+
+def test_isnan_bind_float():
+    schema = Schema(NestedField(2, "f", FloatType()), schema_id=1)
+    bound = base.BoundIsNaN(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.IsNaN(base.Reference("f")).bind(schema) == bound
+
+
+def test_isnan_bind_double():
+    schema = Schema(NestedField(2, "d", DoubleType()), schema_id=1)
+    bound = base.BoundIsNaN(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.IsNaN(base.Reference("d")).bind(schema) == bound
+
+
+def test_isnan_bind_nonfloat():
+    schema = Schema(NestedField(2, "i", IntegerType()), schema_id=1)
+    assert base.IsNaN(base.Reference("i")).bind(schema) == base.AlwaysFalse()
+
+
+def test_notnan_inverse():
+    assert ~base.NotNaN(base.Reference("f")) == base.IsNaN(base.Reference("f"))
+
+
+def test_notnan_bind_float():
+    schema = Schema(NestedField(2, "f", FloatType()), schema_id=1)
+    bound = base.BoundNotNaN(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.NotNaN(base.Reference("f")).bind(schema) == bound
+
+
+def test_notnan_bind_double():
+    schema = Schema(NestedField(2, "d", DoubleType()), schema_id=1)
+    bound = base.BoundNotNaN(base.BoundReference(schema.find_field(2), schema.accessor_for_field(2)))
+    assert base.NotNaN(base.Reference("d")).bind(schema) == bound
+
+
+def test_notnan_bind_nonfloat():
+    schema = Schema(NestedField(2, "i", IntegerType()), schema_id=1)
+    assert base.NotNaN(base.Reference("i")).bind(schema) == base.AlwaysTrue()
 
 
 @pytest.mark.parametrize(
