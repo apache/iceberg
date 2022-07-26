@@ -34,14 +34,16 @@ from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
 from pyiceberg.exceptions import (
     AlreadyExistsError,
+    AuthorizationExpiredError,
     BadCredentialsError,
     BadRequestError,
+    ForbiddenError,
     NoSuchNamespaceError,
     RESTError,
     ServerError,
     ServiceUnavailableError,
     TableAlreadyExistsError,
-    UnauthorizedError, ForbiddenError, AuthorizationExpiredError,
+    UnauthorizedError,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
@@ -148,13 +150,14 @@ class RestCatalog(Catalog):
 
     host: str
 
-    def __init__(self, name: str, properties: Properties, host: str, token: str):
+    def __init__(self, name: str, properties: Properties, host: str, credential: str):
         self.host = host
-        self.token = self._fetch_access_token(token)
+        self.token = self._fetch_access_token(credential)
         self.config = self._fetch_config(properties)
         super().__init__(name, properties)
 
-    def _split_token(self, token: str) -> Tuple[str, str]:
+    @staticmethod
+    def _split_credential(token: str) -> Tuple[str, str]:
         """Splits the token in a client id and secret
 
         Args:
@@ -194,7 +197,7 @@ class RestCatalog(Catalog):
         return url + endpoint.format(**kwargs)
 
     def _fetch_access_token(self, token: str) -> TokenResponse:
-        client, secret = self._split_token(token)
+        client, secret = self._split_credential(token)
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client, CLIENT_SECRET: secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
@@ -245,6 +248,8 @@ class RestCatalog(Catalog):
             raise UnauthorizedError(response.error.message) from exc
         elif code == 403:
             raise ForbiddenError(response.error.message) from exc
+        elif code == 422:
+            raise RESTError(response.error.message) from exc
         elif code == 419:
             raise AuthorizationExpiredError(response.error.message)
         elif code == 501:
@@ -286,7 +291,7 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {409: TableAlreadyExistsError})
 
-        return RestTable(identifier=(self.name,) + identifier, **response.json())
+        return RestTable(identifier=(self.name,) + self.identifier_to_tuple(identifier), **response.json())
 
     def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
         namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace or ""))
@@ -310,7 +315,7 @@ class RestCatalog(Catalog):
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
-        return Table(identifier=(self.name,) + identifier, **response.json())
+        return Table(identifier=(self.name,) + self.identifier_to_tuple(identifier), **response.json())
 
     def drop_table(self, identifier: Union[str, Identifier], purge_requested: bool = False) -> None:
         response = requests.delete(
@@ -342,7 +347,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {409: AlreadyExistsError})
+            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: AlreadyExistsError})
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))

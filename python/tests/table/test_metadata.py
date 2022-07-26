@@ -516,7 +516,7 @@ def test_v1_write_metadata_for_v2():
     ]
     assert metadata_v2["default-spec-id"] == 0
     assert metadata_v2["last-partition-id"] == 1000
-    assert metadata_v2["sort-orders"] == [{"fields": [], "order-id": 0}]
+    assert metadata_v2["sort-orders"] == [{"order-id": 0, "fields": []}]
     assert metadata_v2["default-sort-order-id"] == 0
     # Deprecated fields
     assert "schema" not in metadata_v2

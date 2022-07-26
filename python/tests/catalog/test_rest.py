@@ -43,35 +43,31 @@ from pyiceberg.types import (
 )
 
 TEST_HOST = "https://iceberg-test-catalog/"
-TEST_TOKEN = "client:secret"
+TEST_CREDENTIAL = "client:secret"
 
 
 def test_token_200():
     with requests_mock.Mocker() as m:
         m.post(
-            f"{TEST_HOST}oauth/tokens",
+            f"{TEST_HOST}v1/oauth/tokens",
             json={
-                "access_token": TEST_TOKEN,
+                "access_token": TEST_CREDENTIAL,
                 "token_type": "Bearer",
                 "expires_in": 86400,
-                "warehouse_id": "8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
-                "region": "us-west-2",
                 "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
             },
             status_code=200,
         )
         m.get(
-            f"{TEST_HOST}config",
+            f"{TEST_HOST}v1/config",
             json={"defaults": {}, "overrides": {"prefix": "oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e"}},
             status_code=200,
         )
 
-        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).token == TokenResponse(
-            access_token=TEST_TOKEN,
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).token == TokenResponse(
+            access_token=TEST_CREDENTIAL,
             token_type="Bearer",
             expires_in=86400,
-            warehouse_id="8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
-            region="us-west-2",
             issued_token_type="urn:ietf:params:oauth:token-type:access_token",
         )
 
@@ -80,7 +76,7 @@ def test_token_401():
     with requests_mock.Mocker() as m:
         message = "Invalid client ID: abc"
         m.post(
-            f"{TEST_HOST}oauth/tokens",
+            f"{TEST_HOST}v1/oauth/tokens",
             json={
                 "error": {
                     "message": message,
@@ -92,26 +88,24 @@ def test_token_401():
         )
 
         with pytest.raises(BadCredentialsError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN)
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL)
         assert message in str(e.value)
 
 
 def _configure_token_and_config_endpoint(m: requests_mock.Mocker):
     m.post(
-        f"{TEST_HOST}oauth/tokens",
+        f"{TEST_HOST}v1/oauth/tokens",
         json={
             "access_token": "eyJ0eXAiOiJK",
             "token_type": "Bearer",
             "expires_in": 86400,
-            "warehouse_id": "8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
-            "region": "us-west-2",
             "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
         },
         status_code=200,
     )
     m.get(
-        f"{TEST_HOST}config",
-        json={"defaults": {}, "overrides": {"prefix": "oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e"}},
+        f"{TEST_HOST}v1/config",
+        json={"defaults": {}, "overrides": {}},
         status_code=200,
     )
 
@@ -121,12 +115,12 @@ def test_list_tables_200():
         _configure_token_and_config_endpoint(m)
         namespace = "examples"
         m.get(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/{namespace}/tables",
+            f"{TEST_HOST}v1/namespaces/{namespace}/tables",
             json={"identifiers": [{"namespace": ["examples"], "name": "fooshare"}]},
             status_code=200,
         )
 
-        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_tables(namespace) == [("rest", "examples", "fooshare")]
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).list_tables(namespace) == [("rest", "examples", "fooshare")]
 
 
 def test_list_tables_404():
@@ -134,7 +128,7 @@ def test_list_tables_404():
         _configure_token_and_config_endpoint(m)
         namespace = "examples"
         m.get(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/{namespace}/tables",
+            f"{TEST_HOST}v1/namespaces/{namespace}/tables",
             json={
                 "error": {
                     "message": "Namespace does not exist: personal in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -144,8 +138,8 @@ def test_list_tables_404():
             },
             status_code=404,
         )
-        with pytest.raises(NoSuchNamespaceErrorError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_tables(namespace)
+        with pytest.raises(NoSuchNamespaceError) as e:
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).list_tables(namespace)
         assert "Namespace does not exist" in str(e.value)
 
 
@@ -153,11 +147,11 @@ def test_list_namespaces_200():
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.get(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces",
+            f"{TEST_HOST}v1/namespaces",
             json={"namespaces": [["default"], ["examples"], ["fokko"], ["system"]]},
             status_code=200,
         )
-        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).list_namespaces() == [
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).list_namespaces() == [
             ("default",),
             ("examples",),
             ("fokko",),
@@ -170,11 +164,11 @@ def test_create_namespace_200():
         _configure_token_and_config_endpoint(m)
         namespace = "leden"
         m.post(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces",
+            f"{TEST_HOST}v1/namespaces",
             json={"namespace": [namespace], "properties": {}},
             status_code=200,
         )
-        RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).create_namespace(namespace)
+        RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).create_namespace(namespace)
 
 
 def test_create_namespace_409():
@@ -182,7 +176,7 @@ def test_create_namespace_409():
         _configure_token_and_config_endpoint(m)
         namespace = "examples"
         m.post(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces",
+            f"{TEST_HOST}v1/namespaces",
             json={
                 "error": {
                     "message": "Namespace already exists: fokko in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -193,7 +187,7 @@ def test_create_namespace_409():
             status_code=409,
         )
         with pytest.raises(AlreadyExistsError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).create_namespace(namespace)
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).create_namespace(namespace)
         assert "Namespace already exists" in str(e.value)
 
 
@@ -202,7 +196,7 @@ def test_drop_namespace_404():
         _configure_token_and_config_endpoint(m)
         namespace = "examples"
         m.delete(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/{namespace}",
+            f"{TEST_HOST}v1/namespaces/{namespace}",
             json={
                 "error": {
                     "message": "Namespace does not exist: leden in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -213,7 +207,7 @@ def test_drop_namespace_404():
             status_code=404,
         )
         with pytest.raises(NoSuchNamespaceError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_namespace(namespace)
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).drop_namespace(namespace)
         assert "Namespace does not exist" in str(e.value)
 
 
@@ -222,11 +216,11 @@ def test_load_namespace_properties_200():
         _configure_token_and_config_endpoint(m)
         namespace = "leden"
         m.get(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/{namespace}",
+            f"{TEST_HOST}v1/namespaces/{namespace}",
             json={"namespace": ["fokko"], "properties": {"prop": "yes"}},
             status_code=204,
         )
-        assert RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_namespace_properties(namespace) == {"prop": "yes"}
+        assert RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).load_namespace_properties(namespace) == {"prop": "yes"}
 
 
 def test_load_namespace_properties_404():
@@ -234,7 +228,7 @@ def test_load_namespace_properties_404():
         _configure_token_and_config_endpoint(m)
         namespace = "leden"
         m.get(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/{namespace}",
+            f"{TEST_HOST}v1/namespaces/{namespace}",
             json={
                 "error": {
                     "message": "Namespace does not exist: fokko22 in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -245,7 +239,7 @@ def test_load_namespace_properties_404():
             status_code=404,
         )
         with pytest.raises(NoSuchNamespaceError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_namespace_properties(namespace)
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).load_namespace_properties(namespace)
         assert "Namespace does not exist" in str(e.value)
 
 
@@ -253,11 +247,11 @@ def test_update_namespace_properties_200():
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.post(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/fokko/properties",
+            f"{TEST_HOST}v1/namespaces/fokko/properties",
             json={"removed": [], "updated": ["prop"], "missing": ["abc"]},
             status_code=200,
         )
-        response = RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).update_namespace_properties(
+        response = RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).update_namespace_properties(
             ("fokko",), {"abc"}, {"prop": "yes"}
         )
 
@@ -268,7 +262,7 @@ def test_update_namespace_properties_404():
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.post(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/fokko/properties",
+            f"{TEST_HOST}v1/namespaces/fokko/properties",
             json={
                 "error": {
                     "message": "Namespace does not exist: does_not_exists in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -279,7 +273,7 @@ def test_update_namespace_properties_404():
             status_code=404,
         )
         with pytest.raises(NoSuchNamespaceError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).update_namespace_properties(("fokko",), {"abc"}, {"prop": "yes"})
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).update_namespace_properties(("fokko",), {"abc"}, {"prop": "yes"})
         assert "Namespace does not exist" in str(e.value)
 
 
@@ -287,7 +281,7 @@ def test_load_table_200():
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.get(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/fokko/tables/table",
+            f"{TEST_HOST}v1/namespaces/fokko/tables/table",
             json={
                 "metadataLocation": "s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f/metadata/00001-5f2f8166-244c-4eae-ac36-384ecdec81fc.gz.metadata.json",
                 "metadata": {
@@ -358,9 +352,9 @@ def test_load_table_200():
             },
             status_code=200,
         )
-        table = RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_table(("fokko", "table"))
+        table = RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).load_table(("fokko", "table"))
         assert table == Table(
-            identifier=("fokko", "table"),
+            identifier=("rest", "fokko", "table"),
             metadata_location=None,
             metadata=TableMetadataV1(
                 location="s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f",
@@ -442,7 +436,7 @@ def test_load_table_404():
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.get(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/fokko/tables/does_not_exists",
+            f"{TEST_HOST}v1/namespaces/fokko/tables/does_not_exists",
             json={
                 "error": {
                     "message": "Table does not exist: examples.does_not_exists in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -453,8 +447,8 @@ def test_load_table_404():
             status_code=404,
         )
 
-        with pytest.raises(NoSuchNamespaceErrorError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).load_table(("fokko", "does_not_exists"))
+        with pytest.raises(NoSuchNamespaceError) as e:
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).load_table(("fokko", "does_not_exists"))
         assert "Table does not exist" in str(e.value)
 
 
@@ -462,7 +456,7 @@ def test_drop_table_404():
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.delete(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/fokko/tables/does_not_exists",
+            f"{TEST_HOST}v1/namespaces/fokko/tables/does_not_exists",
             json={
                 "error": {
                     "message": "Table does not exist: fokko.does_not_exists in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -473,8 +467,8 @@ def test_drop_table_404():
             status_code=404,
         )
 
-        with pytest.raises(NoSuchNamespaceErrorError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_table(("fokko", "does_not_exists"))
+        with pytest.raises(NoSuchNamespaceError) as e:
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).drop_table(("fokko", "does_not_exists"))
         assert "Table does not exist" in str(e.value)
 
 
@@ -482,7 +476,7 @@ def test_create_table_200(table_schema_simple: Schema):
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.post(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/fokko/tables",
+            f"{TEST_HOST}v1/namespaces/fokko/tables",
             json={
                 "metadataLocation": None,
                 "metadata": {
@@ -539,7 +533,7 @@ def test_create_table_200(table_schema_simple: Schema):
             },
             status_code=200,
         )
-        table = RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).create_table(
+        table = RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).create_table(
             identifier=("fokko", "fokko2"),
             schema=table_schema_simple,
             location=None,
@@ -550,7 +544,7 @@ def test_create_table_200(table_schema_simple: Schema):
             properties={"owner": "fokko"},
         )
         assert table == RestTable(
-            identifier=("fokko", "fokko2"),
+            identifier=("rest", "fokko", "fokko2"),
             metadata_location=None,
             metadata=TableMetadataV1(
                 location="s3://tabular-wh-us-west-2-dev/8bcb0838-50fc-472d-9ddb-8feb89ef5f1e/bf289591-dcc0-4234-ad4f-5c3eed811a29",
@@ -601,7 +595,7 @@ def test_create_table_409(table_schema_simple: Schema):
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.post(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/fokko/tables",
+            f"{TEST_HOST}v1/namespaces/fokko/tables",
             json={
                 "error": {
                     "message": "Table already exists: fokko.already_exists in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -613,7 +607,7 @@ def test_create_table_409(table_schema_simple: Schema):
         )
 
         with pytest.raises(TableAlreadyExistsError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).create_table(
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).create_table(
                 identifier=("fokko", "fokko2"),
                 schema=table_schema_simple,
                 location=None,
@@ -632,29 +626,29 @@ def test_delete_namespace_204():
         _configure_token_and_config_endpoint(m)
         namespace = "example"
         m.delete(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/{namespace}",
+            f"{TEST_HOST}v1/namespaces/{namespace}",
             json={},
             status_code=204,
         )
-        RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_namespace(namespace)
+        RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).drop_namespace(namespace)
 
 
 def test_delete_table_204():
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.delete(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/example/tables/fokko",
+            f"{TEST_HOST}v1/namespaces/example/tables/fokko",
             json={},
             status_code=204,
         )
-        RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_table(("example", "fokko"))
+        RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).drop_table(("example", "fokko"))
 
 
 def test_delete_table_404():
     with requests_mock.Mocker() as m:
         _configure_token_and_config_endpoint(m)
         m.delete(
-            f"{TEST_HOST}oss/warehouses/8bcb0838-22vo-472d-1925-8feb89lidf1e/namespaces/example/tables/fokko",
+            f"{TEST_HOST}v1/namespaces/example/tables/fokko",
             json={
                 "error": {
                     "message": "Table does not exist: fokko.fokko2 in warehouse 8bcb0838-50fc-472d-9ddb-8feb89ef5f1e",
@@ -664,6 +658,6 @@ def test_delete_table_404():
             },
             status_code=404,
         )
-        with pytest.raises(NoSuchNamespaceErrorError) as e:
-            RestCatalog("rest", {}, TEST_HOST, TEST_TOKEN).drop_table(("example", "fokko"))
+        with pytest.raises(NoSuchNamespaceError) as e:
+            RestCatalog("rest", {}, TEST_HOST, TEST_CREDENTIAL).drop_table(("example", "fokko"))
         assert "Table does not exist" in str(e.value)

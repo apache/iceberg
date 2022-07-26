@@ -196,14 +196,18 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
     # When writing, we should stick to the same version that it was,
     # because bumping the version should be an explicit operation that is up
     # to the owner of the table.
+
     @root_validator(pre=True)
     def set_v2_compatible_defaults(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Sets default values to be compatible with the format v2
+
         Set some sensible defaults for V1, so we comply with the schema
         this is in pre=True, meaning that this will be done before validation.
         We don't want to make the fields optional, since they are required for V2
+
         Args:
             data: The raw arguments when initializing a V1 TableMetadata
+
         Returns:
             The TableMetadata with the defaults applied
         """
