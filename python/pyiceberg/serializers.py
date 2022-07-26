@@ -19,7 +19,7 @@ import codecs
 import json
 from typing import Union
 
-from pyiceberg.io.base import InputFile, InputStream, OutputFile
+from pyiceberg.io import InputFile, InputStream, OutputFile
 from pyiceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
 
 

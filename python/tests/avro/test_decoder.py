@@ -22,7 +22,7 @@ import pytest
 
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.resolver import promote
-from pyiceberg.io.base import InputStream
+from pyiceberg.io import InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.types import DoubleType, FloatType
 

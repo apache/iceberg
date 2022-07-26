@@ -14,18 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Dict, Tuple
 
-from __future__ import annotations
-
-from abc import ABC
-
-from pyiceberg.typedef import Identifier
-
-
-class Table(ABC):
-    """Placeholder for Table managed by the Catalog that points to the current Table Metadata.
-
-    To be implemented by https://github.com/apache/iceberg/issues/3227
-    """
-
-    identifier: str | Identifier
+Identifier = Tuple[str, ...]
+Properties = Dict[str, str]

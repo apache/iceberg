@@ -25,8 +25,7 @@ from typing import (
 
 import pytest
 
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog
+from pyiceberg.catalog import Catalog, Identifier, Properties
 from pyiceberg.exceptions import (
     AlreadyExistsError,
     NamespaceNotEmptyError,
@@ -34,7 +33,7 @@ from pyiceberg.exceptions import (
     NoSuchTableError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import Table
+from pyiceberg.table import Table
 from pyiceberg.table.metadata import INITIAL_SPEC_ID
 from pyiceberg.table.partitioning import PartitionSpec
 

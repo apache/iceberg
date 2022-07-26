@@ -26,7 +26,7 @@ from functools import singledispatch, singledispatchmethod
 from typing import Optional, Union
 from uuid import UUID
 
-from pyiceberg.expressions.base import Literal
+from pyiceberg.expression.expressions import Literal
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -63,7 +63,7 @@ def literal(value) -> Literal:
         value(python primitive type): the value to be associated with literal
 
     Example:
-        from pyiceberg.expressions.literals import literal
+        from pyiceberg.expression.expressions.literals import literal
         >>> literal(123)
         LongLiteral(123)
     """
