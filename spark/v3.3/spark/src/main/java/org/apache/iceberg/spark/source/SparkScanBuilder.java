@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -38,6 +39,7 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
@@ -182,6 +184,7 @@ public class SparkScanBuilder
   public Scan build() {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
+    String snapshotRef = readConf.snapshotRef();
 
     Preconditions.checkArgument(
         snapshotId == null || asOfTimestamp == null,
@@ -191,6 +194,10 @@ public class SparkScanBuilder
 
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
+
+    if (snapshotId == null) {
+      snapshotId = SparkUtil.getSnapshotIdFromRef(snapshotRef, table);
+    }
 
     if (snapshotId != null || asOfTimestamp != null) {
       Preconditions.checkArgument(
@@ -240,7 +247,8 @@ public class SparkScanBuilder
 
   public Scan buildMergeOnReadScan() {
     Preconditions.checkArgument(
-        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
+        readConf.snapshotId() == null && readConf.snapshotRef().equalsIgnoreCase(SnapshotRef.MAIN_BRANCH) &&
+            readConf.asOfTimestamp() == null,
         "Cannot set time travel options %s and %s for row-level command scans",
         SparkReadOptions.SNAPSHOT_ID,
         SparkReadOptions.AS_OF_TIMESTAMP);

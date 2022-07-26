@@ -73,6 +73,8 @@ statement
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
+    | USE BRANCH identifier                                                                 #useBranch
+    | USE TAG identifier                                                                    #useTag
     ;
 
 writeSpec
@@ -170,7 +172,7 @@ fieldList
 nonReserved
     : ADD | ALTER | AS | ASC | BY | CALL | DESC | DROP | FIELD | FIRST | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
     | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | WITH | IDENTIFIER_KW | FIELDS | SET
-    | TRUE | FALSE
+    | TRUE | FALSE | USE
     | MAP
     ;
 
@@ -178,6 +180,7 @@ ADD: 'ADD';
 ALTER: 'ALTER';
 AS: 'AS';
 ASC: 'ASC';
+BRANCH: 'BRANCH';
 BY: 'BY';
 CALL: 'CALL';
 DESC: 'DESC';
@@ -195,7 +198,9 @@ REPLACE: 'REPLACE';
 IDENTIFIER_KW: 'IDENTIFIER';
 SET: 'SET';
 TABLE: 'TABLE';
+TAG: 'TAG';
 UNORDERED: 'UNORDERED';
+USE: 'USE';
 WITH: 'WITH';
 WRITE: 'WRITE';
 

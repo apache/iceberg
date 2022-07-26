@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import org.apache.iceberg.SnapshotRef;
+
 public class SparkSQLProperties {
 
   private SparkSQLProperties() {}
@@ -42,4 +44,8 @@ public class SparkSQLProperties {
   // Controls whether to check the order of fields during writes
   public static final String CHECK_ORDERING = "spark.sql.iceberg.check-ordering";
   public static final boolean CHECK_ORDERING_DEFAULT = true;
+
+  // Controls which ref to use
+  public static final String SNAPSHOT_REF = "spark.sql.iceberg.snapshot-ref";
+  public static final String SNAPSHOT_REF_DEFAULT = SnapshotRef.MAIN_BRANCH;
 }

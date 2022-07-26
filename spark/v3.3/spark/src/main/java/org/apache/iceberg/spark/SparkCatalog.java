@@ -36,6 +36,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
@@ -101,6 +102,7 @@ public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Pattern AT_TIMESTAMP = Pattern.compile("at_timestamp_(\\d+)");
+  private static final Pattern AT_REF = Pattern.compile("at_(branch|tag|ref)_(\\w+)");
   private static final Pattern SNAPSHOT_ID = Pattern.compile("snapshot_id_(\\d+)");
 
   private String catalogName = null;
@@ -617,6 +619,15 @@ public class SparkCatalog extends BaseCatalog {
         return Pair.of(table, snapshotId);
       }
 
+      Matcher atRef = AT_REF.matcher(ident.name());
+      if (atRef.matches()) {
+        String ref = atRef.group(2);
+        Long snapshotId = getSnapshotId(ref, table);
+        if (snapshotId != null) {
+          return Pair.of(table, snapshotId);
+        }
+      }
+
       // the name wasn't a valid snapshot selector. throw the original exception
       throw e;
     }
@@ -639,6 +650,7 @@ public class SparkCatalog extends BaseCatalog {
     String metadataTableName = null;
     Long asOfTimestamp = null;
     Long snapshotId = null;
+    String ref = null;
     for (String meta : parsed.second()) {
       if (MetadataTableType.from(meta) != null) {
         metadataTableName = meta;
@@ -648,6 +660,12 @@ public class SparkCatalog extends BaseCatalog {
       Matcher at = AT_TIMESTAMP.matcher(meta);
       if (at.matches()) {
         asOfTimestamp = Long.parseLong(at.group(1));
+        continue;
+      }
+
+      Matcher atRef = AT_REF.matcher(meta);
+      if (atRef.matches()) {
+        ref = atRef.group(1);
         continue;
       }
 
@@ -661,6 +679,10 @@ public class SparkCatalog extends BaseCatalog {
         asOfTimestamp == null || snapshotId == null,
         "Cannot specify both snapshot-id and as-of-timestamp: %s",
         ident.location());
+    Preconditions.checkArgument(
+        ref == null || snapshotId == null,
+        "Cannot specify both at_(branch|tag|ref) and as-of-timestamp: %s",
+        ident.location());
 
     Table table =
         tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
@@ -670,8 +692,23 @@ public class SparkCatalog extends BaseCatalog {
     } else if (asOfTimestamp != null) {
       return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
     } else {
-      return Pair.of(table, null);
+      return Pair.of(table, getSnapshotId(ref, table));
     }
+  }
+
+  private Long getSnapshotId(String ref, Table table) {
+    if (ref != null) {
+      if (ref.equalsIgnoreCase(SnapshotRef.MAIN_BRANCH)) {
+        return table.currentSnapshot().snapshotId();
+      }
+      SnapshotRef snapshotRef = table.refs().get(ref);
+      if (snapshotRef != null) {
+        return snapshotRef.snapshotId();
+      } else {
+        throw new IllegalArgumentException("Snapshot ref does not exist: " + ref);
+      }
+    }
+    return null;
   }
 
   private Identifier namespaceToIdentifier(String[] namespace) {

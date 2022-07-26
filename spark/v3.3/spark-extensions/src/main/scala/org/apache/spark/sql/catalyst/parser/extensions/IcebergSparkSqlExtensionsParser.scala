@@ -195,7 +195,9 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       // comments that span multiple lines are caught.
       .replaceAll("/\\*.*?\\*/", " ")
       .trim()
-    normalized.startsWith("call") || (
+    normalized.startsWith("call") ||
+      normalized.startsWith("use branch") ||
+      normalized.startsWith("use tag") || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||
             normalized.contains("drop partition field") ||

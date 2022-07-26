@@ -41,6 +41,7 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.UseRef
 import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
@@ -57,6 +58,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case c @ Call(procedure, args) =>
       val input = buildInternalRow(args)
       CallExec(c.output, procedure, input) :: Nil
+
+    case UseRef(ident) =>
+      UseRefExec(ident, spark) :: Nil
 
     case AddPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform, name) =>
       AddPartitionFieldExec(catalog, ident, transform, name) :: Nil

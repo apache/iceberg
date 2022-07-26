@@ -220,4 +220,13 @@ public class SparkReadConf {
         .defaultValue(Long.MIN_VALUE)
         .parse();
   }
+
+  public String snapshotRef() {
+    return confParser
+        .stringConf()
+        .option(SparkReadOptions.SNAPSHOT_REF)
+        .sessionConf(SparkSQLProperties.SNAPSHOT_REF)
+        .defaultValue(SparkSQLProperties.SNAPSHOT_REF_DEFAULT)
+        .parse();
+  }
 }
