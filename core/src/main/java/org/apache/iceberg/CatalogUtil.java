@@ -20,10 +20,16 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
@@ -33,6 +39,7 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -345,5 +352,64 @@ public class CatalogUtil {
     }
 
     setConf.invoke(conf);
+  }
+
+  /**
+   * Used to migrate tables from one catalog(source catalog) to another catalog(target catalog).
+   * Also, the table would be dropped off from the source catalog once the migration is successful.
+   *
+   * @param tableIdentifiers        a list of tableIdentifiers for the tables required to be migrated,
+   *                                if not specified all the tables would be migrated
+   * @param sourceCatalogProperties Source Catalog Properties
+   * @param targetCatalogProperties Target Catalog Properties
+   * @param sourceHadoopConfig      Source Catalog Hadoop Configuration
+   * @param targetHadoopConfig      Target Catalog Hadoop Configuration
+   * @return list of table identifiers for successfully migrated tables
+   */
+  public static List<TableIdentifier> migrateTables(List<TableIdentifier> tableIdentifiers,
+      Map<String, String> sourceCatalogProperties, Map<String, String> targetCatalogProperties,
+      Object sourceHadoopConfig, Object targetHadoopConfig) {
+    if (tableIdentifiers != null) {
+      tableIdentifiers.forEach(tableIdentifier -> Preconditions.checkArgument(
+          tableIdentifier != null, "Invalid identifier: %s", tableIdentifier));
+    }
+    Catalog sourceCatalog;
+    try {
+      sourceCatalog = loadCatalog(sourceCatalogProperties.get("catalogImpl"),
+          sourceCatalogProperties.get("catalogName"), sourceCatalogProperties, sourceHadoopConfig);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot initialize Source Catalog implementation %s: %s", sourceCatalogProperties.get("catalogImpl"),
+          e.getMessage()), e);
+    }
+    Catalog targetCatalog;
+    try {
+      targetCatalog = loadCatalog(targetCatalogProperties.get("catalogImpl"),
+          targetCatalogProperties.get("catalogName"), targetCatalogProperties, targetHadoopConfig);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot initialize Target Catalog implementation %s: %s", targetCatalogProperties.get("catalogImpl"),
+          e.getMessage()), e);
+    }
+    List<TableIdentifier> allIdentifiers = tableIdentifiers;
+    if (tableIdentifiers == null || tableIdentifiers.isEmpty()) {
+      List<Namespace> namespaces = (sourceCatalog instanceof SupportsNamespaces) ?
+          ((SupportsNamespaces) sourceCatalog).listNamespaces() : ImmutableList.of(Namespace.empty());
+      allIdentifiers = namespaces.stream().flatMap(ns ->
+          sourceCatalog.listTables(ns).stream()).collect(Collectors.toList());
+    }
+    List<TableIdentifier> migratedTableIdentifiers = new ArrayList<TableIdentifier>();
+    allIdentifiers.forEach(tableIdentifier -> {
+      final Table icebergTable = sourceCatalog.loadTable(tableIdentifier);
+      TableOperations ops = ((HasTableOperations) icebergTable).operations();
+      String metadataLocation = ops.current().metadataFileLocation();
+      targetCatalog.registerTable(tableIdentifier, metadataLocation);
+      migratedTableIdentifiers.add(tableIdentifier);
+      if (!(sourceCatalogProperties.get("catalogImpl").equals("org.apache.iceberg.hadoop.HadoopCatalog"))) {
+        // Hadoop dropTable deletes the table completely even if the purge is false, would update in follow-up PR
+        sourceCatalog.dropTable(tableIdentifier, false);
+      }
+    });
+    return migratedTableIdentifiers;
   }
 }
