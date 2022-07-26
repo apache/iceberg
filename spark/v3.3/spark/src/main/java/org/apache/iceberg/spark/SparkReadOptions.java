@@ -73,4 +73,11 @@ public class SparkReadOptions {
 
   // Timestamp in milliseconds; start a stream from the snapshot that occurs after this timestamp
   public static final String STREAM_FROM_TIMESTAMP = "stream-from-timestamp";
+
+  // Table path
+  public static final String PATH = "path";
+
+  public static final String VERSION_AS_OF = "versionAsOf";
+
+  public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 }

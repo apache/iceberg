@@ -56,6 +56,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -173,27 +174,28 @@ public class TestSparkParquetReadMetadataColumns {
 
   @Test
   public void testReadRowNumbersWithDelete() throws IOException {
-    if (vectorized) {
-      List<InternalRow> expectedRowsAfterDelete = Lists.newArrayList(EXPECTED_ROWS);
-      // remove row at position 98, 99, 100, 101, 102, this crosses two row groups [0, 100) and [100, 200)
-      for (int i = 1; i <= 5; i++) {
-        expectedRowsAfterDelete.remove(98);
-      }
+    Assume.assumeTrue(vectorized);
 
-      Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
-
-      DeleteFilter deleteFilter = mock(DeleteFilter.class);
-      when(deleteFilter.hasPosDeletes()).thenReturn(true);
-      PositionDeleteIndex deletedRowPos = new CustomizedPositionDeleteIndex();
-      deletedRowPos.delete(98, 103);
-      when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
-
-      builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
-              fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED, Maps.newHashMap(), deleteFilter));
-      builder.recordsPerBatch(RECORDS_PER_BATCH);
-
-      validate(expectedRowsAfterDelete, builder);
+    List<InternalRow> expectedRowsAfterDelete = Lists.newArrayList();
+    EXPECTED_ROWS.forEach(row -> expectedRowsAfterDelete.add(row.copy()));
+    // remove row at position 98, 99, 100, 101, 102, this crosses two row groups [0, 100) and [100, 200)
+    for (int i = 98; i <= 102; i++) {
+      expectedRowsAfterDelete.get(i).update(3, true);
     }
+
+    Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
+
+    DeleteFilter deleteFilter = mock(DeleteFilter.class);
+    when(deleteFilter.hasPosDeletes()).thenReturn(true);
+    PositionDeleteIndex deletedRowPos = new CustomizedPositionDeleteIndex();
+    deletedRowPos.delete(98, 103);
+    when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
+
+    builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
+        fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED, Maps.newHashMap(), deleteFilter));
+    builder.recordsPerBatch(RECORDS_PER_BATCH);
+
+    validate(expectedRowsAfterDelete, builder);
   }
 
   private class CustomizedPositionDeleteIndex implements PositionDeleteIndex {

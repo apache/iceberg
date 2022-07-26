@@ -122,6 +122,13 @@ public class AwsProperties implements Serializable {
   public static final String GLUE_LAKEFORMATION_ENABLED = "glue.lakeformation-enabled";
   public static final boolean GLUE_LAKEFORMATION_ENABLED_DEFAULT = false;
 
+  /*
+   * Configure an alternative endpoint of the Glue service for GlueCatalog to access.
+   * <p>
+   * This could be used to use GlueCatalog with any glue-compatible metastore service that has a different endpoint
+   */
+  public static final String GLUE_CATALOG_ENDPOINT = "glue.endpoint";
+
   /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}

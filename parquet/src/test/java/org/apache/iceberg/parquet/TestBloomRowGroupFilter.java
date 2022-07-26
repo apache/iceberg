@@ -167,12 +167,12 @@ public class TestBloomRowGroupFilter {
 
   static {
     RANDOM_UUIDS = Lists.newArrayList();
+    Random rd = new Random(12345);
     for (int i = 0; i < INT_VALUE_COUNT; i += 1) {
-      RANDOM_UUIDS.add(UUID.randomUUID());
+      RANDOM_UUIDS.add(new UUID(rd.nextLong(), rd.nextLong()));
     }
 
     RANDOM_BYTES = Lists.newArrayList();
-    Random rd = new Random();
     for (int i = 1; i <= INT_VALUE_COUNT; i += 1) {
       byte[] byteArray = new byte[i];
       rd.nextBytes(byteArray);
@@ -459,7 +459,7 @@ public class TestBloomRowGroupFilter {
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     Assert.assertTrue("Should read: and(true, true, true)", shouldRead);
 
-     // AND filters that refer different columns ("id", "long", "binary")
+    // AND filters that refer different columns ("id", "long", "binary")
     shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, and(equal("id", INT_MIN_VALUE - 25),
         equal("long", LONG_BASE + 30), equal("binary", RANDOM_BYTES.get(30))))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
@@ -578,7 +578,7 @@ public class TestBloomRowGroupFilter {
       Assert.assertTrue("Should read: binary within range", shouldRead);
     }
 
-    Random rd = new Random();
+    Random rd = new Random(54321);
     for (int i = 1; i <= 10; i += 1) {
       byte[] byteArray = new byte[i];
       rd.nextBytes(byteArray);
@@ -680,7 +680,9 @@ public class TestBloomRowGroupFilter {
       Assert.assertTrue("Should read: uuid within range", shouldRead);
     }
 
-    boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA, equal("uuid", UUID.randomUUID().toString()))
+    Random rd = new Random(1357);
+    boolean shouldRead = new ParquetBloomRowGroupFilter(SCHEMA,
+        equal("uuid", new UUID(rd.nextLong(), rd.nextLong()).toString()))
         .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     Assert.assertFalse("Should not read: cannot match a new generated random uuid", shouldRead);
   }
