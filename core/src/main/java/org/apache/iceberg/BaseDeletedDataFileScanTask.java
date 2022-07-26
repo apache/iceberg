@@ -59,14 +59,13 @@ class BaseDeletedDataFileScanTask
     }
 
     @Override
-    public List<DeleteFile> existingDeletes() {
-      return parentTask().existingDeletes();
+    protected SplitDeletedDataFileScanTask copyWithNewLength(long newLength) {
+      return new SplitDeletedDataFileScanTask(parentTask(), start(), newLength);
     }
 
     @Override
-    public SplitDeletedDataFileScanTask merge(ScanTask other) {
-      SplitDeletedDataFileScanTask that = (SplitDeletedDataFileScanTask) other;
-      return new SplitDeletedDataFileScanTask(parentTask(), start(), length() + that.length());
+    public List<DeleteFile> existingDeletes() {
+      return parentTask().existingDeletes();
     }
   }
 }

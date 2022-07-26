@@ -67,6 +67,11 @@ class BaseDeletedRowsScanTask
     }
 
     @Override
+    protected SplitDeletedRowsScanTask copyWithNewLength(long newLength) {
+      return new SplitDeletedRowsScanTask(parentTask(), start(), newLength);
+    }
+
+    @Override
     public List<DeleteFile> addedDeletes() {
       return parentTask().addedDeletes();
     }
@@ -74,12 +79,6 @@ class BaseDeletedRowsScanTask
     @Override
     public List<DeleteFile> existingDeletes() {
       return parentTask().existingDeletes();
-    }
-
-    @Override
-    public SplitDeletedRowsScanTask merge(ScanTask other) {
-      SplitDeletedRowsScanTask that = (SplitDeletedRowsScanTask) other;
-      return new SplitDeletedRowsScanTask(parentTask(), start(), length() + that.length());
     }
   }
 }

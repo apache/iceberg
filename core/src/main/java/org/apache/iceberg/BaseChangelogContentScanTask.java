@@ -73,6 +73,8 @@ abstract class BaseChangelogContentScanTask
       this.length = length;
     }
 
+    protected abstract ThisT copyWithNewLength(long newLength);
+
     protected ParentT parentTask() {
       return parentTask;
     }
@@ -124,6 +126,12 @@ abstract class BaseChangelogContentScanTask
       } else {
         return false;
       }
+    }
+
+    @Override
+    public ThisT merge(ScanTask other) {
+      SplitScanTask<?, ?, ?> that = (SplitScanTask<?, ?, ?>) other;
+      return copyWithNewLength(length() + that.length());
     }
 
     @Override
