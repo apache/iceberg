@@ -858,6 +858,7 @@ components:
       type: object
       required:
         - namespace
+        - properties
       properties:
         namespace:
           $ref: '#/components/schemas/Namespace'
