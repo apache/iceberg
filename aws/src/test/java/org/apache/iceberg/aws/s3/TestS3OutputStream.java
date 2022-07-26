@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -119,24 +120,35 @@ public class TestS3OutputStream {
 
   @Test
   public void testAbortAfterFailedPartUpload() {
-    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+    RuntimeException mockException = new RuntimeException("mock uploadPart failure");
+    doThrow(mockException).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-      stream.write(randomData(10 * 1024 * 1024));
-    } catch (Exception e) {
-      verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
-    }
+    Assertions.assertThatThrownBy(() -> {
+      try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
+        stream.write(randomData(10 * 1024 * 1024));
+      }
+    })
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
+
+    verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
   public void testAbortMultipart() {
-    doThrow(new RuntimeException()).when(s3mock).completeMultipartUpload((CompleteMultipartUploadRequest) any());
+    RuntimeException mockException = new RuntimeException("mock completeMultipartUpload failure");
+    doThrow(mockException).when(s3mock)
+        .completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
-    try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-      stream.write(randomData(10 * 1024 * 1024));
-    } catch (Exception e) {
-      verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
-    }
+    Assertions.assertThatThrownBy(() -> {
+      try (S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
+        stream.write(randomData(10 * 1024 * 1024));
+      }
+    })
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
+
+    verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
