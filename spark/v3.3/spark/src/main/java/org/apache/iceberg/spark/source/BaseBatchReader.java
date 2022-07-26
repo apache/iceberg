@@ -48,23 +48,23 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     this.batchSize = batchSize;
   }
 
-  protected CloseableIterable<ColumnarBatch> newBatchIterable(InputFile location, FileFormat format,
+  protected CloseableIterable<ColumnarBatch> newBatchIterable(InputFile inputFile, FileFormat format,
                                                               long start, long length, Expression residual,
                                                               Map<Integer, ?> idToConstant,
                                                               SparkDeleteFilter deleteFilter) {
     switch (format) {
       case PARQUET:
-        return newParquetIterable(location, start, length, residual, idToConstant, deleteFilter);
+        return newParquetIterable(inputFile, start, length, residual, idToConstant, deleteFilter);
 
       case ORC:
-        return newOrcIterable(location, start, length, residual, idToConstant);
+        return newOrcIterable(inputFile, start, length, residual, idToConstant);
 
       default:
         throw new UnsupportedOperationException("Format: " + format + " not supported for batched reads");
     }
   }
 
-  private CloseableIterable<ColumnarBatch> newParquetIterable(InputFile location, long start, long length,
+  private CloseableIterable<ColumnarBatch> newParquetIterable(InputFile inputFile, long start, long length,
                                                               Expression residual, Map<Integer, ?> idToConstant,
                                                               SparkDeleteFilter deleteFilter) {
     // get required schema for filtering out equality-delete rows in case equality-delete uses columns are
@@ -72,7 +72,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     Schema requiredSchema = deleteFilter != null && deleteFilter.hasEqDeletes() ?
         deleteFilter.requiredSchema() : expectedSchema();
 
-    return Parquet.read(location)
+    return Parquet.read(inputFile)
         .project(requiredSchema)
         .split(start, length)
         .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(requiredSchema,
@@ -89,14 +89,14 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .build();
   }
 
-  private CloseableIterable<ColumnarBatch> newOrcIterable(InputFile location, long start, long length,
+  private CloseableIterable<ColumnarBatch> newOrcIterable(InputFile inputFile, long start, long length,
                                                           Expression residual, Map<Integer, ?> idToConstant) {
     Set<Integer> constantFieldIds = idToConstant.keySet();
     Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
     Sets.SetView<Integer> constantAndMetadataFieldIds = Sets.union(constantFieldIds, metadataFieldIds);
     Schema schemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(expectedSchema(), constantAndMetadataFieldIds);
 
-    return ORC.read(location)
+    return ORC.read(inputFile)
         .project(schemaWithoutConstantAndMetadataFields)
         .split(start, length)
         .createBatchedReaderFunc(fileSchema -> VectorizedSparkOrcReaders.buildReader(expectedSchema(), fileSchema,

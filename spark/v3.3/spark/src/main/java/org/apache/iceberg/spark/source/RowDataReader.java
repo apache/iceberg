@@ -45,7 +45,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
   }
 
   @Override
-  CloseableIterator<InternalRow> open(FileScanTask task) {
+  protected CloseableIterator<InternalRow> open(FileScanTask task) {
     String filePath = task.file().path().toString();
     SparkDeleteFilter deleteFilter = new SparkDeleteFilter(filePath, task.deletes());
 
@@ -72,7 +72,6 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
     StructInternalRow row = new StructInternalRow(readSchema.asStruct());
-    CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(task.asDataTask().rows(), row::setStruct);
-    return asSparkRows;
+    return CloseableIterable.transform(task.asDataTask().rows(), row::setStruct);
   }
 }

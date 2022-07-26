@@ -52,7 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ByteBuffers;
@@ -95,6 +94,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
   }
+
+  protected abstract CloseableIterator<T> open(TaskT task);
+
+  protected abstract Stream<ContentFile<?>> referencedFiles(TaskT task);
 
   protected Schema expectedSchema() {
     return expectedSchema;
@@ -142,8 +145,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     return current;
   }
 
-  abstract CloseableIterator<T> open(TaskT task);
-
   @Override
   public void close() throws IOException {
     InputFileBlockHolder.unset();
@@ -165,8 +166,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     if (lazyInputFiles == null) {
       Stream<EncryptedInputFile> encryptedFiles = taskGroup.tasks().stream()
           .flatMap(this::referencedFiles)
-          .map(file ->
-              EncryptedFiles.encryptedInput(table.io().newInputFile(file.path().toString()), file.keyMetadata()));
+          .map(this::toEncryptedInputFile);
 
       // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
       Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encryptedFiles::iterator);
@@ -179,11 +179,14 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     return lazyInputFiles;
   }
 
-  protected abstract Stream<ContentFile<?>> referencedFiles(TaskT task);
+  private EncryptedInputFile toEncryptedInputFile(ContentFile<?> file) {
+    InputFile inputFile = table.io().newInputFile(file.path().toString());
+    return EncryptedFiles.encryptedInput(inputFile, file.keyMetadata());
+  }
 
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
-      Types.StructType partitionType = Partitioning.partitionType(table);
+      StructType partitionType = Partitioning.partitionType(table);
       return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
     } else {
       return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
@@ -239,13 +242,9 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
-    SparkDeleteFilter(String filePath, List<DeleteFile> deletes, Schema requestedSchema) {
-      super(filePath, deletes, table.schema(), requestedSchema);
-      this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
-    }
-
     SparkDeleteFilter(String filePath, List<DeleteFile> deletes) {
-      this(filePath, deletes, expectedSchema);
+      super(filePath, deletes, table.schema(), expectedSchema);
+      this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
 
     @Override

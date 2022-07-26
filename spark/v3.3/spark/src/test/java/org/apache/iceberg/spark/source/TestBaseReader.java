@@ -101,7 +101,7 @@ public class TestBaseReader {
     }
 
     @Override
-    CloseableIterator<Integer> open(FileScanTask task) {
+    protected CloseableIterator<Integer> open(FileScanTask task) {
       CloseableIntegerRange intRange = new CloseableIntegerRange(task.file().recordCount());
       tracker.put(getKey(task), intRange);
       return intRange;

@@ -44,7 +44,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask> {
   }
 
   @Override
-  CloseableIterator<ColumnarBatch> open(FileScanTask task) {
+  protected CloseableIterator<ColumnarBatch> open(FileScanTask task) {
     String filePath = task.file().path().toString();
 
     // update the current file for Spark's filename() function
@@ -55,7 +55,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask> {
     InputFile inputFile = getInputFile(filePath);
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
-    SparkDeleteFilter deleteFilter = new SparkDeleteFilter(filePath, task.deletes());
+    SparkDeleteFilter deleteFilter = task.deletes().isEmpty() ? null : new SparkDeleteFilter(filePath, task.deletes());
 
     return newBatchIterable(inputFile, task.file().format(), task.start(), task.length(), task.residual(),
         idToConstant, deleteFilter).iterator();
