@@ -26,7 +26,7 @@ from functools import singledispatch, singledispatchmethod
 from typing import Optional, Union
 from uuid import UUID
 
-from pyiceberg.expression.expressions import Literal
+from pyiceberg.expressions import Literal
 from pyiceberg.types import (
     BinaryType,
     BooleanType,

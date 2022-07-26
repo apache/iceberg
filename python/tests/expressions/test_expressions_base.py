@@ -21,8 +21,8 @@ from typing import List
 
 import pytest
 
-from pyiceberg.expression import expressions
-from pyiceberg.expression.literals import LongLiteral, StringLiteral, literal
+from pyiceberg import expressions
+from pyiceberg.literals import LongLiteral, StringLiteral, literal
 from pyiceberg.schema import Accessor
 from pyiceberg.types import IntegerType, NestedField, StringType
 from pyiceberg.utils.singleton import Singleton

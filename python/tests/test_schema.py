@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional
 import pytest
 
 from pyiceberg import schema
-from pyiceberg.expression.expressions import Accessor
+from pyiceberg.expressions import Accessor
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Schema, build_position_accessors
 from pyiceberg.types import (

@@ -20,7 +20,7 @@ from decimal import Decimal
 
 import pytest
 
-from pyiceberg.expression.literals import (
+from pyiceberg.literals import (
     AboveMax,
     BelowMin,
     BinaryLiteral,
