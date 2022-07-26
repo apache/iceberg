@@ -27,10 +27,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
@@ -51,7 +53,7 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.FileFormat.PARQUET;
 import static org.apache.iceberg.Files.localOutput;
 
-public class TestSparkBaseDataReader {
+public class TestBaseReader {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -86,15 +88,20 @@ public class TestSparkBaseDataReader {
 
   // Main reader class to test base class iteration logic.
   // Keeps track of iterator closure.
-  private static class ClosureTrackingReader extends BaseDataReader<Integer> {
+  private static class ClosureTrackingReader extends BaseReader<Integer, FileScanTask> {
     private Map<String, CloseableIntegerRange> tracker = Maps.newHashMap();
 
     ClosureTrackingReader(Table table, List<FileScanTask> tasks) {
-      super(table, new BaseCombinedScanTask(tasks));
+      super(table, new BaseCombinedScanTask(tasks), null, false);
     }
 
     @Override
-    CloseableIterator<Integer> open(FileScanTask task) {
+    protected Stream<ContentFile<?>> referencedFiles(FileScanTask task) {
+      return Stream.of();
+    }
+
+    @Override
+    protected CloseableIterator<Integer> open(FileScanTask task) {
       CloseableIntegerRange intRange = new CloseableIntegerRange(task.file().recordCount());
       tracker.put(getKey(task), intRange);
       return intRange;
