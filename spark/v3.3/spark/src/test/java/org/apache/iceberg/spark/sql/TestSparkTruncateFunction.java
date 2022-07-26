@@ -162,37 +162,6 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testTruncationWidthFailsWhenNonnegative() {
-    AssertHelpers.assertThrows(
-        "Non-positive truncation width for integers should throw an exception at runtime",
-        IllegalArgumentException.class,
-        "Invalid truncate width",
-        () -> scalarSql("SELECT %s.truncate(0, 10)", systemNamespace)
-    );
-
-    AssertHelpers.assertThrows(
-        "Non-positive truncation width for longs should throw an exception at runtime",
-        IllegalArgumentException.class,
-        "Invalid truncate width",
-        () -> scalarSql("SELECT %s.truncate(-1, 10L)", systemNamespace)
-    );
-
-    AssertHelpers.assertThrows(
-        "Non-positive truncation width for decimals should throw an exception at runtime",
-        IllegalArgumentException.class,
-        "Invalid truncate width",
-        () -> scalarSql("SELECT %s.truncate(0, CAST(12.34 AS decimal(9, 2)))", systemNamespace)
-    );
-
-    AssertHelpers.assertThrows(
-        "Non-positive truncation width for binary types should throw an exception at runtime",
-        IllegalArgumentException.class,
-        "Invalid truncate width",
-        () -> scalarSql("SELECT %s.truncate(-1, X'01020304')", systemNamespace)
-    );
-  }
-
-  @Test
   public void testTruncateBigInt() {
     Assert.assertEquals(0L, scalarSql("SELECT %s.truncate(10, 0L)", systemNamespace));
     Assert.assertEquals(0L, scalarSql("SELECT %s.truncate(10, 1L)", systemNamespace));
