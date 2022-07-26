@@ -411,8 +411,13 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testRemoveOrphanFilesProcedureWithPrefixMode() throws NoSuchTableException, ParseException {
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+  public void testRemoveOrphanFilesProcedureWithPrefixMode() throws NoSuchTableException, ParseException, IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'", tableName,
+          temp.newFolder().toURI().toString());
+    }
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     String location = table.location();
     Path originalPath = new Path(location);
