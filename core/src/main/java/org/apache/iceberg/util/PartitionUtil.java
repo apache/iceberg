@@ -22,7 +22,7 @@ package org.apache.iceberg.util;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
-import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -35,15 +35,16 @@ public class PartitionUtil {
   private PartitionUtil() {
   }
 
-  public static Map<Integer, ?> constantsMap(FileScanTask task) {
+  public static Map<Integer, ?> constantsMap(ContentScanTask<?> task) {
     return constantsMap(task, null, (type, constant) -> constant);
   }
 
-  public static Map<Integer, ?> constantsMap(FileScanTask task, BiFunction<Type, Object, Object> convertConstant) {
+  public static Map<Integer, ?> constantsMap(ContentScanTask<?> task,
+                                             BiFunction<Type, Object, Object> convertConstant) {
     return constantsMap(task, null, convertConstant);
   }
 
-  public static Map<Integer, ?> constantsMap(FileScanTask task, Types.StructType partitionType,
+  public static Map<Integer, ?> constantsMap(ContentScanTask<?> task, Types.StructType partitionType,
                                              BiFunction<Type, Object, Object> convertConstant) {
     PartitionSpec spec = task.spec();
     StructLike partitionData = task.file().partition();

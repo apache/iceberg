@@ -26,29 +26,38 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Partitioning;
+import org.apache.iceberg.ScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -60,35 +69,46 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
-abstract class BaseDataReader<T> implements Closeable {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseDataReader.class);
+abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
-  private final Iterator<FileScanTask> tasks;
-  private final Map<String, InputFile> inputFiles;
+  private final Schema expectedSchema;
+  private final boolean caseSensitive;
+  private final NameMapping nameMapping;
+  private final ScanTaskGroup<TaskT> taskGroup;
+  private final Iterator<TaskT> tasks;
 
+  private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
   private T current = null;
-  private FileScanTask currentTask = null;
+  private TaskT currentTask = null;
 
-  BaseDataReader(Table table, CombinedScanTask task) {
+  BaseReader(Table table, ScanTaskGroup<TaskT> taskGroup, Schema expectedSchema, boolean caseSensitive) {
     this.table = table;
-    this.tasks = task.files().iterator();
-    Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-    task.files().stream()
-        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
-    Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
-        .map(entry -> EncryptedFiles.encryptedInput(table.io().newInputFile(entry.getKey()), entry.getValue()));
-
-    // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-    Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encrypted::iterator);
-
-    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
-    decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-    this.inputFiles = ImmutableMap.copyOf(files);
-
+    this.taskGroup = taskGroup;
+    this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
+    this.expectedSchema = expectedSchema;
+    this.caseSensitive = caseSensitive;
+    String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    this.nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+  }
+
+  protected abstract CloseableIterator<T> open(TaskT task);
+
+  protected abstract Stream<ContentFile<?>> referencedFiles(TaskT task);
+
+  protected Schema expectedSchema() {
+    return expectedSchema;
+  }
+
+  protected boolean caseSensitive() {
+    return caseSensitive;
+  }
+
+  protected NameMapping nameMapping() {
+    return nameMapping;
   }
 
   protected Table table() {
@@ -112,7 +132,10 @@ abstract class BaseDataReader<T> implements Closeable {
       }
     } catch (IOException | RuntimeException e) {
       if (currentTask != null && !currentTask.isDataTask()) {
-        LOG.error("Error reading file: {}", getInputFile(currentTask).location(), e);
+        String filePaths = referencedFiles(currentTask)
+            .map(file -> file.path().toString())
+            .collect(Collectors.joining(", "));
+        LOG.error("Error reading file(s): {}", filePaths, e);
       }
       throw e;
     }
@@ -121,8 +144,6 @@ abstract class BaseDataReader<T> implements Closeable {
   public T get() {
     return current;
   }
-
-  abstract CloseableIterator<T> open(FileScanTask task);
 
   @Override
   public void close() throws IOException {
@@ -137,21 +158,38 @@ abstract class BaseDataReader<T> implements Closeable {
     }
   }
 
-  protected InputFile getInputFile(FileScanTask task) {
-    Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return inputFiles.get(task.file().path().toString());
-  }
-
   protected InputFile getInputFile(String location) {
-    return inputFiles.get(location);
+    return inputFiles().get(location);
   }
 
-  protected Map<Integer, ?> constantsMap(FileScanTask task, Schema readSchema) {
+  private Map<String, InputFile> inputFiles() {
+    if (lazyInputFiles == null) {
+      Stream<EncryptedInputFile> encryptedFiles = taskGroup.tasks().stream()
+          .flatMap(this::referencedFiles)
+          .map(this::toEncryptedInputFile);
+
+      // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
+      Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encryptedFiles::iterator);
+
+      Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(taskGroup.tasks().size());
+      decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
+      this.lazyInputFiles = ImmutableMap.copyOf(files);
+    }
+
+    return lazyInputFiles;
+  }
+
+  private EncryptedInputFile toEncryptedInputFile(ContentFile<?> file) {
+    InputFile inputFile = table.io().newInputFile(file.path().toString());
+    return EncryptedFiles.encryptedInput(inputFile, file.keyMetadata());
+  }
+
+  protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {
     if (readSchema.findField(MetadataColumns.PARTITION_COLUMN_ID) != null) {
       StructType partitionType = Partitioning.partitionType(table);
-      return PartitionUtil.constantsMap(task, partitionType, BaseDataReader::convertConstant);
+      return PartitionUtil.constantsMap(task, partitionType, BaseReader::convertConstant);
     } else {
-      return PartitionUtil.constantsMap(task, BaseDataReader::convertConstant);
+      return PartitionUtil.constantsMap(task, BaseReader::convertConstant);
     }
   }
 
@@ -199,5 +237,29 @@ abstract class BaseDataReader<T> implements Closeable {
       default:
     }
     return value;
+  }
+
+  protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
+    private final InternalRowWrapper asStructLike;
+
+    SparkDeleteFilter(String filePath, List<DeleteFile> deletes) {
+      super(filePath, deletes, table.schema(), expectedSchema);
+      this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
+    }
+
+    @Override
+    protected StructLike asStructLike(InternalRow row) {
+      return asStructLike.wrap(row);
+    }
+
+    @Override
+    protected InputFile getInputFile(String location) {
+      return BaseReader.this.getInputFile(location);
+    }
+
+    @Override
+    protected void markRowDeleted(InternalRow row) {
+      row.setBoolean(columnIsDeletedPosition(), true);
+    }
   }
 }
