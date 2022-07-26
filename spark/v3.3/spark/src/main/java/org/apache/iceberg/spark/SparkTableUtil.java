@@ -106,7 +106,7 @@ public class SparkTableUtil {
 
   private static final String DUPLICATE_FILE_MESSAGE = "Cannot complete import because data files " +
       "to be imported already exist within the target table: %s.  " +
-      "This is disabled by default as Iceberg is not designed for mulitple references to the same file" +
+      "This is disabled by default as Iceberg is not designed for multiple references to the same file" +
       " within the same table.  If you are sure, you may set 'check_duplicate_files' to false to force the import.";
 
 
