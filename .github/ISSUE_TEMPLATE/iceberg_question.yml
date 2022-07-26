@@ -1,6 +1,6 @@
 ---
 name: Iceberg Question
-description: Problems, bugs and issues with Apache Iceberg
+description: Questions around Apache Iceberg
 labels: ["kind:question"]
 body:
   - type: markdown

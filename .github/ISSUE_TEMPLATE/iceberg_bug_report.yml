@@ -30,6 +30,7 @@ body:
       label: Please describe the bug 🐞
       description: >
         Please describe the problem, what to expect, and how to reproduce.
-        Feel free to include stacktraces. You can include files by dragging and dropping them here.
+        Feel free to include stacktraces and the Iceberg catalog configuration.
+        You can include files by dragging and dropping them here.
     validations:
       required: true
