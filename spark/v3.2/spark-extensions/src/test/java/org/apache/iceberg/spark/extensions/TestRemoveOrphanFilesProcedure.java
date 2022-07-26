@@ -25,13 +25,13 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Table;
@@ -426,32 +426,42 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     Path newParentPath = new Path("file1", uri.getAuthority(), uri.getPath());
 
     DataFile dataFile1 = DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(new Path(newParentPath, "path/to/data-a.parquet").toString())
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .build();
+        .withPath(new Path(newParentPath, "path/to/data-a.parquet").toString())
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
     DataFile dataFile2 = DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(new Path(newParentPath, "path/to/data-b.parquet").toString())
-            .withFileSizeInBytes(10)
-            .withRecordCount(1)
-            .build();
+        .withPath(new Path(newParentPath, "path/to/data-b.parquet").toString())
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
 
     table.newFastAppend()
-            .appendFile(dataFile1)
-            .appendFile(dataFile2)
-            .commit();
+        .appendFile(dataFile1)
+        .appendFile(dataFile2)
+        .commit();
+
+
+    Timestamp lastModifiedTimestamp = new Timestamp(10000);
 
     List<FilePathLastModifiedRecord> allFiles = Lists.newArrayList(
-            new FilePathLastModifiedRecord(new Path(originalPath, "path/to/data-a.parquet").toString(),
-                    new Timestamp(10000)),
-            new FilePathLastModifiedRecord(new Path(originalPath, "path/to/data-b.parquet").toString(),
-                    new Timestamp(10000)));
-    allFiles.addAll(ReachableFileUtil.metadataFileLocations(table, true).stream().map(file ->
-            new FilePathLastModifiedRecord(file, new Timestamp(10000))).collect(Collectors.toList()));
-    allFiles.add(new FilePathLastModifiedRecord(ReachableFileUtil.versionHintLocation(table),
-            new Timestamp(10000)));
-    allFiles.addAll(TestHelpers.dataManifests(table).stream().map(manifestFile ->
-            new FilePathLastModifiedRecord(manifestFile.path(), new Timestamp(10000))).collect(Collectors.toList()));
+        new FilePathLastModifiedRecord(
+            new Path(originalPath, "path/to/data-a.parquet").toString(),
+            lastModifiedTimestamp),
+        new FilePathLastModifiedRecord(
+            new Path(originalPath, "path/to/data-b.parquet").toString(),
+            lastModifiedTimestamp),
+        new FilePathLastModifiedRecord(
+            ReachableFileUtil.versionHintLocation(table),
+            lastModifiedTimestamp));
+
+    for (String file : ReachableFileUtil.metadataFileLocations(table, true)) {
+      allFiles.add(new FilePathLastModifiedRecord(file, lastModifiedTimestamp));
+    }
+
+    for (ManifestFile manifest : TestHelpers.dataManifests(table)) {
+      allFiles.add(new FilePathLastModifiedRecord(manifest.path(), lastModifiedTimestamp));
+    }
 
     Dataset<Row> compareToFileList = spark.createDataFrame(allFiles,
                     FilePathLastModifiedRecord.class).withColumnRenamed("filePath", "file_path")
@@ -468,12 +478,12 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
     // Test with no equal schemes
     AssertHelpers.assertThrows("Should complain about removing orphan files",
-            ValidationException.class, "Conflicting authorities/schemes: [(file1, file)]",
-            () -> sql(
-                    "CALL %s.system.remove_orphan_files(" +
-                            "table => '%s'," +
-                            "file_list_view => '%s')",
-                    catalogName, tableIdent, fileListViewName));
+        ValidationException.class, "Conflicting authorities/schemes: [(file1, file)]",
+        () -> sql(
+                "CALL %s.system.remove_orphan_files(" +
+                        "table => '%s'," +
+                        "file_list_view => '%s')",
+                catalogName, tableIdent, fileListViewName));
 
     // Drop table in afterEach has purge and fails due to invalid scheme "file1" used in this test
     // Dropping the table here

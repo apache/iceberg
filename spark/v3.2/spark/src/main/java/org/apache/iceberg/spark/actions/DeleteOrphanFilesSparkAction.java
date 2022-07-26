@@ -102,19 +102,20 @@ public class DeleteOrphanFilesSparkAction
     extends BaseSparkAction<DeleteOrphanFilesSparkAction> implements DeleteOrphanFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
-  private final SerializableConfiguration hadoopConf;
-  private final int partitionDiscoveryParallelism;
-  private final Table table;
   private static final Splitter COMMA = Splitter.on(",");
   private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
 
+  private final SerializableConfiguration hadoopConf;
+  private final int partitionDiscoveryParallelism;
+  private final Table table;
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
       table.io().deleteFile(file);
     }
   };
-  private Map<String, String> equalSchemes = Collections.emptyMap();
+
+  private Map<String, String> equalSchemes = flattenMap(EQUAL_SCHEMES_DEFAULT);
   private Map<String, String> equalAuthorities = Collections.emptyMap();
   private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
   private String location = null;
@@ -376,6 +377,7 @@ public class DeleteOrphanFilesSparkAction
           "authorities/schemes are different. It will be impossible to recover deleted files. " +
           "Conflicting authorities/schemes: %s.", conflicts.value());
     }
+
     return orphanFiles;
   }
 
@@ -436,7 +438,6 @@ public class DeleteOrphanFilesSparkAction
       return new FileMetadata(scheme, authority, uri.getPath(), location);
     });
   }
-
 
   /**
    * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be marked

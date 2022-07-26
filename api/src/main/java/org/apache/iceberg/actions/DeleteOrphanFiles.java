@@ -19,9 +19,11 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * An action that deletes orphan metadata, data and delete files in a table.
@@ -88,7 +90,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    * Possible values are "ERROR", "IGNORE", "DELETE". The default mismatch mode is "ERROR",
    * which means an exception is thrown whenever there is a mismatch in authority/scheme.
    * It's the recommended mismatch mode and should be changed only in some rare circumstances.
-   * If there is a mismatch, use {@link #equalSchemes(Map)} (Map)} and {@link #equalAuthorities(Map)} (Map)}
+   * If there is a mismatch, use {@link #equalSchemes(Map)} and {@link #equalAuthorities(Map)}
    * to resolve conflicts by providing equivalent schemes and authorities. If it is impossible
    * to determine whether the conflicting authorities/schemes are equal, set the prefix mismatch
    * mode to "IGNORE" to skip files with mismatches. If you have manually inspected all conflicting
@@ -147,5 +149,10 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    */
   enum PrefixMismatchMode {
     ERROR, IGNORE, DELETE;
+
+    public static PrefixMismatchMode fromString(String modeAsString) {
+      Preconditions.checkArgument(modeAsString != null, "Mode should not be null");
+      return PrefixMismatchMode.valueOf(modeAsString.toUpperCase(Locale.ENGLISH));
+    }
   }
 }

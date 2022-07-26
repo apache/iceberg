@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -118,8 +119,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           });
     }
 
-    DeleteOrphanFiles.PrefixMismatchMode prefixMismatchMode = args.isNullAt(8) ? null :
-        DeleteOrphanFiles.PrefixMismatchMode.valueOf(args.getString(8));
+    PrefixMismatchMode prefixMismatchMode = args.isNullAt(8) ? null :
+        PrefixMismatchMode.fromString(args.getString(8));
 
     return withIcebergTable(tableIdent, table -> {
       DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
@@ -150,6 +151,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
       action.equalSchemes(equalSchemes);
       action.equalAuthorities(equalAuthorities);
+
       if (prefixMismatchMode != null) {
         action.prefixMismatchMode(prefixMismatchMode);
       }
