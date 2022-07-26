@@ -17,9 +17,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, Field
+from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import Generic, TypeVar, ClassVar
+from typing import Generic, TypeVar, ClassVar, Literal
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
@@ -28,47 +28,6 @@ from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
 B = TypeVar("B")
-
-
-class Literal(Generic[T], ABC):
-    """Literal which has a value and can be converted between types"""
-
-    def __init__(self, value: T, value_type: type):
-        if value is None or not isinstance(value, value_type):
-            raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
-        self._value = value
-
-    @property
-    def value(self) -> T:
-        return self._value  # type: ignore
-
-    @abstractmethod
-    def to(self, type_var) -> Literal:
-        ...  # pragma: no cover
-
-    def __repr__(self):
-        return f"{type(self).__name__}({self.value})"
-
-    def __str__(self):
-        return str(self.value)
-
-    def __eq__(self, other):
-        return self.value == other.value
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __lt__(self, other):
-        return self.value < other.value
-
-    def __gt__(self, other):
-        return self.value > other.value
-
-    def __le__(self, other):
-        return self.value <= other.value
-
-    def __ge__(self, other):
-        return self.value >= other.value
 
 
 class BooleanExpression(ABC):
@@ -449,48 +408,69 @@ BoundIsNaN.inverse = BoundNotNaN
 BoundNotNaN.inverse = BoundIsNaN
 
 
-class BoundIn(BoundPredicate[T]):
-    def _validate_literals(self):  # pylint: disable=W0238
-        if not self.literals:
-            raise AttributeError("BoundIn must contain at least 1 literal.")
+@dataclass(frozen=True)
+class SetPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
+    inverse: ClassVar[type]
+    as_bound: ClassVar[type]
+    term: UnboundTerm[T]
+    literals: tuple[Literal[T], ...]
 
-    def __invert__(self) -> BoundNotIn[T]:
-        return BoundNotIn(self.term, *self.literals)
+    def __invert__(self) -> inverse:
+        return self.inverse(self.term, self.literals)
 
-
-class In(UnboundPredicate[T]):
-    def _validate_literals(self):  # pylint: disable=W0238
-        if not self.literals:
-            raise AttributeError("In must contain at least 1 literal.")
-
-    def __invert__(self) -> NotIn[T]:
-        return NotIn(self.term, *self.literals)
-
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundIn[T]:
-        bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundIn(bound_ref, *tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
+        bound_term = self.term.bind(schema, case_sensitive)
+        return self.as_bound(bound_term, set(lit.to(bound_term.ref().field.field_type) for lit in self.literals))
 
 
-class BoundNotIn(BoundPredicate[T]):
-    def _validate_literals(self):  # pylint: disable=W0238
-        if not self.literals:
-            raise AttributeError("BoundNotIn must contain at least 1 literal.")
+@dataclass(frozen=True)
+class BoundSetPredicate(Bound[T], BooleanExpression):
+    inverse: ClassVar[type]
+    term: BoundTerm[T]
+    literals: set[Literal[T], ...]
 
-    def __invert__(self) -> BoundIn[T]:
-        return BoundIn(self.term, *self.literals)
+    def __invert__(self) -> inverse:
+        return self.inverse(self.term, self.literals)
 
 
-class NotIn(UnboundPredicate[T]):
-    def _validate_literals(self):  # pylint: disable=W0238
-        if not self.literals:
-            raise AttributeError("NotIn must contain at least 1 literal.")
+class In(SetPredicate[T]):
+    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]) -> BooleanExpression:
+        if len(literals) == 1:
+            return Eq(term, literals[0])
+        else:
+            return super().__new__(cls)
 
-    def __invert__(self) -> In[T]:
-        return In(self.term, *self.literals)
 
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundNotIn[T]:
-        bound_ref = self.term.bind(schema, case_sensitive)
-        return BoundNotIn(bound_ref, *tuple(lit.to(bound_ref.field.field_type) for lit in self.literals))  # type: ignore
+class NotIn(SetPredicate[T]):
+    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]) -> BooleanExpression:
+        if len(literals) == 1:
+            return NotEq(term, literals[0])
+        else:
+            return super().__new__(cls)
+
+
+class BoundIn(BoundSetPredicate[T]):
+    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T], ...]) -> BooleanExpression:
+        if len(literals) == 1:
+            return BoundEq(term, literals.pop())
+        else:
+            return super().__new__(cls)
+
+
+class BoundNotIn(BoundSetPredicate[T]):
+    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T], ...]) -> BooleanExpression:
+        if len(literals) == 1:
+            return BoundNotEq(term, literals.pop())
+        else:
+            return super().__new__(cls)
+
+
+In.inverse = NotIn
+In.as_bound = BoundIn
+NotIn.inverse = In
+NotIn.as_bound = BoundNotIn
+BoundIn.inverse = BoundNotIn
+BoundNotIn.inverse = BoundIn
 
 
 class BoundEq(BoundPredicate[T]):
@@ -680,6 +660,12 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
 
 @visit.register(In)
 def _(obj: In, visitor: BooleanExpressionVisitor[T]) -> T:
+    """Visit an In boolean expression with a concrete BooleanExpressionVisitor"""
+    return visitor.visit_unbound_predicate(predicate=obj)
+
+
+@visit.register(UnboundPredicate)
+def _(obj: UnboundPredicate, visitor: BooleanExpressionVisitor[T]) -> T:
     """Visit an In boolean expression with a concrete BooleanExpressionVisitor"""
     return visitor.visit_unbound_predicate(predicate=obj)
 

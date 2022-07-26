@@ -19,14 +19,15 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=W0613
+from __future__ import annotations
 
 import struct
+from abc import ABC, abstractmethod
 from decimal import ROUND_HALF_UP, Decimal
 from functools import singledispatch, singledispatchmethod
-from typing import Optional, Union
+from typing import Optional, Union, Generic, TypeVar
 from uuid import UUID
 
-from pyiceberg.expressions.base import Literal
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -51,6 +52,54 @@ from pyiceberg.utils.datetime import (
     timestamptz_to_micros,
 )
 from pyiceberg.utils.singleton import Singleton
+
+T = TypeVar("T")
+
+
+class Literal(Generic[T], ABC):
+    """Literal which has a value and can be converted between types"""
+
+    def __init__(self, value: T, value_type: type):
+        if value is None or not isinstance(value, value_type):
+            raise TypeError(f"Invalid literal value: {value} (not a {value_type})")
+        self._value = value
+
+    @property
+    def value(self) -> T:
+        return self._value  # type: ignore
+
+    @abstractmethod
+    def to(self, type_var) -> Literal:
+        ...  # pragma: no cover
+
+    def __repr__(self):
+        return f"{type(self).__name__}({self.value})"
+
+    def __str__(self):
+        return str(self.value)
+
+    def __hash__(self):
+        return hash(self.value)
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __lt__(self, other):
+        return self.value < other.value
+
+    def __gt__(self, other):
+        return self.value > other.value
+
+    def __le__(self, other):
+        return self.value <= other.value
+
+    def __ge__(self, other):
+        return self.value >= other.value
+
+
 
 
 @singledispatch
