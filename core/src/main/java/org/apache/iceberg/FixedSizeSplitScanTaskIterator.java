@@ -27,15 +27,15 @@ package org.apache.iceberg;
 class FixedSizeSplitScanTaskIterator<T extends ScanTask> implements SplitScanTaskIterator<T> {
   private final T parentTask;
   private final long splitSize;
-  private final CreateSplitTaskFunction<T> createSplitTaskFunc;
+  private final SplitScanTaskCreator<T> splitTaskCreator;
   private long offset;
   private long remainingLength;
 
   FixedSizeSplitScanTaskIterator(T parentTask, long parentTaskLength, long splitSize,
-                                 CreateSplitTaskFunction<T> createSplitTaskFunc) {
+                                 SplitScanTaskCreator<T> splitTaskCreator) {
     this.parentTask = parentTask;
     this.splitSize = splitSize;
-    this.createSplitTaskFunc = createSplitTaskFunc;
+    this.splitTaskCreator = splitTaskCreator;
     this.offset = 0;
     this.remainingLength = parentTaskLength;
   }
@@ -48,7 +48,7 @@ class FixedSizeSplitScanTaskIterator<T extends ScanTask> implements SplitScanTas
   @Override
   public T next() {
     long length = Math.min(splitSize, remainingLength);
-    T splitTask = createSplitTaskFunc.apply(parentTask, offset, length);
+    T splitTask = splitTaskCreator.create(parentTask, offset, length);
     offset += length;
     remainingLength -= length;
     return splitTask;

@@ -35,17 +35,17 @@ class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScan
   private static final Ordering<Comparable<Long>> OFFSET_ORDERING = Ordering.natural();
 
   private final T parentTask;
-  private final CreateSplitTaskFunction<T> createSplitTaskFunc;
+  private final SplitScanTaskCreator<T> splitTaskCreator;
   private final List<Long> offsets;
   private final List<Long> splitSizes;
-  private int sizeIndex = 0;
+  private int splitIndex = 0;
 
   OffsetsAwareSplitScanTaskIterator(T parentTask, long parentTaskLength, List<Long> offsetList,
-                                    CreateSplitTaskFunction<T> createSplitTaskFunc) {
+                                    SplitScanTaskCreator<T> splitTaskCreator) {
     Preconditions.checkArgument(OFFSET_ORDERING.isStrictlyOrdered(offsetList), "Offsets must be sorted in asc order");
 
     this.parentTask = parentTask;
-    this.createSplitTaskFunc = createSplitTaskFunc;
+    this.splitTaskCreator = splitTaskCreator;
     this.offsets = ImmutableList.copyOf(offsetList);
     this.splitSizes = Lists.newArrayListWithCapacity(offsets.size());
     if (offsets.size() > 0) {
@@ -59,7 +59,7 @@ class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScan
 
   @Override
   public boolean hasNext() {
-    return sizeIndex < splitSizes.size();
+    return splitIndex < splitSizes.size();
   }
 
   @Override
@@ -67,9 +67,9 @@ class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScan
     if (!hasNext()) {
       throw new NoSuchElementException();
     }
-    long offset = offsets.get(sizeIndex);
-    long splitSize = splitSizes.get(sizeIndex);
-    sizeIndex += 1; // create 1 split per offset
-    return createSplitTaskFunc.apply(parentTask, offset, splitSize);
+    long offset = offsets.get(splitIndex);
+    long splitSize = splitSizes.get(splitIndex);
+    splitIndex += 1; // create 1 split per offset
+    return splitTaskCreator.create(parentTask, offset, splitSize);
   }
 }

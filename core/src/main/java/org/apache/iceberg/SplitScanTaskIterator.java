@@ -29,7 +29,7 @@ import java.util.Iterator;
 interface SplitScanTaskIterator<T extends ScanTask> extends Iterator<T> {
 
   @FunctionalInterface
-  interface CreateSplitTaskFunction<T extends ScanTask> {
-    T apply(T parentTask, long offset, long length);
+  interface SplitScanTaskCreator<T extends ScanTask> {
+    T create(T parentTask, long offset, long length);
   }
 }
