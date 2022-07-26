@@ -206,7 +206,7 @@ public class TestSelect extends SparkCatalogTestBase {
     // read the table using DataFrameReader option: versionAsOf
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .option("versionAsOf", snapshotId)
+        .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
         .load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
@@ -249,7 +249,7 @@ public class TestSelect extends SparkCatalogTestBase {
     // read the table using DataFrameReader option
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .option("timestampAsOf", formattedDate)
+        .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedDate)
         .load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);

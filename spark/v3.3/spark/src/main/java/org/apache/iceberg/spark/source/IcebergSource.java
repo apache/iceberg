@@ -111,10 +111,10 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
   }
 
   private Spark3Util.CatalogAndIdentifier catalogAndIdentifier(CaseInsensitiveStringMap options) {
-    Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
+    Preconditions.checkArgument(options.containsKey(SparkReadOptions.PATH), "Cannot open table: path is not set");
     SparkSession spark = SparkSession.active();
     setupDefaultSparkCatalogs(spark);
-    String path = options.get("path");
+    String path = options.get(SparkReadOptions.PATH);
 
     Long snapshotId = propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID);
     Long asOfTimestamp = propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP);
@@ -183,12 +183,12 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   @Override
   public Optional<String> extractTimeTravelVersion(CaseInsensitiveStringMap options) {
-    return Optional.ofNullable(PropertyUtil.propertyAsString(options, "versionAsOf", null));
+    return Optional.ofNullable(PropertyUtil.propertyAsString(options, SparkReadOptions.VERSION_AS_OF, null));
   }
 
   @Override
   public Optional<String> extractTimeTravelTimestamp(CaseInsensitiveStringMap options) {
-    return Optional.ofNullable(PropertyUtil.propertyAsString(options, "timestampAsOf", null));
+    return Optional.ofNullable(PropertyUtil.propertyAsString(options, SparkReadOptions.TIMESTAMP_AS_OF, null));
   }
 
   private static Long propertyAsLong(CaseInsensitiveStringMap options, String property) {
