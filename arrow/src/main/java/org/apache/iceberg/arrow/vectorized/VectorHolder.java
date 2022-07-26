@@ -104,6 +104,10 @@ public class VectorHolder {
     return new ConstantVectorHolder(numRows, constantValue);
   }
 
+  public static VectorHolder deletedVectorHolder(int numRows) {
+    return new DeletedVectorHolder(numRows);
+  }
+
   public static VectorHolder dummyHolder(int numRows) {
     return new ConstantVectorHolder(numRows);
   }
@@ -143,6 +147,19 @@ public class VectorHolder {
   public static class PositionVectorHolder extends VectorHolder {
     public PositionVectorHolder(FieldVector vector, Type type, NullabilityHolder nulls) {
       super(vector, type, nulls);
+    }
+  }
+
+  public static class DeletedVectorHolder extends VectorHolder {
+    private final int numRows;
+
+    public DeletedVectorHolder(int numRows) {
+      this.numRows = numRows;
+    }
+
+    @Override
+    public int numValues() {
+      return numRows;
     }
   }
 

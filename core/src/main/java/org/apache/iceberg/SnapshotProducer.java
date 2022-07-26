@@ -166,7 +166,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public Snapshot apply() {
-    this.base = refresh();
+    refresh();
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
     long sequenceNumber = base.nextSequenceNumber();
@@ -330,7 +330,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       // id in case another commit was added between this commit and the refresh.
       Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
       if (saved != null) {
-        cleanUncommitted(Sets.newHashSet(saved.allManifests()));
+        cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
         // also clean up unused manifest lists created by multiple attempts
         for (String manifestList : manifestLists) {
           if (!saved.manifestListLocation().equals(manifestList)) {
@@ -406,7 +406,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected long snapshotId() {
     if (snapshotId == null) {
       synchronized (this) {
-        if (snapshotId == null) {
+        while (snapshotId == null || ops.current().snapshot(snapshotId) != null) {
           this.snapshotId = ops.newSnapshotId();
         }
       }

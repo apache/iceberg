@@ -79,7 +79,7 @@ public class TestSnapshotSelection extends TableTestBase {
         .commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedFiles = snapshot.addedFiles();
+    Iterable<DataFile> addedFiles = snapshot.addedDataFiles(table.io());
     Assert.assertEquals(1, Iterables.size(addedFiles));
     DataFile dataFile = Iterables.getOnlyElement(addedFiles);
     Assert.assertNotNull("Value counts should be not null", dataFile.valueCounts());

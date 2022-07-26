@@ -24,10 +24,12 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RawValueData;
@@ -482,8 +484,10 @@ public class FlinkParquetReaders {
 
     @Override
     protected ArrayData buildList(ReusableArrayData list) {
-      list.setNumElements(writePos);
-      return list;
+      // Since ReusableArrayData is not accepted by Flink, use GenericArrayData temporarily to walk around it.
+      // Revert this to use ReusableArrayData once it is fixed in Flink.
+      // For your reference, https://issues.apache.org/jira/browse/FLINK-25238.
+      return new GenericArrayData(Arrays.copyOf(list.values, writePos));
     }
   }
 

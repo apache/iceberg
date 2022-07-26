@@ -23,7 +23,6 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.KryoHelpers;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -106,8 +105,8 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
         configOverrideValue, actualCatalogOverride);
 
     // Now convert to SerializableTable and ensure overridden property is still present.
-    Table serializableTable = SerializableTable.copyOf(table);
-    Table kryoSerializedTable = KryoHelpers.roundTripSerialize(SerializableTable.copyOf(table));
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
+    Table kryoSerializedTable = KryoHelpers.roundTripSerialize(SerializableTableWithSize.copyOf(table));
     Configuration configFromKryoSerde = ((Configurable) kryoSerializedTable.io()).getConf();
     String kryoSerializedCatalogOverride = configFromKryoSerde.get(configToOverride, "/whammies");
     Assert.assertEquals(

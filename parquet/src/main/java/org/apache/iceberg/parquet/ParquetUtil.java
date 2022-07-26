@@ -344,6 +344,10 @@ public class ParquetUtil {
     }
   }
 
+  public static boolean hasNoBloomFilterPages(ColumnChunkMetaData meta) {
+    return meta.getBloomFilterOffset() <= 0;
+  }
+
   public static Dictionary readDictionary(ColumnDescriptor desc, PageReader pageSource) {
     DictionaryPage dictionaryPage = pageSource.readDictionaryPage();
     if (dictionaryPage != null) {

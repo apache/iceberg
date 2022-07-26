@@ -42,6 +42,7 @@ class S3URI {
   private static final String FRAGMENT_DELIM = "#";
 
   private final String location;
+  private final String scheme;
   private final String bucket;
   private final String key;
 
@@ -73,6 +74,7 @@ class S3URI {
     this.location = location;
     String [] schemeSplit = location.split(SCHEME_DELIM, -1);
     ValidationException.check(schemeSplit.length == 2, "Invalid S3 URI, cannot determine scheme: %s", location);
+    this.scheme = schemeSplit[0];
 
     String [] authoritySplit = schemeSplit[1].split(PATH_DELIM, 2);
     ValidationException.check(authoritySplit.length == 2, "Invalid S3 URI, cannot determine bucket: %s", location);
@@ -106,6 +108,15 @@ class S3URI {
    */
   public String location() {
     return location;
+  }
+
+  /**
+   * Returns the original scheme provided in the location.
+   *
+   * @return uri scheme
+   */
+  public String scheme() {
+    return scheme;
   }
 
   @Override

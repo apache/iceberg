@@ -39,6 +39,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -46,6 +47,7 @@ import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -316,4 +318,53 @@ public class TestFlinkIcebergSink {
     SimpleDataUtil.assertTableRows(rightTablePath, convertToRowData(rightRows));
   }
 
+  @Test
+  public void testOverrideWriteConfigWithUnknownDistributionMode() {
+    Map<String, String> newProps = Maps.newHashMap();
+    newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
+
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+
+    FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
+        .setAll(newProps);
+
+    AssertHelpers.assertThrows("Should fail with invalid distribution mode.",
+        IllegalArgumentException.class, "No enum constant org.apache.iceberg.DistributionMode.UNRECOGNIZED",
+        () -> {
+          builder.append();
+
+          // Execute the program.
+          env.execute("Test Iceberg DataStream.");
+          return null;
+        });
+  }
+
+  @Test
+  public void testOverrideWriteConfigWithUnknownFileFormat() {
+    Map<String, String> newProps = Maps.newHashMap();
+    newProps.put(FlinkWriteOptions.WRITE_FORMAT.key(), "UNRECOGNIZED");
+
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+
+    FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
+        .setAll(newProps);
+
+    AssertHelpers.assertThrows("Should fail with invalid file format.",
+        IllegalArgumentException.class, "No enum constant org.apache.iceberg.FileFormat.UNRECOGNIZED",
+        () -> {
+          builder.append();
+
+          // Execute the program.
+          env.execute("Test Iceberg DataStream.");
+          return null;
+        });
+  }
 }

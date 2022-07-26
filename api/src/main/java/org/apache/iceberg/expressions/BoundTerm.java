@@ -40,4 +40,11 @@ public interface BoundTerm<T> extends Bound<T>, Term {
   default Comparator<T> comparator() {
     return Comparators.forType(type().asPrimitiveType());
   }
+
+  /**
+   * Returns whether this term is equivalent to another.
+   * @param other a term
+   * @return true if this term returns the same values as the other, false otherwise
+   */
+  boolean isEquivalentTo(BoundTerm<?> other);
 }

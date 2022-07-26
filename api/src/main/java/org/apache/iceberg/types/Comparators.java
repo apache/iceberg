@@ -22,7 +22,6 @@ package org.apache.iceberg.types;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -84,21 +83,6 @@ public class Comparators {
     throw new UnsupportedOperationException("Cannot determine comparator for type: " + type);
   }
 
-  @SuppressWarnings("unchecked")
-  private static <T> Class<T> internalClass(Type type) {
-    if (type.isPrimitiveType()) {
-      return (Class<T>) type.typeId().javaClass();
-    } else if (type.isStructType()) {
-      return (Class<T>) StructLike.class;
-    } else if (type.isListType()) {
-      return (Class<T>) List.class;
-    } else if (type.isMapType()) {
-      return (Class<T>) Map.class;
-    }
-
-    throw new UnsupportedOperationException("Cannot determine expected class for type: " + type);
-  }
-
   private static class StructLikeComparator implements Comparator<StructLike> {
     private final Comparator<Object>[] comparators;
     private final Class<?>[] classes;
@@ -111,7 +95,7 @@ public class Comparators {
           )
           .toArray((IntFunction<Comparator<Object>[]>) Comparator[]::new);
       this.classes = struct.fields().stream()
-          .map(field -> internalClass(field.type()))
+          .map(field -> field.type().typeId().javaClass())
           .toArray(Class<?>[]::new);
     }
 

@@ -36,20 +36,22 @@ concurrency:
 
 jobs:
   tox:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
-        python: [3.7, 3.8, 3.9]
+        python: ['3.8', '3.9', '3.10']
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python }}
-    - working-directory: ./python
-      run: |
-        pip install -e .[dev]
-        pip install -U tox-gh-actions
-    - working-directory: ./python
-      run: tox
-
+    - name: Install
+      working-directory: ./python
+      run: make install
+    - name: Linters
+      working-directory: ./python
+      run: make lint
+    - name: Tests
+      working-directory: ./python
+      run: make test

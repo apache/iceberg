@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ListState;
@@ -36,6 +37,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -82,6 +84,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "Cannot set as-of-timestamp option for streaming reader");
     Preconditions.checkArgument(scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
+    Preconditions.checkArgument(scanContext.maxPlanningSnapshotCount() > 0,
+        "The max-planning-snapshot-count must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
   }
@@ -134,16 +138,29 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   public void run(SourceContext<FlinkInputSplit> ctx) throws Exception {
     this.sourceContext = ctx;
     while (isRunning) {
-      synchronized (sourceContext.getCheckpointLock()) {
-        if (isRunning) {
-          monitorAndForwardSplits();
-        }
-      }
+      monitorAndForwardSplits();
       Thread.sleep(scanContext.monitorInterval().toMillis());
     }
   }
 
-  private void monitorAndForwardSplits() {
+  private long toSnapshotIdInclusive(long lastConsumedSnapshotId, long currentSnapshotId,
+                                     int maxPlanningSnapshotCount) {
+    List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(table, lastConsumedSnapshotId, currentSnapshotId);
+    if (snapshotIds.size() <= maxPlanningSnapshotCount) {
+      return currentSnapshotId;
+    } else {
+      // It uses reverted index since snapshotIdsBetween returns Ids that are ordered by committed time descending.
+      return snapshotIds.get(snapshotIds.size() - maxPlanningSnapshotCount);
+    }
+  }
+
+  @VisibleForTesting
+  void sourceContext(SourceContext<FlinkInputSplit> ctx) {
+    this.sourceContext = ctx;
+  }
+
+  @VisibleForTesting
+  void monitorAndForwardSplits() {
     // Refresh the table to get the latest committed snapshot.
     table.refresh();
 
@@ -155,15 +172,25 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
+        snapshotId = toSnapshotIdInclusive(lastSnapshotId, snapshotId, scanContext.maxPlanningSnapshotCount());
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 
+      LOG.debug("Start discovering splits from {} (exclusive) to {} (inclusive)", lastSnapshotId, snapshotId);
+      long start = System.currentTimeMillis();
       FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
-      for (FlinkInputSplit split : splits) {
-        sourceContext.collect(split);
-      }
+      LOG.debug("Discovered {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
 
-      lastSnapshotId = snapshotId;
+      // only need to hold the checkpoint lock when emitting the splits and updating lastSnapshotId
+      start = System.currentTimeMillis();
+      synchronized (sourceContext.getCheckpointLock()) {
+        for (FlinkInputSplit split : splits) {
+          sourceContext.collect(split);
+        }
+
+        lastSnapshotId = snapshotId;
+      }
+      LOG.debug("Forwarded {} splits, time elapsed {}ms", splits.length, System.currentTimeMillis() - start);
     }
   }
 

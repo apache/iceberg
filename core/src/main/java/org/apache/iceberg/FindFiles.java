@@ -19,22 +19,17 @@
 
 package org.apache.iceberg;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.DateTimeUtil;
 
 public class FindFiles {
   private FindFiles() {
   }
-
-  private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   public static Builder in(Table table) {
     return new Builder(table);
@@ -109,7 +104,7 @@ public class FindFiles {
       // case, there is no valid snapshot to read.
       Preconditions.checkArgument(lastSnapshotId != null,
           "Cannot find a snapshot older than %s",
-          DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(timestampMillis), ZoneOffset.UTC)));
+          DateTimeUtil.formatTimestampMillis(timestampMillis));
       return inSnapshot(lastSnapshotId);
     }
 
@@ -203,7 +198,7 @@ public class FindFiles {
       }
 
       // when snapshot is not null
-      CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), snapshot.dataManifests())
+      CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), snapshot.dataManifests(ops.io()))
           .specsById(ops.current().specsById())
           .filterData(rowFilter)
           .filterFiles(fileFilter)
@@ -212,8 +207,7 @@ public class FindFiles {
           .caseSensitive(caseSensitive)
           .entries();
 
-      return CloseableIterable.transform(entries,
-          entry -> includeColumnStats ? entry.file().copy() : entry.file().copyWithoutStats());
+      return CloseableIterable.transform(entries, entry -> entry.file().copy(includeColumnStats));
     }
   }
 }

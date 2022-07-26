@@ -110,6 +110,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
+    this.catalogProperties = ImmutableMap.copyOf(properties);
     AwsClientFactory awsClientFactory;
     FileIO catalogFileIO;
     if (PropertyUtil.propertyAsBoolean(
@@ -163,6 +164,19 @@ public class GlueCatalog extends BaseMetastoreCatalog
   }
 
   @VisibleForTesting
+  void initialize(
+      String name,
+      String path,
+      AwsProperties properties,
+      GlueClient client,
+      LockManager lock,
+      FileIO io,
+      Map<String, String> catalogProps) {
+    this.catalogProperties = catalogProps;
+    initialize(name, path, properties, client, lock, io);
+  }
+
+  @VisibleForTesting
   void initialize(String name, String path, AwsProperties properties, GlueClient client, LockManager lock, FileIO io) {
     Preconditions.checkArgument(path != null && path.length() > 0,
         "Cannot initialize GlueCatalog because warehousePath must not be null or empty");
@@ -187,9 +201,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
       Map<String, String> tableSpecificCatalogProperties = ImmutableMap.<String, String>builder()
           .putAll(catalogProperties)
           .put(AwsProperties.LAKE_FORMATION_DB_NAME,
-              IcebergToGlueConverter.getDatabaseName(tableIdentifier))
+              IcebergToGlueConverter.getDatabaseName(tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
           .put(AwsProperties.LAKE_FORMATION_TABLE_NAME,
-              IcebergToGlueConverter.getTableName(tableIdentifier))
+              IcebergToGlueConverter.getTableName(tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
           .build();
       // FileIO initialization depends on tableSpecificCatalogProperties, so a new FileIO is initialized each time
       return new GlueTableOperations(glue, lockManager, catalogName, awsProperties,
@@ -210,7 +224,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
     // check if value is set in database
     GetDatabaseResponse response = glue.getDatabase(GetDatabaseRequest.builder()
-        .name(IcebergToGlueConverter.getDatabaseName(tableIdentifier))
+        .name(IcebergToGlueConverter.getDatabaseName(tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
         .build());
     String dbLocationUri = response.database().locationUri();
     if (dbLocationUri != null) {
@@ -220,7 +234,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     return String.format(
         "%s/%s.db/%s",
         warehousePath,
-        IcebergToGlueConverter.getDatabaseName(tableIdentifier),
+        IcebergToGlueConverter.getDatabaseName(tableIdentifier, awsProperties.glueCatalogSkipNameValidation()),
         tableIdentifier.name());
   }
 
@@ -233,7 +247,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     do {
       GetTablesResponse response = glue.getTables(GetTablesRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
-          .databaseName(IcebergToGlueConverter.toDatabaseName(namespace))
+          .databaseName(IcebergToGlueConverter.toDatabaseName(namespace, awsProperties.glueCatalogSkipNameValidation()))
           .nextToken(nextToken)
           .build());
       nextToken = response.nextToken();
@@ -262,7 +276,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
       TableMetadata lastMetadata = ops.current();
       glue.deleteTable(DeleteTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
-          .databaseName(IcebergToGlueConverter.getDatabaseName(identifier))
+          .databaseName(IcebergToGlueConverter.getDatabaseName(
+              identifier, awsProperties.glueCatalogSkipNameValidation()))
           .name(identifier.name())
           .build());
       LOG.info("Successfully dropped table {} from Glue", identifier);
@@ -295,10 +310,11 @@ public class GlueCatalog extends BaseMetastoreCatalog
     }
     // keep metadata
     Table fromTable = null;
-    String fromTableDbName = IcebergToGlueConverter.getDatabaseName(from);
-    String fromTableName = IcebergToGlueConverter.getTableName(from);
-    String toTableDbName = IcebergToGlueConverter.getDatabaseName(to);
-    String toTableName = IcebergToGlueConverter.getTableName(to);
+    String fromTableDbName = IcebergToGlueConverter.getDatabaseName(
+            from, awsProperties.glueCatalogSkipNameValidation());
+    String fromTableName = IcebergToGlueConverter.getTableName(from, awsProperties.glueCatalogSkipNameValidation());
+    String toTableDbName = IcebergToGlueConverter.getDatabaseName(to, awsProperties.glueCatalogSkipNameValidation());
+    String toTableName = IcebergToGlueConverter.getTableName(to, awsProperties.glueCatalogSkipNameValidation());
     try {
       GetTableResponse response = glue.getTable(GetTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
@@ -345,7 +361,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
     try {
       glue.createDatabase(CreateDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
-          .databaseInput(IcebergToGlueConverter.toDatabaseInput(namespace, metadata))
+          .databaseInput(IcebergToGlueConverter.toDatabaseInput(
+              namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
           .build());
       LOG.info("Created namespace: {}", namespace);
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
@@ -386,7 +403,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    String databaseName = IcebergToGlueConverter.toDatabaseName(namespace);
+    String databaseName = IcebergToGlueConverter.toDatabaseName(
+        namespace, awsProperties.glueCatalogSkipNameValidation());
     try {
       Database database = glue.getDatabase(GetDatabaseRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
@@ -420,7 +438,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
     GetTablesResponse response = glue.getTables(GetTablesRequest.builder()
         .catalogId(awsProperties.glueCatalogId())
-        .databaseName(IcebergToGlueConverter.toDatabaseName(namespace))
+        .databaseName(IcebergToGlueConverter.toDatabaseName(namespace, awsProperties.glueCatalogSkipNameValidation()))
         .build());
 
     if (response.hasTableList() && !response.tableList().isEmpty()) {
@@ -436,7 +454,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
     glue.deleteDatabase(DeleteDatabaseRequest.builder()
         .catalogId(awsProperties.glueCatalogId())
-        .name(IcebergToGlueConverter.toDatabaseName(namespace))
+        .name(IcebergToGlueConverter.toDatabaseName(namespace, awsProperties.glueCatalogSkipNameValidation()))
         .build());
     LOG.info("Dropped namespace: {}", namespace);
     // Always successful, otherwise exception is thrown
@@ -450,8 +468,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
     newProperties.putAll(properties);
     glue.updateDatabase(UpdateDatabaseRequest.builder()
         .catalogId(awsProperties.glueCatalogId())
-        .name(IcebergToGlueConverter.toDatabaseName(namespace))
-        .databaseInput(IcebergToGlueConverter.toDatabaseInput(namespace, newProperties))
+        .name(IcebergToGlueConverter.toDatabaseName(namespace, awsProperties.glueCatalogSkipNameValidation()))
+        .databaseInput(IcebergToGlueConverter.toDatabaseInput(
+            namespace, newProperties, awsProperties.glueCatalogSkipNameValidation()))
         .build());
     LOG.debug("Successfully set properties {} for {}", properties.keySet(), namespace);
     // Always successful, otherwise exception is thrown
@@ -467,8 +486,9 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
     glue.updateDatabase(UpdateDatabaseRequest.builder()
         .catalogId(awsProperties.glueCatalogId())
-        .name(IcebergToGlueConverter.toDatabaseName(namespace))
-        .databaseInput(IcebergToGlueConverter.toDatabaseInput(namespace, metadata))
+        .name(IcebergToGlueConverter.toDatabaseName(namespace, awsProperties.glueCatalogSkipNameValidation()))
+        .databaseInput(IcebergToGlueConverter.toDatabaseInput(
+            namespace, metadata, awsProperties.glueCatalogSkipNameValidation()))
         .build());
     LOG.debug("Successfully removed properties {} from {}", properties, namespace);
     // Always successful, otherwise exception is thrown
@@ -477,6 +497,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
+    if (awsProperties.glueCatalogSkipNameValidation()) {
+      return true;
+    }
+
     return IcebergToGlueConverter.isValidNamespace(tableIdentifier.namespace()) &&
         IcebergToGlueConverter.isValidTableName(tableIdentifier.name());
   }
@@ -494,5 +518,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   public void setConf(Configuration conf) {
     this.hadoopConf = conf;
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 }

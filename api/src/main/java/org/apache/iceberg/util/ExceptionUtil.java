@@ -78,6 +78,7 @@ public class ExceptionUtil {
     return runSafely(block, catchBlock, finallyBlock, e1Class, e2Class, RuntimeException.class);
   }
 
+  @SuppressWarnings("Finally")
   public static <R, E1 extends Exception, E2 extends Exception, E3 extends Exception> R runSafely(
       Block<R, E1, E2, E3> block,
       CatchBlock catchBlock,
@@ -113,15 +114,15 @@ public class ExceptionUtil {
         try {
           finallyBlock.run();
         } catch (Exception e) {
-          LOG.warn("Suppressing failure in finally block", e);
           if (failure != null) {
+            LOG.warn("Suppressing failure in finally block", e);
             failure.addSuppressed(e);
           } else {
             tryThrowAs(e, e1Class);
             tryThrowAs(e, e2Class);
             tryThrowAs(e, e3Class);
             tryThrowAs(e, RuntimeException.class);
-            throw new RuntimeException("Unknown exception in finally block", failure);
+            throw new RuntimeException("Unknown exception in finally block", e);
           }
         }
       }

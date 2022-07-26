@@ -20,11 +20,13 @@
 package org.apache.iceberg.rest;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.PartitionSpec;
@@ -165,14 +167,27 @@ public class CatalogHandlers {
     }
 
     Map<String, String> properties = Maps.newHashMap();
-    properties.put("created-at", OffsetDateTime.now().toString());
+    properties.put("created-at", OffsetDateTime.now(ZoneOffset.UTC).toString());
     properties.putAll(request.properties());
+
+    String location;
+    if (request.location() != null) {
+      location = request.location();
+    } else {
+      location = catalog.buildTable(ident, request.schema())
+          .withPartitionSpec(request.spec())
+          .withSortOrder(request.writeOrder())
+          .withProperties(properties)
+          .createTransaction()
+          .table()
+          .location();
+    }
 
     TableMetadata metadata = TableMetadata.newTableMetadata(
         request.schema(),
         request.spec() != null ? request.spec() : PartitionSpec.unpartitioned(),
         request.writeOrder() != null ? request.writeOrder() : SortOrder.unsorted(),
-        request.location(),
+        location,
         properties);
 
     return LoadTableResponse.builder()
@@ -214,6 +229,9 @@ public class CatalogHandlers {
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())
           .build();
+    } else if (table instanceof BaseMetadataTable) {
+      // metadata tables are loaded on the client side, return NoSuchTableException for now
+      throw new NoSuchTableException("Table does not exist: %s", ident.toString());
     }
 
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
@@ -226,7 +244,7 @@ public class CatalogHandlers {
       Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
       if (transaction instanceof BaseTransaction) {
         BaseTransaction baseTransaction = (BaseTransaction) transaction;
-        finalMetadata = create(baseTransaction.underlyingOps(), baseTransaction.startMetadata(), request);
+        finalMetadata = create(baseTransaction.underlyingOps(), request);
       } else {
         throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
       }
@@ -265,10 +283,11 @@ public class CatalogHandlers {
     return isCreate;
   }
 
-  private static TableMetadata create(TableOperations ops, TableMetadata start, UpdateTableRequest request) {
-    TableMetadata.Builder builder = TableMetadata.buildFrom(start);
-
+  private static TableMetadata create(TableOperations ops, UpdateTableRequest request) {
     // the only valid requirement is that the table will be created
+    request.requirements().forEach(requirement -> requirement.validate(ops.current()));
+
+    TableMetadata.Builder builder = TableMetadata.buildFromEmpty();
     request.updates().forEach(update -> update.applyTo(builder));
 
     // create transactions do not retry. if the table exists, retrying is not a solution

@@ -84,7 +84,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
   @Override
   public T put(StructLike key, T value) {
-    return wrapperMap.put(StructLikeWrapper.forType(type).set(key), value);
+    return wrapperMap.put(wrappers.get().copyFor(key), value);
   }
 
   @Override

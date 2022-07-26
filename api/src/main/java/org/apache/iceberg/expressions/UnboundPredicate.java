@@ -259,7 +259,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
   @SuppressWarnings("unchecked")
   static <T> Set<T> setOf(Iterable<Literal<T>> literals) {
     Literal<T> lit = Iterables.get(literals, 0);
-    if (lit instanceof Literals.StringLiteral && lit.value() instanceof CharSequence) {
+    if (lit instanceof Literals.StringLiteral) {
       Iterable<T> values = Iterables.transform(literals, Literal::value);
       Iterable<CharSequence> charSeqs = Iterables.transform(values, val -> (CharSequence) val);
       return (Set<T>) CharSequenceSet.of(charSeqs);

@@ -67,7 +67,7 @@ public class SerializableTable implements Table, Serializable {
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
 
-  private SerializableTable(Table table) {
+  protected SerializableTable(Table table) {
     this.name = table.name();
     this.location = table.location();
     this.metadataFileLocation = metadataFileLocation(table);
@@ -346,11 +346,11 @@ public class SerializableTable implements Table, Serializable {
     return String.format("Operation %s is not supported after the table is serialized", operation);
   }
 
-  private static class SerializableMetadataTable extends SerializableTable {
+  public static class SerializableMetadataTable extends SerializableTable {
     private final MetadataTableType type;
     private final String baseTableName;
 
-    SerializableMetadataTable(BaseMetadataTable metadataTable) {
+    protected SerializableMetadataTable(BaseMetadataTable metadataTable) {
       super(metadataTable);
       this.type = metadataTable.metadataTableType();
       this.baseTableName = metadataTable.table().name();

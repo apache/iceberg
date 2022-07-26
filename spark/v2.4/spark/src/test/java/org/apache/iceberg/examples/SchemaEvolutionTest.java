@@ -38,6 +38,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StructField;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -159,14 +160,18 @@ public class SchemaEvolutionTest {
         first.get().dataType() == LongType$.MODULE$);
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void updateColumnTypeIntToString() {
-    table.updateSchema().updateColumn("price", Types.StringType.get()).commit();
+    Assertions.assertThatThrownBy(() -> table.updateSchema().updateColumn("price", Types.StringType.get()).commit())
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Cannot change column type: price: int -> string");
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void updateColumnTypeStringToInt() {
-    table.updateSchema().updateColumn("author", Types.IntegerType.get()).commit();
+    Assertions.assertThatThrownBy(() -> table.updateSchema().updateColumn("author", Types.IntegerType.get()).commit())
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Cannot change column type: author: string -> int");
   }
 
   @Test

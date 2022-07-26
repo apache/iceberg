@@ -70,7 +70,7 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
 
   @Override
   public InputFile toInputFile() {
-    return new S3InputFile(client(), uri(), awsProperties(), metrics());
+    return new S3InputFile(client(), uri(), null, awsProperties(), metrics());
   }
 
   @Override

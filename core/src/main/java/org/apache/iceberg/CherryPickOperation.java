@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.PropertyUtil;
@@ -37,6 +38,7 @@ import org.apache.iceberg.util.WapUtil;
  */
 class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
+  private final FileIO io;
   private final Map<Integer, PartitionSpec> specsById;
   private Snapshot cherrypickSnapshot = null;
   private boolean requireFastForward = false;
@@ -44,6 +46,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
   CherryPickOperation(String tableName, TableOperations ops) {
     super(tableName, ops);
+    this.io = ops.io();
     this.specsById = ops.current().specsById();
   }
 
@@ -76,7 +79,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(snapshotId));
 
       // Pick modifications from the snapshot
-      for (DataFile addedFile : cherrypickSnapshot.addedFiles()) {
+      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
         add(addedFile);
       }
 
@@ -103,13 +106,13 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
       // copy adds from the picked snapshot
       this.replacedPartitions = PartitionSet.create(specsById);
-      for (DataFile addedFile : cherrypickSnapshot.addedFiles()) {
+      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
         add(addedFile);
         replacedPartitions.add(addedFile.specId(), addedFile.partition());
       }
 
       // copy deletes from the picked snapshot
-      for (DataFile deletedFile : cherrypickSnapshot.deletedFiles()) {
+      for (DataFile deletedFile : cherrypickSnapshot.removedDataFiles(io)) {
         delete(deletedFile);
       }
 
@@ -147,7 +150,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
     // this is only called after apply() passes off to super, but check fast-forward status just in case
     if (!isFastForward(base)) {
       validateNonAncestor(base, cherrypickSnapshot.snapshotId());
-      validateReplacedPartitions(base, cherrypickSnapshot.parentId(), replacedPartitions);
+      validateReplacedPartitions(base, cherrypickSnapshot.parentId(), replacedPartitions, io);
       WapUtil.validateWapPublish(base, cherrypickSnapshot.snapshotId());
     }
   }
@@ -196,11 +199,12 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
   }
 
   private static void validateReplacedPartitions(TableMetadata meta, Long parentId,
-                                                 PartitionSet replacedPartitions) {
+                                                 PartitionSet replacedPartitions, FileIO io) {
     if (replacedPartitions != null && meta.currentSnapshot() != null) {
       ValidationException.check(parentId == null || isCurrentAncestor(meta, parentId),
           "Cannot cherry-pick overwrite, based on non-ancestor of the current state: %s", parentId);
-      List<DataFile> newFiles = SnapshotUtil.newFiles(parentId, meta.currentSnapshot().snapshotId(), meta::snapshot);
+      List<DataFile> newFiles = SnapshotUtil.newFiles(
+          parentId, meta.currentSnapshot().snapshotId(), meta::snapshot, io);
       for (DataFile newFile : newFiles) {
         ValidationException.check(!replacedPartitions.contains(newFile.specId(), newFile.partition()),
             "Cannot cherry-pick replace partitions with changed partition: %s",

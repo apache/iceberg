@@ -23,41 +23,5 @@ package org.apache.iceberg;
 /**
  * API for configuring an incremental table scan for appends only snapshots
  */
-public interface IncrementalAppendScan extends Scan<IncrementalAppendScan> {
-
-  /**
-   * Refine the incremental scan with the start snapshot inclusive.
-   * <p>
-   * If neither {@link #fromSnapshotInclusive(long)} or {@link #fromSnapshotExclusive(long)} is provided,
-   * start snapshot inclusive is defaulted to the oldest ancestor of the end snapshot.
-   *
-   * @param fromSnapshotId the start snapshot id inclusive
-   * @return an incremental table scan from {@code fromSnapshotId} inclusive
-   * @throws IllegalArgumentException if the start snapshot is not an ancestor
-   * of the end snapshot
-   */
-  IncrementalAppendScan fromSnapshotInclusive(long fromSnapshotId);
-
-  /**
-   * Refine the incremental scan with the start snapshot exclusive.
-   * <p>
-   * If neither {@link #fromSnapshotInclusive(long)} or {@link #fromSnapshotExclusive(long)} is provided,
-   * start snapshot inclusive is defaulted to the oldest ancestor of the end snapshot.
-   *
-   * @param fromSnapshotId the start snapshot id (exclusive)
-   * @return an incremental table scan from {@code fromSnapshotId} exclusive
-   * @throws IllegalArgumentException if the start snapshot is not an ancestor
-   * of the end snapshot
-   */
-  IncrementalAppendScan fromSnapshotExclusive(long fromSnapshotId);
-
-  /**
-   * Refine the incremental scan with the end snapshot inclusive.
-   * <p>
-   * If not provided, end snapshot is defaulted to the current table snapshot.
-   *
-   * @param toSnapshotId the end snapshot id (inclusive)
-   * @return an incremental table scan up to {@code toSnapshotId} inclusive
-   */
-  IncrementalAppendScan toSnapshot(long toSnapshotId);
+public interface IncrementalAppendScan extends IncrementalScan<IncrementalAppendScan, FileScanTask, CombinedScanTask> {
 }

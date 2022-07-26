@@ -39,6 +39,7 @@ import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,6 +96,7 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
     // If abort then remove the unnecessary files
     if (abort) {
       Tasks.foreach(dataFiles)
+          .executeWith(ThreadPools.getWorkerPool())
           .retry(3)
           .suppressFailureWhenFinished()
           .onFailure((file, exception) -> LOG.debug("Failed on to remove file {} on abort", file, exception))

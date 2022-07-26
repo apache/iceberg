@@ -61,7 +61,11 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   public static HadoopInputFile fromLocation(CharSequence location, long length,
                                              Configuration conf) {
     FileSystem fs = Util.getFs(new Path(location.toString()), conf);
-    return new HadoopInputFile(fs, location.toString(), length, conf);
+    if (length > 0) {
+      return new HadoopInputFile(fs, location.toString(), length, conf);
+    } else {
+      return new HadoopInputFile(fs, location.toString(), conf);
+    }
   }
 
   public static HadoopInputFile fromLocation(CharSequence location, FileSystem fs) {

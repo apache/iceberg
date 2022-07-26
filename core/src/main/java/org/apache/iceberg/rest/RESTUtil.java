@@ -29,12 +29,17 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-class RESTUtil {
-  private static final Joiner NULL_JOINER = Joiner.on("%00");
-  private static final Splitter NULL_SPLITTER = Splitter.on("%00");
+public class RESTUtil {
+  private static final char NAMESPACE_SEPARATOR = '\u001f';
+  public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
+  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
+  private static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
+  private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
+  private static final Splitter NAMESPACE_ESCAPED_SPLITTER = Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
 
   private RESTUtil() {
   }
@@ -49,6 +54,27 @@ class RESTUtil {
       result = result.substring(0, result.length() - 1);
     }
     return result;
+  }
+
+  /**
+   * Merge updates into a target string map.
+   *
+   * @param target a map to update
+   * @param updates a map of updates
+   * @return an immutable result map built from target and updates
+   */
+  public static Map<String, String> merge(Map<String, String> target, Map<String, String> updates) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+
+    target.forEach((key, value) -> {
+      if (!updates.containsKey(key)) {
+        builder.put(key, value);
+      }
+    });
+
+    updates.forEach(builder::put);
+
+    return builder.build();
   }
 
   /**
@@ -71,6 +97,24 @@ class RESTUtil {
     });
 
     return result;
+  }
+
+  private static final Joiner.MapJoiner FORM_JOINER = Joiner.on("&").withKeyValueSeparator("=");
+
+  /**
+   * Encodes a map of form data as application/x-www-form-urlencoded.
+   * <p>
+   * This encodes the form with pairs separated by &amp; and keys separated from values by =.
+   *
+   * @param formData a map of form data
+   * @return a String of encoded form data
+   */
+  public static String encodeFormData(Map<?, ?> formData) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+    formData.forEach((key, value) -> builder.put(
+        encodeString(String.valueOf(key)),
+        encodeString(String.valueOf(value))));
+    return FORM_JOINER.join(builder.build());
   }
 
   /**
@@ -129,7 +173,7 @@ class RESTUtil {
       encodedLevels[i] = encodeString(levels[i]);
     }
 
-    return NULL_JOINER.join(encodedLevels);
+    return NAMESPACE_ESCAPED_JOINER.join(encodedLevels);
   }
 
   /**
@@ -143,7 +187,7 @@ class RESTUtil {
    */
   public static Namespace decodeNamespace(String encodedNs) {
     Preconditions.checkArgument(encodedNs != null, "Invalid namespace: null");
-    String[] levels = Iterables.toArray(NULL_SPLITTER.split(encodedNs), String.class);
+    String[] levels = Iterables.toArray(NAMESPACE_ESCAPED_SPLITTER.split(encodedNs), String.class);
 
     // Decode levels in place
     for (int i = 0; i < levels.length; i++) {

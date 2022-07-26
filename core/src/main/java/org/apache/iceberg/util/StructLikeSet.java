@@ -100,7 +100,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
 
   @Override
   public boolean add(StructLike struct) {
-    return wrapperSet.add(StructLikeWrapper.forType(type).set(struct));
+    return wrapperSet.add(wrappers.get().copyFor(struct));
   }
 
   @Override
@@ -126,7 +126,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
   public boolean addAll(Collection<? extends StructLike> structs) {
     if (structs != null) {
       return Iterables.addAll(wrapperSet,
-          Iterables.transform(structs, struct -> StructLikeWrapper.forType(type).set(struct)));
+          Iterables.transform(structs, struct -> wrappers.get().copyFor(struct)));
     }
     return false;
   }
@@ -176,6 +176,6 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
 
   @Override
   public int hashCode() {
-    return Objects.hash(type) + wrapperSet.stream().mapToInt(StructLikeWrapper::hashCode).sum();
+    return Objects.hashCode(type) + wrapperSet.stream().mapToInt(StructLikeWrapper::hashCode).sum();
   }
 }

@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Ordering;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -132,14 +133,16 @@ public class TestSingleMessageEncoding {
     Assert.assertEquals(allAsV2, decodedUsingV2);
   }
 
-  @Test(expected = MissingSchemaException.class)
+  @Test
   public void testCompatibleReadFailsWithoutSchema() throws Exception {
     MessageEncoder<Record> v1Encoder = new IcebergEncoder<>(SCHEMA_V1);
     MessageDecoder<Record> v2Decoder = new IcebergDecoder<>(SCHEMA_V2);
 
     ByteBuffer v1Buffer = v1Encoder.encode(V1_RECORDS.get(3));
 
-    v2Decoder.decode(v1Buffer);
+    Assertions.assertThatThrownBy(() -> v2Decoder.decode(v1Buffer))
+            .isInstanceOf(MissingSchemaException.class)
+            .hasMessageContaining("Cannot resolve schema for fingerprint");
   }
 
   @Test
@@ -202,7 +205,7 @@ public class TestSingleMessageEncoding {
         V1_RECORDS.get(0), decoder.decode(b0));
   }
 
-  @Test(expected = AvroRuntimeException.class)
+  @Test
   public void testByteBufferMissingPayload() throws Exception {
     MessageEncoder<Record> encoder = new IcebergEncoder<>(SCHEMA_V2);
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V2);
@@ -211,10 +214,12 @@ public class TestSingleMessageEncoding {
 
     buffer.limit(12);
 
-    decoder.decode(buffer);
+    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+            .isInstanceOf(AvroRuntimeException.class)
+            .hasMessage("Decoding datum failed");
   }
 
-  @Test(expected = BadHeaderException.class)
+  @Test
   public void testByteBufferMissingFullHeader() throws Exception {
     MessageEncoder<Record> encoder = new IcebergEncoder<>(SCHEMA_V2);
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V2);
@@ -223,10 +228,12 @@ public class TestSingleMessageEncoding {
 
     buffer.limit(8);
 
-    decoder.decode(buffer);
+    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+            .isInstanceOf(BadHeaderException.class)
+            .hasMessage("Not enough header bytes");
   }
 
-  @Test(expected = BadHeaderException.class)
+  @Test
   public void testByteBufferBadMarkerByte() throws Exception {
     MessageEncoder<Record> encoder = new IcebergEncoder<>(SCHEMA_V2);
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V2);
@@ -234,10 +241,12 @@ public class TestSingleMessageEncoding {
     ByteBuffer buffer = encoder.encode(V2_RECORDS.get(0));
     buffer.array()[0] = 0x00;
 
-    decoder.decode(buffer);
+    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+            .isInstanceOf(BadHeaderException.class)
+            .hasMessageContaining("Unrecognized header bytes");
   }
 
-  @Test(expected = BadHeaderException.class)
+  @Test
   public void testByteBufferBadVersionByte() throws Exception {
     MessageEncoder<Record> encoder = new IcebergEncoder<>(SCHEMA_V2);
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V2);
@@ -245,10 +254,12 @@ public class TestSingleMessageEncoding {
     ByteBuffer buffer = encoder.encode(V2_RECORDS.get(0));
     buffer.array()[1] = 0x00;
 
-    decoder.decode(buffer);
+    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+            .isInstanceOf(BadHeaderException.class)
+            .hasMessageContaining("Unrecognized header bytes");
   }
 
-  @Test(expected = MissingSchemaException.class)
+  @Test
   public void testByteBufferUnknownSchema() throws Exception {
     MessageEncoder<Record> encoder = new IcebergEncoder<>(SCHEMA_V2);
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V2);
@@ -256,6 +267,8 @@ public class TestSingleMessageEncoding {
     ByteBuffer buffer = encoder.encode(V2_RECORDS.get(0));
     buffer.array()[4] = 0x00;
 
-    decoder.decode(buffer);
+    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+            .isInstanceOf(MissingSchemaException.class)
+            .hasMessageContaining("Cannot resolve schema for fingerprint");
   }
 }

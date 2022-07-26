@@ -30,12 +30,15 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -47,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -546,5 +550,76 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     table.newAppend().appendFile(dataFile1).commit();
     table.newAppend().appendFile(dataFile2).commit();
+  }
+
+  @Test
+  public void testTablePropsDefinedAtCatalogLevel() throws IOException {
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    ImmutableMap<String, String> catalogProps = ImmutableMap.of(
+        "table-default.key1", "catalog-default-key1",
+        "table-default.key2", "catalog-default-key2",
+        "table-default.key3", "catalog-default-key3",
+        "table-override.key3", "catalog-override-key3",
+        "table-override.key4", "catalog-override-key4");
+
+    Table table = hadoopCatalog(catalogProps).buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withProperties(null)
+        .withProperty("key2", "table-key2")
+        .withProperty("key3", "table-key3")
+        .withProperty("key5", "table-key5")
+        .create();
+
+    Assert.assertEquals(
+        "Table defaults set for the catalog must be added to the table properties.",
+        "catalog-default-key1",
+        table.properties().get("key1"));
+    Assert.assertEquals(
+        "Table property must override table default properties set at catalog level.",
+        "table-key2",
+        table.properties().get("key2"));
+    Assert.assertEquals(
+        "Table property override set at catalog level must override table default" +
+            " properties set at catalog level and table property specified.",
+        "catalog-override-key3",
+        table.properties().get("key3"));
+    Assert.assertEquals(
+        "Table override not in table props or defaults should be added to table properties",
+        "catalog-override-key4",
+        table.properties().get("key4"));
+    Assert.assertEquals(
+        "Table properties without any catalog level default or override should be added to table" +
+            " properties.",
+        "table-key5",
+        table.properties().get("key5"));
+  }
+
+  @Test
+  public void testRegisterTable() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    TableIdentifier identifier2 = TableIdentifier.of("a", "t2");
+    HadoopCatalog catalog = hadoopCatalog();
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((HadoopTableOperations) ops).current().metadataFileLocation();
+    Assertions.assertThat(catalog.registerTable(identifier2, metadataLocation)).isNotNull();
+    Assertions.assertThat(catalog.loadTable(identifier2)).isNotNull();
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
+    Assertions.assertThat(catalog.dropTable(identifier2)).isTrue();
+  }
+
+  @Test
+  public void testRegisterExistingTable() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    HadoopCatalog catalog = hadoopCatalog();
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String metadataLocation = ((HadoopTableOperations) ops).current().metadataFileLocation();
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
   }
 }

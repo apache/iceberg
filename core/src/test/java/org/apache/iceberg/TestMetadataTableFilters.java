@@ -109,7 +109,7 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
   }
 
@@ -317,7 +317,7 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
 
     Table metadataTable = createMetadataTable();
@@ -392,7 +392,7 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
 
     Table metadataTable = createMetadataTable();
@@ -453,7 +453,7 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
 
     Table metadataTable = createMetadataTable();
@@ -528,7 +528,7 @@ public class TestMetadataTableFilters extends TableTestBase {
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Moves file entries to DELETED state
       table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();  // Removes all entries
       Assert.assertEquals("Current snapshot should be made empty",
-          0, table.currentSnapshot().allManifests().size());
+          0, table.currentSnapshot().allManifests(table.io()).size());
     }
 
     Table metadataTable = createMetadataTable();

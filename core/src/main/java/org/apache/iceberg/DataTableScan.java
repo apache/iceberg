@@ -20,9 +20,9 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 public class DataTableScan extends BaseTableScan {
@@ -50,7 +50,7 @@ public class DataTableScan extends BaseTableScan {
     Preconditions.checkState(snapshotId() == null,
         "Cannot enable incremental scan, scan-snapshot set to id=%s", snapshotId());
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
-        context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
+        context().fromSnapshotIdExclusive(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
 
   @Override
@@ -79,7 +79,8 @@ public class DataTableScan extends BaseTableScan {
   public CloseableIterable<FileScanTask> doPlanFiles() {
     Snapshot snapshot = snapshot();
 
-    ManifestGroup manifestGroup = new ManifestGroup(table().io(), snapshot.dataManifests(), snapshot.deleteManifests())
+    FileIO io = table().io();
+    ManifestGroup manifestGroup = new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
         .caseSensitive(isCaseSensitive())
         .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(filter())
@@ -90,19 +91,11 @@ public class DataTableScan extends BaseTableScan {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (snapshot.dataManifests().size() > 1 &&
+    if (snapshot.dataManifests(io).size() > 1 &&
         (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
     return manifestGroup.planFiles();
-  }
-
-  @Override
-  public long targetSplitSize() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
-    return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 }

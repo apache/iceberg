@@ -31,7 +31,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileAppender;
@@ -43,7 +42,6 @@ import org.apache.orc.Reader;
 import org.apache.orc.StripeInformation;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
-import org.apache.orc.impl.writer.TreeWriter;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +55,6 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final int batchSize;
   private final OutputFile file;
   private final Writer writer;
-  private final TreeWriter treeWriter;
   private final VectorizedRowBatch batch;
   private final int avgRowByteSize;
   private final OrcRowWriter<D> valueWriter;
@@ -92,8 +89,6 @@ class OrcFileAppender<D> implements FileAppender<D> {
     options.setSchema(orcSchema);
     this.writer = newOrcWriter(file, options, metadata);
 
-    // TODO: Turn to access the estimateMemorySize directly after ORC 1.7.4 released with https://github.com/apache/orc/pull/1057.
-    this.treeWriter =  treeWriterHiddenInORC();
     this.valueWriter = newOrcRowWriter(schema, orcSchema, createWriterFunc);
   }
 
@@ -123,10 +118,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
       return file.toInputFile().getLength();
     }
 
-    Preconditions.checkNotNull(treeWriter,
-        "Cannot estimate length of file being written as the ORC writer's internal writer is not present");
-
-    long estimateMemory = treeWriter.estimateMemory();
+    long estimateMemory = writer.estimateMemory();
 
     long dataLength = 0;
     try {
@@ -192,11 +184,5 @@ class OrcFileAppender<D> implements FileAppender<D> {
                                                      BiFunction<Schema, TypeDescription, OrcRowWriter<?>>
                                                          createWriterFunc) {
     return (OrcRowWriter<D>) createWriterFunc.apply(schema, orcSchema);
-  }
-
-  private TreeWriter treeWriterHiddenInORC() {
-    DynFields.BoundField<TreeWriter> treeWriterFiled =
-        DynFields.builder().hiddenImpl(writer.getClass(), "treeWriter").build(writer);
-    return treeWriterFiled.get();
   }
 }

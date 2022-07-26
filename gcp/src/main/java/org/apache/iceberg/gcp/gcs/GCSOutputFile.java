@@ -67,6 +67,6 @@ class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return new GCSInputFile(storage(), blobId(), gcpProperties(), metrics());
+    return new GCSInputFile(storage(), blobId(), null, gcpProperties(), metrics());
   }
 }

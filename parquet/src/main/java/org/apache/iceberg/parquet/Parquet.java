@@ -85,6 +85,9 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
@@ -239,6 +242,8 @@ public class Parquet {
       CompressionCodecName codec = context.codec();
       int rowGroupCheckMinRecordCount = context.rowGroupCheckMinRecordCount();
       int rowGroupCheckMaxRecordCount = context.rowGroupCheckMaxRecordCount();
+      int bloomFilterMaxBytes = context.bloomFilterMaxBytes();
+      Map<String, String> columnBloomFilterEnabled = context.columnBloomFilterEnabled();
 
       if (compressionLevel != null) {
         switch (codec) {
@@ -269,19 +274,27 @@ public class Parquet {
           conf.set(entry.getKey(), entry.getValue());
         }
 
-        ParquetProperties parquetProperties = ParquetProperties.builder()
+        ParquetProperties.Builder propsBuilder = ParquetProperties.builder()
             .withWriterVersion(writerVersion)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
             .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
             .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
-            .build();
+            .withMaxBloomFilterBytes(bloomFilterMaxBytes);
+
+        for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
+          String colPath = entry.getKey();
+          String bloomEnabled = entry.getValue();
+          propsBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
+        }
+
+        ParquetProperties parquetProperties = propsBuilder.build();
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
             conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec,
             parquetProperties, metricsConfig, writeMode);
       } else {
-        return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
+        ParquetWriteBuilder<D> parquetWriteBuilder = new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
             .setType(type)
             .setConfig(config)
@@ -291,9 +304,15 @@ public class Parquet {
             .withWriteMode(writeMode)
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
-            .withDictionaryPageSize(dictionaryPageSize)
-            .build(),
-            metricsConfig);
+            .withDictionaryPageSize(dictionaryPageSize);
+
+        for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
+          String colPath = entry.getKey();
+          String bloomEnabled = entry.getValue();
+          parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
+        }
+
+        return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
     }
 
@@ -305,10 +324,14 @@ public class Parquet {
       private final String compressionLevel;
       private final int rowGroupCheckMinRecordCount;
       private final int rowGroupCheckMaxRecordCount;
+      private final int bloomFilterMaxBytes;
+      private final Map<String, String> columnBloomFilterEnabled;
 
       private Context(int rowGroupSize, int pageSize, int dictionaryPageSize,
                       CompressionCodecName codec, String compressionLevel,
-                      int rowGroupCheckMinRecordCount, int rowGroupCheckMaxRecordCount) {
+                      int rowGroupCheckMinRecordCount, int rowGroupCheckMaxRecordCount,
+                      int bloomFilterMaxBytes,
+                      Map<String, String> columnBloomFilterEnabled) {
         this.rowGroupSize = rowGroupSize;
         this.pageSize = pageSize;
         this.dictionaryPageSize = dictionaryPageSize;
@@ -316,6 +339,8 @@ public class Parquet {
         this.compressionLevel = compressionLevel;
         this.rowGroupCheckMinRecordCount = rowGroupCheckMinRecordCount;
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
+        this.bloomFilterMaxBytes = bloomFilterMaxBytes;
+        this.columnBloomFilterEnabled = columnBloomFilterEnabled;
       }
 
       static Context dataContext(Map<String, String> config) {
@@ -348,8 +373,16 @@ public class Parquet {
         Preconditions.checkArgument(rowGroupCheckMaxRecordCount >= rowGroupCheckMinRecordCount,
             "Row group check maximum record count must be >= minimal record count");
 
+        int bloomFilterMaxBytes = PropertyUtil.propertyAsInt(config, PARQUET_BLOOM_FILTER_MAX_BYTES,
+            PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
+        Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
+
+        Map<String, String> columnBloomFilterEnabled =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
+
         return new Context(rowGroupSize, pageSize, dictionaryPageSize, codec, compressionLevel,
-            rowGroupCheckMinRecordCount, rowGroupCheckMaxRecordCount);
+            rowGroupCheckMinRecordCount, rowGroupCheckMaxRecordCount, bloomFilterMaxBytes,
+            columnBloomFilterEnabled);
       }
 
       static Context deleteContext(Map<String, String> config) {
@@ -385,8 +418,16 @@ public class Parquet {
         Preconditions.checkArgument(rowGroupCheckMaxRecordCount >= rowGroupCheckMinRecordCount,
             "Row group check maximum record count must be >= minimal record count");
 
+        int bloomFilterMaxBytes = PropertyUtil.propertyAsInt(config, PARQUET_BLOOM_FILTER_MAX_BYTES,
+            PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
+        Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
+
+        Map<String, String> columnBloomFilterEnabled =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
+
         return new Context(rowGroupSize, pageSize, dictionaryPageSize, codec, compressionLevel,
-            rowGroupCheckMinRecordCount, rowGroupCheckMaxRecordCount);
+            rowGroupCheckMinRecordCount, rowGroupCheckMaxRecordCount, bloomFilterMaxBytes,
+            columnBloomFilterEnabled);
       }
 
       private static CompressionCodecName toCodec(String codecAsString) {
@@ -423,6 +464,14 @@ public class Parquet {
 
       int rowGroupCheckMaxRecordCount() {
         return rowGroupCheckMaxRecordCount;
+      }
+
+      int bloomFilterMaxBytes() {
+        return bloomFilterMaxBytes;
+      }
+
+      Map<String, String> columnBloomFilterEnabled() {
+        return columnBloomFilterEnabled;
       }
     }
   }
@@ -904,11 +953,13 @@ public class Parquet {
         builder.useStatsFilter()
             .useDictionaryFilter()
             .useRecordFilter(filterRecords)
+            .useBloomFilter()
             .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
       } else {
         // turn off filtering
         builder.useStatsFilter(false)
             .useDictionaryFilter(false)
+            .useBloomFilter(false)
             .useRecordFilter(false);
       }
 

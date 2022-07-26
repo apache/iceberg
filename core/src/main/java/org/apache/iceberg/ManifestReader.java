@@ -241,11 +241,7 @@ public class ManifestReader<F extends ContentFile<F>>
    */
   @Override
   public CloseableIterator<F> iterator() {
-    if (dropStats(rowFilter, columns)) {
-      return CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats()).iterator();
-    } else {
-      return CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
-    }
+    return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats(rowFilter, columns))).iterator();
   }
 
   private static Schema projection(Schema schema, Schema project, Collection<String> columns, boolean caseSensitive) {

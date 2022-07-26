@@ -570,13 +570,13 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB.addedFiles().forEach(i -> {
+    snapshotB.addedDataFiles(table.io()).forEach(i -> {
       expectedDeletes.add(i.path().toString());
     });
 
     // ManifestList should be deleted too
     expectedDeletes.add(snapshotB.manifestListLocation());
-    snapshotB.dataManifests().forEach(file -> {
+    snapshotB.dataManifests(table.io()).forEach(file -> {
       // Only the manifest of B should be deleted.
       if (file.snapshotId() == snapshotB.snapshotId()) {
         expectedDeletes.add(file.path());
@@ -645,7 +645,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     // Make sure no dataFiles are deleted for the B, C, D snapshot
     Lists.newArrayList(snapshotB, snapshotC, snapshotD).forEach(i -> {
-      i.addedFiles().forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -700,7 +700,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     // Make sure no dataFiles are deleted for the staged snapshot
     Lists.newArrayList(snapshotB).forEach(i -> {
-      i.addedFiles().forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -714,7 +714,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     // Make sure no dataFiles are deleted for the staged and cherry-pick
     Lists.newArrayList(snapshotB, snapshotD).forEach(i -> {
-      i.addedFiles().forEach(item -> {
+      i.addedDataFiles(table.io()).forEach(item -> {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
@@ -762,7 +762,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
-        1, firstSnapshot.allManifests().size());
+        1, firstSnapshot.allManifests(table.io()).size());
 
     rightAfterSnapshot();
 
@@ -772,7 +772,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     Snapshot secondSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create replace manifest with a rewritten manifest",
-        1, secondSnapshot.allManifests().size());
+        1, secondSnapshot.allManifests(table.io()).size());
 
     table.newAppend()
         .appendFile(FILE_B)
@@ -798,9 +798,9 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("Should remove expired manifest lists and deleted data file",
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(), // snapshot expired
-            firstSnapshot.allManifests().get(0).path(), // manifest was rewritten for delete
+            firstSnapshot.allManifests(table.io()).get(0).path(), // manifest was rewritten for delete
             secondSnapshot.manifestListLocation(), // snapshot expired
-            secondSnapshot.allManifests().get(0).path(), // manifest contained only deletes, was dropped
+            secondSnapshot.allManifests(table.io()).get(0).path(), // manifest contained only deletes, was dropped
             FILE_A.path()), // deleted
         deletedFiles);
 
@@ -821,7 +821,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
-        1, firstSnapshot.allManifests().size());
+        1, firstSnapshot.allManifests(table.io()).size());
 
     rightAfterSnapshot();
 
@@ -831,7 +831,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     Snapshot secondSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should replace manifest with a rewritten manifest",
-        1, secondSnapshot.allManifests().size());
+        1, secondSnapshot.allManifests(table.io()).size());
 
     table.newFastAppend() // do not merge to keep the last snapshot's manifest valid
         .appendFile(FILE_C)
@@ -857,7 +857,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("Should remove expired manifest lists and deleted data file",
         Sets.newHashSet(
             firstSnapshot.manifestListLocation(), // snapshot expired
-            firstSnapshot.allManifests().get(0).path(), // manifest was rewritten for delete
+            firstSnapshot.allManifests(table.io()).get(0).path(), // manifest was rewritten for delete
             secondSnapshot.manifestListLocation(), // snapshot expired
             FILE_A.path()), // deleted
         deletedFiles);
@@ -879,7 +879,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
-        1, firstSnapshot.allManifests().size());
+        1, firstSnapshot.allManifests(table.io()).size());
 
     rightAfterSnapshot();
 
@@ -888,8 +888,8 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests());
-    secondSnapshotManifests.removeAll(firstSnapshot.allManifests());
+    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests(table.io()));
+    secondSnapshotManifests.removeAll(firstSnapshot.allManifests(table.io()));
     Assert.assertEquals("Should add one new manifest for append", 1, secondSnapshotManifests.size());
 
     table.manageSnapshots()
@@ -928,7 +928,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
-        1, firstSnapshot.allManifests().size());
+        1, firstSnapshot.allManifests(table.io()).size());
 
     rightAfterSnapshot();
 
@@ -937,8 +937,8 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests());
-    secondSnapshotManifests.removeAll(firstSnapshot.allManifests());
+    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests(table.io()));
+    secondSnapshotManifests.removeAll(firstSnapshot.allManifests(table.io()));
     Assert.assertEquals("Should add one new manifest for append", 1, secondSnapshotManifests.size());
 
     table.manageSnapshots()

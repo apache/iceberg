@@ -200,6 +200,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
   void acquireOnce(String entityId, String ownerId) {
     GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
         .tableName(lockTableName)
+        .consistentRead(true)
         .key(toKey(entityId))
         .build());
 

@@ -22,15 +22,22 @@ package org.apache.iceberg.rest;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Takes in the full configuration for the {@link RESTCatalog}, which should already have
+ * Takes in the full configuration for the {@link RESTSessionCatalog}, which should already have
  * called the server's initial configuration route.
  * Using the merged configuration, an instance of {@link RESTClient} is obtained that can be used with the
  * RESTCatalog.
  */
 public class HTTPClientFactory implements Function<Map<String, String>, RESTClient> {
+
+  @VisibleForTesting
+  static final String CLIENT_VERSION_HEADER = "X-Client-Version";
+  @VisibleForTesting
+  static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   @Override
   public RESTClient apply(Map<String, String> properties) {
@@ -38,16 +45,14 @@ public class HTTPClientFactory implements Function<Map<String, String>, RESTClie
     Preconditions.checkArgument(properties.containsKey(CatalogProperties.URI), "REST Catalog server URI is required");
 
     String baseURI = properties.get(CatalogProperties.URI).trim();
+    String clientVersion = IcebergBuild.fullVersion();
+    String gitCommitShortId = IcebergBuild.gitCommitShortId();
 
-    HTTPClient.Builder builder = HTTPClient.builder()
-        .uri(baseURI);
-
-    // Only apply bearer auth token if one is provided.
-    String token = properties.get(RESTCatalogProperties.AUTH_TOKEN);
-    if (token != null && !token.trim().isEmpty()) {
-      builder.withBearerAuth(token.trim());
-    }
-
-    return builder.build();
+    return HTTPClient
+        .builder()
+        .withHeader(CLIENT_VERSION_HEADER, clientVersion)
+        .withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, gitCommitShortId)
+        .uri(baseURI)
+        .build();
   }
 }

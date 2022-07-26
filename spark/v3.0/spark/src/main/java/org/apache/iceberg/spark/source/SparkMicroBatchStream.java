@@ -35,7 +35,6 @@ import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
@@ -86,7 +85,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.caseSensitive = caseSensitive;
     this.expectedSchema = SchemaParser.toJson(expectedSchema);
     this.localityPreferred = readConf.localityEnabled();
-    this.tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
+    this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
@@ -111,7 +110,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     }
 
     Snapshot latestSnapshot = table.currentSnapshot();
-    return new StreamingOffset(latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedFiles()), false);
+    return new StreamingOffset(
+        latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedDataFiles(table.io())), false);
   }
 
   @Override

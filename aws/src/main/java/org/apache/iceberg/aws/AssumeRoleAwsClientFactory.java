@@ -46,6 +46,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private String region;
   private String s3Endpoint;
   private boolean s3UseArnRegionEnabled;
+  private String dynamoDbEndpoint;
   private String httpClientType;
 
   @Override
@@ -69,7 +70,10 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   @Override
   public DynamoDbClient dynamo() {
-    return DynamoDbClient.builder().applyMutation(this::configure).build();
+    return DynamoDbClient.builder()
+        .applyMutation(this::configure)
+        .applyMutation(builder -> AwsClientFactories.configureEndpoint(builder, dynamoDbEndpoint))
+        .build();
   }
 
   @Override
@@ -88,6 +92,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     this.tags = toTags(properties);
     this.s3UseArnRegionEnabled = PropertyUtil.propertyAsBoolean(properties, AwsProperties.S3_ACCESS_POINTS_PREFIX,
         AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+    this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
     this.httpClientType = PropertyUtil.propertyAsString(properties,
         AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
   }

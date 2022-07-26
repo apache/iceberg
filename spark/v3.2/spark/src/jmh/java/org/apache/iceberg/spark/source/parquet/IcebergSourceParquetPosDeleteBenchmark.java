@@ -49,7 +49,7 @@ public class IcebergSourceParquetPosDeleteBenchmark extends IcebergSourceDeleteB
       if (percentDeleteRow > 0) {
         // add pos-deletes
         table().refresh();
-        for (DataFile file : table().currentSnapshot().addedFiles()) {
+        for (DataFile file : table().currentSnapshot().addedDataFiles(table().io())) {
           writePosDeletes(file.path(), NUM_ROWS, percentDeleteRow);
         }
       }

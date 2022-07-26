@@ -30,15 +30,21 @@ import org.apache.iceberg.aws.s3.S3TestUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
+import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
+import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
+import software.amazon.awssdk.services.glue.model.GlueException;
+import software.amazon.awssdk.services.glue.model.ValidationException;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
@@ -241,7 +247,142 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
       table.refresh();
       table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
       throw new RuntimeException("Datacenter on fire");
-    }).when(spyOperations).persistGlueTable(Matchers.any(), Matchers.anyMap(), Matchers.any());
+    }).when(spyOperations).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
+  }
+
+  @Test
+  public void testCreateTableWithInvalidDB() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, EntityNotFoundException.builder().build());
+
+    AssertHelpers.assertThrows(
+            "Should throw not found exception",
+            NotFoundException.class,
+            "because Glue cannot find the requested entity",
+            () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testGlueAccessDeniedException() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, AccessDeniedException.builder().build());
+
+    AssertHelpers.assertThrows(
+            "Should throw forbidden exception",
+            ForbiddenException.class,
+            "because Glue cannot access the requested resources",
+            () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testGlueValidationException() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, ValidationException.builder().build());
+
+    AssertHelpers.assertThrows(
+            "Should throw validation exception",
+            org.apache.iceberg.exceptions.ValidationException.class,
+            "because Glue encountered a validation exception while accessing requested resources",
+            () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testS3Exception() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, S3Exception.builder().statusCode(300).build());
+
+    AssertHelpers.assertThrows(
+            null,
+            S3Exception.class,
+            () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testOtherGlueException() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, GlueException.builder().statusCode(300).build());
+
+    AssertHelpers.assertThrows(
+            null,
+            GlueException.class,
+            () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testInternalServerErrorRetryCommit() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, GlueException.builder().statusCode(500).build());
+
+    AssertHelpers.assertThrows(
+            null,
+            CommitFailedException.class,
+            () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
   }
 
   private Table setupTable() {
@@ -270,7 +411,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
           i.getArgument(1, Map.class),
           i.getArgument(2, TableMetadata.class));
       throw new RuntimeException("Datacenter on fire");
-    }).when(spyOps).persistGlueTable(Matchers.any(), Matchers.anyMap(), Matchers.any());
+    }).when(spyOps).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
   }
 
   private void failCommitAndThrowException(GlueTableOperations spyOps) {
@@ -279,7 +420,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   private void failCommitAndThrowException(GlueTableOperations spyOps, Exception exceptionToThrow) {
     Mockito.doThrow(exceptionToThrow)
-        .when(spyOps).persistGlueTable(Matchers.any(), Matchers.anyMap(), Matchers.any());
+        .when(spyOps).persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any());
   }
 
   private void breakFallbackCatalogCommitCheck(GlueTableOperations spyOperations) {

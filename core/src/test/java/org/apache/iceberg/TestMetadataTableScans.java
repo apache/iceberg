@@ -57,18 +57,7 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   private void preparePartitionedTable() {
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_C)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_D)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_B)
-        .commit();
+    preparePartitionedTableData();
 
     if (formatVersion == 2) {
       table.newRowDelta()
@@ -84,6 +73,21 @@ public class TestMetadataTableScans extends TableTestBase {
           .addDeletes(FILE_D2_DELETES)
           .commit();
     }
+  }
+
+  private void preparePartitionedTableData() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_D)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
   }
 
   @Test
@@ -514,7 +518,11 @@ public class TestMetadataTableScans extends TableTestBase {
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
     table.refresh();
 
-    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    // Here we need to specify target name as 'data_bucket_16'. If unspecified a default name will be generated. As per
+    // https://github.com/apache/iceberg/pull/4868 there's an inconsistency of doing this: in V2, the above removed
+    // data_bucket would be recycled in favor of data_bucket_16. By specifying the target name, we explicitly require
+    // data_bucket not to be recycled.
+    table.updateSpec().addField("data_bucket_16", Expressions.bucket("data", 16)).commit();
     table.refresh();
 
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
@@ -803,6 +811,180 @@ public class TestMetadataTableScans extends TableTestBase {
     CloseableIterable<FileScanTask> tasks = PartitionsTable.planFiles((StaticTableScan) scan);
     Assert.assertEquals(4, Iterables.size(tasks));
     Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotGt() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.greaterThan("reference_snapshot_id", 2));
+
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 3L, 4L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotGte() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.greaterThanOrEqual("reference_snapshot_id", 3));
+
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 3L, 4L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotLt() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.lessThan("reference_snapshot_id", 3));
+
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 1L, 2L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotLte() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.lessThanOrEqual("reference_snapshot_id", 2));
+
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 1L, 2L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotEq() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.equal("reference_snapshot_id", 2));
+
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 2L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotNotEq() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.notEqual("reference_snapshot_id", 2));
+
+    Assert.assertEquals("Expected snapshots do not match",
+          expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L),
+          actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotIn() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.in("reference_snapshot_id", 1, 3));
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 1L, 3L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotNotIn() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.notIn("reference_snapshot_id", 1, 3));
+
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 2L, 4L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotAnd() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.and(
+            Expressions.equal("reference_snapshot_id", 2),
+            Expressions.greaterThan("length", 0)));
+    Assert.assertEquals("Expected snapshots do not match",
+          expectedManifestListPaths(table.snapshots(), 2L),
+          actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotOr() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.or(
+            Expressions.equal("reference_snapshot_id", 2),
+            Expressions.equal("reference_snapshot_id", 4)));
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 2L, 4L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  @Test
+  public void testAllManifestsTableSnapshotNot() {
+    // Snapshots 1,2,3,4
+    preparePartitionedTableData();
+
+    Table manifestsTable = new AllManifestsTable(table.ops(), table);
+    TableScan manifestsTableScan = manifestsTable.newScan()
+        .filter(Expressions.not(
+            Expressions.equal("reference_snapshot_id", 2)));
+
+    Assert.assertEquals("Expected snapshots do not match",
+        expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L),
+        actualManifestListPaths(manifestsTableScan));
+  }
+
+  private Set<String> actualManifestListPaths(TableScan allManifestsTableScan) {
+    return StreamSupport.stream(allManifestsTableScan.planFiles().spliterator(), false)
+        .map(t -> (AllManifestsTable.ManifestListReadTask) t)
+        .map(t -> t.file().path().toString())
+        .collect(Collectors.toSet());
+  }
+
+  private Set<String> expectedManifestListPaths(Iterable<Snapshot> snapshots, Long... snapshotIds) {
+    Set<Long> snapshotIdSet = Sets.newHashSet(snapshotIds);
+    return StreamSupport.stream(snapshots.spliterator(), false)
+        .filter(s -> snapshotIdSet.contains(s.snapshotId()))
+        .map(Snapshot::manifestListLocation)
+        .collect(Collectors.toSet());
   }
 
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {

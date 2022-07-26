@@ -28,6 +28,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -82,7 +83,7 @@ public class TestFileIOSerialization {
     FileIO io = table.io();
     Configuration expectedConf = ((HadoopFileIO) io).conf();
 
-    Table serializableTable = SerializableTable.copyOf(table);
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
     FileIO deserializedIO = KryoHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
@@ -96,7 +97,7 @@ public class TestFileIOSerialization {
     FileIO io = table.io();
     Configuration expectedConf = ((HadoopFileIO) io).conf();
 
-    Table serializableTable = SerializableTable.copyOf(table);
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
     FileIO deserializedIO = TestHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 

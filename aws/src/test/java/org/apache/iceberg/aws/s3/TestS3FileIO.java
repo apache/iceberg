@@ -28,20 +28,26 @@ import java.util.Map;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -167,6 +173,7 @@ public class TestS3FileIO {
       for (int j = 1; j <= numObjects; j++) {
         String key = "object-" + j;
         paths.add("s3://" + bucketName + "/" + key);
+        s3mock.putObject(builder -> builder.bucket(bucketName).key(key).build(), RequestBody.empty());
       }
     }
     s3FileIO.deleteFiles(paths);
@@ -189,5 +196,60 @@ public class TestS3FileIO {
     SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
 
     assertEquals("s3", post.get().serviceName());
+  }
+
+  @Test
+  public void testPrefixList() {
+    String prefix = "s3://bucket/path/to/list";
+
+    List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
+
+    scaleSizes.parallelStream().forEach(scale -> {
+      String scalePrefix = String.format("%s/%s/", prefix, scale);
+
+      createRandomObjects(scalePrefix, scale);
+      assertEquals((long) scale, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+    });
+
+    long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
+    Assertions.assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(prefix)).count());
+  }
+
+  @Test
+  public void testPrefixDelete() {
+    String prefix = "s3://bucket/path/to/delete";
+    List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1001);
+
+    scaleSizes.forEach(scale -> {
+      String scalePrefix = String.format("%s/%s/", prefix, scale);
+
+      createRandomObjects(scalePrefix, scale);
+      s3FileIO.deletePrefix(scalePrefix);
+      assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+    });
+  }
+
+  @Test
+  public void testFileIOJsonSerialization() {
+    Object conf;
+    if (s3FileIO instanceof Configurable) {
+      conf = ((Configurable) s3FileIO).getConf();
+    } else {
+      conf = null;
+    }
+
+    String json = FileIOParser.toJson(s3FileIO);
+    try (FileIO deserialized = FileIOParser.fromJson(json, conf)) {
+      Assert.assertTrue(deserialized instanceof S3FileIO);
+      Assert.assertEquals(s3FileIO.properties(), deserialized.properties());
+    }
+  }
+
+  private void createRandomObjects(String prefix, int count) {
+    S3URI s3URI = new S3URI(prefix);
+
+    random.ints(count).parallel().forEach(i ->
+        s3mock.putObject(builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(), RequestBody.empty())
+    );
   }
 }

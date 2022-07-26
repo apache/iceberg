@@ -20,7 +20,7 @@ from decimal import Decimal
 
 import pytest
 
-from iceberg.expressions.literals import (
+from pyiceberg.expressions.literals import (
     AboveMax,
     BelowMin,
     BinaryLiteral,
@@ -36,7 +36,7 @@ from iceberg.expressions.literals import (
     TimestampLiteral,
     literal,
 )
-from iceberg.types import (
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -390,28 +390,28 @@ def test_raise_on_comparison_to_none():
     fixed_lit012 = literal(bytes([0x00, 0x01, 0x02]))
 
     with pytest.raises(AttributeError):
-        bin_lit012 < None
+        _ = bin_lit012 < None
 
     with pytest.raises(AttributeError):
-        bin_lit012 <= None
+        _ = bin_lit012 <= None
 
     with pytest.raises(AttributeError):
-        bin_lit012 > None
+        _ = bin_lit012 > None
 
     with pytest.raises(AttributeError):
-        bin_lit012 >= None
+        _ = bin_lit012 >= None
 
     with pytest.raises(AttributeError):
-        fixed_lit012 < None
+        _ = fixed_lit012 < None
 
     with pytest.raises(AttributeError):
-        fixed_lit012 <= None
+        _ = fixed_lit012 <= None
 
     with pytest.raises(AttributeError):
-        fixed_lit012 > None
+        _ = fixed_lit012 > None
 
     with pytest.raises(AttributeError):
-        fixed_lit012 >= None
+        _ = fixed_lit012 >= None
 
 
 def test_binary_to_fixed():

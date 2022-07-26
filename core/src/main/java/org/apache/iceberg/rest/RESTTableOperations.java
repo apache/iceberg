@@ -20,8 +20,10 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.TableMetadata;
@@ -48,20 +50,24 @@ class RESTTableOperations implements TableOperations {
 
   private final RESTClient client;
   private final String path;
+  private final Supplier<Map<String, String>> headers;
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private UpdateType updateType;
   private TableMetadata current;
 
-  RESTTableOperations(RESTClient client, String path, FileIO io, TableMetadata current) {
-    this(client, path, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
+  RESTTableOperations(
+      RESTClient client, String path, Supplier<Map<String, String>> headers, FileIO io, TableMetadata current) {
+    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
   }
 
-  RESTTableOperations(RESTClient client, String path, FileIO io, UpdateType updateType,
-                      List<MetadataUpdate> createChanges, TableMetadata current) {
+  RESTTableOperations(
+      RESTClient client, String path, Supplier<Map<String, String>> headers, FileIO io, UpdateType updateType,
+      List<MetadataUpdate> createChanges, TableMetadata current) {
     this.client = client;
     this.path = path;
+    this.headers = headers;
     this.io = io;
     this.updateType = updateType;
     this.createChanges = createChanges;
@@ -80,7 +86,7 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    return updateCurrentMetadata(client.get(path, LoadTableResponse.class, ErrorHandlers.tableErrorHandler()));
+    return updateCurrentMetadata(client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
@@ -121,7 +127,7 @@ class RESTTableOperations implements TableOperations {
 
     // the error handler will throw necessary exceptions like CommitFailedException and UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
-    LoadTableResponse response = client.post(path, request, LoadTableResponse.class, errorHandler);
+    LoadTableResponse response = client.post(path, request, LoadTableResponse.class, headers, errorHandler);
 
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;

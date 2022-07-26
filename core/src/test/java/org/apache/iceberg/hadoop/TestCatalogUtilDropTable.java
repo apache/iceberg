@@ -51,8 +51,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
 
     Set<String> manifestListLocations = manifestListLocations(snapshotSet);
-    Set<String> manifestLocations = manifestLocations(snapshotSet);
-    Set<String> dataLocations = dataLocations(snapshotSet);
+    Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
+    Set<String> dataLocations = dataLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
     Assert.assertEquals("should have 2 manifest lists", 2, manifestListLocations.size());
     Assert.assertEquals("should have 3 metadata locations", 3, metadataLocations.size());
@@ -60,6 +60,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
         .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
+    Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
+        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
@@ -90,12 +92,14 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     FileIO fileIO = Mockito.mock(FileIO.class);
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
         .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
+    Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
+        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
     Mockito.doThrow(new RuntimeException()).when(fileIO).deleteFile(ArgumentMatchers.anyString());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     Mockito.verify(fileIO, Mockito.times(
-        manifestListLocations(snapshotSet).size() + manifestLocations(snapshotSet).size() +
-            dataLocations(snapshotSet).size() + metadataLocations(tableMetadata).size()))
+        manifestListLocations(snapshotSet).size() + manifestLocations(snapshotSet, fileIO).size() +
+            dataLocations(snapshotSet, table.io()).size() + metadataLocations(tableMetadata).size()))
         .deleteFile(ArgumentMatchers.anyString());
   }
 
@@ -113,7 +117,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
 
     Set<String> manifestListLocations = manifestListLocations(snapshotSet);
-    Set<String> manifestLocations = manifestLocations(snapshotSet);
+    Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
     Assert.assertEquals("should have 2 manifest lists", 2, manifestListLocations.size());
     Assert.assertEquals("should have 4 metadata locations", 4, metadataLocations.size());
@@ -141,16 +145,16 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .collect(Collectors.toSet());
   }
 
-  private Set<String> manifestLocations(Set<Snapshot> snapshotSet) {
+  private Set<String> manifestLocations(Set<Snapshot> snapshotSet, FileIO io) {
     return snapshotSet.stream()
-        .flatMap(snapshot -> snapshot.allManifests().stream())
+        .flatMap(snapshot -> snapshot.allManifests(io).stream())
         .map(ManifestFile::path)
         .collect(Collectors.toSet());
   }
 
-  private Set<String> dataLocations(Set<Snapshot> snapshotSet) {
+  private Set<String> dataLocations(Set<Snapshot> snapshotSet, FileIO io) {
     return snapshotSet.stream()
-        .flatMap(snapshot -> StreamSupport.stream(snapshot.addedFiles().spliterator(), false))
+        .flatMap(snapshot -> StreamSupport.stream(snapshot.addedDataFiles(io).spliterator(), false))
         .map(dataFile -> dataFile.path().toString())
         .collect(Collectors.toSet());
   }

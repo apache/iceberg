@@ -113,7 +113,7 @@ public class MappedFields implements Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(fields);
+    return Objects.hashCode(fields);
   }
 
   @Override

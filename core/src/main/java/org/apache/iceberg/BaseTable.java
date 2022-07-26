@@ -65,6 +65,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public IncrementalAppendScan newIncrementalAppendScan() {
+    return new BaseIncrementalAppendScan(ops, this);
+  }
+
+  @Override
   public Schema schema() {
     return ops.current().schema();
   }

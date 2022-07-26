@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Locale;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
@@ -63,6 +64,8 @@ public class MetadataTableUtils {
         return new HistoryTable(ops, baseTable, metadataTableName);
       case SNAPSHOTS:
         return new SnapshotsTable(ops, baseTable, metadataTableName);
+      case METADATA_LOGS:
+        return new MetadataLogsTable(ops, baseTable, metadataTableName);
       case MANIFESTS:
         return new ManifestsTable(ops, baseTable, metadataTableName);
       case PARTITIONS:
@@ -93,6 +96,6 @@ public class MetadataTableUtils {
   }
 
   private static String metadataTableName(String tableName, MetadataTableType type) {
-    return tableName + (tableName.contains("/") ? "#" : ".") + type;
+    return tableName + (tableName.contains("/") ? "#" : ".") + type.name().toLowerCase(Locale.ROOT);
   }
 }

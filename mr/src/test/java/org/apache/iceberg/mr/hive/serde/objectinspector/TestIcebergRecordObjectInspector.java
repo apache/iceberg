@@ -61,4 +61,17 @@ public class TestIcebergRecordObjectInspector {
     Assert.assertEquals(innerRecord.get(0), innerSoi.getStructFieldData(innerData, stringField));
   }
 
+  @Test
+  public void testIcebergRecordObjectInspectorWithRowNull() {
+    Schema schema = new Schema(
+        required(1, "integer_field", Types.IntegerType.get()),
+        required(2, "struct_field", Types.StructType.of(
+            Types.NestedField.required(3, "string_field", Types.StringType.get())))
+    );
+    StructObjectInspector soi = (StructObjectInspector) IcebergObjectInspector.create(schema);
+    Assert.assertNull(soi.getStructFieldsDataAsList(null));
+    StructField integerField = soi.getStructFieldRef("integer_field");
+    Assert.assertNull(soi.getStructFieldData(null, integerField));
+  }
+
 }

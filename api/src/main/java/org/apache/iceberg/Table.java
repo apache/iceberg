@@ -65,6 +65,17 @@ public interface Table {
   }
 
   /**
+   * Create a new {@link IncrementalChangelogScan} for this table.
+   * <p>
+   * Once a scan is created, it can be refined to project columns and filter data.
+   *
+   * @return an incremental changelog scan
+   */
+  default IncrementalChangelogScan newIncrementalChangelogScan() {
+    throw new UnsupportedOperationException("Incremental changelog scan is not supported");
+  }
+
+  /**
    * Return the {@link Schema schema} for this table.
    *
    * @return this table's schema

@@ -36,7 +36,7 @@ usage () {
 }
 
 # Default repository remote name
-remote="origin"
+remote="apache"
 
 while getopts "v:r:k:g:d" opt; do
   case "${opt}" in
@@ -87,11 +87,7 @@ tagrc="${tag}-rc${rc}"
 
 echo "Preparing source for $tagrc"
 
-echo "Adding version.txt and tagging release..."
-echo $version > $projectdir/version.txt
-git add $projectdir/version.txt
-git commit -m "Add version.txt for release $version" $projectdir/version.txt
-
+echo "Creating release candidate tag: $tagrc..."
 set_version_hash=`git rev-list HEAD 2> /dev/null | head -n 1 `
 git tag -am "Apache Iceberg $version" $tagrc $set_version_hash
 
@@ -105,14 +101,23 @@ if [ -z "$release_hash" ]; then
   exit
 fi
 
+echo "Generating version.txt and iceberg-build.properties..."
+echo $version > $projectdir/version.txt
+./gradlew generateGitProperties
+cp $projectdir/build/iceberg-build.properties $projectdir/iceberg-build.properties
+
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
 echo "Creating tarball ${tarball} using commit $release_hash"
 tarball=$tag.tar.gz
-git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$tarball
+git archive $release_hash --worktree-attributes --prefix $tag/ --add-file $projectdir/version.txt --add-file $projectdir/iceberg-build.properties -o $projectdir/$tarball
+
+# remove the uncommitted build files so they don't affect the current working copy
+rm $projectdir/version.txt
+rm $projectdir/iceberg-build.properties
 
 echo "Signing the tarball..."
-[[ -z "$keyid" ]] && keyopt="-u $keyid"
+[[ -n "$keyid" ]] && keyopt="-u $keyid"
 gpg $keyopt --armor --output ${projectdir}/${tarball}.asc --detach-sig ${projectdir}/$tarball
 shasum -a 512 $tarball > ${projectdir}/${tarball}.sha512
 

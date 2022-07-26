@@ -86,7 +86,7 @@ public class SnapshotRef implements Serializable {
     }
 
     SnapshotRef ref = (SnapshotRef) other;
-    return Objects.equals(ref.snapshotId(), snapshotId) &&
+    return ref.snapshotId == snapshotId &&
         Objects.equals(ref.type(), type) &&
         Objects.equals(ref.maxRefAgeMs(), maxRefAgeMs) &&
         Objects.equals(ref.minSnapshotsToKeep(), minSnapshotsToKeep) &&

@@ -215,4 +215,18 @@ public class TestSelect extends SparkCatalogTestBase {
     assertEquals("Should return all expected rows", expected,
         sql("SELECT id, binary FROM %s where binary > X'11'", binaryTableName));
   }
+
+  @Test
+  public void testComplexTypeFilter() {
+    String complexTypeTableName = tableName("complex_table");
+    sql("CREATE TABLE %s (id INT, complex STRUCT<c1:INT,c2:STRING>) USING iceberg", complexTypeTableName);
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\"))", complexTypeTableName);
+    sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))", complexTypeTableName);
+
+    List<Object[]> result = sql("SELECT id FROM %s WHERE complex = named_struct(\"c1\", 3, \"c2\", \"v1\")",
+        complexTypeTableName);
+
+    assertEquals("Should return all expected rows", ImmutableList.of(row(1)), result);
+    sql("DROP TABLE IF EXISTS %s", complexTypeTableName);
+  }
 }

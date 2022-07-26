@@ -58,7 +58,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -319,7 +319,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     TableMetadata metadata = readMetadataVersion(3);
     Assert.assertEquals("Current snapshot should contain 2 manifests",
-        2, metadata.currentSnapshot().allManifests().size());
+        2, metadata.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test
@@ -342,7 +342,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",
-        1, metadata.currentSnapshot().allManifests().size());
+        1, metadata.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test

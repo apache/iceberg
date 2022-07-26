@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -351,7 +352,7 @@ public class Spark3Util {
     Preconditions.checkArgument(transform.references().length == 1,
         "Cannot convert transform with more than one column reference: %s", transform);
     String colName = DOT.join(transform.references()[0].fieldNames());
-    switch (transform.name()) {
+    switch (transform.name().toLowerCase(Locale.ROOT)) {
       case "identity":
         return org.apache.iceberg.expressions.Expressions.ref(colName);
       case "bucket":
@@ -390,7 +391,7 @@ public class Spark3Util {
       Preconditions.checkArgument(transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s", transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
-      switch (transform.name()) {
+      switch (transform.name().toLowerCase(Locale.ROOT)) {
         case "identity":
           builder.identity(colName);
           break;

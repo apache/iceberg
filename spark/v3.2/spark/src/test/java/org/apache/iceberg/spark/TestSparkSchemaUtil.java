@@ -20,8 +20,12 @@
 package org.apache.iceberg.spark;
 
 import java.io.IOException;
+import java.util.List;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.expressions.AttributeReference;
+import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -33,8 +37,15 @@ public class TestSparkSchemaUtil {
       optional(2, "data", Types.StringType.get())
   );
 
+  private static final Schema TEST_SCHEMA_WITH_METADATA_COLS = new Schema(
+      optional(1, "id", Types.IntegerType.get()),
+      optional(2, "data", Types.StringType.get()),
+      MetadataColumns.FILE_PATH,
+      MetadataColumns.ROW_POSITION
+  );
+
   @Test
-  public void testEstiamteSizeMaxValue() throws IOException {
+  public void testEstimateSizeMaxValue() throws IOException {
     Assert.assertEquals("estimateSize returns Long max value", Long.MAX_VALUE,
         SparkSchemaUtil.estimateSize(
             null,
@@ -42,14 +53,30 @@ public class TestSparkSchemaUtil {
   }
 
   @Test
-  public void testEstiamteSizeWithOverflow() throws IOException {
+  public void testEstimateSizeWithOverflow() throws IOException {
     long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), Long.MAX_VALUE - 1);
     Assert.assertEquals("estimateSize handles overflow", Long.MAX_VALUE, tableSize);
   }
 
   @Test
-  public void testEstiamteSize() throws IOException {
+  public void testEstimateSize() throws IOException {
     long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), 1);
     Assert.assertEquals("estimateSize matches with expected approximation", 24, tableSize);
+  }
+
+  @Test
+  public void testSchemaConversionWithMetaDataColumnSchema() {
+    StructType structType = SparkSchemaUtil.convert(TEST_SCHEMA_WITH_METADATA_COLS);
+    List<AttributeReference> attrRefs = scala.collection.JavaConverters.seqAsJavaList(structType.toAttributes());
+    for (AttributeReference attrRef : attrRefs) {
+      if (MetadataColumns.isMetadataColumn(attrRef.name())) {
+        Assert.assertTrue("metadata columns should have __metadata_col in attribute metadata",
+            attrRef.metadata().contains(TypeToSparkType.METADATA_COL_ATTR_KEY) &&
+                attrRef.metadata().getBoolean(TypeToSparkType.METADATA_COL_ATTR_KEY));
+      } else {
+        Assert.assertFalse("non metadata columns should not have __metadata_col in attribute metadata",
+            attrRef.metadata().contains(TypeToSparkType.METADATA_COL_ATTR_KEY));
+      }
+    }
   }
 }

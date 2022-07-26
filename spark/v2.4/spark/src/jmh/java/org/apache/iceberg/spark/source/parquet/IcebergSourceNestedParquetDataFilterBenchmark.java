@@ -44,9 +44,9 @@ import static org.apache.spark.sql.functions.struct;
  *
  * The performance is compared to the built-in file source in Spark.
  *
- * To run this benchmark for either spark-2 or spark-3:
+ * To run this benchmark for spark-2.4:
  * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
+ *   ./gradlew -DsparkVersions=2.4 :iceberg-spark:iceberg-spark-2.4:jmh
  *       -PjmhIncludeRegex=IcebergSourceNestedParquetDataFilterBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-filter-benchmark-result.txt
  * </code>

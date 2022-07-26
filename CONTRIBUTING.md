@@ -52,8 +52,6 @@ For Java styling, check out the section
 [Setting up IDE and Code Style](https://iceberg.apache.org/community/#setting-up-ide-and-code-style) from the
 documentation site.
 
-For Python, please use the tox command `tox -e format` to apply autoformatting to the project.
-
 ### Java style guidelines
 
 #### Line breaks

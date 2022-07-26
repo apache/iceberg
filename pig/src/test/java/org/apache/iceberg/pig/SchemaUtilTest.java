@@ -34,6 +34,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.pig.ResourceSchema;
 import org.apache.pig.impl.logicalLayer.FrontendException;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -72,11 +73,13 @@ public class SchemaUtilTest {
     );
   }
 
-  @Test(expected = FrontendException.class)
-  public void invalidMap() throws IOException {
-    convertToPigSchema(new Schema(
-        optional(1, "invalid", MapType.ofOptional(2, 3, IntegerType.get(), DoubleType.get()))
-    ), "", "");
+  @Test
+  public void invalidMap() {
+    Assertions.assertThatThrownBy(() -> convertToPigSchema(new Schema(
+                    optional(1, "invalid", MapType.ofOptional(2, 3, IntegerType.get(), DoubleType.get()))
+            ), "", ""))
+            .isInstanceOf(FrontendException.class)
+            .hasMessageContaining("Unsupported map key type: int");
   }
 
   @Test

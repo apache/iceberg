@@ -20,8 +20,13 @@
 package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Collections;
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.assertj.core.api.Assertions;
+import org.junit.Assert;
 import org.junit.Test;
 
 public abstract class RequestResponseTestBase<T extends RESTMessage> {
@@ -59,16 +64,35 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
   public abstract T deserialize(String json) throws JsonProcessingException;
 
   /**
-   * This test ensures that only the fields that are expected, e.g. from the spec, are found on the class.
-   * If new fields are added to the spec, they should be added to the function
-   * {@link RequestResponseTestBase#allFieldsFromSpec()}
+   * Serialize T to a String.
+   */
+  public String serialize(T object) throws JsonProcessingException {
+    return MAPPER.writeValueAsString(object);
+  }
+
+  /**
+   * This test ensures that the serialized JSON of each class has only fields that are expected from the spec.
+   * Only top level fields are checked presently, as nested fields generally come from some existing type that is
+   * tested elsewhere.
+   * The fields from the spec should be populated into each subclass's
+   * {@link RequestResponseTestBase#allFieldsFromSpec()}.
    */
   @Test
   public void testHasOnlyKnownFields() {
-    T value = createExampleInstance();
+    Set<String> fieldsFromSpec = Sets.newHashSet();
+    Collections.addAll(fieldsFromSpec, allFieldsFromSpec());
+    try {
+      JsonNode node = mapper().readValue(serialize(createExampleInstance()), JsonNode.class);
+      for (String field : fieldsFromSpec) {
+        Assert.assertTrue("Should have field: " + field, node.has(field));
+      }
 
-    Assertions.assertThat(value)
-        .hasOnlyFields(allFieldsFromSpec());
+      for (String field : ((Iterable<? extends String>) node::fieldNames)) {
+        Assert.assertTrue("Should not have field: " + field, fieldsFromSpec.contains(field));
+      }
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   /**
@@ -81,7 +105,6 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
     assertEquals(actual, expected);
 
     // Check that the deserialized value serializes back into the original JSON
-    Assertions.assertThat(MAPPER.writeValueAsString(actual))
-        .isEqualTo(json);
+    Assertions.assertThat(serialize(expected)).isEqualTo(json);
   }
 }

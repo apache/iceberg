@@ -472,7 +472,7 @@ public class BaseTransaction implements Transaction {
       Snapshot snap = ops.current().snapshot(snapshotId);
       if (snap != null) {
         committedFiles.add(snap.manifestListLocation());
-        snap.allManifests()
+        snap.allManifests(ops.io())
             .forEach(manifest -> committedFiles.add(manifest.path()));
       } else {
         return null;

@@ -24,6 +24,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -156,7 +157,8 @@ public class PartitionsTable extends BaseMetadataTable {
       return ManifestEvaluator.forRowFilter(scan.filter(), transformedSpec, caseSensitive);
     });
 
-    ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), snapshot.deleteManifests())
+    FileIO io = table.io();
+    ManifestGroup manifestGroup = new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
         .caseSensitive(caseSensitive)
         .filterManifests(m -> evalCache.get(m.partitionSpecId()).eval(m))
         .select(scan.colStats() ? DataTableScan.SCAN_WITH_STATS_COLUMNS : DataTableScan.SCAN_COLUMNS)
@@ -167,7 +169,7 @@ public class PartitionsTable extends BaseMetadataTable {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (scan.snapshot().dataManifests().size() > 1 &&
+    if (scan.snapshot().dataManifests(io).size() > 1 &&
         (PLAN_SCANS_WITH_WORKER_POOL || scan.context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(scan.context().planExecutor());
     }

@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -134,7 +133,7 @@ public class MetricsModes {
 
     @Override
     public int hashCode() {
-      return Objects.hash(length);
+      return Integer.hashCode(length);
     }
   }
 

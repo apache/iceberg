@@ -34,7 +34,7 @@ import org.apache.iceberg.util.JsonUtil;
  * <p>
  * For TableIdentifier.of("dogs", "owners.and.handlers", "food"), we'd have
  * the following JSON representation, where the dot character of an
- * individual level is in the namespace is replaced by the null byte character.
+ * individual level is in the namespace is replaced by the unit separator byte character.
  * <pre>
  * {
  *   "namespace": ["dogs", "owners.and.handlers"],

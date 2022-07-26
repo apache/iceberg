@@ -108,6 +108,35 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     return lastAssignedPartitionId;
   }
 
+  /**
+   * In V2 it searches for a similar partition field in historical partition specs. Tries to match on source field
+   * ID, transform type and target name (optional). If not found or in V1 cases it creates a new PartitionField.
+   * @param sourceTransform pair of source ID and transform for this PartitionField addition
+   * @param name target partition field name, if specified
+   * @return the recycled or newly created partition field
+   */
+  private PartitionField recycleOrCreatePartitionField(Pair<Integer, Transform<?, ?>> sourceTransform, String name) {
+    if (formatVersion == 2 && base != null) {
+      int sourceId = sourceTransform.first();
+      Transform<?, ?> transform = sourceTransform.second();
+
+      Set<PartitionField> allHistoricalFields = Sets.newHashSet();
+      for (PartitionSpec partitionSpec : base.specs()) {
+        allHistoricalFields.addAll(partitionSpec.fields());
+      }
+
+      for (PartitionField field : allHistoricalFields) {
+        if (field.sourceId() == sourceId && field.transform().equals(transform)) {
+          // if target name is specified then consider it too, otherwise not
+          if (name == null || field.name().equals(name)) {
+            return field;
+          }
+        }
+      }
+    }
+    return new PartitionField(sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
+  }
+
   @Override
   public UpdatePartitionSpec caseSensitive(boolean isCaseSensitive) {
     this.caseSensitive = isCaseSensitive;
@@ -157,8 +186,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     Preconditions.checkArgument(added == null,
         "Cannot add duplicate partition field %s=%s, already added: %s", name, term, added);
 
-    PartitionField newField = new PartitionField(
-        sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
+    PartitionField newField = recycleOrCreatePartitionField(sourceTransform, name);
     if (newField.name() == null) {
       String partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
       newField = new PartitionField(newField.sourceId(), newField.fieldId(), partitionName, newField.transform());

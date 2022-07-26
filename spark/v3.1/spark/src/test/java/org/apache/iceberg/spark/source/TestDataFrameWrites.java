@@ -181,7 +181,7 @@ public class TestDataFrameWrites extends AvroDataTest {
     }
     Assert.assertEquals("Both iterators should be exhausted", expectedIter.hasNext(), actualIter.hasNext());
 
-    table.currentSnapshot().addedFiles().forEach(dataFile ->
+    table.currentSnapshot().addedDataFiles(table.io()).forEach(dataFile ->
         Assert.assertTrue(
             String.format(
                 "File should have the parent directory %s, but has: %s.",

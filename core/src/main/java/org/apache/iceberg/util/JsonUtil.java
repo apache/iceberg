@@ -25,6 +25,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.io.IOException;
+import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +50,54 @@ public class JsonUtil {
 
   public static ObjectMapper mapper() {
     return MAPPER;
+  }
+
+  @FunctionalInterface
+  public interface ToJson {
+    void generate(JsonGenerator gen) throws IOException;
+  }
+
+  /**
+   * Helper for writing JSON with a JsonGenerator.
+   *
+   * @param toJson a function to produce JSON using a JsonGenerator
+   * @param pretty whether to pretty-print JSON for readability
+   * @return a JSON string produced from the generator
+   */
+  public static String generate(ToJson toJson, boolean pretty) {
+    try (StringWriter writer = new StringWriter();
+         JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
+      toJson.generate(generator);
+      generator.flush();
+      return writer.toString();
+
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  @FunctionalInterface
+  public interface FromJson<T> {
+    T parse(JsonNode node);
+  }
+
+  /**
+   * Helper for parsing JSON from a String.
+   *
+   * @param json a JSON string
+   * @param parser a function that converts a JsonNode to a Java object
+   * @param <T> type of objects created by the parser
+   * @return the parsed Java object
+   */
+  public static <T> T parse(String json, FromJson<T> parser) {
+    try {
+      return parser.parse(JsonUtil.mapper().readValue(json, JsonNode.class));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   public static int getInt(String property, JsonNode node) {
@@ -148,6 +198,14 @@ public class JsonUtil {
         .build();
   }
 
+  public static Set<String> getStringSet(String property, JsonNode node) {
+    Preconditions.checkArgument(node.hasNonNull(property), "Cannot parse missing set %s", property);
+
+    return ImmutableSet.<String>builder()
+        .addAll(new JsonStringArrayIterator(property, node))
+        .build();
+  }
+
   public static List<String> getStringListOrNull(String property, JsonNode node) {
     if (!node.has(property) || node.get(property).isNull()) {
       return null;
@@ -158,13 +216,33 @@ public class JsonUtil {
         .build();
   }
 
+  public static List<Integer> getIntegerList(String property, JsonNode node) {
+    return ImmutableList.<Integer>builder()
+        .addAll(new JsonIntegerArrayIterator(property, node))
+        .build();
+  }
+
   public static Set<Integer> getIntegerSetOrNull(String property, JsonNode node) {
     if (!node.has(property) || node.get(property).isNull()) {
       return null;
     }
 
+    return getIntegerSet(property, node);
+  }
+
+  public static Set<Integer> getIntegerSet(String property, JsonNode node) {
     return ImmutableSet.<Integer>builder()
         .addAll(new JsonIntegerArrayIterator(property, node))
+        .build();
+  }
+
+  public static Set<Long> getLongSetOrNull(String property, JsonNode node) {
+    if (!node.hasNonNull(property)) {
+      return null;
+    }
+
+    return ImmutableSet.<Long>builder()
+        .addAll(new JsonLongArrayIterator(property, node))
         .build();
   }
 
@@ -241,6 +319,24 @@ public class JsonUtil {
     @Override
     void validate(JsonNode element) {
       Preconditions.checkArgument(element.isInt(), "Cannot parse integer from non-int value: %s", element);
+    }
+  }
+
+  static class JsonLongArrayIterator extends JsonArrayIterator<Long> {
+
+    JsonLongArrayIterator(String property, JsonNode node) {
+      super(property, node);
+    }
+
+    @Override
+    Long convert(JsonNode element) {
+      return element.asLong();
+    }
+
+    @Override
+    void validate(JsonNode element) {
+      Preconditions.checkArgument(element.isIntegralNumber() && element.canConvertToLong(),
+          "Cannot parse long from  non-long value: %s", element);
     }
   }
 }

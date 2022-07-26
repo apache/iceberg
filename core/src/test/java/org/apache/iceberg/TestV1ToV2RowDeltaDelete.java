@@ -67,8 +67,8 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
         .appendFile(FILE_C)
         .commit();
 
-    List<ManifestFile> dataManifests = table.currentSnapshot().dataManifests();
-    List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests();
+    List<ManifestFile> dataManifests = table.currentSnapshot().dataManifests(table.io());
+    List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
     Assert.assertEquals("Should have one data manifest file",
         1, dataManifests.size());
     Assert.assertEquals("Should have zero delete manifest file",
@@ -85,8 +85,8 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
         .addDeletes(FILE_A_EQ_1)
         .commit();
 
-    dataManifests = table.currentSnapshot().dataManifests();
-    deleteManifests = table.currentSnapshot().deleteManifests();
+    dataManifests = table.currentSnapshot().dataManifests(ops.io());
+    deleteManifests = table.currentSnapshot().deleteManifests(ops.io());
     Assert.assertEquals("Should have one data manifest file",
         1, dataManifests.size());
     Assert.assertEquals("Should have one delete manifest file",
@@ -106,8 +106,8 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
     // first commit after row-delta changes
     table.newDelete().deleteFile(FILE_B).commit();
 
-    dataManifests = table.currentSnapshot().dataManifests();
-    deleteManifests = table.currentSnapshot().deleteManifests();
+    dataManifests = table.currentSnapshot().dataManifests(ops.io());
+    deleteManifests = table.currentSnapshot().deleteManifests(ops.io());
     Assert.assertEquals("Should have one data manifest file",
         1, dataManifests.size());
     Assert.assertEquals("Should have one delete manifest file",
@@ -126,8 +126,8 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
     // second commit after row-delta changes
     table.newDelete().deleteFile(FILE_C).commit();
 
-    dataManifests = table.currentSnapshot().dataManifests();
-    deleteManifests = table.currentSnapshot().deleteManifests();
+    dataManifests = table.currentSnapshot().dataManifests(ops.io());
+    deleteManifests = table.currentSnapshot().deleteManifests(ops.io());
     Assert.assertEquals("Should have one data manifest file",
         1, dataManifests.size());
     Assert.assertEquals("Should have one delete manifest file",
@@ -212,7 +212,7 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Should have two delete manifests",
-        2, table.currentSnapshot().deleteManifests().size());
+        2, table.currentSnapshot().deleteManifests(table.io()).size());
 
     // merge delete manifests
     table.newAppend()
@@ -220,13 +220,13 @@ public class TestV1ToV2RowDeltaDelete extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Should have one delete manifest",
-        1, table.currentSnapshot().deleteManifests().size());
+        1, table.currentSnapshot().deleteManifests(table.io()).size());
     Assert.assertEquals("Should have zero added delete file",
-        0, table.currentSnapshot().deleteManifests().get(0).addedFilesCount().intValue());
+        0, table.currentSnapshot().deleteManifests(table.io()).get(0).addedFilesCount().intValue());
     Assert.assertEquals("Should have zero deleted delete file",
-        0, table.currentSnapshot().deleteManifests().get(0).deletedFilesCount().intValue());
+        0, table.currentSnapshot().deleteManifests(table.io()).get(0).deletedFilesCount().intValue());
     Assert.assertEquals("Should have two existing delete files",
-        2, table.currentSnapshot().deleteManifests().get(0).existingFilesCount().intValue());
+        2, table.currentSnapshot().deleteManifests(table.io()).get(0).existingFilesCount().intValue());
 
     List<FileScanTask> tasks =
         Lists.newArrayList(table.newScan().filter(equal(bucket("data", BUCKETS_NUMBER), 0))

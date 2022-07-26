@@ -58,7 +58,9 @@ servers:
         default: ""
 # All routes are currently configured using an Authorization header.
 security:
+  - OAuth2: [catalog]
   - BearerAuth: []
+
 paths:
   /v1/config:
 
@@ -120,7 +122,66 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces:
+  /v1/oauth/tokens:
+
+    post:
+      tags:
+        - OAuth2 API
+      summary: Get a token using an OAuth2 flow
+      operationId: getToken
+      description:
+        Exchange credentials for a token using the OAuth2 client credentials flow or token exchange.
+
+
+        This endpoint is used for three purposes -
+
+        1. To exchange client credentials (client ID and secret) for an access token
+           This uses the client credentials flow.
+
+        2. To exchange a client token and an identity token for a more specific access token
+           This uses the token exchange flow.
+
+        3. To exchange an access token for one with the same claims and a refreshed expiration period
+           This uses the token exchange flow.
+
+
+        For example, a catalog client may be configured with client credentials from the OAuth2
+        Authorization flow. This client would exchange its client ID and secret for an access token
+        using the client credentials request with this endpoint (1). Subsequent requests would then
+        use that access token.
+
+
+        Some clients may also handle sessions that have additional user context. These clients would
+        use the token exchange flow to exchange a user token (the "subject" token) from the session
+        for a more specific access token for that user, using the catalog's access token as the
+        "actor" token (2). The user ID token is the "subject" token and can be any token type
+        allowed by the OAuth2 token exchange flow, including a unsecured JWT token with a sub claim.
+        This request should use the catalog's bearer token in the "Authorization" header.
+
+
+        Clients may also use the token exchange flow to refresh a token that is about to expire by
+        sending a token exchange request (3). The request's "subject" token should be the expiring
+        token. This request should use the subject token in the "Authorization" header.
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OAuthTokenRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/OAuthTokenResponse'
+        400:
+          $ref: '#/components/responses/OAuthErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
 
     get:
       tags:
@@ -138,12 +199,12 @@ paths:
           description:
             An optional namespace, underneath which to list namespaces.
             If not provided or empty, all top-level namespaces should be listed.
-            If parent is a multipart namespace, the parts must be separated by the null byte.
+            If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
           required: false
           allowEmptyValue: true
           schema:
             type: string
-          example: "accounting%00tax"
+          example: "accounting%1Ftax"
       responses:
         200:
           $ref: '#/components/responses/ListNamespacesResponse'
@@ -209,8 +270,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}:
+  /v1/{prefix}/namespaces/{namespace}:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     get:
@@ -274,8 +336,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/properties:
+  /v1/{prefix}/namespaces/{namespace}/properties:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     post:
@@ -335,8 +398,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/tables:
+  /v1/{prefix}/namespaces/{namespace}/tables:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     get:
@@ -427,8 +491,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/tables/{table}:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
 
@@ -440,11 +505,19 @@ paths:
       description:
         Load a table from the catalog.
 
+
         The response contains both configuration and table metadata. The configuration, if non-empty is used
         as additional configuration for the table that overrides catalog configuration. For example, this
         configuration may change the FileIO implemented used for the table.
 
+
         The response also contains the table's full metadata.
+
+
+        The catalog configuration may contain credentials that should be used for subsequent requests for the
+        table. The configuration key "token" is used to pass an access token to be used as a bearer token
+        for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
+        key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
@@ -635,7 +708,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/tables/rename:
+  /v1/{prefix}/tables/rename:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
 
     post:
       tags:
@@ -706,14 +781,22 @@ components:
       required: true
       description:
         A namespace identifier as a single string.
-        Multipart namespace parts should be separated by the null byte.
+        Multipart namespace parts should be separated by the unit separator (`0x1F`) byte.
       schema:
         type: string
       examples:
         singlepart_namespace:
           value: "accounting"
         multipart_namespace:
-          value: "accounting%00tax"
+          value: "accounting%1Ftax"
+
+    prefix:
+      name: prefix
+      in: path
+      schema:
+        type: string
+      required: true
+      description: An optional prefix in the path
 
     table:
       name: table
@@ -802,6 +885,9 @@ components:
 
     RenameTableRequest:
       type: object
+      required:
+        - source
+        - destination
       properties:
         source:
           $ref: '#/components/schemas/TableIdentifier'
@@ -840,23 +926,24 @@ components:
       required:
         - id
         - name
-        - required
         - type
+        - required
       properties:
         id:
           type: integer
         name:
           type: string
-        required:
-          type: boolean
         type:
           $ref: '#/components/schemas/Type'
+        required:
+          type: boolean
         doc:
           type: string
 
     StructType:
       type: object
       required:
+        - type
         - fields
       properties:
         type:
@@ -872,18 +959,18 @@ components:
       required:
         - type
         - element-id
-        - element-required
         - element
+        - element-required
       properties:
         type:
           type: string
           enum: ["list"]
         element-id:
           type: integer
-        element-required:
-          type: boolean
         element:
           $ref: '#/components/schemas/Type'
+        element-required:
+          type: boolean
 
     MapType:
       type: object
@@ -892,8 +979,8 @@ components:
         - key-id
         - key
         - value-id
-        - value-required
         - value
+        - value-required
       properties:
         type:
           type: string
@@ -904,13 +991,13 @@ components:
           $ref: '#/components/schemas/Type'
         value-id:
           type: integer
-        value-required:
-          type: boolean
         value:
           $ref: '#/components/schemas/Type'
+        value-required:
+          type: boolean
 
     Type:
-      anyOf:
+      oneOf:
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
@@ -997,6 +1084,7 @@ components:
     SortOrder:
       type: object
       required:
+        - order-id
         - fields
       properties:
         order-id:
@@ -1017,13 +1105,15 @@ components:
       properties:
         snapshot-id:
           type: integer
+        parent-snapshot-id:
+          type: integer
+        sequence-number:
+          type: integer
         timestamp-ms:
           type: integer
         manifest-list:
           type: string
           description: Location of the snapshot's manifest list file
-        schema-id:
-          type: integer
         summary:
           type: object
           required:
@@ -1034,6 +1124,8 @@ components:
               enum: ["append", "replace", "overwrite", "delete"]
             additionalProperties:
               type: string
+        schema-id:
+          type: integer
 
     SnapshotReference:
       type: object
@@ -1046,10 +1138,13 @@ components:
           enum: ["tag", "branch"]
         snapshot-id:
           type: integer
+          format: int64
         max-ref-age-ms:
           type: integer
+          format: int64
         max-snapshot-age-ms:
           type: integer
+          format: int64
         min-snapshots-to-keep:
           type: integer
 
@@ -1162,6 +1257,7 @@ components:
             - add-snapshot
             - set-snapshot-ref
             - remove-snapshots
+            - remove-snapshot-ref
             - set-location
             - set-properties
             - remove-properties
@@ -1233,9 +1329,9 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - type: object
           required:
-            - order-id
+            - sort-order-id
           properties:
-            order-id:
+            sort-order-id:
               type: integer
               description: Sort order ID to set as the default, or -1 to set last added sort order
 
@@ -1255,9 +1351,9 @@ components:
         - $ref: '#/components/schemas/SnapshotReference'
         - type: object
           required:
-            - ref
+            - ref-name
           properties:
-            ref:
+            ref-name:
               type: string
 
     RemoveSnapshotsUpdate:
@@ -1271,6 +1367,17 @@ components:
               type: array
               items:
                 type: integer
+                format: int64
+
+    RemoveSnapshotRefUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+        - type: object
+          required:
+            - ref-name
+          properties:
+            ref-name:
+              type: string
 
     SetLocationUpdate:
       allOf:
@@ -1318,6 +1425,7 @@ components:
         - $ref: '#/components/schemas/AddSnapshotUpdate'
         - $ref: '#/components/schemas/SetSnapshotRefUpdate'
         - $ref: '#/components/schemas/RemoveSnapshotsUpdate'
+        - $ref: '#/components/schemas/RemoveSnapshotRefUpdate'
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
@@ -1327,19 +1435,19 @@ components:
         Assertions from the client that must be valid for the commit to succeed. Assertions are identified by `type` -
 
         - `assert-create` - the table must not already exist; used for create transactions
-        
+
         - `assert-table-uuid` - the table UUID must match the requirement's `uuid`
 
         - `assert-ref-snapshot-id` - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
-        
+
         - `assert-last-assigned-field-id` - the table's last assigned column id must match the requirement's `last-assigned-field-id`
-        
+
         - `assert-current-schema-id` - the table's current schema id must match the requirement's `current-schema-id`
-        
+
         - `assert-last-assigned-partition-id` - the table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-        
+
         - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
-        
+
         - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
       type: object
       required:
@@ -1377,19 +1485,20 @@ components:
     LoadTableResult:
       description:
         Result used when a table is successfully loaded.
-        
-        
-        The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata must be returned in the `metadata-location` field. Clients can check whether metadata has changed by comparing metadata locations.
-        
-        
+
+
+        The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata should be returned in the `metadata-location` field, unless the metadata is not yet committed. For example, a create transaction may return metadata that is staged but not committed.
+        Clients can check whether metadata has changed by comparing metadata locations after the table has been created.
+
+
         The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
       type: object
       required:
-        - metadata-location
         - metadata
       properties:
         metadata-location:
           type: string
+          description: May be null if the table is staged as part of a transaction
         metadata:
           $ref: '#/components/schemas/TableMetadata'
         config:
@@ -1435,11 +1544,155 @@ components:
           additionalProperties:
             type: string
 
+    TokenType:
+      type: string
+      enum:
+        - urn:ietf:params:oauth:token-type:access_token
+        - urn:ietf:params:oauth:token-type:refresh_token
+        - urn:ietf:params:oauth:token-type:id_token
+        - urn:ietf:params:oauth:token-type:saml1
+        - urn:ietf:params:oauth:token-type:saml2
+        - urn:ietf:params:oauth:token-type:jwt
+      description:
+        Token type identifier, from RFC 8693 Section 3
+
+
+        See https://datatracker.ietf.org/doc/html/rfc8693#section-3
+
+    OAuthClientCredentialsRequest:
+      description:
+        OAuth2 client credentials request
+
+
+        See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
+      type: object
+      required:
+        - grant_type
+        - client_id
+        - client_secret
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - client_credentials
+        scope:
+          type: string
+        client_id:
+          type: string
+          description:
+            Client ID
+
+
+            This can be sent in the request body, but OAuth2 recommends sending it in
+            a Basic Authorization header.
+        client_secret:
+          type: string
+          description:
+            Client secret
+
+
+            This can be sent in the request body, but OAuth2 recommends sending it in
+            a Basic Authorization header.
+
+    OAuthTokenExchangeRequest:
+      description:
+        OAuth2 token exchange request
+
+
+        See https://datatracker.ietf.org/doc/html/rfc8693
+      type: object
+      required:
+        - grant_type
+        - subject_token
+        - subject_token_type
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - urn:ietf:params:oauth:grant-type:token-exchange
+        scope:
+          type: string
+        requested_token_type:
+          $ref: '#/components/schemas/TokenType'
+        subject_token:
+          type: string
+          description: Subject token for token exchange request
+        subject_token_type:
+          $ref: '#/components/schemas/TokenType'
+        actor_token:
+          type: string
+          description: Actor token for token exchange request
+        actor_token_type:
+          $ref: '#/components/schemas/TokenType'
+
+    OAuthTokenRequest:
+      anyOf:
+        - $ref: '#/components/schemas/OAuthClientCredentialsRequest'
+        - $ref: '#/components/schemas/OAuthTokenExchangeRequest'
 
   #############################
   # Reusable Response Objects #
   #############################
   responses:
+
+    OAuthTokenResponse:
+      description: OAuth2 token response for client credentials or token exchange
+      content:
+        application/json:
+          schema:
+            required:
+              - access_token
+              - token_type
+            properties:
+              access_token:
+                type: string
+                description:
+                  The access token, for client credentials or token exchange
+              token_type:
+                type: string
+                enum:
+                  - bearer
+                  - mac
+                  - N_A
+                description:
+                  Access token type for client credentials or token exchange
+
+
+                  See https://datatracker.ietf.org/doc/html/rfc6749#section-7.1
+              expires_in:
+                type: integer
+                description:
+                  Lifetime of the access token in seconds for client credentials or token exchange
+              issued_token_type:
+                $ref: '#/components/schemas/TokenType'
+              refresh_token:
+                type: string
+                description: Refresh token for client credentials or token exchange
+              scope:
+                type: string
+                description: Authorization scope for client credentials or token exchange
+
+    OAuthErrorResponse:
+      description: OAuth2 error response
+      content:
+        application/json:
+          schema:
+            required:
+              - error
+            properties:
+              error:
+                type: string
+                enum:
+                  - invalid_request
+                  - invalid_client
+                  - invalid_grant
+                  - unauthorized_client
+                  - unsupported_grant_type
+                  - invalid_scope
+              error_description:
+                type: string
+              error_uri:
+                type: string
 
     BadRequestErrorResponse:
       description:
@@ -1673,7 +1926,7 @@ components:
               - removed
             properties:
               updated:
-                description: List of property keys that were added or udpated
+                description: List of property keys that were added or updated
                 type: array
                 uniqueItems: true
                 items:
@@ -1767,7 +2020,7 @@ components:
 
     MultipartNamespaceAsPathVariable:
       summary: A multi-part namespace, as represented in a path parameter
-      value: "accounting%00tax"
+      value: "accounting%1Ftax"
 
     NamespaceAsPathVariable:
       summary: A single part namespace, as represented in a path paremeter
@@ -1841,6 +2094,13 @@ components:
       }
 
   securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /v1/oauth/tokens
+          scopes:
+            catalog: Allows interacting with the Config and Catalog APIs
     BearerAuth:
       type: http
       scheme: bearer

@@ -216,33 +216,33 @@ public interface MetadataUpdate extends Serializable {
   }
 
   class RemoveSnapshotRef implements MetadataUpdate {
-    private final String name;
+    private final String refName;
 
-    public RemoveSnapshotRef(String name) {
-      this.name = name;
+    public RemoveSnapshotRef(String refName) {
+      this.refName = refName;
     }
 
     public String name() {
-      return name;
+      return refName;
     }
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.removeRef(name);
+      metadataBuilder.removeRef(refName);
     }
   }
 
   class SetSnapshotRef implements MetadataUpdate {
-    private final String name;
+    private final String refName;
     private final Long snapshotId;
     private final SnapshotRefType type;
     private Integer minSnapshotsToKeep;
     private Long maxSnapshotAgeMs;
     private Long maxRefAgeMs;
 
-    public SetSnapshotRef(String name, Long snapshotId, SnapshotRefType type, Integer minSnapshotsToKeep,
+    public SetSnapshotRef(String refName, Long snapshotId, SnapshotRefType type, Integer minSnapshotsToKeep,
                           Long maxSnapshotAgeMs, Long maxRefAgeMs) {
-      this.name = name;
+      this.refName = refName;
       this.snapshotId = snapshotId;
       this.type = type;
       this.minSnapshotsToKeep = minSnapshotsToKeep;
@@ -251,7 +251,7 @@ public interface MetadataUpdate extends Serializable {
     }
 
     public String name() {
-      return name;
+      return refName;
     }
 
     public String type() {
@@ -281,7 +281,7 @@ public interface MetadataUpdate extends Serializable {
           .maxSnapshotAgeMs(maxSnapshotAgeMs)
           .maxRefAgeMs(maxRefAgeMs)
           .build();
-      metadataBuilder.setRef(name, ref);
+      metadataBuilder.setRef(refName, ref);
     }
   }
 

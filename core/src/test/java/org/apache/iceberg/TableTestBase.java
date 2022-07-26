@@ -318,12 +318,12 @@ public class TableTestBase {
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
     Assert.assertEquals("Should not change delete manifests",
-        old != null ? Sets.newHashSet(old.deleteManifests()) : ImmutableSet.of(),
-        Sets.newHashSet(snap.deleteManifests()));
-    List<ManifestFile> oldManifests = old != null ? old.dataManifests() : ImmutableList.of();
+        old != null ? Sets.newHashSet(old.deleteManifests(FILE_IO)) : ImmutableSet.of(),
+        Sets.newHashSet(snap.deleteManifests(FILE_IO)));
+    List<ManifestFile> oldManifests = old != null ? old.dataManifests(FILE_IO) : ImmutableList.of();
 
     // copy the manifests to a modifiable list and remove the existing manifests
-    List<ManifestFile> newManifests = Lists.newArrayList(snap.dataManifests());
+    List<ManifestFile> newManifests = Lists.newArrayList(snap.dataManifests(FILE_IO));
     for (ManifestFile oldManifest : oldManifests) {
       Assert.assertTrue("New snapshot should contain old manifests",
           newManifests.remove(oldManifest));

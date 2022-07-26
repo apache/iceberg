@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.Counts;
 import org.apache.iceberg.MetricsModes.Full;
@@ -159,5 +160,29 @@ public class TestMetricsModes {
         Full.get(), config.columnMode("col1"));
     Assert.assertEquals("Original default applies as user entered invalid mode for sorted column",
         Counts.get(), config.columnMode("col2"));
+  }
+
+  @Test
+  public void testMetricsConfigInferredDefaultModeLimit() throws IOException {
+    Schema schema = new Schema(
+        required(1, "col1", Types.IntegerType.get()),
+        required(2, "col2", Types.IntegerType.get()),
+        required(3, "col3", Types.IntegerType.get())
+    );
+
+    File tableDir = temp.newFolder();
+    Assert.assertTrue(tableDir.delete());
+
+    Table table = TestTables.create(
+        tableDir, "test", schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), formatVersion);
+
+    // only infer a default for the first two columns
+    table.updateProperties().set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2").commit();
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    Assert.assertEquals("Should use default mode for col1", Truncate.withLength(16), config.columnMode("col1"));
+    Assert.assertEquals("Should use default mode for col2", Truncate.withLength(16), config.columnMode("col2"));
+    Assert.assertEquals("Should use None for col3", None.get(), config.columnMode("col3"));
   }
 }

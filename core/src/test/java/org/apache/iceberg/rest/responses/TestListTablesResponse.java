@@ -47,7 +47,7 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
 
   @Test
   public void testDeserializeInvalidResponsesThrows() {
-    String identifiersHasWrongType = "{\"identifiers\":\"accounting%00tax\"}";
+    String identifiersHasWrongType = "{\"identifiers\":\"accounting%1Ftax\"}";
     AssertHelpers.assertThrows(
         "A JSON response with the incorrect type for the field identifiers should fail to parse",
         JsonProcessingException.class,

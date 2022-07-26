@@ -87,7 +87,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
   }
 
   @AfterEach
-  public void afterEach() throws NessieConflictException, NessieNotFoundException {
+  public void afterEach() throws IOException {
     resetData();
     try {
       if (catalog != null) {

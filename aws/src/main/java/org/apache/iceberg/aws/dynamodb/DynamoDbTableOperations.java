@@ -114,6 +114,9 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       commitStatus = CommitStatus.SUCCESS;
     } catch (ConditionalCheckFailedException e) {
       throw new CommitFailedException(e, "Cannot commit %s: concurrent update detected", tableName());
+    } catch (CommitFailedException e) {
+      // any explicit commit failures are passed up and out to the retry handler
+      throw e;
     } catch (RuntimeException persistFailure) {
       LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
           fullTableName, persistFailure);
@@ -135,8 +138,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
           io().deleteFile(newMetadataLocation);
         }
       } catch (RuntimeException e) {
-        LOG.error("Fail to cleanup metadata file at {}", newMetadataLocation, e);
-        throw e;
+        LOG.error("Failed to cleanup metadata file at {}", newMetadataLocation, e);
       }
     }
   }

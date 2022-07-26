@@ -66,7 +66,7 @@ public class TestRefreshTable extends SparkCatalogTestBase {
 
     // Modify table outside of spark, it should be cached so Spark should see the same value after mutation
     Table table = validationCatalog.loadTable(tableIdent);
-    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+    DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
     table.newDelete().deleteFile(file).commit();
 
     List<Object[]> cachedActual = sql("SELECT * FROM %s", tableName);

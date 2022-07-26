@@ -19,11 +19,26 @@
 
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestExpressionUtil {
+  private static final Schema SCHEMA = new Schema(
+      Types.NestedField.required(1, "id", Types.LongType.get()),
+      Types.NestedField.required(2, "val", Types.IntegerType.get()),
+      Types.NestedField.required(3, "val2", Types.IntegerType.get()),
+      Types.NestedField.required(4, "ts", Types.TimestampType.withoutZone()),
+      Types.NestedField.required(5, "date", Types.DateType.get()),
+      Types.NestedField.required(6, "time", Types.DateType.get()),
+      Types.NestedField.optional(7, "data", Types.StringType.get()),
+      Types.NestedField.optional(8, "measurement", Types.DoubleType.get()));
+
+  private static final Types.StructType STRUCT = SCHEMA.asStruct();
+
   @Test
   public void testUnchangedUnaryPredicates() {
     for (Expression unary : Lists.newArrayList(
@@ -221,6 +236,181 @@ public class TestExpressionUtil {
           "test = (timestamp)",
           ExpressionUtil.toSanitizedString(Expressions.equal("test", timestamp)));
     }
+  }
+
+  @Test
+  public void testIdenticalExpressionIsEquivalent() {
+    Expression[] exprs = new Expression[] {
+        Expressions.isNull("data"),
+        Expressions.notNull("data"),
+        Expressions.isNaN("measurement"),
+        Expressions.notNaN("measurement"),
+        Expressions.lessThan("id", 5),
+        Expressions.lessThanOrEqual("id", 5),
+        Expressions.greaterThan("id", 5),
+        Expressions.greaterThanOrEqual("id", 5),
+        Expressions.equal("id", 5),
+        Expressions.notEqual("id", 5),
+        Expressions.in("id", 5, 6),
+        Expressions.notIn("id", 5, 6),
+        Expressions.startsWith("data", "aaa"),
+        Expressions.notStartsWith("data", "aaa"),
+        Expressions.alwaysTrue(),
+        Expressions.alwaysFalse(),
+        Expressions.and(Expressions.lessThan("id", 5), Expressions.notNull("data")),
+        Expressions.or(Expressions.lessThan("id", 5), Expressions.notNull("data")),
+    };
+
+    for (Expression expr : exprs) {
+      Assert.assertTrue("Should accept identical expression: " + expr,
+          ExpressionUtil.equivalent(expr, expr, STRUCT, true));
+
+      for (Expression other : exprs) {
+        if (expr != other) {
+          Assert.assertFalse(ExpressionUtil.equivalent(expr, other, STRUCT, true));
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testIdenticalTermIsEquivalent() {
+    UnboundTerm<?>[] terms = new UnboundTerm<?>[] {
+        Expressions.ref("id"),
+        Expressions.truncate("id", 2),
+        Expressions.bucket("id", 16),
+        Expressions.year("ts"),
+        Expressions.month("ts"),
+        Expressions.day("ts"),
+        Expressions.hour("ts"),
+    };
+
+    for (UnboundTerm<?> term : terms) {
+      BoundTerm<?> bound = term.bind(STRUCT, true);
+      Assert.assertTrue("Should accept identical expression: " + term, bound.isEquivalentTo(bound));
+
+      for (UnboundTerm<?> other : terms) {
+        if (term != other) {
+          Assert.assertFalse(bound.isEquivalentTo(other.bind(STRUCT, true)));
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testRefEquivalence() {
+    Assert.assertFalse("Should not find different refs equivalent",
+        Expressions.ref("val").bind(STRUCT, true).isEquivalentTo(Expressions.ref("val2").bind(STRUCT, true)));
+  }
+
+  @Test
+  public void testInEquivalence() {
+    Assert.assertTrue("Should ignore duplicate longs (in)",
+        ExpressionUtil.equivalent(Expressions.in("id", 1, 2, 1), Expressions.in("id", 2, 1, 2), STRUCT, true));
+    Assert.assertTrue("Should ignore duplicate longs (notIn)",
+        ExpressionUtil.equivalent(Expressions.notIn("id", 1, 2, 1), Expressions.notIn("id", 2, 1, 2), STRUCT, true));
+
+    Assert.assertTrue("Should ignore duplicate strings (in)",
+        ExpressionUtil.equivalent(
+            Expressions.in("data", "a", "b", "a"),
+            Expressions.in("data", "b", "a"),
+            STRUCT, true));
+    Assert.assertTrue("Should ignore duplicate strings (notIn)",
+        ExpressionUtil.equivalent(Expressions.notIn("data", "b", "b"), Expressions.notIn("data", "b"), STRUCT, true));
+
+    Assert.assertTrue("Should detect equivalence with equal (in, string)",
+        ExpressionUtil.equivalent(Expressions.in("data", "a"), Expressions.equal("data", "a"), STRUCT, true));
+    Assert.assertTrue("Should detect equivalence with notEqual (notIn, long)",
+        ExpressionUtil.equivalent(Expressions.notIn("id", 1), Expressions.notEqual("id", 1), STRUCT, true));
+
+    Assert.assertFalse("Should detect different sets (in, long)",
+        ExpressionUtil.equivalent(Expressions.in("id", 1, 2, 3), Expressions.in("id", 1, 2), STRUCT, true));
+    Assert.assertFalse("Should detect different sets (notIn, string)",
+        ExpressionUtil.equivalent(Expressions.notIn("data", "a", "b"), Expressions.notIn("data", "a"), STRUCT, true));
+  }
+
+  @Test
+  public void testInequalityEquivalence() {
+    String[] cols = new String[] {"id", "val", "ts", "date", "time"};
+
+    for (String col : cols) {
+      Assert.assertTrue("Should detect < to <= equivalence: " + col,
+          ExpressionUtil.equivalent(
+              Expressions.lessThan(col, 34L),
+              Expressions.lessThanOrEqual(col, 33L),
+              STRUCT, true));
+      Assert.assertTrue("Should detect <= to < equivalence: " + col,
+          ExpressionUtil.equivalent(
+              Expressions.lessThanOrEqual(col, 34L),
+              Expressions.lessThan(col, 35L),
+              STRUCT, true));
+      Assert.assertTrue("Should detect > to >= equivalence: " + col,
+          ExpressionUtil.equivalent(
+              Expressions.greaterThan(col, 34L),
+              Expressions.greaterThanOrEqual(col, 35L),
+              STRUCT, true));
+      Assert.assertTrue("Should detect >= to > equivalence: " + col,
+          ExpressionUtil.equivalent(
+              Expressions.greaterThanOrEqual(col, 34L),
+              Expressions.greaterThan(col, 33L),
+              STRUCT, true));
+    }
+
+    Assert.assertFalse("Should not detect equivalence for different columns",
+        ExpressionUtil.equivalent(
+            Expressions.lessThan("val", 34L),
+            Expressions.lessThanOrEqual("val2", 33L),
+            STRUCT, true));
+    Assert.assertFalse("Should not detect equivalence for different types",
+        ExpressionUtil.equivalent(
+            Expressions.lessThan("val", 34L),
+            Expressions.lessThanOrEqual("id", 33L),
+            STRUCT, true));
+  }
+
+  @Test
+  public void testAndEquivalence() {
+    Assert.assertTrue("Should detect and equivalence in any order",
+        ExpressionUtil.equivalent(
+            Expressions.and(Expressions.lessThan("id", 34), Expressions.greaterThanOrEqual("id", 20)),
+            Expressions.and(Expressions.greaterThan("id", 19L), Expressions.lessThanOrEqual("id", 33L)),
+            STRUCT, true));
+  }
+
+  @Test
+  public void testOrEquivalence() {
+    Assert.assertTrue("Should detect or equivalence in any order",
+        ExpressionUtil.equivalent(
+            Expressions.or(Expressions.lessThan("id", 20), Expressions.greaterThanOrEqual("id", 34)),
+            Expressions.or(Expressions.greaterThan("id", 33L), Expressions.lessThanOrEqual("id", 19L)),
+            STRUCT, true));
+  }
+
+  @Test
+  public void testNotEquivalence() {
+    Assert.assertTrue("Should detect not equivalence by rewriting",
+        ExpressionUtil.equivalent(
+            Expressions.not(Expressions.or(Expressions.in("data", "a"), Expressions.greaterThanOrEqual("id", 34))),
+            Expressions.and(Expressions.lessThan("id", 34L), Expressions.notEqual("data", "a")),
+            STRUCT, true));
+  }
+
+  @Test
+  public void testSelectsPartitions() {
+    Assert.assertTrue("Should select partitions, on boundary",
+        ExpressionUtil.selectsPartitions(
+            Expressions.lessThan("ts", "2021-03-09T10:00:00.000000"),
+            PartitionSpec.builderFor(SCHEMA).hour("ts").build(), true));
+
+    Assert.assertFalse("Should not select partitions, 1 ms off boundary",
+        ExpressionUtil.selectsPartitions(
+            Expressions.lessThanOrEqual("ts", "2021-03-09T10:00:00.000000"),
+            PartitionSpec.builderFor(SCHEMA).hour("ts").build(), true));
+
+    Assert.assertFalse("Should not select partitions, on hour not day boundary",
+        ExpressionUtil.selectsPartitions(
+            Expressions.lessThan("ts", "2021-03-09T10:00:00.000000"),
+            PartitionSpec.builderFor(SCHEMA).day("ts").build(), true));
   }
 
   private void assertEquals(Expression expected, Expression actual) {

@@ -337,7 +337,7 @@ public class TestIcebergInputFormats {
     helper.appendToTable(null, expectedRecords);
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assert.assertArrayEquals(IcebergSplit.ANYWHERE, split.getLocations());
+      Assert.assertArrayEquals(new String[]{"*"}, split.getLocations());
     }
 
     builder.preferLocality();

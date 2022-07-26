@@ -22,11 +22,15 @@ package org.apache.iceberg.io;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public class IOUtil {
   // not meant to be instantiated
   private IOUtil() {
   }
+
+  private static final int WRITE_CHUNK_SIZE = 8192;
 
   /**
    * Reads into a buffer from a stream, making multiple read calls if necessary.
@@ -43,6 +47,21 @@ public class IOUtil {
     if (bytesRead < length) {
       throw new EOFException(
           "Reached the end of stream with " + (length - bytesRead) + " bytes left to read");
+    }
+  }
+
+  /**
+   * Writes a buffer into a stream, making multiple write calls if necessary.
+   */
+  public static void writeFully(OutputStream outputStream, ByteBuffer buffer) throws IOException {
+    if (!buffer.hasRemaining()) {
+      return;
+    }
+    byte[] chunk = new byte[WRITE_CHUNK_SIZE];
+    while (buffer.hasRemaining()) {
+      int chunkSize = Math.min(chunk.length, buffer.remaining());
+      buffer.get(chunk, 0, chunkSize);
+      outputStream.write(chunk, 0, chunkSize);
     }
   }
 

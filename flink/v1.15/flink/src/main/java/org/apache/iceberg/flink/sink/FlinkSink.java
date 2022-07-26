@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -43,14 +42,14 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.FlinkWriteConf;
+import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
@@ -60,18 +59,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.UPSERT_ENABLED;
-import static org.apache.iceberg.TableProperties.UPSERT_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 public class FlinkSink {
   private static final Logger LOG = LoggerFactory.getLogger(FlinkSink.class);
@@ -132,14 +123,13 @@ public class FlinkSink {
     private TableLoader tableLoader;
     private Table table;
     private TableSchema tableSchema;
-    private boolean overwrite = false;
-    private DistributionMode distributionMode = null;
     private Integer writeParallelism = null;
-    private boolean upsert = false;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
     private ReadableConfig readableConfig = new Configuration();
+    private final Map<String, String> writeOptions = Maps.newHashMap();
+    private FlinkWriteConf flinkWriteConf = null;
 
     private Builder() {
     }
@@ -191,13 +181,31 @@ public class FlinkSink {
       return this;
     }
 
+    /**
+     * Set the write properties for Flink sink.
+     * View the supported properties in {@link FlinkWriteOptions}
+     */
+    public Builder set(String property, String value) {
+      writeOptions.put(property, value);
+      return this;
+    }
+
+    /**
+     * Set the write properties for Flink sink.
+     * View the supported properties in {@link FlinkWriteOptions}
+     */
+    public Builder setAll(Map<String, String> properties) {
+      writeOptions.putAll(properties);
+      return this;
+    }
+
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
       return this;
     }
 
     public Builder overwrite(boolean newOverwrite) {
-      this.overwrite = newOverwrite;
+      writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(newOverwrite));
       return this;
     }
 
@@ -216,7 +224,9 @@ public class FlinkSink {
     public Builder distributionMode(DistributionMode mode) {
       Preconditions.checkArgument(!DistributionMode.RANGE.equals(mode),
           "Flink does not support 'range' write distribution mode now.");
-      this.distributionMode = mode;
+      if (mode != null) {
+        writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), mode.modeName());
+      }
       return this;
     }
 
@@ -241,7 +251,7 @@ public class FlinkSink {
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder upsert(boolean enabled) {
-      this.upsert = enabled;
+      writeOptions.put(FlinkWriteOptions.WRITE_UPSERT_ENABLED.key(), Boolean.toString(enabled));
       return this;
     }
 
@@ -295,7 +305,8 @@ public class FlinkSink {
     private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
-      Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
+      Preconditions.checkArgument(tableLoader != null || table != null,
+          "Table loader or table should be exist");
 
       DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
 
@@ -308,6 +319,8 @@ public class FlinkSink {
         }
       }
 
+      flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
+
       // Find out the equality field id list based on the user-provided equality field column names.
       List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds();
 
@@ -316,7 +329,7 @@ public class FlinkSink {
 
       // Distribute the records from input data stream based on the write.distribution-mode and equality fields.
       DataStream<RowData> distributeStream = distributeDataStream(
-          rowDataInput, table.properties(), equalityFieldIds, table.spec(), table.schema(), flinkRowType);
+          rowDataInput, equalityFieldIds, table.spec(), table.schema(), flinkRowType);
 
       // Add parallel writers that append rows to files
       SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(distributeStream, flinkRowType,
@@ -379,8 +392,8 @@ public class FlinkSink {
 
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(
-          tableLoader, overwrite, snapshotProperties,
-          readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
+          tableLoader, flinkWriteConf.overwriteMode(), snapshotProperties,
+          flinkWriteConf.workerPoolSize());
       SingleOutputStreamOperator<Void> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)
@@ -393,14 +406,9 @@ public class FlinkSink {
 
     private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType,
                                                                  List<Integer> equalityFieldIds) {
-
-      // Fallback to use upsert mode parsed from table properties if don't specify in job level.
-      boolean upsertMode = upsert || PropertyUtil.propertyAsBoolean(table.properties(),
-          UPSERT_ENABLED, UPSERT_ENABLED_DEFAULT);
-
       // Validate the equality fields and partition fields if we enable the upsert mode.
-      if (upsertMode) {
-        Preconditions.checkState(!overwrite,
+      if (flinkWriteConf.upsertMode()) {
+        Preconditions.checkState(!flinkWriteConf.overwriteMode(),
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
         Preconditions.checkState(!equalityFieldIds.isEmpty(),
             "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
@@ -413,7 +421,8 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds, upsertMode);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkWriteConf,
+          flinkRowType, equalityFieldIds);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream = input
@@ -426,22 +435,11 @@ public class FlinkSink {
     }
 
     private DataStream<RowData> distributeDataStream(DataStream<RowData> input,
-                                                     Map<String, String> properties,
                                                      List<Integer> equalityFieldIds,
                                                      PartitionSpec partitionSpec,
                                                      Schema iSchema,
                                                      RowType flinkRowType) {
-      DistributionMode writeMode;
-      if (distributionMode == null) {
-        // Fallback to use distribution mode parsed from table properties if don't specify in job level.
-        String modeName = PropertyUtil.propertyAsString(properties,
-            WRITE_DISTRIBUTION_MODE,
-            WRITE_DISTRIBUTION_MODE_NONE);
-
-        writeMode = DistributionMode.fromName(modeName);
-      } else {
-        writeMode = distributionMode;
-      }
+      DistributionMode writeMode = flinkWriteConf.distributionMode();
 
       LOG.info("Write distribution mode is '{}'", writeMode.modeName());
       switch (writeMode) {
@@ -511,30 +509,15 @@ public class FlinkSink {
   }
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table,
+                                                         FlinkWriteConf flinkWriteConf,
                                                          RowType flinkRowType,
-                                                         List<Integer> equalityFieldIds,
-                                                         boolean upsert) {
-    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
-    Map<String, String> props = table.properties();
-    long targetFileSize = getTargetFileSizeBytes(props);
-    FileFormat fileFormat = getFileFormat(props);
+                                                         List<Integer> equalityFieldIds) {
+    Preconditions.checkArgument(table != null, "Iceberg table shouldn't be null");
 
     Table serializableTable = SerializableTable.copyOf(table);
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
-        serializableTable, flinkRowType, targetFileSize,
-        fileFormat, equalityFieldIds, upsert);
-
+        serializableTable, flinkRowType, flinkWriteConf.targetDataFileSize(),
+        flinkWriteConf.dataFileFormat(), equalityFieldIds, flinkWriteConf.upsertMode());
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
-  }
-
-  private static FileFormat getFileFormat(Map<String, String> properties) {
-    String formatString = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-    return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
-  }
-
-  private static long getTargetFileSizeBytes(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(properties,
-        WRITE_TARGET_FILE_SIZE_BYTES,
-        WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
 }

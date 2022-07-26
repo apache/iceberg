@@ -69,8 +69,8 @@ public class TestTimestampPartitions extends TableTestBase {
         .appendFile(dataFile)
         .commit();
     long id = table.currentSnapshot().snapshotId();
-    Assert.assertEquals(table.currentSnapshot().allManifests().size(), 1);
-    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+    Assert.assertEquals(table.currentSnapshot().allManifests(table.io()).size(), 1);
+    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
         ids(id),
         files(dataFile),
         statuses(ManifestEntry.Status.ADDED));

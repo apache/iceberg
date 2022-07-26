@@ -140,9 +140,10 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Current snapshot should be what we rolled back to",
         wapSnapshot.snapshotId(), base.currentSnapshot().snapshotId());
     Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Should contain manifests for both files",
+        2, base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
         base.snapshotLog().size());
   }
@@ -168,9 +169,10 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Current snapshot should be what we rolled back to",
         firstSnapshotId, base.currentSnapshot().snapshotId());
     Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
-    Assert.assertEquals("Should contain manifests for both files", 1, base.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Should contain manifests for both files",
+        1, base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 3,
         base.snapshotLog().size());
   }
@@ -214,9 +216,9 @@ public class TestWapWorkflow extends TableTestBase {
         base.currentSnapshot().snapshotId());
     Assert.assertEquals("Metadata should have both snapshots", 2, base.snapshots().size());
     Assert.assertEquals("Should contain manifests for one snapshot", 1,
-        base.currentSnapshot().allManifests().size());
+        base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 1,
         base.snapshotLog().size());
   }
@@ -334,9 +336,10 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Current snapshot should be fast-forwarded to wap snapshot",
         wapSnapshot.snapshotId(), base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should have two snapshots", 2, base.snapshots().size());
-    Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Should contain manifests for both files",
+        2, base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
         base.snapshotLog().size());
   }
@@ -398,9 +401,9 @@ public class TestWapWorkflow extends TableTestBase {
         parentSnapshot.snapshotId() + 1,
         base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for both files", 2,
-        base.currentSnapshot().allManifests().size());
+        base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Parent snapshot id should change to latest snapshot before commit",
         parentSnapshot.snapshotId(), base.currentSnapshot().parentId().longValue());
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
@@ -417,9 +420,10 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
         parentSnapshot.snapshotId() + 1 /* one fast-forwarded snapshot */ + 1,
         base.currentSnapshot().snapshotId());
-    Assert.assertEquals("Should contain manifests for both files", 3, base.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Should contain manifests for both files",
+        3, base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Parent snapshot id should change to latest snapshot before commit",
         parentSnapshot.snapshotId(), base.currentSnapshot().parentId().longValue());
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 3,
@@ -482,7 +486,7 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Current snapshot should carry over the parent snapshot",
         parentSnapshot.snapshotId(), base.currentSnapshot().parentId().longValue());
     Assert.assertEquals("Should contain manifests for two files", 2,
-        base.currentSnapshot().allManifests().size());
+        base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
         base.snapshotLog().size());
 
@@ -498,9 +502,9 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
         parentSnapshot.snapshotId() + 1, base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for three files", 3,
-        base.currentSnapshot().allManifests().size());
+        base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Parent snapshot id should point to same snapshot",
         parentSnapshot.snapshotId(), base.currentSnapshot().parentId().longValue());
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 3,
@@ -518,9 +522,9 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Current snapshot should be set to one after wap snapshot",
         parentSnapshot.snapshotId() + 1, base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for four files", 4,
-        base.currentSnapshot().allManifests().size());
+        base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Parent snapshot id should point to same snapshot",
         parentSnapshot.snapshotId(), base.currentSnapshot().parentId().longValue());
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 4,
@@ -575,9 +579,9 @@ public class TestWapWorkflow extends TableTestBase {
         parentSnapshot.snapshotId() + 1,
         base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should contain manifests for both files", 2,
-        base.currentSnapshot().allManifests().size());
+        base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should not contain redundant append due to retry", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Parent snapshot id should change to latest snapshot before commit",
         parentSnapshot.snapshotId(), base.currentSnapshot().parentId().longValue());
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
@@ -622,9 +626,10 @@ public class TestWapWorkflow extends TableTestBase {
     Assert.assertEquals("Current snapshot should be fast-forwarded to wap snapshot",
         wapSnapshot.snapshotId(), base.currentSnapshot().snapshotId());
     Assert.assertEquals("Should have two snapshots", 2, base.snapshots().size());
-    Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Should contain manifests for both files",
+        2, base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
         base.snapshotLog().size());
 
@@ -677,9 +682,10 @@ public class TestWapWorkflow extends TableTestBase {
     base = readMetadata();
 
     Assert.assertEquals("Should have three snapshots", 3, base.snapshots().size());
-    Assert.assertEquals("Should contain manifests for both files", 2, base.currentSnapshot().allManifests().size());
+    Assert.assertEquals("Should contain manifests for both files",
+        2, base.currentSnapshot().allManifests(table.io()).size());
     Assert.assertEquals("Should contain append from last commit", 1,
-        Iterables.size(base.currentSnapshot().addedFiles()));
+        Iterables.size(base.currentSnapshot().addedDataFiles(table.io())));
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 2,
         base.snapshotLog().size());
 

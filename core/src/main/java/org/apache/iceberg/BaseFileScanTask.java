@@ -171,7 +171,7 @@ public class BaseFileScanTask implements FileScanTask {
     }
   }
 
-  private static final class SplitScanTask implements FileScanTask {
+  private static final class SplitScanTask implements FileScanTask, MergeableScanTask<SplitScanTask> {
     private final long len;
     private final long offset;
     private final FileScanTask fileScanTask;
@@ -217,50 +217,20 @@ public class BaseFileScanTask implements FileScanTask {
       throw new UnsupportedOperationException("Cannot split a task which is already split");
     }
 
-    public boolean isAdjacent(SplitScanTask other) {
-      return other != null &&
-          this.file().equals(other.file()) &&
-          this.offset + this.len == other.offset;
-    }
-  }
-
-  static List<FileScanTask> combineAdjacentTasks(List<FileScanTask> tasks) {
-    if (tasks.isEmpty()) {
-      return tasks;
-    }
-
-    List<FileScanTask> combinedScans = Lists.newArrayList();
-    SplitScanTask lastSplit = null;
-
-    for (FileScanTask fileScanTask : tasks) {
-      if (!(fileScanTask instanceof SplitScanTask)) {
-        // Return any tasks not produced by split un-modified
-        combinedScans.add(fileScanTask);
+    @Override
+    public boolean canMerge(ScanTask other) {
+      if (other instanceof SplitScanTask) {
+        SplitScanTask that = (SplitScanTask) other;
+        return file().equals(that.file()) && offset + len == that.start();
       } else {
-        SplitScanTask split = (SplitScanTask) fileScanTask;
-        if (lastSplit != null) {
-          if (lastSplit.isAdjacent(split)) {
-            // Merge with the last split
-            lastSplit = new SplitScanTask(
-                lastSplit.offset,
-                lastSplit.len + split.len,
-                lastSplit.fileScanTask);
-          } else {
-            // Last split is not adjacent, add it to finished adjacent groups
-            combinedScans.add(lastSplit);
-            lastSplit = split;
-          }
-        } else {
-          // First split
-          lastSplit = split;
-        }
+        return false;
       }
     }
 
-    if (lastSplit != null) {
-      combinedScans.add(lastSplit);
+    @Override
+    public SplitScanTask merge(ScanTask other) {
+      SplitScanTask that = (SplitScanTask) other;
+      return new SplitScanTask(offset, len + that.length(), fileScanTask);
     }
-
-    return combinedScans;
   }
 }

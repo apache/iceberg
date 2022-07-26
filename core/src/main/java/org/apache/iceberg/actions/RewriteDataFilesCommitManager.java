@@ -74,8 +74,8 @@ public class RewriteDataFilesCommitManager {
     Set<DataFile> rewrittenDataFiles = Sets.newHashSet();
     Set<DataFile> addedDataFiles = Sets.newHashSet();
     for (RewriteFileGroup group : fileGroups) {
-      rewrittenDataFiles = Sets.union(rewrittenDataFiles, group.rewrittenFiles());
-      addedDataFiles = Sets.union(addedDataFiles, group.addedFiles());
+      rewrittenDataFiles.addAll(group.rewrittenFiles());
+      addedDataFiles.addAll(group.addedFiles());
     }
 
     RewriteFiles rewrite = table.newRewrite().validateFromSnapshot(startingSnapshotId);

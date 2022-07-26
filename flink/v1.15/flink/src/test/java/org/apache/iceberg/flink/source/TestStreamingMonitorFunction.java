@@ -32,6 +32,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -45,6 +46,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -205,6 +208,81 @@ public class TestStreamingMonitorFunction extends TableTestBase {
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
       TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(newRecordsList)), SCHEMA);
+    }
+  }
+
+  @Test
+  public void testInvalidMaxPlanningSnapshotCount() {
+    ScanContext scanContext1 = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .maxPlanningSnapshotCount(0)
+        .build();
+
+    AssertHelpers.assertThrows("Should throw exception because of invalid config",
+        IllegalArgumentException.class, "must be greater than zero",
+        () -> {
+          createFunction(scanContext1);
+          return null;
+        }
+    );
+
+    ScanContext scanContext2 = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .maxPlanningSnapshotCount(-10)
+        .build();
+
+    AssertHelpers.assertThrows("Should throw exception because of invalid config",
+        IllegalArgumentException.class, "must be greater than zero",
+        () -> {
+          createFunction(scanContext2);
+          return null;
+        }
+    );
+  }
+
+  @Test
+  public void testConsumeWithMaxPlanningSnapshotCount() throws Exception {
+    generateRecordsAndCommitTxn(10);
+
+    // Use the oldest snapshot as starting to avoid the initial case.
+    long oldestSnapshotId = SnapshotUtil.oldestAncestor(table).snapshotId();
+
+    ScanContext scanContext = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .splitSize(1000L)
+        .startSnapshotId(oldestSnapshotId)
+        .maxPlanningSnapshotCount(Integer.MAX_VALUE)
+        .build();
+
+    FlinkInputSplit[] expectedSplits = FlinkSplitPlanner
+        .planInputSplits(table, scanContext, ThreadPools.getWorkerPool());
+
+    Assert.assertEquals("should produce 9 splits", 9, expectedSplits.length);
+
+    // This covers three cases that maxPlanningSnapshotCount is less than, equal or greater than the total splits number
+    for (int maxPlanningSnapshotCount : ImmutableList.of(1, 9, 15)) {
+      scanContext = ScanContext.builder()
+          .monitorInterval(Duration.ofMillis(500))
+          .startSnapshotId(oldestSnapshotId)
+          .splitSize(1000L)
+          .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
+          .build();
+
+      StreamingMonitorFunction function = createFunction(scanContext);
+      try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
+        harness.setup();
+        harness.open();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        TestSourceContext sourceContext = new TestSourceContext(latch);
+        function.sourceContext(sourceContext);
+        function.monitorAndForwardSplits();
+
+        if (maxPlanningSnapshotCount < 10) {
+          Assert.assertEquals("Should produce same splits as max-planning-snapshot-count",
+              maxPlanningSnapshotCount, sourceContext.splits.size());
+        }
+      }
     }
   }
 

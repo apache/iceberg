@@ -36,7 +36,7 @@ import org.apache.iceberg.types.Types;
  * <p>
  * This visitor also enclose column names in backticks i.e. ` so that ORC can correctly parse column names with
  * special characters. A comparison of ORC convention with Iceberg convention is provided below
- * <pre><code>
+ * <pre>{@code
  *                                      Iceberg           ORC
  * field                                field             field
  * struct -> field                      struct.field      struct.field
@@ -46,7 +46,7 @@ import org.apache.iceberg.types.Types;
  * map -> value                         map.value         map._value
  * map -> struct key -> field           map.key.field     map._key.field
  * map -> struct value -> field         map.field         map._value.field
- * </code></pre>
+ * }</pre>
  */
 class IdToOrcName extends TypeUtil.SchemaVisitor<Map<Integer, String>> {
   private static final Joiner DOT = Joiner.on(".");

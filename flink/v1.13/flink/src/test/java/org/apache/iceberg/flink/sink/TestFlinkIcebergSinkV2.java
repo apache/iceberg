@@ -147,7 +147,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private List<Snapshot> findValidSnapshots(Table table) {
     List<Snapshot> validSnapshots = Lists.newArrayList();
     for (Snapshot snapshot : table.snapshots()) {
-      if (snapshot.allManifests().stream().anyMatch(m -> snapshot.snapshotId() == m.snapshotId())) {
+      if (snapshot.allManifests(table.io()).stream().anyMatch(m -> snapshot.snapshotId() == m.snapshotId())) {
         validSnapshots.add(snapshot);
       }
     }

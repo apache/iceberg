@@ -60,7 +60,9 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.internal.util.Mimetype;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.http.ContentStreamProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
@@ -368,7 +370,7 @@ class S3OutputStream extends PositionOutputStream {
   private void completeUploads() {
     if (multipartUploadId == null) {
       long contentLength = stagingFiles.stream().map(FileAndDigest::file).mapToLong(File::length).sum();
-      InputStream contentStream = new BufferedInputStream(stagingFiles.stream()
+      ContentStreamProvider contentProvider = () -> new BufferedInputStream(stagingFiles.stream()
           .map(FileAndDigest::file)
           .map(S3OutputStream::uncheckedInputStream)
           .reduce(SequenceInputStream::new)
@@ -389,7 +391,9 @@ class S3OutputStream extends PositionOutputStream {
       S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
       S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
-      s3.putObject(requestBuilder.build(), RequestBody.fromInputStream(contentStream, contentLength));
+      s3.putObject(
+          requestBuilder.build(),
+          RequestBody.fromContentProvider(contentProvider, contentLength, Mimetype.MIMETYPE_OCTET_STREAM));
     } else {
       uploadParts();
       completeMultiPartUpload();

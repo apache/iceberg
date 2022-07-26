@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -72,6 +73,19 @@ public class SnapshotUtil {
   }
 
   /**
+   * Returns whether some ancestor of snapshotId has parentId matches ancestorParentSnapshotId
+   */
+  public static boolean isParentAncestorOf(Table table, long snapshotId, long ancestorParentSnapshotId) {
+    for (Snapshot snapshot : ancestorsOf(snapshotId, table::snapshot)) {
+      if (snapshot.parentId() == ancestorParentSnapshotId) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Returns an iterable that traverses the table's snapshots from the current to the last known ancestor.
    *
    * @param table a Table
@@ -101,6 +115,26 @@ public class SnapshotUtil {
   public static Snapshot oldestAncestor(Table table) {
     Snapshot lastSnapshot = null;
     for (Snapshot snapshot : currentAncestors(table)) {
+      lastSnapshot = snapshot;
+    }
+
+    return lastSnapshot;
+  }
+
+  /**
+   * Traverses the history and finds the oldest ancestor of the specified snapshot.
+   * <p>
+   * Oldest ancestor is defined as the ancestor snapshot whose parent is null or has been expired.
+   * If the specified snapshot has no parent or parent has been expired,
+   * the specified snapshot itself is returned.
+   *
+   * @param snapshotId the ID of the snapshot to find the oldest ancestor
+   * @param lookup lookup function from snapshot ID to snapshot
+   * @return null if there is no current snapshot in the table, else the oldest Snapshot.
+   */
+  public static Snapshot oldestAncestorOf(long snapshotId, Function<Long, Snapshot> lookup) {
+    Snapshot lastSnapshot = null;
+    for (Snapshot snapshot : ancestorsOf(snapshotId, lookup)) {
       lastSnapshot = snapshot;
     }
 
@@ -227,7 +261,8 @@ public class SnapshotUtil {
     return Iterables.transform(snapshots, Snapshot::snapshotId);
   }
 
-  public static List<DataFile> newFiles(Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup) {
+  public static List<DataFile> newFiles(
+      Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
     List<DataFile> newFiles = Lists.newArrayList();
     Snapshot lastSnapshot = null;
     for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
@@ -236,7 +271,7 @@ public class SnapshotUtil {
         return newFiles;
       }
 
-      Iterables.addAll(newFiles, currentSnapshot.addedFiles());
+      Iterables.addAll(newFiles, currentSnapshot.addedDataFiles(io));
     }
 
     ValidationException.check(Objects.equals(lastSnapshot.parentId(), baseSnapshotId),

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -69,7 +70,7 @@ public class TestTableSerialization {
 
   @Test
   public void testSerializableTableKryoSerialization() throws IOException {
-    Table serializableTable = SerializableTable.copyOf(table);
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
     TestHelpers.assertSerializedAndLoadedMetadata(table, KryoHelpers.roundTripSerialize(serializableTable));
   }
 
@@ -78,7 +79,7 @@ public class TestTableSerialization {
     for (MetadataTableType type : MetadataTableType.values()) {
       TableOperations ops = ((HasTableOperations) table).operations();
       Table metadataTable = MetadataTableUtils.createMetadataTableInstance(ops, table.name(), "meta", type);
-      Table serializableMetadataTable = SerializableTable.copyOf(metadataTable);
+      Table serializableMetadataTable = SerializableTableWithSize.copyOf(metadataTable);
 
       TestHelpers.assertSerializedAndLoadedMetadata(
           metadataTable,
@@ -95,7 +96,7 @@ public class TestTableSerialization {
         .commit();
 
     Table txnTable = txn.table();
-    Table serializableTxnTable = SerializableTable.copyOf(txnTable);
+    Table serializableTxnTable = SerializableTableWithSize.copyOf(txnTable);
 
     TestHelpers.assertSerializedMetadata(txnTable, KryoHelpers.roundTripSerialize(serializableTxnTable));
   }

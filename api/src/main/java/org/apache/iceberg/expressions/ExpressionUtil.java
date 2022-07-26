@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -64,6 +65,41 @@ public class ExpressionUtil {
    */
   public static String toSanitizedString(Expression expr) {
     return ExpressionVisitors.visit(expr, StringSanitizer.INSTANCE);
+  }
+
+  /**
+   * Returns whether two unbound expressions will accept the same inputs.
+   * <p>
+   * If this returns true, the expressions are guaranteed to return the same evaluation for the same input. However, if
+   * this returns false the expressions may return the same evaluation for the same input. That is, expressions may
+   * be equivalent even if this returns false.
+   *
+   * @param left an unbound expression
+   * @param right an unbound expression
+   * @param struct a struct type for binding
+   * @param caseSensitive whether to bind expressions using case-sensitive matching
+   * @return true if the expressions are equivalent
+   */
+  public static boolean equivalent(Expression left, Expression right, Types.StructType struct, boolean caseSensitive) {
+    return Binder.bind(struct, Expressions.rewriteNot(left), caseSensitive)
+        .isEquivalentTo(Binder.bind(struct, Expressions.rewriteNot(right), caseSensitive));
+  }
+
+  /**
+   * Returns whether an expression selects whole partitions for a partition spec.
+   * <p>
+   * For example, ts &lt; '2021-03-09T10:00:00.000' selects whole partitions in an hourly spec, [hours(ts)], but does
+   * not select whole partitions in a daily spec, [days(ts)].
+   *
+   * @param expr an unbound expression
+   * @param spec a partition spec
+   * @return true if the expression will select whole partitions in the given spec
+   */
+  public static boolean selectsPartitions(Expression expr, PartitionSpec spec, boolean caseSensitive) {
+    return equivalent(
+        Projections.inclusive(spec, caseSensitive).project(expr),
+        Projections.strict(spec, caseSensitive).project(expr),
+        spec.partitionType(), caseSensitive);
   }
 
   private static class ExpressionSanitizer extends ExpressionVisitors.ExpressionVisitor<Expression> {

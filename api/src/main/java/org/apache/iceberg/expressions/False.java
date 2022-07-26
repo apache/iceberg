@@ -41,6 +41,11 @@ public class False implements Expression {
   }
 
   @Override
+  public boolean isEquivalentTo(Expression other) {
+    return other.op() == Operation.FALSE;
+  }
+
+  @Override
   public String toString() {
     return "false";
   }

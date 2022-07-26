@@ -39,14 +39,18 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
+import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownFilters;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
+import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, SupportsPushDownRequiredColumns {
+public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, SupportsPushDownRequiredColumns,
+    SupportsReportStatistics {
+
   private static final Filter[] NO_FILTERS = new Filter[0];
 
   private final SparkSession spark;
@@ -166,5 +170,15 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     return new SparkMergeScan(
         spark, table, readConf, caseSensitive, ignoreResiduals,
         schemaWithMetadataColumns(), filterExpressions, options);
+  }
+
+  @Override
+  public Statistics estimateStatistics() {
+    return ((SparkBatchScan) build()).estimateStatistics();
+  }
+
+  @Override
+  public StructType readSchema() {
+    return build().readSchema();
   }
 }

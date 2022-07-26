@@ -61,7 +61,7 @@ public class DataFilesTable extends BaseFilesTable {
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return CloseableIterable.withNoopClose(snapshot().dataManifests());
+      return CloseableIterable.withNoopClose(snapshot().dataManifests(tableOps().io()));
     }
   }
 }

@@ -42,6 +42,17 @@ public class Or implements Expression {
   }
 
   @Override
+  public boolean isEquivalentTo(Expression expr) {
+    if (expr.op() == Operation.OR) {
+      Or other = (Or) expr;
+      return (left.isEquivalentTo(other.left()) && right.isEquivalentTo(other.right())) ||
+          (left.isEquivalentTo(other.right()) && right.isEquivalentTo(other.left()));
+    }
+
+    return false;
+  }
+
+  @Override
   public Expression negate() {
     // not(or(a, b)) => and(not(a), not(b))
     return Expressions.and(left.negate(), right.negate());

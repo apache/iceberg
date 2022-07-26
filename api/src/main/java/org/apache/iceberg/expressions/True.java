@@ -41,6 +41,11 @@ public class True implements Expression {
   }
 
   @Override
+  public boolean isEquivalentTo(Expression other) {
+    return other.op() == Operation.TRUE;
+  }
+
+  @Override
   public String toString() {
     return "true";
   }

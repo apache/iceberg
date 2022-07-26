@@ -90,7 +90,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
       // return entries from both data and delete manifests
-      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot().allManifests());
+      CloseableIterable<ManifestFile> manifests =
+          CloseableIterable.withNoopClose(snapshot().allManifests(tableOps().io()));
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();

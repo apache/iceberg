@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.flink.source.reader;
 
-import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -39,7 +39,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   private final EncryptionManager encryption;
 
   public RowDataReaderFunction(
-      Configuration config, Schema tableSchema, Schema projectedSchema,
+      ReadableConfig config, Schema tableSchema, Schema projectedSchema,
       String nameMapping, boolean caseSensitive, FileIO io, EncryptionManager encryption) {
     super(new ArrayPoolDataIteratorBatcher<>(config, new RowDataRecordFactory(
         FlinkSchemaUtil.convert(readSchema(tableSchema, projectedSchema)))));

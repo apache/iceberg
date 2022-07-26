@@ -172,7 +172,7 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(wrapperSet);
+    return Objects.hashCode(wrapperSet);
   }
 
   @Override

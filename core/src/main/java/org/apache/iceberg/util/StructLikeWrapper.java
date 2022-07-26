@@ -40,9 +40,26 @@ public class StructLikeWrapper {
   private StructLike struct;
 
   private StructLikeWrapper(Types.StructType type) {
-    this.comparator = Comparators.forType(type);
-    this.structHash = JavaHash.forType(type);
+    this(Comparators.forType(type), JavaHash.forType(type));
+  }
+
+  private StructLikeWrapper(Comparator<StructLike> comparator, JavaHash<StructLike> structHash) {
+    this.comparator = comparator;
+    this.structHash = structHash;
     this.hashCode = null;
+  }
+
+  /**
+   * Creates a copy of this wrapper that wraps a struct.
+   * <p>
+   * This is equivalent to {@code new StructLikeWrapper(type).set(newStruct)} but is cheaper because no analysis of the
+   * type is necessary.
+   *
+   * @param newStruct a {@link StructLike} row
+   * @return a copy of this wrapper wrapping the give struct
+   */
+  public StructLikeWrapper copyFor(StructLike newStruct) {
+    return new StructLikeWrapper(comparator, structHash).set(newStruct);
   }
 
   public StructLikeWrapper set(StructLike newStruct) {

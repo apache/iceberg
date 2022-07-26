@@ -40,6 +40,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
@@ -73,6 +74,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     // clean up files created by this writer
     Tasks.foreach(Iterables.concat(completedDataFiles, completedDeleteFiles))
+        .executeWith(ThreadPools.getWorkerPool())
         .throwFailureWhenFinished()
         .noRetry()
         .run(file -> io.deleteFile(file.path().toString()));

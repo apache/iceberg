@@ -46,11 +46,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
     this.sequenceNumber = toCopy.sequenceNumber;
-    if (fullCopy) {
-      this.file = toCopy.file().copy();
-    } else {
-      this.file = toCopy.file().copyWithoutStats();
-    }
+    this.file = toCopy.file().copy(fullCopy);
   }
 
   ManifestEntry<F> wrapExisting(Long newSnapshotId, Long newSequenceNumber, F newFile) {

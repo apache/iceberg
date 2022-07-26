@@ -237,15 +237,15 @@ public abstract class TestFlinkScan {
     long snapshotId1 = table.currentSnapshot().snapshotId();
 
     // snapshot 2
-    List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 1L);
     helper.appendToTable(records2);
 
-    List<Record> records3 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
+    List<Record> records3 = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 2L);
     helper.appendToTable(records3);
     long snapshotId3 = table.currentSnapshot().snapshotId();
 
     // snapshot 4
-    helper.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L));
+    helper.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 1, 3L));
 
     List<Record> expected2 = Lists.newArrayList();
     expected2.addAll(records2);

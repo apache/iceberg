@@ -31,6 +31,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplaceSortOrder;
@@ -52,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
@@ -65,11 +67,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   private static final Namespace NS = Namespace.of("newdb");
-  private static final TableIdentifier TABLE = TableIdentifier.of(NS, "table");
+  protected static final TableIdentifier TABLE = TableIdentifier.of(NS, "table");
   private static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
 
   // Schema passed to create tables
-  private static final Schema SCHEMA = new Schema(
+  protected static final Schema SCHEMA = new Schema(
       required(3, "id", Types.IntegerType.get(), "unique ID"),
       required(4, "data", Types.StringType.get())
   );
@@ -148,12 +150,24 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return true;
   }
 
+  protected boolean supportsNestedNamespaces() {
+    return false;
+  }
+
   protected boolean requiresNamespaceCreate() {
     return false;
   }
 
   protected boolean supportsServerSideRetry() {
     return false;
+  }
+
+  protected boolean overridesRequestedLocation() {
+    return false;
+  }
+
+  protected boolean supportsNamesWithSlashes() {
+    return true;
   }
 
   @Test
@@ -163,7 +177,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertFalse("Namespace should not exist", catalog.namespaceExists(NS));
 
     catalog.createNamespace(NS);
-    Assert.assertEquals("Catalog should have the created namespace", ImmutableList.of(NS), catalog.listNamespaces());
+    Assert.assertTrue("Catalog should have the created namespace", catalog.listNamespaces().contains(NS));
     Assert.assertTrue("Namespace should exist", catalog.namespaceExists(NS));
   }
 
@@ -357,20 +371,75 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Namespace ns2 = Namespace.of("newdb_2");
 
     catalog.createNamespace(ns1);
-    Assert.assertEquals("Should include newdb_1", concat(starting, ns1), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_1")
+            .hasSameElementsAs(concat(starting, ns1));
 
     catalog.createNamespace(ns2);
-    Assert.assertEquals("Should include newdb_1 and newdb_2", concat(starting, ns1, ns2), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_1 and newdb_2")
+            .hasSameElementsAs(concat(starting, ns1, ns2));
 
     catalog.dropNamespace(ns1);
-    Assert.assertEquals("Should include newdb_2, not newdb_1", concat(starting, ns2), catalog.listNamespaces());
+    Assertions.assertThat(catalog.listNamespaces())
+            .withFailMessage("Should include newdb_2, not newdb_1")
+            .hasSameElementsAs(concat(starting, ns2));
 
     catalog.dropNamespace(ns2);
-    Assert.assertEquals("Should include only starting namespaces", starting, catalog.listNamespaces());
+    Assert.assertTrue("Should include only starting namespaces", catalog.listNamespaces().containsAll(starting));
+  }
+
+  @Test
+  public void testListNestedNamespaces() {
+    Assume.assumeTrue("Only valid when the catalog supports nested namespaces", supportsNestedNamespaces());
+
+    C catalog = catalog();
+
+    // the catalog may automatically create a default namespace
+    List<Namespace> starting = catalog.listNamespaces();
+
+    Namespace parent = Namespace.of("parent");
+    Namespace child1 = Namespace.of("parent", "child1");
+    Namespace child2 = Namespace.of("parent", "child2");
+
+    catalog.createNamespace(parent);
+    Assertions.assertThat(catalog.listNamespaces())
+        .withFailMessage("Should include parent")
+        .hasSameElementsAs(concat(starting, parent));
+
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should have no children in newly created parent namespace")
+        .isEmpty();
+
+    catalog.createNamespace(child1);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include child1")
+        .hasSameElementsAs(ImmutableList.of(child1));
+
+    catalog.createNamespace(child2);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include child1 and child2")
+        .hasSameElementsAs(ImmutableList.of(child1, child2));
+
+    Assertions.assertThat(catalog.listNamespaces())
+        .withFailMessage("Should not change listing the root")
+        .hasSameElementsAs(concat(starting, parent));
+
+    catalog.dropNamespace(child1);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should include only child2")
+        .hasSameElementsAs(ImmutableList.of(child2));
+
+    catalog.dropNamespace(child2);
+    Assertions.assertThat(catalog.listNamespaces(parent))
+        .withFailMessage("Should be empty")
+        .isEmpty();
   }
 
   @Test
   public void testNamespaceWithSlash() {
+    Assume.assumeTrue(supportsNamesWithSlashes());
+
     C catalog = catalog();
 
     Namespace withSlash = Namespace.of("new/db");
@@ -428,6 +497,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testTableNameWithSlash() {
+    Assume.assumeTrue(supportsNamesWithSlashes());
+
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "tab/le");
@@ -550,6 +621,25 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+  }
+
+  @Test
+  public void testLoadMetadataTable() {
+    C catalog = catalog();
+
+    TableIdentifier tableIdent = TableIdentifier.of("ns", "table");
+    TableIdentifier metaIdent = TableIdentifier.of("ns", "table", "files");
+
+    catalog.buildTable(tableIdent, SCHEMA).create();
+
+    Table table = catalog.loadTable(metaIdent);
+    Assertions.assertThat(table).isNotNull();
+    Assertions.assertThat(table).isInstanceOf(FilesTable.class);
+
+    // check that the table metadata can be refreshed
+    table.refresh();
+
+    Assertions.assertThat(table.name()).isEqualTo(catalog.name() + "." + metaIdent);
   }
 
   @Test
@@ -833,6 +923,27 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testUpdateTableSchemaThenRevert() {
+    C catalog = catalog();
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    table.updateSchema()
+        .addColumn("col1", Types.StringType.get())
+        .addColumn("col2", Types.StringType.get())
+        .addColumn("col3", Types.StringType.get())
+        .commit();
+
+    table.updateSchema()
+        .deleteColumn("col1")
+        .deleteColumn("col2")
+        .deleteColumn("col3")
+        .commit();
+
+    Assert.assertEquals("Loaded table should have expected schema", TABLE_SCHEMA.asStruct(), table.schema().asStruct());
+  }
+
+  @Test
   public void testUpdateTableSpec() {
     C catalog = catalog();
 
@@ -930,6 +1041,28 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testUpdateTableSpecThenRevert() {
+    C catalog = catalog();
+
+    // create a v2 table. otherwise the spec update would produce a different spec with a void partition field
+    Table table = catalog.buildTable(TABLE, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withProperty("format-version", "2")
+        .create();
+    Assert.assertEquals("Should be a v2 table", 2, ((BaseTable) table).operations().current().formatVersion());
+
+    table.updateSpec()
+        .addField("id")
+        .commit();
+
+    table.updateSpec()
+        .removeField("id")
+        .commit();
+
+    Assert.assertEquals("Loaded table should have expected spec", TABLE_SPEC, table.spec());
+  }
+
+  @Test
   public void testUpdateTableSortOrder() {
     C catalog = catalog();
 
@@ -972,6 +1105,26 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     // the sort order ID may not match, so check equality of the fields
     Assert.assertEquals("Loaded table should have expected order", expected.fields(), loaded.sortOrder().fields());
+  }
+
+  @Test
+  public void testUpdateTableOrderThenRevert() {
+    C catalog = catalog();
+
+    Table table = catalog.buildTable(TABLE, SCHEMA)
+        .withSortOrder(WRITE_ORDER)
+        .create();
+
+    table.replaceSortOrder()
+        .asc("id")
+        .commit();
+
+    table.replaceSortOrder()
+        .asc(Expressions.bucket("id", 16))
+        .asc("id")
+        .commit();
+
+    Assert.assertEquals("Loaded table should have expected order", TABLE_WRITE_ORDER, table.sortOrder());
   }
 
   @Test
@@ -1124,8 +1277,130 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
+    assertPreviousMetadataFileCount(table, 0);
+  }
+
+  @Test
+  public void testCompleteCreateTransactionMultipleSchemas() {
+    C catalog = catalog();
+
+    Map<String, String> properties = ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
+    Transaction create = catalog.buildTable(TABLE, SCHEMA)
+        .withLocation("file:/tmp/ns/table")
+        .withPartitionSpec(SPEC)
+        .withSortOrder(WRITE_ORDER)
+        .withProperties(properties)
+        .createTransaction();
+
+    Assert.assertFalse("Table should not exist after createTransaction", catalog.tableExists(TABLE));
+
+    create.newFastAppend().appendFile(FILE_A).commit();
+
+    UpdateSchema updateSchema = create.updateSchema().addColumn("new_col", Types.LongType.get());
+    Schema newSchema = updateSchema.apply();
+    updateSchema.commit();
+
+    UpdatePartitionSpec updateSpec = create.updateSpec().addField("new_col");
+    PartitionSpec newSpec = updateSpec.apply();
+    updateSpec.commit();
+
+    ReplaceSortOrder replaceSortOrder = create.replaceSortOrder().asc("new_col");
+    SortOrder newSortOrder = replaceSortOrder.apply();
+    replaceSortOrder.commit();
+
+    DataFile anotherFile = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-b.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("id_bucket=0/new_col=0") // easy way to set partition data for now
+        .withRecordCount(2) // needs at least one record or else metrics will filter it out
+        .build();
+
+    create.newFastAppend().appendFile(anotherFile).commit();
+
+    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+
+    create.commitTransaction();
+
+    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Table table = catalog.loadTable(TABLE);
+
+    // initial IDs taken from TableMetadata constants
+    final int initialSchemaId = 0;
+    final int initialSpecId = 0;
+    final int initialOrderId = 1;
+    final int updateSchemaId = initialSchemaId + 1;
+    final int updateSpecId = initialSpecId + 1;
+    final int updateOrderId = initialOrderId + 1;
+
+    Assert.assertEquals("Table schema should match the new schema",
+        newSchema.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Table schema should match the new schema ID",
+        updateSchemaId, table.schema().schemaId());
+    Assert.assertEquals("Table should have updated partition spec", newSpec.fields(), table.spec().fields());
+    Assert.assertEquals("Table should have updated partition spec ID", updateSpecId, table.spec().specId());
+    Assert.assertEquals("Table should have updated sort order", newSortOrder.fields(), table.sortOrder().fields());
+    Assert.assertEquals("Table should have updated sort order ID", updateOrderId, table.sortOrder().orderId());
+    Assert.assertEquals("Table properties should be a superset of the requested properties",
+        properties.entrySet(),
+        Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
+    assertFiles(table, FILE_A, anotherFile);
+    assertFilePartitionSpec(table, FILE_A, initialSpecId);
+    assertFilePartitionSpec(table, anotherFile, updateSpecId);
+    assertPreviousMetadataFileCount(table, 0);
+  }
+
+  @Test
+  public void testCompleteCreateTransactionV2() {
+    C catalog = catalog();
+
+    Map<String, String> properties =
+            ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19", "format-version", "2");
+
+    Transaction create = catalog.buildTable(TABLE, SCHEMA)
+            .withLocation("file:/tmp/ns/table")
+            .withPartitionSpec(SPEC)
+            .withSortOrder(WRITE_ORDER)
+            .withProperties(properties)
+            .createTransaction();
+
+    Assert.assertFalse("Table should not exist after createTransaction", catalog.tableExists(TABLE));
+
+    create.newFastAppend()
+            .appendFile(FILE_A)
+            .commit();
+
+    Assert.assertFalse("Table should not exist after append commit", catalog.tableExists(TABLE));
+
+    create.commitTransaction();
+
+    Assert.assertTrue("Table should exist after append commit", catalog.tableExists(TABLE));
+    Table table = catalog.loadTable(TABLE);
+
+    Map<String, String> expectedProps = Maps.newHashMap(properties);
+    expectedProps.remove("format-version");
+
+    Assert.assertEquals("Table schema should match the new schema",
+            TABLE_SCHEMA.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Table should have create partition spec", TABLE_SPEC.fields(), table.spec().fields());
+    Assert.assertEquals("Table should have create sort order", TABLE_WRITE_ORDER, table.sortOrder());
+    Assert.assertEquals("Table properties should be a superset of the requested properties",
+            expectedProps.entrySet(),
+            Sets.intersection(properties.entrySet(), table.properties().entrySet()));
+    Assert.assertEquals(
+            "Sequence number should start at 1 for v2 format", 1, table.currentSnapshot().sequenceNumber());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
+    assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
   }
 
@@ -1146,8 +1421,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
     Assertions.setMaxStackTraceElementsDisplayed(Integer.MAX_VALUE);
+    String expectedMessage =
+        supportsServerSideRetry() ? "Requirement failed: table already exists" : "Table already exists";
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        AlreadyExistsException.class, "Table already exists", create::commitTransaction);
+        AlreadyExistsException.class, expectedMessage, create::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
@@ -1210,8 +1487,11 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), table.properties().entrySet()));
-    Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should match requested", "file:/tmp/ns/table", table.location());
+    }
     assertFiles(table, FILE_A);
+    assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
   }
 
@@ -1302,7 +1582,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1326,8 +1608,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.buildTable(TABLE, OTHER_SCHEMA).create();
 
+    String expectedMessage =
+        supportsServerSideRetry() ? "Requirement failed: table already exists" : "Table already exists";
     AssertHelpers.assertThrows("Should fail because table was created concurrently",
-        AlreadyExistsException.class, "Table already exists", createOrReplace::commitTransaction);
+        AlreadyExistsException.class, expectedMessage, createOrReplace::commitTransaction);
 
     // validate the concurrently created table is unmodified
     Table table = catalog.loadTable(TABLE);
@@ -1423,7 +1707,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Assert.assertEquals("Table properties should be a superset of the requested properties",
         properties.entrySet(),
         Sets.intersection(properties.entrySet(), loaded.properties().entrySet()));
-    Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    if (!overridesRequestedLocation()) {
+      Assert.assertEquals("Table location should be replaced", "file:/tmp/ns/table", table.location());
+    }
     assertUUIDsMatch(original, loaded);
     assertFiles(loaded, FILE_A);
     assertPreviousMetadataFileCount(loaded, 1);
@@ -1858,6 +2144,27 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       Assert.assertEquals("Should contain correct file paths",
           CharSequenceSet.of(Iterables.transform(Arrays.asList(files), DataFile::path)),
           CharSequenceSet.of(paths));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public void assertFilePartitionSpec(Table table, DataFile dataFile, int specId) {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      Streams.stream(tasks)
+          .map(FileScanTask::file)
+          .filter(file -> file.path().equals(dataFile.path()))
+          .forEach(file -> Assert.assertEquals(specId, file.specId()));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public void assertFilesPartitionSpec(Table table) {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      Streams.stream(tasks)
+          .map(FileScanTask::file)
+          .forEach(file -> Assert.assertEquals(table.spec().specId(), file.specId()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

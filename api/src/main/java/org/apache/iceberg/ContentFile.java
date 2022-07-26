@@ -157,4 +157,16 @@ public interface ContentFile<F> {
     return null;
   }
 
+  /**
+   * Copies this file (potentially without file stats). Manifest readers can reuse file instances; use
+   * this method to copy data when collecting files from tasks.
+   *
+   * @param withStats Will copy this file without file stats if set to <code>false</code>.
+   * @return a copy of this data file. If <code>withStats</code> is set to <code>false</code> the
+   *     file will not contain lower bounds, upper bounds, value counts, null value counts, or nan
+   *     value counts
+   */
+  default F copy(boolean withStats) {
+    return withStats ? copy() : copyWithoutStats();
+  }
 }

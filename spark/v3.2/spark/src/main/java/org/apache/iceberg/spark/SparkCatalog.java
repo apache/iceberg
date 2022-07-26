@@ -82,9 +82,12 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * <p>
  * This supports the following catalog configuration options:
  * <ul>
- *   <li><code>type</code> - catalog type, "hive" or "hadoop"</li>
+ *   <li><code>type</code> - catalog type, "hive" or "hadoop".
+ *       To specify a non-hive or hadoop catalog, use the <code>catalog-impl</code> option.
+ *   </li>
  *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)</li>
  *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)</li>
+ *   <li><code>catalog-impl</code> - a custom {@link Catalog} implementation to use</li>
  *   <li><code>default-namespace</code> - a namespace to use as the default</li>
  *   <li><code>cache-enabled</code> - whether to enable catalog cache</li>
  *   <li><code>cache.expiration-interval-ms</code> - interval in millis before expiring tables from catalog cache.
@@ -92,8 +95,6 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  *   </li>
  * </ul>
  * <p>
- * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
- * {@link #buildIcebergCatalog(String, CaseInsensitiveStringMap)}.
  */
 public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -119,7 +120,7 @@ public class SparkCatalog extends BaseCatalog {
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
     Configuration conf = SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name);
     Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    optionsMap.putAll(options);
+    optionsMap.putAll(options.asCaseSensitiveMap());
     optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
     optionsMap.put(CatalogProperties.USER, SparkSession.active().sparkContext().sparkUser());
     return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
@@ -620,5 +621,10 @@ public class SparkCatalog extends BaseCatalog {
     return isPathIdentifier(ident) ?
         tables.buildTable(((PathIdentifier) ident).location(), schema) :
         icebergCatalog.buildTable(buildIdentifier(ident), schema);
+  }
+
+  @Override
+  public Catalog icebergCatalog() {
+    return icebergCatalog;
   }
 }

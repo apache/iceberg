@@ -75,7 +75,7 @@ public class TestHiveTableConcurrency extends HiveTableBaseTest {
         });
 
     icebergTable.refresh();
-    Assert.assertEquals(20, icebergTable.currentSnapshot().allManifests().size());
+    Assert.assertEquals(20, icebergTable.currentSnapshot().allManifests(icebergTable.io()).size());
   }
 
   @Test

@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -49,7 +50,7 @@ public class TestIcebergToGlueConverter {
 
   @Test
   public void testToDatabaseName() {
-    Assert.assertEquals("db", IcebergToGlueConverter.toDatabaseName(Namespace.of("db")));
+    Assert.assertEquals("db", IcebergToGlueConverter.toDatabaseName(Namespace.of("db"), false));
   }
 
   @Test
@@ -64,7 +65,30 @@ public class TestIcebergToGlueConverter {
       AssertHelpers.assertThrows("bad namespace name",
           ValidationException.class,
           "Cannot convert namespace",
-          () -> IcebergToGlueConverter.toDatabaseName(name)
+          () -> IcebergToGlueConverter.toDatabaseName(name, false)
+      );
+    }
+  }
+
+  @Test
+  public void testSkipNamespaceValidation() {
+    List<Namespace> acceptableNames = Lists.newArrayList(
+        Namespace.of("db-1"),
+        Namespace.of("db-1-1-1"));
+    for (Namespace name : acceptableNames) {
+      Assert.assertEquals(name.toString(), IcebergToGlueConverter.toDatabaseName(name, true)
+      );
+    }
+  }
+
+  @Test
+  public void testSkipTableNameValidation() {
+    List<TableIdentifier> acceptableIdentifiers = Lists.newArrayList(
+            TableIdentifier.parse("db.a-1"),
+            TableIdentifier.parse("db.a-1-1"),
+            TableIdentifier.parse("db.a#1"));
+    for (TableIdentifier identifier : acceptableIdentifiers) {
+      Assert.assertEquals(identifier.name(), IcebergToGlueConverter.getTableName(identifier, true)
       );
     }
   }
@@ -75,7 +99,7 @@ public class TestIcebergToGlueConverter {
         IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description",
         IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location",
         "key", "val");
-    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties);
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
     Assert.assertEquals("Location should be set", "s3://location", databaseInput.locationUri());
     Assert.assertEquals("Description should be set", "description", databaseInput.description());
     Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
@@ -89,7 +113,7 @@ public class TestIcebergToGlueConverter {
         .parameters(ImmutableMap.of())
         .build();
     Namespace namespace = Namespace.of("db");
-    Assert.assertEquals(input, IcebergToGlueConverter.toDatabaseInput(namespace, ImmutableMap.of()));
+    Assert.assertEquals(input, IcebergToGlueConverter.toDatabaseInput(namespace, ImmutableMap.of(), false));
   }
 
   @Test
@@ -97,7 +121,7 @@ public class TestIcebergToGlueConverter {
     Map<String, String> properties = ImmutableMap.of(
         IcebergToGlueConverter.GLUE_DB_DESCRIPTION_KEY, "description",
         "key", "val");
-    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties);
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
     Assert.assertNull("Location should not be set", databaseInput.locationUri());
     Assert.assertEquals("Description should be set", "description", databaseInput.description());
     Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());
@@ -109,7 +133,7 @@ public class TestIcebergToGlueConverter {
     Map<String, String> properties = ImmutableMap.of(
         IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location",
         "key", "val");
-    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties);
+    DatabaseInput databaseInput = IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
     Assert.assertEquals("Location should be set", "s3://location", databaseInput.locationUri());
     Assert.assertNull("Description should not be set", databaseInput.description());
     Assert.assertEquals("Parameters should be set", ImmutableMap.of("key", "val"), databaseInput.parameters());

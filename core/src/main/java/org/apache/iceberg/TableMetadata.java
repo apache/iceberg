@@ -120,13 +120,14 @@ public class TableMetadata implements Serializable {
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
 
-    return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
-        INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
-        lastColumnId.get(), freshSchema.schemaId(), ImmutableList.of(freshSchema),
-        freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
-        freshSortOrderId, ImmutableList.of(freshSortOrder),
-        ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
-        ImmutableList.of(), ImmutableList.of(), ImmutableMap.of(), ImmutableList.of());
+    return new Builder()
+        .upgradeFormatVersion(formatVersion)
+        .setCurrentSchema(freshSchema, lastColumnId.get())
+        .setDefaultPartitionSpec(freshSpec)
+        .setDefaultSortOrder(freshSortOrder)
+        .setLocation(location)
+        .setProperties(properties)
+        .build();
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
@@ -755,6 +756,10 @@ public class TableMetadata implements Serializable {
     return new Builder(base);
   }
 
+  public static Builder buildFromEmpty() {
+    return new Builder();
+  }
+
   public static class Builder {
     private static final int LAST_ADDED = -1;
 
@@ -796,6 +801,28 @@ public class TableMetadata implements Serializable {
     private final Map<Integer, Schema> schemasById;
     private final Map<Integer, PartitionSpec> specsById;
     private final Map<Integer, SortOrder> sortOrdersById;
+
+    private Builder() {
+      this.base = null;
+      this.formatVersion = DEFAULT_TABLE_FORMAT_VERSION;
+      this.lastSequenceNumber = INITIAL_SEQUENCE_NUMBER;
+      this.uuid = UUID.randomUUID().toString();
+      this.schemas = Lists.newArrayList();
+      this.specs = Lists.newArrayList();
+      this.sortOrders = Lists.newArrayList();
+      this.properties = Maps.newHashMap();
+      this.snapshots = Lists.newArrayList();
+      this.currentSnapshotId = -1;
+      this.changes = Lists.newArrayList();
+      this.startingChangeCount = 0;
+      this.snapshotLog = Lists.newArrayList();
+      this.previousFiles = Lists.newArrayList();
+      this.refs = Maps.newHashMap();
+      this.snapshotsById = Maps.newHashMap();
+      this.schemasById = Maps.newHashMap();
+      this.specsById = Maps.newHashMap();
+      this.sortOrdersById = Maps.newHashMap();
+    }
 
     private Builder(TableMetadata base) {
       this.base = base;
@@ -980,10 +1007,18 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder addSnapshot(Snapshot snapshot) {
-      if (snapshot == null || snapshotsById.containsKey(snapshot.snapshotId())) {
+      if (snapshot == null) {
         // change is a noop
         return this;
       }
+
+      ValidationException.check(!schemas.isEmpty(), "Attempting to add a snapshot before a schema is added");
+      ValidationException.check(!specs.isEmpty(), "Attempting to add a snapshot before a partition spec is added");
+      ValidationException.check(!sortOrders.isEmpty(), "Attempting to add a snapshot before a sort order is added");
+
+      ValidationException.check(!snapshotsById.containsKey(snapshot.snapshotId()),
+          "Snapshot already exists for id: %s",
+          snapshot.snapshotId());
 
       ValidationException.check(formatVersion == 1 || snapshot.sequenceNumber() > lastSequenceNumber,
           "Cannot add snapshot with sequence number %s older than last sequence number %s",
@@ -1158,8 +1193,14 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    private boolean hasChanges() {
+      return changes.size() != startingChangeCount ||
+          (discardChanges && changes.size() > 0) ||
+          metadataLocation != null;
+    }
+
     public TableMetadata build() {
-      if (changes.size() == startingChangeCount && !(discardChanges && changes.size() > 0)) {
+      if (!hasChanges()) {
         return base;
       }
 
@@ -1177,8 +1218,13 @@ public class TableMetadata implements Serializable {
       PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
       SortOrder.checkCompatibility(sortOrdersById.get(defaultSortOrderId), schema);
 
-      List<MetadataLogEntry> metadataHistory = addPreviousFile(
-          previousFiles, previousFileLocation, base.lastUpdatedMillis(), properties);
+      List<MetadataLogEntry> metadataHistory;
+      if (base == null) {
+        metadataHistory = Lists.newArrayList();
+      } else {
+        metadataHistory = addPreviousFile(
+            previousFiles, previousFileLocation, base.lastUpdatedMillis(), properties);
+      }
       List<HistoryEntry> newSnapshotLog = updateSnapshotLog(snapshotLog, snapshotsById, currentSnapshotId, changes);
 
       return new TableMetadata(
@@ -1214,7 +1260,10 @@ public class TableMetadata implements Serializable {
       boolean schemaFound = schemasById.containsKey(newSchemaId);
       if (schemaFound && newLastColumnId == lastColumnId) {
         // the new spec and last column id is already current and no change is needed
-        this.lastAddedSchemaId = newSchemaId;
+        // update lastAddedSchemaId if the schema was added in this set of changes (since it is now the last)
+        boolean isNewSchema = lastAddedSchemaId != null &&
+            changes(MetadataUpdate.AddSchema.class).anyMatch(added -> added.schema().schemaId() == newSchemaId);
+        this.lastAddedSchemaId = isNewSchema ? newSchemaId : null;
         return newSchemaId;
       }
 
@@ -1255,7 +1304,10 @@ public class TableMetadata implements Serializable {
     private int addPartitionSpecInternal(PartitionSpec spec) {
       int newSpecId = reuseOrCreateNewSpecId(spec);
       if (specsById.containsKey(newSpecId)) {
-        this.lastAddedSpecId = newSpecId;
+        // update lastAddedSpecId if the spec was added in this set of changes (since it is now the last)
+        boolean isNewSpec = lastAddedSpecId != null &&
+            changes(MetadataUpdate.AddPartitionSpec.class).anyMatch(added -> added.spec().specId() == lastAddedSpecId);
+        this.lastAddedSpecId = isNewSpec ? newSpecId : null;
         return newSpecId;
       }
 
@@ -1293,7 +1345,11 @@ public class TableMetadata implements Serializable {
     private int addSortOrderInternal(SortOrder order) {
       int newOrderId = reuseOrCreateNewSortOrderId(order);
       if (sortOrdersById.containsKey(newOrderId)) {
-        this.lastAddedOrderId = newOrderId;
+        // update lastAddedOrderId if the order was added in this set of changes (since it is now the last)
+        boolean isNewOrder = lastAddedOrderId != null &&
+            changes(MetadataUpdate.AddSortOrder.class)
+                .anyMatch(added -> added.sortOrder().orderId() == lastAddedOrderId);
+        this.lastAddedOrderId = isNewOrder ? newOrderId : null;
         return newOrderId;
       }
 
