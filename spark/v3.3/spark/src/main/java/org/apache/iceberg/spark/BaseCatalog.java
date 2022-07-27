@@ -34,7 +34,11 @@ import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
 abstract class BaseCatalog
-    implements StagingTableCatalog, ProcedureCatalog, SupportsNamespaces, HasIcebergCatalog, FunctionCatalog {
+    implements StagingTableCatalog,
+        ProcedureCatalog,
+        SupportsNamespaces,
+        HasIcebergCatalog,
+        FunctionCatalog {
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
@@ -55,7 +59,8 @@ abstract class BaseCatalog
 
   @Override
   public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
-    if (namespace.length == 0 || (namespace.length == 1 && namespace[0].equalsIgnoreCase("system"))) {
+    if (namespace.length == 0
+        || (namespace.length == 1 && namespace[0].equalsIgnoreCase("system"))) {
       return SparkFunctions.list().stream()
           .map(name -> Identifier.of(namespace, name))
           .toArray(Identifier[]::new);
@@ -71,9 +76,11 @@ abstract class BaseCatalog
     String[] namespace = ident.namespace();
     String name = ident.name();
 
-    // Allow for empty namespace as Spark's storage partitioned joins look up the corresponding transform
-    // functions, like `bucket`, with an empty namespace
-    if (namespace.length == 0 || (namespace.length == 1 && namespace[0].equalsIgnoreCase("system"))) {
+    // Allow for empty namespace as Spark's storage partitioned joins look up
+    // the corresponding functions to generate transforms for partitioning
+    // with an empty namespace, such as `bucket`.
+    if (namespace.length == 0
+        || (namespace.length == 1 && namespace[0].equalsIgnoreCase("system"))) {
       UnboundFunction func = SparkFunctions.load(name);
       if (func != null) {
         return func;

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.functions;
 
 import java.util.List;
@@ -28,17 +27,15 @@ import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 
 public class SparkFunctions {
 
-  private SparkFunctions() {
-  }
+  private SparkFunctions() {}
 
-  private static final Map<String, UnboundFunction> FUNCTIONS = ImmutableMap.of(
-      "truncate", new TruncateFunction()
-  );
+  private static final Map<String, UnboundFunction> FUNCTIONS =
+      ImmutableMap.of("truncate", new TruncateFunction());
 
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());
 
-  // Functions that are added to all Iceberg catalogs get registered under the `system` namespace, so a list of
-  // names alone is returned.
+  // Functions that are added to all Iceberg catalogs should be accessed with either the `system`
+  // namespace or no namespace at all, so a list of names alone is returned.
   public static List<String> list() {
     return FUNCTION_NAMES;
   }
@@ -48,5 +45,4 @@ public class SparkFunctions {
     UnboundFunction func = FUNCTIONS.get(name.toLowerCase(Locale.ROOT));
     return func;
   }
-
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.math.BigDecimal;
@@ -25,22 +24,21 @@ import java.nio.ByteBuffer;
 
 /**
  * Contains the logic for various {@code truncate} transformations for various types.
- * <p>
- * This utility class allows for the logic to be reused in different scenarios where input
- * validation is done at different times either in org.apache.iceberg.transforms.Truncate
- * and within defined SQL functions for different compute engines for usage in SQL.
- * <p>
- * In general, the inputs to the functions should have already been validated by the calling code,
- * as different classes use truncate with different preprocessing. This generally means that
+ *
+ * <p>This utility class allows for the logic to be reused in different scenarios where input
+ * validation is done at different times either in org.apache.iceberg.transforms.Truncate and within
+ * defined SQL functions for different compute engines for usage in SQL.
+ *
+ * <p>In general, the inputs to the functions should have already been validated by the calling
+ * code, as different classes use truncate with different preprocessing. This generally means that
  * the truncation width is positive and the value to truncate is non-null.
- * <p>
- * See also {@linkplain UnicodeUtil#truncateString(CharSequence, int)} and
- * {@link BinaryUtil#truncateBinary(ByteBuffer, int)}
+ *
+ * <p>See also {@linkplain UnicodeUtil#truncateString(CharSequence, int)} and {@link
+ * BinaryUtil#truncateBinary(ByteBuffer, int)}
  */
 public class TruncateUtil {
-  // not meant to be instantiated
-  private TruncateUtil() {
-  }
+
+  private TruncateUtil() {}
 
   public static ByteBuffer truncateByteBuffer(int width, ByteBuffer value) {
     ByteBuffer ret = value.duplicate();
@@ -65,12 +63,14 @@ public class TruncateUtil {
   }
 
   public static BigDecimal truncateDecimal(BigInteger unscaledWidth, BigDecimal value) {
-    BigDecimal remainder = new BigDecimal(
-        value.unscaledValue()
-            .remainder(unscaledWidth)
-            .add(unscaledWidth)
-            .remainder(unscaledWidth),
-        value.scale());
+    BigDecimal remainder =
+        new BigDecimal(
+            value
+                .unscaledValue()
+                .remainder(unscaledWidth)
+                .add(unscaledWidth)
+                .remainder(unscaledWidth),
+            value.scale());
 
     return value.subtract(remainder);
   }

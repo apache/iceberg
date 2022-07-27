@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.functions;
 
 import java.math.BigInteger;
@@ -49,36 +48,46 @@ import org.apache.spark.sql.types.VarcharType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
- * Implementation of {@link UnboundFunction} that matches the <b>truncate</b> transformation.
- * This unbound function is registered with the {@link org.apache.iceberg.spark.SparkCatalog}
- * such that the function can be used as {@code truncate(width, col)} or {@code truncate(2, col)}.
- * <p>
- * Specific {@link BoundFunction} implementations are resolved based on their input types. As with transforms, the
- * truncation width must be non-negative.
- * <p>
- * For efficiency in generated code, the {@code width} is not validated.
- * <b>It is the responsibility of calling code of these functions to not call truncate with a non-positive width.</b>
+ * Implementation of {@link UnboundFunction} that matches the <b>truncate</b> transformation. This
+ * unbound function is registered with the {@link org.apache.iceberg.spark.SparkCatalog} such that
+ * the function can be used as {@code truncate(width, col)} or {@code truncate(2, col)}.
+ *
+ * <p>Specific {@link BoundFunction} implementations are resolved based on their input types. As
+ * with transforms, the truncation width must be non-negative.
+ *
+ * <p>For efficiency in generated code, the {@code width} is not validated. <b>It is the
+ * responsibility of calling code of these functions to not call truncate with a non-positive
+ * width.</b>
  */
 public class TruncateFunction implements UnboundFunction {
-  private static final List<DataType> truncateableAtomicTypes = ImmutableList.of(
-      DataTypes.ByteType, DataTypes.ShortType, DataTypes.IntegerType, DataTypes.LongType,
-      DataTypes.StringType, DataTypes.BinaryType);
+  private static final List<DataType> truncateableAtomicTypes =
+      ImmutableList.of(
+          DataTypes.ByteType,
+          DataTypes.ShortType,
+          DataTypes.IntegerType,
+          DataTypes.LongType,
+          DataTypes.StringType,
+          DataTypes.BinaryType);
 
   private static void validateTruncationFieldType(DataType dt) {
-    if (truncateableAtomicTypes.stream().noneMatch(type -> type.sameType(dt)) &&
-        !(dt instanceof DecimalType)) {
-      String expectedTypes = "[ByteType, ShortType, IntegerType, LongType, StringType, BinaryType, DecimalType]";
+    if (truncateableAtomicTypes.stream().noneMatch(type -> type.sameType(dt))
+        && !(dt instanceof DecimalType)) {
+      String expectedTypes =
+          "[ByteType, ShortType, IntegerType, LongType, StringType, BinaryType, DecimalType]";
       throw new UnsupportedOperationException(
-          String.format("Invalid input type to truncate. Expected one of %s, but found %s", expectedTypes, dt));
+          String.format(
+              "Invalid input type to truncate. Expected one of %s, but found %s",
+              expectedTypes, dt));
     }
   }
 
   private static void validateTruncationWidthType(DataType widthType) {
-    if (!DataTypes.IntegerType.sameType(widthType) &&
-        !DataTypes.ShortType.sameType(widthType) &&
-        !DataTypes.ByteType.sameType(widthType)) {
+    if (!DataTypes.IntegerType.sameType(widthType)
+        && !DataTypes.ShortType.sameType(widthType)
+        && !DataTypes.ByteType.sameType(widthType)) {
       throw new UnsupportedOperationException(
-          "Expected truncation width to be one of [ByteType, ShortType, IntegerType], but found " + widthType);
+          "Expected truncation width to be one of [ByteType, ShortType, IntegerType], but found "
+              + widthType);
     }
   }
 
@@ -86,7 +95,8 @@ public class TruncateFunction implements UnboundFunction {
   public BoundFunction bind(StructType inputType) {
     if (inputType.fields().length != 2) {
       throw new UnsupportedOperationException(
-          String.format("Invalid input type. Expected 2 fields but found %s", inputType.fields().length));
+          String.format(
+              "Invalid input type. Expected 2 fields but found %s", inputType.fields().length));
     }
 
     StructField widthField = inputType.apply(0);
@@ -108,10 +118,9 @@ public class TruncateFunction implements UnboundFunction {
       return new TruncateDecimal(
           ((DecimalType) toTruncateDataType).precision(),
           ((DecimalType) toTruncateDataType).scale());
-    } else if (
-        toTruncateDataType instanceof StringType ||
-        toTruncateDataType instanceof VarcharType ||
-        toTruncateDataType instanceof CharType) {
+    } else if (toTruncateDataType instanceof StringType
+        || toTruncateDataType instanceof VarcharType
+        || toTruncateDataType instanceof CharType) {
       return new TruncateString();
     } else if (toTruncateDataType instanceof BinaryType) {
       return new TruncateBinary();
@@ -122,8 +131,8 @@ public class TruncateFunction implements UnboundFunction {
 
   @Override
   public String description() {
-    return "Truncate - The Iceberg truncate function used for truncate partition transformations.\n" +
-      "\tCalled with the truncation width as the first argument: e.g. system.truncate(width, col)";
+    return "Truncate - The Iceberg truncate function used for truncate partition transformations.\n"
+        + "\tCalled with the truncation width as the first argument: e.g. system.truncate(width, col)";
   }
 
   @Override
@@ -145,7 +154,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public DataType[] inputTypes() {
-      return new DataType[]{DataTypes.IntegerType, DataTypes.ByteType};
+      return new DataType[] {DataTypes.IntegerType, DataTypes.ByteType};
     }
 
     @Override
@@ -292,7 +301,7 @@ public class TruncateFunction implements UnboundFunction {
       Integer width = readAndValidateWidth(input);
 
       UTF8String toTruncate = !input.isNullAt(1) ? input.getUTF8String(1) : null;
-      UTF8String result =  toTruncate != null ? invoke(width, toTruncate) : null;
+      UTF8String result = toTruncate != null ? invoke(width, toTruncate) : null;
       return result != null ? result.toString() : null;
     }
   }
@@ -304,7 +313,8 @@ public class TruncateFunction implements UnboundFunction {
         return null;
       }
 
-      return ByteBuffers.toByteArray(TruncateUtil.truncateByteBuffer(width, ByteBuffer.wrap(value)));
+      return ByteBuffers.toByteArray(
+          TruncateUtil.truncateByteBuffer(width, ByteBuffer.wrap(value)));
     }
 
     @Override
@@ -346,7 +356,8 @@ public class TruncateFunction implements UnboundFunction {
         return null;
       }
 
-      return Decimal.apply(TruncateUtil.truncateDecimal(BigInteger.valueOf(width), value.toJavaBigDecimal()));
+      return Decimal.apply(
+          TruncateUtil.truncateDecimal(BigInteger.valueOf(width), value.toJavaBigDecimal()));
     }
 
     @Override
@@ -361,7 +372,8 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return String.format("org.apache.iceberg.spark.functions.truncate[width](decimal(%d,%d))", precision, scale);
+      return String.format(
+          "org.apache.iceberg.spark.functions.truncate[width](decimal(%d,%d))", precision, scale);
     }
 
     @Override
@@ -380,7 +392,8 @@ public class TruncateFunction implements UnboundFunction {
     }
 
     if (width <= 0) {
-      throw new IllegalArgumentException(String.format("Invalid truncate width: %s (must be > 0)", width));
+      throw new IllegalArgumentException(
+          String.format("Invalid truncate width: %s (must be > 0)", width));
     }
 
     return width;
