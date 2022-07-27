@@ -229,7 +229,7 @@ SELECT * FROM prod.db.table.history
 
 ### Metadata Logs
 
-To show table metadata logs :
+To show table metadata logs:
 
 ```sql
 SELECT * from prod.db.table.metadata_logs
@@ -239,7 +239,7 @@ SELECT * from prod.db.table.metadata_logs
 | -- | -- | -- | -- | -- |
 | 1658211678838 | s3://.../table/metadata/00000-9441e604-b3c2-498a-a45a-6320e8ab9006.metadata.json | null | null | null |
 | 1658211679192 | s3://.../table/metadata/00001-f30823df-b745-4a0a-b293-7532e0c99986.metadata.json | 170260833677645300 | 0 | 1 |
-| 1658211679192 | s3://.../table/metadata/00002-2cc2837a-02dc-4687-acc1-b4d86ea486f4.metadata.json | 958906493976709774 | 0 | 2 |
+| 1658211679682 | s3://.../table/metadata/00002-2cc2837a-02dc-4687-acc1-b4d86ea486f4.metadata.json | 958906493976709774 | 0 | 2 |
 
 ### Snapshots
 
