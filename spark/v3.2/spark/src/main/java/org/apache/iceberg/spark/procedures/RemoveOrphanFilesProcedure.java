@@ -19,11 +19,14 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
@@ -37,6 +40,7 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import scala.runtime.BoxedUnit;
 
 /**
  * A procedure that removes orphan files in a table.
@@ -51,7 +55,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("location", DataTypes.StringType),
       ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
       ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-      ProcedureParameter.optional("file_list_view", DataTypes.StringType)
+      ProcedureParameter.optional("file_list_view", DataTypes.StringType),
+      ProcedureParameter.optional("equal_schemes", STRING_MAP),
+      ProcedureParameter.optional("equal_authorities", STRING_MAP),
+      ProcedureParameter.optional("prefix_mismatch_mode", DataTypes.StringType),
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -94,6 +101,27 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
             "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
 
+    Map<String, String> equalSchemes = Maps.newHashMap();
+    if (!args.isNullAt(6)) {
+      args.getMap(6).foreach(DataTypes.StringType, DataTypes.StringType,
+          (k, v) -> {
+            equalSchemes.put(k.toString(), v.toString());
+            return BoxedUnit.UNIT;
+          });
+    }
+
+    Map<String, String> equalAuthorities = Maps.newHashMap();
+    if (!args.isNullAt(7)) {
+      args.getMap(7).foreach(DataTypes.StringType, DataTypes.StringType,
+          (k, v) -> {
+            equalSchemes.put(k.toString(), v.toString());
+            return BoxedUnit.UNIT;
+          });
+    }
+
+    PrefixMismatchMode prefixMismatchMode = args.isNullAt(8) ? null :
+        PrefixMismatchMode.fromString(args.getString(8));
+
     return withIcebergTable(tableIdent, table -> {
       DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
 
@@ -119,6 +147,13 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
       if (fileListView != null) {
         action.compareToFileList(spark().table(fileListView));
+      }
+
+      action.equalSchemes(equalSchemes);
+      action.equalAuthorities(equalAuthorities);
+
+      if (prefixMismatchMode != null) {
+        action.prefixMismatchMode(prefixMismatchMode);
       }
 
       DeleteOrphanFiles.Result result = action.execute();
