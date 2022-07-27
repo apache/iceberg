@@ -39,6 +39,7 @@ import org.apache.spark.sql.types.StructType;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,22 +48,24 @@ import scala.collection.JavaConverters;
 
 @RunWith(Parameterized.class)
 public class TestFunctionCatalog extends SparkCatalogTestBase {
-  // TODO - Add tests for SparkCatalogConfig.SPARK once the `system` namespace is resolvable from the session catalog.
   @Parameterized.Parameters(name = "catalogConfig = {0}")
   public static Object[][] parameters() {
     return new Object[][]{
         {SparkCatalogConfig.HADOOP},
-        {SparkCatalogConfig.HIVE}
+        {SparkCatalogConfig.HIVE},
+        {SparkCatalogConfig.SPARK}
     };
   }
 
   private static final Namespace NS = Namespace.of("db");
+  private final boolean isSessionCatalog;
   private final String fullNamespace;
   private final FunctionCatalog asFunctionCatalog;
 
   public TestFunctionCatalog(SparkCatalogConfig catalogConfig) {
     super(catalogConfig);
-    this.fullNamespace = ("spark_catalog".equals(catalogName) ? "" : catalogName + ".") + NS;
+    this.isSessionCatalog = "spark_catalog".equals(catalogName);
+    this.fullNamespace = (isSessionCatalog ? "" : catalogName + ".") + NS;
     this.asFunctionCatalog = castToFunctionCatalog(catalogName);
   }
 
@@ -77,36 +80,31 @@ public class TestFunctionCatalog extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testLoadAndListFunctionsFromSystemNamespaces() throws NoSuchFunctionException, NoSuchNamespaceException {
+  public void testLoadListAndUseFunctionsFromSystemNamespace()
+      throws NoSuchFunctionException, NoSuchNamespaceException {
+    // TODO - Remove this assumption when the SparkSessionCatalog can resolve functions in the `system` namespace.
+    Assume.assumeFalse("The session catalog cannot use functions via the `system` namespace", isSessionCatalog);
     String[] namespace = {"system"};
-    Identifier identifier = Identifier.of(new String[]{"system"}, "truncate");
+    String name = "truncate";
+    Identifier identifier = Identifier.of(namespace, name);
 
-    UnboundFunction truncateFunc = asFunctionCatalog.loadFunction(identifier);
-    Assert.assertNotNull("truncate function should be loadable via the FunctionCatalog", truncateFunc);
-    Identifier[] identifiers = asFunctionCatalog.listFunctions(namespace);
-    Assert.assertTrue("Functions listed from the system namespace should not be empty",
-        identifiers.length > 0);
-    List<String> functionNames = Arrays.stream(identifiers).map(Identifier::name).collect(Collectors.toList());
-    Assertions.assertThat(functionNames).hasSameElementsAs(SparkFunctions.list());
-
-    ScalarFunction<Integer> boundTruncate = (ScalarFunction<Integer>) truncateFunc.bind(
-        new StructType()
-            .add("width", DataTypes.IntegerType)
-            .add("value", DataTypes.IntegerType));
-
-    Object width = Integer.valueOf(10);
-    Object toTruncate = Integer.valueOf(9);
-    Assert.assertEquals("Binding the truncate function from the function catalog should produce a usable function",
-            Integer.valueOf(0),
-            boundTruncate.produceResult(
-                InternalRow.fromSeq(
-                    JavaConverters.asScalaBufferConverter(ImmutableList.of(width, toTruncate)).asScala().toSeq())));
+    assertListingLoadingAndBindingFrom(identifier);
   }
 
   @Test
-  public void testLoadFunctionsFromInvalidNamespace() {
+  public void testLoadListAndUseFunctionsFromEmptyNamespace()
+          throws NoSuchFunctionException, NoSuchNamespaceException {
+    String[] namespace = { };
+    String name = "truncate";
+    Identifier identifier = Identifier.of(namespace, name);
+
+    assertListingLoadingAndBindingFrom(identifier);
+  }
+
+  @Test
+  public void testCannotLoadFunctionsFromInvalidNamespace() {
     AssertHelpers.assertThrows(
-        "Function Catalog functions should only be accessible from the system namespace",
+        "Function Catalog functions should only be accessible from the system namespace and empty namespace",
         AnalysisException.class,
         "Undefined function",
         () -> sql("SELECT %s.truncate(1, 2)", fullNamespace)
@@ -114,13 +112,49 @@ public class TestFunctionCatalog extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testUndefinedFunction() {
+  public void testCannotUseUndefinedFunction() {
     AssertHelpers.assertThrows(
-        "Using an undefined function on a defined namespace should throw",
+        "Using an undefined function should throw",
         AnalysisException.class,
         "Undefined function",
-        () -> sql("SELECT system.undefined_function(1, 2)")
+        () -> sql("SELECT undefined_function(1, 2)")
     );
+  }
+
+  private void assertListingLoadingAndBindingFrom(Identifier identifier)
+      throws NoSuchNamespaceException, NoSuchFunctionException {
+    String[] namespace = identifier.namespace();
+
+    Assert.assertTrue(
+        "The function catalog only allows using the namespace `system` or an empty namespace",
+        namespace.length == 0 || (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")));
+
+    // Load
+    UnboundFunction unboundFunction = asFunctionCatalog.loadFunction(identifier);
+    Assert.assertNotNull(identifier + " function should be loadable via the FunctionCatalog", unboundFunction);
+
+    // List
+    Identifier[] identifiers = asFunctionCatalog.listFunctions(namespace);
+    Assert.assertTrue(
+        String.format("Functions listed from the %s namespace should not be empty", Arrays.toString(namespace)),
+        identifiers.length > 0);
+    List<String> functionNames = Arrays.stream(identifiers).map(Identifier::name).collect(Collectors.toList());
+    Assertions.assertThat(functionNames).hasSameElementsAs(SparkFunctions.list());
+
+    // Bind - assumes truncate function is used
+    ScalarFunction<Integer> boundTruncate = (ScalarFunction<Integer>) unboundFunction.bind(
+            new StructType()
+                    .add("width", DataTypes.IntegerType)
+                    .add("value", DataTypes.IntegerType));
+
+    Object width = Integer.valueOf(10);
+    Object toTruncate = Integer.valueOf(9);
+    Assert.assertEquals(
+        String.format("Binding the %s function from the function catalog should produce a usable function", identifier),
+        Integer.valueOf(0),
+        boundTruncate.produceResult(
+            InternalRow.fromSeq(
+                JavaConverters.asScalaBufferConverter(ImmutableList.of(width, toTruncate)).asScala().toSeq())));
   }
 
   private FunctionCatalog castToFunctionCatalog(String name) {

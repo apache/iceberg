@@ -55,13 +55,11 @@ abstract class BaseCatalog
 
   @Override
   public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
-    if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
+    if (namespace.length == 0 || (namespace.length == 1 && namespace[0].equalsIgnoreCase("system"))) {
       return SparkFunctions.list().stream()
           .map(name -> Identifier.of(namespace, name))
           .toArray(Identifier[]::new);
-    }
-
-    if (namespace.length == 0 || namespaceExists(namespace)) {
+    } else if (namespaceExists(namespace)) {
       return new Identifier[0];
     }
 
@@ -73,7 +71,9 @@ abstract class BaseCatalog
     String[] namespace = ident.namespace();
     String name = ident.name();
 
-    if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
+    // Allow for empty namespace as Spark's storage partitioned joins look up the corresponding transform
+    // functions, like `bucket`, with an empty namespace
+    if (namespace.length == 0 || (namespace.length == 1 && namespace[0].equalsIgnoreCase("system"))) {
       UnboundFunction func = SparkFunctions.load(name);
       if (func != null) {
         return func;
