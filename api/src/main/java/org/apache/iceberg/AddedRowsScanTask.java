@@ -50,4 +50,14 @@ public interface AddedRowsScanTask extends ChangelogScanTask, ContentScanTask<Da
   default ChangelogOperation operation() {
     return ChangelogOperation.INSERT;
   }
+
+  @Override
+  default long sizeBytes() {
+    return length() + deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+  }
+
+  @Override
+  default int filesCount() {
+    return 1 + deletes().size();
+  }
 }

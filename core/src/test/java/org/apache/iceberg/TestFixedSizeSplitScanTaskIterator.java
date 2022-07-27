@@ -20,11 +20,10 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import org.apache.iceberg.BaseFileScanTask.SplitScanTask;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
-
-import static org.apache.iceberg.BaseFileScanTask.FixedSizeSplitScanTaskIterator;
 
 public class TestFixedSizeSplitScanTaskIterator {
   @Test
@@ -37,8 +36,12 @@ public class TestFixedSizeSplitScanTaskIterator {
   }
 
   private static void verify(long splitSize, long fileLen, List<List<Long>> offsetLenPairs) {
-    List<FileScanTask> tasks = Lists.newArrayList(
-        new FixedSizeSplitScanTaskIterator(splitSize, new MockFileScanTask(fileLen)));
+    FileScanTask mockFileScanTask = new MockFileScanTask(fileLen);
+    SplitScanTaskIterator<FileScanTask> splitTaskIterator = new FixedSizeSplitScanTaskIterator<>(
+        mockFileScanTask, mockFileScanTask.length(),
+        splitSize, TestFixedSizeSplitScanTaskIterator::createSplitTask);
+    List<FileScanTask> tasks = Lists.newArrayList(splitTaskIterator);
+
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);
       List<Long> split = offsetLenPairs.get(i);
@@ -51,5 +54,9 @@ public class TestFixedSizeSplitScanTaskIterator {
 
   private <T> List<T> asList(T... items) {
     return Lists.newArrayList(items);
+  }
+
+  private static FileScanTask createSplitTask(FileScanTask parentTask, long offset, long length) {
+    return new SplitScanTask(offset, length, parentTask);
   }
 }
