@@ -116,6 +116,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     return table;
   }
 
+  protected TaskT currentTask() {
+    return currentTask;
+  }
+
   public boolean next() throws IOException {
     try {
       while (true) {
