@@ -85,9 +85,11 @@ dependencyRecommendations {
   propertiesFile file: file('versions.props')
 }
 
+def projectVersion = getProjectVersion()
+
 allprojects {
   group = "org.apache.iceberg"
-  version = getProjectVersion()
+  version = projectVersion
   repositories {
     mavenCentral()
     mavenLocal()
