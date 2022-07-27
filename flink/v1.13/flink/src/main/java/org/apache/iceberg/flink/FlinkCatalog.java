@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.WatermarkSpec;
 import org.apache.flink.table.catalog.AbstractCatalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
@@ -49,6 +50,7 @@ import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
+import org.apache.flink.table.descriptors.DescriptorProperties;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.Factory;
 import org.apache.flink.util.StringUtils;
@@ -378,6 +380,31 @@ public class FlinkCatalog extends AbstractCatalog {
     PartitionSpec spec = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
 
     ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
+
+    List<WatermarkSpec> watermarkSpecs = table.getSchema().getWatermarkSpecs();
+    if (watermarkSpecs != null) {
+      if (watermarkSpecs.size() > 1) {
+        throw new IllegalStateException(
+            "Multiple watermark definition is not supported yet.");
+      }
+
+      for (int i = 0; i < watermarkSpecs.size(); i++) {
+        WatermarkSpec watermarkSpec = watermarkSpecs.get(i);
+        properties.put(
+            FlinkSchemaUtil.FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' +
+                DescriptorProperties.WATERMARK_ROWTIME,
+            watermarkSpec.getRowtimeAttribute());
+        properties.put(
+            FlinkSchemaUtil.FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' +
+                DescriptorProperties.WATERMARK_STRATEGY_EXPR,
+            watermarkSpec.getWatermarkExpr());
+        properties.put(
+            FlinkSchemaUtil.FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' +
+                DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE,
+            watermarkSpec.getWatermarkExprOutputType().toString());
+      }
+    }
+
     String location = null;
     for (Map.Entry<String, String> entry : table.getOptions().entrySet()) {
       if ("location".equalsIgnoreCase(entry.getKey())) {
@@ -475,10 +502,6 @@ public class FlinkCatalog extends AbstractCatalog {
         throw new UnsupportedOperationException("Creating table with computed columns is not supported yet.");
       }
     });
-
-    if (!schema.getWatermarkSpecs().isEmpty()) {
-      throw new UnsupportedOperationException("Creating table with watermark specs is not supported yet.");
-    }
   }
 
   private static PartitionSpec toPartitionSpec(List<String> partitionKeys, Schema icebergSchema) {
@@ -544,7 +567,7 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   static CatalogTable toCatalogTable(Table table) {
-    TableSchema schema = FlinkSchemaUtil.toSchema(table.schema());
+    TableSchema schema = FlinkSchemaUtil.toSchema(table.schema(), table.properties());
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
     // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer may use

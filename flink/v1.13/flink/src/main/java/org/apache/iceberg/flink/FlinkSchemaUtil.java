@@ -20,10 +20,17 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.descriptors.DescriptorProperties;
+import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.utils.LogicalTypeParser;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -51,6 +58,8 @@ import org.apache.iceberg.types.Types;
  * <p>
  */
 public class FlinkSchemaUtil {
+
+  public static final String FLINK_PREFIX = "flink.";
 
   private FlinkSchemaUtil() {
   }
@@ -149,12 +158,42 @@ public class FlinkSchemaUtil {
    * @param schema iceberg schema to convert.
    * @return Flink TableSchema.
    */
-  public static TableSchema toSchema(Schema schema) {
+  public static TableSchema toSchema(Schema schema, Map<String, String> properties) {
     TableSchema.Builder builder = TableSchema.builder();
 
     // Add columns.
     for (RowType.RowField field : convert(schema).getFields()) {
       builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+    }
+
+    // Add watermark
+    final int watermarkCount =
+        properties.keySet().stream()
+            .filter(
+                (k) ->
+                    k.startsWith(FLINK_PREFIX + DescriptorProperties.WATERMARK) &&
+                        k.endsWith('.' + DescriptorProperties.WATERMARK_ROWTIME))
+            .mapToInt((k) -> 1)
+            .sum();
+    if (watermarkCount > 0) {
+      for (int i = 0; i < watermarkCount; i++) {
+        final String rowtimeKey =
+            FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_ROWTIME;
+        final String exprKey =
+            FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' + DescriptorProperties.WATERMARK_STRATEGY_EXPR;
+        final String typeKey =
+            FLINK_PREFIX + DescriptorProperties.WATERMARK + '.' + i + '.' +
+                DescriptorProperties.WATERMARK_STRATEGY_DATA_TYPE;
+        final String rowtime =
+            optionalGet(rowtimeKey, properties).orElseThrow(exceptionSupplier(rowtimeKey));
+        final String exprString =
+            optionalGet(exprKey, properties).orElseThrow(exceptionSupplier(exprKey));
+        final String typeString =
+            optionalGet(typeKey, properties).orElseThrow(exceptionSupplier(typeKey));
+        final DataType exprType =
+            TypeConversions.fromLogicalToDataType(LogicalTypeParser.parse(typeString));
+        builder.watermark(rowtime, exprString, exprType);
+      }
     }
 
     // Add primary key.
@@ -171,5 +210,17 @@ public class FlinkSchemaUtil {
     }
 
     return builder.build();
+  }
+
+  private static Optional<String> optionalGet(String key, Map<String, String> properties) {
+    return Optional.ofNullable(properties.get(key));
+  }
+
+  private static Supplier<TableException> exceptionSupplier(String key) {
+    return () -> {
+      throw new TableException(
+          "Required property with key '" + key + "' could not be found. " +
+              "This is a bug because the validation logic should have checked that before.");
+    };
   }
 }

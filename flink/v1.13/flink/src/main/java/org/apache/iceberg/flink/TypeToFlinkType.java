@@ -108,10 +108,10 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
         Types.TimestampType timestamp = (Types.TimestampType) primitive;
         if (timestamp.shouldAdjustToUTC()) {
           // MICROS
-          return new LocalZonedTimestampType(6);
+          return new LocalZonedTimestampType(3);
         } else {
           // MICROS
-          return new TimestampType(6);
+          return new TimestampType(3);
         }
       case STRING:
         return new VarCharType(VarCharType.MAX_LENGTH);
