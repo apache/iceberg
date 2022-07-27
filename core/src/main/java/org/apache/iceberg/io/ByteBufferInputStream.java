@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.EOFException;
@@ -46,8 +45,7 @@ public abstract class ByteBufferInputStream extends SeekableInputStream {
   public void skipFully(long length) throws IOException {
     long skipped = skip(length);
     if (skipped < length) {
-      throw new EOFException(
-          "Not enough bytes to skip: " + skipped + " < " + length);
+      throw new EOFException("Not enough bytes to skip: " + skipped + " < " + length);
     }
   }
 

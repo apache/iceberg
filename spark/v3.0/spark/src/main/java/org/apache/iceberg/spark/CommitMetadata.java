@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.Map;
@@ -24,20 +23,18 @@ import java.util.concurrent.Callable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ExceptionUtil;
 
-/**
- * utility class to accept thread local commit properties
- */
+/** utility class to accept thread local commit properties */
 public class CommitMetadata {
 
-  private CommitMetadata() {
+  private CommitMetadata() {}
 
-  }
-
-  private static final ThreadLocal<Map<String, String>> COMMIT_PROPERTIES = ThreadLocal.withInitial(ImmutableMap::of);
+  private static final ThreadLocal<Map<String, String>> COMMIT_PROPERTIES =
+      ThreadLocal.withInitial(ImmutableMap::of);
 
   /**
-   * running the code wrapped as a caller, and any snapshot committed within the callable object will be attached with
-   * the metadata defined in properties
+   * running the code wrapped as a caller, and any snapshot committed within the callable object
+   * will be attached with the metadata defined in properties
+   *
    * @param properties extra commit metadata to attach to the snapshot committed within callable
    * @param callable the code to be executed
    * @param exClass the expected type of exception which would be thrown from callable

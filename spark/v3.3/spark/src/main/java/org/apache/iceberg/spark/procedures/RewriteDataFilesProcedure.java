@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.List;
@@ -52,19 +51,24 @@ import scala.runtime.BoxedUnit;
  */
 class RewriteDataFilesProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-          ProcedureParameter.required("table", DataTypes.StringType),
-          ProcedureParameter.optional("strategy", DataTypes.StringType),
-          ProcedureParameter.optional("sort_order", DataTypes.StringType),
-          ProcedureParameter.optional("options", STRING_MAP),
-          ProcedureParameter.optional("where", DataTypes.StringType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("strategy", DataTypes.StringType),
+        ProcedureParameter.optional("sort_order", DataTypes.StringType),
+        ProcedureParameter.optional("options", STRING_MAP),
+        ProcedureParameter.optional("where", DataTypes.StringType)
+      };
 
   // counts are not nullable since the action result is never null
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("rewritten_data_files_count", DataTypes.IntegerType, false, Metadata.empty()),
-      new StructField("added_data_files_count", DataTypes.IntegerType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField(
+                "rewritten_data_files_count", DataTypes.IntegerType, false, Metadata.empty()),
+            new StructField(
+                "added_data_files_count", DataTypes.IntegerType, false, Metadata.empty())
+          });
 
   public static ProcedureBuilder builder() {
     return new Builder<RewriteDataFilesProcedure>() {
@@ -93,35 +97,40 @@ class RewriteDataFilesProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
 
-    return modifyIcebergTable(tableIdent, table -> {
-      String quotedFullIdentifier = Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
-      RewriteDataFiles action = actions().rewriteDataFiles(table);
+    return modifyIcebergTable(
+        tableIdent,
+        table -> {
+          String quotedFullIdentifier =
+              Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
+          RewriteDataFiles action = actions().rewriteDataFiles(table);
 
-      String strategy = args.isNullAt(1) ? null : args.getString(1);
-      String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
+          String strategy = args.isNullAt(1) ? null : args.getString(1);
+          String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
 
-      if (strategy != null || sortOrderString != null) {
-        action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
-      }
+          if (strategy != null || sortOrderString != null) {
+            action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
+          }
 
-      if (!args.isNullAt(3)) {
-        action = checkAndApplyOptions(args, action);
-      }
+          if (!args.isNullAt(3)) {
+            action = checkAndApplyOptions(args, action);
+          }
 
-      String where = args.isNullAt(4) ? null : args.getString(4);
+          String where = args.isNullAt(4) ? null : args.getString(4);
 
-      action = checkAndApplyFilter(action, where, quotedFullIdentifier);
+          action = checkAndApplyFilter(action, where, quotedFullIdentifier);
 
-      RewriteDataFiles.Result result = action.execute();
+          RewriteDataFiles.Result result = action.execute();
 
-      return toOutputRows(result);
-    });
+          return toOutputRows(result);
+        });
   }
 
-  private RewriteDataFiles checkAndApplyFilter(RewriteDataFiles action, String where, String tableName) {
+  private RewriteDataFiles checkAndApplyFilter(
+      RewriteDataFiles action, String where, String tableName) {
     if (where != null) {
       try {
-        Expression expression = SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
+        Expression expression =
+            SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
         return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
       } catch (AnalysisException e) {
         throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
@@ -132,7 +141,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   private RewriteDataFiles checkAndApplyOptions(InternalRow args, RewriteDataFiles action) {
     Map<String, String> options = Maps.newHashMap();
-    args.getMap(3).foreach(DataTypes.StringType, DataTypes.StringType,
+    args.getMap(3)
+        .foreach(
+            DataTypes.StringType,
+            DataTypes.StringType,
             (k, v) -> {
               options.put(k.toString(), v.toString());
               return BoxedUnit.UNIT;
@@ -140,18 +152,20 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return action.options(options);
   }
 
-  private RewriteDataFiles checkAndApplyStrategy(RewriteDataFiles action, String strategy, String sortOrderString,
-                                                 Schema schema) {
+  private RewriteDataFiles checkAndApplyStrategy(
+      RewriteDataFiles action, String strategy, String sortOrderString, Schema schema) {
     List<Zorder> zOrderTerms = Lists.newArrayList();
     List<ExtendedParser.RawOrderField> sortOrderFields = Lists.newArrayList();
     if (sortOrderString != null) {
-      ExtendedParser.parseSortOrder(spark(), sortOrderString).forEach(field -> {
-        if (field.term() instanceof Zorder) {
-          zOrderTerms.add((Zorder) field.term());
-        } else {
-          sortOrderFields.add(field);
-        }
-      });
+      ExtendedParser.parseSortOrder(spark(), sortOrderString)
+          .forEach(
+              field -> {
+                if (field.term() instanceof Zorder) {
+                  zOrderTerms.add((Zorder) field.term());
+                } else {
+                  sortOrderFields.add(field);
+                }
+              });
 
       if (!zOrderTerms.isEmpty() && !sortOrderFields.isEmpty()) {
         // TODO: we need to allow this in future when SparkAction has handling for this.
@@ -160,11 +174,14 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       }
     }
 
-    // caller of this function ensures that between strategy and sortOrder, at least one of them is not null.
+    // caller of this function ensures that between strategy and sortOrder, at least one of them is
+    // not null.
     if (strategy == null || strategy.equalsIgnoreCase("sort")) {
       if (!zOrderTerms.isEmpty()) {
-        String[] columnNames = zOrderTerms.stream().flatMap(
-            zOrder -> zOrder.refs().stream().map(NamedReference::name)).toArray(String[]::new);
+        String[] columnNames =
+            zOrderTerms.stream()
+                .flatMap(zOrder -> zOrder.refs().stream().map(NamedReference::name))
+                .toArray(String[]::new);
         return action.zOrder(columnNames);
       } else {
         return action.sort(buildSortOrder(sortOrderFields, schema));
@@ -173,7 +190,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     if (strategy.equalsIgnoreCase("binpack")) {
       RewriteDataFiles rewriteDataFiles = action.binPack();
       if (sortOrderString != null) {
-        // calling below method to throw the error as user has set both binpack strategy and sort order
+        // calling below method to throw the error as user has set both binpack strategy and sort
+        // order
         return rewriteDataFiles.sort(buildSortOrder(sortOrderFields, schema));
       }
       return rewriteDataFiles;
@@ -183,9 +201,11 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     }
   }
 
-  private SortOrder buildSortOrder(List<ExtendedParser.RawOrderField> rawOrderFields, Schema schema) {
+  private SortOrder buildSortOrder(
+      List<ExtendedParser.RawOrderField> rawOrderFields, Schema schema) {
     SortOrder.Builder builder = SortOrder.builderFor(schema);
-    rawOrderFields.forEach(rawField -> builder.sortBy(rawField.term(), rawField.direction(), rawField.nullOrder()));
+    rawOrderFields.forEach(
+        rawField -> builder.sortBy(rawField.term(), rawField.direction(), rawField.nullOrder()));
     return builder.build();
   }
 
@@ -193,7 +213,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     int rewrittenDataFilesCount = result.rewrittenDataFilesCount();
     int addedDataFilesCount = result.addedDataFilesCount();
     InternalRow row = newInternalRow(rewrittenDataFilesCount, addedDataFilesCount);
-    return new InternalRow[]{row};
+    return new InternalRow[] {row};
   }
 
   @Override

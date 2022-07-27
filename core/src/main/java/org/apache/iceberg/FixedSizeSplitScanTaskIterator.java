@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 /**
@@ -31,8 +30,11 @@ class FixedSizeSplitScanTaskIterator<T extends ScanTask> implements SplitScanTas
   private long offset;
   private long remainingLength;
 
-  FixedSizeSplitScanTaskIterator(T parentTask, long parentTaskLength, long splitSize,
-                                 SplitScanTaskCreator<T> splitTaskCreator) {
+  FixedSizeSplitScanTaskIterator(
+      T parentTask,
+      long parentTaskLength,
+      long splitSize,
+      SplitScanTaskCreator<T> splitTaskCreator) {
     this.parentTask = parentTask;
     this.splitSize = splitSize;
     this.splitTaskCreator = splitTaskCreator;

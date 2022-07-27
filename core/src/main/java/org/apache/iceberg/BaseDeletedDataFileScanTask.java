@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -29,8 +28,14 @@ class BaseDeletedDataFileScanTask
 
   private final DeleteFile[] deletes;
 
-  BaseDeletedDataFileScanTask(int changeOrdinal, long commitSnapshotId, DataFile file, DeleteFile[] deletes,
-                              String schemaString, String specString, ResidualEvaluator residuals) {
+  BaseDeletedDataFileScanTask(
+      int changeOrdinal,
+      long commitSnapshotId,
+      DataFile file,
+      DeleteFile[] deletes,
+      String schemaString,
+      String specString,
+      ResidualEvaluator residuals) {
     super(changeOrdinal, commitSnapshotId, file, schemaString, specString, residuals);
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
   }
@@ -41,7 +46,8 @@ class BaseDeletedDataFileScanTask
   }
 
   @Override
-  protected DeletedDataFileScanTask newSplitTask(DeletedDataFileScanTask parentTask, long offset, long length) {
+  protected DeletedDataFileScanTask newSplitTask(
+      DeletedDataFileScanTask parentTask, long offset, long length) {
     return new SplitDeletedDataFileScanTask(parentTask, offset, length);
   }
 

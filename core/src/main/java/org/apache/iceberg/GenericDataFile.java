@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
@@ -27,19 +26,39 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
 class GenericDataFile extends BaseFile<DataFile> implements DataFile {
-  /**
-   * Used by Avro reflection to instantiate this class when reading manifest files.
-   */
+  /** Used by Avro reflection to instantiate this class when reading manifest files. */
   GenericDataFile(Schema avroSchema) {
     super(avroSchema);
   }
 
-  GenericDataFile(int specId, String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, Metrics metrics,
-                  ByteBuffer keyMetadata, List<Long> splitOffsets, Integer sortOrderId) {
-    super(specId, FileContent.DATA, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
-        metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(), metrics.nanValueCounts(),
-        metrics.lowerBounds(), metrics.upperBounds(), splitOffsets, null, sortOrderId, keyMetadata);
+  GenericDataFile(
+      int specId,
+      String filePath,
+      FileFormat format,
+      PartitionData partition,
+      long fileSizeInBytes,
+      Metrics metrics,
+      ByteBuffer keyMetadata,
+      List<Long> splitOffsets,
+      Integer sortOrderId) {
+    super(
+        specId,
+        FileContent.DATA,
+        filePath,
+        format,
+        partition,
+        fileSizeInBytes,
+        metrics.recordCount(),
+        metrics.columnSizes(),
+        metrics.valueCounts(),
+        metrics.nullValueCounts(),
+        metrics.nanValueCounts(),
+        metrics.lowerBounds(),
+        metrics.upperBounds(),
+        splitOffsets,
+        null,
+        sortOrderId,
+        keyMetadata);
   }
 
   /**
@@ -52,11 +71,8 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
     super(toCopy, fullCopy);
   }
 
-  /**
-   * Constructor for Java serialization.
-   */
-  GenericDataFile() {
-  }
+  /** Constructor for Java serialization. */
+  GenericDataFile() {}
 
   @Override
   public DataFile copyWithoutStats() {
@@ -71,8 +87,10 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
   @Override
   protected Schema getAvroSchema(Types.StructType partitionStruct) {
     Types.StructType type = DataFile.getType(partitionStruct);
-    return AvroSchemaUtil.convert(type, ImmutableMap.of(
-        type, GenericDataFile.class.getName(),
-        partitionStruct, PartitionData.class.getName()));
+    return AvroSchemaUtil.convert(
+        type,
+        ImmutableMap.of(
+            type, GenericDataFile.class.getName(),
+            partitionStruct, PartitionData.class.getName()));
   }
 }

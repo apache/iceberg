@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import java.util.List;
@@ -37,8 +36,14 @@ public class BlobMetadata {
   private final Map<String, String> properties;
 
   public BlobMetadata(
-      String type, List<Integer> inputFields, long snapshotId, long sequenceNumber,
-      long offset, long length, @Nullable String compressionCodec, Map<String, String> properties) {
+      String type,
+      List<Integer> inputFields,
+      long snapshotId,
+      long sequenceNumber,
+      long offset,
+      long length,
+      @Nullable String compressionCodec,
+      Map<String, String> properties) {
     Preconditions.checkNotNull(type, "type is null");
     Preconditions.checkNotNull(inputFields, "inputFields is null");
     Preconditions.checkNotNull(properties, "properties is null");
@@ -60,30 +65,22 @@ public class BlobMetadata {
     return inputFields;
   }
 
-  /**
-   * ID of the Iceberg table's snapshot the blob was computed from
-   */
+  /** ID of the Iceberg table's snapshot the blob was computed from */
   public long snapshotId() {
     return snapshotId;
   }
 
-  /**
-   * Sequence number of the Iceberg table's snapshot the blob was computed from
-   */
+  /** Sequence number of the Iceberg table's snapshot the blob was computed from */
   public long sequenceNumber() {
     return sequenceNumber;
   }
 
-  /**
-   * Offset in the file
-   */
+  /** Offset in the file */
   public long offset() {
     return offset;
   }
 
-  /**
-   * Length in the file
-   */
+  /** Length in the file */
   public long length() {
     return length;
   }

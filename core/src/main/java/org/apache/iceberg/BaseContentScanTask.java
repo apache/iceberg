@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
@@ -84,9 +83,13 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
   public Iterable<ThisT> split(long targetSplitSize) {
     if (file.format().isSplittable()) {
       if (file.splitOffsets() != null && OFFSET_ORDERING.isOrdered(file.splitOffsets())) {
-        return () -> new OffsetsAwareSplitScanTaskIterator<>(self(), length(), file.splitOffsets(), this::newSplitTask);
+        return () ->
+            new OffsetsAwareSplitScanTaskIterator<>(
+                self(), length(), file.splitOffsets(), this::newSplitTask);
       } else {
-        return () -> new FixedSizeSplitScanTaskIterator<>(self(), length(), targetSplitSize, this::newSplitTask);
+        return () ->
+            new FixedSizeSplitScanTaskIterator<>(
+                self(), length(), targetSplitSize, this::newSplitTask);
       }
     }
 

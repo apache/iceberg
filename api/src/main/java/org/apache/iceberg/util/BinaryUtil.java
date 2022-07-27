@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
@@ -25,17 +24,16 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BinaryUtil {
   // not meant to be instantiated
-  private BinaryUtil() {
-  }
+  private BinaryUtil() {}
 
   private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0);
 
   /**
    * Truncates the input byte buffer to the given length.
-   * <p>
-   * We allow for a length of zero so that rows with empty string can be evaluated.
-   * Partition specs still cannot be created with a length of zero due to a constraint
-   * when parsing column truncation specs in {@code org.apache.iceberg.MetricsModes}.
+   *
+   * <p>We allow for a length of zero so that rows with empty string can be evaluated. Partition
+   * specs still cannot be created with a length of zero due to a constraint when parsing column
+   * truncation specs in {@code org.apache.iceberg.MetricsModes}.
    *
    * @param input The ByteBuffer to be truncated
    * @param length The non-negative length to truncate input to
@@ -53,7 +51,8 @@ public class BinaryUtil {
   }
 
   /**
-   * Returns a byte buffer whose length is lesser than or equal to truncateLength and is lower than the given input
+   * Returns a byte buffer whose length is lesser than or equal to truncateLength and is lower than
+   * the given input
    */
   public static Literal<ByteBuffer> truncateBinaryMin(Literal<ByteBuffer> input, int length) {
     ByteBuffer inputBuffer = input.value();
@@ -64,7 +63,8 @@ public class BinaryUtil {
   }
 
   /**
-   * Returns a byte buffer whose length is lesser than or equal to truncateLength and is greater than the given input
+   * Returns a byte buffer whose length is lesser than or equal to truncateLength and is greater
+   * than the given input
    */
   public static Literal<ByteBuffer> truncateBinaryMax(Literal<ByteBuffer> input, int length) {
     ByteBuffer inputBuffer = input.value();
@@ -75,7 +75,8 @@ public class BinaryUtil {
     // Truncate the input to the specified truncate length.
     ByteBuffer truncatedInput = truncateBinary(inputBuffer, length);
 
-    // Try incrementing the bytes from the end. If all bytes overflow after incrementing, then return null
+    // Try incrementing the bytes from the end. If all bytes overflow after incrementing, then
+    // return null
     for (int i = length - 1; i >= 0; --i) {
       byte element = truncatedInput.get(i);
       element = (byte) (element + 1);

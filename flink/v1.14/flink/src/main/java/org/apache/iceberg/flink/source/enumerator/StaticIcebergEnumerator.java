@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.util.List;
@@ -34,9 +33,7 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * One-time split enumeration at the start-up for batch execution
- */
+/** One-time split enumeration at the start-up for batch execution */
 @Internal
 public class StaticIcebergEnumerator extends AbstractIcebergEnumerator {
   private static final Logger LOG = LoggerFactory.getLogger(StaticIcebergEnumerator.class);
@@ -64,18 +61,26 @@ public class StaticIcebergEnumerator extends AbstractIcebergEnumerator {
   public void start() {
     super.start();
     if (shouldEnumerate) {
-      // Ideally, operatorId should be used as the threadPoolName as Flink guarantees its uniqueness within a job.
-      // SplitEnumeratorContext doesn't expose the OperatorCoordinator.Context, which would contain the OperatorID.
-      // Need to discuss with Flink community whether it is ok to expose a public API like the protected method
-      // "OperatorCoordinator.Context getCoordinatorContext()" from SourceCoordinatorContext implementation.
+      // Ideally, operatorId should be used as the threadPoolName as Flink guarantees its uniqueness
+      // within a job.
+      // SplitEnumeratorContext doesn't expose the OperatorCoordinator.Context, which would contain
+      // the OperatorID.
+      // Need to discuss with Flink community whether it is ok to expose a public API like the
+      // protected method
+      // "OperatorCoordinator.Context getCoordinatorContext()" from SourceCoordinatorContext
+      // implementation.
       // For now, <table name>-<random UUID> is used as the unique thread pool name.
       String threadName = "iceberg-plan-worker-pool-" + table.name() + "-" + UUID.randomUUID();
-      ExecutorService workerPool = ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
+      ExecutorService workerPool =
+          ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
       try {
-        List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
+        List<IcebergSourceSplit> splits =
+            FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
         assigner.onDiscoveredSplits(splits);
-        LOG.info("Discovered {} splits from table {} during job initialization",
-            splits.size(), table.name());
+        LOG.info(
+            "Discovered {} splits from table {} during job initialization",
+            splits.size(),
+            table.name());
       } finally {
         workerPool.shutdown();
       }

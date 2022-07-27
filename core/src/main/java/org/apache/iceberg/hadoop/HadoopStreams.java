@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
@@ -37,12 +36,11 @@ import org.slf4j.LoggerFactory;
 /**
  * Convenience methods to get Parquet abstractions for Hadoop data streams.
  *
- * This class is based on Parquet's HadoopStreams.
+ * <p>This class is based on Parquet's HadoopStreams.
  */
 class HadoopStreams {
 
-  private HadoopStreams() {
-  }
+  private HadoopStreams() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopStreams.class);
 
@@ -71,7 +69,8 @@ class HadoopStreams {
    * SeekableInputStream implementation for FSDataInputStream that implements ByteBufferReadable in
    * Hadoop 2.
    */
-  private static class HadoopSeekableInputStream extends SeekableInputStream implements DelegatingInputStream {
+  private static class HadoopSeekableInputStream extends SeekableInputStream
+      implements DelegatingInputStream {
     private final FSDataInputStream stream;
     private final StackTraceElement[] createStack;
     private boolean closed;
@@ -123,17 +122,16 @@ class HadoopStreams {
       super.finalize();
       if (!closed) {
         close(); // releasing resources is more important than printing the warning
-        String trace = Joiner.on("\n\t").join(
-            Arrays.copyOfRange(createStack, 1, createStack.length));
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
         LOG.warn("Unclosed input stream created by:\n\t{}", trace);
       }
     }
   }
 
-  /**
-   * PositionOutputStream implementation for FSDataOutputStream.
-   */
-  private static class HadoopPositionOutputStream extends PositionOutputStream implements DelegatingOutputStream {
+  /** PositionOutputStream implementation for FSDataOutputStream. */
+  private static class HadoopPositionOutputStream extends PositionOutputStream
+      implements DelegatingOutputStream {
     private final FSDataOutputStream stream;
     private final StackTraceElement[] createStack;
     private boolean closed;
@@ -186,8 +184,8 @@ class HadoopStreams {
       super.finalize();
       if (!closed) {
         close(); // releasing resources is more important than printing the warning
-        String trace = Joiner.on("\n\t").join(
-            Arrays.copyOfRange(createStack, 1, createStack.length));
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
         LOG.warn("Unclosed output stream created by:\n\t{}", trace);
       }
     }

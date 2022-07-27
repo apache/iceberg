@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
+
+import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -68,28 +69,24 @@ import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
 
-import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
-
 public class SimpleDataUtil {
 
-  private SimpleDataUtil() {
-  }
+  private SimpleDataUtil() {}
 
-  public static final Schema SCHEMA = new Schema(
-      Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-      Types.NestedField.optional(2, "data", Types.StringType.get())
-  );
+  public static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-  public static final TableSchema FLINK_SCHEMA = TableSchema.builder()
-      .field("id", DataTypes.INT())
-      .field("data", DataTypes.STRING())
-      .build();
+  public static final TableSchema FLINK_SCHEMA =
+      TableSchema.builder().field("id", DataTypes.INT()).field("data", DataTypes.STRING()).build();
 
   public static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
 
   public static final Record RECORD = GenericRecord.create(SCHEMA);
 
-  public static Table createTable(String path, Map<String, String> properties, boolean partitioned) {
+  public static Table createTable(
+      String path, Map<String, String> properties, boolean partitioned) {
     PartitionSpec spec;
     if (partitioned) {
       spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -126,8 +123,13 @@ public class SimpleDataUtil {
     return GenericRowData.ofKind(RowKind.UPDATE_AFTER, id, StringData.fromString(data));
   }
 
-  public static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf,
-                                   String location, String filename, List<RowData> rows)
+  public static DataFile writeFile(
+      Schema schema,
+      PartitionSpec spec,
+      Configuration conf,
+      String location,
+      String filename,
+      List<RowData> rows)
       throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
@@ -148,27 +150,38 @@ public class SimpleDataUtil {
         .build();
   }
 
-  public static DeleteFile writeEqDeleteFile(Table table, FileFormat format, String tablePath, String filename,
-                                             FileAppenderFactory<RowData> appenderFactory,
-                                             List<RowData> deletes) throws IOException {
+  public static DeleteFile writeEqDeleteFile(
+      Table table,
+      FileFormat format,
+      String tablePath,
+      String filename,
+      FileAppenderFactory<RowData> appenderFactory,
+      List<RowData> deletes)
+      throws IOException {
     EncryptedOutputFile outputFile =
         table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
 
-    EqualityDeleteWriter<RowData> eqWriter = appenderFactory.newEqDeleteWriter(outputFile, format, null);
+    EqualityDeleteWriter<RowData> eqWriter =
+        appenderFactory.newEqDeleteWriter(outputFile, format, null);
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
       writer.deleteAll(deletes);
     }
     return eqWriter.toDeleteFile();
   }
 
-  public static DeleteFile writePosDeleteFile(Table table, FileFormat format, String tablePath,
-                                              String filename,
-                                              FileAppenderFactory<RowData> appenderFactory,
-                                              List<Pair<CharSequence, Long>> positions) throws IOException {
+  public static DeleteFile writePosDeleteFile(
+      Table table,
+      FileFormat format,
+      String tablePath,
+      String filename,
+      FileAppenderFactory<RowData> appenderFactory,
+      List<Pair<CharSequence, Long>> positions)
+      throws IOException {
     EncryptedOutputFile outputFile =
         table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
 
-    PositionDeleteWriter<RowData> posWriter = appenderFactory.newPosDeleteWriter(outputFile, format, null);
+    PositionDeleteWriter<RowData> posWriter =
+        appenderFactory.newPosDeleteWriter(outputFile, format, null);
     try (PositionDeleteWriter<RowData> writer = posWriter) {
       for (Pair<CharSequence, Long> p : positions) {
         writer.delete(p.first(), p.second());
@@ -195,9 +208,7 @@ public class SimpleDataUtil {
     assertTableRecords(table, convertToRecords(expected));
   }
 
-  /**
-   * Get all rows for a table
-   */
+  /** Get all rows for a table */
   public static List<Record> tableRecords(Table table) throws IOException {
     table.refresh();
     List<Record> records = Lists.newArrayList();
@@ -221,7 +232,8 @@ public class SimpleDataUtil {
     return expectedSet.equals(actualSet);
   }
 
-  private static void assertRecordsEqual(List<Record> expected, List<Record> actual, Schema schema) {
+  private static void assertRecordsEqual(
+      List<Record> expected, List<Record> actual, Schema schema) {
     Assert.assertEquals(expected.size(), actual.size());
     Types.StructType type = schema.asStruct();
     StructLikeSet expectedSet = StructLikeSet.create(type);
@@ -232,12 +244,12 @@ public class SimpleDataUtil {
   }
 
   /**
-   * Assert table contains the expected list of records after
-   * waiting up to {@code maxCheckCount} with {@code checkInterval}
+   * Assert table contains the expected list of records after waiting up to {@code maxCheckCount}
+   * with {@code checkInterval}
    */
   public static void assertTableRecords(
-          Table table, List<Record> expected, Duration checkInterval, int maxCheckCount)
-          throws IOException, InterruptedException {
+      Table table, List<Record> expected, Duration checkInterval, int maxCheckCount)
+      throws IOException, InterruptedException {
     for (int i = 0; i < maxCheckCount; ++i) {
       if (equalsRecords(expected, tableRecords(table), table.schema())) {
         break;
@@ -267,7 +279,8 @@ public class SimpleDataUtil {
     }
   }
 
-  public static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
+  public static void assertTableRecords(String tablePath, List<Record> expected)
+      throws IOException {
     Preconditions.checkArgument(expected != null, "expected records shouldn't be null");
     assertTableRecords(new HadoopTables().load(tablePath), expected);
   }
@@ -282,14 +295,15 @@ public class SimpleDataUtil {
     return actualRowSet(table, null, columns);
   }
 
-  public static StructLikeSet actualRowSet(Table table, Long snapshotId, String... columns) throws IOException {
+  public static StructLikeSet actualRowSet(Table table, Long snapshotId, String... columns)
+      throws IOException {
     table.refresh();
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics
-        .read(table)
-        .useSnapshot(snapshotId == null ? table.currentSnapshot().snapshotId() : snapshotId)
-        .select(columns)
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        IcebergGenerics.read(table)
+            .useSnapshot(snapshotId == null ? table.currentSnapshot().snapshotId() : snapshotId)
+            .select(columns)
+            .build()) {
       reader.forEach(set::add);
     }
     return set;
@@ -301,16 +315,14 @@ public class SimpleDataUtil {
     Types.StructType partitionType = table.spec().partitionType();
 
     Record partitionRecord = GenericRecord.create(partitionType).copy(partitionValues);
-    StructLikeWrapper expectedWrapper = StructLikeWrapper
-        .forType(partitionType)
-        .set(partitionRecord);
+    StructLikeWrapper expectedWrapper =
+        StructLikeWrapper.forType(partitionType).set(partitionRecord);
 
     List<DataFile> dataFiles = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       for (FileScanTask scanTask : fileScanTasks) {
-        StructLikeWrapper wrapper = StructLikeWrapper
-            .forType(partitionType)
-            .set(scanTask.file().partition());
+        StructLikeWrapper wrapper =
+            StructLikeWrapper.forType(partitionType).set(scanTask.file().partition());
 
         if (expectedWrapper.equals(wrapper)) {
           dataFiles.add(scanTask.file());
@@ -336,7 +348,9 @@ public class SimpleDataUtil {
         tableScan = tableScan.useSnapshot(current.snapshotId());
       }
       try (CloseableIterable<FileScanTask> scanTasks = tableScan.planFiles()) {
-        result.put(current.snapshotId(), ImmutableList.copyOf(Iterables.transform(scanTasks, FileScanTask::file)));
+        result.put(
+            current.snapshotId(),
+            ImmutableList.copyOf(Iterables.transform(scanTasks, FileScanTask::file)));
       }
 
       // Continue to traverse the parent snapshot if exists.
@@ -353,13 +367,14 @@ public class SimpleDataUtil {
       List<DataFile> dataFiles, PartitionSpec partitionSpec, Map<String, Object> partitionValues) {
     Types.StructType partitionType = partitionSpec.partitionType();
     Record partitionRecord = GenericRecord.create(partitionType).copy(partitionValues);
-    StructLikeWrapper expected = StructLikeWrapper
-        .forType(partitionType)
-        .set(partitionRecord);
-    return dataFiles.stream().filter(df -> {
-      StructLikeWrapper wrapper = StructLikeWrapper.forType(partitionType).set(df.partition());
-      return wrapper.equals(expected);
-    }).collect(Collectors.toList());
+    StructLikeWrapper expected = StructLikeWrapper.forType(partitionType).set(partitionRecord);
+    return dataFiles.stream()
+        .filter(
+            df -> {
+              StructLikeWrapper wrapper =
+                  StructLikeWrapper.forType(partitionType).set(df.partition());
+              return wrapper.equals(expected);
+            })
+        .collect(Collectors.toList());
   }
-
 }

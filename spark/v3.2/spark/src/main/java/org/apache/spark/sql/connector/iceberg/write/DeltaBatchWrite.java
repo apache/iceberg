@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.write;
 
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 
-/**
- * An interface that defines how to write a delta of rows during batch processing.
- */
+/** An interface that defines how to write a delta of rows during batch processing. */
 public interface DeltaBatchWrite extends BatchWrite {
   @Override
   DeltaWriterFactory createBatchWriterFactory(PhysicalWriteInfo info);

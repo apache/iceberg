@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.Closeable;
@@ -84,7 +83,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private T current = null;
   private TaskT currentTask = null;
 
-  BaseReader(Table table, ScanTaskGroup<TaskT> taskGroup, Schema expectedSchema, boolean caseSensitive) {
+  BaseReader(
+      Table table, ScanTaskGroup<TaskT> taskGroup, Schema expectedSchema, boolean caseSensitive) {
     this.table = table;
     this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
@@ -92,7 +92,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
     String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-    this.nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+    this.nameMapping =
+        nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
@@ -132,9 +133,10 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       }
     } catch (IOException | RuntimeException e) {
       if (currentTask != null && !currentTask.isDataTask()) {
-        String filePaths = referencedFiles(currentTask)
-            .map(file -> file.path().toString())
-            .collect(Collectors.joining(", "));
+        String filePaths =
+            referencedFiles(currentTask)
+                .map(file -> file.path().toString())
+                .collect(Collectors.joining(", "));
         LOG.error("Error reading file(s): {}", filePaths, e);
       }
       throw e;
@@ -164,9 +166,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
-      Stream<EncryptedInputFile> encryptedFiles = taskGroup.tasks().stream()
-          .flatMap(this::referencedFiles)
-          .map(this::toEncryptedInputFile);
+      Stream<EncryptedInputFile> encryptedFiles =
+          taskGroup.tasks().stream().flatMap(this::referencedFiles).map(this::toEncryptedInputFile);
 
       // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
       Iterable<InputFile> decryptedFiles = table.encryption().decrypt(encryptedFiles::iterator);
@@ -230,7 +231,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         for (int index = 0; index < fields.size(); index++) {
           NestedField field = fields.get(index);
           Type fieldType = field.type();
-          values[index] = convertConstant(fieldType, struct.get(index, fieldType.typeId().javaClass()));
+          values[index] =
+              convertConstant(fieldType, struct.get(index, fieldType.typeId().javaClass()));
         }
 
         return new GenericInternalRow(values);

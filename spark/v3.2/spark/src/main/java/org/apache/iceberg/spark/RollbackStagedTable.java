@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.Map;
@@ -41,22 +40,25 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /**
  * An implementation of StagedTable that mimics the behavior of Spark's non-atomic CTAS and RTAS.
- * <p>
- * A Spark catalog can implement StagingTableCatalog to support atomic operations by producing StagedTable. But if a
- * catalog implements StagingTableCatalog, Spark expects the catalog to be able to produce a StagedTable for any table
- * loaded by the catalog. This assumption doesn't always work, as in the case of {@link SparkSessionCatalog}, which
- * supports atomic operations can produce a StagedTable for Iceberg tables, but wraps the session catalog and cannot
- * necessarily produce a working StagedTable implementation for tables that it loads.
- * <p>
- * The work-around is this class, which implements the StagedTable interface but does not have atomic behavior. Instead,
- * the StagedTable interface is used to implement the behavior of the non-atomic SQL plans that will create a table,
- * write, and will drop the table to roll back.
- * <p>
- * This StagedTable implements SupportsRead, SupportsWrite, and SupportsDelete by passing the calls to the real table.
- * Implementing those interfaces is safe because Spark will not use them unless the table supports them and returns the
- * corresponding capabilities from {@link #capabilities()}.
+ *
+ * <p>A Spark catalog can implement StagingTableCatalog to support atomic operations by producing
+ * StagedTable. But if a catalog implements StagingTableCatalog, Spark expects the catalog to be
+ * able to produce a StagedTable for any table loaded by the catalog. This assumption doesn't always
+ * work, as in the case of {@link SparkSessionCatalog}, which supports atomic operations can produce
+ * a StagedTable for Iceberg tables, but wraps the session catalog and cannot necessarily produce a
+ * working StagedTable implementation for tables that it loads.
+ *
+ * <p>The work-around is this class, which implements the StagedTable interface but does not have
+ * atomic behavior. Instead, the StagedTable interface is used to implement the behavior of the
+ * non-atomic SQL plans that will create a table, write, and will drop the table to roll back.
+ *
+ * <p>This StagedTable implements SupportsRead, SupportsWrite, and SupportsDelete by passing the
+ * calls to the real table. Implementing those interfaces is safe because Spark will not use them
+ * unless the table supports them and returns the corresponding capabilities from {@link
+ * #capabilities()}.
  */
-public class RollbackStagedTable implements StagedTable, SupportsRead, SupportsWrite, SupportsDelete {
+public class RollbackStagedTable
+    implements StagedTable, SupportsRead, SupportsWrite, SupportsDelete {
   private final TableCatalog catalog;
   private final Identifier ident;
   private final Table table;
@@ -119,19 +121,22 @@ public class RollbackStagedTable implements StagedTable, SupportsRead, SupportsW
   }
 
   private <T> void call(Class<? extends T> requiredClass, Consumer<T> task) {
-    callReturning(requiredClass, inst -> {
-      task.accept(inst);
-      return null;
-    });
+    callReturning(
+        requiredClass,
+        inst -> {
+          task.accept(inst);
+          return null;
+        });
   }
 
   private <T, R> R callReturning(Class<? extends T> requiredClass, Function<T, R> task) {
     if (requiredClass.isInstance(table)) {
       return task.apply(requiredClass.cast(table));
     } else {
-      throw new UnsupportedOperationException(String.format(
-          "Table does not implement %s: %s (%s)",
-          requiredClass.getSimpleName(), table.name(), table.getClass().getName()));
+      throw new UnsupportedOperationException(
+          String.format(
+              "Table does not implement %s: %s (%s)",
+              requiredClass.getSimpleName(), table.name(), table.getClass().getName()));
     }
   }
 }

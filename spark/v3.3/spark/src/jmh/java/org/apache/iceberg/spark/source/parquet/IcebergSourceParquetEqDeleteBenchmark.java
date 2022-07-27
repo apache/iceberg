@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet;
 
 import java.io.IOException;
@@ -25,12 +24,10 @@ import org.apache.iceberg.spark.source.IcebergSourceDeleteBenchmark;
 import org.openjdk.jmh.annotations.Param;
 
 /**
- * A benchmark that evaluates the non-vectorized read and vectorized read with equality delete in the Spark data source
- * for Iceberg.
- * <p>
- * This class uses a dataset with a flat schema.
- * To run this benchmark for spark-3.3:
- * <code>
+ * A benchmark that evaluates the non-vectorized read and vectorized read with equality delete in
+ * the Spark data source for Iceberg.
+ *
+ * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-3.3: <code>
  *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3:jmh
  *       -PjmhIncludeRegex=IcebergSourceParquetEqDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-parquet-eq-delete-benchmark-result.txt

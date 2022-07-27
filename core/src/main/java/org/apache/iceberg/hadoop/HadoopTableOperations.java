@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.BufferedReader;
@@ -55,8 +54,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * TableOperations implementation for file systems that support atomic rename.
- * <p>
- * This maintains metadata in a "metadata" folder under the table location.
+ *
+ * <p>This maintains metadata in a "metadata" folder under the table location.
  */
 public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
@@ -71,7 +70,8 @@ public class HadoopTableOperations implements TableOperations {
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
-  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
+  protected HadoopTableOperations(
+      Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
@@ -94,7 +94,8 @@ public class HadoopTableOperations implements TableOperations {
     // update if the current version is out of date
     if (version == null || version != newVersion) {
       this.version = newVersion;
-      this.currentMetadata = checkUUID(currentMetadata, TableMetadataParser.read(io(), metadataFile));
+      this.currentMetadata =
+          checkUUID(currentMetadata, TableMetadataParser.read(io(), metadataFile));
     }
   }
 
@@ -138,14 +139,16 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
-    Preconditions.checkArgument(base == null || base.location().equals(metadata.location()),
+    Preconditions.checkArgument(
+        base == null || base.location().equals(metadata.location()),
         "Hadoop path-based tables cannot be relocated");
     Preconditions.checkArgument(
         !metadata.properties().containsKey(TableProperties.WRITE_METADATA_LOCATION),
         "Hadoop path-based tables cannot relocate metadata");
 
-    String codecName = metadata.property(
-        TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
+    String codecName =
+        metadata.property(
+            TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
     String fileExtension = TableMetadataParser.getFileExtension(codec);
     Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
@@ -193,7 +196,8 @@ public class HadoopTableOperations implements TableOperations {
 
       @Override
       public TableMetadata refresh() {
-        throw new UnsupportedOperationException("Cannot call refresh on temporary table operations");
+        throw new UnsupportedOperationException(
+            "Cannot call refresh on temporary table operations");
       }
 
       @Override
@@ -208,7 +212,8 @@ public class HadoopTableOperations implements TableOperations {
 
       @Override
       public LocationProvider locationProvider() {
-        return LocationProviders.locationsFor(uncommittedMetadata.location(), uncommittedMetadata.properties());
+        return LocationProviders.locationsFor(
+            uncommittedMetadata.location(), uncommittedMetadata.properties());
       }
 
       @Override
@@ -309,8 +314,9 @@ public class HadoopTableOperations implements TableOperations {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
-    try (InputStreamReader fsr = new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
-         BufferedReader in = new BufferedReader(fsr)) {
+    try (InputStreamReader fsr =
+            new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
+        BufferedReader in = new BufferedReader(fsr)) {
       return Integer.parseInt(in.readLine().replace("\n", ""));
 
     } catch (Exception e) {
@@ -322,8 +328,11 @@ public class HadoopTableOperations implements TableOperations {
           return 0;
         }
 
-        // List the metadata directory to find the version files, and try to recover the max available version
-        FileStatus[] files = fs.listStatus(metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
+        // List the metadata directory to find the version files, and try to recover the max
+        // available version
+        FileStatus[] files =
+            fs.listStatus(
+                metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
         int maxVersion = 0;
 
         for (FileStatus file : files) {
@@ -357,8 +366,8 @@ public class HadoopTableOperations implements TableOperations {
       }
 
       if (!fs.rename(src, dst)) {
-        CommitFailedException cfe = new CommitFailedException(
-            "Failed to commit changes using rename: %s", dst);
+        CommitFailedException cfe =
+            new CommitFailedException("Failed to commit changes using rename: %s", dst);
         RuntimeException re = tryDelete(src);
         if (re != null) {
           cfe.addSuppressed(re);
@@ -366,8 +375,8 @@ public class HadoopTableOperations implements TableOperations {
         throw cfe;
       }
     } catch (IOException e) {
-      CommitFailedException cfe = new CommitFailedException(e,
-          "Failed to commit changes using rename: %s", dst);
+      CommitFailedException cfe =
+          new CommitFailedException(e, "Failed to commit changes using rename: %s", dst);
       RuntimeException re = tryDelete(src);
       if (re != null) {
         cfe.addSuppressed(re);
@@ -398,9 +407,10 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   /**
-   * Deletes the oldest metadata files if {@link TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   * Deletes the oldest metadata files if {@link
+   * TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
    *
-   * @param base     table metadata on which previous versions were based
+   * @param base table metadata on which previous versions were based
    * @param metadata new table metadata with updated previous versions
    */
   private void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
@@ -408,18 +418,23 @@ public class HadoopTableOperations implements TableOperations {
       return;
     }
 
-    boolean deleteAfterCommit = metadata.propertyAsBoolean(
-        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
-        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+    boolean deleteAfterCommit =
+        metadata.propertyAsBoolean(
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
     if (deleteAfterCommit) {
-      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
+      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
+          Sets.newHashSet(base.previousFiles());
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
       Tasks.foreach(removedPreviousMetadataFiles)
           .executeWith(ThreadPools.getWorkerPool())
-          .noRetry().suppressFailureWhenFinished()
-          .onFailure((previousMetadataFile, exc) ->
-              LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+          .noRetry()
+          .suppressFailureWhenFinished()
+          .onFailure(
+              (previousMetadataFile, exc) ->
+                  LOG.warn(
+                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
           .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
   }
@@ -427,8 +442,11 @@ public class HadoopTableOperations implements TableOperations {
   private static TableMetadata checkUUID(TableMetadata currentMetadata, TableMetadata newMetadata) {
     String newUUID = newMetadata.uuid();
     if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
-      Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
-          "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+      Preconditions.checkState(
+          newUUID.equals(currentMetadata.uuid()),
+          "Table UUID does not match: current=%s != refreshed=%s",
+          currentMetadata.uuid(),
+          newUUID);
     }
     return newMetadata;
   }

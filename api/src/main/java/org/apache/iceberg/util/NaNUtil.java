@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 public class NaNUtil {
 
-  private NaNUtil() {
-  }
+  private NaNUtil() {}
 
   public static boolean isNaN(Object value) {
     if (value == null) {

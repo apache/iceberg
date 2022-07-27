@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.io.IOException;
@@ -37,8 +36,7 @@ import org.apache.iceberg.util.DecimalUtil;
 
 public class FlinkValueWriters {
 
-  private FlinkValueWriters() {
-  }
+  private FlinkValueWriters() {}
 
   static ValueWriter<StringData> strings() {
     return StringWriter.INSTANCE;
@@ -60,13 +58,19 @@ public class FlinkValueWriters {
     return new ArrayWriter<>(elementWriter, elementType);
   }
 
-  static <K, V> ValueWriter<MapData> arrayMap(ValueWriter<K> keyWriter, LogicalType keyType,
-                                              ValueWriter<V> valueWriter, LogicalType valueType) {
+  static <K, V> ValueWriter<MapData> arrayMap(
+      ValueWriter<K> keyWriter,
+      LogicalType keyType,
+      ValueWriter<V> valueWriter,
+      LogicalType valueType) {
     return new ArrayMapWriter<>(keyWriter, keyType, valueWriter, valueType);
   }
 
-  static <K, V> ValueWriter<MapData> map(ValueWriter<K> keyWriter, LogicalType keyType,
-                                         ValueWriter<V> valueWriter, LogicalType valueType) {
+  static <K, V> ValueWriter<MapData> map(
+      ValueWriter<K> keyWriter,
+      LogicalType keyType,
+      ValueWriter<V> valueWriter,
+      LogicalType valueType) {
     return new MapWriter<>(keyWriter, keyType, valueWriter, valueType);
   }
 
@@ -77,8 +81,7 @@ public class FlinkValueWriters {
   private static class StringWriter implements ValueWriter<StringData> {
     private static final StringWriter INSTANCE = new StringWriter();
 
-    private StringWriter() {
-    }
+    private StringWriter() {}
 
     @Override
     public void write(StringData s, Encoder encoder) throws IOException {
@@ -95,12 +98,14 @@ public class FlinkValueWriters {
     private DecimalWriter(int precision, int scale) {
       this.precision = precision;
       this.scale = scale;
-      this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
+      this.bytes =
+          ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
     public void write(DecimalData d, Encoder encoder) throws IOException {
-      encoder.writeFixed(DecimalUtil.toReusedFixLengthBytes(precision, scale, d.toBigDecimal(), bytes.get()));
+      encoder.writeFixed(
+          DecimalUtil.toReusedFixLengthBytes(precision, scale, d.toBigDecimal(), bytes.get()));
     }
   }
 
@@ -118,7 +123,8 @@ public class FlinkValueWriters {
 
     @Override
     public void write(TimestampData timestampData, Encoder encoder) throws IOException {
-      long micros = timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
+      long micros =
+          timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
       encoder.writeLong(micros);
     }
   }
@@ -152,8 +158,11 @@ public class FlinkValueWriters {
     private final ArrayData.ElementGetter keyGetter;
     private final ArrayData.ElementGetter valueGetter;
 
-    private ArrayMapWriter(ValueWriter<K> keyWriter, LogicalType keyType,
-                           ValueWriter<V> valueWriter, LogicalType valueType) {
+    private ArrayMapWriter(
+        ValueWriter<K> keyWriter,
+        LogicalType keyType,
+        ValueWriter<V> valueWriter,
+        LogicalType valueType) {
       this.keyWriter = keyWriter;
       this.keyGetter = ArrayData.createElementGetter(keyType);
       this.valueWriter = valueWriter;
@@ -183,8 +192,11 @@ public class FlinkValueWriters {
     private final ArrayData.ElementGetter keyGetter;
     private final ArrayData.ElementGetter valueGetter;
 
-    private MapWriter(ValueWriter<K> keyWriter, LogicalType keyType,
-                      ValueWriter<V> valueWriter, LogicalType valueType) {
+    private MapWriter(
+        ValueWriter<K> keyWriter,
+        LogicalType keyType,
+        ValueWriter<V> valueWriter,
+        LogicalType valueType) {
       this.keyWriter = keyWriter;
       this.keyGetter = ArrayData.createElementGetter(keyType);
       this.valueWriter = valueWriter;

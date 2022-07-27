@@ -16,22 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 /**
- * Exception for a failure to confirm either affirmatively or negatively that a commit was applied. The client
- * cannot take any further action without possibly corrupting the table.
+ * Exception for a failure to confirm either affirmatively or negatively that a commit was applied.
+ * The client cannot take any further action without possibly corrupting the table.
  */
 public class CommitStateUnknownException extends RuntimeException {
 
   private static final String COMMON_INFO =
-      "Cannot determine whether the commit was successful or not, the underlying data files may or " +
-      "may not be needed. Manual intervention via the Remove Orphan Files Action can remove these " +
-      "files when a connection to the Catalog can be re-established if the commit was actually unsuccessful.\n" +
-      "Please check to see whether or not your commit was successful before retrying this commit. Retrying " +
-      "an already successful operation will result in duplicate records or unintentional modifications.\n" +
-      "At this time no files will be deleted including possibly unused manifest lists.";
+      "Cannot determine whether the commit was successful or not, the underlying data files may or "
+          + "may not be needed. Manual intervention via the Remove Orphan Files Action can remove these "
+          + "files when a connection to the Catalog can be re-established if the commit was actually unsuccessful.\n"
+          + "Please check to see whether or not your commit was successful before retrying this commit. Retrying "
+          + "an already successful operation will result in duplicate records or unintentional modifications.\n"
+          + "At this time no files will be deleted including possibly unused manifest lists.";
 
   public CommitStateUnknownException(Throwable cause) {
     super(cause.getMessage() + "\n" + COMMON_INFO, cause);

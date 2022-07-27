@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.time.Duration;
@@ -59,38 +58,41 @@ public class TestIcebergSourceContinuous {
   public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
       MiniClusterResource.createWithClassloaderCheckDisabled();
 
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   @Rule
-  public final HadoopTableResource tableResource = new HadoopTableResource(TEMPORARY_FOLDER,
-      TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
+  public final HadoopTableResource tableResource =
+      new HadoopTableResource(
+          TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
 
   private final AtomicLong randomSeed = new AtomicLong(0L);
 
   @Test
   public void testTableScanThenIncremental() throws Exception {
-    GenericAppenderHelper dataAppender = new GenericAppenderHelper(
-        tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot1
-    List<Record> batch1 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch1 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch1);
 
-    ScanContext scanContext = ScanContext.builder()
-        .streaming(true)
-        .monitorInterval(Duration.ofMillis(10L))
-        .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
-        .build();
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
 
-    try (CloseableIterator<Row> iter = createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
       List<Row> result1 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result1, batch1, tableResource.table().schema());
 
       // snapshot2
-      List<Record> batch2 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch2 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch2);
       tableResource.table().currentSnapshot().snapshotId();
 
@@ -98,8 +100,9 @@ public class TestIcebergSourceContinuous {
       TestHelpers.assertRecords(result2, batch2, tableResource.table().schema());
 
       // snapshot3
-      List<Record> batch3 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch3 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch3);
       tableResource.table().currentSnapshot().snapshotId();
 
@@ -110,42 +113,46 @@ public class TestIcebergSourceContinuous {
 
   @Test
   public void testEarliestSnapshot() throws Exception {
-    GenericAppenderHelper dataAppender = new GenericAppenderHelper(
-        tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot0
-    List<Record> batch0 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch0 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch0);
 
     // snapshot1
-    List<Record> batch1 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch1 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch1);
 
-    ScanContext scanContext = ScanContext.builder()
-        .streaming(true)
-        .monitorInterval(Duration.ofMillis(10L))
-        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
-        .build();
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+            .build();
 
-    try (CloseableIterator<Row> iter = createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
       List<Row> result1 = waitForResult(iter, 4);
       List<Record> combinedBatch0AndBatch1 = Lists.newArrayList(batch0);
       combinedBatch0AndBatch1.addAll(batch1);
       TestHelpers.assertRecords(result1, combinedBatch0AndBatch1, tableResource.table().schema());
 
       // snapshot2
-      List<Record> batch2 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch2 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch2);
 
       List<Row> result2 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result2, batch2, tableResource.table().schema());
 
       // snapshot3
-      List<Record> batch3 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch3 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch3);
 
       List<Row> result3 = waitForResult(iter, 2);
@@ -155,26 +162,28 @@ public class TestIcebergSourceContinuous {
 
   @Test
   public void testLatestSnapshot() throws Exception {
-    GenericAppenderHelper dataAppender = new GenericAppenderHelper(
-        tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot0
-    List<Record> batch0 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch0 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch0);
 
     // snapshot1
-    List<Record> batch1 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch1 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch1);
 
-    ScanContext scanContext = ScanContext.builder()
-        .streaming(true)
-        .monitorInterval(Duration.ofMillis(10L))
-        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
-        .build();
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
+            .build();
 
-    try (CloseableIterator<Row> iter = createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
       // we want to make sure job is running first so that enumerator can
       // start from the latest snapshot before inserting the next batch2 below.
       waitUntilJobIsRunning(MINI_CLUSTER_RESOURCE.getClusterClient());
@@ -184,16 +193,18 @@ public class TestIcebergSourceContinuous {
       TestHelpers.assertRecords(result1, batch1, tableResource.table().schema());
 
       // snapshot2
-      List<Record> batch2 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch2 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch2);
 
       List<Row> result2 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result2, batch2, tableResource.table().schema());
 
       // snapshot3
-      List<Record> batch3 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch3 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch3);
 
       List<Row> result3 = waitForResult(iter, 2);
@@ -203,43 +214,47 @@ public class TestIcebergSourceContinuous {
 
   @Test
   public void testSpecificSnapshotId() throws Exception {
-    GenericAppenderHelper dataAppender = new GenericAppenderHelper(
-        tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot0
-    List<Record> batch0 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch0 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch0);
     long snapshot0 = tableResource.table().currentSnapshot().snapshotId();
 
     // snapshot1
-    List<Record> batch1 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch1 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch1);
     long snapshot1 = tableResource.table().currentSnapshot().snapshotId();
 
-    ScanContext scanContext = ScanContext.builder()
-        .streaming(true)
-        .monitorInterval(Duration.ofMillis(10L))
-        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
-        .startSnapshotId(snapshot1)
-        .build();
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID)
+            .startSnapshotId(snapshot1)
+            .build();
 
-    try (CloseableIterator<Row> iter = createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
       List<Row> result1 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result1, batch1, tableResource.table().schema());
 
       // snapshot2
-      List<Record> batch2 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch2 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch2);
 
       List<Row> result2 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result2, batch2, tableResource.table().schema());
 
       // snapshot3
-      List<Record> batch3 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch3 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch3);
 
       List<Row> result3 = waitForResult(iter, 2);
@@ -249,12 +264,12 @@ public class TestIcebergSourceContinuous {
 
   @Test
   public void testSpecificSnapshotTimestamp() throws Exception {
-    GenericAppenderHelper dataAppender = new GenericAppenderHelper(
-        tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot0
-    List<Record> batch0 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch0 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch0);
     long snapshot0Timestamp = tableResource.table().currentSnapshot().timestampMillis();
 
@@ -262,34 +277,38 @@ public class TestIcebergSourceContinuous {
     Thread.sleep(2);
 
     // snapshot1
-    List<Record> batch1 = RandomGenericData.generate(
-        tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    List<Record> batch1 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
     dataAppender.appendToTable(batch1);
     long snapshot1Timestamp = tableResource.table().currentSnapshot().timestampMillis();
 
-    ScanContext scanContext = ScanContext.builder()
-        .streaming(true)
-        .monitorInterval(Duration.ofMillis(10L))
-        .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
-        .startSnapshotTimestamp(snapshot1Timestamp)
-        .build();
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP)
+            .startSnapshotTimestamp(snapshot1Timestamp)
+            .build();
 
-    try (CloseableIterator<Row> iter = createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
       // consume data from snapshot1
       List<Row> result1 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result1, batch1, tableResource.table().schema());
 
       // snapshot2
-      List<Record> batch2 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch2 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch2);
 
       List<Row> result2 = waitForResult(iter, 2);
       TestHelpers.assertRecords(result2, batch2, tableResource.table().schema());
 
       // snapshot3
-      List<Record> batch3 = RandomGenericData.generate(
-          tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      List<Record> batch3 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
       dataAppender.appendToTable(batch3);
 
       List<Row> result3 = waitForResult(iter, 2);
@@ -301,20 +320,21 @@ public class TestIcebergSourceContinuous {
     // start the source and collect output
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(1);
-    DataStream<Row> stream = env.fromSource(
-        IcebergSource.forRowData()
-            .tableLoader(tableResource.tableLoader())
-            .assignerFactory(new SimpleSplitAssignerFactory())
-            .streaming(scanContext.isStreaming())
-            .streamingStartingStrategy(scanContext.streamingStartingStrategy())
-            .startSnapshotTimestamp(scanContext.startSnapshotTimestamp())
-            .startSnapshotId(scanContext.startSnapshotId())
-            .monitorInterval(Duration.ofMillis(10L))
-            .build(),
-        WatermarkStrategy.noWatermarks(),
-        "icebergSource",
-        TypeInformation.of(RowData.class))
-        .map(new RowDataToRowMapper(FlinkSchemaUtil.convert(tableResource.table().schema())));
+    DataStream<Row> stream =
+        env.fromSource(
+                IcebergSource.forRowData()
+                    .tableLoader(tableResource.tableLoader())
+                    .assignerFactory(new SimpleSplitAssignerFactory())
+                    .streaming(scanContext.isStreaming())
+                    .streamingStartingStrategy(scanContext.streamingStartingStrategy())
+                    .startSnapshotTimestamp(scanContext.startSnapshotTimestamp())
+                    .startSnapshotId(scanContext.startSnapshotId())
+                    .monitorInterval(Duration.ofMillis(10L))
+                    .build(),
+                WatermarkStrategy.noWatermarks(),
+                "icebergSource",
+                TypeInformation.of(RowData.class))
+            .map(new RowDataToRowMapper(FlinkSchemaUtil.convert(tableResource.table().schema())));
     return stream;
   }
 

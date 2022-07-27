@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.List;
@@ -33,13 +32,10 @@ import org.apache.spark.sql.catalyst.InternalRow;
 
 public class VectorizedSparkParquetReaders {
 
-  private VectorizedSparkParquetReaders() {
-  }
+  private VectorizedSparkParquetReaders() {}
 
   public static ColumnarBatchReader buildReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      boolean setArrowValidityVector) {
+      Schema expectedSchema, MessageType fileSchema, boolean setArrowValidityVector) {
     return buildReader(expectedSchema, fileSchema, setArrowValidityVector, Maps.newHashMap());
   }
 
@@ -49,33 +45,46 @@ public class VectorizedSparkParquetReaders {
       boolean setArrowValidityVector,
       Map<Integer, ?> idToConstant) {
     return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(),
+            fileSchema,
             new VectorizedReaderBuilder(
-                expectedSchema, fileSchema, setArrowValidityVector,
-                idToConstant, ColumnarBatchReader::new));
+                expectedSchema,
+                fileSchema,
+                setArrowValidityVector,
+                idToConstant,
+                ColumnarBatchReader::new));
   }
 
-  public static ColumnarBatchReader buildReader(Schema expectedSchema,
-                                                MessageType fileSchema,
-                                                boolean setArrowValidityVector,
-                                                Map<Integer, ?> idToConstant,
-                                                DeleteFilter<InternalRow> deleteFilter) {
+  public static ColumnarBatchReader buildReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      boolean setArrowValidityVector,
+      Map<Integer, ?> idToConstant,
+      DeleteFilter<InternalRow> deleteFilter) {
     return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(),
+            fileSchema,
             new ReaderBuilder(
-                expectedSchema, fileSchema, setArrowValidityVector,
-                idToConstant, ColumnarBatchReader::new, deleteFilter));
+                expectedSchema,
+                fileSchema,
+                setArrowValidityVector,
+                idToConstant,
+                ColumnarBatchReader::new,
+                deleteFilter));
   }
 
   private static class ReaderBuilder extends VectorizedReaderBuilder {
     private final DeleteFilter<InternalRow> deleteFilter;
 
-    ReaderBuilder(Schema expectedSchema,
-                  MessageType parquetSchema,
-                  boolean setArrowValidityVector,
-                  Map<Integer, ?> idToConstant,
-                  Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
-                  DeleteFilter<InternalRow> deleteFilter) {
+    ReaderBuilder(
+        Schema expectedSchema,
+        MessageType parquetSchema,
+        boolean setArrowValidityVector,
+        Map<Integer, ?> idToConstant,
+        Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
+        DeleteFilter<InternalRow> deleteFilter) {
       super(expectedSchema, parquetSchema, setArrowValidityVector, idToConstant, readerFactory);
       this.deleteFilter = deleteFilter;
     }

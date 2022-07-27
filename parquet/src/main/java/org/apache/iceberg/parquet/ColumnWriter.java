@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import org.apache.parquet.column.ColumnDescriptor;
@@ -28,51 +27,57 @@ public abstract class ColumnWriter<T> implements TripleWriter<T> {
   static <T> ColumnWriter<T> newWriter(ColumnDescriptor desc) {
     switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
       case BOOLEAN:
-        return (ColumnWriter<T>) new ColumnWriter<Boolean>(desc) {
-          @Override
-          public void write(int rl, Boolean value) {
-            writeBoolean(rl, value);
-          }
-        };
+        return (ColumnWriter<T>)
+            new ColumnWriter<Boolean>(desc) {
+              @Override
+              public void write(int rl, Boolean value) {
+                writeBoolean(rl, value);
+              }
+            };
       case INT32:
-        return (ColumnWriter<T>) new ColumnWriter<Integer>(desc) {
-          @Override
-          public void write(int rl, Integer value) {
-            writeInteger(rl, value);
-          }
-        };
+        return (ColumnWriter<T>)
+            new ColumnWriter<Integer>(desc) {
+              @Override
+              public void write(int rl, Integer value) {
+                writeInteger(rl, value);
+              }
+            };
       case INT64:
-        return (ColumnWriter<T>) new ColumnWriter<Long>(desc) {
-          @Override
-          public void write(int rl, Long value) {
-            writeLong(rl, value);
-          }
-        };
+        return (ColumnWriter<T>)
+            new ColumnWriter<Long>(desc) {
+              @Override
+              public void write(int rl, Long value) {
+                writeLong(rl, value);
+              }
+            };
       case FLOAT:
-        return (ColumnWriter<T>) new ColumnWriter<Float>(desc) {
-          @Override
-          public void write(int rl, Float value) {
-            writeFloat(rl, value);
-          }
-        };
+        return (ColumnWriter<T>)
+            new ColumnWriter<Float>(desc) {
+              @Override
+              public void write(int rl, Float value) {
+                writeFloat(rl, value);
+              }
+            };
       case DOUBLE:
-        return (ColumnWriter<T>) new ColumnWriter<Double>(desc) {
-          @Override
-          public void write(int rl, Double value) {
-            writeDouble(rl, value);
-          }
-        };
+        return (ColumnWriter<T>)
+            new ColumnWriter<Double>(desc) {
+              @Override
+              public void write(int rl, Double value) {
+                writeDouble(rl, value);
+              }
+            };
       case FIXED_LEN_BYTE_ARRAY:
       case BINARY:
-        return (ColumnWriter<T>) new ColumnWriter<Binary>(desc) {
-          @Override
-          public void write(int rl, Binary value) {
-            writeBinary(rl, value);
-          }
-        };
+        return (ColumnWriter<T>)
+            new ColumnWriter<Binary>(desc) {
+              @Override
+              public void write(int rl, Binary value) {
+                writeBinary(rl, value);
+              }
+            };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: " +
-            desc.getPrimitiveType().getPrimitiveTypeName());
+        throw new UnsupportedOperationException(
+            "Unsupported primitive type: " + desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.sql.Timestamp;
@@ -26,8 +25,7 @@ public class FilePathLastModifiedRecord {
   private String filePath;
   private Timestamp lastModified;
 
-  public FilePathLastModifiedRecord() {
-  }
+  public FilePathLastModifiedRecord() {}
 
   public FilePathLastModifiedRecord(String filePath, Timestamp lastModified) {
     this.filePath = filePath;
@@ -59,8 +57,8 @@ public class FilePathLastModifiedRecord {
       return false;
     }
     FilePathLastModifiedRecord that = (FilePathLastModifiedRecord) o;
-    return Objects.equals(filePath, that.filePath) &&
-        Objects.equals(lastModified, that.lastModified);
+    return Objects.equals(filePath, that.filePath)
+        && Objects.equals(lastModified, that.lastModified);
   }
 
   @Override
@@ -70,9 +68,13 @@ public class FilePathLastModifiedRecord {
 
   @Override
   public String toString() {
-    return "FilePathLastModifiedRecord{" +
-        "filePath='" + filePath + '\'' +
-        ", lastModified='" + lastModified + '\'' +
-        '}';
+    return "FilePathLastModifiedRecord{"
+        + "filePath='"
+        + filePath
+        + '\''
+        + ", lastModified='"
+        + lastModified
+        + '\''
+        + '}';
   }
 }

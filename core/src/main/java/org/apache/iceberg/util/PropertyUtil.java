@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Map;
@@ -26,11 +25,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class PropertyUtil {
 
-  private PropertyUtil() {
-  }
+  private PropertyUtil() {}
 
-  public static boolean propertyAsBoolean(Map<String, String> properties,
-                                          String property, boolean defaultValue) {
+  public static boolean propertyAsBoolean(
+      Map<String, String> properties, String property, boolean defaultValue) {
     String value = properties.get(property);
     if (value != null) {
       return Boolean.parseBoolean(value);
@@ -38,8 +36,8 @@ public class PropertyUtil {
     return defaultValue;
   }
 
-  public static double propertyAsDouble(Map<String, String> properties,
-      String property, double defaultValue) {
+  public static double propertyAsDouble(
+      Map<String, String> properties, String property, double defaultValue) {
     String value = properties.get(property);
     if (value != null) {
       return Double.parseDouble(value);
@@ -47,8 +45,8 @@ public class PropertyUtil {
     return defaultValue;
   }
 
-  public static int propertyAsInt(Map<String, String> properties,
-                                  String property, int defaultValue) {
+  public static int propertyAsInt(
+      Map<String, String> properties, String property, int defaultValue) {
     String value = properties.get(property);
     if (value != null) {
       return Integer.parseInt(value);
@@ -56,8 +54,8 @@ public class PropertyUtil {
     return defaultValue;
   }
 
-  public static long propertyAsLong(Map<String, String> properties,
-                                    String property, long defaultValue) {
+  public static long propertyAsLong(
+      Map<String, String> properties, String property, long defaultValue) {
     String value = properties.get(property);
     if (value != null) {
       return Long.parseLong(value);
@@ -65,8 +63,8 @@ public class PropertyUtil {
     return defaultValue;
   }
 
-  public static String propertyAsString(Map<String, String> properties,
-                                        String property, String defaultValue) {
+  public static String propertyAsString(
+      Map<String, String> properties, String property, String defaultValue) {
     String value = properties.get(property);
     if (value != null) {
       return value;
@@ -75,8 +73,8 @@ public class PropertyUtil {
   }
 
   /**
-   * Returns subset of provided map with keys matching the provided prefix. Matching is case-sensitive and the matching
-   * prefix is removed from the keys in returned map.
+   * Returns subset of provided map with keys matching the provided prefix. Matching is
+   * case-sensitive and the matching prefix is removed from the keys in returned map.
    *
    * @param properties input map
    * @param prefix prefix to choose keys from input map
@@ -92,7 +90,6 @@ public class PropertyUtil {
 
     return properties.entrySet().stream()
         .filter(e -> e.getKey().startsWith(prefix))
-        .collect(Collectors.toMap(
-            e -> e.getKey().replaceFirst(prefix, ""), Map.Entry::getValue));
+        .collect(Collectors.toMap(e -> e.getKey().replaceFirst(prefix, ""), Map.Entry::getValue));
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mapping;
 
 import java.io.Serializable;
@@ -25,9 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-/**
- * Represents a mapping from external schema names to Iceberg type IDs.
- */
+/** Represents a mapping from external schema names to Iceberg type IDs. */
 public class NameMapping implements Serializable {
   private static final Joiner DOT = Joiner.on('.');
 

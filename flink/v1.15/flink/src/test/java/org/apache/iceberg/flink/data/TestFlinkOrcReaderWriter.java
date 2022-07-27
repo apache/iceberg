@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.io.File;
@@ -52,18 +51,21 @@ public class TestFlinkOrcReaderWriter extends DataTest {
     File recordsFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", recordsFile.delete());
 
-    // Write the expected records into ORC file, then read them into RowData and assert with the expected Record list.
-    try (FileAppender<Record> writer = ORC.write(Files.localOutput(recordsFile))
-        .schema(schema)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .build()) {
+    // Write the expected records into ORC file, then read them into RowData and assert with the
+    // expected Record list.
+    try (FileAppender<Record> writer =
+        ORC.write(Files.localOutput(recordsFile))
+            .schema(schema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build()) {
       writer.addAll(expectedRecords);
     }
 
-    try (CloseableIterable<RowData> reader = ORC.read(Files.localInput(recordsFile))
-        .project(schema)
-        .createReaderFunc(type -> new FlinkOrcReader(schema, type))
-        .build()) {
+    try (CloseableIterable<RowData> reader =
+        ORC.read(Files.localInput(recordsFile))
+            .project(schema)
+            .createReaderFunc(type -> new FlinkOrcReader(schema, type))
+            .build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < NUM_RECORDS; i++) {
@@ -76,19 +78,22 @@ public class TestFlinkOrcReaderWriter extends DataTest {
     File rowDataFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", rowDataFile.delete());
 
-    // Write the expected RowData into ORC file, then read them into Record and assert with the expected RowData list.
+    // Write the expected RowData into ORC file, then read them into Record and assert with the
+    // expected RowData list.
     RowType rowType = FlinkSchemaUtil.convert(schema);
-    try (FileAppender<RowData> writer = ORC.write(Files.localOutput(rowDataFile))
-        .schema(schema)
-        .createWriterFunc((iSchema, typeDesc) -> FlinkOrcWriter.buildWriter(rowType, iSchema))
-        .build()) {
+    try (FileAppender<RowData> writer =
+        ORC.write(Files.localOutput(rowDataFile))
+            .schema(schema)
+            .createWriterFunc((iSchema, typeDesc) -> FlinkOrcWriter.buildWriter(rowType, iSchema))
+            .build()) {
       writer.addAll(expectedRows);
     }
 
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(rowDataFile))
-        .project(schema)
-        .createReaderFunc(type -> GenericOrcReader.buildReader(schema, type))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        ORC.read(Files.localInput(rowDataFile))
+            .project(schema)
+            .createReaderFunc(type -> GenericOrcReader.buildReader(schema, type))
+            .build()) {
       Iterator<RowData> expected = expectedRows.iterator();
       Iterator<Record> records = reader.iterator();
       for (int i = 0; i < NUM_RECORDS; i += 1) {

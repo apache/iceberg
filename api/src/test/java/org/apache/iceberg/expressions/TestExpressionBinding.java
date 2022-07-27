@@ -16,16 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
-
-import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.StructType;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
 
 import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
@@ -40,13 +31,21 @@ import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
+import org.assertj.core.api.Assertions;
+import org.junit.Assert;
+import org.junit.Test;
+
 public class TestExpressionBinding {
-  private static final StructType STRUCT = StructType.of(
-      required(0, "x", Types.IntegerType.get()),
-      required(1, "y", Types.IntegerType.get()),
-      required(2, "z", Types.IntegerType.get()),
-      required(3, "data", Types.StringType.get())
-  );
+  private static final StructType STRUCT =
+      StructType.of(
+          required(0, "x", Types.IntegerType.get()),
+          required(1, "y", Types.IntegerType.get()),
+          required(2, "z", Types.IntegerType.get()),
+          required(3, "data", Types.StringType.get()));
 
   @Test
   public void testMissingReference() {
@@ -156,22 +155,21 @@ public class TestExpressionBinding {
     TestHelpers.assertAllReferencesBound("NotStartsWith", boundExpr);
     // Make sure the expression is a NotStartsWith
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
-    Assert.assertEquals("Should be right operation", Expression.Operation.NOT_STARTS_WITH, pred.op());
+    Assert.assertEquals(
+        "Should be right operation", Expression.Operation.NOT_STARTS_WITH, pred.op());
     Assert.assertEquals("Should bind term to correct field id", 21, pred.term().ref().fieldId());
   }
 
   @Test
   public void testAlwaysTrue() {
-    Assert.assertEquals("Should not change alwaysTrue",
-        alwaysTrue(),
-        Binder.bind(STRUCT, alwaysTrue()));
+    Assert.assertEquals(
+        "Should not change alwaysTrue", alwaysTrue(), Binder.bind(STRUCT, alwaysTrue()));
   }
 
   @Test
   public void testAlwaysFalse() {
-    Assert.assertEquals("Should not change alwaysFalse",
-        alwaysFalse(),
-        Binder.bind(STRUCT, alwaysFalse()));
+    Assert.assertEquals(
+        "Should not change alwaysFalse", alwaysFalse(), Binder.bind(STRUCT, alwaysFalse()));
   }
 
   @Test
@@ -181,11 +179,15 @@ public class TestExpressionBinding {
 
     // the second predicate is always true once it is bound because z is an integer and the literal
     // is less than any 32-bit integer value
-    Assert.assertEquals("Should simplify or expression to alwaysTrue",
-        alwaysTrue(), Binder.bind(STRUCT, or(lessThan("y", 100), greaterThan("z", -9999999999L))));
+    Assert.assertEquals(
+        "Should simplify or expression to alwaysTrue",
+        alwaysTrue(),
+        Binder.bind(STRUCT, or(lessThan("y", 100), greaterThan("z", -9999999999L))));
     // similarly, the second predicate is always false
-    Assert.assertEquals("Should simplify and expression to predicate",
-        alwaysFalse(), Binder.bind(STRUCT, and(lessThan("y", 100), lessThan("z", -9999999999L))));
+    Assert.assertEquals(
+        "Should simplify and expression to predicate",
+        alwaysFalse(),
+        Binder.bind(STRUCT, and(lessThan("y", 100), lessThan("z", -9999999999L))));
 
     Expression bound = Binder.bind(STRUCT, not(not(lessThan("y", 100))));
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
@@ -197,8 +199,11 @@ public class TestExpressionBinding {
     Expression bound = Binder.bind(STRUCT, equal(bucket("x", 16), 10));
     TestHelpers.assertAllReferencesBound("BoundTransform", bound);
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
-    Assertions.assertThat(pred.term()).as("Should use a BoundTransform child").isInstanceOf(BoundTransform.class);
+    Assertions.assertThat(pred.term())
+        .as("Should use a BoundTransform child")
+        .isInstanceOf(BoundTransform.class);
     BoundTransform<?, ?> transformExpr = (BoundTransform<?, ?>) pred.term();
-    Assert.assertEquals("Should use a bucket[16] transform", "bucket[16]", transformExpr.transform().toString());
+    Assert.assertEquals(
+        "Should use a bucket[16] transform", "bucket[16]", transformExpr.transform().toString());
   }
 }

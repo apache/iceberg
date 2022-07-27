@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
@@ -39,8 +38,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueWriters {
 
-  private SparkValueWriters() {
-  }
+  private SparkValueWriters() {}
 
   static ValueWriter<UTF8String> strings() {
     return StringWriter.INSTANCE;
@@ -75,8 +73,7 @@ public class SparkValueWriters {
   private static class StringWriter implements ValueWriter<UTF8String> {
     private static final StringWriter INSTANCE = new StringWriter();
 
-    private StringWriter() {
-    }
+    private StringWriter() {}
 
     @Override
     public void write(UTF8String s, Encoder encoder) throws IOException {
@@ -88,16 +85,17 @@ public class SparkValueWriters {
   }
 
   private static class UUIDWriter implements ValueWriter<UTF8String> {
-    private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
-      ByteBuffer buffer = ByteBuffer.allocate(16);
-      buffer.order(ByteOrder.BIG_ENDIAN);
-      return buffer;
-    });
+    private static final ThreadLocal<ByteBuffer> BUFFER =
+        ThreadLocal.withInitial(
+            () -> {
+              ByteBuffer buffer = ByteBuffer.allocate(16);
+              buffer.order(ByteOrder.BIG_ENDIAN);
+              return buffer;
+            });
 
     private static final UUIDWriter INSTANCE = new UUIDWriter();
 
-    private UUIDWriter() {
-    }
+    private UUIDWriter() {}
 
     @Override
     @SuppressWarnings("ByteBufferBackingArray")
@@ -120,12 +118,14 @@ public class SparkValueWriters {
     private DecimalWriter(int precision, int scale) {
       this.precision = precision;
       this.scale = scale;
-      this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
+      this.bytes =
+          ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
     public void write(Decimal d, Encoder encoder) throws IOException {
-      encoder.writeFixed(DecimalUtil.toReusedFixLengthBytes(precision, scale, d.toJavaBigDecimal(), bytes.get()));
+      encoder.writeFixed(
+          DecimalUtil.toReusedFixLengthBytes(precision, scale, d.toJavaBigDecimal(), bytes.get()));
     }
   }
 
@@ -158,8 +158,11 @@ public class SparkValueWriters {
     private final DataType keyType;
     private final DataType valueType;
 
-    private ArrayMapWriter(ValueWriter<K> keyWriter, DataType keyType,
-                           ValueWriter<V> valueWriter, DataType valueType) {
+    private ArrayMapWriter(
+        ValueWriter<K> keyWriter,
+        DataType keyType,
+        ValueWriter<V> valueWriter,
+        DataType valueType) {
       this.keyWriter = keyWriter;
       this.keyType = keyType;
       this.valueWriter = valueWriter;
@@ -189,8 +192,11 @@ public class SparkValueWriters {
     private final DataType keyType;
     private final DataType valueType;
 
-    private MapWriter(ValueWriter<K> keyWriter, DataType keyType,
-                      ValueWriter<V> valueWriter, DataType valueType) {
+    private MapWriter(
+        ValueWriter<K> keyWriter,
+        DataType keyType,
+        ValueWriter<V> valueWriter,
+        DataType valueType) {
       this.keyWriter = keyWriter;
       this.keyType = keyType;
       this.valueWriter = valueWriter;

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.util.List;
@@ -34,33 +33,33 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 /**
- * Converter between Flink types and Iceberg type.
- * The conversion is not a 1:1 mapping that not allows back-and-forth conversion. So some information might get lost
- * during the back-and-forth conversion.
- * <p>
- * This inconsistent types:
+ * Converter between Flink types and Iceberg type. The conversion is not a 1:1 mapping that not
+ * allows back-and-forth conversion. So some information might get lost during the back-and-forth
+ * conversion.
+ *
+ * <p>This inconsistent types:
+ *
  * <ul>
- *   <li>map Iceberg UUID type to Flink BinaryType(16)</li>
- *   <li>map Flink VarCharType(_) and CharType(_) to Iceberg String type</li>
- *   <li>map Flink VarBinaryType(_) to Iceberg Binary type</li>
- *   <li>map Flink TimeType(_) to Iceberg Time type (microseconds)</li>
- *   <li>map Flink TimestampType(_) to Iceberg Timestamp without zone type (microseconds)</li>
- *   <li>map Flink LocalZonedTimestampType(_) to Iceberg Timestamp with zone type (microseconds)</li>
- *   <li>map Flink MultiSetType to Iceberg Map type(element, int)</li>
+ *   <li>map Iceberg UUID type to Flink BinaryType(16)
+ *   <li>map Flink VarCharType(_) and CharType(_) to Iceberg String type
+ *   <li>map Flink VarBinaryType(_) to Iceberg Binary type
+ *   <li>map Flink TimeType(_) to Iceberg Time type (microseconds)
+ *   <li>map Flink TimestampType(_) to Iceberg Timestamp without zone type (microseconds)
+ *   <li>map Flink LocalZonedTimestampType(_) to Iceberg Timestamp with zone type (microseconds)
+ *   <li>map Flink MultiSetType to Iceberg Map type(element, int)
  * </ul>
+ *
  * <p>
  */
 public class FlinkSchemaUtil {
 
-  private FlinkSchemaUtil() {
-  }
+  private FlinkSchemaUtil() {}
 
-  /**
-   * Convert the flink table schema to apache iceberg schema.
-   */
+  /** Convert the flink table schema to apache iceberg schema. */
   public static Schema convert(TableSchema schema) {
     LogicalType schemaType = schema.toRowDataType().getLogicalType();
-    Preconditions.checkArgument(schemaType instanceof RowType, "Schema logical type should be RowType.");
+    Preconditions.checkArgument(
+        schemaType instanceof RowType, "Schema logical type should be RowType.");
 
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
@@ -75,8 +74,11 @@ public class FlinkSchemaUtil {
     if (schema.getPrimaryKey().isPresent()) {
       for (String column : schema.getPrimaryKey().get().getColumns()) {
         Types.NestedField field = iSchema.findField(column);
-        Preconditions.checkNotNull(field,
-            "Cannot find field ID for the primary key column %s in schema %s", column, iSchema);
+        Preconditions.checkNotNull(
+            field,
+            "Cannot find field ID for the primary key column %s in schema %s",
+            column,
+            iSchema);
         identifierFieldIds.add(field.fieldId());
       }
     }
@@ -86,11 +88,11 @@ public class FlinkSchemaUtil {
 
   /**
    * Convert a Flink {@link TableSchema} to a {@link Schema} based on the given schema.
-   * <p>
-   * This conversion does not assign new ids; it uses ids from the base schema.
-   * <p>
-   * Data types, field order, and nullability will match the Flink type. This conversion may return
-   * a schema that is not compatible with base schema.
+   *
+   * <p>This conversion does not assign new ids; it uses ids from the base schema.
+   *
+   * <p>Data types, field order, and nullability will match the Flink type. This conversion may
+   * return a schema that is not compatible with base schema.
    *
    * @param baseSchema a Schema on which conversion is based
    * @param flinkSchema a Flink TableSchema
@@ -163,7 +165,8 @@ public class FlinkSchemaUtil {
       List<String> columns = Lists.newArrayListWithExpectedSize(identifierFieldIds.size());
       for (Integer identifierFieldId : identifierFieldIds) {
         String columnName = schema.findColumnName(identifierFieldId);
-        Preconditions.checkNotNull(columnName, "Cannot find field with id %s in schema %s", identifierFieldId, schema);
+        Preconditions.checkNotNull(
+            columnName, "Cannot find field with id %s in schema %s", identifierFieldId, schema);
 
         columns.add(columnName);
       }

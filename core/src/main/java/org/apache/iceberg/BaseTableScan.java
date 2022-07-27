@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -34,17 +33,17 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Base class for {@link TableScan} implementations.
- */
-abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedScanTask> implements TableScan {
+/** Base class for {@link TableScan} implementations. */
+abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedScanTask>
+    implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
     this(ops, table, schema, new TableScanContext());
   }
 
-  protected BaseTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+  protected BaseTableScan(
+      TableOperations ops, Table table, Schema schema, TableScanContext context) {
     super(ops, table, schema, context);
   }
 
@@ -87,17 +86,20 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
 
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
-    Preconditions.checkArgument(snapshotId() == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId());
-    Preconditions.checkArgument(tableOps().current().snapshot(scanSnapshotId) != null,
-        "Cannot find snapshot with ID %s", scanSnapshotId);
-    return newRefinedScan(tableOps(), table(), tableSchema(), context().useSnapshotId(scanSnapshotId));
+    Preconditions.checkArgument(
+        snapshotId() == null, "Cannot override snapshot, already set to id=%s", snapshotId());
+    Preconditions.checkArgument(
+        tableOps().current().snapshot(scanSnapshotId) != null,
+        "Cannot find snapshot with ID %s",
+        scanSnapshotId);
+    return newRefinedScan(
+        tableOps(), table(), tableSchema(), context().useSnapshotId(scanSnapshotId));
   }
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
-    Preconditions.checkArgument(snapshotId() == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId());
+    Preconditions.checkArgument(
+        snapshotId() == null, "Cannot override snapshot, already set to id=%s", snapshotId());
 
     return useSnapshot(SnapshotUtil.snapshotIdAsOfTime(table(), timestampMillis));
   }
@@ -111,8 +113,11 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshot();
     if (snapshot != null) {
-      LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table(),
-          snapshot.snapshotId(), DateTimeUtil.formatTimestampMillis(snapshot.timestampMillis()),
+      LOG.info(
+          "Scanning table {} snapshot {} created at {} with filter {}",
+          table(),
+          snapshot.snapshotId(),
+          DateTimeUtil.formatTimestampMillis(snapshot.timestampMillis()),
           ExpressionUtil.toSanitizedString(filter()));
 
       Listeners.notifyAll(new ScanEvent(table().name(), snapshot.snapshotId(), filter(), schema()));
@@ -128,15 +133,17 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
     CloseableIterable<FileScanTask> fileScanTasks = planFiles();
-    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
-    return TableScanUtil.planTasks(splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
+    CloseableIterable<FileScanTask> splitFiles =
+        TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
+    return TableScanUtil.planTasks(
+        splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
   }
 
   @Override
   public Snapshot snapshot() {
-    return snapshotId() != null ?
-        tableOps().current().snapshot(snapshotId()) :
-        tableOps().current().currentSnapshot();
+    return snapshotId() != null
+        ? tableOps().current().snapshot(snapshotId())
+        : tableOps().current().currentSnapshot();
   }
 
   @Override

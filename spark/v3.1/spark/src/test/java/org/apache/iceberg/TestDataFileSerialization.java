@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.TaskCheckHelper.assertEquals;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -51,22 +54,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.TaskCheckHelper.assertEquals;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestDataFileSerialization {
 
-  private static final Schema DATE_SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()),
-      optional(4, "double", Types.DoubleType.get()));
+  private static final Schema DATE_SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "data", Types.StringType.get()),
+          required(3, "date", Types.StringType.get()),
+          optional(4, "double", Types.DoubleType.get()));
 
-  private static final PartitionSpec PARTITION_SPEC = PartitionSpec
-      .builderFor(DATE_SCHEMA)
-      .identity("date")
-      .build();
+  private static final PartitionSpec PARTITION_SPEC =
+      PartitionSpec.builderFor(DATE_SCHEMA).identity("date").build();
 
   private static final Map<Integer, Long> VALUE_COUNTS = Maps.newHashMap();
   private static final Map<Integer, Long> NULL_VALUE_COUNTS = Maps.newHashMap();
@@ -85,20 +83,26 @@ public class TestDataFileSerialization {
     UPPER_BOUNDS.put(1, longToBuffer(4L));
   }
 
-  private static final DataFile DATA_FILE = DataFiles
-      .builder(PARTITION_SPEC)
-      .withPath("/path/to/data-1.parquet")
-      .withFileSizeInBytes(1234)
-      .withPartitionPath("date=2018-06-08")
-      .withMetrics(new Metrics(
-          5L, null, VALUE_COUNTS, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS))
-      .withSplitOffsets(ImmutableList.of(4L))
-      .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(34))
-      .withSortOrder(SortOrder.unsorted())
-      .build();
+  private static final DataFile DATA_FILE =
+      DataFiles.builder(PARTITION_SPEC)
+          .withPath("/path/to/data-1.parquet")
+          .withFileSizeInBytes(1234)
+          .withPartitionPath("date=2018-06-08")
+          .withMetrics(
+              new Metrics(
+                  5L,
+                  null,
+                  VALUE_COUNTS,
+                  NULL_VALUE_COUNTS,
+                  NAN_VALUE_COUNTS,
+                  LOWER_BOUNDS,
+                  UPPER_BOUNDS))
+          .withSplitOffsets(ImmutableList.of(4L))
+          .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(34))
+          .withSortOrder(SortOrder.unsorted())
+          .build();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testDataFileKryoSerialization() throws Exception {
@@ -128,7 +132,8 @@ public class TestDataFileSerialization {
       out.writeObject(DATA_FILE.copy());
     }
 
-    try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+    try (ObjectInputStream in =
+        new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
         Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
@@ -140,13 +145,14 @@ public class TestDataFileSerialization {
   @Test
   public void testParquetWriterSplitOffsets() throws IOException {
     Iterable<InternalRow> records = RandomData.generateSpark(DATE_SCHEMA, 1, 33L);
-    File parquetFile = new File(
-        temp.getRoot(),
-        FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
+    File parquetFile =
+        new File(temp.getRoot(), FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
     FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(DATE_SCHEMA)
-            .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(DATE_SCHEMA), msgType))
+            .createWriterFunc(
+                msgType ->
+                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(DATE_SCHEMA), msgType))
             .build();
     try {
       writer.addAll(records);

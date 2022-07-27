@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.metrics;
 
 import java.time.Duration;
@@ -30,7 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Stopwatch;
 
 /**
- * A default {@link Timer} implementation that uses a {@link Stopwatch} instance internally to measure time.
+ * A default {@link Timer} implementation that uses a {@link Stopwatch} instance internally to
+ * measure time.
  */
 public class DefaultTimer implements Timer {
   private final TimeUnit defaultTimeUnit;

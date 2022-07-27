@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 /**
@@ -26,10 +25,12 @@ package org.apache.iceberg;
  */
 public interface SplittableScanTask<ThisT> extends ScanTask {
   /**
-   * Attempts to split this scan task into several smaller scan tasks, each close to {@code splitSize} size.
-   * <p>
-   * Note the target split size is just guidance and the actual split size may be either smaller or larger.
-   * File formats like Parquet may leverage the row group offset information while splitting tasks.
+   * Attempts to split this scan task into several smaller scan tasks, each close to {@code
+   * splitSize} size.
+   *
+   * <p>Note the target split size is just guidance and the actual split size may be either smaller
+   * or larger. File formats like Parquet may leverage the row group offset information while
+   * splitting tasks.
    *
    * @param targetSplitSize the target size of each new scan task in bytes
    * @return an Iterable of smaller tasks

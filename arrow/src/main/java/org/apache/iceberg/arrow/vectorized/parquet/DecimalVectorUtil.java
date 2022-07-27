@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.util.Arrays;
@@ -25,8 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 
 public class DecimalVectorUtil {
 
-  private DecimalVectorUtil() {
-  }
+  private DecimalVectorUtil() {}
 
   public static void setBigEndian(DecimalVector vector, int idx, byte[] value) {
     byte[] paddedBytes = DecimalVectorUtil.padBigEndianBytes(value, DecimalVector.TYPE_WIDTH);
@@ -34,14 +32,14 @@ public class DecimalVectorUtil {
   }
 
   /**
-   * Parquet stores decimal values in big-endian byte order, and Arrow stores them in native byte order.
-   * When setting the value in Arrow, we call setBigEndian(), and the byte order is reversed if needed.
-   * Also, the byte array is padded to fill 16 bytes in length by calling Unsafe.setMemory(). The padding
-   * operation can be slow, so by using this utility method, we can pad before calling setBigEndian() and
-   * avoid the call to Unsafe.setMemory().
+   * Parquet stores decimal values in big-endian byte order, and Arrow stores them in native byte
+   * order. When setting the value in Arrow, we call setBigEndian(), and the byte order is reversed
+   * if needed. Also, the byte array is padded to fill 16 bytes in length by calling
+   * Unsafe.setMemory(). The padding operation can be slow, so by using this utility method, we can
+   * pad before calling setBigEndian() and avoid the call to Unsafe.setMemory().
    *
    * @param bigEndianBytes The big endian bytes
-   * @param newLength      The length of the byte array to return
+   * @param newLength The length of the byte array to return
    * @return The new byte array
    */
   @VisibleForTesting
@@ -62,8 +60,9 @@ public class DecimalVectorUtil {
 
       return result;
     }
-    throw new IllegalArgumentException(String.format("Buffer size of %d is larger than requested size of %d",
+    throw new IllegalArgumentException(
+        String.format(
+            "Buffer size of %d is larger than requested size of %d",
             bigEndianBytes.length, newLength));
   }
-
 }

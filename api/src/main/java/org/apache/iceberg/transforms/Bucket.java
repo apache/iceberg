@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
+
+import static org.apache.iceberg.types.Type.TypeID;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -38,15 +39,13 @@ import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Type.TypeID;
-
 abstract class Bucket<T> implements Transform<T, Integer> {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
 
   @SuppressWarnings("unchecked")
   static <T> Bucket<T> get(Type type, int numBuckets) {
-    Preconditions.checkArgument(numBuckets > 0,
-        "Invalid number of buckets: %s (must be > 0)", numBuckets);
+    Preconditions.checkArgument(
+        numBuckets > 0, "Invalid number of buckets: %s (must be > 0)", numBuckets);
 
     switch (type.typeId()) {
       case DATE:
@@ -124,7 +123,8 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     } else if (predicate.isLiteralPredicate() && predicate.op() == Expression.Operation.EQ) {
       return Expressions.predicate(
           predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
-    } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) { // notIn can't be projected
+    } else if (predicate.isSetPredicate()
+        && predicate.op() == Expression.Operation.IN) { // notIn can't be projected
       return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
     }
 
@@ -144,7 +144,8 @@ abstract class Bucket<T> implements Transform<T, Integer> {
       return Expressions.predicate(predicate.op(), name);
     } else if (predicate.isLiteralPredicate() && predicate.op() == Expression.Operation.NOT_EQ) {
       // TODO: need to translate not(eq(...)) into notEq in expressions
-      return Expressions.predicate(predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
+      return Expressions.predicate(
+          predicate.op(), name, apply(predicate.asLiteralPredicate().literal().value()));
     } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
       return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
     }
@@ -186,10 +187,9 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public boolean canTransform(Type type) {
-      return type.typeId() == TypeID.LONG ||
-          type.typeId() == TypeID.TIME ||
-          type.typeId() == TypeID.TIMESTAMP;
-
+      return type.typeId() == TypeID.LONG
+          || type.typeId() == TypeID.TIME
+          || type.typeId() == TypeID.TIMESTAMP;
     }
   }
 
@@ -246,8 +246,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   }
 
   private static class BucketByteBuffer extends Bucket<ByteBuffer> {
-    private static final Set<TypeID> SUPPORTED_TYPES = Sets.newHashSet(
-        TypeID.BINARY, TypeID.FIXED);
+    private static final Set<TypeID> SUPPORTED_TYPES = Sets.newHashSet(TypeID.BINARY, TypeID.FIXED);
 
     private BucketByteBuffer(int numBuckets) {
       super(numBuckets);
@@ -256,9 +255,12 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     @Override
     public int hash(ByteBuffer value) {
       if (value.hasArray()) {
-        return MURMUR3.hashBytes(value.array(),
-            value.arrayOffset() + value.position(),
-            value.arrayOffset() + value.remaining()).asInt();
+        return MURMUR3
+            .hashBytes(
+                value.array(),
+                value.arrayOffset() + value.position(),
+                value.arrayOffset() + value.remaining())
+            .asInt();
       } else {
         int position = value.position();
         byte[] copy = new byte[value.remaining()];
@@ -285,10 +287,12 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(UUID value) {
-      return MURMUR3.newHasher(16)
-              .putLong(Long.reverseBytes(value.getMostSignificantBits()))
-              .putLong(Long.reverseBytes(value.getLeastSignificantBits()))
-              .hash().asInt();
+      return MURMUR3
+          .newHasher(16)
+          .putLong(Long.reverseBytes(value.getMostSignificantBits()))
+          .putLong(Long.reverseBytes(value.getLeastSignificantBits()))
+          .hash()
+          .asInt();
     }
 
     @Override

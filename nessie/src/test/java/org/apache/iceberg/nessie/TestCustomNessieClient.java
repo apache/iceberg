@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.URI;
 import java.util.function.Function;
@@ -32,8 +33,6 @@ import org.projectnessie.client.api.NessieApi;
 import org.projectnessie.client.auth.NessieAuthentication;
 import org.projectnessie.client.http.HttpClientBuilder;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 public class TestCustomNessieClient extends BaseTestIceberg {
 
   public TestCustomNessieClient() {
@@ -43,43 +42,64 @@ public class TestCustomNessieClient extends BaseTestIceberg {
   @Test
   public void testNoCustomClient() {
     NessieCatalog catalog = new NessieCatalog();
-    catalog.initialize("nessie",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString(),
-            CatalogProperties.URI, uri));
+    catalog.initialize(
+        "nessie",
+        ImmutableMap.of(
+            CatalogProperties.WAREHOUSE_LOCATION,
+            temp.toUri().toString(),
+            CatalogProperties.URI,
+            uri));
   }
 
   @Test
   public void testUnnecessaryDefaultCustomClient() {
     NessieCatalog catalog = new NessieCatalog();
-    catalog.initialize("nessie",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString(),
-            CatalogProperties.URI, uri,
-            NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL, HttpClientBuilder.class.getName()));
+    catalog.initialize(
+        "nessie",
+        ImmutableMap.of(
+            CatalogProperties.WAREHOUSE_LOCATION,
+            temp.toUri().toString(),
+            CatalogProperties.URI,
+            uri,
+            NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
+            HttpClientBuilder.class.getName()));
   }
 
   @Test
   public void testNonExistentCustomClient() {
     String nonExistingClass = "non.existent.ClientBuilderImpl";
-    assertThatThrownBy(() -> {
-      NessieCatalog catalog = new NessieCatalog();
-      catalog.initialize("nessie",
-          ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString(),
-              CatalogProperties.URI, uri,
-              NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL, nonExistingClass));
-    })
+    assertThatThrownBy(
+            () -> {
+              NessieCatalog catalog = new NessieCatalog();
+              catalog.initialize(
+                  "nessie",
+                  ImmutableMap.of(
+                      CatalogProperties.WAREHOUSE_LOCATION,
+                      temp.toUri().toString(),
+                      CatalogProperties.URI,
+                      uri,
+                      NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
+                      nonExistingClass));
+            })
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining(nonExistingClass);
   }
 
   @Test
   public void testCustomClient() {
-    assertThatThrownBy(() -> {
-      NessieCatalog catalog = new NessieCatalog();
-      catalog.initialize("nessie",
-          ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString(),
-              CatalogProperties.URI, uri,
-              NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL, DummyClientBuilderImpl.class.getName()));
-    })
+    assertThatThrownBy(
+            () -> {
+              NessieCatalog catalog = new NessieCatalog();
+              catalog.initialize(
+                  "nessie",
+                  ImmutableMap.of(
+                      CatalogProperties.WAREHOUSE_LOCATION,
+                      temp.toUri().toString(),
+                      CatalogProperties.URI,
+                      uri,
+                      NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL,
+                      DummyClientBuilderImpl.class.getName()));
+            })
         .isInstanceOf(RuntimeException.class)
         .hasMessage("BUILD CALLED");
   }
@@ -117,8 +137,7 @@ public class TestCustomNessieClient extends BaseTestIceberg {
     }
 
     @Override
-    public NessieClientBuilder withAuthentication(
-        NessieAuthentication authentication) {
+    public NessieClientBuilder withAuthentication(NessieAuthentication authentication) {
       return this;
     }
 

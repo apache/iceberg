@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -25,11 +24,16 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile> implements FileScanTask {
+public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile>
+    implements FileScanTask {
   private final DeleteFile[] deletes;
 
-  public BaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString, String specString,
-                          ResidualEvaluator residuals) {
+  public BaseFileScanTask(
+      DataFile file,
+      DeleteFile[] deletes,
+      String schemaString,
+      String specString,
+      ResidualEvaluator residuals) {
     super(file, schemaString, specString, residuals);
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
   }

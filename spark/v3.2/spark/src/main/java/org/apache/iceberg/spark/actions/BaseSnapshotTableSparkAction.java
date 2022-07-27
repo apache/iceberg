@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import org.apache.spark.sql.SparkSession;
@@ -26,12 +25,13 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 /**
  * An action to snapshot a table as an Iceberg table.
  *
- * @deprecated since 0.14.0, will be removed in 1.0.0;
- *             use {@link SparkActions} and {@link SnapshotTableSparkAction} instead.
+ * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
+ *     SnapshotTableSparkAction} instead.
  */
 @Deprecated
 public class BaseSnapshotTableSparkAction extends SnapshotTableSparkAction {
-  BaseSnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+  BaseSnapshotTableSparkAction(
+      SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
   }
 }

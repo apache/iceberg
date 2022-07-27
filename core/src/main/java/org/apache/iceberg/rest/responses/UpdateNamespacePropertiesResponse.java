@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import java.util.Collection;
@@ -27,23 +26,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.rest.RESTResponse;
 
-/**
- * A REST response to a request to set and/or remove properties on a namespace.
- */
+/** A REST response to a request to set and/or remove properties on a namespace. */
 public class UpdateNamespacePropertiesResponse implements RESTResponse {
 
   // List of namespace property keys that were removed
   private List<String> removed;
   // List of namespace property keys that were added or updated
   private List<String> updated;
-  // List of properties that were requested for removal that were not found in the namespace's properties
+  // List of properties that were requested for removal that were not found in the namespace's
+  // properties
   private List<String> missing;
 
   public UpdateNamespacePropertiesResponse() {
     // Required for Jackson deserialization
   }
 
-  private UpdateNamespacePropertiesResponse(List<String> removed, List<String> updated, List<String> missing) {
+  private UpdateNamespacePropertiesResponse(
+      List<String> removed, List<String> updated, List<String> missing) {
     this.removed = removed;
     this.updated = updated;
     this.missing = missing;
@@ -51,8 +50,7 @@ public class UpdateNamespacePropertiesResponse implements RESTResponse {
   }
 
   @Override
-  public void validate() {
-  }
+  public void validate() {}
 
   public List<String> removed() {
     return removed != null ? removed : ImmutableList.of();
@@ -84,8 +82,7 @@ public class UpdateNamespacePropertiesResponse implements RESTResponse {
     private final ImmutableSet.Builder<String> updatedBuilder = ImmutableSet.builder();
     private final ImmutableSet.Builder<String> missingBuilder = ImmutableSet.builder();
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public Builder addMissing(String key) {
       Preconditions.checkNotNull(key, "Invalid missing property: null");
@@ -108,8 +105,7 @@ public class UpdateNamespacePropertiesResponse implements RESTResponse {
 
     public Builder addRemoved(Collection<String> removed) {
       Preconditions.checkNotNull(removed, "Invalid removed property list: null");
-      Preconditions.checkArgument(!removed.contains(null),
-          "Invalid removed property: null");
+      Preconditions.checkArgument(!removed.contains(null), "Invalid removed property: null");
       removedBuilder.addAll(removed);
       return this;
     }
@@ -135,4 +131,3 @@ public class UpdateNamespacePropertiesResponse implements RESTResponse {
     }
   }
 }
-

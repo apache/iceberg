@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.util.Map;
@@ -38,35 +37,40 @@ import org.apache.iceberg.types.Types;
 public class RowDataProjection implements RowData {
   /**
    * Creates a projecting wrapper for {@link RowData} rows.
-   * <p>
-   * This projection will not project the nested children types of repeated types like lists and maps.
+   *
+   * <p>This projection will not project the nested children types of repeated types like lists and
+   * maps.
    *
    * @param schema schema of rows wrapped by this projection
    * @param projectedSchema result schema of the projected rows
    * @return a wrapper to project rows
    */
   public static RowDataProjection create(Schema schema, Schema projectedSchema) {
-    return RowDataProjection.create(FlinkSchemaUtil.convert(schema), schema.asStruct(), projectedSchema.asStruct());
+    return RowDataProjection.create(
+        FlinkSchemaUtil.convert(schema), schema.asStruct(), projectedSchema.asStruct());
   }
 
   /**
    * Creates a projecting wrapper for {@link RowData} rows.
-   * <p>
-   * This projection will not project the nested children types of repeated types like lists and maps.
+   *
+   * <p>This projection will not project the nested children types of repeated types like lists and
+   * maps.
    *
    * @param rowType flink row type of rows wrapped by this projection
    * @param schema schema of rows wrapped by this projection
    * @param projectedSchema result schema of the projected rows
    * @return a wrapper to project rows
    */
-  public static RowDataProjection create(RowType rowType, Types.StructType schema, Types.StructType projectedSchema) {
+  public static RowDataProjection create(
+      RowType rowType, Types.StructType schema, Types.StructType projectedSchema) {
     return new RowDataProjection(rowType, schema, projectedSchema);
   }
 
   private final RowData.FieldGetter[] getters;
   private RowData rowData;
 
-  private RowDataProjection(RowType rowType, Types.StructType rowStruct, Types.StructType projectType) {
+  private RowDataProjection(
+      RowType rowType, Types.StructType rowStruct, Types.StructType projectType) {
     Map<Integer, Integer> fieldIdToPosition = Maps.newHashMap();
     for (int i = 0; i < rowStruct.fields().size(); i++) {
       fieldIdToPosition.put(rowStruct.fields().get(i).fieldId(), i);
@@ -77,27 +81,34 @@ public class RowDataProjection implements RowData {
       Types.NestedField projectField = projectType.fields().get(i);
       Types.NestedField rowField = rowStruct.field(projectField.fieldId());
 
-      Preconditions.checkNotNull(rowField,
-          "Cannot locate the project field <%s> in the iceberg struct <%s>", projectField, rowStruct);
+      Preconditions.checkNotNull(
+          rowField,
+          "Cannot locate the project field <%s> in the iceberg struct <%s>",
+          projectField,
+          rowStruct);
 
-      getters[i] = createFieldGetter(rowType, fieldIdToPosition.get(projectField.fieldId()), rowField, projectField);
+      getters[i] =
+          createFieldGetter(
+              rowType, fieldIdToPosition.get(projectField.fieldId()), rowField, projectField);
     }
   }
 
-  private static RowData.FieldGetter createFieldGetter(RowType rowType,
-                                                       int position,
-                                                       Types.NestedField rowField,
-                                                       Types.NestedField projectField) {
-    Preconditions.checkArgument(rowField.type().typeId() == projectField.type().typeId(),
-        "Different iceberg type between row field <%s> and project field <%s>", rowField, projectField);
+  private static RowData.FieldGetter createFieldGetter(
+      RowType rowType, int position, Types.NestedField rowField, Types.NestedField projectField) {
+    Preconditions.checkArgument(
+        rowField.type().typeId() == projectField.type().typeId(),
+        "Different iceberg type between row field <%s> and project field <%s>",
+        rowField,
+        projectField);
 
     switch (projectField.type().typeId()) {
       case STRUCT:
         RowType nestedRowType = (RowType) rowType.getTypeAt(position);
         return row -> {
-          RowData nestedRow = row.isNullAt(position) ? null : row.getRow(position, nestedRowType.getFieldCount());
-          return RowDataProjection
-              .create(nestedRowType, rowField.type().asStructType(), projectField.type().asStructType())
+          RowData nestedRow =
+              row.isNullAt(position) ? null : row.getRow(position, nestedRowType.getFieldCount());
+          return RowDataProjection.create(
+                  nestedRowType, rowField.type().asStructType(), projectField.type().asStructType())
               .wrap(nestedRow);
         };
 
@@ -105,13 +116,17 @@ public class RowDataProjection implements RowData {
         Types.MapType projectedMap = projectField.type().asMapType();
         Types.MapType originalMap = rowField.type().asMapType();
 
-        boolean keyProjectable = !projectedMap.keyType().isNestedType() ||
-            projectedMap.keyType().equals(originalMap.keyType());
-        boolean valueProjectable = !projectedMap.valueType().isNestedType() ||
-            projectedMap.valueType().equals(originalMap.valueType());
-        Preconditions.checkArgument(keyProjectable && valueProjectable,
+        boolean keyProjectable =
+            !projectedMap.keyType().isNestedType()
+                || projectedMap.keyType().equals(originalMap.keyType());
+        boolean valueProjectable =
+            !projectedMap.valueType().isNestedType()
+                || projectedMap.valueType().equals(originalMap.valueType());
+        Preconditions.checkArgument(
+            keyProjectable && valueProjectable,
             "Cannot project a partial map key or value with non-primitive type. Trying to project <%s> out of <%s>",
-            projectField, rowField);
+            projectField,
+            rowField);
 
         return RowData.createFieldGetter(rowType.getTypeAt(position), position);
 
@@ -119,11 +134,14 @@ public class RowDataProjection implements RowData {
         Types.ListType projectedList = projectField.type().asListType();
         Types.ListType originalList = rowField.type().asListType();
 
-        boolean elementProjectable = !projectedList.elementType().isNestedType() ||
-            projectedList.elementType().equals(originalList.elementType());
-        Preconditions.checkArgument(elementProjectable,
+        boolean elementProjectable =
+            !projectedList.elementType().isNestedType()
+                || projectedList.elementType().equals(originalList.elementType());
+        Preconditions.checkArgument(
+            elementProjectable,
             "Cannot project a partial list element with non-primitive type. Trying to project <%s> out of <%s>",
-            projectField, rowField);
+            projectField,
+            rowField);
 
         return RowData.createFieldGetter(rowType.getTypeAt(position), position);
 

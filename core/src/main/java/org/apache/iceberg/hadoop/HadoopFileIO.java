@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
@@ -44,11 +43,11 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
   /**
    * Constructor used for dynamic FileIO loading.
-   * <p>
-   * {@link Configuration Hadoop configuration} must be set through {@link HadoopFileIO#setConf(Configuration)}
+   *
+   * <p>{@link Configuration Hadoop configuration} must be set through {@link
+   * HadoopFileIO#setConf(Configuration)}
    */
-  public HadoopFileIO() {
-  }
+  public HadoopFileIO() {}
 
   public HadoopFileIO(Configuration hadoopConf) {
     this(new SerializableConfiguration(hadoopConf)::get);
@@ -104,7 +103,8 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
   }
 
   @Override
-  public void serializeConfWith(Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
+  public void serializeConfWith(
+      Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
     this.hadoopConf = confSerializer.apply(getConf());
   }
 
@@ -115,9 +115,15 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
 
     return () -> {
       try {
-        return Streams.stream(new AdaptingIterator<>(fs.listFiles(prefixToList, true /* recursive */)))
-          .map(fileStatus -> new FileInfo(fileStatus.getPath().toString(), fileStatus.getLen(),
-              fileStatus.getModificationTime())).iterator();
+        return Streams.stream(
+                new AdaptingIterator<>(fs.listFiles(prefixToList, true /* recursive */)))
+            .map(
+                fileStatus ->
+                    new FileInfo(
+                        fileStatus.getPath().toString(),
+                        fileStatus.getLen(),
+                        fileStatus.getModificationTime()))
+            .iterator();
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
@@ -137,8 +143,7 @@ public class HadoopFileIO implements FileIO, HadoopConfigurable, SupportsPrefixO
   }
 
   /**
-   * This class is a simple adaptor to allow for using Hadoop's
-   * RemoteIterator as an Iterator.
+   * This class is a simple adaptor to allow for using Hadoop's RemoteIterator as an Iterator.
    *
    * @param <E> element type
    */

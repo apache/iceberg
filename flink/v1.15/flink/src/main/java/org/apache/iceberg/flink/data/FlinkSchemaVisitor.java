@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.util.List;
@@ -85,8 +84,8 @@ abstract class FlinkSchemaVisitor<T> {
     }
   }
 
-  private static <T> T visitRecord(LogicalType flinkType, Types.StructType struct,
-                                   FlinkSchemaVisitor<T> visitor) {
+  private static <T> T visitRecord(
+      LogicalType flinkType, Types.StructType struct, FlinkSchemaVisitor<T> visitor) {
     Preconditions.checkArgument(flinkType instanceof RowType, "%s is not a RowType.", flinkType);
     RowType rowType = (RowType) flinkType;
 
@@ -98,8 +97,8 @@ abstract class FlinkSchemaVisitor<T> {
     for (int i = 0; i < fieldSize; i++) {
       Types.NestedField iField = nestedFields.get(i);
       int fieldIndex = rowType.getFieldIndex(iField.name());
-      Preconditions.checkArgument(fieldIndex >= 0,
-          "NestedField: %s is not found in flink RowType: %s", iField, rowType);
+      Preconditions.checkArgument(
+          fieldIndex >= 0, "NestedField: %s is not found in flink RowType: %s", iField, rowType);
 
       LogicalType fieldFlinkType = rowType.getTypeAt(fieldIndex);
 
@@ -132,11 +131,9 @@ abstract class FlinkSchemaVisitor<T> {
     return null;
   }
 
-  public void beforeField(Types.NestedField field) {
-  }
+  public void beforeField(Types.NestedField field) {}
 
-  public void afterField(Types.NestedField field) {
-  }
+  public void afterField(Types.NestedField field) {}
 
   public void beforeListElement(Types.NestedField elementField) {
     beforeField(elementField);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
@@ -59,7 +58,8 @@ public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
 
   @Override
   public Table loadTable(TableIdentifier ident, String entriesSuffix) {
-    TableIdentifier identifier = TableIdentifier.of(ident.namespace().level(0), ident.name(), entriesSuffix);
+    TableIdentifier identifier =
+        TableIdentifier.of(ident.namespace().level(0), ident.name(), entriesSuffix);
     return TestIcebergSourceHiveTables.catalog.loadTable(identifier);
   }
 

@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.NullOrder.NULLS_FIRST;
+import static org.apache.iceberg.NullOrder.NULLS_LAST;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -27,9 +29,6 @@ import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-import static org.apache.iceberg.NullOrder.NULLS_FIRST;
-import static org.apache.iceberg.NullOrder.NULLS_LAST;
-
 public class SortOrderParser {
   private static final String ORDER_ID = "order-id";
   private static final String FIELDS = "fields";
@@ -38,8 +37,7 @@ public class SortOrderParser {
   private static final String TRANSFORM = "transform";
   private static final String SOURCE_ID = "source-id";
 
-  private SortOrderParser() {
-  }
+  private SortOrderParser() {}
 
   public static void toJson(SortOrder sortOrder, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
@@ -65,7 +63,8 @@ public class SortOrderParser {
     return nullOrder == NULLS_FIRST ? "nulls-first" : "nulls-last";
   }
 
-  private static void toJsonFields(SortOrder sortOrder, JsonGenerator generator) throws IOException {
+  private static void toJsonFields(SortOrder sortOrder, JsonGenerator generator)
+      throws IOException {
     generator.writeStartArray();
     for (SortField field : sortOrder.fields()) {
       generator.writeStartObject();
@@ -78,7 +77,8 @@ public class SortOrderParser {
     generator.writeEndArray();
   }
 
-  public static void toJson(UnboundSortOrder sortOrder, JsonGenerator generator) throws IOException {
+  public static void toJson(UnboundSortOrder sortOrder, JsonGenerator generator)
+      throws IOException {
     generator.writeStartObject();
     generator.writeNumberField(ORDER_ID, sortOrder.orderId());
     generator.writeFieldName(FIELDS);
@@ -94,7 +94,8 @@ public class SortOrderParser {
     return JsonUtil.generate(gen -> toJson(sortOrder, gen), pretty);
   }
 
-  private static void toJsonFields(UnboundSortOrder sortOrder, JsonGenerator generator) throws IOException {
+  private static void toJsonFields(UnboundSortOrder sortOrder, JsonGenerator generator)
+      throws IOException {
     generator.writeStartArray();
     for (UnboundSortOrder.UnboundSortField field : sortOrder.fields()) {
       generator.writeStartObject();
@@ -120,7 +121,8 @@ public class SortOrderParser {
   }
 
   public static UnboundSortOrder fromJson(JsonNode json) {
-    Preconditions.checkArgument(json.isObject(), "Cannot parse sort order from non-object: %s", json);
+    Preconditions.checkArgument(
+        json.isObject(), "Cannot parse sort order from non-object: %s", json);
     int orderId = JsonUtil.getInt(ORDER_ID, json);
     UnboundSortOrder.Builder builder = UnboundSortOrder.builder().withOrderId(orderId);
     buildFromJsonFields(builder, json.get(FIELDS));
@@ -129,12 +131,14 @@ public class SortOrderParser {
 
   private static void buildFromJsonFields(UnboundSortOrder.Builder builder, JsonNode json) {
     Preconditions.checkArgument(json != null, "Cannot parse null sort order fields");
-    Preconditions.checkArgument(json.isArray(), "Cannot parse sort order fields, not an array: %s", json);
+    Preconditions.checkArgument(
+        json.isArray(), "Cannot parse sort order fields, not an array: %s", json);
 
     Iterator<JsonNode> elements = json.elements();
     while (elements.hasNext()) {
       JsonNode element = elements.next();
-      Preconditions.checkArgument(element.isObject(), "Cannot parse sort field, not an object: %s", element);
+      Preconditions.checkArgument(
+          element.isObject(), "Cannot parse sort field, not an object: %s", element);
 
       String transform = JsonUtil.getString(TRANSFORM, element);
       int sourceId = JsonUtil.getInt(SOURCE_ID, element);

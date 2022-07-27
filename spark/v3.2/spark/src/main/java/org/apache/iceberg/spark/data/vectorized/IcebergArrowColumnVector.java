@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
@@ -31,9 +30,10 @@ import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
- * Implementation of Spark's {@link ColumnVector} interface. The code for this class is heavily inspired from Spark's
- * {@link ArrowColumnVector} The main difference is in how nullability checks are made in this class by relying on
- * {@link NullabilityHolder} instead of the validity vector in the Arrow vector.
+ * Implementation of Spark's {@link ColumnVector} interface. The code for this class is heavily
+ * inspired from Spark's {@link ArrowColumnVector} The main difference is in how nullability checks
+ * are made in this class by relying on {@link NullabilityHolder} instead of the validity vector in
+ * the Arrow vector.
  */
 public class IcebergArrowColumnVector extends ColumnVector {
 
@@ -151,7 +151,8 @@ public class IcebergArrowColumnVector extends ColumnVector {
     return accessor.childColumn(ordinal);
   }
 
-  public ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> vectorAccessor() {
+  public ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector>
+      vectorAccessor() {
     return accessor;
   }
 }

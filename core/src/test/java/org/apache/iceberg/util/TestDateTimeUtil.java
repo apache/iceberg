@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.time.ZonedDateTime;
@@ -33,6 +32,7 @@ public class TestDateTimeUtil {
 
     timestamp = "1970-01-01T00:16:40+00:00";
     Assertions.assertThat(DateTimeUtil.formatTimestampMillis(1000000L)).isEqualTo(timestamp);
-    Assertions.assertThat(ZonedDateTime.parse(timestamp).toInstant().toEpochMilli()).isEqualTo(1000000L);
+    Assertions.assertThat(ZonedDateTime.parse(timestamp).toInstant().toEpochMilli())
+        .isEqualTo(1000000L);
   }
 }

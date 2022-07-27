@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.vector;
 
 import java.io.IOException;
@@ -55,25 +54,28 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.MessageType;
 
 /**
- * Utility class to create vectorized readers for Hive.
- * As per the file format of the task, it will create a matching vectorized record reader that is already implemented
- * in Hive. It will also do some tweaks on the produced vectors for Iceberg's use e.g. partition column handling.
+ * Utility class to create vectorized readers for Hive. As per the file format of the task, it will
+ * create a matching vectorized record reader that is already implemented in Hive. It will also do
+ * some tweaks on the produced vectors for Iceberg's use e.g. partition column handling.
  */
 public class HiveVectorizedReader {
 
+  private HiveVectorizedReader() {}
 
-  private HiveVectorizedReader() {
-
-  }
-
-  public static <D> CloseableIterable<D> reader(InputFile inputFile, FileScanTask task, Map<Integer, ?> idToConstant,
+  public static <D> CloseableIterable<D> reader(
+      InputFile inputFile,
+      FileScanTask task,
+      Map<Integer, ?> idToConstant,
       TaskAttemptContext context) {
     JobConf job = (JobConf) context.getConfiguration();
     Path path = new Path(inputFile.location());
     FileFormat format = task.file().format();
-    Reporter reporter = ((MapredIcebergInputFormat.CompatibilityTaskAttemptContextImpl) context).getLegacyReporter();
+    Reporter reporter =
+        ((MapredIcebergInputFormat.CompatibilityTaskAttemptContextImpl) context)
+            .getLegacyReporter();
 
-    // Hive by default requires partition columns to be read too. This is not required for identity partition
+    // Hive by default requires partition columns to be read too. This is not required for identity
+    // partition
     // columns, as we will add this as constants later.
 
     int[] partitionColIndices = null;
@@ -121,30 +123,53 @@ public class HiveVectorizedReader {
           break;
 
         default:
-          throw new UnsupportedOperationException("Vectorized Hive reading unimplemented for format: " + format);
+          throw new UnsupportedOperationException(
+              "Vectorized Hive reading unimplemented for format: " + format);
       }
 
-      return createVectorizedRowBatchIterable(recordReader, job, partitionColIndices, partitionValues);
+      return createVectorizedRowBatchIterable(
+          recordReader, job, partitionColIndices, partitionValues);
 
     } catch (IOException ioe) {
       throw new RuntimeException("Error creating vectorized record reader for " + inputFile, ioe);
     }
   }
 
-
-  private static RecordReader<NullWritable, VectorizedRowBatch> orcRecordReader(JobConf job, Reporter reporter,
-      FileScanTask task, InputFile inputFile, Path path, long start, long length) throws IOException {
-    // Metadata information has to be passed along in the OrcSplit. Without specifying this, the vectorized
-    // reader will assume that the ORC file ends at the task's start + length, and might fail reading the tail..
+  private static RecordReader<NullWritable, VectorizedRowBatch> orcRecordReader(
+      JobConf job,
+      Reporter reporter,
+      FileScanTask task,
+      InputFile inputFile,
+      Path path,
+      long start,
+      long length)
+      throws IOException {
+    // Metadata information has to be passed along in the OrcSplit. Without specifying this, the
+    // vectorized
+    // reader will assume that the ORC file ends at the task's start + length, and might fail
+    // reading the tail..
     OrcTail orcTail = VectorizedReadUtils.getOrcTail(inputFile, job);
 
-    InputSplit split = new OrcSplit(path, null, start, length, (String[]) null, orcTail,
-        false, false, Lists.newArrayList(), 0, task.length(), path.getParent());
+    InputSplit split =
+        new OrcSplit(
+            path,
+            null,
+            start,
+            length,
+            (String[]) null,
+            orcTail,
+            false,
+            false,
+            Lists.newArrayList(),
+            0,
+            task.length(),
+            path.getParent());
     return new VectorizedOrcInputFormat().getRecordReader(split, job, reporter);
   }
 
-  private static RecordReader<NullWritable, VectorizedRowBatch> parquetRecordReader(JobConf job, Reporter reporter,
-      FileScanTask task, Path path, long start, long length) throws IOException {
+  private static RecordReader<NullWritable, VectorizedRowBatch> parquetRecordReader(
+      JobConf job, Reporter reporter, FileScanTask task, Path path, long start, long length)
+      throws IOException {
     InputSplit split = new FileSplit(path, start, length, job);
     VectorizedParquetInputFormat inputFormat = new VectorizedParquetInputFormat();
 
@@ -155,8 +180,9 @@ public class HiveVectorizedReader {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       typeWithIds = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
     } else {
-      typeWithIds = ParquetSchemaUtil.pruneColumnsFallback(ParquetSchemaUtil.addFallbackIds(fileSchema),
-          expectedSchema);
+      typeWithIds =
+          ParquetSchemaUtil.pruneColumnsFallback(
+              ParquetSchemaUtil.addFallbackIds(fileSchema), expectedSchema);
     }
 
     ParquetSchemaFieldNameVisitor psv = new ParquetSchemaFieldNameVisitor(fileSchema);
@@ -167,7 +193,9 @@ public class HiveVectorizedReader {
   }
 
   private static <D> CloseableIterable<D> createVectorizedRowBatchIterable(
-      RecordReader<NullWritable, VectorizedRowBatch> hiveRecordReader, JobConf job, int[] partitionColIndices,
+      RecordReader<NullWritable, VectorizedRowBatch> hiveRecordReader,
+      JobConf job,
+      int[] partitionColIndices,
       Object[] partitionValues) {
 
     VectorizedRowBatchIterator iterator =
@@ -186,5 +214,4 @@ public class HiveVectorizedReader {
       }
     };
   }
-
 }

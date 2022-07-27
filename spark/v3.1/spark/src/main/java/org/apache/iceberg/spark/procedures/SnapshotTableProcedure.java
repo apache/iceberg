@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
@@ -34,16 +33,19 @@ import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
 
 class SnapshotTableProcedure extends BaseProcedure {
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("source_table", DataTypes.StringType),
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("location", DataTypes.StringType),
-      ProcedureParameter.optional("properties", STRING_MAP)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("source_table", DataTypes.StringType),
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("location", DataTypes.StringType),
+        ProcedureParameter.optional("properties", STRING_MAP)
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("imported_files_count", DataTypes.LongType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("imported_files_count", DataTypes.LongType, false, Metadata.empty())
+          });
 
   private SnapshotTableProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
@@ -71,23 +73,28 @@ class SnapshotTableProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     String source = args.getString(0);
-    Preconditions.checkArgument(source != null && !source.isEmpty(),
+    Preconditions.checkArgument(
+        source != null && !source.isEmpty(),
         "Cannot handle an empty identifier for argument source_table");
     String dest = args.getString(1);
-    Preconditions.checkArgument(dest != null && !dest.isEmpty(),
-        "Cannot handle an empty identifier for argument table");
+    Preconditions.checkArgument(
+        dest != null && !dest.isEmpty(), "Cannot handle an empty identifier for argument table");
     String snapshotLocation = args.isNullAt(2) ? null : args.getString(2);
 
     Map<String, String> properties = Maps.newHashMap();
     if (!args.isNullAt(3)) {
-      args.getMap(3).foreach(DataTypes.StringType, DataTypes.StringType,
-          (k, v) -> {
-            properties.put(k.toString(), v.toString());
-            return BoxedUnit.UNIT;
-          });
+      args.getMap(3)
+          .foreach(
+              DataTypes.StringType,
+              DataTypes.StringType,
+              (k, v) -> {
+                properties.put(k.toString(), v.toString());
+                return BoxedUnit.UNIT;
+              });
     }
 
-    Preconditions.checkArgument(!source.equals(dest),
+    Preconditions.checkArgument(
+        !source.equals(dest),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
     SnapshotTable action = SparkActions.get().snapshotTable(source).as(dest);
 
@@ -103,5 +110,4 @@ class SnapshotTableProcedure extends BaseProcedure {
   public String description() {
     return "SnapshotTableProcedure";
   }
-
 }

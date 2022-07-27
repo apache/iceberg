@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 /**
  * Interface for accessing data by position in a schema.
- * <p>
- * This interface supports accessing data in top-level fields, not in nested fields.
+ *
+ * <p>This interface supports accessing data in top-level fields, not in nested fields.
  */
 public interface StructLike {
   int size();

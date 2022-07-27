@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -28,18 +27,29 @@ import org.junit.Test;
 public class TestFixedSizeSplitScanTaskIterator {
   @Test
   public void testSplits() {
-    verify(15L, 100L, asList(
-        asList(0L, 15L), asList(15L, 15L), asList(30L, 15L), asList(45L, 15L), asList(60L, 15L),
-        asList(75L, 15L), asList(90L, 10L)));
+    verify(
+        15L,
+        100L,
+        asList(
+            asList(0L, 15L),
+            asList(15L, 15L),
+            asList(30L, 15L),
+            asList(45L, 15L),
+            asList(60L, 15L),
+            asList(75L, 15L),
+            asList(90L, 10L)));
     verify(10L, 10L, asList(asList(0L, 10L)));
     verify(20L, 10L, asList(asList(0L, 10L)));
   }
 
   private static void verify(long splitSize, long fileLen, List<List<Long>> offsetLenPairs) {
     FileScanTask mockFileScanTask = new MockFileScanTask(fileLen);
-    SplitScanTaskIterator<FileScanTask> splitTaskIterator = new FixedSizeSplitScanTaskIterator<>(
-        mockFileScanTask, mockFileScanTask.length(),
-        splitSize, TestFixedSizeSplitScanTaskIterator::createSplitTask);
+    SplitScanTaskIterator<FileScanTask> splitTaskIterator =
+        new FixedSizeSplitScanTaskIterator<>(
+            mockFileScanTask,
+            mockFileScanTask.length(),
+            splitSize,
+            TestFixedSizeSplitScanTaskIterator::createSplitTask);
     List<FileScanTask> tasks = Lists.newArrayList(splitTaskIterator);
 
     for (int i = 0; i < tasks.size(); i++) {

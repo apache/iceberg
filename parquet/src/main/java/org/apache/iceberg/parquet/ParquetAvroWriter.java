@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.util.List;
@@ -34,8 +33,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class ParquetAvroWriter {
-  private ParquetAvroWriter() {
-  }
+  private ParquetAvroWriter() {}
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(MessageType type) {
@@ -50,14 +48,14 @@ public class ParquetAvroWriter {
     }
 
     @Override
-    public ParquetValueWriter<?> message(MessageType message,
-                                         List<ParquetValueWriter<?>> fieldWriters) {
+    public ParquetValueWriter<?> message(
+        MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
       return struct(message.asGroupType(), fieldWriters);
     }
 
     @Override
-    public ParquetValueWriter<?> struct(GroupType struct,
-                                        List<ParquetValueWriter<?>> fieldWriters) {
+    public ParquetValueWriter<?> struct(
+        GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       for (int i = 0; i < fields.size(); i += 1) {
@@ -80,14 +78,13 @@ public class ParquetAvroWriter {
       Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName()));
 
-      return ParquetValueWriters.collections(repeatedD, repeatedR,
-          ParquetValueWriters.option(elementType, elementD, elementWriter));
+      return ParquetValueWriters.collections(
+          repeatedD, repeatedR, ParquetValueWriters.option(elementType, elementD, elementWriter));
     }
 
     @Override
-    public ParquetValueWriter<?> map(GroupType map,
-                                     ParquetValueWriter<?> keyWriter,
-                                     ParquetValueWriter<?> valueWriter) {
+    public ParquetValueWriter<?> map(
+        GroupType map, ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -99,7 +96,9 @@ public class ParquetAvroWriter {
       Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName()));
 
-      return ParquetValueWriters.maps(repeatedD, repeatedR,
+      return ParquetValueWriters.maps(
+          repeatedD,
+          repeatedR,
           ParquetValueWriters.option(keyType, keyD, keyWriter),
           ParquetValueWriters.option(valueType, valueD, valueWriter));
     }

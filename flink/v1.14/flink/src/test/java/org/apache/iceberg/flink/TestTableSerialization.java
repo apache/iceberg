@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
+
+import static org.apache.iceberg.flink.TestHelpers.roundTripKryoSerialize;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,30 +45,22 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.flink.TestHelpers.roundTripKryoSerialize;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestTableSerialization {
   private static final HadoopTables TABLES = new HadoopTables();
 
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()),
-      optional(4, "double", Types.DoubleType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "data", Types.StringType.get()),
+          required(3, "date", Types.StringType.get()),
+          optional(4, "double", Types.DoubleType.get()));
 
-  private static final PartitionSpec SPEC = PartitionSpec
-      .builderFor(SCHEMA)
-      .identity("date")
-      .build();
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("date").build();
 
-  private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA)
-      .asc("id")
-      .build();
+  private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
   private Table table;
 
   @Before
@@ -82,16 +77,17 @@ public class TestTableSerialization {
   public void testSerializableTableKryoSerialization() throws IOException {
     SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
     TestHelpers.assertSerializedAndLoadedMetadata(
-        table,
-        roundTripKryoSerialize(SerializableTable.class, serializableTable));
+        table, roundTripKryoSerialize(SerializableTable.class, serializableTable));
   }
 
   @Test
   public void testSerializableMetadataTableKryoSerialization() throws IOException {
     for (MetadataTableType type : MetadataTableType.values()) {
       TableOperations ops = ((HasTableOperations) table).operations();
-      Table metadataTable = MetadataTableUtils.createMetadataTableInstance(ops, table.name(), "meta", type);
-      SerializableTable serializableMetadataTable = (SerializableTable) SerializableTable.copyOf(metadataTable);
+      Table metadataTable =
+          MetadataTableUtils.createMetadataTableInstance(ops, table.name(), "meta", type);
+      SerializableTable serializableMetadataTable =
+          (SerializableTable) SerializableTable.copyOf(metadataTable);
 
       TestHelpers.assertSerializedAndLoadedMetadata(
           metadataTable,
@@ -103,15 +99,12 @@ public class TestTableSerialization {
   public void testSerializableTransactionTableKryoSerialization() throws IOException {
     Transaction txn = table.newTransaction();
 
-    txn.updateProperties()
-        .set("k1", "v1")
-        .commit();
+    txn.updateProperties().set("k1", "v1").commit();
 
     Table txnTable = txn.table();
     SerializableTable serializableTxnTable = (SerializableTable) SerializableTable.copyOf(txnTable);
 
     TestHelpers.assertSerializedMetadata(
-        txnTable,
-        roundTripKryoSerialize(SerializableTable.class, serializableTxnTable));
+        txnTable, roundTripKryoSerialize(SerializableTable.class, serializableTxnTable));
   }
 }

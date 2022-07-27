@@ -16,29 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Iceberg supports two ways to modify records in a table: copy-on-write and merge-on-read.
- * <p>
- * In copy-on-write, changes are materialized immediately and matching data files are replaced with
- * new data files that represent the new table state. For example, if there is a record that
- * has to be deleted, the data file that contains this record has to be replaced with another
- * data file without that record. All unchanged rows have to be copied over to the new data file.
- * <p>
- * In merge-on-read, changes aren't materialized immediately. Instead, IDs of deleted and updated
+ *
+ * <p>In copy-on-write, changes are materialized immediately and matching data files are replaced
+ * with new data files that represent the new table state. For example, if there is a record that
+ * has to be deleted, the data file that contains this record has to be replaced with another data
+ * file without that record. All unchanged rows have to be copied over to the new data file.
+ *
+ * <p>In merge-on-read, changes aren't materialized immediately. Instead, IDs of deleted and updated
  * records are written into delete files that are applied during reads and updated/inserted records
  * are written into new data files that are committed together with the delete files.
- * <p>
- * Copy-on-write changes tend to consume more time and resources during writes but don't introduce any
- * performance overhead during reads. Merge-on-read operations, on the other hand, tend to be much
- * faster during writes but require more time and resources to apply delete files during reads.
+ *
+ * <p>Copy-on-write changes tend to consume more time and resources during writes but don't
+ * introduce any performance overhead during reads. Merge-on-read operations, on the other hand,
+ * tend to be much faster during writes but require more time and resources to apply delete files
+ * during reads.
  */
 public enum RowLevelOperationMode {
-  COPY_ON_WRITE, MERGE_ON_READ;
+  COPY_ON_WRITE,
+  MERGE_ON_READ;
 
   public static RowLevelOperationMode fromName(String modeName) {
     Preconditions.checkArgument(modeName != null, "Mode name is null");

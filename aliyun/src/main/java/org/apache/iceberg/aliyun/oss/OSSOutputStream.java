@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -59,7 +58,8 @@ public class OSSOutputStream extends PositionOutputStream {
   private final Counter<Long> writeBytes;
   private final Counter<Integer> writeOperations;
 
-  OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
+  OSSOutputStream(
+      OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
     this.createStack = Thread.currentThread().getStackTrace();
@@ -67,7 +67,8 @@ public class OSSOutputStream extends PositionOutputStream {
     this.currentStagingFile = newStagingFile(aliyunProperties.ossStagingDirectory());
     this.stream = newStream(currentStagingFile);
     this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Long.class, Unit.BYTES);
-    this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
+    this.writeOperations =
+        metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS, Integer.class, Unit.COUNT);
   }
 
   private static File newStagingFile(String ossStagingDirectory) {
@@ -154,7 +155,8 @@ public class OSSOutputStream extends PositionOutputStream {
     ObjectMetadata metadata = new ObjectMetadata();
     metadata.setContentLength(contentLength);
 
-    PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.key(), contentStream, metadata);
+    PutObjectRequest request =
+        new PutObjectRequest(uri.bucket(), uri.key(), contentStream, metadata);
     client.putObject(request);
   }
 

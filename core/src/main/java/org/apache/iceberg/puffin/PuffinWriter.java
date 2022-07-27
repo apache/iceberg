@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import java.io.IOException;
@@ -57,14 +56,17 @@ public class PuffinWriter implements FileAppender<Blob> {
   private Optional<Long> fileSize = Optional.empty();
 
   PuffinWriter(
-      OutputFile outputFile, Map<String, String> properties, boolean compressFooter,
+      OutputFile outputFile,
+      Map<String, String> properties,
+      boolean compressFooter,
       PuffinCompressionCodec defaultBlobCompression) {
     Preconditions.checkNotNull(outputFile, "outputFile is null");
     Preconditions.checkNotNull(properties, "properties is null");
     Preconditions.checkNotNull(defaultBlobCompression, "defaultBlobCompression is null");
     this.outputStream = outputFile.create();
     this.properties = ImmutableMap.copyOf(properties);
-    this.footerCompression = compressFooter ? PuffinFormat.FOOTER_COMPRESSION_CODEC : PuffinCompressionCodec.NONE;
+    this.footerCompression =
+        compressFooter ? PuffinFormat.FOOTER_COMPRESSION_CODEC : PuffinCompressionCodec.NONE;
     this.defaultBlobCompression = defaultBlobCompression;
   }
 
@@ -75,12 +77,21 @@ public class PuffinWriter implements FileAppender<Blob> {
     try {
       writeHeaderIfNeeded();
       long fileOffset = outputStream.getPos();
-      PuffinCompressionCodec codec = MoreObjects.firstNonNull(blob.requestedCompression(), defaultBlobCompression);
+      PuffinCompressionCodec codec =
+          MoreObjects.firstNonNull(blob.requestedCompression(), defaultBlobCompression);
       ByteBuffer rawData = PuffinFormat.compress(codec, blob.blobData());
       int length = rawData.remaining();
       IOUtil.writeFully(outputStream, rawData);
-      writtenBlobsMetadata.add(new BlobMetadata(blob.type(), blob.inputFields(), blob.snapshotId(),
-          blob.sequenceNumber(), fileOffset, length, codec.codecName(), blob.properties()));
+      writtenBlobsMetadata.add(
+          new BlobMetadata(
+              blob.type(),
+              blob.inputFields(),
+              blob.snapshotId(),
+              blob.sequenceNumber(),
+              fileOffset,
+              length,
+              codec.codecName(),
+              blob.properties()));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -127,8 +138,9 @@ public class PuffinWriter implements FileAppender<Blob> {
 
   private void writeFooter() throws IOException {
     FileMetadata fileMetadata = new FileMetadata(writtenBlobsMetadata, properties);
-    ByteBuffer footerJson = ByteBuffer.wrap(
-        FileMetadataParser.toJson(fileMetadata, false).getBytes(StandardCharsets.UTF_8));
+    ByteBuffer footerJson =
+        ByteBuffer.wrap(
+            FileMetadataParser.toJson(fileMetadata, false).getBytes(StandardCharsets.UTF_8));
     ByteBuffer footerPayload = PuffinFormat.compress(footerCompression, footerJson);
     outputStream.write(MAGIC);
     int footerPayloadLength = footerPayload.remaining();
@@ -139,8 +151,8 @@ public class PuffinWriter implements FileAppender<Blob> {
   }
 
   private void writeFlags() throws IOException {
-    Map<Integer, List<Flag>> flagsByByteNumber = fileFlags().stream()
-        .collect(Collectors.groupingBy(Flag::byteNumber));
+    Map<Integer, List<Flag>> flagsByByteNumber =
+        fileFlags().stream().collect(Collectors.groupingBy(Flag::byteNumber));
     for (int byteNumber = 0; byteNumber < PuffinFormat.FOOTER_STRUCT_FLAGS_LENGTH; byteNumber++) {
       int byteFlag = 0;
       for (Flag flag : flagsByByteNumber.getOrDefault(byteNumber, ImmutableList.of())) {

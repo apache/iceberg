@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.Map;
@@ -38,46 +37,57 @@ class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
 
   @Override
   public SortOrder field(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return Expressions.sort(Expressions.column(quotedName(id)), toSpark(direction), toSpark(nullOrder));
+    return Expressions.sort(
+        Expressions.column(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
-  public SortOrder bucket(String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
-    return Expressions.sort(Expressions.bucket(width, quotedName(id)), toSpark(direction), toSpark(nullOrder));
+  public SortOrder bucket(
+      String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(
+        Expressions.bucket(width, quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
-  public SortOrder truncate(String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
-    return Expressions.sort(Expressions.apply(
-        "truncate", Expressions.column(quotedName(id)), Expressions.literal(width)),
-        toSpark(direction), toSpark(nullOrder));
+  public SortOrder truncate(
+      String sourceName, int id, int width, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(
+        Expressions.apply(
+            "truncate", Expressions.column(quotedName(id)), Expressions.literal(width)),
+        toSpark(direction),
+        toSpark(nullOrder));
   }
 
   @Override
   public SortOrder year(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return Expressions.sort(Expressions.years(quotedName(id)), toSpark(direction), toSpark(nullOrder));
+    return Expressions.sort(
+        Expressions.years(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
   public SortOrder month(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return Expressions.sort(Expressions.months(quotedName(id)), toSpark(direction), toSpark(nullOrder));
+    return Expressions.sort(
+        Expressions.months(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
   public SortOrder day(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return Expressions.sort(Expressions.days(quotedName(id)), toSpark(direction), toSpark(nullOrder));
+    return Expressions.sort(
+        Expressions.days(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   @Override
   public SortOrder hour(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
-    return Expressions.sort(Expressions.hours(quotedName(id)), toSpark(direction), toSpark(nullOrder));
+    return Expressions.sort(
+        Expressions.hours(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
   private String quotedName(int id) {
     return quotedNameById.get(id);
   }
 
-  private org.apache.spark.sql.connector.expressions.SortDirection toSpark(SortDirection direction) {
+  private org.apache.spark.sql.connector.expressions.SortDirection toSpark(
+      SortDirection direction) {
     if (direction == SortDirection.ASC) {
       return org.apache.spark.sql.connector.expressions.SortDirection.ASCENDING;
     } else {
@@ -89,4 +99,3 @@ class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
     return nullOrder == NullOrder.NULLS_FIRST ? NullOrdering.NULLS_FIRST : NullOrdering.NULLS_LAST;
   }
 }
-

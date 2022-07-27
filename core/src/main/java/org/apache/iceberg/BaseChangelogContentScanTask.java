@@ -16,23 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-abstract class BaseChangelogContentScanTask
-    <ThisT extends ContentScanTask<F> & ChangelogScanTask, F extends ContentFile<F>>
-    extends BaseContentScanTask<ThisT, F>
-    implements ChangelogScanTask {
+abstract class BaseChangelogContentScanTask<
+        ThisT extends ContentScanTask<F> & ChangelogScanTask, F extends ContentFile<F>>
+    extends BaseContentScanTask<ThisT, F> implements ChangelogScanTask {
 
   private final int changeOrdinal;
   private final long commitSnapshotId;
 
-  BaseChangelogContentScanTask(int changeOrdinal, long commitSnapshotId, F file,
-                               String schemaString, String specString, ResidualEvaluator residuals) {
+  BaseChangelogContentScanTask(
+      int changeOrdinal,
+      long commitSnapshotId,
+      F file,
+      String schemaString,
+      String specString,
+      ResidualEvaluator residuals) {
     super(file, schemaString, specString, residuals);
     this.changeOrdinal = changeOrdinal;
     this.commitSnapshotId = commitSnapshotId;
@@ -59,8 +62,8 @@ abstract class BaseChangelogContentScanTask
         .toString();
   }
 
-  abstract static class SplitScanTask
-      <ThisT, ParentT extends ContentScanTask<F> & ChangelogScanTask, F extends ContentFile<F>>
+  abstract static class SplitScanTask<
+          ThisT, ParentT extends ContentScanTask<F> & ChangelogScanTask, F extends ContentFile<F>>
       implements ContentScanTask<F>, ChangelogScanTask, MergeableScanTask<ThisT> {
 
     private final ParentT parentTask;
@@ -118,10 +121,10 @@ abstract class BaseChangelogContentScanTask
     public boolean canMerge(ScanTask other) {
       if (getClass().equals(other.getClass())) {
         SplitScanTask<?, ?, ?> that = (SplitScanTask<?, ?, ?>) other;
-        return changeOrdinal() == that.changeOrdinal() &&
-            commitSnapshotId() == that.commitSnapshotId() &&
-            file().equals(that.file()) &&
-            start() + length() == that.start();
+        return changeOrdinal() == that.changeOrdinal()
+            && commitSnapshotId() == that.commitSnapshotId()
+            && file().equals(that.file())
+            && start() + length() == that.start();
 
       } else {
         return false;

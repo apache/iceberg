@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
 /**
- * Exception thrown on HTTP 401 Unauthorized.
- * The user is either not authenticated or failed authorization checks.
+ * Exception thrown on HTTP 401 Unauthorized. The user is either not authenticated or failed
+ * authorization checks.
  */
 public class NotAuthorizedException extends RESTException {
   @FormatMethod

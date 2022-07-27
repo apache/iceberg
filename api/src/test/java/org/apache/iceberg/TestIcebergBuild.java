@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Locale;
@@ -40,8 +39,12 @@ public class TestIcebergBuild {
 
   @Test
   public void testGitCommitId() {
-    Assert.assertNotEquals("Should not use unknown commit ID", "unknown", IcebergBuild.gitCommitId());
-    Assert.assertTrue("Should be a hexadecimal string of 20 bytes",
-        Pattern.compile("[0-9a-f]{40}").matcher(IcebergBuild.gitCommitId().toLowerCase(Locale.ROOT)).matches());
+    Assert.assertNotEquals(
+        "Should not use unknown commit ID", "unknown", IcebergBuild.gitCommitId());
+    Assert.assertTrue(
+        "Should be a hexadecimal string of 20 bytes",
+        Pattern.compile("[0-9a-f]{40}")
+            .matcher(IcebergBuild.gitCommitId().toLowerCase(Locale.ROOT))
+            .matches());
   }
 }

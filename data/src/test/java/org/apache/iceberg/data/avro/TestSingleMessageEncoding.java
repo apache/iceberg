@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.avro;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -42,14 +44,10 @@ import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestSingleMessageEncoding {
-  private static final Schema SCHEMA_V1 = new Schema(
-      required(0, "id", Types.IntegerType.get()),
-      optional(1, "msg", Types.StringType.get())
-  );
+  private static final Schema SCHEMA_V1 =
+      new Schema(
+          required(0, "id", Types.IntegerType.get()), optional(1, "msg", Types.StringType.get()));
 
   private static Record v1Record(int id, String msg) {
     Record rec = GenericRecord.create(SCHEMA_V1.asStruct());
@@ -58,18 +56,14 @@ public class TestSingleMessageEncoding {
     return rec;
   }
 
-  private static final List<Record> V1_RECORDS = Arrays.asList(
-      v1Record(1, "m-1"),
-      v1Record(2, "m-2"),
-      v1Record(4, "m-4"),
-      v1Record(6, "m-6")
-  );
+  private static final List<Record> V1_RECORDS =
+      Arrays.asList(v1Record(1, "m-1"), v1Record(2, "m-2"), v1Record(4, "m-4"), v1Record(6, "m-6"));
 
-  private static final Schema SCHEMA_V2 = new Schema(
-      required(0, "id", Types.LongType.get()),
-      optional(1, "message", Types.StringType.get()),
-      optional(2, "data", Types.DoubleType.get())
-  );
+  private static final Schema SCHEMA_V2 =
+      new Schema(
+          required(0, "id", Types.LongType.get()),
+          optional(1, "message", Types.StringType.get()),
+          optional(2, "data", Types.DoubleType.get()));
 
   private static Record v2Record(long id, String message, Double data) {
     Record rec = GenericRecord.create(SCHEMA_V2.asStruct());
@@ -79,12 +73,12 @@ public class TestSingleMessageEncoding {
     return rec;
   }
 
-  private static final List<Record> V2_RECORDS = Arrays.asList(
-      v2Record(3L, "m-3", 12.3),
-      v2Record(5L, "m-5", 23.4),
-      v2Record(7L, "m-7", 34.5),
-      v2Record(8L, "m-8", 35.6)
-  );
+  private static final List<Record> V2_RECORDS =
+      Arrays.asList(
+          v2Record(3L, "m-3", 12.3),
+          v2Record(5L, "m-5", 23.4),
+          v2Record(7L, "m-7", 34.5),
+          v2Record(8L, "m-8", 35.6));
 
   @Test
   public void testByteBufferRoundTrip() throws Exception {
@@ -93,17 +87,15 @@ public class TestSingleMessageEncoding {
 
     Record copy = decoder.decode(encoder.encode(V2_RECORDS.get(0)));
 
-    Assert.assertTrue("Copy should not be the same object",
-        copy != V2_RECORDS.get(0));
-    Assert.assertEquals("Record should be identical after round-trip",
-        V2_RECORDS.get(0), copy);
+    Assert.assertTrue("Copy should not be the same object", copy != V2_RECORDS.get(0));
+    Assert.assertEquals("Record should be identical after round-trip", V2_RECORDS.get(0), copy);
   }
 
   @Test
   public void testSchemaEvolution() throws Exception {
     List<ByteBuffer> buffers = Lists.newArrayList();
-    List<Record> records = Ordering.usingToString().sortedCopy(
-        Iterables.concat(V1_RECORDS, V2_RECORDS));
+    List<Record> records =
+        Ordering.usingToString().sortedCopy(Iterables.concat(V1_RECORDS, V2_RECORDS));
 
     MessageEncoder<Record> v1Encoder = new IcebergEncoder<>(SCHEMA_V1);
     MessageEncoder<Record> v2Encoder = new IcebergEncoder<>(SCHEMA_V2);
@@ -141,8 +133,8 @@ public class TestSingleMessageEncoding {
     ByteBuffer v1Buffer = v1Encoder.encode(V1_RECORDS.get(3));
 
     Assertions.assertThatThrownBy(() -> v2Decoder.decode(v1Buffer))
-            .isInstanceOf(MissingSchemaException.class)
-            .hasMessageContaining("Cannot resolve schema for fingerprint");
+        .isInstanceOf(MissingSchemaException.class)
+        .hasMessageContaining("Cannot resolve schema for fingerprint");
   }
 
   @Test
@@ -186,8 +178,8 @@ public class TestSingleMessageEncoding {
     Assert.assertEquals(b0.array(), b1.array());
 
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V1);
-    Assert.assertEquals("Buffer was reused, decode(b0) should be record 1",
-        V1_RECORDS.get(1), decoder.decode(b0));
+    Assert.assertEquals(
+        "Buffer was reused, decode(b0) should be record 1", V1_RECORDS.get(1), decoder.decode(b0));
   }
 
   @Test
@@ -201,8 +193,8 @@ public class TestSingleMessageEncoding {
 
     MessageDecoder<Record> decoder = new IcebergDecoder<>(SCHEMA_V1);
     // bytes are not changed by reusing the encoder
-    Assert.assertEquals("Buffer was copied, decode(b0) should be record 0",
-        V1_RECORDS.get(0), decoder.decode(b0));
+    Assert.assertEquals(
+        "Buffer was copied, decode(b0) should be record 0", V1_RECORDS.get(0), decoder.decode(b0));
   }
 
   @Test
@@ -215,8 +207,8 @@ public class TestSingleMessageEncoding {
     buffer.limit(12);
 
     Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
-            .isInstanceOf(AvroRuntimeException.class)
-            .hasMessage("Decoding datum failed");
+        .isInstanceOf(AvroRuntimeException.class)
+        .hasMessage("Decoding datum failed");
   }
 
   @Test
@@ -229,8 +221,8 @@ public class TestSingleMessageEncoding {
     buffer.limit(8);
 
     Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
-            .isInstanceOf(BadHeaderException.class)
-            .hasMessage("Not enough header bytes");
+        .isInstanceOf(BadHeaderException.class)
+        .hasMessage("Not enough header bytes");
   }
 
   @Test
@@ -242,8 +234,8 @@ public class TestSingleMessageEncoding {
     buffer.array()[0] = 0x00;
 
     Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
-            .isInstanceOf(BadHeaderException.class)
-            .hasMessageContaining("Unrecognized header bytes");
+        .isInstanceOf(BadHeaderException.class)
+        .hasMessageContaining("Unrecognized header bytes");
   }
 
   @Test
@@ -255,8 +247,8 @@ public class TestSingleMessageEncoding {
     buffer.array()[1] = 0x00;
 
     Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
-            .isInstanceOf(BadHeaderException.class)
-            .hasMessageContaining("Unrecognized header bytes");
+        .isInstanceOf(BadHeaderException.class)
+        .hasMessageContaining("Unrecognized header bytes");
   }
 
   @Test
@@ -268,7 +260,7 @@ public class TestSingleMessageEncoding {
     buffer.array()[4] = 0x00;
 
     Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
-            .isInstanceOf(MissingSchemaException.class)
-            .hasMessageContaining("Cannot resolve schema for fingerprint");
+        .isInstanceOf(MissingSchemaException.class)
+        .hasMessageContaining("Cannot resolve schema for fingerprint");
   }
 }

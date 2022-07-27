@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.io.Serializable;
@@ -39,19 +38,18 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 
-/**
- * This class acts as an adaptor from an OrcFileAppender to a
- * FileAppender&lt;InternalRow&gt;.
- */
+/** This class acts as an adaptor from an OrcFileAppender to a FileAppender&lt;InternalRow&gt;. */
 public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
   private final InternalRowWriter writer;
 
   public SparkOrcWriter(Schema iSchema, TypeDescription orcSchema) {
-    Preconditions.checkArgument(orcSchema.getCategory() == TypeDescription.Category.STRUCT,
+    Preconditions.checkArgument(
+        orcSchema.getCategory() == TypeDescription.Category.STRUCT,
         "Top level must be a struct " + orcSchema);
 
-    writer = (InternalRowWriter) OrcSchemaWithTypeVisitor.visit(iSchema, orcSchema, new WriteBuilder());
+    writer =
+        (InternalRowWriter) OrcSchemaWithTypeVisitor.visit(iSchema, orcSchema, new WriteBuilder());
   }
 
   @Override
@@ -71,24 +69,26 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   }
 
   private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter<?>> {
-    private WriteBuilder() {
-    }
+    private WriteBuilder() {}
 
     @Override
-    public OrcValueWriter<?> record(Types.StructType iStruct, TypeDescription record,
-                                      List<String> names, List<OrcValueWriter<?>> fields) {
+    public OrcValueWriter<?> record(
+        Types.StructType iStruct,
+        TypeDescription record,
+        List<String> names,
+        List<OrcValueWriter<?>> fields) {
       return new InternalRowWriter(fields, record.getChildren());
     }
 
     @Override
-    public OrcValueWriter<?> list(Types.ListType iList, TypeDescription array,
-        OrcValueWriter<?> element) {
+    public OrcValueWriter<?> list(
+        Types.ListType iList, TypeDescription array, OrcValueWriter<?> element) {
       return SparkOrcValueWriters.list(element, array.getChildren());
     }
 
     @Override
-    public OrcValueWriter<?> map(Types.MapType iMap, TypeDescription map,
-        OrcValueWriter<?> key, OrcValueWriter<?> value) {
+    public OrcValueWriter<?> map(
+        Types.MapType iMap, TypeDescription map, OrcValueWriter<?> key, OrcValueWriter<?> value) {
       return SparkOrcValueWriters.map(key, value, map.getChildren());
     }
 
@@ -178,8 +178,9 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         // being changed behind our back.
         break;
       case DECIMAL:
-        fieldGetter = (row, ordinal) ->
-            row.getDecimal(ordinal, fieldType.getPrecision(), fieldType.getScale());
+        fieldGetter =
+            (row, ordinal) ->
+                row.getDecimal(ordinal, fieldType.getPrecision(), fieldType.getScale());
         break;
       case STRING:
       case CHAR:
@@ -196,7 +197,8 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         fieldGetter = SpecializedGetters::getMap;
         break;
       default:
-        throw new IllegalArgumentException("Encountered an unsupported ORC type during a write from Spark.");
+        throw new IllegalArgumentException(
+            "Encountered an unsupported ORC type during a write from Spark.");
     }
 
     return (row, ordinal) -> {
@@ -210,10 +212,12 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   interface FieldGetter<T> extends Serializable {
 
     /**
-     * Returns a value from a complex Spark data holder such ArrayData, InternalRow, etc...
-     * Calls the appropriate getter for the expected data type.
+     * Returns a value from a complex Spark data holder such ArrayData, InternalRow, etc... Calls
+     * the appropriate getter for the expected data type.
+     *
      * @param row Spark's data representation
-     * @param ordinal index in the data structure (e.g. column index for InterRow, list index in ArrayData, etc..)
+     * @param ordinal index in the data structure (e.g. column index for InterRow, list index in
+     *     ArrayData, etc..)
      * @return field value at ordinal
      */
     @Nullable

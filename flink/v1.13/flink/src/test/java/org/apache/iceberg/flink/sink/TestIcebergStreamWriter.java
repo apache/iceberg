@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.io.File;
@@ -68,8 +67,7 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestIcebergStreamWriter {
-  @Rule
-  public TemporaryFolder tempFolder = new TemporaryFolder();
+  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
 
   private String tablePath;
   private Table table;
@@ -80,12 +78,12 @@ public class TestIcebergStreamWriter {
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        {"avro", true},
-        {"avro", false},
-        {"orc", true},
-        {"orc", false},
-        {"parquet", true},
-        {"parquet", false}
+      {"avro", true},
+      {"avro", false},
+      {"orc", true},
+      {"orc", false},
+      {"parquet", true},
+      {"parquet", false}
     };
   }
 
@@ -107,7 +105,8 @@ public class TestIcebergStreamWriter {
   @Test
   public void testWritingTable() throws Exception {
     long checkpointId = 1L;
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter()) {
       // The first checkpoint
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 1);
@@ -137,13 +136,14 @@ public class TestIcebergStreamWriter {
       appendFiles.commit();
 
       // Assert the table records.
-      SimpleDataUtil.assertTableRecords(tablePath, Lists.newArrayList(
-          SimpleDataUtil.createRecord(1, "hello"),
-          SimpleDataUtil.createRecord(2, "world"),
-          SimpleDataUtil.createRecord(3, "hello"),
-          SimpleDataUtil.createRecord(4, "foo"),
-          SimpleDataUtil.createRecord(5, "bar")
-      ));
+      SimpleDataUtil.assertTableRecords(
+          tablePath,
+          Lists.newArrayList(
+              SimpleDataUtil.createRecord(1, "hello"),
+              SimpleDataUtil.createRecord(2, "world"),
+              SimpleDataUtil.createRecord(3, "hello"),
+              SimpleDataUtil.createRecord(4, "foo"),
+              SimpleDataUtil.createRecord(5, "bar")));
     }
   }
 
@@ -151,7 +151,8 @@ public class TestIcebergStreamWriter {
   public void testSnapshotTwice() throws Exception {
     long checkpointId = 1;
     long timestamp = 1;
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), timestamp++);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), timestamp);
 
@@ -174,13 +175,15 @@ public class TestIcebergStreamWriter {
 
   @Test
   public void testTableWithoutSnapshot() throws Exception {
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter()) {
       Assert.assertEquals(0, testHarness.extractOutputValues().size());
     }
     // Even if we closed the iceberg stream writer, there's no orphan data file.
     Assert.assertEquals(0, scanDataFiles().size());
 
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       // Still not emit the data file yet, because there is no checkpoint.
       Assert.assertEquals(0, testHarness.extractOutputValues().size());
@@ -212,7 +215,8 @@ public class TestIcebergStreamWriter {
 
   @Test
   public void testBoundedStreamCloseWithEmittingDataFiles() throws Exception {
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
 
@@ -236,7 +240,8 @@ public class TestIcebergStreamWriter {
   @Test
   public void testTableWithTargetFileSize() throws Exception {
     // Adjust the target-file-size in table properties.
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, "4") // ~4 bytes; low enough to trigger
         .commit();
 
@@ -249,7 +254,8 @@ public class TestIcebergStreamWriter {
       }
     }
 
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter()) {
       for (RowData row : rows) {
         testHarness.processElement(row, 1);
       }
@@ -277,20 +283,26 @@ public class TestIcebergStreamWriter {
 
   @Test
   public void testPromotedFlinkDataType() throws Exception {
-    Schema iSchema = new Schema(
-        Types.NestedField.required(1, "tinyint", Types.IntegerType.get()),
-        Types.NestedField.required(2, "smallint", Types.IntegerType.get()),
-        Types.NestedField.optional(3, "int", Types.IntegerType.get())
-    );
-    TableSchema flinkSchema = TableSchema.builder()
-        .field("tinyint", DataTypes.TINYINT().notNull())
-        .field("smallint", DataTypes.SMALLINT().notNull())
-        .field("int", DataTypes.INT().nullable())
-        .build();
+    Schema iSchema =
+        new Schema(
+            Types.NestedField.required(1, "tinyint", Types.IntegerType.get()),
+            Types.NestedField.required(2, "smallint", Types.IntegerType.get()),
+            Types.NestedField.optional(3, "int", Types.IntegerType.get()));
+    TableSchema flinkSchema =
+        TableSchema.builder()
+            .field("tinyint", DataTypes.TINYINT().notNull())
+            .field("smallint", DataTypes.SMALLINT().notNull())
+            .field("int", DataTypes.INT().nullable())
+            .build();
 
     PartitionSpec spec;
     if (partitioned) {
-      spec = PartitionSpec.builderFor(iSchema).identity("smallint").identity("tinyint").identity("int").build();
+      spec =
+          PartitionSpec.builderFor(iSchema)
+              .identity("smallint")
+              .identity("tinyint")
+              .identity("int")
+              .build();
     } else {
       spec = PartitionSpec.unpartitioned();
     }
@@ -299,21 +311,21 @@ public class TestIcebergStreamWriter {
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     Table icebergTable = new HadoopTables().create(iSchema, spec, props, location);
 
-    List<RowData> rows = Lists.newArrayList(
-        GenericRowData.of((byte) 0x01, (short) -32768, 101),
-        GenericRowData.of((byte) 0x02, (short) 0, 102),
-        GenericRowData.of((byte) 0x03, (short) 32767, 103)
-    );
+    List<RowData> rows =
+        Lists.newArrayList(
+            GenericRowData.of((byte) 0x01, (short) -32768, 101),
+            GenericRowData.of((byte) 0x02, (short) 0, 102),
+            GenericRowData.of((byte) 0x03, (short) 32767, 103));
 
     Record record = GenericRecord.create(iSchema);
-    List<Record> expected = Lists.newArrayList(
-        record.copy(ImmutableMap.of("tinyint", 1, "smallint", -32768, "int", 101)),
-        record.copy(ImmutableMap.of("tinyint", 2, "smallint", 0, "int", 102)),
-        record.copy(ImmutableMap.of("tinyint", 3, "smallint", 32767, "int", 103))
-    );
+    List<Record> expected =
+        Lists.newArrayList(
+            record.copy(ImmutableMap.of("tinyint", 1, "smallint", -32768, "int", 101)),
+            record.copy(ImmutableMap.of("tinyint", 2, "smallint", 0, "int", 102)),
+            record.copy(ImmutableMap.of("tinyint", 3, "smallint", 32767, "int", 103)));
 
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter(icebergTable,
-        flinkSchema)) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+        createIcebergStreamWriter(icebergTable, flinkSchema)) {
       for (RowData row : rows) {
         testHarness.processElement(row, 1);
       }
@@ -331,7 +343,8 @@ public class TestIcebergStreamWriter {
     SimpleDataUtil.assertTableRecords(location, expected);
   }
 
-  private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter() throws Exception {
+  private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter()
+      throws Exception {
     return createIcebergStreamWriter(table, SimpleDataUtil.FLINK_SCHEMA);
   }
 
@@ -339,14 +352,13 @@ public class TestIcebergStreamWriter {
       Table icebergTable, TableSchema flinkSchema) throws Exception {
     RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
     FlinkWriteConf flinkWriteConfig =
-        new FlinkWriteConf(icebergTable, Maps.newHashMap(), new org.apache.flink.configuration.Configuration());
+        new FlinkWriteConf(
+            icebergTable, Maps.newHashMap(), new org.apache.flink.configuration.Configuration());
 
-    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(
-        icebergTable,
-        flinkWriteConfig,
-        flinkRowType, null);
-    OneInputStreamOperatorTestHarness<RowData, WriteResult> harness = new OneInputStreamOperatorTestHarness<>(
-        streamWriter, 1, 1, 0);
+    IcebergStreamWriter<RowData> streamWriter =
+        FlinkSink.createStreamWriter(icebergTable, flinkWriteConfig, flinkRowType, null);
+    OneInputStreamOperatorTestHarness<RowData, WriteResult> harness =
+        new OneInputStreamOperatorTestHarness<>(streamWriter, 1, 1, 0);
 
     harness.setup();
     harness.open();

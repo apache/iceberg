@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.junit.Assert.assertEquals;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
@@ -26,21 +29,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
-
-/**
- * Test projections on ORC types.
- */
+/** Test projections on ORC types. */
 public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionPrimitiveNoOp() {
-    Schema originalSchema = new Schema(
-        optional(1, "a", Types.IntegerType.get()),
-        optional(2, "b", Types.StringType.get())
-    );
+    Schema originalSchema =
+        new Schema(
+            optional(1, "a", Types.IntegerType.get()), optional(2, "b", Types.StringType.get()));
 
     // Original mapping (stored in ORC)
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
@@ -53,19 +49,19 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionPrimitive() {
-    Schema originalSchema = new Schema(
-        optional(1, "a", Types.IntegerType.get()),
-        optional(2, "b", Types.StringType.get())
-    );
+    Schema originalSchema =
+        new Schema(
+            optional(1, "a", Types.IntegerType.get()), optional(2, "b", Types.StringType.get()));
 
     // Original mapping (stored in ORC)
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
     // Evolve schema
-    Schema evolveSchema = new Schema(
-        optional(2, "a", Types.StringType.get()),
-        optional(3, "c", Types.DateType.get())  // will produce ORC column c_r3 (new)
-    );
+    Schema evolveSchema =
+        new Schema(
+            optional(2, "a", Types.StringType.get()),
+            optional(3, "c", Types.DateType.get()) // will produce ORC column c_r3 (new)
+            );
 
     TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
     assertEquals(2, newOrcSchema.getChildren().size());
@@ -77,13 +73,10 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionNestedNoOp() {
-    Types.StructType nestedStructType = Types.StructType.of(
-        optional(2, "b", Types.StringType.get()),
-        optional(3, "c", Types.DateType.get())
-    );
-    Schema originalSchema = new Schema(
-        optional(1, "a", nestedStructType)
-    );
+    Types.StructType nestedStructType =
+        Types.StructType.of(
+            optional(2, "b", Types.StringType.get()), optional(3, "c", Types.DateType.get()));
+    Schema originalSchema = new Schema(optional(1, "a", nestedStructType));
 
     // Original mapping (stored in ORC)
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
@@ -100,25 +93,19 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionNested() {
-    Types.StructType nestedStructType = Types.StructType.of(
-        optional(2, "b", Types.StringType.get()),
-        optional(3, "c", Types.DateType.get())
-    );
-    Schema originalSchema = new Schema(
-        optional(1, "a", nestedStructType)
-    );
+    Types.StructType nestedStructType =
+        Types.StructType.of(
+            optional(2, "b", Types.StringType.get()), optional(3, "c", Types.DateType.get()));
+    Schema originalSchema = new Schema(optional(1, "a", nestedStructType));
 
     // Original mapping (stored in ORC)
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
     // Evolve schema
-    Types.StructType newNestedStructType = Types.StructType.of(
-        optional(3, "cc", Types.DateType.get()),
-        optional(2, "bb", Types.StringType.get())
-    );
-    Schema evolveSchema = new Schema(
-        optional(1, "aa", newNestedStructType)
-    );
+    Types.StructType newNestedStructType =
+        Types.StructType.of(
+            optional(3, "cc", Types.DateType.get()), optional(2, "bb", Types.StringType.get()));
+    Schema evolveSchema = new Schema(optional(1, "aa", newNestedStructType));
 
     TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
     assertEquals(1, newOrcSchema.getChildren().size());
@@ -132,17 +119,13 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testEvolutionAddContainerField() {
-    Schema baseSchema = new Schema(
-        required(1, "a", Types.IntegerType.get())
-    );
+    Schema baseSchema = new Schema(required(1, "a", Types.IntegerType.get()));
     TypeDescription baseOrcSchema = ORCSchemaUtil.convert(baseSchema);
 
-    Schema evolvedSchema = new Schema(
-        required(1, "a", Types.IntegerType.get()),
-        optional(2, "b", Types.StructType.of(
-            required(3, "c", Types.LongType.get())
-        ))
-    );
+    Schema evolvedSchema =
+        new Schema(
+            required(1, "a", Types.IntegerType.get()),
+            optional(2, "b", Types.StructType.of(required(3, "c", Types.LongType.get()))));
 
     TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema);
     assertEquals(2, newOrcSchema.getChildren().size());
@@ -154,29 +137,28 @@ public class TestBuildOrcProjection {
     assertEquals(TypeDescription.Category.LONG, nestedCol.findSubtype("c_r3").getCategory());
   }
 
-  @Rule
-  public ExpectedException exceptionRule = ExpectedException.none();
+  @Rule public ExpectedException exceptionRule = ExpectedException.none();
 
   @Test
   public void testRequiredNestedFieldMissingInFile() {
     exceptionRule.expect(IllegalArgumentException.class);
     exceptionRule.expectMessage("Field 4 of type long is required and was not found");
 
-    Schema baseSchema = new Schema(
-        required(1, "a", Types.IntegerType.get()),
-        required(2, "b", Types.StructType.of(
-            required(3, "c", Types.LongType.get())
-        ))
-    );
+    Schema baseSchema =
+        new Schema(
+            required(1, "a", Types.IntegerType.get()),
+            required(2, "b", Types.StructType.of(required(3, "c", Types.LongType.get()))));
     TypeDescription baseOrcSchema = ORCSchemaUtil.convert(baseSchema);
 
-    Schema evolvedSchema = new Schema(
-        required(1, "a", Types.IntegerType.get()),
-        required(2, "b", Types.StructType.of(
-            required(3, "c", Types.LongType.get()),
-            required(4, "d", Types.LongType.get())
-        ))
-    );
+    Schema evolvedSchema =
+        new Schema(
+            required(1, "a", Types.IntegerType.get()),
+            required(
+                2,
+                "b",
+                Types.StructType.of(
+                    required(3, "c", Types.LongType.get()),
+                    required(4, "d", Types.LongType.get()))));
 
     ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema);
   }

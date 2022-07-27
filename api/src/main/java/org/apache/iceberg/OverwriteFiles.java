@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.ValidationException;
@@ -25,33 +24,33 @@ import org.apache.iceberg.expressions.Projections;
 
 /**
  * API for overwriting files in a table.
- * <p>
- * This API accumulates file additions and produces a new {@link Snapshot} of the table by replacing
- * all the deleted files with the set of additions. This operation is used to implement idempotent
- * writes that always replace a section of a table with new data or update/delete operations that
- * eagerly overwrite files.
- * <p>
- * Overwrites can be validated. The default validation mode is idempotent, meaning the overwrite is
- * correct and should be committed out regardless of other concurrent changes to the table.
- * For example, this can be used for replacing all the data for day D with query results.
- * Alternatively, this API can be configured for overwriting certain files with their filtered
- * versions while ensuring no new data that would need to be filtered has been added.
- * <p>
- * When committing, these changes will be applied to the latest table snapshot. Commit conflicts
+ *
+ * <p>This API accumulates file additions and produces a new {@link Snapshot} of the table by
+ * replacing all the deleted files with the set of additions. This operation is used to implement
+ * idempotent writes that always replace a section of a table with new data or update/delete
+ * operations that eagerly overwrite files.
+ *
+ * <p>Overwrites can be validated. The default validation mode is idempotent, meaning the overwrite
+ * is correct and should be committed out regardless of other concurrent changes to the table. For
+ * example, this can be used for replacing all the data for day D with query results. Alternatively,
+ * this API can be configured for overwriting certain files with their filtered versions while
+ * ensuring no new data that would need to be filtered has been added.
+ *
+ * <p>When committing, these changes will be applied to the latest table snapshot. Commit conflicts
  * will be resolved by applying the changes to the new latest snapshot and reattempting the commit.
  */
 public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   /**
    * Delete files that match an {@link Expression} on data rows from the table.
-   * <p>
-   * A file is selected to be deleted by the expression if it could contain any rows that match the
-   * expression (candidate files are selected using an
-   * {@link Projections#inclusive(PartitionSpec) inclusive projection}). These candidate files are
-   * deleted if all of the rows in the file must match the expression (the partition data matches
-   * the expression's {@link Projections#strict(PartitionSpec)} strict projection}). This guarantees
+   *
+   * <p>A file is selected to be deleted by the expression if it could contain any rows that match
+   * the expression (candidate files are selected using an {@link
+   * Projections#inclusive(PartitionSpec) inclusive projection}). These candidate files are deleted
+   * if all of the rows in the file must match the expression (the partition data matches the
+   * expression's {@link Projections#strict(PartitionSpec)} strict projection}). This guarantees
    * that files are deleted if and only if all rows in the file must match the expression.
-   * <p>
-   * Files that may contain some rows that match the expression and some rows that do not will
+   *
+   * <p>Files that may contain some rows that match the expression and some rows that do not will
    * result in a {@link ValidationException}.
    *
    * @param expr an expression on rows in the table
@@ -78,9 +77,9 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
 
   /**
    * Signal that each file added to the table must match the overwrite expression.
-   * <p>
-   * If this method is called, each added file is validated on commit to ensure that it matches the
-   * overwrite row filter. This is used to ensure that writes are idempotent: that files cannot
+   *
+   * <p>If this method is called, each added file is validated on commit to ensure that it matches
+   * the overwrite row filter. This is used to ensure that writes are idempotent: that files cannot
    * be added during a commit that would not be removed if the operation were run a second time.
    *
    * @return this for method chaining
@@ -89,9 +88,9 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
 
   /**
    * Set the snapshot ID used in any reads for this operation.
-   * <p>
-   * Validations will check changes after this snapshot ID. If the from snapshot is not set, all ancestor snapshots
-   * through the table's initial snapshot are validated.
+   *
+   * <p>Validations will check changes after this snapshot ID. If the from snapshot is not set, all
+   * ancestor snapshots through the table's initial snapshot are validated.
    *
    * @param snapshotId a snapshot ID
    * @return this for method chaining
@@ -107,23 +106,25 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   OverwriteFiles caseSensitive(boolean caseSensitive);
 
   /**
-   * Enables validation that data files added concurrently do not conflict with this commit's operation.
-   * <p>
-   * This method should be called while committing non-idempotent overwrite operations.
-   * If a concurrent operation commits a new file after the data was read and that file might
-   * contain rows matching the specified conflict detection filter, the overwrite operation
-   * will detect this and fail.
-   * <p>
-   * Calling this method with a correct conflict detection filter is required to maintain
-   * serializable isolation for overwrite operations. Otherwise, the isolation level
-   * will be snapshot isolation.
-   * <p>
-   * Validation applies to files added to the table since the snapshot passed to {@link #validateFromSnapshot(long)}.
+   * Enables validation that data files added concurrently do not conflict with this commit's
+   * operation.
+   *
+   * <p>This method should be called while committing non-idempotent overwrite operations. If a
+   * concurrent operation commits a new file after the data was read and that file might contain
+   * rows matching the specified conflict detection filter, the overwrite operation will detect this
+   * and fail.
+   *
+   * <p>Calling this method with a correct conflict detection filter is required to maintain
+   * serializable isolation for overwrite operations. Otherwise, the isolation level will be
+   * snapshot isolation.
+   *
+   * <p>Validation applies to files added to the table since the snapshot passed to {@link
+   * #validateFromSnapshot(long)}.
    *
    * @param conflictDetectionFilter an expression on rows in the table
    * @return this for method chaining
-   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #conflictDetectionFilter(Expression)} and
-   *             {@link #validateNoConflictingData()} instead.
+   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link
+   *     #conflictDetectionFilter(Expression)} and {@link #validateNoConflictingData()} instead.
    */
   @Deprecated
   default OverwriteFiles validateNoConflictingAppends(Expression conflictDetectionFilter) {
@@ -140,39 +141,41 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
 
   /**
    * Enables validation that data added concurrently does not conflict with this commit's operation.
-   * <p>
-   * This method should be called while committing non-idempotent overwrite operations.
-   * If a concurrent operation commits a new file after the data was read and that file might
-   * contain rows matching the specified conflict detection filter, the overwrite operation
-   * will detect this and fail.
-   * <p>
-   * Calling this method with a correct conflict detection filter is required to maintain
+   *
+   * <p>This method should be called while committing non-idempotent overwrite operations. If a
+   * concurrent operation commits a new file after the data was read and that file might contain
+   * rows matching the specified conflict detection filter, the overwrite operation will detect this
+   * and fail.
+   *
+   * <p>Calling this method with a correct conflict detection filter is required to maintain
    * isolation for non-idempotent overwrite operations.
-   * <p>
-   * Validation uses the conflict detection filter passed to {@link #conflictDetectionFilter(Expression)} and
-   * applies to operations that happened after the snapshot passed to {@link #validateFromSnapshot(long)}.
-   * If the conflict detection filter is not set, any new data added concurrently will fail this
-   * overwrite operation.
+   *
+   * <p>Validation uses the conflict detection filter passed to {@link
+   * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
+   * snapshot passed to {@link #validateFromSnapshot(long)}. If the conflict detection filter is not
+   * set, any new data added concurrently will fail this overwrite operation.
    *
    * @return this for method chaining
    */
   OverwriteFiles validateNoConflictingData();
 
   /**
-   * Enables validation that deletes that happened concurrently do not conflict with this commit's operation.
-   * <p>
-   * Validating concurrent deletes is required during non-idempotent overwrite operations.
-   * If a concurrent operation deletes data in one of the files being overwritten, the overwrite
+   * Enables validation that deletes that happened concurrently do not conflict with this commit's
+   * operation.
+   *
+   * <p>Validating concurrent deletes is required during non-idempotent overwrite operations. If a
+   * concurrent operation deletes data in one of the files being overwritten, the overwrite
    * operation must be aborted as it may undelete rows that were removed concurrently.
-   * <p>
-   * Calling this method with a correct conflict detection filter is required to maintain
+   *
+   * <p>Calling this method with a correct conflict detection filter is required to maintain
    * isolation for non-idempotent overwrite operations.
-   * <p>
-   * Validation uses the conflict detection filter passed to {@link #conflictDetectionFilter(Expression)} and
-   * applies to operations that happened after the snapshot passed to {@link #validateFromSnapshot(long)}.
-   * If the conflict detection filter is not set, this operation will use the row filter provided
-   * in {@link #overwriteByRowFilter(Expression)} to check for new delete files and will ensure
-   * there are no conflicting deletes for data files removed via {@link #deleteFile(DataFile)}.
+   *
+   * <p>Validation uses the conflict detection filter passed to {@link
+   * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
+   * snapshot passed to {@link #validateFromSnapshot(long)}. If the conflict detection filter is not
+   * set, this operation will use the row filter provided in {@link
+   * #overwriteByRowFilter(Expression)} to check for new delete files and will ensure there are no
+   * conflicting deletes for data files removed via {@link #deleteFile(DataFile)}.
    *
    * @return this for method chaining
    */

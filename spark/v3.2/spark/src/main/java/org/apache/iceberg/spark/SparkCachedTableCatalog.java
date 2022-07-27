@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.List;
@@ -39,9 +38,7 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-/**
- * An internal table catalog that is capable of loading tables from a cache.
- */
+/** An internal table catalog that is capable of loading tables from a cache. */
 public class SparkCachedTableCatalog implements TableCatalog {
 
   private static final String CLASS_NAME = SparkCachedTableCatalog.class.getName();
@@ -70,8 +67,9 @@ public class SparkCachedTableCatalog implements TableCatalog {
   }
 
   @Override
-  public SparkTable createTable(Identifier ident, StructType schema, Transform[] partitions,
-                                Map<String, String> properties) throws TableAlreadyExistsException {
+  public SparkTable createTable(
+      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+      throws TableAlreadyExistsException {
     throw new UnsupportedOperationException(CLASS_NAME + " does not support creating tables");
   }
 
@@ -106,7 +104,8 @@ public class SparkCachedTableCatalog implements TableCatalog {
   }
 
   private Pair<Table, Long> load(Identifier ident) throws NoSuchTableException {
-    Preconditions.checkArgument(ident.namespace().length == 0, CLASS_NAME + " does not support namespaces");
+    Preconditions.checkArgument(
+        ident.namespace().length == 0, CLASS_NAME + " does not support namespaces");
 
     Pair<String, List<String>> parsedIdent = parseIdent(ident);
     String key = parsedIdent.first();
@@ -127,8 +126,10 @@ public class SparkCachedTableCatalog implements TableCatalog {
       }
     }
 
-    Preconditions.checkArgument(asOfTimestamp == null || snapshotId == null,
-        "Cannot specify both snapshot and timestamp for time travel: %s", ident);
+    Preconditions.checkArgument(
+        asOfTimestamp == null || snapshotId == null,
+        "Cannot specify both snapshot and timestamp for time travel: %s",
+        ident);
 
     Table table = TABLE_CACHE.get(key);
 

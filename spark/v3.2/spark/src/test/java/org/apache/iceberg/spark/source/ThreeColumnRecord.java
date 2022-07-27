@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Objects;
@@ -26,8 +25,7 @@ public class ThreeColumnRecord {
   private String c2;
   private String c3;
 
-  public ThreeColumnRecord() {
-  }
+  public ThreeColumnRecord() {}
 
   public ThreeColumnRecord(Integer c1, String c2, String c3) {
     this.c1 = c1;
@@ -68,9 +66,9 @@ public class ThreeColumnRecord {
       return false;
     }
     ThreeColumnRecord that = (ThreeColumnRecord) o;
-    return Objects.equals(c1, that.c1) &&
-        Objects.equals(c2, that.c2) &&
-        Objects.equals(c3, that.c3);
+    return Objects.equals(c1, that.c1)
+        && Objects.equals(c2, that.c2)
+        && Objects.equals(c3, that.c3);
   }
 
   @Override
@@ -80,10 +78,6 @@ public class ThreeColumnRecord {
 
   @Override
   public String toString() {
-    return "ThreeColumnRecord{" +
-        "c1=" + c1 +
-        ", c2='" + c2 + '\'' +
-        ", c3='" + c3 + '\'' +
-        '}';
+    return "ThreeColumnRecord{" + "c1=" + c1 + ", c2='" + c2 + '\'' + ", c3='" + c3 + '\'' + '}';
   }
 }

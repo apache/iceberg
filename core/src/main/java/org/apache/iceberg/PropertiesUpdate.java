@@ -16,16 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
-
-import java.util.Map;
-import java.util.Set;
-import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.Tasks;
 
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
@@ -35,6 +26,14 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+
+import java.util.Map;
+import java.util.Set;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.Tasks;
 
 class PropertiesUpdate implements UpdateProperties {
   private final TableOperations ops;
@@ -51,8 +50,8 @@ class PropertiesUpdate implements UpdateProperties {
   public UpdateProperties set(String key, String value) {
     Preconditions.checkNotNull(key, "Key cannot be null");
     Preconditions.checkNotNull(value, "Value cannot be null");
-    Preconditions.checkArgument(!removals.contains(key),
-        "Cannot remove and update the same key: %s", key);
+    Preconditions.checkArgument(
+        !removals.contains(key), "Cannot remove and update the same key: %s", key);
 
     updates.put(key, value);
 
@@ -62,8 +61,8 @@ class PropertiesUpdate implements UpdateProperties {
   @Override
   public UpdateProperties remove(String key) {
     Preconditions.checkNotNull(key, "Key cannot be null");
-    Preconditions.checkArgument(!updates.keySet().contains(key),
-        "Cannot remove and update the same key: %s", key);
+    Preconditions.checkArgument(
+        !updates.keySet().contains(key), "Cannot remove and update the same key: %s", key);
 
     removals.add(key);
 
@@ -107,10 +106,11 @@ class PropertiesUpdate implements UpdateProperties {
             base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
-        .run(taskOps -> {
-          Map<String, String> newProperties = apply();
-          TableMetadata updated = base.replaceProperties(newProperties);
-          taskOps.commit(base, updated);
-        });
+        .run(
+            taskOps -> {
+              Map<String, String> newProperties = apply();
+              TableMetadata updated = base.replaceProperties(newProperties);
+              taskOps.commit(base, updated);
+            });
   }
 }

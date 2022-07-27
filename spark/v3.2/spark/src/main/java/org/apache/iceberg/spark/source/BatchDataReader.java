@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -33,8 +32,12 @@ import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class BatchDataReader extends BaseBatchReader<FileScanTask> {
-  BatchDataReader(ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive,
-                  int size) {
+  BatchDataReader(
+      ScanTaskGroup<FileScanTask> task,
+      Table table,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      int size) {
     super(table, task, expectedSchema, caseSensitive, size);
   }
 
@@ -55,9 +58,17 @@ class BatchDataReader extends BaseBatchReader<FileScanTask> {
     InputFile inputFile = getInputFile(filePath);
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
-    SparkDeleteFilter deleteFilter = task.deletes().isEmpty() ? null : new SparkDeleteFilter(filePath, task.deletes());
+    SparkDeleteFilter deleteFilter =
+        task.deletes().isEmpty() ? null : new SparkDeleteFilter(filePath, task.deletes());
 
-    return newBatchIterable(inputFile, task.file().format(), task.start(), task.length(), task.residual(),
-        idToConstant, deleteFilter).iterator();
+    return newBatchIterable(
+            inputFile,
+            task.file().format(),
+            task.start(),
+            task.length(),
+            task.residual(),
+            idToConstant,
+            deleteFilter)
+        .iterator();
   }
 }

@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,23 +67,18 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 @RunWith(Parameterized.class)
 public class TestSparkParquetReadMetadataColumns {
-  private static final Schema DATA_SCHEMA = new Schema(
-      required(100, "id", Types.LongType.get()),
-      required(101, "data", Types.StringType.get())
-  );
+  private static final Schema DATA_SCHEMA =
+      new Schema(
+          required(100, "id", Types.LongType.get()), required(101, "data", Types.StringType.get()));
 
-  private static final Schema PROJECTION_SCHEMA = new Schema(
-      required(100, "id", Types.LongType.get()),
-      required(101, "data", Types.StringType.get()),
-      MetadataColumns.ROW_POSITION,
-      MetadataColumns.IS_DELETED
-  );
+  private static final Schema PROJECTION_SCHEMA =
+      new Schema(
+          required(100, "id", Types.LongType.get()),
+          required(101, "data", Types.StringType.get()),
+          MetadataColumns.ROW_POSITION,
+          MetadataColumns.IS_DELETED);
 
   private static final int NUM_ROWS = 1000;
   private static final List<InternalRow> DATA_ROWS;
@@ -117,16 +115,12 @@ public class TestSparkParquetReadMetadataColumns {
     }
   }
 
-  @Parameterized.Parameters(name =  "vectorized = {0}")
+  @Parameterized.Parameters(name = "vectorized = {0}")
   public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { false },
-        new Object[] { true }
-    };
+    return new Object[][] {new Object[] {false}, new Object[] {true}};
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final boolean vectorized;
   private File testFile;
@@ -143,28 +137,32 @@ public class TestSparkParquetReadMetadataColumns {
 
     testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
-    ParquetFileWriter parquetFileWriter = new ParquetFileWriter(
-        conf,
-        ParquetSchemaUtil.convert(DATA_SCHEMA, "testSchema"),
-        new Path(testFile.getAbsolutePath())
-    );
+    ParquetFileWriter parquetFileWriter =
+        new ParquetFileWriter(
+            conf,
+            ParquetSchemaUtil.convert(DATA_SCHEMA, "testSchema"),
+            new Path(testFile.getAbsolutePath()));
 
     parquetFileWriter.start();
     for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
       File split = temp.newFile();
       Assert.assertTrue("Delete should succeed", split.delete());
       fileSplits.add(new Path(split.getAbsolutePath()));
-      try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(split))
-          .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(struct, msgType))
-          .schema(DATA_SCHEMA)
-          .overwrite()
-          .build()) {
+      try (FileAppender<InternalRow> writer =
+          Parquet.write(Files.localOutput(split))
+              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(struct, msgType))
+              .schema(DATA_SCHEMA)
+              .overwrite()
+              .build()) {
         writer.addAll(DATA_ROWS.subList(i * ROWS_PER_SPLIT, (i + 1) * ROWS_PER_SPLIT));
       }
-      parquetFileWriter.appendFile(HadoopInputFile.fromPath(new Path(split.getAbsolutePath()), conf));
+      parquetFileWriter.appendFile(
+          HadoopInputFile.fromPath(new Path(split.getAbsolutePath()), conf));
     }
-    parquetFileWriter
-        .end(ParquetFileWriter.mergeMetadataFiles(fileSplits, conf).getFileMetaData().getKeyValueMetaData());
+    parquetFileWriter.end(
+        ParquetFileWriter.mergeMetadataFiles(fileSplits, conf)
+            .getFileMetaData()
+            .getKeyValueMetaData());
   }
 
   @Test
@@ -178,12 +176,14 @@ public class TestSparkParquetReadMetadataColumns {
 
     List<InternalRow> expectedRowsAfterDelete = Lists.newArrayList();
     EXPECTED_ROWS.forEach(row -> expectedRowsAfterDelete.add(row.copy()));
-    // remove row at position 98, 99, 100, 101, 102, this crosses two row groups [0, 100) and [100, 200)
+    // remove row at position 98, 99, 100, 101, 102, this crosses two row groups [0, 100) and [100,
+    // 200)
     for (int i = 98; i <= 102; i++) {
       expectedRowsAfterDelete.get(i).update(3, true);
     }
 
-    Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
+    Parquet.ReadBuilder builder =
+        Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
 
     DeleteFilter deleteFilter = mock(DeleteFilter.class);
     when(deleteFilter.hasPosDeletes()).thenReturn(true);
@@ -191,8 +191,14 @@ public class TestSparkParquetReadMetadataColumns {
     deletedRowPos.delete(98, 103);
     when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
 
-    builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
-        fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED, Maps.newHashMap(), deleteFilter));
+    builder.createBatchedReaderFunc(
+        fileSchema ->
+            VectorizedSparkParquetReaders.buildReader(
+                PROJECTION_SCHEMA,
+                fileSchema,
+                NullCheckingForGet.NULL_CHECKING_ENABLED,
+                Maps.newHashMap(),
+                deleteFilter));
     builder.recordsPerBatch(RECORDS_PER_BATCH);
 
     validate(expectedRowsAfterDelete, builder);
@@ -233,7 +239,8 @@ public class TestSparkParquetReadMetadataColumns {
     // current iceberg supports row group filter.
     for (int i = 1; i < 5; i += 1) {
       readAndValidate(
-          Expressions.and(Expressions.lessThan("id", NUM_ROWS / 2),
+          Expressions.and(
+              Expressions.lessThan("id", NUM_ROWS / 2),
               Expressions.greaterThanOrEqual("id", i * ROWS_PER_SPLIT)),
           null,
           null,
@@ -243,28 +250,36 @@ public class TestSparkParquetReadMetadataColumns {
 
   @Test
   public void testReadRowNumbersWithSplits() throws IOException {
-    ParquetFileReader fileReader = new ParquetFileReader(
-        HadoopInputFile.fromPath(new Path(testFile.getAbsolutePath()), new Configuration()),
-        ParquetReadOptions.builder().build());
+    ParquetFileReader fileReader =
+        new ParquetFileReader(
+            HadoopInputFile.fromPath(new Path(testFile.getAbsolutePath()), new Configuration()),
+            ParquetReadOptions.builder().build());
     List<BlockMetaData> rowGroups = fileReader.getRowGroups();
     for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
-      readAndValidate(null,
+      readAndValidate(
+          null,
           rowGroups.get(i).getColumns().get(0).getStartingPos(),
           rowGroups.get(i).getCompressedSize(),
           EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, (i + 1) * ROWS_PER_SPLIT));
     }
   }
 
-  private void readAndValidate(Expression filter, Long splitStart, Long splitLength, List<InternalRow> expected)
+  private void readAndValidate(
+      Expression filter, Long splitStart, Long splitLength, List<InternalRow> expected)
       throws IOException {
-    Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
+    Parquet.ReadBuilder builder =
+        Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
 
     if (vectorized) {
-      builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
-          fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED));
+      builder.createBatchedReaderFunc(
+          fileSchema ->
+              VectorizedSparkParquetReaders.buildReader(
+                  PROJECTION_SCHEMA, fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED));
       builder.recordsPerBatch(RECORDS_PER_BATCH);
     } else {
-      builder = builder.createReaderFunc(msgType -> SparkParquetReaders.buildReader(PROJECTION_SCHEMA, msgType));
+      builder =
+          builder.createReaderFunc(
+              msgType -> SparkParquetReaders.buildReader(PROJECTION_SCHEMA, msgType));
     }
 
     if (filter != null) {
@@ -278,8 +293,10 @@ public class TestSparkParquetReadMetadataColumns {
     validate(expected, builder);
   }
 
-  private void validate(List<InternalRow> expected, Parquet.ReadBuilder builder) throws IOException {
-    try (CloseableIterable<InternalRow> reader = vectorized ? batchesToRows(builder.build()) : builder.build()) {
+  private void validate(List<InternalRow> expected, Parquet.ReadBuilder builder)
+      throws IOException {
+    try (CloseableIterable<InternalRow> reader =
+        vectorized ? batchesToRows(builder.build()) : builder.build()) {
       final Iterator<InternalRow> actualRows = reader.iterator();
 
       for (InternalRow internalRow : expected) {

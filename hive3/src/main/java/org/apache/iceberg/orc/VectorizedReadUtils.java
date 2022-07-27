@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
@@ -26,17 +25,18 @@ import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
 
 /**
- * Utilities that rely on Iceberg code from org.apache.iceberg.orc package and are required for ORC vectorization.
+ * Utilities that rely on Iceberg code from org.apache.iceberg.orc package and are required for ORC
+ * vectorization.
  */
 public class VectorizedReadUtils {
 
-  private VectorizedReadUtils() {
-
-  }
+  private VectorizedReadUtils() {}
 
   /**
    * Opens the ORC inputFile and reads the metadata information to construct the OrcTail content.
-   * Unfortunately the API doesn't allow simple access to OrcTail, so we need the serialization trick.
+   * Unfortunately the API doesn't allow simple access to OrcTail, so we need the serialization
+   * trick.
+   *
    * @param inputFile - the ORC file
    * @param job - JobConf instance for the current task
    * @throws IOException - errors relating to accessing the ORC file
@@ -46,7 +46,5 @@ public class VectorizedReadUtils {
     try (ReaderImpl orcFileReader = (ReaderImpl) ORC.newFileReader(inputFile, job)) {
       return ReaderImpl.extractFileTail(orcFileReader.getSerializedFileFooter());
     }
-
   }
-
 }

@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
+
+import static java.util.Collections.emptyIterator;
 
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -34,14 +35,11 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.Type;
 
-import static java.util.Collections.emptyIterator;
-
 public class ParquetValueReaders {
-  private ParquetValueReaders() {
-  }
+  private ParquetValueReaders() {}
 
-  public static <T> ParquetValueReader<T> option(Type type, int definitionLevel,
-                                                 ParquetValueReader<T> reader) {
+  public static <T> ParquetValueReader<T> option(
+      Type type, int definitionLevel, ParquetValueReader<T> reader) {
     if (type.isRepetition(Type.Repetition.OPTIONAL)) {
       return new OptionReader<>(definitionLevel, reader);
     }
@@ -64,35 +62,35 @@ public class ParquetValueReaders {
   private static class NullReader<T> implements ParquetValueReader<T> {
     private static final NullReader<Void> INSTANCE = new NullReader<>();
     private static final ImmutableList<TripleIterator<?>> COLUMNS = ImmutableList.of();
-    private static final TripleIterator<?> NULL_COLUMN = new TripleIterator<Object>() {
-      @Override
-      public int currentDefinitionLevel() {
-        return 0;
-      }
+    private static final TripleIterator<?> NULL_COLUMN =
+        new TripleIterator<Object>() {
+          @Override
+          public int currentDefinitionLevel() {
+            return 0;
+          }
 
-      @Override
-      public int currentRepetitionLevel() {
-        return 0;
-      }
+          @Override
+          public int currentRepetitionLevel() {
+            return 0;
+          }
 
-      @Override
-      public <N> N nextNull() {
-        return null;
-      }
+          @Override
+          public <N> N nextNull() {
+            return null;
+          }
 
-      @Override
-      public boolean hasNext() {
-        return false;
-      }
+          @Override
+          public boolean hasNext() {
+            return false;
+          }
 
-      @Override
-      public Object next() {
-        return null;
-      }
-    };
+          @Override
+          public Object next() {
+            return null;
+          }
+        };
 
-    private NullReader() {
-    }
+    private NullReader() {}
 
     @Override
     public T read(T reuse) {
@@ -110,8 +108,7 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-    }
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
   }
 
   static class ConstantReader<C> implements ParquetValueReader<C> {
@@ -137,8 +134,7 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-    }
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
   }
 
   static class PositionReader implements ParquetValueReader<Long> {
@@ -170,8 +166,10 @@ public class ParquetValueReaders {
 
   public abstract static class PrimitiveReader<T> implements ParquetValueReader<T> {
     private final ColumnDescriptor desc;
+
     @SuppressWarnings("checkstyle:VisibilityModifier")
     protected final ColumnIterator<?> column;
+
     private final List<TripleIterator<?>> children;
 
     protected PrimitiveReader(ColumnDescriptor desc) {
@@ -400,7 +398,8 @@ public class ParquetValueReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    protected RepeatedReader(int definitionLevel, int repetitionLevel, ParquetValueReader<E> reader) {
+    protected RepeatedReader(
+        int definitionLevel, int repetitionLevel, ParquetValueReader<E> reader) {
       this.definitionLevel = definitionLevel;
       this.repetitionLevel = repetitionLevel;
       this.reader = reader;
@@ -457,8 +456,7 @@ public class ParquetValueReaders {
     private List<E> lastList = null;
     private Iterator<E> elements = null;
 
-    public ListReader(int definitionLevel, int repetitionLevel,
-                      ParquetValueReader<E> reader) {
+    public ListReader(int definitionLevel, int repetitionLevel, ParquetValueReader<E> reader) {
       super(definitionLevel, repetitionLevel, reader);
     }
 
@@ -511,17 +509,21 @@ public class ParquetValueReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    protected RepeatedKeyValueReader(int definitionLevel, int repetitionLevel,
-                           ParquetValueReader<K> keyReader, ParquetValueReader<V> valueReader) {
+    protected RepeatedKeyValueReader(
+        int definitionLevel,
+        int repetitionLevel,
+        ParquetValueReader<K> keyReader,
+        ParquetValueReader<V> valueReader) {
       this.definitionLevel = definitionLevel;
       this.repetitionLevel = repetitionLevel;
       this.keyReader = keyReader;
       this.valueReader = valueReader;
       this.column = keyReader.column();
-      this.children = ImmutableList.<TripleIterator<?>>builder()
-          .addAll(keyReader.columns())
-          .addAll(valueReader.columns())
-          .build();
+      this.children =
+          ImmutableList.<TripleIterator<?>>builder()
+              .addAll(keyReader.columns())
+              .addAll(valueReader.columns())
+              .build();
     }
 
     @Override
@@ -576,9 +578,11 @@ public class ParquetValueReaders {
     private Map<K, V> lastMap = null;
     private Iterator<Map.Entry<K, V>> pairs = null;
 
-    public MapReader(int definitionLevel, int repetitionLevel,
-                     ParquetValueReader<K> keyReader,
-                     ParquetValueReader<V> valueReader) {
+    public MapReader(
+        int definitionLevel,
+        int repetitionLevel,
+        ParquetValueReader<K> keyReader,
+        ParquetValueReader<V> valueReader) {
       super(definitionLevel, repetitionLevel, keyReader, valueReader);
     }
 
@@ -627,9 +631,9 @@ public class ParquetValueReaders {
     private K key = null;
     private V value = null;
 
-    public void set(K newKey, V  newValue) {
+    public void set(K newKey, V newValue) {
       this.key = newKey;
-      this.value =  newValue;
+      this.value = newValue;
     }
 
     @Override
@@ -661,9 +665,10 @@ public class ParquetValueReaders {
 
     @SuppressWarnings("unchecked")
     protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      this.readers = (ParquetValueReader<?>[]) Array.newInstance(
-          ParquetValueReader.class, readers.size());
-      TripleIterator<?>[] columns = (TripleIterator<?>[]) Array.newInstance(TripleIterator.class, readers.size());
+      this.readers =
+          (ParquetValueReader<?>[]) Array.newInstance(ParquetValueReader.class, readers.size());
+      TripleIterator<?>[] columns =
+          (TripleIterator<?>[]) Array.newInstance(TripleIterator.class, readers.size());
       Setter<I>[] setters = (Setter<I>[]) Array.newInstance(Setter.class, readers.size());
 
       ImmutableList.Builder<TripleIterator<?>> columnsBuilder = ImmutableList.builder();
@@ -711,7 +716,7 @@ public class ParquetValueReaders {
     @SuppressWarnings("unchecked")
     private <E> Setter<I> newSetter(ParquetValueReader<E> reader, Type type) {
       if (reader instanceof UnboxedReader && type.isPrimitive()) {
-        UnboxedReader<?> unboxed  = (UnboxedReader<?>) reader;
+        UnboxedReader<?> unboxed = (UnboxedReader<?>) reader;
         switch (type.asPrimitiveType().getPrimitiveTypeName()) {
           case BOOLEAN:
             return (record, pos, ignored) -> setBoolean(record, pos, unboxed.readBoolean());
@@ -756,8 +761,8 @@ public class ParquetValueReaders {
 
     /**
      * Used to set a struct value by position.
-     * <p>
-     * To avoid boxing, override {@link #setInteger(Object, int, int)} and similar methods.
+     *
+     * <p>To avoid boxing, override {@link #setInteger(Object, int, int)} and similar methods.
      *
      * @param struct a struct object created by {@link #newStructData(Object)}
      * @param pos the position in the struct to set

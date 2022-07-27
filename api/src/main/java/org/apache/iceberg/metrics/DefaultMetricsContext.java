@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.metrics;
 
 import java.util.concurrent.TimeUnit;
 
-/**
- * A default {@link MetricsContext} implementation that uses native Java counters/timers.
- */
+/** A default {@link MetricsContext} implementation that uses native Java counters/timers. */
 public class DefaultMetricsContext implements MetricsContext {
 
   @Override
@@ -35,7 +32,8 @@ public class DefaultMetricsContext implements MetricsContext {
     if (Long.class.equals(type)) {
       return (Counter<T>) new LongCounter();
     }
-    throw new IllegalArgumentException(String.format("Counter for type %s is not supported", type.getName()));
+    throw new IllegalArgumentException(
+        String.format("Counter for type %s is not supported", type.getName()));
   }
 
   @Override
