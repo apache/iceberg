@@ -256,4 +256,121 @@ public class TestBuildAvroProjection {
     assertEquals("Unexpected value ID discovered on the projected map schema",
         1, Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue());
   }
+
+  @Test
+  public void projectUnionWithBranchSchemaUnchanged() {
+
+    final Type icebergType = Types.StructType.of(
+        Types.NestedField.required(0, "tag", Types.IntegerType.get()),
+        Types.NestedField.optional(1, "field0", Types.IntegerType.get()),
+        Types.NestedField.optional(2, "field1", Types.StringType.get())
+    );
+
+    final org.apache.avro.Schema expected = SchemaBuilder.unionOf()
+        .intType()
+        .and()
+        .stringType()
+        .endUnion();
+
+    final BuildAvroProjection testSubject = new BuildAvroProjection(icebergType, Collections.emptyMap());
+
+    final Iterable<org.apache.avro.Schema> branches = expected.getTypes();
+
+    final org.apache.avro.Schema actual = testSubject.union(expected, branches);
+
+    assertEquals("Union projection produced undesired union schema",
+        expected, actual);
+  }
+
+  @Test
+  public void projectUnionWithTypePromotion() {
+
+    final Type icebergType = Types.StructType.of(
+        Types.NestedField.required(0, "tag", Types.IntegerType.get()),
+        Types.NestedField.optional(1, "field0", Types.LongType.get()),
+        Types.NestedField.optional(2, "field1", Types.StringType.get())
+    );
+
+    final org.apache.avro.Schema originalSchema = SchemaBuilder.unionOf()
+        .intType()
+        .and()
+        .stringType()
+        .endUnion();
+
+    // once projected onto iceberg schema, first branch of Avro union schema will be promoted from int to long
+    final org.apache.avro.Schema expected = SchemaBuilder.unionOf()
+        .longType()
+        .and()
+        .stringType()
+        .endUnion();
+
+    final BuildAvroProjection testSubject = new BuildAvroProjection(icebergType, Collections.emptyMap());
+
+    final Iterable<org.apache.avro.Schema> branches = expected.getTypes();
+
+    final org.apache.avro.Schema actual = testSubject.union(originalSchema, branches);
+
+    assertEquals("Union projection produced undesired union schema",
+        expected, actual);
+  }
+
+  @Test
+  public void projectUnionWithExtraFieldInNestedType() {
+
+    final Type icebergType = Types.StructType.of(
+        Types.NestedField.required(0, "tag", Types.IntegerType.get()),
+        Types.NestedField.optional(1, "field0", Types.StringType.get()),
+        Types.NestedField.optional(2, "field1", Types.StructType.of(
+            Types.NestedField.optional(3, "c1", Types.IntegerType.get()),
+            Types.NestedField.optional(4, "c2", Types.StringType.get()),
+            Types.NestedField.optional(5, "c3", Types.StringType.get())
+        ))
+    );
+
+    final org.apache.avro.Schema originalSchema = SchemaBuilder.unionOf()
+        .stringType()
+        .and()
+        .record("r")
+        .fields()
+        .name("c1")
+        .type()
+        .intType()
+        .noDefault()
+        .name("c2")
+        .type()
+        .stringType()
+        .noDefault()
+        .endRecord()
+        .endUnion();
+
+    // once projected onto iceberg schema, the avro schema will have an extra string column in struct within union
+    final org.apache.avro.Schema expected = SchemaBuilder.unionOf()
+        .stringType()
+        .and()
+        .record("r")
+        .fields()
+        .name("c1")
+        .type()
+        .intType()
+        .noDefault()
+        .name("c2")
+        .type()
+        .stringType()
+        .noDefault()
+        .name("c3")
+        .type()
+        .stringType()
+        .noDefault()
+        .endRecord()
+        .endUnion();
+
+    final BuildAvroProjection testSubject = new BuildAvroProjection(icebergType, Collections.emptyMap());
+
+    final Iterable<org.apache.avro.Schema> branches = expected.getTypes();
+
+    final org.apache.avro.Schema actual = testSubject.union(originalSchema, branches);
+
+    assertEquals("Union projection produced undesired union schema",
+        expected, actual);
+  }
 }

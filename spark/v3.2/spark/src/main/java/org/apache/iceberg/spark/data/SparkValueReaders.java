@@ -27,6 +27,8 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
@@ -79,6 +81,10 @@ public class SparkValueReaders {
   static ValueReader<InternalRow> struct(List<ValueReader<?>> readers, Types.StructType struct,
                                          Map<Integer, ?> idToConstant) {
     return new StructReader(readers, struct, idToConstant);
+  }
+
+  static ValueReader<InternalRow> complexUnion(Schema schema, List<ValueReader<?>> readers) {
+    return new ComplexUnionReader(schema, readers);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -283,6 +289,54 @@ public class SparkValueReaders {
       } else {
         struct.setNullAt(pos);
       }
+    }
+  }
+
+  private static class ComplexUnionReader implements ValueReader<InternalRow> {
+    private final List<Schema> branches;
+    private final ValueReader[] readers;
+    private int nullIndex;
+
+    private ComplexUnionReader(Schema schema, List<ValueReader<?>> readers) {
+      this.branches = schema.getTypes();
+      this.readers = new ValueReader[readers.size()];
+      for (int i = 0; i < this.readers.length; i += 1) {
+        this.readers[i] = readers.get(i);
+      }
+
+      // Calculate NULL branch if it exists in the union schema
+      this.nullIndex = Integer.MAX_VALUE;
+      for (int i = 0; i < branches.size(); i++) {
+        Schema branch = branches.get(i);
+        if (Objects.equals(branch.getType(), Schema.Type.NULL)) {
+          this.nullIndex = i;
+          break;
+        }
+      }
+    }
+
+    @Override
+    public InternalRow read(Decoder decoder, Object reuse) throws IOException {
+      int index = decoder.readIndex();
+      if (index == nullIndex) {
+        // if it is a null data, directly return null as the whole union result
+        return null;
+      }
+
+      // otherwise, we need to return an InternalRow as a struct data
+      InternalRow struct = new GenericInternalRow(nullIndex < Integer.MAX_VALUE ?
+          branches.size() : branches.size() + 1);
+      for (int i = 0; i < struct.numFields(); i += 1) {
+        struct.setNullAt(i);
+      }
+
+      Object value = readers[index].read(decoder, reuse);
+
+      int outputFieldIndex = nullIndex < index ? index - 1 : index;
+      struct.setInt(0, outputFieldIndex);
+      struct.update(outputFieldIndex + 1, value); // add 1 to offset `tag` field
+
+      return struct;
     }
   }
 }
