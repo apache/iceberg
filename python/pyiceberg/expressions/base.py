@@ -19,11 +19,16 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import Generic, TypeVar, ClassVar, Literal
+from typing import (
+    ClassVar,
+    Generic,
+    Literal,
+    TypeVar,
+)
 
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
-from pyiceberg.types import NestedField, DoubleType, FloatType
+from pyiceberg.types import DoubleType, FloatType, NestedField
 from pyiceberg.utils.singleton import Singleton
 
 T = TypeVar("T")
@@ -67,6 +72,7 @@ class BoundTerm(Bound[T], Term):
     @abstractmethod
     def ref(self) -> BoundReference[T]:
         ...
+
 
 class UnboundTerm(Unbound[T, BoundTerm[T]], Term):
     """Represents an unbound term."""
@@ -169,7 +175,6 @@ class BoundPredicate(Bound[T], BooleanExpression):
         )
 
 
-# TODO: this should still exist as a parent, but term should be abstract
 class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
     _term: UnboundTerm[T]
     _literals: tuple[Literal[T], ...]
@@ -428,13 +433,13 @@ class SetPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         bound_term = self.term.bind(schema, case_sensitive)
-        return self.as_bound(bound_term, set(lit.to(bound_term.ref().field.field_type) for lit in self.literals))
+        return self.as_bound(bound_term, {lit.to(bound_term.ref().field.field_type) for lit in self.literals})
 
 
 @dataclass(frozen=True)
 class BoundSetPredicate(Bound[T], BooleanExpression, ABC):
     term: BoundTerm[T]
-    literals: set[Literal[T], ...]
+    literals: set[Literal[T]]
 
     @abstractmethod
     def __invert__(self) -> BooleanExpression:
@@ -442,7 +447,7 @@ class BoundSetPredicate(Bound[T], BooleanExpression, ABC):
 
 
 class BoundIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T], ...]) -> BooleanExpression:
+    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]) -> BooleanExpression:
         count = len(literals)
         if count == 0:
             return AlwaysFalse()
@@ -456,7 +461,7 @@ class BoundIn(BoundSetPredicate[T]):
 
 
 class BoundNotIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T], ...]) -> BooleanExpression:
+    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]) -> BooleanExpression:
         count = len(literals)
         if count == 0:
             return AlwaysTrue()

@@ -22,10 +22,15 @@ from typing import List
 import pytest
 
 from pyiceberg.expressions import base
-from pyiceberg.expressions.base import BoundReference
 from pyiceberg.expressions.literals import LongLiteral, StringLiteral, literal
 from pyiceberg.schema import Accessor, Schema
-from pyiceberg.types import IntegerType, NestedField, StringType, FloatType, DoubleType
+from pyiceberg.types import (
+    DoubleType,
+    FloatType,
+    IntegerType,
+    NestedField,
+    StringType,
+)
 from pyiceberg.utils.singleton import Singleton
 
 
@@ -247,24 +252,22 @@ def test_in_to_eq():
 def test_bind_in(request):
     schema = request.getfixturevalue("table_schema_simple")
     bound = base.BoundIn(
-        base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)),
-        {literal("hello"), literal("world")})
+        base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)), {literal("hello"), literal("world")}
+    )
     assert base.In(base.Reference("foo"), (literal("hello"), literal("world"))).bind(schema) == bound
 
 
 def test_bind_dedup(request):
     schema = request.getfixturevalue("table_schema_simple")
     bound = base.BoundIn(
-        base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)),
-        {literal("hello"), literal("world")})
+        base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)), {literal("hello"), literal("world")}
+    )
     assert base.In(base.Reference("foo"), (literal("hello"), literal("world"), literal("world"))).bind(schema) == bound
 
 
 def test_bind_dedup_to_eq(request):
     schema = request.getfixturevalue("table_schema_simple")
-    bound = base.BoundEq(
-        base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)),
-        literal("hello"))
+    bound = base.BoundEq(base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)), literal("hello"))
     assert base.In(base.Reference("foo"), (literal("hello"), literal("hello"))).bind(schema) == bound
 
 
@@ -272,32 +275,32 @@ def test_bind_dedup_to_eq(request):
     "a,  schema",
     [
         (
-                base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
-                "table_schema_simple",
+            base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
+            "table_schema_simple",
         ),
         (
-                base.NotEq(base.Reference("foo"), literal("hello")),
-                "table_schema_simple",
+            base.NotEq(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
         ),
         (
-                base.Eq(base.Reference("foo"), literal("hello")),
-                "table_schema_simple",
+            base.Eq(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
         ),
         (
-                base.Gt(base.Reference("foo"), literal("hello")),
-                "table_schema_simple",
+            base.Gt(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
         ),
         (
-                base.Lt(base.Reference("foo"), literal("hello")),
-                "table_schema_simple",
+            base.Lt(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
         ),
         (
-                base.GtEq(base.Reference("foo"), literal("hello")),
-                "table_schema_simple",
+            base.GtEq(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
         ),
         (
-                base.LtEq(base.Reference("foo"), literal("hello")),
-                "table_schema_simple",
+            base.LtEq(base.Reference("foo"), literal("hello")),
+            "table_schema_simple",
         ),
     ],
 )
@@ -310,36 +313,36 @@ def test_bind(a, schema, request):
     "a,  schema",
     [
         (
-                base.In(base.Reference("Bar"), (literal(5), literal(2))),
-                "table_schema_simple",
+            base.In(base.Reference("Bar"), (literal(5), literal(2))),
+            "table_schema_simple",
         ),
         (
-                base.NotIn(base.Reference("Bar"), (literal(5), literal(2))),
-                "table_schema_simple",
+            base.NotIn(base.Reference("Bar"), (literal(5), literal(2))),
+            "table_schema_simple",
         ),
         (
-                base.NotEq(base.Reference("Bar"), literal(5)),
-                "table_schema_simple",
+            base.NotEq(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
         ),
         (
-                base.Eq(base.Reference("Bar"), literal(5)),
-                "table_schema_simple",
+            base.Eq(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
         ),
         (
-                base.Gt(base.Reference("Bar"), literal(5)),
-                "table_schema_simple",
+            base.Gt(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
         ),
         (
-                base.Lt(base.Reference("Bar"), literal(5)),
-                "table_schema_simple",
+            base.Lt(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
         ),
         (
-                base.GtEq(base.Reference("Bar"), literal(5)),
-                "table_schema_simple",
+            base.GtEq(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
         ),
         (
-                base.LtEq(base.Reference("Bar"), literal(5)),
-                "table_schema_simple",
+            base.LtEq(base.Reference("Bar"), literal(5)),
+            "table_schema_simple",
         ),
     ],
 )
@@ -780,7 +783,7 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),
                 ),
-                StringLiteral("bar")
+                StringLiteral("bar"),
             ),
         ),
     ],
