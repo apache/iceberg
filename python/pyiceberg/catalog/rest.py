@@ -148,14 +148,39 @@ class ErrorResponse(IcebergBaseModel):
 
 
 class RestCatalog(Catalog):
-    token: TokenResponse
+    token: str
     config: Properties
 
     host: str
 
-    def __init__(self, name: str, properties: Properties, host: str, credential: str):
+    def __init__(
+        self,
+        name: str,
+        properties: Properties,
+        host: str,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+        token: Optional[str] = None,
+    ):
+        """Rest Catalog
+
+        You either need to provide a client_id and client_secret, or an already valid token.
+
+        Args:
+            name: Name to identify the catalog
+            properties: Properties that are passed along to the configuration
+            host: The base-url of the REST Catalog endpoint
+            client_id: The id to identify the client
+            client_secret: The secret for the client
+            token: The bearer token
+        """
         self.host = host
-        self.token = self._fetch_access_token(credential)
+        if client_id and client_secret:
+            self.token = self._fetch_access_token(client_id, client_secret)
+        elif token:
+            self.token = token
+        else:
+            raise ValueError("Either set the client_id and client_secret, or provide a valid token")
         self.config = self._fetch_config(properties)
         super().__init__(name, properties)
 
@@ -175,7 +200,7 @@ class RestCatalog(Catalog):
     @property
     def headers(self) -> Properties:
         return {
-            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token.access_token}",
+            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token}",
             "Content-type": "application/json",
             "X-Client-Version": __version__,
         }
@@ -199,9 +224,8 @@ class RestCatalog(Catalog):
 
         return url + endpoint.format(**kwargs)
 
-    def _fetch_access_token(self, token: str) -> TokenResponse:
-        client, secret = self._split_credential(token)
-        data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client, CLIENT_SECRET: secret, SCOPE: CATALOG_SCOPE}
+    def _fetch_access_token(self, client_id: str, client_secret: str) -> str:
+        data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
         response = requests.post(url=url, data=data)
@@ -210,7 +234,7 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {401: BadCredentialsError})
 
-        return TokenResponse(**response.json())
+        return TokenResponse(**response.json()).access_token
 
     def _fetch_config(self, properties: Properties) -> Properties:
         response = requests.get(self.url(Endpoints.get_config, prefixed=False), headers=self.headers)
