@@ -325,12 +325,12 @@ class AlwaysFalse(BooleanExpression, Singleton):
 
 @dataclass(frozen=True)
 class UnaryPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
-    inverse: ClassVar[type]
     as_bound: ClassVar[type]
     term: UnboundTerm[T]
 
-    def __invert__(self) -> inverse:
-        return self.inverse(self.term)
+    @abstractmethod
+    def __invert__(self) -> UnaryPredicate:
+        ...
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         bound_term = self.term.bind(schema, case_sensitive)
@@ -338,20 +338,12 @@ class UnaryPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
 
 
 @dataclass(frozen=True)
-class BoundUnaryPredicate(Bound[T], BooleanExpression):
-    inverse: ClassVar[type]
+class BoundUnaryPredicate(Bound[T], BooleanExpression, ABC):
     term: BoundTerm[T]
 
-    def __invert__(self) -> inverse:
-        return self.inverse(self.term)
-
-
-class IsNull(UnaryPredicate[T]):
-    pass
-
-
-class NotNull(UnaryPredicate[T]):
-    pass
+    @abstractmethod
+    def __invert__(self) -> BoundUnaryPredicate:
+        ...
 
 
 class BoundIsNull(BoundUnaryPredicate[T]):
@@ -360,6 +352,9 @@ class BoundIsNull(BoundUnaryPredicate[T]):
             return AlwaysFalse()
         return super().__new__(cls)
 
+    def __invert__(self) -> BoundNotNull:
+        return BoundNotNull(self.term)
+
 
 class BoundNotNull(BoundUnaryPredicate[T]):
     def __new__(cls, term: BoundTerm[T]):
@@ -367,21 +362,22 @@ class BoundNotNull(BoundUnaryPredicate[T]):
             return AlwaysTrue()
         return super().__new__(cls)
 
-
-IsNull.inverse = NotNull
-IsNull.as_bound = BoundIsNull
-NotNull.inverse = IsNull
-NotNull.as_bound = BoundNotNull
-BoundIsNull.inverse = BoundNotNull
-BoundNotNull.inverse = BoundIsNull
+    def __invert__(self) -> BoundIsNull:
+        return BoundIsNull(self.term)
 
 
-class IsNaN(UnaryPredicate[T]):
-    pass
+class IsNull(UnaryPredicate[T]):
+    as_bound = BoundIsNull
+
+    def __invert__(self) -> NotNull:
+        return NotNull(self.term)
 
 
-class NotNaN(UnaryPredicate[T]):
-    pass
+class NotNull(UnaryPredicate[T]):
+    as_bound = BoundNotNull
+
+    def __invert__(self) -> IsNull:
+        return IsNull(self.term)
 
 
 class BoundIsNaN(BoundUnaryPredicate[T]):
@@ -391,6 +387,9 @@ class BoundIsNaN(BoundUnaryPredicate[T]):
             return super().__new__(cls)
         return AlwaysFalse()
 
+    def __invert__(self) -> BoundNotNaN:
+        return BoundNotNaN(self.term)
+
 
 class BoundNotNaN(BoundUnaryPredicate[T]):
     def __new__(cls, term: BoundTerm[T]):
@@ -399,24 +398,33 @@ class BoundNotNaN(BoundUnaryPredicate[T]):
             return super().__new__(cls)
         return AlwaysTrue()
 
+    def __invert__(self) -> BoundIsNaN:
+        return BoundIsNaN(self.term)
 
-IsNaN.inverse = NotNaN
-IsNaN.as_bound = BoundIsNaN
-NotNaN.inverse = IsNaN
-NotNaN.as_bound = BoundNotNaN
-BoundIsNaN.inverse = BoundNotNaN
-BoundNotNaN.inverse = BoundIsNaN
+
+class IsNaN(UnaryPredicate[T]):
+    as_bound = BoundIsNaN
+
+    def __invert__(self) -> NotNaN:
+        return NotNaN(self.term)
+
+
+class NotNaN(UnaryPredicate[T]):
+    as_bound = BoundNotNaN
+
+    def __invert__(self) -> IsNaN:
+        return IsNaN(self.term)
 
 
 @dataclass(frozen=True)
 class SetPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
-    inverse: ClassVar[type]
     as_bound: ClassVar[type]
     term: UnboundTerm[T]
     literals: tuple[Literal[T], ...]
 
-    def __invert__(self) -> inverse:
-        return self.inverse(self.term, self.literals)
+    @abstractmethod
+    def __invert__(self) -> BooleanExpression:
+        ...
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         bound_term = self.term.bind(schema, case_sensitive)
@@ -424,53 +432,73 @@ class SetPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
 
 
 @dataclass(frozen=True)
-class BoundSetPredicate(Bound[T], BooleanExpression):
-    inverse: ClassVar[type]
+class BoundSetPredicate(Bound[T], BooleanExpression, ABC):
     term: BoundTerm[T]
     literals: set[Literal[T], ...]
 
-    def __invert__(self) -> inverse:
-        return self.inverse(self.term, self.literals)
-
-
-class In(SetPredicate[T]):
-    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]) -> BooleanExpression:
-        if len(literals) == 1:
-            return Eq(term, literals[0])
-        else:
-            return super().__new__(cls)
-
-
-class NotIn(SetPredicate[T]):
-    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]) -> BooleanExpression:
-        if len(literals) == 1:
-            return NotEq(term, literals[0])
-        else:
-            return super().__new__(cls)
+    @abstractmethod
+    def __invert__(self) -> BooleanExpression:
+        ...
 
 
 class BoundIn(BoundSetPredicate[T]):
     def __new__(cls, term: BoundTerm[T], literals: set[Literal[T], ...]) -> BooleanExpression:
-        if len(literals) == 1:
+        count = len(literals)
+        if count == 0:
+            return AlwaysFalse()
+        if count == 1:
             return BoundEq(term, literals.pop())
         else:
             return super().__new__(cls)
 
+    def __invert__(self) -> BooleanExpression:
+        return BoundNotIn(self.term, self.literals)
+
 
 class BoundNotIn(BoundSetPredicate[T]):
     def __new__(cls, term: BoundTerm[T], literals: set[Literal[T], ...]) -> BooleanExpression:
-        if len(literals) == 1:
+        count = len(literals)
+        if count == 0:
+            return AlwaysTrue()
+        if count == 1:
             return BoundNotEq(term, literals.pop())
         else:
             return super().__new__(cls)
 
+    def __invert__(self) -> BooleanExpression:
+        return BoundIn(self.term, self.literals)
 
-In.inverse = NotIn
-In.as_bound = BoundIn
-NotIn.inverse = In
-NotIn.as_bound = BoundNotIn
-BoundIn.inverse = BoundNotIn
-BoundNotIn.inverse = BoundIn
+
+class In(SetPredicate[T]):
+    as_bound = BoundIn
+
+    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]) -> BooleanExpression:
+        count = len(literals)
+        if count == 0:
+            return AlwaysFalse()
+        if count == 1:
+            return Eq(term, literals[0])
+        else:
+            return super().__new__(cls)
+
+    def __invert__(self) -> BooleanExpression:
+        return NotIn(self.term, self.literals)
+
+
+class NotIn(SetPredicate[T]):
+    as_bound = BoundNotIn
+
+    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]) -> BooleanExpression:
+        count = len(literals)
+        if count == 0:
+            return AlwaysTrue()
+        if count == 1:
+            return NotEq(term, literals[0])
+        else:
+            return super().__new__(cls)
+
+    def __invert__(self) -> BooleanExpression:
+        return In(self.term, self.literals)
 
 
 class BoundEq(BoundPredicate[T]):
