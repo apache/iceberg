@@ -52,16 +52,27 @@ project(':nessie').name = 'iceberg-nessie'
 project(':gcp').name = 'iceberg-gcp'
 project(':dell').name = 'iceberg-dell'
 
+List<String> knownScalaVersions = System.getProperty("knownScalaVersions").split(",")
+String scalaVersion = System.getProperty("scalaVersion", System.getProperty("defaultScalaVersion"))
+if (!knownScalaVersions.contains(scalaVersion)) {
+  throw new GradleException("Found unsupported Scala version: " + scalaVersion)
+}
+
 List<String> knownFlinkVersions = System.getProperty("knownFlinkVersions").split(",")
-String flinkVersionsString = System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")
+String flinkVersionsString = System.getProperty("flinkVersions", System.getProperty("defaultFlinkVersions"))
 List<String> flinkVersions = flinkVersionsString != null && !flinkVersionsString.isEmpty() ? flinkVersionsString.split(",") : []
+if (scalaVersion.toDouble() > 2.12) {
+  // Flink does not provide artifacts for Scala 2.13 yet, so remove Flink projects when Scala 2.13
+  // is selected.
+  flinkVersions = []
+}
 
 if (!knownFlinkVersions.containsAll(flinkVersions)) {
   throw new GradleException("Found unsupported Flink versions: " + (flinkVersions - knownFlinkVersions))
 }
 
 List<String> knownHiveVersions = System.getProperty("knownHiveVersions").split(",")
-String hiveVersionsString = System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")
+String hiveVersionsString = System.getProperty("hiveVersions", System.getProperty("defaultHiveVersions"))
 List<String> hiveVersions = hiveVersionsString != null && !hiveVersionsString.isEmpty() ? hiveVersionsString.split(",") : []
 
 if (!knownHiveVersions.containsAll(hiveVersions)) {
@@ -69,18 +80,11 @@ if (!knownHiveVersions.containsAll(hiveVersions)) {
 }
 
 List<String> knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
-String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
+String sparkVersionsString = System.getProperty("sparkVersions", System.getProperty("defaultSparkVersions"))
 List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
 
 if (!knownSparkVersions.containsAll(sparkVersions)) {
   throw new GradleException("Found unsupported Spark versions: " + (sparkVersions - knownSparkVersions))
-}
-
-List<String> knownScalaVersions = System.getProperty("knownScalaVersions").split(",")
-String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-
-if (!knownScalaVersions.contains(scalaVersion)) {
-  throw new GradleException("Found unsupported Scala version: " + scalaVersion)
 }
 
 if (!flinkVersions.isEmpty()) {
