@@ -18,18 +18,23 @@
  */
 package org.apache.iceberg.spark;
 
+import org.apache.iceberg.spark.functions.SparkFunctions;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
 abstract class BaseCatalog
-    implements StagingTableCatalog, ProcedureCatalog, SupportsNamespaces, HasIcebergCatalog {
+    implements StagingTableCatalog, ProcedureCatalog, SupportsNamespaces, HasIcebergCatalog, FunctionCatalog {
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
@@ -46,5 +51,35 @@ abstract class BaseCatalog
     }
 
     throw new NoSuchProcedureException(ident);
+  }
+
+  @Override
+  public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
+    if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
+      return SparkFunctions.list().stream()
+          .map(name -> Identifier.of(namespace, name))
+          .toArray(Identifier[]::new);
+    }
+
+    if (namespace.length == 0 || namespaceExists(namespace)) {
+      return new Identifier[0];
+    }
+
+    throw new NoSuchNamespaceException(namespace);
+  }
+
+  @Override
+  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
+    String[] namespace = ident.namespace();
+    String name = ident.name();
+
+    if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
+      UnboundFunction func = SparkFunctions.load(name);
+      if (func != null) {
+        return func;
+      }
+    }
+
+    throw new NoSuchFunctionException(ident);
   }
 }
