@@ -20,14 +20,25 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.internal.TableEnvironmentImpl;
+import org.apache.flink.table.catalog.CatalogManager;
+import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.catalog.SchemaResolver;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -52,6 +63,14 @@ import org.apache.iceberg.types.Types;
  */
 public class FlinkSchemaUtil {
 
+  public static final String FLINK_PREFIX = "flink.";
+
+  public static final String COMPUTED_COLUMNS = "computed-column.";
+  public static final String COMPUTED_COLUMNS_PREFIX = FLINK_PREFIX + COMPUTED_COLUMNS;
+
+  public static final String WATERMARK = "watermark.";
+  public static final String WATERMARK_PREFIX = FLINK_PREFIX + WATERMARK;
+
   private FlinkSchemaUtil() {
   }
 
@@ -59,28 +78,54 @@ public class FlinkSchemaUtil {
    * Convert the flink table schema to apache iceberg schema.
    */
   public static Schema convert(TableSchema schema) {
-    LogicalType schemaType = schema.toRowDataType().getLogicalType();
+    Schema iSchema = conv(schema.toPhysicalRowDataType().getLogicalType());
+    return freshIdentifierFieldIds(iSchema, schema);
+  }
+
+  /**
+   * Convert the flink table resolved schema to apache iceberg schema.
+   */
+  public static Schema convert(ResolvedSchema schema) {
+    Schema iSchema = conv(schema.toPhysicalRowDataType().getLogicalType());
+    return freshIdentifierFieldIds(iSchema, schema);
+  }
+
+  private static Schema conv(LogicalType schemaType) {
     Preconditions.checkArgument(schemaType instanceof RowType, "Schema logical type should be RowType.");
 
     RowType root = (RowType) schemaType;
     Type converted = root.accept(new FlinkTypeToType(root));
 
-    Schema iSchema = new Schema(converted.asStructType().fields());
-    return freshIdentifierFieldIds(iSchema, schema);
+    return new Schema(converted.asStructType().fields());
   }
 
   private static Schema freshIdentifierFieldIds(Schema iSchema, TableSchema schema) {
     // Locate the identifier field id list.
-    Set<Integer> identifierFieldIds = Sets.newHashSet();
+    List<String> primaryKeys = Lists.newArrayList();
     if (schema.getPrimaryKey().isPresent()) {
-      for (String column : schema.getPrimaryKey().get().getColumns()) {
+      primaryKeys.addAll(schema.getPrimaryKey().get().getColumns());
+    }
+    return freshIdentifier(iSchema, primaryKeys);
+  }
+
+  private static Schema freshIdentifierFieldIds(Schema iSchema, ResolvedSchema schema) {
+    List<String> primaryKeys = Lists.newArrayList();
+    if (schema.getPrimaryKey().isPresent()) {
+      primaryKeys.addAll(schema.getPrimaryKey().get().getColumns());
+    }
+    return freshIdentifier(iSchema, primaryKeys);
+  }
+
+  private static Schema freshIdentifier(Schema iSchema, List<String> keyColumns) {
+    Set<Integer> identifierFieldIds = Sets.newHashSet();
+    if (!keyColumns.isEmpty()) {
+      for (String column : keyColumns) {
         Types.NestedField field = iSchema.findField(column);
         Preconditions.checkNotNull(field,
             "Cannot find field ID for the primary key column %s in schema %s", column, iSchema);
         identifierFieldIds.add(field.fieldId());
       }
     }
-
     return new Schema(iSchema.schemaId(), iSchema.asStruct().fields(), identifierFieldIds);
   }
 
@@ -171,5 +216,111 @@ public class FlinkSchemaUtil {
     }
 
     return builder.build();
+  }
+
+
+   /**
+   * Convert a {@link Schema} to a {@link Schema}.
+   *
+   * @param schema iceberg schema to convert.
+   * @return Flink Schema.
+   */
+  public static org.apache.flink.table.api.Schema toSchema(Schema schema, Map<String, String> properties) {
+
+    org.apache.flink.table.api.Schema.Builder builder = org.apache.flink.table.api.Schema.newBuilder();
+
+    // get watermark and computed columns
+    Map<String, String> watermarkMap = Maps.newHashMap();
+    Map<String, String> computedColumnsMap = Maps.newHashMap();
+    properties.keySet().stream()
+        .filter(k -> k.startsWith(FLINK_PREFIX) && properties.get(k) != null)
+        .forEach(k -> {
+          final String name = k.substring(k.lastIndexOf('.') + 1);
+          String expr = properties.get(k);
+          if (k.startsWith(WATERMARK_PREFIX)) {
+            watermarkMap.put(name, expr);
+          } else if (k.startsWith(COMPUTED_COLUMNS_PREFIX)) {
+            computedColumnsMap.put(name, expr);
+          }
+        });
+
+    // add physical columns.
+    for (RowType.RowField field : convert(schema).getFields()) {
+      builder.column(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
+    }
+
+    // add computed columns.
+    computedColumnsMap.forEach(builder::columnByExpression);
+
+    // add watermarks.
+    watermarkMap.forEach(builder::watermark);
+
+    // add primary key.
+    List<String> primaryKey = getPrimaryKeyFromSchema(schema);
+    if (!primaryKey.isEmpty()) {
+      builder.primaryKey(primaryKey.toArray(new String[0]));
+    }
+
+    return builder.build();
+  }
+
+  /**
+   * Convert a {@link CatalogTable} to a {@link ResolvedSchema}.
+   *
+   * @param table flink unresolved schema to convert.
+   * @return Flink ResolvedSchema.
+   */
+  public static ResolvedSchema convertToResolvedSchema(CatalogTable table) {
+    Configuration configuration = ExecutionEnvironment.getExecutionEnvironment().getConfiguration();
+    TableEnvironment tableEnvironment = TableEnvironment.create(configuration);
+    CatalogManager catalogManager = ((TableEnvironmentImpl) tableEnvironment).getCatalogManager();
+    SchemaResolver schemaResolver = catalogManager.getSchemaResolver();
+    return table.getUnresolvedSchema().resolve(schemaResolver);
+  }
+
+  /**
+   * Generate table properties for watermark and computed columns from flink resolved schema.
+   *
+   * @param schema flink resolved schema.
+   * @return Table properties map.
+   */
+  public static Map<String, String> generateTablePropertiesFromResolvedSchema(ResolvedSchema schema) {
+    Map<String, String> properties = Maps.newHashMap();
+
+    // save watermark
+    schema.getWatermarkSpecs().forEach(column -> {
+      String name = column.getRowtimeAttribute();
+      properties.put(
+          FlinkSchemaUtil.WATERMARK_PREFIX + name,
+          column.getWatermarkExpression().asSerializableString());
+    });
+
+    // save computed columns
+    schema.getColumns().stream()
+        .filter(column -> column instanceof Column.ComputedColumn)
+        .forEach(tableColumn -> {
+          Column.ComputedColumn column = (Column.ComputedColumn) tableColumn;
+          String name = column.getName();
+          properties.put(
+              FlinkSchemaUtil.COMPUTED_COLUMNS_PREFIX + name,
+              column.getExpression().asSerializableString());
+        });
+
+    return properties;
+  }
+
+  public static List<String> getPrimaryKeyFromSchema(Schema schema) {
+    Set<Integer> identifierFieldIds = schema.identifierFieldIds();
+    if (!identifierFieldIds.isEmpty()) {
+      List<String> columns = Lists.newArrayListWithExpectedSize(identifierFieldIds.size());
+      for (Integer identifierFieldId : identifierFieldIds) {
+        String columnName = schema.findColumnName(identifierFieldId);
+        Preconditions.checkNotNull(columnName,
+                "Cannot find field with id %s in schema %s", identifierFieldId, schema);
+        columns.add(columnName);
+      }
+      return columns;
+    }
+    return Lists.newArrayList();
   }
 }
