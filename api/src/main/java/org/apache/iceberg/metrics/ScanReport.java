@@ -29,7 +29,7 @@ import org.immutables.value.Value;
 
 /** A Table Scan report that contains all relevant information from a Table Scan. */
 @Value.Immutable
-public interface ScanReport {
+public interface ScanReport extends MetricsReport {
 
   String tableName();
 

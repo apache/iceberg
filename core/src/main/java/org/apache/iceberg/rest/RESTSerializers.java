@@ -42,6 +42,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateRequirementParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest.UpdateRequirement;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -75,7 +77,9 @@ public class RESTSerializers {
         .addSerializer(UpdateRequirement.class, new UpdateRequirementSerializer())
         .addDeserializer(UpdateRequirement.class, new UpdateRequirementDeserializer())
         .addSerializer(OAuthTokenResponse.class, new OAuthTokenResponseSerializer())
-        .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer());
+        .addDeserializer(OAuthTokenResponse.class, new OAuthTokenResponseDeserializer())
+        .addSerializer(ReportMetricsRequest.class, new ReportMetricsRequestSerializer())
+        .addDeserializer(ReportMetricsRequest.class, new ReportMetricsRequestDeserializer());
     mapper.registerModule(module);
   }
 
@@ -252,6 +256,25 @@ public class RESTSerializers {
         throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return OAuth2Util.tokenResponseFromJson(jsonNode);
+    }
+  }
+
+  public static class ReportMetricsRequestSerializer extends JsonSerializer<ReportMetricsRequest> {
+    @Override
+    public void serialize(
+        ReportMetricsRequest request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      ReportMetricsRequestParser.toJson(request, gen);
+    }
+  }
+
+  public static class ReportMetricsRequestDeserializer
+      extends JsonDeserializer<ReportMetricsRequest> {
+    @Override
+    public ReportMetricsRequest deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return ReportMetricsRequestParser.fromJson(jsonNode);
     }
   }
 }
