@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -37,8 +38,10 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public abstract class ScanTestBase<T extends Scan<T, FileScanTask, CombinedScanTask>>
+public abstract class ScanTestBase<
+        ScanT extends Scan<ScanT, T, G>, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends TableTestBase {
+
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
     return new Object[] {1, 2};
@@ -48,11 +51,11 @@ public abstract class ScanTestBase<T extends Scan<T, FileScanTask, CombinedScanT
     super(formatVersion);
   }
 
-  protected abstract T newScan();
+  protected abstract ScanT newScan();
 
   @Test
   public void testTableScanHonorsSelect() {
-    T scan = newScan().select(Arrays.asList("id"));
+    ScanT scan = newScan().select(Arrays.asList("id"));
 
     Schema expectedSchema = new Schema(required(1, "id", Types.IntegerType.get()));
 
@@ -76,9 +79,9 @@ public abstract class ScanTestBase<T extends Scan<T, FileScanTask, CombinedScanT
 
   @Test
   public void testTableScanHonorsSelectWithoutCaseSensitivity() {
-    T scan1 = newScan().caseSensitive(false).select(Arrays.asList("ID"));
+    ScanT scan1 = newScan().caseSensitive(false).select(Arrays.asList("ID"));
     // order of refinements shouldn't matter
-    T scan2 = newScan().select(Arrays.asList("ID")).caseSensitive(false);
+    ScanT scan2 = newScan().select(Arrays.asList("ID")).caseSensitive(false);
 
     Schema expectedSchema = new Schema(required(1, "id", Types.IntegerType.get()));
 
@@ -97,26 +100,26 @@ public abstract class ScanTestBase<T extends Scan<T, FileScanTask, CombinedScanT
   public void testTableScanHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    T scan1 = newScan().filter(Expressions.equal("id", 5));
+    ScanT scan1 = newScan().filter(Expressions.equal("id", 5));
 
-    try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
-      for (CombinedScanTask combinedScanTask : tasks) {
-        for (FileScanTask fileScanTask : combinedScanTask.files()) {
-          Assert.assertNotEquals(
-              "Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
+    try (CloseableIterable<G> groups = scan1.planTasks()) {
+      Assert.assertTrue("Tasks should not be empty", Iterables.size(groups) > 0);
+      for (G group : groups) {
+        for (T task : group.tasks()) {
+          Expression residual = ((ContentScanTask<?>) task).residual();
+          Assert.assertNotEquals("Residuals must be preserved", Expressions.alwaysTrue(), residual);
         }
       }
     }
 
-    T scan2 = newScan().filter(Expressions.equal("id", 5)).ignoreResiduals();
+    ScanT scan2 = newScan().filter(Expressions.equal("id", 5)).ignoreResiduals();
 
-    try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
-      for (CombinedScanTask combinedScanTask : tasks) {
-        for (FileScanTask fileScanTask : combinedScanTask.files()) {
-          Assert.assertEquals(
-              "Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
+    try (CloseableIterable<G> groups = scan2.planTasks()) {
+      Assert.assertTrue("Tasks should not be empty", Iterables.size(groups) > 0);
+      for (G group : groups) {
+        for (T task : group.tasks()) {
+          Expression residual = ((ContentScanTask<?>) task).residual();
+          Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), residual);
         }
       }
     }
@@ -128,7 +131,7 @@ public abstract class ScanTestBase<T extends Scan<T, FileScanTask, CombinedScanT
     table.newFastAppend().appendFile(FILE_B).commit();
 
     AtomicInteger planThreadsIndex = new AtomicInteger(0);
-    T scan =
+    ScanT scan =
         newScan()
             .planWith(
                 Executors.newFixedThreadPool(

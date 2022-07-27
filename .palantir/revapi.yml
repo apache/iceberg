@@ -117,3 +117,9 @@ acceptedBreaks:
         \ boolean)"
       justification: "IncrementalScanEvent should only be constructed by Iceberg code.\
         \ Hence the change of constructor params shouldn't affect users"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.expressions.Expression org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::filter()"
+      justification: "Move a method to the parent interface"
+    - code: "java.method.addedToInterface"
+      new: "method boolean org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::isCaseSensitive()"
+      justification: "Move a method to the parent interface"

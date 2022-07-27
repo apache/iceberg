@@ -138,6 +138,10 @@ public class SnapshotUtil {
     return lastSnapshot;
   }
 
+  public static Snapshot oldestAncestorOf(Table table, long snapshotId) {
+    return oldestAncestorOf(snapshotId, table::snapshot);
+  }
+
   public static Iterable<Snapshot> ancestorsOf(long snapshotId, Function<Long, Snapshot> lookup) {
     Snapshot start = lookup.apply(snapshotId);
     Preconditions.checkArgument(start != null, "Cannot find snapshot: %s", snapshotId);
@@ -197,6 +201,11 @@ public class SnapshotUtil {
   public static Iterable<Long> ancestorIdsBetween(
       long latestSnapshotId, Long oldestSnapshotId, Function<Long, Snapshot> lookup) {
     return toIds(ancestorsBetween(latestSnapshotId, oldestSnapshotId, lookup));
+  }
+
+  public static Iterable<Snapshot> ancestorsBetween(
+      Table table, long latestSnapshotId, Long oldestSnapshotId) {
+    return ancestorsBetween(latestSnapshotId, oldestSnapshotId, table::snapshot);
   }
 
   public static Iterable<Snapshot> ancestorsBetween(
