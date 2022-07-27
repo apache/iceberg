@@ -20,12 +20,14 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
@@ -43,17 +45,25 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
+import org.apache.spark.sql.connector.catalog.SupportsPartitionManagement;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
@@ -76,7 +86,8 @@ import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns {
+    SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns,
+        SupportsPartitionManagement {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -293,6 +304,65 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         .set("spark.app.id", sparkSession().sparkContext().applicationId())
         .deleteFromRowFilter(deleteExpr)
         .commit();
+  }
+
+  @Override
+  public StructType partitionSchema() {
+    return (StructType) SparkSchemaUtil.convert(Partitioning.partitionType(table()));
+  }
+
+  @Override
+  public void createPartition(InternalRow ident, Map<String, String> properties) throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("Cannot explicitly create partitions in Iceberg tables");
+  }
+
+  @Override
+  public boolean dropPartition(InternalRow ident) {
+    throw new UnsupportedOperationException("Cannot explicitly drop partitions in Iceberg tables");
+  }
+
+  @Override
+  public void replacePartitionMetadata(InternalRow ident, Map<String, String> properties)
+          throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("Iceberg partitions do not support metadata");
+  }
+
+  @Override
+  public Map<String, String> loadPartitionMetadata(InternalRow ident) throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("Iceberg partitions do not support metadata");
+  }
+
+  @Override
+  public InternalRow[] listPartitionIdentifiers(String[] names, InternalRow ident) {
+    // support show partitions
+    List<InternalRow> rows = Lists.newArrayList();
+    Dataset<Row> df = SparkTableUtil.loadMetadataTable(sparkSession(), icebergTable, MetadataTableType.PARTITIONS);
+    if (names.length > 0) {
+      StructType schema = partitionSchema();
+      df.collectAsList().forEach(row -> {
+        GenericRowWithSchema genericRow = (GenericRowWithSchema) row.apply(0);
+        boolean exits = true;
+        int index = 0;
+        while (index < names.length) {
+          DataType dataType = schema.apply(names[index]).dataType();
+          int fieldIndex = schema.fieldIndex(names[index]);
+          if (!genericRow.values()[fieldIndex].equals(ident.get(index, dataType))) {
+            exits = false;
+            break;
+          }
+          index += 1;
+        }
+        if (exits) {
+          rows.add(new GenericInternalRow(genericRow.values()));
+        }
+      });
+    } else {
+      df.collectAsList().forEach(row -> {
+        GenericRowWithSchema genericRow = (GenericRowWithSchema) row.apply(0);
+        rows.add(new GenericInternalRow(genericRow.values()));
+      });
+    }
+    return rows.toArray(new InternalRow[0]);
   }
 
   @Override

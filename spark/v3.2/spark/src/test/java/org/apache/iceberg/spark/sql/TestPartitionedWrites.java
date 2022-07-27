@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -175,5 +176,28 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
     assertEquals("View should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM tmp"));
+  }
+
+  @Test
+  public void testAddPartition() {
+    // only check V2 command [IF NOT EXISTS] syntax
+    AssertHelpers.assertThrows("Cannot explicitly create partitions in Iceberg tables",
+            UnsupportedOperationException.class,
+            () -> sql("ALTER TABLE %s ADD IF NOT EXISTS PARTITION (id_trunc=2)", tableName));
+  }
+
+  @Test
+  public void testDropPartition() {
+    // only check V2 command [IF EXISTS] syntax
+    AssertHelpers.assertThrows("Cannot explicitly drop partitions in Iceberg tables",
+            UnsupportedOperationException.class,
+            () -> sql("ALTER TABLE %s DROP IF EXISTS PARTITION (id_trunc=0)", tableName));
+  }
+
+  @Test
+  public void testShowPartitions() {
+    Assert.assertEquals("Should have 2 rows", 2L, sql("SHOW PARTITIONS %s", tableName).size());
+    Assert.assertEquals("Should have 1 row", 1L,
+            sql("SHOW PARTITIONS %s PARTITION (id_trunc=0)", tableName).size());
   }
 }
