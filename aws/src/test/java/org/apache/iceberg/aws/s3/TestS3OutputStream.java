@@ -24,7 +24,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -136,7 +135,7 @@ public class TestS3OutputStream {
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
 
-    verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
+    verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
@@ -156,7 +155,7 @@ public class TestS3OutputStream {
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
 
-    verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
+    verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
