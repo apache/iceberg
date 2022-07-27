@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.ByteArrayInputStream;
@@ -113,7 +112,8 @@ public class TestMetricsSerialization {
     assertEquals(expected.upperBounds(), actual.upperBounds());
   }
 
-  private static void assertEquals(Map<Integer, ByteBuffer> expected, Map<Integer, ByteBuffer> actual) {
+  private static void assertEquals(
+      Map<Integer, ByteBuffer> expected, Map<Integer, ByteBuffer> actual) {
     if (expected == null) {
       Assert.assertNull(actual);
     } else {

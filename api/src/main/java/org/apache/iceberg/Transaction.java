@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 
-/**
- * A transaction for performing multiple updates to a table.
- */
+/** A transaction for performing multiple updates to a table. */
 public interface Transaction {
   /**
    * Return the {@link Table} that this transaction will update.
@@ -77,13 +74,13 @@ public interface Transaction {
 
   /**
    * Create a new {@link AppendFiles append API} to add files to this table.
-   * <p>
-   * Using this method signals to the underlying implementation that the append should not perform
-   * extra work in order to commit quickly. Fast appends are not recommended for normal writes
-   * because the fast commit may cause split planning to slow down over time.
-   * <p>
-   * Implementations may not support fast appends, in which case this will return the same appender
-   * as {@link #newAppend()}.
+   *
+   * <p>Using this method signals to the underlying implementation that the append should not
+   * perform extra work in order to commit quickly. Fast appends are not recommended for normal
+   * writes because the fast commit may cause split planning to slow down over time.
+   *
+   * <p>Implementations may not support fast appends, in which case this will return the same
+   * appender as {@link #newAppend()}.
    *
    * @return a new {@link AppendFiles}
    */
@@ -99,7 +96,8 @@ public interface Transaction {
   RewriteFiles newRewrite();
 
   /**
-   * Create a new {@link RewriteManifests rewrite manifests API} to replace manifests for this table.
+   * Create a new {@link RewriteManifests rewrite manifests API} to replace manifests for this
+   * table.
    *
    * @return a new {@link RewriteManifests}
    */
@@ -113,7 +111,8 @@ public interface Transaction {
   OverwriteFiles newOverwrite();
 
   /**
-   * Create a new {@link RowDelta row-level delta API} to remove or replace rows in existing data files.
+   * Create a new {@link RowDelta row-level delta API} to remove or replace rows in existing data
+   * files.
    *
    * @return a new {@link RowDelta}
    */
@@ -122,9 +121,10 @@ public interface Transaction {
   /**
    * Not recommended: Create a new {@link ReplacePartitions replace partitions API} to dynamically
    * overwrite partitions in the table with new data.
-   * <p>
-   * This is provided to implement SQL compatible with Hive table operations but is not recommended.
-   * Instead, use the {@link OverwriteFiles overwrite API} to explicitly overwrite data.
+   *
+   * <p>This is provided to implement SQL compatible with Hive table operations but is not
+   * recommended. Instead, use the {@link OverwriteFiles overwrite API} to explicitly overwrite
+   * data.
    *
    * @return a new {@link ReplacePartitions}
    */

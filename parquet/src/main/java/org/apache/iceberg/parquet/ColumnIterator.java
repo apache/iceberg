@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import org.apache.parquet.column.ColumnDescriptor;
@@ -27,58 +26,65 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   static <T> ColumnIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
     switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
       case BOOLEAN:
-        return (ColumnIterator<T>) new ColumnIterator<Boolean>(desc, writerVersion) {
-          @Override
-          public Boolean next() {
-            return nextBoolean();
-          }
-        };
+        return (ColumnIterator<T>)
+            new ColumnIterator<Boolean>(desc, writerVersion) {
+              @Override
+              public Boolean next() {
+                return nextBoolean();
+              }
+            };
       case INT32:
-        return (ColumnIterator<T>) new ColumnIterator<Integer>(desc, writerVersion) {
-          @Override
-          public Integer next() {
-            return nextInteger();
-          }
-        };
+        return (ColumnIterator<T>)
+            new ColumnIterator<Integer>(desc, writerVersion) {
+              @Override
+              public Integer next() {
+                return nextInteger();
+              }
+            };
       case INT64:
-        return (ColumnIterator<T>) new ColumnIterator<Long>(desc, writerVersion) {
-          @Override
-          public Long next() {
-            return nextLong();
-          }
-        };
+        return (ColumnIterator<T>)
+            new ColumnIterator<Long>(desc, writerVersion) {
+              @Override
+              public Long next() {
+                return nextLong();
+              }
+            };
       case INT96:
-        return (ColumnIterator<T>) new ColumnIterator<Binary>(desc, writerVersion) {
-          @Override
-          public Binary next() {
-            return nextBinary();
-          }
-        };
+        return (ColumnIterator<T>)
+            new ColumnIterator<Binary>(desc, writerVersion) {
+              @Override
+              public Binary next() {
+                return nextBinary();
+              }
+            };
       case FLOAT:
-        return (ColumnIterator<T>) new ColumnIterator<Float>(desc, writerVersion) {
-          @Override
-          public Float next() {
-            return nextFloat();
-          }
-        };
+        return (ColumnIterator<T>)
+            new ColumnIterator<Float>(desc, writerVersion) {
+              @Override
+              public Float next() {
+                return nextFloat();
+              }
+            };
       case DOUBLE:
-        return (ColumnIterator<T>) new ColumnIterator<Double>(desc, writerVersion) {
-          @Override
-          public Double next() {
-            return nextDouble();
-          }
-        };
+        return (ColumnIterator<T>)
+            new ColumnIterator<Double>(desc, writerVersion) {
+              @Override
+              public Double next() {
+                return nextDouble();
+              }
+            };
       case FIXED_LEN_BYTE_ARRAY:
       case BINARY:
-        return (ColumnIterator<T>) new ColumnIterator<Binary>(desc, writerVersion) {
-          @Override
-          public Binary next() {
-            return nextBinary();
-          }
-        };
+        return (ColumnIterator<T>)
+            new ColumnIterator<Binary>(desc, writerVersion) {
+              @Override
+              public Binary next() {
+                return nextBinary();
+              }
+            };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: " +
-            desc.getPrimitiveType().getPrimitiveTypeName());
+        throw new UnsupportedOperationException(
+            "Unsupported primitive type: " + desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 
@@ -154,5 +160,4 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
   protected BasePageIterator pageIterator() {
     return pageIterator;
   }
-
 }

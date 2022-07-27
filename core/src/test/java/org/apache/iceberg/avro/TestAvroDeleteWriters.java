@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.File;
@@ -49,14 +48,14 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestAvroDeleteWriters {
-  private static final Schema SCHEMA = new Schema(
-      NestedField.required(1, "id", Types.LongType.get()),
-      NestedField.optional(2, "data", Types.StringType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          NestedField.required(1, "id", Types.LongType.get()),
+          NestedField.optional(2, "data", Types.StringType.get()));
 
   private List<Record> records;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void createDeleteRecords() {
@@ -75,13 +74,14 @@ public class TestAvroDeleteWriters {
   @Test
   public void testEqualityDeleteWriter() throws IOException {
     OutputFile out = new InMemoryOutputFile();
-    EqualityDeleteWriter<Record> deleteWriter = Avro.writeDeletes(out)
-        .createWriterFunc(DataWriter::create)
-        .overwrite()
-        .rowSchema(SCHEMA)
-        .withSpec(PartitionSpec.unpartitioned())
-        .equalityFieldIds(1)
-        .buildEqualityWriter();
+    EqualityDeleteWriter<Record> deleteWriter =
+        Avro.writeDeletes(out)
+            .createWriterFunc(DataWriter::create)
+            .overwrite()
+            .rowSchema(SCHEMA)
+            .withSpec(PartitionSpec.unpartitioned())
+            .equalityFieldIds(1)
+            .buildEqualityWriter();
 
     try (EqualityDeleteWriter<Record> writer = deleteWriter) {
       writer.deleteAll(records);
@@ -89,16 +89,15 @@ public class TestAvroDeleteWriters {
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
     Assert.assertEquals("Format should be Avro", FileFormat.AVRO, metadata.format());
-    Assert.assertEquals("Should be equality deletes", FileContent.EQUALITY_DELETES, metadata.content());
+    Assert.assertEquals(
+        "Should be equality deletes", FileContent.EQUALITY_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
     Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
     Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
 
     List<Record> deletedRecords;
-    try (AvroIterable<Record> reader = Avro.read(out.toInputFile())
-        .project(SCHEMA)
-        .createReaderFunc(DataReader::create)
-        .build()) {
+    try (AvroIterable<Record> reader =
+        Avro.read(out.toInputFile()).project(SCHEMA).createReaderFunc(DataReader::create).build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
 
@@ -107,96 +106,104 @@ public class TestAvroDeleteWriters {
 
   @Test
   public void testPositionDeleteWriter() throws IOException {
-    Schema deleteSchema = new Schema(
-        MetadataColumns.DELETE_FILE_PATH,
-        MetadataColumns.DELETE_FILE_POS,
-        NestedField.optional(MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", SCHEMA.asStruct()));
+    Schema deleteSchema =
+        new Schema(
+            MetadataColumns.DELETE_FILE_PATH,
+            MetadataColumns.DELETE_FILE_POS,
+            NestedField.optional(
+                MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", SCHEMA.asStruct()));
 
     String deletePath = "s3://bucket/path/file.parquet";
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
     OutputFile out = new InMemoryOutputFile();
-    PositionDeleteWriter<Record> deleteWriter = Avro.writeDeletes(out)
-        .createWriterFunc(DataWriter::create)
-        .overwrite()
-        .rowSchema(SCHEMA)
-        .withSpec(PartitionSpec.unpartitioned())
-        .buildPositionWriter();
+    PositionDeleteWriter<Record> deleteWriter =
+        Avro.writeDeletes(out)
+            .createWriterFunc(DataWriter::create)
+            .overwrite()
+            .rowSchema(SCHEMA)
+            .withSpec(PartitionSpec.unpartitioned())
+            .buildPositionWriter();
 
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
         writer.delete(deletePath, pos, records.get(i));
-        expectedDeleteRecords.add(posDelete.copy(ImmutableMap.of(
-            "file_path", deletePath,
-            "pos", (long) pos,
-            "row", records.get(i))));
+        expectedDeleteRecords.add(
+            posDelete.copy(
+                ImmutableMap.of(
+                    "file_path", deletePath, "pos", (long) pos, "row", records.get(i))));
       }
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
     Assert.assertEquals("Format should be Avro", FileFormat.AVRO, metadata.format());
-    Assert.assertEquals("Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
+    Assert.assertEquals(
+        "Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
     Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
     Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
 
     List<Record> deletedRecords;
-    try (AvroIterable<Record> reader = Avro.read(out.toInputFile())
-        .project(deleteSchema)
-        .createReaderFunc(DataReader::create)
-        .build()) {
+    try (AvroIterable<Record> reader =
+        Avro.read(out.toInputFile())
+            .project(deleteSchema)
+            .createReaderFunc(DataReader::create)
+            .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals("Deleted records should match expected", expectedDeleteRecords, deletedRecords);
+    Assert.assertEquals(
+        "Deleted records should match expected", expectedDeleteRecords, deletedRecords);
   }
 
   @Test
   public void testPositionDeleteWriterWithEmptyRow() throws IOException {
     File deleteFile = temp.newFile();
 
-    Schema deleteSchema = new Schema(
-        MetadataColumns.DELETE_FILE_PATH,
-        MetadataColumns.DELETE_FILE_POS);
+    Schema deleteSchema =
+        new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
 
     String deletePath = "s3://bucket/path/file.parquet";
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
     OutputFile out = Files.localOutput(deleteFile);
-    PositionDeleteWriter<Void> deleteWriter = Avro.writeDeletes(out)
-        .createWriterFunc(DataWriter::create)
-        .overwrite()
-        .withSpec(PartitionSpec.unpartitioned())
-        .buildPositionWriter();
+    PositionDeleteWriter<Void> deleteWriter =
+        Avro.writeDeletes(out)
+            .createWriterFunc(DataWriter::create)
+            .overwrite()
+            .withSpec(PartitionSpec.unpartitioned())
+            .buildPositionWriter();
 
     try (PositionDeleteWriter<Void> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
         writer.delete(deletePath, pos, null);
-        expectedDeleteRecords.add(posDelete.copy(ImmutableMap.of(
-            "file_path", deletePath,
-            "pos", (long) pos)));
+        expectedDeleteRecords.add(
+            posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));
       }
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
     Assert.assertEquals("Format should be Avro", FileFormat.AVRO, metadata.format());
-    Assert.assertEquals("Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
+    Assert.assertEquals(
+        "Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
     Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
     Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
 
     List<Record> deletedRecords;
-    try (AvroIterable<Record> reader = Avro.read(out.toInputFile())
-        .project(deleteSchema)
-        .createReaderFunc(DataReader::create)
-        .build()) {
+    try (AvroIterable<Record> reader =
+        Avro.read(out.toInputFile())
+            .project(deleteSchema)
+            .createReaderFunc(DataReader::create)
+            .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals("Deleted records should match expected", expectedDeleteRecords, deletedRecords);
+    Assert.assertEquals(
+        "Deleted records should match expected", expectedDeleteRecords, deletedRecords);
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.List;
@@ -55,7 +54,8 @@ class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
   }
 
   @Override
-  public TypeDescription record(TypeDescription record, List<String> names, List<TypeDescription> fields) {
+  public TypeDescription record(
+      TypeDescription record, List<String> names, List<TypeDescription> fields) {
     Preconditions.checkArgument(names.size() == fields.size(), "All fields must have names");
     MappedField field = nameMapping.find(currentPath());
     TypeDescription structType = TypeDescription.createStruct();
@@ -81,7 +81,8 @@ class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
 
   @Override
   public TypeDescription map(TypeDescription map, TypeDescription key, TypeDescription value) {
-    Preconditions.checkArgument(key != null && value != null, "Map type must have both key and value types");
+    Preconditions.checkArgument(
+        key != null && value != null, "Map type must have both key and value types");
 
     MappedField field = nameMapping.find(currentPath());
     TypeDescription mapType = TypeDescription.createMap(key, value);

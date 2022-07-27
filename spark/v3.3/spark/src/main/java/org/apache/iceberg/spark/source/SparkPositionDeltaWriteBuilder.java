@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.DistributionMode;
@@ -43,10 +42,8 @@ import org.apache.spark.sql.types.StructType;
 
 class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
 
-  private static final Schema EXPECTED_ROW_ID_SCHEMA = new Schema(
-      MetadataColumns.FILE_PATH,
-      MetadataColumns.ROW_POSITION
-  );
+  private static final Schema EXPECTED_ROW_ID_SCHEMA =
+      new Schema(MetadataColumns.FILE_PATH, MetadataColumns.ROW_POSITION);
 
   private final SparkSession spark;
   private final Table table;
@@ -59,8 +56,13 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
   private final boolean checkNullability;
   private final boolean checkOrdering;
 
-  SparkPositionDeltaWriteBuilder(SparkSession spark, Table table, Command command, Scan scan,
-                                 IsolationLevel isolationLevel, ExtendedLogicalWriteInfo info) {
+  SparkPositionDeltaWriteBuilder(
+      SparkSession spark,
+      Table table,
+      Command command,
+      Scan scan,
+      IsolationLevel isolationLevel,
+      ExtendedLogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
     this.command = command;
@@ -75,7 +77,8 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
 
   @Override
   public DeltaWrite build() {
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+    Preconditions.checkArgument(
+        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema dataSchema = dataSchema();
@@ -84,23 +87,35 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     }
 
     Schema rowIdSchema = SparkSchemaUtil.convert(EXPECTED_ROW_ID_SCHEMA, info.rowIdSchema());
-    TypeUtil.validateSchema("row ID", EXPECTED_ROW_ID_SCHEMA, rowIdSchema, checkNullability, checkOrdering);
+    TypeUtil.validateSchema(
+        "row ID", EXPECTED_ROW_ID_SCHEMA, rowIdSchema, checkNullability, checkOrdering);
 
-    NestedField partition = MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME);
+    NestedField partition =
+        MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME);
     Schema expectedMetadataSchema = new Schema(MetadataColumns.SPEC_ID, partition);
     Schema metadataSchema = SparkSchemaUtil.convert(expectedMetadataSchema, info.metadataSchema());
-    TypeUtil.validateSchema("metadata", expectedMetadataSchema, metadataSchema, checkNullability, checkOrdering);
+    TypeUtil.validateSchema(
+        "metadata", expectedMetadataSchema, metadataSchema, checkNullability, checkOrdering);
 
     SparkUtil.validatePartitionTransforms(table.spec());
 
-    Distribution distribution = SparkDistributionAndOrderingUtil.buildPositionDeltaDistribution(
-        table, command, distributionMode());
-    SortOrder[] ordering = SparkDistributionAndOrderingUtil.buildPositionDeltaOrdering(
-        table, command);
+    Distribution distribution =
+        SparkDistributionAndOrderingUtil.buildPositionDeltaDistribution(
+            table, command, distributionMode());
+    SortOrder[] ordering =
+        SparkDistributionAndOrderingUtil.buildPositionDeltaOrdering(table, command);
 
     return new SparkPositionDeltaWrite(
-        spark, table, command, scan, isolationLevel, writeConf,
-        info, dataSchema, distribution, ordering);
+        spark,
+        table,
+        command,
+        scan,
+        isolationLevel,
+        writeConf,
+        info,
+        dataSchema,
+        distribution,
+        ordering);
   }
 
   private Schema dataSchema() {

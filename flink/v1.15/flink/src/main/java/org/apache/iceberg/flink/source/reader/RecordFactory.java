@@ -16,25 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
 
 /**
- * In FLIP-27 source, SplitReader#fetch() returns a batch of records.
- * Since DataIterator for RowData returns an iterator of reused RowData objects,
- * RecordFactory is needed to (1) create object array that is recyclable via pool.
- * (2) clone RowData element from DataIterator to the batch array.
+ * In FLIP-27 source, SplitReader#fetch() returns a batch of records. Since DataIterator for RowData
+ * returns an iterator of reused RowData objects, RecordFactory is needed to (1) create object array
+ * that is recyclable via pool. (2) clone RowData element from DataIterator to the batch array.
  */
 interface RecordFactory<T> extends Serializable {
-  /**
-   * Create a batch of records
-   */
+  /** Create a batch of records */
   T[] createBatch(int batchSize);
 
-  /**
-   * Clone record into the specified position of the batch array
-   */
+  /** Clone record into the specified position of the batch array */
   void clone(T from, T[] batch, int position);
 }

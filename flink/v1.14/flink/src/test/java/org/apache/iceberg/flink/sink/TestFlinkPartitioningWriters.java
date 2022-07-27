@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
@@ -39,9 +38,11 @@ public class TestFlinkPartitioningWriters<T> extends TestPartitioningWriters<Row
   }
 
   @Override
-  protected FileWriterFactory<RowData> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                        Schema equalityDeleteRowSchema,
-                                                        Schema positionDeleteRowSchema) {
+  protected FileWriterFactory<RowData> newWriterFactory(
+      Schema dataSchema,
+      List<Integer> equalityFieldIds,
+      Schema equalityDeleteRowSchema,
+      Schema positionDeleteRowSchema) {
     return FlinkFileWriterFactory.builderFor(table)
         .dataSchema(table.schema())
         .dataFileFormat(format())

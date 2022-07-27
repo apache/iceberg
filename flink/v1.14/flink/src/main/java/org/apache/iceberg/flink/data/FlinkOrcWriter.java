@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.util.Deque;
@@ -40,7 +39,9 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
   private final FlinkOrcWriters.RowDataWriter writer;
 
   private FlinkOrcWriter(RowType rowType, Schema iSchema) {
-    this.writer = (FlinkOrcWriters.RowDataWriter) FlinkSchemaVisitor.visit(rowType, iSchema, new WriteBuilder());
+    this.writer =
+        (FlinkOrcWriters.RowDataWriter)
+            FlinkSchemaVisitor.visit(rowType, iSchema, new WriteBuilder());
   }
 
   public static OrcRowWriter<RowData> buildWriter(RowType rowType, Schema iSchema) {
@@ -66,8 +67,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
   private static class WriteBuilder extends FlinkSchemaVisitor<OrcValueWriter<?>> {
     private final Deque<Integer> fieldIds = Lists.newLinkedList();
 
-    private WriteBuilder() {
-    }
+    private WriteBuilder() {}
 
     @Override
     public void beforeField(Types.NestedField field) {
@@ -80,20 +80,24 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
     }
 
     @Override
-    public OrcValueWriter<RowData> record(Types.StructType iStruct,
-                                          List<OrcValueWriter<?>> results,
-                                          List<LogicalType> fieldType) {
+    public OrcValueWriter<RowData> record(
+        Types.StructType iStruct, List<OrcValueWriter<?>> results, List<LogicalType> fieldType) {
       return FlinkOrcWriters.struct(results, fieldType);
     }
 
     @Override
-    public OrcValueWriter<?> map(Types.MapType iMap, OrcValueWriter<?> key, OrcValueWriter<?> value,
-                                 LogicalType keyType, LogicalType valueType) {
+    public OrcValueWriter<?> map(
+        Types.MapType iMap,
+        OrcValueWriter<?> key,
+        OrcValueWriter<?> value,
+        LogicalType keyType,
+        LogicalType valueType) {
       return FlinkOrcWriters.map(key, value, keyType, valueType);
     }
 
     @Override
-    public OrcValueWriter<?> list(Types.ListType iList, OrcValueWriter<?> element, LogicalType elementType) {
+    public OrcValueWriter<?> list(
+        Types.ListType iList, OrcValueWriter<?> element, LogicalType elementType) {
       return FlinkOrcWriters.list(element, elementType);
     }
 
@@ -113,14 +117,20 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
         case LONG:
           return GenericOrcWriters.longs();
         case FLOAT:
-          Preconditions.checkArgument(fieldIds.peek() != null,
-              String.format("[BUG] Cannot find field id for primitive field with type %s. This is likely because id " +
-                  "information is not properly pushed during schema visiting.", iPrimitive));
+          Preconditions.checkArgument(
+              fieldIds.peek() != null,
+              String.format(
+                  "[BUG] Cannot find field id for primitive field with type %s. This is likely because id "
+                      + "information is not properly pushed during schema visiting.",
+                  iPrimitive));
           return GenericOrcWriters.floats(fieldIds.peek());
         case DOUBLE:
-          Preconditions.checkArgument(fieldIds.peek() != null,
-              String.format("[BUG] Cannot find field id for primitive field with type %s. This is likely because id " +
-              "information is not properly pushed during schema visiting.", iPrimitive));
+          Preconditions.checkArgument(
+              fieldIds.peek() != null,
+              String.format(
+                  "[BUG] Cannot find field id for primitive field with type %s. This is likely because id "
+                      + "information is not properly pushed during schema visiting.",
+                  iPrimitive));
           return GenericOrcWriters.doubles(fieldIds.peek());
         case DATE:
           return FlinkOrcWriters.dates();
@@ -143,8 +153,10 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
           Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
           return FlinkOrcWriters.decimals(decimalType.precision(), decimalType.scale());
         default:
-          throw new IllegalArgumentException(String.format(
-              "Invalid iceberg type %s corresponding to Flink logical type %s", iPrimitive, flinkPrimitive));
+          throw new IllegalArgumentException(
+              String.format(
+                  "Invalid iceberg type %s corresponding to Flink logical type %s",
+                  iPrimitive, flinkPrimitive));
       }
     }
   }

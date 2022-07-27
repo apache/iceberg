@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import java.io.Closeable;
@@ -53,8 +52,10 @@ public class PuffinReader implements Closeable {
     this.fileSize = fileSize == null ? inputFile.getLength() : fileSize;
     this.input = inputFile.newStream();
     if (footerSize != null) {
-      Preconditions.checkArgument(0 < footerSize && footerSize <= this.fileSize - MAGIC.length,
-          "Invalid footer size: %s", footerSize);
+      Preconditions.checkArgument(
+          0 < footerSize && footerSize <= this.fileSize - MAGIC.length,
+          "Invalid footer size: %s",
+          footerSize);
       this.knownFooterSize = Math.toIntExact(footerSize);
     }
   }
@@ -79,12 +80,17 @@ public class PuffinReader implements Closeable {
         }
       }
 
-      int footerPayloadSize = PuffinFormat.readIntegerLittleEndian(
-          footer,
-          footerStructOffset + PuffinFormat.FOOTER_STRUCT_PAYLOAD_SIZE_OFFSET);
+      int footerPayloadSize =
+          PuffinFormat.readIntegerLittleEndian(
+              footer, footerStructOffset + PuffinFormat.FOOTER_STRUCT_PAYLOAD_SIZE_OFFSET);
       Preconditions.checkState(
-          footerSize == PuffinFormat.FOOTER_START_MAGIC_LENGTH + footerPayloadSize + PuffinFormat.FOOTER_STRUCT_LENGTH,
-          "Unexpected footer payload size value %s for footer size %s", footerPayloadSize, footerSize);
+          footerSize
+              == PuffinFormat.FOOTER_START_MAGIC_LENGTH
+                  + footerPayloadSize
+                  + PuffinFormat.FOOTER_STRUCT_LENGTH,
+          "Unexpected footer payload size value %s for footer size %s",
+          footerPayloadSize,
+          footerSize);
 
       ByteBuffer footerPayload = ByteBuffer.wrap(footer, 4, footerPayloadSize);
       ByteBuffer footerJson = PuffinFormat.decompress(footerCompression, footerPayload);
@@ -97,12 +103,14 @@ public class PuffinReader implements Closeable {
     EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
     for (int byteNumber = 0; byteNumber < PuffinFormat.FOOTER_STRUCT_FLAGS_LENGTH; byteNumber++) {
       int flagByte =
-          Byte.toUnsignedInt(footer[footerStructOffset + PuffinFormat.FOOTER_STRUCT_FLAGS_OFFSET + byteNumber]);
+          Byte.toUnsignedInt(
+              footer[footerStructOffset + PuffinFormat.FOOTER_STRUCT_FLAGS_OFFSET + byteNumber]);
       int bitNumber = 0;
       while (flagByte != 0) {
         if ((flagByte & 0x1) != 0) {
           Flag flag = Flag.fromBit(byteNumber, bitNumber);
-          Preconditions.checkState(flag != null, "Unknown flag byte %s and bit %s set", byteNumber, bitNumber);
+          Preconditions.checkState(
+              flag != null, "Unknown flag byte %s and bit %s set", byteNumber, bitNumber);
           flags.add(flag);
         }
         flagByte = flagByte >> 1;
@@ -119,30 +127,34 @@ public class PuffinReader implements Closeable {
 
     // TODO inspect blob offsets and coalesce read regions close to each other
 
-    return () -> blobs.stream()
-        .sorted(Comparator.comparingLong(BlobMetadata::offset))
-        .map((BlobMetadata blobMetadata) -> {
-          try {
-            input.seek(blobMetadata.offset());
-            byte[] bytes = new byte[Math.toIntExact(blobMetadata.length())];
-            ByteStreams.readFully(input, bytes);
-            ByteBuffer rawData = ByteBuffer.wrap(bytes);
-            PuffinCompressionCodec codec = PuffinCompressionCodec.forName(blobMetadata.compressionCodec());
-            ByteBuffer data = PuffinFormat.decompress(codec, rawData);
-            return Pair.of(blobMetadata, data);
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        })
-        .iterator();
+    return () ->
+        blobs.stream()
+            .sorted(Comparator.comparingLong(BlobMetadata::offset))
+            .map(
+                (BlobMetadata blobMetadata) -> {
+                  try {
+                    input.seek(blobMetadata.offset());
+                    byte[] bytes = new byte[Math.toIntExact(blobMetadata.length())];
+                    ByteStreams.readFully(input, bytes);
+                    ByteBuffer rawData = ByteBuffer.wrap(bytes);
+                    PuffinCompressionCodec codec =
+                        PuffinCompressionCodec.forName(blobMetadata.compressionCodec());
+                    ByteBuffer data = PuffinFormat.decompress(codec, rawData);
+                    return Pair.of(blobMetadata, data);
+                  } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                  }
+                })
+            .iterator();
   }
 
   private static void checkMagic(byte[] data, int offset) {
     byte[] read = Arrays.copyOfRange(data, offset, offset + MAGIC.length);
     if (!Arrays.equals(read, MAGIC)) {
-      throw new IllegalStateException(String.format(
-          "Invalid file: expected magic at offset %s: %s, but got %s",
-          offset, Arrays.toString(MAGIC), Arrays.toString(read)));
+      throw new IllegalStateException(
+          String.format(
+              "Invalid file: expected magic at offset %s: %s, but got %s",
+              offset, Arrays.toString(MAGIC), Arrays.toString(read)));
     }
   }
 
@@ -151,13 +163,20 @@ public class PuffinReader implements Closeable {
       Preconditions.checkState(
           fileSize >= PuffinFormat.FOOTER_STRUCT_LENGTH,
           "Invalid file: file length %s is less tha minimal length of the footer tail %s",
-          fileSize, PuffinFormat.FOOTER_STRUCT_LENGTH);
-      byte[] footerStruct = readInput(fileSize - PuffinFormat.FOOTER_STRUCT_LENGTH, PuffinFormat.FOOTER_STRUCT_LENGTH);
+          fileSize,
+          PuffinFormat.FOOTER_STRUCT_LENGTH);
+      byte[] footerStruct =
+          readInput(
+              fileSize - PuffinFormat.FOOTER_STRUCT_LENGTH, PuffinFormat.FOOTER_STRUCT_LENGTH);
       checkMagic(footerStruct, PuffinFormat.FOOTER_STRUCT_MAGIC_OFFSET);
 
-      int footerPayloadSize = PuffinFormat.readIntegerLittleEndian(
-          footerStruct, PuffinFormat.FOOTER_STRUCT_PAYLOAD_SIZE_OFFSET);
-      knownFooterSize = PuffinFormat.FOOTER_START_MAGIC_LENGTH + footerPayloadSize + PuffinFormat.FOOTER_STRUCT_LENGTH;
+      int footerPayloadSize =
+          PuffinFormat.readIntegerLittleEndian(
+              footerStruct, PuffinFormat.FOOTER_STRUCT_PAYLOAD_SIZE_OFFSET);
+      knownFooterSize =
+          PuffinFormat.FOOTER_START_MAGIC_LENGTH
+              + footerPayloadSize
+              + PuffinFormat.FOOTER_STRUCT_LENGTH;
     }
     return knownFooterSize;
   }

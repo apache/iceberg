@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
@@ -47,8 +46,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   static <E> CloseableIterable<E> withNoopClose(Iterable<E> iterable) {
     return new CloseableIterable<E>() {
       @Override
-      public void close() {
-      }
+      public void close() {}
 
       @Override
       public CloseableIterator<E> iterator() {
@@ -76,15 +74,19 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <E> CloseableIterable<E> filter(CloseableIterable<E> iterable, Predicate<E> pred) {
-    return combine(() -> new FilterIterator<E>(iterable.iterator()) {
-      @Override
-      protected boolean shouldKeep(E item) {
-        return pred.test(item);
-      }
-    }, iterable);
+    return combine(
+        () ->
+            new FilterIterator<E>(iterable.iterator()) {
+              @Override
+              protected boolean shouldKeep(E item) {
+                return pred.test(item);
+              }
+            },
+        iterable);
   }
 
-  static <I, O> CloseableIterable<O> transform(CloseableIterable<I> iterable, Function<I, O> transform) {
+  static <I, O> CloseableIterable<O> transform(
+      CloseableIterable<I> iterable, Function<I, O> transform) {
     Preconditions.checkNotNull(transform, "Cannot apply a null transform");
 
     return new CloseableIterable<O>() {
@@ -207,5 +209,4 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
     }
   }
-
 }

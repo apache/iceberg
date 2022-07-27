@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -45,7 +44,8 @@ import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
 
-public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
+public class IcebergSource
+    implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
 
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
@@ -66,7 +66,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     String caseSensitive = lazySparkSession().conf().get("spark.sql.caseSensitive");
 
-    Reader reader = new Reader(lazySparkSession(), table, Boolean.parseBoolean(caseSensitive), options);
+    Reader reader =
+        new Reader(lazySparkSession(), table, Boolean.parseBoolean(caseSensitive), options);
     if (readSchema != null) {
       // convert() will fail if readSchema contains fields not in reader.snapshotSchema()
       SparkSchemaUtil.convert(reader.snapshotSchema(), readSchema);
@@ -77,52 +78,69 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   }
 
   @Override
-  public Optional<DataSourceWriter> createWriter(String jobId, StructType dsStruct, SaveMode mode,
-                                                 DataSourceOptions options) {
-    Preconditions.checkArgument(mode == SaveMode.Append || mode == SaveMode.Overwrite,
-        "Save mode %s is not supported", mode);
+  public Optional<DataSourceWriter> createWriter(
+      String jobId, StructType dsStruct, SaveMode mode, DataSourceOptions options) {
+    Preconditions.checkArgument(
+        mode == SaveMode.Append || mode == SaveMode.Overwrite,
+        "Save mode %s is not supported",
+        mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     SparkWriteConf writeConf = new SparkWriteConf(lazySparkSession(), table, options.asMap());
 
     Preconditions.checkArgument(
-        writeConf.handleTimestampWithoutZone() || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+        writeConf.handleTimestampWithoutZone()
+            || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    TypeUtil.validateWriteSchema(
+        table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     SparkUtil.validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
     String wapId = writeConf.wapId();
     boolean replacePartitions = mode == SaveMode.Overwrite;
 
-    return Optional.of(new Writer(
-        lazySparkSession(), table, writeConf, replacePartitions, appId, wapId, writeSchema, dsStruct));
+    return Optional.of(
+        new Writer(
+            lazySparkSession(),
+            table,
+            writeConf,
+            replacePartitions,
+            appId,
+            wapId,
+            writeSchema,
+            dsStruct));
   }
 
   @Override
-  public StreamWriter createStreamWriter(String runId, StructType dsStruct,
-                                         OutputMode mode, DataSourceOptions options) {
+  public StreamWriter createStreamWriter(
+      String runId, StructType dsStruct, OutputMode mode, DataSourceOptions options) {
     Preconditions.checkArgument(
         mode == OutputMode.Append() || mode == OutputMode.Complete(),
-        "Output mode %s is not supported", mode);
+        "Output mode %s is not supported",
+        mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     SparkWriteConf writeConf = new SparkWriteConf(lazySparkSession(), table, options.asMap());
 
     Preconditions.checkArgument(
-        writeConf.handleTimestampWithoutZone() || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+        writeConf.handleTimestampWithoutZone()
+            || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    TypeUtil.validateWriteSchema(
+        table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     SparkUtil.validatePartitionTransforms(table.spec());
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
-    String queryId = lazySparkSession().sparkContext().getLocalProperty(StreamExecution.QUERY_ID_KEY());
+    String queryId =
+        lazySparkSession().sparkContext().getLocalProperty(StreamExecution.QUERY_ID_KEY());
     String appId = lazySparkSession().sparkContext().applicationId();
 
-    return new StreamingWriter(lazySparkSession(), table, writeConf, queryId, mode, appId, writeSchema, dsStruct);
+    return new StreamingWriter(
+        lazySparkSession(), table, writeConf, queryId, mode, appId, writeSchema, dsStruct);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
@@ -163,8 +181,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     return table;
   }
 
-  private static void mergeIcebergHadoopConfs(
-      Configuration baseConf, Map<String, String> options) {
+  private static void mergeIcebergHadoopConfs(Configuration baseConf, Map<String, String> options) {
     options.keySet().stream()
         .filter(key -> key.startsWith("hadoop."))
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));

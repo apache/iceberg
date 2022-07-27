@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.math.BigDecimal;
@@ -42,8 +41,7 @@ import org.apache.iceberg.types.TypeUtil;
 
 class ParquetAvro {
 
-  private ParquetAvro() {
-  }
+  private ParquetAvro() {}
 
   static Schema parquetAvroSchema(Schema avroSchema) {
     return AvroSchemaVisitor.visit(avroSchema, new ParquetDecimalSchemaConverter());
@@ -87,12 +85,12 @@ class ParquetAvro {
       super.validate(schema);
       switch (schema.getType()) {
         case INT:
-          Preconditions.checkArgument(precision <= 9,
-              "Int cannot hold decimal precision: %s", precision);
+          Preconditions.checkArgument(
+              precision <= 9, "Int cannot hold decimal precision: %s", precision);
           break;
         case LONG:
-          Preconditions.checkArgument(precision <= 18,
-              "Long cannot hold decimal precision: %s", precision);
+          Preconditions.checkArgument(
+              precision <= 18, "Long cannot hold decimal precision: %s", precision);
           break;
         case FIXED:
           break;
@@ -100,17 +98,19 @@ class ParquetAvro {
           throw new IllegalArgumentException("Invalid base type for decimal: " + schema);
       }
       Preconditions.checkArgument(scale >= 0, "Scale %s cannot be negative", scale);
-      Preconditions.checkArgument(scale <= precision,
-          "Scale %s cannot be less than precision %s", scale, precision);
+      Preconditions.checkArgument(
+          scale <= precision, "Scale %s cannot be less than precision %s", scale, precision);
     }
   }
 
   static {
-    LogicalTypes.register(ParquetDecimal.NAME, schema -> {
-      int precision = Integer.parseInt(schema.getProp("precision"));
-      int scale = Integer.parseInt(schema.getProp("scale"));
-      return new ParquetDecimal(precision, scale);
-    });
+    LogicalTypes.register(
+        ParquetDecimal.NAME,
+        schema -> {
+          int precision = Integer.parseInt(schema.getProp("precision"));
+          int scale = Integer.parseInt(schema.getProp("scale"));
+          return new ParquetDecimal(precision, scale);
+        });
   }
 
   private static class IntDecimalConversion extends Conversion<BigDecimal> {
@@ -179,66 +179,71 @@ class ParquetAvro {
     public GenericFixed toFixed(BigDecimal value, Schema schema, LogicalType type) {
       ParquetDecimal dec = (ParquetDecimal) type;
       Pair<Integer, Integer> key = new Pair<>(dec.precision(), dec.scale());
-      return super.toFixed(value, schema,
-          decimalsByScale.computeIfAbsent(key, k -> LogicalTypes.decimal(k.getFirst(), k.getSecond())));
+      return super.toFixed(
+          value,
+          schema,
+          decimalsByScale.computeIfAbsent(
+              key, k -> LogicalTypes.decimal(k.getFirst(), k.getSecond())));
     }
   }
 
-  static final GenericData DEFAULT_MODEL = new SpecificData() {
-    private final Conversion<?> fixedDecimalConversion = new FixedDecimalConversion();
-    private final Conversion<?> intDecimalConversion = new IntDecimalConversion();
-    private final Conversion<?> longDecimalConversion = new LongDecimalConversion();
-    private final Conversion<?> uuidConversion = new UUIDConversion();
+  static final GenericData DEFAULT_MODEL =
+      new SpecificData() {
+        private final Conversion<?> fixedDecimalConversion = new FixedDecimalConversion();
+        private final Conversion<?> intDecimalConversion = new IntDecimalConversion();
+        private final Conversion<?> longDecimalConversion = new LongDecimalConversion();
+        private final Conversion<?> uuidConversion = new UUIDConversion();
 
-    {
-      addLogicalTypeConversion(fixedDecimalConversion);
-      addLogicalTypeConversion(uuidConversion);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> Conversion<T> getConversionByClass(Class<T> datumClass, LogicalType logicalType) {
-      if (logicalType == null) {
-        return null;
-      }
-
-      if (logicalType instanceof ParquetDecimal) {
-        ParquetDecimal decimal = (ParquetDecimal) logicalType;
-        if (decimal.precision() <= 9) {
-          return (Conversion<T>) intDecimalConversion;
-        } else if (decimal.precision() <= 18) {
-          return (Conversion<T>) longDecimalConversion;
-        } else {
-          return (Conversion<T>) fixedDecimalConversion;
+        {
+          addLogicalTypeConversion(fixedDecimalConversion);
+          addLogicalTypeConversion(uuidConversion);
         }
-      } else if ("uuid".equals(logicalType.getName())) {
-        return (Conversion<T>) uuidConversion;
-      }
-      return super.getConversionByClass(datumClass, logicalType);
-    }
 
-    @Override
-    @SuppressWarnings("unchecked")
-    public Conversion<Object> getConversionFor(LogicalType logicalType) {
-      if (logicalType == null) {
-        return null;
-      }
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> Conversion<T> getConversionByClass(
+            Class<T> datumClass, LogicalType logicalType) {
+          if (logicalType == null) {
+            return null;
+          }
 
-      if (logicalType instanceof LogicalTypes.Decimal) {
-        LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-        if (decimal.getPrecision() <= 9) {
-          return (Conversion<Object>) intDecimalConversion;
-        } else if (decimal.getPrecision() <= 18) {
-          return (Conversion<Object>) longDecimalConversion;
-        } else {
-          return (Conversion<Object>) fixedDecimalConversion;
+          if (logicalType instanceof ParquetDecimal) {
+            ParquetDecimal decimal = (ParquetDecimal) logicalType;
+            if (decimal.precision() <= 9) {
+              return (Conversion<T>) intDecimalConversion;
+            } else if (decimal.precision() <= 18) {
+              return (Conversion<T>) longDecimalConversion;
+            } else {
+              return (Conversion<T>) fixedDecimalConversion;
+            }
+          } else if ("uuid".equals(logicalType.getName())) {
+            return (Conversion<T>) uuidConversion;
+          }
+          return super.getConversionByClass(datumClass, logicalType);
         }
-      } else if ("uuid".equals(logicalType.getName())) {
-        return (Conversion<Object>) uuidConversion;
-      }
-      return super.getConversionFor(logicalType);
-    }
-  };
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public Conversion<Object> getConversionFor(LogicalType logicalType) {
+          if (logicalType == null) {
+            return null;
+          }
+
+          if (logicalType instanceof LogicalTypes.Decimal) {
+            LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
+            if (decimal.getPrecision() <= 9) {
+              return (Conversion<Object>) intDecimalConversion;
+            } else if (decimal.getPrecision() <= 18) {
+              return (Conversion<Object>) longDecimalConversion;
+            } else {
+              return (Conversion<Object>) fixedDecimalConversion;
+            }
+          } else if ("uuid".equals(logicalType.getName())) {
+            return (Conversion<Object>) uuidConversion;
+          }
+          return super.getConversionFor(logicalType);
+        }
+      };
 
   private static class ParquetDecimalSchemaConverter extends AvroSchemaVisitor<Schema> {
     @Override
@@ -309,8 +314,12 @@ class ParquetAvro {
 
         } else {
           return new ParquetDecimal(decimal.getPrecision(), decimal.getScale())
-              .addToSchema(Schema.createFixed(primitive.getName(),
-                  null, null, TypeUtil.decimalRequiredBytes(decimal.getPrecision())));
+              .addToSchema(
+                  Schema.createFixed(
+                      primitive.getName(),
+                      null,
+                      null,
+                      TypeUtil.decimalRequiredBytes(decimal.getPrecision())));
         }
       }
 
@@ -333,8 +342,13 @@ class ParquetAvro {
     }
 
     private static Schema copyRecord(Schema record, List<Schema.Field> newFields) {
-      Schema copy = Schema.createRecord(record.getName(),
-          record.getDoc(), record.getNamespace(), record.isError(), newFields);
+      Schema copy =
+          Schema.createRecord(
+              record.getName(),
+              record.getDoc(),
+              record.getNamespace(),
+              record.isError(),
+              newFields);
 
       for (Map.Entry<String, Object> prop : record.getObjectProps().entrySet()) {
         copy.addProp(prop.getKey(), prop.getValue());
@@ -344,8 +358,8 @@ class ParquetAvro {
     }
 
     private static Schema.Field copyField(Schema.Field field, Schema newSchema) {
-      Schema.Field copy = new Schema.Field(field.name(),
-          newSchema, field.doc(), field.defaultVal(), field.order());
+      Schema.Field copy =
+          new Schema.Field(field.name(), newSchema, field.doc(), field.defaultVal(), field.order());
 
       for (Map.Entry<String, Object> prop : field.getObjectProps().entrySet()) {
         copy.addProp(prop.getKey(), prop.getValue());

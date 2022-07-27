@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.storage.BlobId;
@@ -36,16 +35,20 @@ import org.slf4j.LoggerFactory;
 
 /**
  * FileIO Implementation backed by Google Cloud Storage (GCS)
- * <p>
- * Locations follow the conventions used by
- * {@link com.google.cloud.storage.BlobId#fromGsUtilUri(String) BlobId.fromGsUtilUri}
- * that follow the convention <pre>{@code gs://<bucket>/<blob_path>}</pre>
- * <p>
- * See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage Overview</a>
+ *
+ * <p>Locations follow the conventions used by {@link
+ * com.google.cloud.storage.BlobId#fromGsUtilUri(String) BlobId.fromGsUtilUri} that follow the
+ * convention
+ *
+ * <pre>{@code gs://<bucket>/<blob_path>}</pre>
+ *
+ * <p>See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage
+ * Overview</a>
  */
 public class GCSFileIO implements FileIO {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
-  private static final String DEFAULT_METRICS_IMPL = "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String DEFAULT_METRICS_IMPL =
+      "org.apache.iceberg.hadoop.HadoopMetricsContext";
 
   private SerializableSupplier<Storage> storageSupplier;
   private GCPProperties gcpProperties;
@@ -56,16 +59,16 @@ public class GCSFileIO implements FileIO {
 
   /**
    * No-arg constructor to load the FileIO dynamically.
-   * <p>
-   * All fields are initialized by calling {@link GCSFileIO#initialize(Map)} later.
+   *
+   * <p>All fields are initialized by calling {@link GCSFileIO#initialize(Map)} later.
    */
-  public GCSFileIO() {
-  }
+  public GCSFileIO() {}
 
   /**
    * Constructor with custom storage supplier and GCP properties.
-   * <p>
-   * Calling {@link GCSFileIO#initialize(Map)} will overwrite information set in this constructor.
+   *
+   * <p>Calling {@link GCSFileIO#initialize(Map)} will overwrite information set in this
+   * constructor.
    *
    * @param storageSupplier storage supplier
    * @param gcpProperties gcp properties
@@ -121,26 +124,32 @@ public class GCSFileIO implements FileIO {
     this.properties = props;
     this.gcpProperties = new GCPProperties(props);
 
-    this.storageSupplier = () -> {
-      StorageOptions.Builder builder = StorageOptions.newBuilder();
+    this.storageSupplier =
+        () -> {
+          StorageOptions.Builder builder = StorageOptions.newBuilder();
 
-      gcpProperties.projectId().ifPresent(builder::setProjectId);
-      gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
-      gcpProperties.serviceHost().ifPresent(builder::setHost);
+          gcpProperties.projectId().ifPresent(builder::setProjectId);
+          gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
+          gcpProperties.serviceHost().ifPresent(builder::setHost);
 
-      // Report Hadoop metrics if Hadoop is available
-      try {
-        DynConstructors.Ctor<MetricsContext> ctor =
-            DynConstructors.builder(MetricsContext.class).hiddenImpl(DEFAULT_METRICS_IMPL, String.class).buildChecked();
-        MetricsContext context = ctor.newInstance("gcs");
-        context.initialize(props);
-        this.metrics = context;
-      } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
-        LOG.warn("Unable to load metrics class: '{}', falling back to null metrics", DEFAULT_METRICS_IMPL, e);
-      }
+          // Report Hadoop metrics if Hadoop is available
+          try {
+            DynConstructors.Ctor<MetricsContext> ctor =
+                DynConstructors.builder(MetricsContext.class)
+                    .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+                    .buildChecked();
+            MetricsContext context = ctor.newInstance("gcs");
+            context.initialize(props);
+            this.metrics = context;
+          } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
+            LOG.warn(
+                "Unable to load metrics class: '{}', falling back to null metrics",
+                DEFAULT_METRICS_IMPL,
+                e);
+          }
 
-      return builder.build().getService();
-    };
+          return builder.build().getService();
+        };
   }
 
   @Override

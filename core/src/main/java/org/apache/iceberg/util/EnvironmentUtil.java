@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Map;
@@ -24,8 +23,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class EnvironmentUtil {
-  private EnvironmentUtil() {
-  }
+  private EnvironmentUtil() {}
 
   private static final String ENVIRONMENT_VARIABLE_PREFIX = "env:";
 
@@ -36,16 +34,17 @@ public class EnvironmentUtil {
   @VisibleForTesting
   static Map<String, String> resolveAll(Map<String, String> env, Map<String, String> properties) {
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-    properties.forEach((name, value) -> {
-      if (value.startsWith(ENVIRONMENT_VARIABLE_PREFIX)) {
-        String resolved = env.get(value.substring(ENVIRONMENT_VARIABLE_PREFIX.length()));
-        if (resolved != null) {
-          builder.put(name, resolved);
-        }
-      } else {
-        builder.put(name, value);
-      }
-    });
+    properties.forEach(
+        (name, value) -> {
+          if (value.startsWith(ENVIRONMENT_VARIABLE_PREFIX)) {
+            String resolved = env.get(value.substring(ENVIRONMENT_VARIABLE_PREFIX.length()));
+            if (resolved != null) {
+              builder.put(name, resolved);
+            }
+          } else {
+            builder.put(name, value);
+          }
+        });
 
     return builder.build();
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import java.util.Map;
@@ -28,30 +27,26 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public enum PuffinCompressionCodec {
-  /**
-   * No compression
-   */
+  /** No compression */
   NONE(null),
 
-  /**
-   * LZ4 single compression frame with content size present
-   */
+  /** LZ4 single compression frame with content size present */
   LZ4("lz4"),
 
-  /**
-   * Zstandard single compression frame with content size present
-   */
+  /** Zstandard single compression frame with content size present */
   ZSTD("zstd"),
-  /**/;
+/**/ ;
 
-  private static final Map<String, PuffinCompressionCodec> BY_NAME = Stream.of(values())
-      .collect(Collectors.toMap(
-          PuffinCompressionCodec::codecName,
-          Function.identity(),
-          (a, b) -> {
-            throw new UnsupportedOperationException("Two enum instances with same name");
-          },
-          Maps::newHashMap));
+  private static final Map<String, PuffinCompressionCodec> BY_NAME =
+      Stream.of(values())
+          .collect(
+              Collectors.toMap(
+                  PuffinCompressionCodec::codecName,
+                  Function.identity(),
+                  (a, b) -> {
+                    throw new UnsupportedOperationException("Two enum instances with same name");
+                  },
+                  Maps::newHashMap));
 
   private final String codecName;
 

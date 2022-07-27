@@ -1,24 +1,21 @@
 /*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *  Copyright 2004 Clinton Begin
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
- *  Slightly modified version of the com.ibatis.common.jdbc.ScriptRunner class
- *  from the iBATIS Apache project. Only removed dependency on Resource class
- *  and a constructor.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.iceberg.hive;
 
 import java.io.IOException;
@@ -31,9 +28,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/**
- * Tool to run database scripts
- */
+/** Tool to run database scripts */
 public class ScriptRunner {
 
   private static final String DEFAULT_DELIMITER = ";";
@@ -49,11 +44,8 @@ public class ScriptRunner {
   private String delimiter = DEFAULT_DELIMITER;
   private boolean fullLineDelimiter = false;
 
-  /**
-   * Default constructor
-   */
-  public ScriptRunner(Connection connection, boolean autoCommit,
-                      boolean stopOnError) {
+  /** Default constructor */
+  public ScriptRunner(Connection connection, boolean autoCommit, boolean stopOnError) {
     this.connection = connection;
     this.autoCommit = autoCommit;
     this.stopOnError = stopOnError;
@@ -67,8 +59,7 @@ public class ScriptRunner {
   /**
    * Setter for logWriter property
    *
-   * @param logWriter
-   *            - the new value of the logWriter property
+   * @param logWriter - the new value of the logWriter property
    */
   public void setLogWriter(PrintWriter logWriter) {
     this.logWriter = logWriter;
@@ -77,8 +68,7 @@ public class ScriptRunner {
   /**
    * Setter for errorLogWriter property
    *
-   * @param errorLogWriter
-   *            - the new value of the errorLogWriter property
+   * @param errorLogWriter - the new value of the errorLogWriter property
    */
   public void setErrorLogWriter(PrintWriter errorLogWriter) {
     this.errorLogWriter = errorLogWriter;
@@ -87,8 +77,7 @@ public class ScriptRunner {
   /**
    * Runs an SQL script (read in using the Reader parameter)
    *
-   * @param reader
-   *            - the source of the script
+   * @param reader - the source of the script
    */
   public void runScript(Reader reader) throws IOException, SQLException {
     try {
@@ -111,17 +100,12 @@ public class ScriptRunner {
   }
 
   /**
-   * Runs an SQL script (read in using the Reader parameter) using the
-   * connection passed in
+   * Runs an SQL script (read in using the Reader parameter) using the connection passed in
    *
-   * @param conn
-   *            - the connection to use for the script
-   * @param reader
-   *            - the source of the script
-   * @throws SQLException
-   *             if any SQL errors occur
-   * @throws IOException
-   *             if there is an error reading from the Reader
+   * @param conn - the connection to use for the script
+   * @param reader - the source of the script
+   * @throws SQLException if any SQL errors occur
+   * @throws IOException if there is an error reading from the Reader
    */
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void runScript(Connection conn, Reader reader) throws IOException, SQLException {
@@ -140,10 +124,9 @@ public class ScriptRunner {
           // Do nothing
         } else if (trimmedLine.length() < 1 || trimmedLine.startsWith("--")) {
           // Do nothing
-        } else if (!fullLineDelimiter && trimmedLine.endsWith(getDelimiter()) ||
-            fullLineDelimiter && trimmedLine.equals(getDelimiter())) {
-          command.append(line.substring(0, line
-                  .lastIndexOf(getDelimiter())));
+        } else if (!fullLineDelimiter && trimmedLine.endsWith(getDelimiter())
+            || fullLineDelimiter && trimmedLine.equals(getDelimiter())) {
+          command.append(line.substring(0, line.lastIndexOf(getDelimiter())));
           command.append(" ");
           Statement statement = conn.createStatement();
 

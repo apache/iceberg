@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import java.nio.ByteBuffer;
@@ -37,14 +36,22 @@ public final class Blob {
   private final Map<String, String> properties;
 
   public Blob(
-      String type, List<Integer> inputFields, long snapshotId, long sequenceNumber,
+      String type,
+      List<Integer> inputFields,
+      long snapshotId,
+      long sequenceNumber,
       ByteBuffer blobData) {
     this(type, inputFields, snapshotId, sequenceNumber, blobData, null, ImmutableMap.of());
   }
 
   public Blob(
-      String type, List<Integer> inputFields, long snapshotId, long sequenceNumber,
-      ByteBuffer blobData, @Nullable PuffinCompressionCodec requestedCompression, Map<String, String> properties) {
+      String type,
+      List<Integer> inputFields,
+      long snapshotId,
+      long sequenceNumber,
+      ByteBuffer blobData,
+      @Nullable PuffinCompressionCodec requestedCompression,
+      Map<String, String> properties) {
     Preconditions.checkNotNull(type, "type is null");
     Preconditions.checkNotNull(inputFields, "inputFields is null");
     Preconditions.checkNotNull(blobData, "blobData is null");

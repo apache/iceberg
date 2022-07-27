@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.metrics;
+
+import static java.util.concurrent.Executors.newFixedThreadPool;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import java.time.Duration;
 import java.util.List;
@@ -31,9 +33,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
-
-import static java.util.concurrent.Executors.newFixedThreadPool;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class TestDefaultTimer {
 
@@ -81,13 +80,14 @@ public class TestDefaultTimer {
   @Test
   public void measureRunnable() {
     Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
-    Runnable runnable = () -> {
-      try {
-        Thread.sleep(100);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-    };
+    Runnable runnable =
+        () -> {
+          try {
+            Thread.sleep(100);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+        };
     Assertions.assertThat(timer.count()).isEqualTo(0);
     Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
 
@@ -105,14 +105,15 @@ public class TestDefaultTimer {
   @Test
   public void measureCallable() throws Exception {
     Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
-    Callable<Boolean> callable = () -> {
-      try {
-        Thread.sleep(100);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-      return true;
-    };
+    Callable<Boolean> callable =
+        () -> {
+          try {
+            Thread.sleep(100);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+          return true;
+        };
     Assertions.assertThat(timer.count()).isEqualTo(0);
     Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
 
@@ -130,14 +131,15 @@ public class TestDefaultTimer {
   @Test
   public void measureSupplier() {
     Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
-    Supplier<Boolean> supplier = () -> {
-      try {
-        Thread.sleep(100);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-      return true;
-    };
+    Supplier<Boolean> supplier =
+        () -> {
+          try {
+            Thread.sleep(100);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+          return true;
+        };
     Assertions.assertThat(timer.count()).isEqualTo(0);
     Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
 
@@ -156,22 +158,24 @@ public class TestDefaultTimer {
   public void measureNestedRunnables() {
     Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
     Timer innerTimer = new DefaultTimer(TimeUnit.NANOSECONDS);
-    Runnable inner = () -> {
-      try {
-        Thread.sleep(100);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-    };
+    Runnable inner =
+        () -> {
+          try {
+            Thread.sleep(100);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+        };
 
-    Runnable outer = () -> {
-      try {
-        Thread.sleep(100);
-        innerTimer.time(inner);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-    };
+    Runnable outer =
+        () -> {
+          try {
+            Thread.sleep(100);
+            innerTimer.time(inner);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+        };
 
     Assertions.assertThat(timer.count()).isEqualTo(0);
     Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
@@ -196,25 +200,31 @@ public class TestDefaultTimer {
     CyclicBarrier barrier = new CyclicBarrier(threads);
     ExecutorService executor = newFixedThreadPool(threads);
 
-    List<Future<Duration>> futures = IntStream.range(0, threads)
-        .mapToObj(threadNumber -> executor.submit(() -> {
-          try {
-            barrier.await(30, SECONDS);
-            timer.record(5, TimeUnit.NANOSECONDS);
-            return timer.totalDuration();
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-        }))
-        .collect(Collectors.toList());
+    List<Future<Duration>> futures =
+        IntStream.range(0, threads)
+            .mapToObj(
+                threadNumber ->
+                    executor.submit(
+                        () -> {
+                          try {
+                            barrier.await(30, SECONDS);
+                            timer.record(5, TimeUnit.NANOSECONDS);
+                            return timer.totalDuration();
+                          } catch (Exception e) {
+                            throw new RuntimeException(e);
+                          }
+                        }))
+            .collect(Collectors.toList());
     futures.stream()
-        .map(f -> {
-          try {
-            return f.get(30, SECONDS);
-          } catch (Exception e) {
-            throw new RuntimeException(e);
-          }
-        }).forEach(d -> System.out.println("d = " + d));
+        .map(
+            f -> {
+              try {
+                return f.get(30, SECONDS);
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .forEach(d -> System.out.println("d = " + d));
     executor.shutdownNow();
     executor.awaitTermination(5, SECONDS);
 

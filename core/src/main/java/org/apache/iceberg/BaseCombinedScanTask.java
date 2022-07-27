@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Collection;
@@ -47,8 +46,6 @@ public class BaseCombinedScanTask implements CombinedScanTask {
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("tasks", Joiner.on(", ").join(tasks))
-        .toString();
+    return MoreObjects.toStringHelper(this).add("tasks", Joiner.on(", ").join(tasks)).toString();
   }
 }

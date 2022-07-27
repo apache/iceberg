@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -28,8 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 public class FileIOParser {
-  private FileIOParser() {
-  }
+  private FileIOParser() {}
 
   private static final String FILE_IO_IMPL = "io-impl";
   private static final String PROPERTIES = "properties";
@@ -48,12 +46,15 @@ public class FileIOParser {
     try {
       properties = io.properties();
     } catch (UnsupportedOperationException e) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot serialize FileIO: %s does not expose configuration properties", impl));
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot serialize FileIO: %s does not expose configuration properties", impl));
     }
 
-    Preconditions.checkArgument(properties != null,
-        "Cannot serialize FileIO: invalid configuration properties (null)", impl);
+    Preconditions.checkArgument(
+        properties != null,
+        "Cannot serialize FileIO: invalid configuration properties (null)",
+        impl);
 
     generator.writeStartObject();
 

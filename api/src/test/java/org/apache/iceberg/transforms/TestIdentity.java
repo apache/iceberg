@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.math.BigDecimal;
@@ -32,8 +31,7 @@ public class TestIdentity {
     Types.LongType longType = Types.LongType.get();
     Transform<Long, Long> identity = Transforms.identity(longType);
 
-    Assert.assertEquals("Should produce \"null\" for null",
-        "null", identity.toHumanString(null));
+    Assert.assertEquals("Should produce \"null\" for null", "null", identity.toHumanString(null));
   }
 
   @Test
@@ -41,8 +39,10 @@ public class TestIdentity {
     Types.BinaryType binary = Types.BinaryType.get();
     Transform<ByteBuffer, ByteBuffer> identity = Transforms.identity(binary);
 
-    Assert.assertEquals("Should base64-encode binary",
-        "AQID", identity.toHumanString(ByteBuffer.wrap(new byte[] {1, 2, 3})));
+    Assert.assertEquals(
+        "Should base64-encode binary",
+        "AQID",
+        identity.toHumanString(ByteBuffer.wrap(new byte[] {1, 2, 3})));
   }
 
   @Test
@@ -50,8 +50,8 @@ public class TestIdentity {
     Types.FixedType fixed3 = Types.FixedType.ofLength(3);
     Transform<byte[], byte[]> identity = Transforms.identity(fixed3);
 
-    Assert.assertEquals("Should base64-encode binary",
-        "AQID", identity.toHumanString(new byte[] {1, 2, 3}));
+    Assert.assertEquals(
+        "Should base64-encode binary", "AQID", identity.toHumanString(new byte[] {1, 2, 3}));
   }
 
   @Test
@@ -62,8 +62,8 @@ public class TestIdentity {
     String dateString = "2017-12-01";
     Literal<Integer> dateLit = Literal.of(dateString).to(date);
 
-    Assert.assertEquals("Should produce identical date",
-        dateString, identity.toHumanString(dateLit.value()));
+    Assert.assertEquals(
+        "Should produce identical date", dateString, identity.toHumanString(dateLit.value()));
   }
 
   @Test
@@ -74,8 +74,8 @@ public class TestIdentity {
     String timeString = "10:12:55.038194";
     Literal<Long> timeLit = Literal.of(timeString).to(time);
 
-    Assert.assertEquals("Should produce identical time",
-        timeString, identity.toHumanString(timeLit.value()));
+    Assert.assertEquals(
+        "Should produce identical time", timeString, identity.toHumanString(timeLit.value()));
   }
 
   @Test
@@ -86,8 +86,10 @@ public class TestIdentity {
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194-08:00").to(timestamptz);
 
     // value will always be in UTC
-    Assert.assertEquals("Should produce timestamp with time zone adjusted to UTC",
-        "2017-12-01T18:12:55.038194Z", identity.toHumanString(ts.value()));
+    Assert.assertEquals(
+        "Should produce timestamp with time zone adjusted to UTC",
+        "2017-12-01T18:12:55.038194Z",
+        identity.toHumanString(ts.value()));
   }
 
   @Test
@@ -99,8 +101,10 @@ public class TestIdentity {
     Literal<Long> ts = Literal.of(tsString).to(timestamp);
 
     // value is not changed
-    Assert.assertEquals("Should produce identical timestamp without time zone",
-        tsString, identity.toHumanString(ts.value()));
+    Assert.assertEquals(
+        "Should produce identical timestamp without time zone",
+        tsString,
+        identity.toHumanString(ts.value()));
   }
 
   @Test
@@ -108,8 +112,8 @@ public class TestIdentity {
     Types.LongType longType = Types.LongType.get();
     Transform<Long, Long> identity = Transforms.identity(longType);
 
-    Assert.assertEquals("Should use Long toString",
-        "-1234567890000", identity.toHumanString(-1234567890000L));
+    Assert.assertEquals(
+        "Should use Long toString", "-1234567890000", identity.toHumanString(-1234567890000L));
   }
 
   @Test
@@ -128,6 +132,7 @@ public class TestIdentity {
 
     String decimalString = "-1.50";
     BigDecimal bigDecimal = new BigDecimal(decimalString);
-    Assert.assertEquals("Should not modify Strings", decimalString, identity.toHumanString(bigDecimal));
+    Assert.assertEquals(
+        "Should not modify Strings", decimalString, identity.toHumanString(bigDecimal));
   }
 }

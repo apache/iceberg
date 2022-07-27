@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -71,15 +70,17 @@ public class ReaderMetricsContext implements MetricsContext {
         ValidationException.check(type == Long.class, "'%s' requires Integer type", FINISHED_BYTES);
         return (Counter<T>) longCounter(finishedBytes::addAndGet, finishedBytes::get);
       case SPLIT_READER_FETCH_CALLS:
-        ValidationException.check(type == Long.class, "'%s' requires Integer type", SPLIT_READER_FETCH_CALLS);
-        return (Counter<T>) longCounter(splitReaderFetchCalls::addAndGet, splitReaderFetchCalls::get);
+        ValidationException.check(
+            type == Long.class, "'%s' requires Integer type", SPLIT_READER_FETCH_CALLS);
+        return (Counter<T>)
+            longCounter(splitReaderFetchCalls::addAndGet, splitReaderFetchCalls::get);
       default:
         throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
     }
   }
 
   private Counter<Long> longCounter(Consumer<Long> consumer, Supplier<Long> supplier) {
-    return  new Counter<Long>() {
+    return new Counter<Long>() {
       @Override
       public void increment() {
         increment(1L);

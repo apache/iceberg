@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import org.apache.iceberg.StructLike;
 
-/**
- * Copy the StructLike's values into a new one. It does not handle list or map values now.
- */
+/** Copy the StructLike's values into a new one. It does not handle list or map values now. */
 class StructCopy implements StructLike {
   static StructLike copy(StructLike struct) {
     return struct != null ? new StructCopy(struct) : null;

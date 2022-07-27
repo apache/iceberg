@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,19 +35,15 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestScanDataFileColumns {
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()), optional(2, "data", Types.StringType.get()));
 
   private static final Configuration CONF = new Configuration();
   private static final Tables TABLES = new HadoopTables(CONF);
 
-  @Rule
-  public final TemporaryFolder temp = new TemporaryFolder();
+  @Rule public final TemporaryFolder temp = new TemporaryFolder();
 
   private String tableLocation = null;
   private Table table = null;
@@ -55,46 +53,58 @@ public class TestScanDataFileColumns {
     File location = temp.newFolder("shared");
     Assert.assertTrue(location.delete());
     this.tableLocation = location.toString();
-    this.table = TABLES.create(
-        SCHEMA, PartitionSpec.unpartitioned(),
-        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, FileFormat.PARQUET.name()),
-        tableLocation);
+    this.table =
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, FileFormat.PARQUET.name()),
+            tableLocation);
 
     // commit the test data
-    table.newAppend()
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath("file1.parquet")
-            .withFileSizeInBytes(100)
-            .withMetrics(new Metrics(3L,
-                ImmutableMap.of(1, 50L), // column size
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                null,
-                ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(2L)))) // upper bounds)
-            .build())
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath("file2.parquet")
-            .withFileSizeInBytes(100)
-            .withMetrics(new Metrics(3L,
-                ImmutableMap.of(1, 60L), // column size
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                null,
-                ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(12L)))) // upper bounds)
-            .build())
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath("file3.parquet")
-            .withFileSizeInBytes(100)
-            .withMetrics(new Metrics(3L,
-                ImmutableMap.of(1, 70L), // column size
-                ImmutableMap.of(1, 3L), // value count
-                ImmutableMap.of(1, 0L), // null count
-                null,
-                ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
-                ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds)
-            .build())
+    table
+        .newAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("file1.parquet")
+                .withFileSizeInBytes(100)
+                .withMetrics(
+                    new Metrics(
+                        3L,
+                        ImmutableMap.of(1, 50L), // column size
+                        ImmutableMap.of(1, 3L), // value count
+                        ImmutableMap.of(1, 0L), // null count
+                        null,
+                        ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+                        ImmutableMap.of(1, longToBuffer(2L)))) // upper bounds)
+                .build())
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("file2.parquet")
+                .withFileSizeInBytes(100)
+                .withMetrics(
+                    new Metrics(
+                        3L,
+                        ImmutableMap.of(1, 60L), // column size
+                        ImmutableMap.of(1, 3L), // value count
+                        ImmutableMap.of(1, 0L), // null count
+                        null,
+                        ImmutableMap.of(1, longToBuffer(10L)), // lower bounds
+                        ImmutableMap.of(1, longToBuffer(12L)))) // upper bounds)
+                .build())
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("file3.parquet")
+                .withFileSizeInBytes(100)
+                .withMetrics(
+                    new Metrics(
+                        3L,
+                        ImmutableMap.of(1, 70L), // column size
+                        ImmutableMap.of(1, 3L), // value count
+                        ImmutableMap.of(1, 0L), // null count
+                        null,
+                        ImmutableMap.of(1, longToBuffer(20L)), // lower bounds
+                        ImmutableMap.of(1, longToBuffer(22L)))) // upper bounds)
+                .build())
         .commit();
   }
 

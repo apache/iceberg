@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.write;
 
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -24,15 +23,13 @@ import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperation;
 
 /**
- * A mix-in interface for RowLevelOperation. Data sources can implement this interface
- * to indicate they support handling deltas of rows.
+ * A mix-in interface for RowLevelOperation. Data sources can implement this interface to indicate
+ * they support handling deltas of rows.
  */
 public interface SupportsDelta extends RowLevelOperation {
   @Override
   DeltaWriteBuilder newWriteBuilder(LogicalWriteInfo info);
 
-  /**
-   * Returns the row ID column references that should be used for row equality.
-   */
+  /** Returns the row ID column references that should be used for row equality. */
   NamedReference[] rowId();
 }

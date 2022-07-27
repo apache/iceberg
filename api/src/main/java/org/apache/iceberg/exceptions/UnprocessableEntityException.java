@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
 /**
  * REST exception thrown when a request is well-formed but cannot be applied.
- * <p>
- * For example, this is used when a property update requests that properties are simultaneously set and removed.
+ *
+ * <p>For example, this is used when a property update requests that properties are simultaneously
+ * set and removed.
  */
 public class UnprocessableEntityException extends RESTException {
   @FormatMethod

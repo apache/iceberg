@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet;
+
+import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.struct;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,15 +34,11 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.spark.sql.functions.expr;
-import static org.apache.spark.sql.functions.struct;
-
 /**
- * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg
- * and the built-in file source in Spark.
+ * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg and the
+ * built-in file source in Spark.
  *
- * To run this benchmark for spark-2.4:
- * <code>
+ * <p>To run this benchmark for spark-2.4: <code>
  *   ./gradlew -DsparkVersions=2.4 :iceberg-spark:iceberg-spark-2.4:jmh
  *       -PjmhIncludeRegex=IcebergSourceNestedParquetDataWriteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-write-benchmark-result.txt
@@ -77,14 +75,14 @@ public class IcebergSourceNestedParquetDataWriteBenchmark extends IcebergSourceN
   }
 
   private Dataset<Row> benchmarkData() {
-    return spark().range(NUM_ROWS)
+    return spark()
+        .range(NUM_ROWS)
         .withColumn(
             "nested",
             struct(
                 expr("CAST(id AS string) AS col1"),
                 expr("CAST(id AS double) AS col2"),
-                expr("id AS col3")
-            ))
+                expr("id AS col3")))
         .coalesce(1);
   }
 }

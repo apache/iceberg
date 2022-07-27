@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -51,8 +50,7 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestProjectMetaColumn {
 
-  @Rule
-  public final TemporaryFolder folder = new TemporaryFolder();
+  @Rule public final TemporaryFolder folder = new TemporaryFolder();
   private final FileFormat format;
 
   @Parameterized.Parameters(name = "fileFormat={0}")
@@ -60,8 +58,7 @@ public class TestProjectMetaColumn {
     return Lists.newArrayList(
         new Object[] {FileFormat.PARQUET},
         new Object[] {FileFormat.ORC},
-        new Object[] {FileFormat.AVRO}
-    );
+        new Object[] {FileFormat.AVRO});
   }
 
   public TestProjectMetaColumn(FileFormat format) {
@@ -71,28 +68,30 @@ public class TestProjectMetaColumn {
   private void testSkipToRemoveMetaColumn(int formatVersion) throws IOException {
     // Create the table with given format version.
     String location = folder.getRoot().getAbsolutePath();
-    Table table = SimpleDataUtil.createTable(location,
-        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
-        false);
+    Table table =
+        SimpleDataUtil.createTable(
+            location,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            false);
 
-    List<RowData> rows = Lists.newArrayList(
-        SimpleDataUtil.createInsert(1, "AAA"),
-        SimpleDataUtil.createInsert(2, "BBB"),
-        SimpleDataUtil.createInsert(3, "CCC")
-    );
+    List<RowData> rows =
+        Lists.newArrayList(
+            SimpleDataUtil.createInsert(1, "AAA"),
+            SimpleDataUtil.createInsert(2, "BBB"),
+            SimpleDataUtil.createInsert(3, "CCC"));
     writeAndCommit(table, ImmutableList.of(), false, rows);
 
-    FlinkInputFormat input = FlinkSource
-        .forRowData()
-        .tableLoader(TableLoader.fromHadoopTable(location))
-        .buildFormat();
+    FlinkInputFormat input =
+        FlinkSource.forRowData().tableLoader(TableLoader.fromHadoopTable(location)).buildFormat();
 
     List<RowData> results = Lists.newArrayList();
-    TestHelpers.readRowData(input, rowData -> {
-      // If project to remove the meta columns, it will get a RowDataProjection.
-      Assert.assertTrue(rowData instanceof GenericRowData);
-      results.add(TestHelpers.copyRowData(rowData, SimpleDataUtil.ROW_TYPE));
-    });
+    TestHelpers.readRowData(
+        input,
+        rowData -> {
+          // If project to remove the meta columns, it will get a RowDataProjection.
+          Assert.assertTrue(rowData instanceof GenericRowData);
+          results.add(TestHelpers.copyRowData(rowData, SimpleDataUtil.ROW_TYPE));
+        });
 
     // Assert the results.
     TestHelpers.assertRows(rows, results, SimpleDataUtil.ROW_TYPE);
@@ -112,37 +111,41 @@ public class TestProjectMetaColumn {
   public void testV2RemoveMetaColumn() throws Exception {
     // Create the v2 table.
     String location = folder.getRoot().getAbsolutePath();
-    Table table = SimpleDataUtil.createTable(location, ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"), false);
+    Table table =
+        SimpleDataUtil.createTable(
+            location, ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"), false);
 
-    List<RowData> rows = Lists.newArrayList(
-        SimpleDataUtil.createInsert(1, "AAA"),
-        SimpleDataUtil.createDelete(1, "AAA"),
-        SimpleDataUtil.createInsert(2, "AAA"),
-        SimpleDataUtil.createInsert(2, "BBB")
-    );
+    List<RowData> rows =
+        Lists.newArrayList(
+            SimpleDataUtil.createInsert(1, "AAA"),
+            SimpleDataUtil.createDelete(1, "AAA"),
+            SimpleDataUtil.createInsert(2, "AAA"),
+            SimpleDataUtil.createInsert(2, "BBB"));
     int eqFieldId = table.schema().findField("data").fieldId();
     writeAndCommit(table, ImmutableList.of(eqFieldId), true, rows);
 
-    FlinkInputFormat input = FlinkSource
-        .forRowData()
-        .tableLoader(TableLoader.fromHadoopTable(location))
-        .buildFormat();
+    FlinkInputFormat input =
+        FlinkSource.forRowData().tableLoader(TableLoader.fromHadoopTable(location)).buildFormat();
 
     List<RowData> results = Lists.newArrayList();
-    TestHelpers.readRowData(input, rowData -> {
-      // If project to remove the meta columns, it will get a RowDataProjection.
-      Assert.assertTrue(rowData instanceof RowDataProjection);
-      results.add(TestHelpers.copyRowData(rowData, SimpleDataUtil.ROW_TYPE));
-    });
+    TestHelpers.readRowData(
+        input,
+        rowData -> {
+          // If project to remove the meta columns, it will get a RowDataProjection.
+          Assert.assertTrue(rowData instanceof RowDataProjection);
+          results.add(TestHelpers.copyRowData(rowData, SimpleDataUtil.ROW_TYPE));
+        });
 
     // Assert the results.
-    TestHelpers.assertRows(ImmutableList.of(
-        SimpleDataUtil.createInsert(2, "AAA"),
-        SimpleDataUtil.createInsert(2, "BBB")
-    ), results, SimpleDataUtil.ROW_TYPE);
+    TestHelpers.assertRows(
+        ImmutableList.of(
+            SimpleDataUtil.createInsert(2, "AAA"), SimpleDataUtil.createInsert(2, "BBB")),
+        results,
+        SimpleDataUtil.ROW_TYPE);
   }
 
-  private void writeAndCommit(Table table, List<Integer> eqFieldIds, boolean upsert, List<RowData> rows)
+  private void writeAndCommit(
+      Table table, List<Integer> eqFieldIds, boolean upsert, List<RowData> rows)
       throws IOException {
     TaskWriter<RowData> writer = createTaskWriter(table, eqFieldIds, upsert);
     try (TaskWriter<RowData> io = writer) {
@@ -165,14 +168,16 @@ public class TestProjectMetaColumn {
     delta.commit();
   }
 
-  private TaskWriter<RowData> createTaskWriter(Table table, List<Integer> equalityFieldIds, boolean upsert) {
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
-        SerializableTable.copyOf(table),
-        SimpleDataUtil.ROW_TYPE,
-        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT,
-        format,
-        equalityFieldIds,
-        upsert);
+  private TaskWriter<RowData> createTaskWriter(
+      Table table, List<Integer> equalityFieldIds, boolean upsert) {
+    TaskWriterFactory<RowData> taskWriterFactory =
+        new RowDataTaskWriterFactory(
+            SerializableTable.copyOf(table),
+            SimpleDataUtil.ROW_TYPE,
+            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT,
+            format,
+            equalityFieldIds,
+            upsert);
 
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();

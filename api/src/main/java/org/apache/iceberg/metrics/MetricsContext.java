@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.metrics;
 
 import java.io.Serializable;
@@ -25,9 +24,8 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Generalized interface for creating telemetry related instances for tracking
- * operations.  Implementations must take into account usage considerations
- * like thread safety and serialization.
+ * Generalized interface for creating telemetry related instances for tracking operations.
+ * Implementations must take into account usage considerations like thread safety and serialization.
  */
 public interface MetricsContext extends Serializable {
   enum Unit {
@@ -46,13 +44,10 @@ public interface MetricsContext extends Serializable {
     }
   }
 
-  default void initialize(Map<String, String> properties) {
-  }
+  default void initialize(Map<String, String> properties) {}
 
   interface Counter<T extends Number> {
-    /**
-     * Increment the counter by a single whole number value (i.e. 1).
-     */
+    /** Increment the counter by a single whole number value (i.e. 1). */
     void increment();
 
     /**
@@ -88,8 +83,8 @@ public interface MetricsContext extends Serializable {
   }
 
   /**
-   * Get a named counter of a specific type.  Metric implementations may impose
-   * restrictions on what types are supported for specific counters.
+   * Get a named counter of a specific type. Metric implementations may impose restrictions on what
+   * types are supported for specific counters.
    *
    * @param name name of the metric
    * @param type numeric type of the counter value
@@ -128,12 +123,10 @@ public interface MetricsContext extends Serializable {
       public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
         return new Counter<T>() {
           @Override
-          public void increment() {
-          }
+          public void increment() {}
 
           @Override
-          public void increment(T amount) {
-          }
+          public void increment(T amount) {}
         };
       }
     };

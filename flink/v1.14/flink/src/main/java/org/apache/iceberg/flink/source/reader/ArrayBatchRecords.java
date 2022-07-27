@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.Collections;
@@ -33,22 +32,20 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * {@link RecordsWithSplitIds} is used to pass a batch of records from fetcher to source reader.
  * Batching is to improve the efficiency for records handover.
  *
- * {@link RecordsWithSplitIds} interface can encapsulate batches from multiple splits.
- * This is the case for Kafka source where fetchers can retrieve records from multiple
- * Kafka partitions at the same time.
+ * <p>{@link RecordsWithSplitIds} interface can encapsulate batches from multiple splits. This is
+ * the case for Kafka source where fetchers can retrieve records from multiple Kafka partitions at
+ * the same time.
  *
- * For file-based sources like Iceberg, readers always read one split/file at a time.
- * Hence, we will only have a batch of records for one split here.
+ * <p>For file-based sources like Iceberg, readers always read one split/file at a time. Hence, we
+ * will only have a batch of records for one split here.
  *
- * This class uses array to store a batch of records from the same file (with the same fileOffset).
+ * <p>This class uses array to store a batch of records from the same file (with the same
+ * fileOffset).
  */
 class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> {
-  @Nullable
-  private String splitId;
-  @Nullable
-  private final Pool.Recycler<T[]> recycler;
-  @Nullable
-  private final T[] records;
+  @Nullable private String splitId;
+  @Nullable private final Pool.Recycler<T[]> recycler;
+  @Nullable private final T[] records;
   private final int numberOfRecords;
   private final Set<String> finishedSplits;
   private final RecordAndPosition<T> recordAndPosition;
@@ -57,8 +54,13 @@ class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> 
   private int position;
 
   private ArrayBatchRecords(
-      @Nullable String splitId, @Nullable Pool.Recycler<T[]> recycler, @Nullable T[] records,
-      int numberOfRecords, int fileOffset, long startingRecordOffset, Set<String> finishedSplits) {
+      @Nullable String splitId,
+      @Nullable Pool.Recycler<T[]> recycler,
+      @Nullable T[] records,
+      int numberOfRecords,
+      int fileOffset,
+      long startingRecordOffset,
+      Set<String> finishedSplits) {
     Preconditions.checkArgument(numberOfRecords >= 0, "numberOfRecords can't be negative");
     Preconditions.checkArgument(fileOffset >= 0, "fileOffset can't be negative");
     Preconditions.checkArgument(startingRecordOffset >= 0, "numberOfRecords can't be negative");
@@ -67,7 +69,8 @@ class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> 
     this.recycler = recycler;
     this.records = records;
     this.numberOfRecords = numberOfRecords;
-    this.finishedSplits = Preconditions.checkNotNull(finishedSplits, "finishedSplits can be empty but not null");
+    this.finishedSplits =
+        Preconditions.checkNotNull(finishedSplits, "finishedSplits can be empty but not null");
     this.recordAndPosition = new RecordAndPosition<>();
 
     recordAndPosition.set(null, fileOffset, startingRecordOffset);
@@ -97,8 +100,8 @@ class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> 
   }
 
   /**
-   * This method is called when all records from this batch has been emitted.
-   * If recycler is set, it should be called to return the records array back to pool.
+   * This method is called when all records from this batch has been emitted. If recycler is set, it
+   * should be called to return the records array back to pool.
    */
   @Override
   public void recycle() {
@@ -125,15 +128,15 @@ class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> 
   /**
    * Create a ArrayBatchRecords backed up an array with records from the same file
    *
-   * @param splitId Iceberg source only read from one split a time.
-   *                We never have multiple records from multiple splits.
-   * @param recycler Because {@link DataIterator} with {@link RowData} returns an iterator of reused RowData object,
-   *                 we need to clone RowData eagerly when constructing a batch of records.
-   *                 We can use object pool to reuse the RowData array object which can be expensive to create.
-   *                 This recycler can be provided to recycle the array object back to pool after read is exhausted.
-   *                 If the {@link DataIterator} returns an iterator of non-reused objects,
-   *                 we don't need to clone objects. It is cheap to just create the batch array.
-   *                 Hence, we don't need object pool and recycler can be set to null.
+   * @param splitId Iceberg source only read from one split a time. We never have multiple records
+   *     from multiple splits.
+   * @param recycler Because {@link DataIterator} with {@link RowData} returns an iterator of reused
+   *     RowData object, we need to clone RowData eagerly when constructing a batch of records. We
+   *     can use object pool to reuse the RowData array object which can be expensive to create.
+   *     This recycler can be provided to recycle the array object back to pool after read is
+   *     exhausted. If the {@link DataIterator} returns an iterator of non-reused objects, we don't
+   *     need to clone objects. It is cheap to just create the batch array. Hence, we don't need
+   *     object pool and recycler can be set to null.
    * @param records an array (maybe reused) holding a batch of records
    * @param numberOfRecords actual number of records in the array
    * @param fileOffset fileOffset for all records in this batch
@@ -141,10 +144,20 @@ class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> 
    * @param <T> record type
    */
   public static <T> ArrayBatchRecords<T> forRecords(
-      String splitId, Pool.Recycler<T[]> recycler, T[] records, int numberOfRecords,
-      int fileOffset, long startingRecordOffset) {
-    return new ArrayBatchRecords<>(splitId, recycler, records, numberOfRecords,
-        fileOffset, startingRecordOffset, Collections.emptySet());
+      String splitId,
+      Pool.Recycler<T[]> recycler,
+      T[] records,
+      int numberOfRecords,
+      int fileOffset,
+      long startingRecordOffset) {
+    return new ArrayBatchRecords<>(
+        splitId,
+        recycler,
+        records,
+        numberOfRecords,
+        fileOffset,
+        startingRecordOffset,
+        Collections.emptySet());
   }
 
   /**
@@ -153,7 +166,6 @@ class ArrayBatchRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> 
    * @param splitId for the split that is just exhausted
    */
   public static <T> ArrayBatchRecords<T> finishedSplit(String splitId) {
-    return new ArrayBatchRecords<>(null, null, null,
-        0, 0, 0, Collections.singleton(splitId));
+    return new ArrayBatchRecords<>(null, null, null, 0, 0, 0, Collections.singleton(splitId));
   }
 }

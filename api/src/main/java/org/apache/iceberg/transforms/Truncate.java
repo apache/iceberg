@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.math.BigDecimal;
@@ -37,8 +36,7 @@ import org.apache.iceberg.util.UnicodeUtil;
 abstract class Truncate<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")
   static <T> Truncate<T> get(Type type, int width) {
-    Preconditions.checkArgument(width > 0,
-        "Invalid truncate width: %s (must be > 0)", width);
+    Preconditions.checkArgument(width > 0, "Invalid truncate width: %s (must be > 0)", width);
 
     switch (type.typeId()) {
       case INTEGER:
@@ -52,8 +50,7 @@ abstract class Truncate<T> implements Transform<T, T> {
       case BINARY:
         return (Truncate<T>) new TruncateByteBuffer(width);
       default:
-        throw new UnsupportedOperationException(
-            "Cannot truncate type: " + type);
+        throw new UnsupportedOperationException("Cannot truncate type: " + type);
     }
   }
 
@@ -276,8 +273,8 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<CharSequence> project(String name,
-                                                  BoundPredicate<CharSequence> predicate) {
+    public UnboundPredicate<CharSequence> project(
+        String name, BoundPredicate<CharSequence> predicate) {
       if (predicate.term() instanceof BoundTransform) {
         return ProjectionUtil.projectTransformPredicate(this, name, predicate);
       }
@@ -315,8 +312,8 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<CharSequence> projectStrict(String name,
-                                                        BoundPredicate<CharSequence> predicate) {
+    public UnboundPredicate<CharSequence> projectStrict(
+        String name, BoundPredicate<CharSequence> predicate) {
       if (predicate.term() instanceof BoundTransform) {
         return ProjectionUtil.projectTransformPredicate(this, name, predicate);
       }
@@ -405,8 +402,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<ByteBuffer> project(String name,
-                                                BoundPredicate<ByteBuffer> pred) {
+    public UnboundPredicate<ByteBuffer> project(String name, BoundPredicate<ByteBuffer> pred) {
       if (pred.term() instanceof BoundTransform) {
         return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }
@@ -422,8 +418,8 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<ByteBuffer> projectStrict(String name,
-                                                      BoundPredicate<ByteBuffer> pred) {
+    public UnboundPredicate<ByteBuffer> projectStrict(
+        String name, BoundPredicate<ByteBuffer> pred) {
       if (pred.term() instanceof BoundTransform) {
         return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }
@@ -484,12 +480,14 @@ abstract class Truncate<T> implements Transform<T, T> {
         return null;
       }
 
-      BigDecimal remainder = new BigDecimal(
-          value.unscaledValue()
-              .remainder(unscaledWidth)
-              .add(unscaledWidth)
-              .remainder(unscaledWidth),
-          value.scale());
+      BigDecimal remainder =
+          new BigDecimal(
+              value
+                  .unscaledValue()
+                  .remainder(unscaledWidth)
+                  .add(unscaledWidth)
+                  .remainder(unscaledWidth),
+              value.scale());
 
       return value.subtract(remainder);
     }
@@ -500,8 +498,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<BigDecimal> project(String name,
-                                                BoundPredicate<BigDecimal> pred) {
+    public UnboundPredicate<BigDecimal> project(String name, BoundPredicate<BigDecimal> pred) {
       if (pred.term() instanceof BoundTransform) {
         return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }
@@ -517,8 +514,8 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<BigDecimal> projectStrict(String name,
-                                                      BoundPredicate<BigDecimal> pred) {
+    public UnboundPredicate<BigDecimal> projectStrict(
+        String name, BoundPredicate<BigDecimal> pred) {
       if (pred.term() instanceof BoundTransform) {
         return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }

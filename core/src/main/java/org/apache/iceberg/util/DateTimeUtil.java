@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.time.Instant;
@@ -28,8 +27,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 
 public class DateTimeUtil {
-  private DateTimeUtil() {
-  }
+  private DateTimeUtil() {}
 
   public static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   public static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();

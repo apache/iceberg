@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -30,5 +29,4 @@ public abstract class PositionOutputStream extends OutputStream {
    * @throws IOException If the underlying stream throws IOException
    */
   public abstract long getPos() throws IOException;
-
 }

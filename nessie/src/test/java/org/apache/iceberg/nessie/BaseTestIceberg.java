@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.net.URI;
@@ -66,8 +67,6 @@ import org.projectnessie.versioned.persist.tests.extension.NessieExternalDatabas
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @ExtendWith(DatabaseAdapterExtension.class)
 @NessieDbAdapterName(InmemoryDatabaseAdapterFactory.NAME)
 @NessieExternalDatabase(InmemoryTestConnectionProviderSource.class)
@@ -75,13 +74,13 @@ public abstract class BaseTestIceberg {
 
   @NessieDbAdapter(storeWorker = TableCommitMetaStoreWorker.class)
   static DatabaseAdapter databaseAdapter;
+
   @RegisterExtension
   static NessieJaxRsExtension server = new NessieJaxRsExtension(() -> databaseAdapter);
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseTestIceberg.class);
 
-  @TempDir
-  public Path temp;
+  @TempDir public Path temp;
 
   protected NessieCatalog catalog;
   protected NessieApiV1 api;
@@ -136,11 +135,12 @@ public abstract class BaseTestIceberg {
   NessieCatalog initCatalog(String ref, String hash) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    ImmutableMap.Builder<String, String> options = ImmutableMap.<String, String>builder()
-        .put("ref", ref)
-        .put(CatalogProperties.URI, uri)
-        .put("auth-type", "NONE")
-        .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
+    ImmutableMap.Builder<String, String> options =
+        ImmutableMap.<String, String>builder()
+            .put("ref", ref)
+            .put(CatalogProperties.URI, uri)
+            .put("auth-type", "NONE")
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString());
     if (null != hash) {
       options.put("ref.hash", hash);
     }
@@ -204,15 +204,12 @@ public abstract class BaseTestIceberg {
     return icebergOps.currentMetadataLocation();
   }
 
-  static String writeRecordsToFile(Table table, Schema schema, String filename,
-      List<Record> records)
-      throws IOException {
-    String fileLocation = table.location().replace("file:", "") +
-        String.format("/data/%s.avro", filename);
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(fileLocation))
-        .schema(schema)
-        .named("test")
-        .build()) {
+  static String writeRecordsToFile(
+      Table table, Schema schema, String filename, List<Record> records) throws IOException {
+    String fileLocation =
+        table.location().replace("file:", "") + String.format("/data/%s.avro", filename);
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(fileLocation)).schema(schema).named("test").build()) {
       for (Record rec : records) {
         writer.add(rec);
       }

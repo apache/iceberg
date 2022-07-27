@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
@@ -30,9 +29,7 @@ import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * This implementation stores record batch in array from recyclable pool
- */
+/** This implementation stores record batch in array from recyclable pool */
 class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
   private final int batchSize;
   private final int handoverQueueSize;
@@ -67,7 +64,8 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
     return poolOfBatches;
   }
 
-  private class ArrayPoolBatchIterator implements CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> {
+  private class ArrayPoolBatchIterator
+      implements CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> {
 
     private final String splitId;
     private final DataIterator<T> inputIterator;
@@ -106,8 +104,13 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
         }
       }
 
-      return ArrayBatchRecords.forRecords(splitId, pool.recycler(), batch, recordCount,
-          inputIterator.fileOffset(), inputIterator.recordOffset() - recordCount);
+      return ArrayBatchRecords.forRecords(
+          splitId,
+          pool.recycler(),
+          batch,
+          recordCount,
+          inputIterator.fileOffset(),
+          inputIterator.recordOffset() - recordCount);
     }
 
     @Override

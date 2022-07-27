@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.util.List;
@@ -40,12 +39,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
 
   @Test
   public void dropTableDataDeletesExpectedFiles() {
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .commit();
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
 
     TableMetadata tableMetadata = readMetadataVersion(3);
     Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
@@ -61,30 +56,38 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
         .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
     Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
-        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
+        .thenAnswer(
+            invocation ->
+                table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
 
-    Mockito.verify(fileIO, Mockito.times(manifestListLocations.size() +
-        manifestLocations.size() + dataLocations.size() + metadataLocations.size()))
+    Mockito.verify(
+            fileIO,
+            Mockito.times(
+                manifestListLocations.size()
+                    + manifestLocations.size()
+                    + dataLocations.size()
+                    + metadataLocations.size()))
         .deleteFile(argumentCaptor.capture());
 
     List<String> deletedPaths = argumentCaptor.getAllValues();
-    Assert.assertTrue("should contain all created manifest lists", deletedPaths.containsAll(manifestListLocations));
-    Assert.assertTrue("should contain all created manifests", deletedPaths.containsAll(manifestLocations));
+    Assert.assertTrue(
+        "should contain all created manifest lists",
+        deletedPaths.containsAll(manifestListLocations));
+    Assert.assertTrue(
+        "should contain all created manifests", deletedPaths.containsAll(manifestLocations));
     Assert.assertTrue("should contain all created data", deletedPaths.containsAll(dataLocations));
-    Assert.assertTrue("should contain all created metadata locations", deletedPaths.containsAll(metadataLocations));
+    Assert.assertTrue(
+        "should contain all created metadata locations",
+        deletedPaths.containsAll(metadataLocations));
   }
 
   @Test
   public void dropTableDataDoNotThrowWhenDeletesFail() {
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .commit();
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
 
     TableMetadata tableMetadata = readMetadataVersion(3);
     Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
@@ -93,25 +96,27 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Mockito.when(fileIO.newInputFile(Mockito.anyString()))
         .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
     Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
-        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
+        .thenAnswer(
+            invocation ->
+                table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
     Mockito.doThrow(new RuntimeException()).when(fileIO).deleteFile(ArgumentMatchers.anyString());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
-    Mockito.verify(fileIO, Mockito.times(
-        manifestListLocations(snapshotSet).size() + manifestLocations(snapshotSet, fileIO).size() +
-            dataLocations(snapshotSet, table.io()).size() + metadataLocations(tableMetadata).size()))
+    Mockito.verify(
+            fileIO,
+            Mockito.times(
+                manifestListLocations(snapshotSet).size()
+                    + manifestLocations(snapshotSet, fileIO).size()
+                    + dataLocations(snapshotSet, table.io()).size()
+                    + metadataLocations(tableMetadata).size()))
         .deleteFile(ArgumentMatchers.anyString());
   }
 
   @Test
   public void shouldNotDropDataFilesIfGcNotEnabled() {
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
-    table.newFastAppend()
-        .appendFile(FILE_A)
-        .commit();
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
 
     TableMetadata tableMetadata = readMetadataVersion(4);
     Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
@@ -129,20 +134,25 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
 
-    Mockito.verify(fileIO, Mockito.times(manifestListLocations.size() + manifestLocations.size() +
-        metadataLocations.size())).deleteFile(argumentCaptor.capture());
+    Mockito.verify(
+            fileIO,
+            Mockito.times(
+                manifestListLocations.size() + manifestLocations.size() + metadataLocations.size()))
+        .deleteFile(argumentCaptor.capture());
 
     List<String> deletedPaths = argumentCaptor.getAllValues();
-    Assert.assertTrue("should contain all created manifest lists", deletedPaths.containsAll(manifestListLocations));
-    Assert.assertTrue("should contain all created manifests", deletedPaths.containsAll(manifestLocations));
-    Assert.assertTrue("should contain all created metadata locations", deletedPaths.containsAll(metadataLocations));
-
+    Assert.assertTrue(
+        "should contain all created manifest lists",
+        deletedPaths.containsAll(manifestListLocations));
+    Assert.assertTrue(
+        "should contain all created manifests", deletedPaths.containsAll(manifestLocations));
+    Assert.assertTrue(
+        "should contain all created metadata locations",
+        deletedPaths.containsAll(metadataLocations));
   }
 
   private Set<String> manifestListLocations(Set<Snapshot> snapshotSet) {
-    return snapshotSet.stream()
-        .map(Snapshot::manifestListLocation)
-        .collect(Collectors.toSet());
+    return snapshotSet.stream().map(Snapshot::manifestListLocation).collect(Collectors.toSet());
   }
 
   private Set<String> manifestLocations(Set<Snapshot> snapshotSet, FileIO io) {
@@ -160,9 +170,10 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
   }
 
   private Set<String> metadataLocations(TableMetadata tableMetadata) {
-    Set<String> metadataLocations = tableMetadata.previousFiles().stream()
-        .map(TableMetadata.MetadataLogEntry::file)
-        .collect(Collectors.toSet());
+    Set<String> metadataLocations =
+        tableMetadata.previousFiles().stream()
+            .map(TableMetadata.MetadataLogEntry::file)
+            .collect(Collectors.toSet());
     metadataLocations.add(tableMetadata.metadataFileLocation());
     return metadataLocations;
   }

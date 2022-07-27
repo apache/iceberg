@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -30,8 +29,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class ErrorResponseParser {
 
-  private ErrorResponseParser() {
-  }
+  private ErrorResponseParser() {}
 
   private static final String ERROR = "error";
   private static final String MESSAGE = "message";
@@ -54,11 +52,13 @@ public class ErrorResponseParser {
       generator.flush();
       return writer.toString();
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to write error response json for: %s", errorResponse), e);
+      throw new UncheckedIOException(
+          String.format("Failed to write error response json for: %s", errorResponse), e);
     }
   }
 
-  public static void toJson(ErrorResponse errorResponse, JsonGenerator generator) throws IOException {
+  public static void toJson(ErrorResponse errorResponse, JsonGenerator generator)
+      throws IOException {
     generator.writeStartObject();
 
     generator.writeObjectFieldStart(ERROR);
@@ -94,8 +94,10 @@ public class ErrorResponseParser {
   }
 
   public static ErrorResponse fromJson(JsonNode jsonNode) {
-    Preconditions.checkArgument(jsonNode != null && jsonNode.isObject(),
-        "Cannot parse error respone from non-object value: %s", jsonNode);
+    Preconditions.checkArgument(
+        jsonNode != null && jsonNode.isObject(),
+        "Cannot parse error respone from non-object value: %s",
+        jsonNode);
     Preconditions.checkArgument(jsonNode.has(ERROR), "Cannot parse missing field: error");
     JsonNode error = jsonNode.get(ERROR);
     String message = JsonUtil.getStringOrNull(MESSAGE, error);
@@ -110,4 +112,3 @@ public class ErrorResponseParser {
         .build();
   }
 }
-

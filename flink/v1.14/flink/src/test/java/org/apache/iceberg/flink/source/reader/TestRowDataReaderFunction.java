@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.List;
@@ -39,10 +38,9 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 
 public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
 
-  protected static final RowType rowType = FlinkSchemaUtil
-      .convert(TestFixtures.SCHEMA);
-  private static final DataStructureConverter<Object, Object> rowDataConverter = DataStructureConverters.getConverter(
-      TypeConversions.fromLogicalToDataType(rowType));
+  protected static final RowType rowType = FlinkSchemaUtil.convert(TestFixtures.SCHEMA);
+  private static final DataStructureConverter<Object, Object> rowDataConverter =
+      DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
 
   public TestRowDataReaderFunction(FileFormat fileFormat) {
     super(fileFormat);
@@ -50,8 +48,14 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
 
   @Override
   protected ReaderFunction<RowData> readerFunction() {
-    return new RowDataReaderFunction(new Configuration(), TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true,
-        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()), new PlaintextEncryptionManager());
+    return new RowDataReaderFunction(
+        new Configuration(),
+        TestFixtures.SCHEMA,
+        TestFixtures.SCHEMA,
+        null,
+        true,
+        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
+        new PlaintextEncryptionManager());
   }
 
   @Override

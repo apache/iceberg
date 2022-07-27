@@ -16,8 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
+
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.aliyun.oss.OSS;
 import java.io.IOException;
@@ -37,13 +43,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.mockito.AdditionalAnswers.delegatesTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
 public class TestOSSOutputStream extends AliyunOSSTestBase {
   private static final Logger LOG = LoggerFactory.getLogger(TestOSSOutputStream.class);
 
@@ -53,12 +52,11 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
   private final Path tmpDir = Files.createTempDirectory("oss-file-io-test-");
   private static final Random random = ThreadLocalRandom.current();
 
-  private final AliyunProperties props = new AliyunProperties(ImmutableMap.of(
-      AliyunProperties.OSS_STAGING_DIRECTORY, tmpDir.toString()
-  ));
+  private final AliyunProperties props =
+      new AliyunProperties(
+          ImmutableMap.of(AliyunProperties.OSS_STAGING_DIRECTORY, tmpDir.toString()));
 
-  public TestOSSOutputStream() throws IOException {
-  }
+  public TestOSSOutputStream() throws IOException {}
 
   @Test
   public void testWrite() throws IOException {
@@ -80,10 +78,14 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
 
   private void writeAndVerify(OSS mock, OSSURI uri, byte[] data, boolean arrayWrite)
       throws IOException {
-    LOG.info("Write and verify for arguments uri: {}, data length: {}, arrayWrite: {}",
-            uri, data.length, arrayWrite);
+    LOG.info(
+        "Write and verify for arguments uri: {}, data length: {}, arrayWrite: {}",
+        uri,
+        data.length,
+        arrayWrite);
 
-    try (OSSOutputStream out = new OSSOutputStream(mock, uri, props, MetricsContext.nullMetrics())) {
+    try (OSSOutputStream out =
+        new OSSOutputStream(mock, uri, props, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         out.write(data);
         Assert.assertEquals("OSSOutputStream position", data.length, out.getPos());
@@ -95,16 +97,21 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
       }
     }
 
-    Assert.assertTrue("OSS object should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
-    Assert.assertEquals("Object length",
-        ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(), data.length);
+    Assert.assertTrue(
+        "OSS object should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
+    Assert.assertEquals(
+        "Object length",
+        ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(),
+        data.length);
 
     byte[] actual = ossDataContent(uri, data.length);
     Assert.assertArrayEquals("Object content", data, actual);
 
     // Verify all staging files are cleaned up.
-    Assert.assertEquals("Staging files should clean up",
-        0, Files.list(Paths.get(props.ossStagingDirectory())).count());
+    Assert.assertEquals(
+        "Staging files should clean up",
+        0,
+        Files.list(Paths.get(props.ossStagingDirectory())).count());
   }
 
   private OSSURI randomURI() {

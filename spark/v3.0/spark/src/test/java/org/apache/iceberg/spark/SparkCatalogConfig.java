@@ -16,26 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public enum SparkCatalogConfig {
-  HIVE("testhive", SparkCatalog.class.getName(), ImmutableMap.of(
-      "type", "hive",
-      "default-namespace", "default"
-  )),
-  HADOOP("testhadoop", SparkCatalog.class.getName(), ImmutableMap.of(
-      "type", "hadoop"
-  )),
-  SPARK("spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
-      "type", "hive",
-      "default-namespace", "default",
-      "parquet-enabled", "true",
-      "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
-  ));
+  HIVE(
+      "testhive",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of(
+          "type", "hive",
+          "default-namespace", "default")),
+  HADOOP("testhadoop", SparkCatalog.class.getName(), ImmutableMap.of("type", "hadoop")),
+  SPARK(
+      "spark_catalog",
+      SparkSessionCatalog.class.getName(),
+      ImmutableMap.of(
+          "type", "hive",
+          "default-namespace", "default",
+          "parquet-enabled", "true",
+          "cache-enabled",
+              "false" // Spark will delete tables using v1, leaving the cache out of sync
+          ));
 
   private final String catalogName;
   private final String implementation;

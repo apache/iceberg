@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.iceberg.spark.procedures.SparkProcedures;
@@ -29,14 +28,16 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
-abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, SupportsNamespaces, HasIcebergCatalog {
+abstract class BaseCatalog
+    implements StagingTableCatalog, ProcedureCatalog, SupportsNamespaces, HasIcebergCatalog {
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
     String[] namespace = ident.namespace();
     String name = ident.name();
 
-    // namespace resolution is case insensitive until we have a way to configure case sensitivity in catalogs
+    // namespace resolution is case insensitive until we have a way to configure case sensitivity in
+    // catalogs
     if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
       ProcedureBuilder builder = SparkProcedures.newBuilder(name);
       if (builder != null) {

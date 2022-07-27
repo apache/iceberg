@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -40,9 +39,13 @@ class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScan
   private final List<Long> splitSizes;
   private int splitIndex = 0;
 
-  OffsetsAwareSplitScanTaskIterator(T parentTask, long parentTaskLength, List<Long> offsetList,
-                                    SplitScanTaskCreator<T> splitTaskCreator) {
-    Preconditions.checkArgument(OFFSET_ORDERING.isStrictlyOrdered(offsetList), "Offsets must be sorted in asc order");
+  OffsetsAwareSplitScanTaskIterator(
+      T parentTask,
+      long parentTaskLength,
+      List<Long> offsetList,
+      SplitScanTaskCreator<T> splitTaskCreator) {
+    Preconditions.checkArgument(
+        OFFSET_ORDERING.isStrictlyOrdered(offsetList), "Offsets must be sorted in asc order");
 
     this.parentTask = parentTask;
     this.splitTaskCreator = splitTaskCreator;

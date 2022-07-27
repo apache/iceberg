@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.math.BigDecimal;
@@ -68,12 +67,13 @@ public class ParquetBloomRowGroupFilter {
   /**
    * Tests whether the bloom for a row group may contain records that match the expression.
    *
-   * @param fileSchema  schema for the Parquet file
+   * @param fileSchema schema for the Parquet file
    * @param rowGroup metadata for a row group
    * @param bloomReader a bloom filter reader
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomReader) {
+  public boolean shouldRead(
+      MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomReader) {
     return new BloomEvalVisitor().eval(fileSchema, rowGroup, bloomReader);
   }
 
@@ -88,7 +88,8 @@ public class ParquetBloomRowGroupFilter {
     private Map<Integer, PrimitiveType> parquetPrimitiveTypes = null;
     private Map<Integer, Type> types = null;
 
-    private boolean eval(MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomFilterReader) {
+    private boolean eval(
+        MessageType fileSchema, BlockMetaData rowGroup, BloomFilterReader bloomFilterReader) {
       this.bloomReader = bloomFilterReader;
       this.fieldsWithBloomFilter = Sets.newHashSet();
       this.columnMetaMap = Maps.newHashMap();
@@ -110,8 +111,10 @@ public class ParquetBloomRowGroupFilter {
         }
       }
 
-      Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
-      // If the filter's column set doesn't overlap with any bloom filter columns, exit early with ROWS_MIGHT_MATCH
+      Set<Integer> filterRefs =
+          Binder.boundReferences(schema.asStruct(), ImmutableList.of(expr), caseSensitive);
+      // If the filter's column set doesn't overlap with any bloom filter columns, exit early with
+      // ROWS_MIGHT_MATCH
       if (filterRefs.size() > 0 && Sets.intersection(fieldsWithBloomFilter, filterRefs).isEmpty()) {
         return ROWS_MIGHT_MATCH;
       }
@@ -263,7 +266,8 @@ public class ParquetBloomRowGroupFilter {
       }
     }
 
-    private <T> boolean shouldRead(PrimitiveType primitiveType, T value, BloomFilter bloom, Type type) {
+    private <T> boolean shouldRead(
+        PrimitiveType primitiveType, T value, BloomFilter bloom, Type type) {
       long hashValue = 0;
       switch (primitiveType.getPrimitiveTypeName()) {
         case INT32:
@@ -314,7 +318,9 @@ public class ParquetBloomRowGroupFilter {
               int scale = metadata.getScale();
               int precision = metadata.getPrecision();
               byte[] requiredBytes = new byte[TypeUtil.decimalRequiredBytes(precision)];
-              byte[] binary = DecimalUtil.toReusedFixLengthBytes(precision, scale, (BigDecimal) value, requiredBytes);
+              byte[] binary =
+                  DecimalUtil.toReusedFixLengthBytes(
+                      precision, scale, (BigDecimal) value, requiredBytes);
               hashValue = bloom.hash(Binary.fromConstantByteArray(binary));
               return bloom.findHash(hashValue);
             case UUID:

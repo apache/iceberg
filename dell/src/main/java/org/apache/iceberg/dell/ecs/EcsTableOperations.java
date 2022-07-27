@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import java.util.Map;
@@ -45,7 +44,8 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
    */
   private String eTag;
 
-  public EcsTableOperations(String tableName, EcsURI tableObject, FileIO fileIO, EcsCatalog catalog) {
+  public EcsTableOperations(
+      String tableName, EcsURI tableObject, FileIO fileIO, EcsCatalog catalog) {
     this.tableName = tableName;
     this.tableObject = tableObject;
     this.fileIO = fileIO;
@@ -67,8 +67,10 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
     String metadataLocation;
     if (!catalog.objectMetadata(tableObject).isPresent()) {
       if (currentMetadataLocation() != null) {
-        throw new NoSuchTableException("Metadata object %s is absent while refresh a loaded table. " +
-                "Maybe the table is deleted/moved.", tableObject);
+        throw new NoSuchTableException(
+            "Metadata object %s is absent while refresh a loaded table. "
+                + "Maybe the table is deleted/moved.",
+            tableObject);
       } else {
         metadataLocation = null;
       }
@@ -76,8 +78,8 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
       EcsCatalog.Properties metadata = catalog.loadProperties(tableObject);
       this.eTag = metadata.eTag();
       metadataLocation = metadata.content().get(ICEBERG_METADATA_LOCATION);
-      Preconditions.checkNotNull(metadataLocation,
-          "Can't find location from table metadata %s", tableObject);
+      Preconditions.checkNotNull(
+          metadataLocation, "Can't find location from table metadata %s", tableObject);
     }
 
     refreshFromMetadataLocation(metadataLocation);
@@ -95,17 +97,17 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
       String cachedETag = eTag;
       Preconditions.checkNotNull(cachedETag, "E-Tag must be not null when update table");
       // replace to a new version, the E-Tag should be present and matched
-      boolean result = catalog.updatePropertiesObject(
-          tableObject, cachedETag, buildProperties(newMetadataLocation));
+      boolean result =
+          catalog.updatePropertiesObject(
+              tableObject, cachedETag, buildProperties(newMetadataLocation));
       if (!result) {
-        throw new CommitFailedException("Replace failed, E-Tag %s mismatch for table %s", cachedETag, tableName());
+        throw new CommitFailedException(
+            "Replace failed, E-Tag %s mismatch for table %s", cachedETag, tableName());
       }
     }
   }
 
-  /**
-   * Build properties for table
-   */
+  /** Build properties for table */
   private Map<String, String> buildProperties(String metadataLocation) {
     return ImmutableMap.of(ICEBERG_METADATA_LOCATION, metadataLocation);
   }

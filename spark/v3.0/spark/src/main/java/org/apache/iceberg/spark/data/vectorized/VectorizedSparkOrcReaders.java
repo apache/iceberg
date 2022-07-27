@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.List;
@@ -47,23 +46,27 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class VectorizedSparkOrcReaders {
 
-  private VectorizedSparkOrcReaders() {
-  }
+  private VectorizedSparkOrcReaders() {}
 
-  public static OrcBatchReader<ColumnarBatch> buildReader(Schema expectedSchema, TypeDescription fileSchema,
-                                                          Map<Integer, ?> idToConstant) {
-    Converter converter = OrcSchemaWithTypeVisitor.visit(expectedSchema, fileSchema, new ReadBuilder(idToConstant));
+  public static OrcBatchReader<ColumnarBatch> buildReader(
+      Schema expectedSchema, TypeDescription fileSchema, Map<Integer, ?> idToConstant) {
+    Converter converter =
+        OrcSchemaWithTypeVisitor.visit(expectedSchema, fileSchema, new ReadBuilder(idToConstant));
 
     return new OrcBatchReader<ColumnarBatch>() {
       private long batchOffsetInFile;
 
       @Override
       public ColumnarBatch read(VectorizedRowBatch batch) {
-        BaseOrcColumnVector cv = (BaseOrcColumnVector) converter.convert(new StructColumnVector(batch.size, batch.cols),
-            batch.size, batchOffsetInFile);
-        ColumnarBatch columnarBatch = new ColumnarBatch(IntStream.range(0, expectedSchema.columns().size())
-            .mapToObj(cv::getChild)
-            .toArray(ColumnVector[]::new));
+        BaseOrcColumnVector cv =
+            (BaseOrcColumnVector)
+                converter.convert(
+                    new StructColumnVector(batch.size, batch.cols), batch.size, batchOffsetInFile);
+        ColumnarBatch columnarBatch =
+            new ColumnarBatch(
+                IntStream.range(0, expectedSchema.columns().size())
+                    .mapToObj(cv::getChild)
+                    .toArray(ColumnVector[]::new));
         columnarBatch.setNumRows(batch.size);
         return columnarBatch;
       }
@@ -76,8 +79,10 @@ public class VectorizedSparkOrcReaders {
   }
 
   private interface Converter {
-    ColumnVector convert(org.apache.orc.storage.ql.exec.vector.ColumnVector columnVector, int batchSize,
-                         long batchOffsetInFile);
+    ColumnVector convert(
+        org.apache.orc.storage.ql.exec.vector.ColumnVector columnVector,
+        int batchSize,
+        long batchOffsetInFile);
   }
 
   private static class ReadBuilder extends OrcSchemaWithTypeVisitor<Converter> {
@@ -88,8 +93,11 @@ public class VectorizedSparkOrcReaders {
     }
 
     @Override
-    public Converter record(Types.StructType iStruct, TypeDescription record, List<String> names,
-                            List<Converter> fields) {
+    public Converter record(
+        Types.StructType iStruct,
+        TypeDescription record,
+        List<String> names,
+        List<Converter> fields) {
       return new StructConverter(iStruct, fields, idToConstant);
     }
 
@@ -132,7 +140,8 @@ public class VectorizedSparkOrcReaders {
           primitiveValueReader = SparkOrcValueReaders.timestampTzs();
           break;
         case DECIMAL:
-          primitiveValueReader = SparkOrcValueReaders.decimals(primitive.getPrecision(), primitive.getScale());
+          primitiveValueReader =
+              SparkOrcValueReaders.decimals(primitive.getPrecision(), primitive.getScale());
           break;
         case CHAR:
         case VARCHAR:
@@ -146,7 +155,8 @@ public class VectorizedSparkOrcReaders {
           throw new IllegalArgumentException("Unhandled type " + primitive);
       }
       return (columnVector, batchSize, batchOffsetInFile) ->
-          new PrimitiveOrcColumnVector(iPrimitive, batchSize, columnVector, primitiveValueReader, batchOffsetInFile);
+          new PrimitiveOrcColumnVector(
+              iPrimitive, batchSize, columnVector, primitiveValueReader, batchOffsetInFile);
     }
   }
 
@@ -155,15 +165,15 @@ public class VectorizedSparkOrcReaders {
     private final int batchSize;
     private Integer numNulls;
 
-    BaseOrcColumnVector(Type type, int batchSize, org.apache.orc.storage.ql.exec.vector.ColumnVector vector) {
+    BaseOrcColumnVector(
+        Type type, int batchSize, org.apache.orc.storage.ql.exec.vector.ColumnVector vector) {
       super(SparkSchemaUtil.convert(type));
       this.vector = vector;
       this.batchSize = batchSize;
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     @Override
     public boolean hasNull() {
@@ -278,8 +288,12 @@ public class VectorizedSparkOrcReaders {
     private final OrcValueReader<?> primitiveValueReader;
     private final long batchOffsetInFile;
 
-    PrimitiveOrcColumnVector(Type type, int batchSize, org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
-                             OrcValueReader<?> primitiveValueReader, long batchOffsetInFile) {
+    PrimitiveOrcColumnVector(
+        Type type,
+        int batchSize,
+        org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
+        OrcValueReader<?> primitiveValueReader,
+        long batchOffsetInFile) {
       super(type, batchSize, vector);
       this.vector = vector;
       this.primitiveValueReader = primitiveValueReader;
@@ -313,7 +327,8 @@ public class VectorizedSparkOrcReaders {
 
     @Override
     public Decimal getDecimal(int rowId, int precision, int scale) {
-      // TODO: Is it okay to assume that (precision,scale) parameters == (precision,scale) of the decimal type
+      // TODO: Is it okay to assume that (precision,scale) parameters == (precision,scale) of the
+      // decimal type
       // and return a Decimal with (precision,scale) of the decimal type?
       return (Decimal) primitiveValueReader.read(vector, rowId);
     }
@@ -339,16 +354,20 @@ public class VectorizedSparkOrcReaders {
     }
 
     @Override
-    public ColumnVector convert(org.apache.orc.storage.ql.exec.vector.ColumnVector vector, int batchSize,
-                                long batchOffsetInFile) {
+    public ColumnVector convert(
+        org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
+        int batchSize,
+        long batchOffsetInFile) {
       ListColumnVector listVector = (ListColumnVector) vector;
-      ColumnVector elementVector = elementConverter.convert(listVector.child, batchSize, batchOffsetInFile);
+      ColumnVector elementVector =
+          elementConverter.convert(listVector.child, batchSize, batchOffsetInFile);
 
       return new BaseOrcColumnVector(listType, batchSize, vector) {
         @Override
         public ColumnarArray getArray(int rowId) {
           int index = getRowIndex(rowId);
-          return new ColumnarArray(elementVector, (int) listVector.offsets[index], (int) listVector.lengths[index]);
+          return new ColumnarArray(
+              elementVector, (int) listVector.offsets[index], (int) listVector.lengths[index]);
         }
       };
     }
@@ -366,17 +385,23 @@ public class VectorizedSparkOrcReaders {
     }
 
     @Override
-    public ColumnVector convert(org.apache.orc.storage.ql.exec.vector.ColumnVector vector, int batchSize,
-                                long batchOffsetInFile) {
+    public ColumnVector convert(
+        org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
+        int batchSize,
+        long batchOffsetInFile) {
       MapColumnVector mapVector = (MapColumnVector) vector;
       ColumnVector keyVector = keyConverter.convert(mapVector.keys, batchSize, batchOffsetInFile);
-      ColumnVector valueVector = valueConverter.convert(mapVector.values, batchSize, batchOffsetInFile);
+      ColumnVector valueVector =
+          valueConverter.convert(mapVector.values, batchSize, batchOffsetInFile);
 
       return new BaseOrcColumnVector(mapType, batchSize, vector) {
         @Override
         public ColumnarMap getMap(int rowId) {
           int index = getRowIndex(rowId);
-          return new ColumnarMap(keyVector, valueVector, (int) mapVector.offsets[index],
+          return new ColumnarMap(
+              keyVector,
+              valueVector,
+              (int) mapVector.offsets[index],
               (int) mapVector.lengths[index]);
         }
       };
@@ -388,30 +413,37 @@ public class VectorizedSparkOrcReaders {
     private final List<Converter> fieldConverters;
     private final Map<Integer, ?> idToConstant;
 
-    private StructConverter(Types.StructType structType, List<Converter> fieldConverters,
-                            Map<Integer, ?> idToConstant) {
+    private StructConverter(
+        Types.StructType structType,
+        List<Converter> fieldConverters,
+        Map<Integer, ?> idToConstant) {
       this.structType = structType;
       this.fieldConverters = fieldConverters;
       this.idToConstant = idToConstant;
     }
 
     @Override
-    public ColumnVector convert(org.apache.orc.storage.ql.exec.vector.ColumnVector vector, int batchSize,
-                                long batchOffsetInFile) {
+    public ColumnVector convert(
+        org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
+        int batchSize,
+        long batchOffsetInFile) {
       StructColumnVector structVector = (StructColumnVector) vector;
       List<Types.NestedField> fields = structType.fields();
       List<ColumnVector> fieldVectors = Lists.newArrayListWithExpectedSize(fields.size());
       for (int pos = 0, vectorIndex = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
         if (idToConstant.containsKey(field.fieldId())) {
-          fieldVectors.add(new ConstantColumnVector(field.type(), batchSize, idToConstant.get(field.fieldId())));
+          fieldVectors.add(
+              new ConstantColumnVector(field.type(), batchSize, idToConstant.get(field.fieldId())));
         } else if (field.equals(MetadataColumns.ROW_POSITION)) {
           fieldVectors.add(new RowPositionColumnVector(batchOffsetInFile));
         } else if (field.equals(MetadataColumns.IS_DELETED)) {
           fieldVectors.add(new ConstantColumnVector(field.type(), batchSize, false));
         } else {
-          fieldVectors.add(fieldConverters.get(vectorIndex)
-              .convert(structVector.fields[vectorIndex], batchSize, batchOffsetInFile));
+          fieldVectors.add(
+              fieldConverters
+                  .get(vectorIndex)
+                  .convert(structVector.fields[vectorIndex], batchSize, batchOffsetInFile));
           vectorIndex++;
         }
       }

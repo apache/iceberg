@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -70,7 +69,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
     Preconditions.checkArgument(
         identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
-    Preconditions.checkArgument(metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
     // Throw an exception if this table already exists in the catalog.
@@ -101,15 +101,16 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
       }
 
-      return MetadataTableUtils.createMetadataTableInstance(ops, name(), baseTableIdentifier, identifier, type);
+      return MetadataTableUtils.createMetadataTableInstance(
+          ops, name(), baseTableIdentifier, identifier, type);
     } else {
       throw new NoSuchTableException("Table does not exist: %s", identifier);
     }
   }
 
   private boolean isValidMetadataIdentifier(TableIdentifier identifier) {
-    return MetadataTableType.from(identifier.name()) != null &&
-        isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
+    return MetadataTableType.from(identifier.name()) != null
+        && isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
   }
 
   protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
@@ -139,7 +140,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private String location = null;
 
     public BaseMetastoreCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
-      Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
+      Preconditions.checkArgument(
+          isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
 
       this.identifier = identifier;
       this.schema = schema;
@@ -187,7 +189,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       tableProperties.putAll(tableOverrideProperties());
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+      TableMetadata metadata =
+          TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
 
       try {
         ops.commit(null, metadata);
@@ -207,7 +210,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       tableProperties.putAll(tableOverrideProperties());
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+      TableMetadata metadata =
+          TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
     }
 
@@ -231,10 +235,12 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       tableProperties.putAll(tableOverrideProperties());
       if (ops.current() != null) {
         String baseLocation = location != null ? location : ops.current().location();
-        metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, tableProperties);
+        metadata =
+            ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, tableProperties);
       } else {
         String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-        metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+        metadata =
+            TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
       }
 
       if (orCreate) {
@@ -252,7 +258,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private Map<String, String> tableDefaultProperties() {
       Map<String, String> tableDefaultProperties =
           PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
-      LOG.info("Table properties set at catalog level through catalog properties: {}", tableDefaultProperties);
+      LOG.info(
+          "Table properties set at catalog level through catalog properties: {}",
+          tableDefaultProperties);
       return tableDefaultProperties;
     }
 
@@ -264,7 +272,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private Map<String, String> tableOverrideProperties() {
       Map<String, String> tableOverrideProperties =
           PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
-      LOG.info("Table properties enforced at catalog level through catalog properties: {}", tableOverrideProperties);
+      LOG.info(
+          "Table properties enforced at catalog level through catalog properties: {}",
+          tableOverrideProperties);
       return tableOverrideProperties;
     }
   }

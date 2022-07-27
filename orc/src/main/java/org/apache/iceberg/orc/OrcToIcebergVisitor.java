@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.List;
@@ -25,28 +24,31 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
-/**
- * Converts an ORC schema to Iceberg.
- */
+/** Converts an ORC schema to Iceberg. */
 class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> {
 
   @Override
-  public Optional<Types.NestedField> record(TypeDescription record, List<String> names,
-                                            List<Optional<Types.NestedField>> fields) {
+  public Optional<Types.NestedField> record(
+      TypeDescription record, List<String> names, List<Optional<Types.NestedField>> fields) {
     boolean isOptional = ORCSchemaUtil.isOptional(record);
     Optional<Integer> icebergIdOpt = ORCSchemaUtil.icebergID(record);
     if (!icebergIdOpt.isPresent() || fields.stream().noneMatch(Optional::isPresent)) {
       return Optional.empty();
     }
 
-    Types.StructType structType = Types.StructType.of(
-        fields.stream().filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList()));
-    return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), structType));
+    Types.StructType structType =
+        Types.StructType.of(
+            fields.stream()
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList()));
+    return Optional.of(
+        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), structType));
   }
 
   @Override
-  public Optional<Types.NestedField> list(TypeDescription array,
-                                          Optional<Types.NestedField> element) {
+  public Optional<Types.NestedField> list(
+      TypeDescription array, Optional<Types.NestedField> element) {
     boolean isOptional = ORCSchemaUtil.isOptional(array);
     Optional<Integer> icebergIdOpt = ORCSchemaUtil.icebergID(array);
 
@@ -55,16 +57,18 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
     }
 
     Types.NestedField foundElement = element.get();
-    Types.ListType listTypeWithElem = ORCSchemaUtil.isOptional(array.getChildren().get(0)) ?
-        Types.ListType.ofOptional(foundElement.fieldId(), foundElement.type()) :
-        Types.ListType.ofRequired(foundElement.fieldId(), foundElement.type());
+    Types.ListType listTypeWithElem =
+        ORCSchemaUtil.isOptional(array.getChildren().get(0))
+            ? Types.ListType.ofOptional(foundElement.fieldId(), foundElement.type())
+            : Types.ListType.ofRequired(foundElement.fieldId(), foundElement.type());
 
-    return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), listTypeWithElem));
+    return Optional.of(
+        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), listTypeWithElem));
   }
 
   @Override
-  public Optional<Types.NestedField> map(TypeDescription map, Optional<Types.NestedField> key,
-                                         Optional<Types.NestedField> value) {
+  public Optional<Types.NestedField> map(
+      TypeDescription map, Optional<Types.NestedField> key, Optional<Types.NestedField> value) {
     boolean isOptional = ORCSchemaUtil.isOptional(map);
     Optional<Integer> icebergIdOpt = ORCSchemaUtil.icebergID(map);
 
@@ -74,11 +78,15 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
 
     Types.NestedField foundKey = key.get();
     Types.NestedField foundValue = value.get();
-    Types.MapType mapTypeWithKV = ORCSchemaUtil.isOptional(map.getChildren().get(1)) ?
-        Types.MapType.ofOptional(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type()) :
-        Types.MapType.ofRequired(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
+    Types.MapType mapTypeWithKV =
+        ORCSchemaUtil.isOptional(map.getChildren().get(1))
+            ? Types.MapType.ofOptional(
+                foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type())
+            : Types.MapType.ofRequired(
+                foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
 
-    return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), mapTypeWithKV));
+    return Optional.of(
+        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), mapTypeWithKV));
   }
 
   @Override
@@ -103,9 +111,12 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
         foundField = Types.NestedField.of(icebergID, isOptional, name, Types.IntegerType.get());
         break;
       case LONG:
-        String longAttributeValue = primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
-        ORCSchemaUtil.LongType longType = longAttributeValue == null ?
-            ORCSchemaUtil.LongType.LONG : ORCSchemaUtil.LongType.valueOf(longAttributeValue);
+        String longAttributeValue =
+            primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
+        ORCSchemaUtil.LongType longType =
+            longAttributeValue == null
+                ? ORCSchemaUtil.LongType.LONG
+                : ORCSchemaUtil.LongType.valueOf(longAttributeValue);
         switch (longType) {
           case TIME:
             foundField = Types.NestedField.of(icebergID, isOptional, name, Types.TimeType.get());
@@ -129,16 +140,22 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
         foundField = Types.NestedField.of(icebergID, isOptional, name, Types.StringType.get());
         break;
       case BINARY:
-        String binaryAttributeValue = primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
-        ORCSchemaUtil.BinaryType binaryType = binaryAttributeValue == null ? ORCSchemaUtil.BinaryType.BINARY :
-            ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
+        String binaryAttributeValue =
+            primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
+        ORCSchemaUtil.BinaryType binaryType =
+            binaryAttributeValue == null
+                ? ORCSchemaUtil.BinaryType.BINARY
+                : ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
         switch (binaryType) {
           case UUID:
             foundField = Types.NestedField.of(icebergID, isOptional, name, Types.UUIDType.get());
             break;
           case FIXED:
-            int fixedLength = Integer.parseInt(primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_FIELD_LENGTH));
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.FixedType.ofLength(fixedLength));
+            int fixedLength =
+                Integer.parseInt(primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_FIELD_LENGTH));
+            foundField =
+                Types.NestedField.of(
+                    icebergID, isOptional, name, Types.FixedType.ofLength(fixedLength));
             break;
           case BINARY:
             foundField = Types.NestedField.of(icebergID, isOptional, name, Types.BinaryType.get());
@@ -151,14 +168,20 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
         foundField = Types.NestedField.of(icebergID, isOptional, name, Types.DateType.get());
         break;
       case TIMESTAMP:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withoutZone());
+        foundField =
+            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withoutZone());
         break;
       case TIMESTAMP_INSTANT:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withZone());
+        foundField =
+            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withZone());
         break;
       case DECIMAL:
-        foundField = Types.NestedField.of(icebergID, isOptional, name,
-            Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()));
+        foundField =
+            Types.NestedField.of(
+                icebergID,
+                isOptional,
+                name,
+                Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()));
         break;
       default:
         throw new IllegalArgumentException("Can't handle " + primitive);

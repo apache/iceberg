@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.iceberg.spark.procedures.SparkProcedures;
@@ -35,7 +34,8 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
     String[] namespace = ident.namespace();
     String name = ident.name();
 
-    // namespace resolution is case insensitive until we have a way to configure case sensitivity in catalogs
+    // namespace resolution is case insensitive until we have a way to configure case sensitivity in
+    // catalogs
     if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
       ProcedureBuilder builder = SparkProcedures.newBuilder(name);
       if (builder != null) {

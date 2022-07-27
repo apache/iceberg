@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
@@ -34,13 +33,20 @@ public class InputFilesDecryptor {
 
   private final Map<String, InputFile> decryptedInputFiles;
 
-  public InputFilesDecryptor(CombinedScanTask combinedTask, FileIO io, EncryptionManager encryption) {
+  public InputFilesDecryptor(
+      CombinedScanTask combinedTask, FileIO io, EncryptionManager encryption) {
     Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
     combinedTask.files().stream()
-        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
+        .flatMap(
+            fileScanTask ->
+                Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
         .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
-    Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
-        .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
+    Stream<EncryptedInputFile> encrypted =
+        keyMetadata.entrySet().stream()
+            .map(
+                entry ->
+                    EncryptedFiles.encryptedInput(
+                        io.newInputFile(entry.getKey()), entry.getValue()));
 
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
     @SuppressWarnings("StreamToIterable")

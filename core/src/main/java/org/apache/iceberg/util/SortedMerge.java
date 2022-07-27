@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.io.Closeable;
@@ -34,8 +33,8 @@ import org.apache.iceberg.io.CloseableIterator;
 
 /**
  * An Iterable that merges the items from other Iterables in order.
- * <p>
- * This assumes that the Iterables passed in produce items in sorted order.
+ *
+ * <p>This assumes that the Iterables passed in produce items in sorted order.
  *
  * @param <T> the type of objects produced by this Iterable
  */
@@ -50,10 +49,11 @@ public class SortedMerge<T> extends CloseableGroup implements CloseableIterable<
 
   @Override
   public CloseableIterator<T> iterator() {
-    List<CloseableIterator<T>> iterators = iterables.stream()
-        .map(CloseableIterable::iterator)
-        .filter(Iterator::hasNext)
-        .collect(Collectors.toList());
+    List<CloseableIterator<T>> iterators =
+        iterables.stream()
+            .map(CloseableIterable::iterator)
+            .filter(Iterator::hasNext)
+            .collect(Collectors.toList());
 
     if (iterators.size() == 1) {
       addCloseable(iterators.get(0));
@@ -67,8 +67,8 @@ public class SortedMerge<T> extends CloseableGroup implements CloseableIterable<
 
   /**
    * An Iterator that merges the items from other Iterators in order.
-   * <p>
-   * This assumes that the Iterators passed in produce items in sorted order.
+   *
+   * <p>This assumes that the Iterators passed in produce items in sorted order.
    */
   private class MergeIterator implements CloseableIterator<T> {
     private final PriorityQueue<Pair<T, Iterator<T>>> heap;

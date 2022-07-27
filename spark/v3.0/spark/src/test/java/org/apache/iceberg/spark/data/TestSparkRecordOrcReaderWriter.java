@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,8 +41,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
   private static final int NUM_RECORDS = 200;
 
@@ -50,19 +49,21 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     Assert.assertTrue("Delete should succeed", originalFile.delete());
 
     // Write few generic records into the original test file.
-    try (FileAppender<Record> writer = ORC.write(Files.localOutput(originalFile))
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .schema(schema)
-        .build()) {
+    try (FileAppender<Record> writer =
+        ORC.write(Files.localOutput(originalFile))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .schema(schema)
+            .build()) {
       writer.addAll(expectedRecords);
     }
 
     // Read into spark InternalRow from the original test file.
     List<InternalRow> internalRows = Lists.newArrayList();
-    try (CloseableIterable<InternalRow> reader = ORC.read(Files.localInput(originalFile))
-        .project(schema)
-        .createReaderFunc(readOrcSchema -> new SparkOrcReader(schema, readOrcSchema))
-        .build()) {
+    try (CloseableIterable<InternalRow> reader =
+        ORC.read(Files.localInput(originalFile))
+            .project(schema)
+            .createReaderFunc(readOrcSchema -> new SparkOrcReader(schema, readOrcSchema))
+            .build()) {
       reader.forEach(internalRows::add);
       assertEqualsUnsafe(schema.asStruct(), expectedRecords, reader, expectedRecords.size());
     }
@@ -71,26 +72,29 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     Assert.assertTrue("Delete should succeed", anotherFile.delete());
 
     // Write those spark InternalRows into a new file again.
-    try (FileAppender<InternalRow> writer = ORC.write(Files.localOutput(anotherFile))
-        .createWriterFunc(SparkOrcWriter::new)
-        .schema(schema)
-        .build()) {
+    try (FileAppender<InternalRow> writer =
+        ORC.write(Files.localOutput(anotherFile))
+            .createWriterFunc(SparkOrcWriter::new)
+            .schema(schema)
+            .build()) {
       writer.addAll(internalRows);
     }
 
     // Check whether the InternalRows are expected records.
-    try (CloseableIterable<InternalRow> reader = ORC.read(Files.localInput(anotherFile))
-        .project(schema)
-        .createReaderFunc(readOrcSchema -> new SparkOrcReader(schema, readOrcSchema))
-        .build()) {
+    try (CloseableIterable<InternalRow> reader =
+        ORC.read(Files.localInput(anotherFile))
+            .project(schema)
+            .createReaderFunc(readOrcSchema -> new SparkOrcReader(schema, readOrcSchema))
+            .build()) {
       assertEqualsUnsafe(schema.asStruct(), expectedRecords, reader, expectedRecords.size());
     }
 
     // Read into iceberg GenericRecord and check again.
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(anotherFile))
-        .createReaderFunc(typeDesc -> GenericOrcReader.buildReader(schema, typeDesc))
-        .project(schema)
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        ORC.read(Files.localInput(anotherFile))
+            .createReaderFunc(typeDesc -> GenericOrcReader.buildReader(schema, typeDesc))
+            .project(schema)
+            .build()) {
       assertRecordEquals(expectedRecords, reader, expectedRecords.size());
     }
   }
@@ -103,11 +107,11 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
 
   @Test
   public void testDecimalWithTrailingZero() throws IOException {
-    Schema schema = new Schema(
-        required(1, "d1", Types.DecimalType.of(10, 2)),
-        required(2, "d2", Types.DecimalType.of(20, 5)),
-        required(3, "d3", Types.DecimalType.of(38, 20))
-    );
+    Schema schema =
+        new Schema(
+            required(1, "d1", Types.DecimalType.of(10, 2)),
+            required(2, "d2", Types.DecimalType.of(20, 5)),
+            required(3, "d3", Types.DecimalType.of(38, 20)));
 
     List<Record> expected = Lists.newArrayList();
 
@@ -121,7 +125,8 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     writeAndValidate(schema, expected);
   }
 
-  private static void assertRecordEquals(Iterable<Record> expected, Iterable<Record> actual, int size) {
+  private static void assertRecordEquals(
+      Iterable<Record> expected, Iterable<Record> actual, int size) {
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Record> actualIter = actual.iterator();
     for (int i = 0; i < size; i += 1) {
@@ -133,8 +138,8 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
     Assert.assertFalse("Actual iterator should not have any extra rows.", actualIter.hasNext());
   }
 
-  private static void assertEqualsUnsafe(Types.StructType struct, Iterable<Record> expected,
-                                         Iterable<InternalRow> actual, int size) {
+  private static void assertEqualsUnsafe(
+      Types.StructType struct, Iterable<Record> expected, Iterable<InternalRow> actual, int size) {
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<InternalRow> actualIter = actual.iterator();
     for (int i = 0; i < size; i += 1) {

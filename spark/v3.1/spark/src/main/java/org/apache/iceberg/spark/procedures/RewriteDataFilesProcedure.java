@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
@@ -48,19 +47,24 @@ import scala.runtime.BoxedUnit;
  */
 class RewriteDataFilesProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-          ProcedureParameter.required("table", DataTypes.StringType),
-          ProcedureParameter.optional("strategy", DataTypes.StringType),
-          ProcedureParameter.optional("sort_order", DataTypes.StringType),
-          ProcedureParameter.optional("options", STRING_MAP),
-          ProcedureParameter.optional("where", DataTypes.StringType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("strategy", DataTypes.StringType),
+        ProcedureParameter.optional("sort_order", DataTypes.StringType),
+        ProcedureParameter.optional("options", STRING_MAP),
+        ProcedureParameter.optional("where", DataTypes.StringType)
+      };
 
   // counts are not nullable since the action result is never null
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("rewritten_data_files_count", DataTypes.IntegerType, false, Metadata.empty()),
-      new StructField("added_data_files_count", DataTypes.IntegerType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField(
+                "rewritten_data_files_count", DataTypes.IntegerType, false, Metadata.empty()),
+            new StructField(
+                "added_data_files_count", DataTypes.IntegerType, false, Metadata.empty())
+          });
 
   public static ProcedureBuilder builder() {
     return new Builder<RewriteDataFilesProcedure>() {
@@ -89,36 +93,40 @@ class RewriteDataFilesProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
 
-    return modifyIcebergTable(tableIdent, table -> {
-      RewriteDataFiles action = actions().rewriteDataFiles(table);
+    return modifyIcebergTable(
+        tableIdent,
+        table -> {
+          RewriteDataFiles action = actions().rewriteDataFiles(table);
 
-      String strategy = args.isNullAt(1) ? null : args.getString(1);
-      String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
-      SortOrder sortOrder = null;
-      if (sortOrderString != null) {
-        sortOrder = collectSortOrders(table, sortOrderString);
-      }
-      if (strategy != null || sortOrder != null) {
-        action = checkAndApplyStrategy(action, strategy, sortOrder);
-      }
+          String strategy = args.isNullAt(1) ? null : args.getString(1);
+          String sortOrderString = args.isNullAt(2) ? null : args.getString(2);
+          SortOrder sortOrder = null;
+          if (sortOrderString != null) {
+            sortOrder = collectSortOrders(table, sortOrderString);
+          }
+          if (strategy != null || sortOrder != null) {
+            action = checkAndApplyStrategy(action, strategy, sortOrder);
+          }
 
-      if (!args.isNullAt(3)) {
-        action = checkAndApplyOptions(args, action);
-      }
+          if (!args.isNullAt(3)) {
+            action = checkAndApplyOptions(args, action);
+          }
 
-      String where = args.isNullAt(4) ? null : args.getString(4);
-      action = checkAndApplyFilter(action, where, table.name());
+          String where = args.isNullAt(4) ? null : args.getString(4);
+          action = checkAndApplyFilter(action, where, table.name());
 
-      RewriteDataFiles.Result result = action.execute();
+          RewriteDataFiles.Result result = action.execute();
 
-      return toOutputRows(result);
-    });
+          return toOutputRows(result);
+        });
   }
 
-  private RewriteDataFiles checkAndApplyFilter(RewriteDataFiles action, String where, String tableName) {
+  private RewriteDataFiles checkAndApplyFilter(
+      RewriteDataFiles action, String where, String tableName) {
     if (where != null) {
       try {
-        Expression expression = SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
+        Expression expression =
+            SparkExpressionConverter.collectResolvedSparkExpression(spark(), tableName, where);
         return action.filter(SparkExpressionConverter.convertToIcebergExpression(expression));
       } catch (AnalysisException e) {
         throw new IllegalArgumentException("Cannot parse predicates in where option: " + where);
@@ -129,7 +137,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
   private RewriteDataFiles checkAndApplyOptions(InternalRow args, RewriteDataFiles action) {
     Map<String, String> options = Maps.newHashMap();
-    args.getMap(3).foreach(DataTypes.StringType, DataTypes.StringType,
+    args.getMap(3)
+        .foreach(
+            DataTypes.StringType,
+            DataTypes.StringType,
             (k, v) -> {
               options.put(k.toString(), v.toString());
               return BoxedUnit.UNIT;
@@ -137,33 +148,38 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return action.options(options);
   }
 
-  private RewriteDataFiles checkAndApplyStrategy(RewriteDataFiles action, String strategy, SortOrder sortOrder) {
-    // caller of this function ensures that between strategy and sortOrder, at least one of them is not null.
+  private RewriteDataFiles checkAndApplyStrategy(
+      RewriteDataFiles action, String strategy, SortOrder sortOrder) {
+    // caller of this function ensures that between strategy and sortOrder, at least one of them is
+    // not null.
     if (strategy == null || strategy.equalsIgnoreCase("sort")) {
       return action.sort(sortOrder);
     }
     if (strategy.equalsIgnoreCase("binpack")) {
       RewriteDataFiles rewriteDataFiles = action.binPack();
       if (sortOrder != null) {
-        // calling below method to throw the error as user has set both binpack strategy and sort order
+        // calling below method to throw the error as user has set both binpack strategy and sort
+        // order
         return rewriteDataFiles.sort(sortOrder);
       }
       return rewriteDataFiles;
     } else {
-      throw new IllegalArgumentException("unsupported strategy: " + strategy + ". Only binpack,sort is supported");
+      throw new IllegalArgumentException(
+          "unsupported strategy: " + strategy + ". Only binpack,sort is supported");
     }
   }
 
   private SortOrder collectSortOrders(Table table, String sortOrderStr) {
     String prefix = "ALTER TABLE temp WRITE ORDERED BY ";
     try {
-      // Note: Reusing the existing Iceberg sql parser to avoid implementing the custom parser for sort orders.
+      // Note: Reusing the existing Iceberg sql parser to avoid implementing the custom parser for
+      // sort orders.
       // To reuse the existing parser, adding a prefix of "ALTER TABLE temp WRITE ORDERED BY"
       // along with input sort order and parsing it as a plan to collect the sortOrder.
       LogicalPlan logicalPlan = spark().sessionState().sqlParser().parsePlan(prefix + sortOrderStr);
-      return (new SortOrderParserUtil()).collectSortOrder(
-          table.schema(),
-          ((SetWriteDistributionAndOrdering) logicalPlan).sortOrder());
+      return (new SortOrderParserUtil())
+          .collectSortOrder(
+              table.schema(), ((SetWriteDistributionAndOrdering) logicalPlan).sortOrder());
     } catch (AnalysisException ex) {
       throw new IllegalArgumentException("Unable to parse sortOrder: " + sortOrderStr);
     }
@@ -173,7 +189,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     int rewrittenDataFilesCount = result.rewrittenDataFilesCount();
     int addedDataFilesCount = result.addedDataFilesCount();
     InternalRow row = newInternalRow(rewrittenDataFilesCount, addedDataFilesCount);
-    return new InternalRow[]{row};
+    return new InternalRow[] {row};
   }
 
   @Override

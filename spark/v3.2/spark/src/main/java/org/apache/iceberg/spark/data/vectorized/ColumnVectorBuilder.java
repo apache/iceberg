@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
@@ -39,8 +38,8 @@ class ColumnVectorBuilder {
       if (holder instanceof VectorHolder.DeletedVectorHolder) {
         return new DeletedColumnVector(Types.BooleanType.get(), isDeleted);
       } else if (holder instanceof ConstantVectorHolder) {
-        return new ConstantColumnVector(Types.IntegerType.get(), numRows,
-            ((ConstantVectorHolder<?>) holder).getConstant());
+        return new ConstantColumnVector(
+            Types.IntegerType.get(), numRows, ((ConstantVectorHolder<?>) holder).getConstant());
       } else {
         throw new IllegalStateException("Unknown dummy vector holder: " + holder);
       }

@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -70,23 +71,18 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-  protected static final Schema SCHEMA = new Schema(
-      optional(1, "c1", Types.IntegerType.get()),
-      optional(2, "c2", Types.StringType.get()),
-      optional(3, "c3", Types.StringType.get())
-  );
-  protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .truncate("c2", 2)
-      .identity("c3")
-      .build();
+  protected static final Schema SCHEMA =
+      new Schema(
+          optional(1, "c1", Types.IntegerType.get()),
+          optional(2, "c2", Types.StringType.get()),
+          optional(3, "c3", Types.StringType.get()));
+  protected static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).truncate("c2", 2).identity("c3").build();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
   private File tableDir = null;
   protected String tableLocation = null;
 
@@ -98,41 +94,37 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   @Test
   public void testDryRun() throws IOException, InterruptedException {
-    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+    Table table =
+        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
 
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    List<String> validFiles = spark.read().format("iceberg")
-        .load(tableLocation + "#files")
-        .select("file_path")
-        .as(Encoders.STRING())
-        .collectAsList();
+    List<String> validFiles =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation + "#files")
+            .select("file_path")
+            .as(Encoders.STRING())
+            .collectAsList();
     Assert.assertEquals("Should be 2 valid files", 2, validFiles.size());
 
     df.write().mode("append").parquet(tableLocation + "/data");
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
-    List<String> allFiles = Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
-        .filter(FileStatus::isFile)
-        .map(file -> file.getPath().toString())
-        .collect(Collectors.toList());
+    List<String> allFiles =
+        Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+            .filter(FileStatus::isFile)
+            .map(file -> file.getPath().toString())
+            .collect(Collectors.toList());
     Assert.assertEquals("Should be 3 files", 3, allFiles.size());
 
     List<String> invalidFiles = Lists.newArrayList(allFiles);
@@ -143,32 +135,34 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result1 = actions.deleteOrphanFiles(table)
-        .deleteWith(s -> { })
-        .execute();
-    Assert.assertTrue("Default olderThan interval should be safe", Iterables.isEmpty(result1.orphanFileLocations()));
+    DeleteOrphanFiles.Result result1 =
+        actions.deleteOrphanFiles(table).deleteWith(s -> {}).execute();
+    Assert.assertTrue(
+        "Default olderThan interval should be safe",
+        Iterables.isEmpty(result1.orphanFileLocations()));
 
-    DeleteOrphanFiles.Result result2 = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .deleteWith(s -> { })
-        .execute();
+    DeleteOrphanFiles.Result result2 =
+        actions
+            .deleteOrphanFiles(table)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> {})
+            .execute();
     Assert.assertEquals("Action should find 1 file", invalidFiles, result2.orphanFileLocations());
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
 
-    DeleteOrphanFiles.Result result3 = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result3 =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
     Assert.assertEquals("Action should delete 1 file", invalidFiles, result3.orphanFileLocations());
-    Assert.assertFalse("Invalid file should not be present", fs.exists(new Path(invalidFiles.get(0))));
+    Assert.assertFalse(
+        "Invalid file should not be present", fs.exists(new Path(invalidFiles.get(0))));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records);
     expectedRecords.addAll(records);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
@@ -176,36 +170,22 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testAllValidFilesAreKept() throws IOException, InterruptedException {
     Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df1 = spark.createDataFrame(records1, ThreeColumnRecord.class).coalesce(1);
 
     // original append
-    df1.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df1.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(new ThreeColumnRecord(2, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df2 = spark.createDataFrame(records2, ThreeColumnRecord.class).coalesce(1);
 
     // dynamic partition overwrite
-    df2.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("overwrite")
-        .save(tableLocation);
+    df2.select("c1", "c2", "c3").write().format("iceberg").mode("overwrite").save(tableLocation);
 
     // second append
-    df2.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df2.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
 
@@ -227,9 +207,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
     Assert.assertEquals("Should delete 4 files", 4, Iterables.size(result.orphanFileLocations()));
 
@@ -253,36 +232,22 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void orphanedFileRemovedWithParallelTasks() throws InterruptedException, IOException {
     Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-            new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records1 =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df1 = spark.createDataFrame(records1, ThreeColumnRecord.class).coalesce(1);
 
     // original append
-    df1.select("c1", "c2", "c3")
-            .write()
-            .format("iceberg")
-            .mode("append")
-            .save(tableLocation);
+    df1.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-            new ThreeColumnRecord(2, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records2 =
+        Lists.newArrayList(new ThreeColumnRecord(2, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df2 = spark.createDataFrame(records2, ThreeColumnRecord.class).coalesce(1);
 
     // dynamic partition overwrite
-    df2.select("c1", "c2", "c3")
-            .write()
-            .format("iceberg")
-            .mode("overwrite")
-            .save(tableLocation);
+    df2.select("c1", "c2", "c3").write().format("iceberg").mode("overwrite").save(tableLocation);
 
     // second append
-    df2.select("c1", "c2", "c3")
-            .write()
-            .format("iceberg")
-            .mode("append")
-            .save(tableLocation);
+    df2.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data");
     df2.coalesce(1).write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA");
@@ -295,25 +260,34 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
-    ExecutorService executorService = Executors.newFixedThreadPool(4, runnable -> {
-      Thread thread = new Thread(runnable);
-      thread.setName("remove-orphan-" + deleteThreadsIndex.getAndIncrement());
-      thread.setDaemon(true);
-      return thread;
-    });
+    ExecutorService executorService =
+        Executors.newFixedThreadPool(
+            4,
+            runnable -> {
+              Thread thread = new Thread(runnable);
+              thread.setName("remove-orphan-" + deleteThreadsIndex.getAndIncrement());
+              thread.setDaemon(true);
+              return thread;
+            });
 
-    DeleteOrphanFiles.Result result = SparkActions.get().deleteOrphanFiles(table)
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
             .executeDeleteWith(executorService)
-            .olderThan(System.currentTimeMillis() + 5000)  // Ensure all orphan files are selected
-            .deleteWith(file -> {
-              deleteThreads.add(Thread.currentThread().getName());
-              deletedFiles.add(file);
-            })
+            .olderThan(System.currentTimeMillis() + 5000) // Ensure all orphan files are selected
+            .deleteWith(
+                file -> {
+                  deleteThreads.add(Thread.currentThread().getName());
+                  deletedFiles.add(file);
+                })
             .execute();
 
-    // Verifies that the delete methods ran in the threads created by the provided ExecutorService ThreadFactory
-    Assert.assertEquals(deleteThreads,
-            Sets.newHashSet("remove-orphan-0", "remove-orphan-1", "remove-orphan-2", "remove-orphan-3"));
+    // Verifies that the delete methods ran in the threads created by the provided ExecutorService
+    // ThreadFactory
+    Assert.assertEquals(
+        deleteThreads,
+        Sets.newHashSet(
+            "remove-orphan-0", "remove-orphan-1", "remove-orphan-2", "remove-orphan-3"));
 
     Assert.assertEquals("Should delete 4 files", 4, deletedFiles.size());
   }
@@ -324,42 +298,32 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     props.put(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true");
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
 
     // normal write
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     spark.conf().set("spark.wap.id", "1");
 
     // wap write
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Should not return data from the staged snapshot", records, actualRecords);
 
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
+    Assert.assertTrue(
+        "Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
   }
 
   @Test
@@ -369,16 +333,11 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     props.put(TableProperties.WRITE_DATA_LOCATION, tableLocation);
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     df.write().mode("append").parquet(tableLocation + "/c2_trunc=AA/c3=AAAA");
 
@@ -386,16 +345,14 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
     Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFileLocations()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
@@ -403,16 +360,11 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testOlderThanTimestamp() throws InterruptedException {
     Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     df.write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA/c3=AAAA");
     df.write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA/c3=AAAA");
@@ -427,11 +379,11 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(timestamp)
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(timestamp).execute();
 
-    Assert.assertEquals("Should delete only 2 files", 2, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals(
+        "Should delete only 2 files", 2, Iterables.size(result.orphanFileLocations()));
   }
 
   @Test
@@ -441,33 +393,25 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1");
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
     Assert.assertEquals("Should delete 1 file", 1, Iterables.size(result.orphanFileLocations()));
-    Assert.assertTrue("Should remove v1 file", StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
+    Assert.assertTrue(
+        "Should remove v1 file",
+        StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("v1.metadata.json")));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
@@ -475,9 +419,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     expectedRecords.addAll(records);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
@@ -492,26 +435,21 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
+    Assert.assertTrue(
+        "Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
@@ -526,56 +464,43 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    Assert.assertTrue("Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
+    Assert.assertTrue(
+        "Should not delete any files", Iterables.isEmpty(result.orphanFileLocations()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
   @Test
   public void testHiddenPartitionPaths() throws InterruptedException {
-    Schema schema = new Schema(
-        optional(1, "c1", Types.IntegerType.get()),
-        optional(2, "_c2", Types.StringType.get()),
-        optional(3, "c3", Types.StringType.get())
-    );
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .truncate("_c2", 2)
-        .identity("c3")
-        .build();
+    Schema schema =
+        new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "_c2", Types.StringType.get()),
+            optional(3, "c3", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("_c2", 2).identity("c3").build();
     Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
 
-    StructType structType = new StructType()
-        .add("c1", DataTypes.IntegerType)
-        .add("_c2", DataTypes.StringType)
-        .add("c3", DataTypes.StringType);
-    List<Row> records = Lists.newArrayList(
-        RowFactory.create(1, "AAAAAAAAAA", "AAAA")
-    );
+    StructType structType =
+        new StructType()
+            .add("c1", DataTypes.IntegerType)
+            .add("_c2", DataTypes.StringType)
+            .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(RowFactory.create(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
 
-    df.select("c1", "_c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "_c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/c3=AAAA");
@@ -584,45 +509,35 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
     Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
   }
 
   @Test
   public void testHiddenPartitionPathsWithPartitionEvolution() throws InterruptedException {
-    Schema schema = new Schema(
-        optional(1, "_c1", Types.IntegerType.get()),
-        optional(2, "_c2", Types.StringType.get()),
-        optional(3, "c3", Types.StringType.get())
-    );
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .truncate("_c2", 2)
-        .build();
+    Schema schema =
+        new Schema(
+            optional(1, "_c1", Types.IntegerType.get()),
+            optional(2, "_c2", Types.StringType.get()),
+            optional(3, "c3", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("_c2", 2).build();
     Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
 
-    StructType structType = new StructType()
-        .add("_c1", DataTypes.IntegerType)
-        .add("_c2", DataTypes.StringType)
-        .add("c3", DataTypes.StringType);
-    List<Row> records = Lists.newArrayList(
-        RowFactory.create(1, "AAAAAAAAAA", "AAAA")
-    );
+    StructType structType =
+        new StructType()
+            .add("_c1", DataTypes.IntegerType)
+            .add("_c2", DataTypes.StringType)
+            .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(RowFactory.create(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
 
-    df.select("_c1", "_c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("_c1", "_c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA");
 
-    table.updateSpec()
-        .addField("_c1")
-        .commit();
+    table.updateSpec().addField("_c1").commit();
 
     df.write().mode("append").parquet(tableLocation + "/data/_c2_trunc=AA/_c1=1");
 
@@ -630,40 +545,32 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
     Assert.assertEquals("Should delete 2 files", 2, Iterables.size(result.orphanFileLocations()));
   }
 
   @Test
-  public void testHiddenPathsStartingWithPartitionNamesAreIgnored() throws InterruptedException, IOException {
-    Schema schema = new Schema(
-        optional(1, "c1", Types.IntegerType.get()),
-        optional(2, "_c2", Types.StringType.get()),
-        optional(3, "c3", Types.StringType.get())
-    );
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .truncate("_c2", 2)
-        .identity("c3")
-        .build();
+  public void testHiddenPathsStartingWithPartitionNamesAreIgnored()
+      throws InterruptedException, IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "_c2", Types.StringType.get()),
+            optional(3, "c3", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("_c2", 2).identity("c3").build();
     Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
 
-    StructType structType = new StructType()
-        .add("c1", DataTypes.IntegerType)
-        .add("_c2", DataTypes.StringType)
-        .add("c3", DataTypes.StringType);
-    List<Row> records = Lists.newArrayList(
-        RowFactory.create(1, "AAAAAAAAAA", "AAAA")
-    );
+    StructType structType =
+        new StructType()
+            .add("c1", DataTypes.IntegerType)
+            .add("_c2", DataTypes.StringType)
+            .add("c3", DataTypes.StringType);
+    List<Row> records = Lists.newArrayList(RowFactory.create(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
 
-    df.select("c1", "_c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "_c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
@@ -674,16 +581,17 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
     Assert.assertEquals("Should delete 0 files", 0, Iterables.size(result.orphanFileLocations()));
     Assert.assertTrue(fs.exists(pathToFileInHiddenFolder));
   }
 
   private List<String> snapshotFiles(long snapshotId) {
-    return spark.read().format("iceberg")
+    return spark
+        .read()
+        .format("iceberg")
         .option("snapshot-id", snapshotId)
         .load(tableLocation + "#files")
         .select("file_path")
@@ -693,11 +601,12 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   @Test
   public void testRemoveOrphanFilesWithRelativeFilePath() throws IOException, InterruptedException {
-    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableDir.getAbsolutePath());
+    Table table =
+        TABLES.create(
+            SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableDir.getAbsolutePath());
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
 
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
@@ -707,11 +616,14 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .mode("append")
         .save(tableDir.getAbsolutePath());
 
-    List<String> validFiles = spark.read().format("iceberg")
-        .load(tableLocation + "#files")
-        .select("file_path")
-        .as(Encoders.STRING())
-        .collectAsList();
+    List<String> validFiles =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation + "#files")
+            .select("file_path")
+            .as(Encoders.STRING())
+            .collectAsList();
     Assert.assertEquals("Should be 1 valid files", 1, validFiles.size());
     String validFile = validFiles.get(0);
 
@@ -719,10 +631,11 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
-    List<String> allFiles = Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
-        .filter(FileStatus::isFile)
-        .map(file -> file.getPath().toString())
-        .collect(Collectors.toList());
+    List<String> allFiles =
+        Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+            .filter(FileStatus::isFile)
+            .map(file -> file.getPath().toString())
+            .collect(Collectors.toList());
     Assert.assertEquals("Should be 2 files", 2, allFiles.size());
 
     List<String> invalidFiles = Lists.newArrayList(allFiles);
@@ -732,10 +645,12 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
-    DeleteOrphanFiles.Result result = actions.deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .deleteWith(s -> { })
-        .execute();
+    DeleteOrphanFiles.Result result =
+        actions
+            .deleteOrphanFiles(table)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> {})
+            .execute();
     Assert.assertEquals("Action should find 1 file", invalidFiles, result.orphanFileLocations());
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
   }
@@ -748,18 +663,15 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     Namespace namespace = Namespace.of(namespaceName);
     TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
-    Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap());
+    Table table =
+        catalog.createTable(
+            tableIdentifier, SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap());
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(table.location());
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(table.location());
 
     df.write().mode("append").parquet(table.location() + "/data");
 
@@ -767,28 +679,30 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     table.refresh();
 
-    DeleteOrphanFiles.Result result = SparkActions.get()
-        .deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis())
-        .execute();
+    DeleteOrphanFiles.Result result =
+        SparkActions.get().deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    Assert.assertEquals("Should delete only 1 files", 1, Iterables.size(result.orphanFileLocations()));
+    Assert.assertEquals(
+        "Should delete only 1 files", 1, Iterables.size(result.orphanFileLocations()));
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(table.location());
-    List<ThreeColumnRecord> actualRecords = resultDF
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
   @Test
   public void testHiveCatalogTable() throws IOException {
-    Table table = catalog.createTable(TableIdentifier.of("default", "hivetestorphan"), SCHEMA, SPEC, tableLocation,
-        Maps.newHashMap());
+    Table table =
+        catalog.createTable(
+            TableIdentifier.of("default", "hivetestorphan"),
+            SCHEMA,
+            SPEC,
+            tableLocation,
+            Maps.newHashMap());
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
 
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
@@ -801,35 +715,35 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     String location = table.location().replaceFirst("file:", "");
     new File(location + "/data/trashfile").createNewFile();
 
-    DeleteOrphanFiles.Result result = SparkActions.get().deleteOrphanFiles(table)
-        .olderThan(System.currentTimeMillis() + 1000).execute();
-    Assert.assertTrue("trash file should be removed",
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .olderThan(System.currentTimeMillis() + 1000)
+            .execute();
+    Assert.assertTrue(
+        "trash file should be removed",
         StreamSupport.stream(result.orphanFileLocations().spliterator(), false)
             .anyMatch(file -> file.contains("file:" + location + "data/trashfile")));
   }
 
   @Test
   public void testGarbageCollectionDisabled() {
-    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+    Table table =
+        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
-    List<ThreeColumnRecord> records = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
-    );
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
 
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
 
-    table.updateProperties()
-        .set(TableProperties.GC_ENABLED, "false")
-        .commit();
+    table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
 
-    AssertHelpers.assertThrows("Should complain about removing orphan files",
-        ValidationException.class, "Cannot delete orphan files: GC is disabled",
+    AssertHelpers.assertThrows(
+        "Should complain about removing orphan files",
+        ValidationException.class,
+        "Cannot delete orphan files: GC is disabled",
         () -> SparkActions.get().deleteOrphanFiles(table).execute());
   }
 
@@ -893,19 +807,21 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .withColumnRenamed("lastModified", "last_modified");
 
     DeleteOrphanFiles.Result result1 =
-        actions.deleteOrphanFiles(table)
+        actions
+            .deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
-            .deleteWith(s -> { })
+            .deleteWith(s -> {})
             .execute();
     Assert.assertTrue(
         "Default olderThan interval should be safe",
         Iterables.isEmpty(result1.orphanFileLocations()));
 
     DeleteOrphanFiles.Result result2 =
-        actions.deleteOrphanFiles(table)
+        actions
+            .deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
             .olderThan(System.currentTimeMillis())
-            .deleteWith(s -> { })
+            .deleteWith(s -> {})
             .execute();
     Assert.assertEquals(
         "Action should find 1 file", invalidFilePaths, result2.orphanFileLocations());
@@ -913,7 +829,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         "Invalid file should be present", fs.exists(new Path(invalidFilePaths.get(0))));
 
     DeleteOrphanFiles.Result result3 =
-        actions.deleteOrphanFiles(table)
+        actions
+            .deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
             .olderThan(System.currentTimeMillis())
             .execute();
@@ -941,9 +858,10 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .withColumnRenamed("lastModified", "last_modified");
 
     DeleteOrphanFiles.Result result4 =
-        actions.deleteOrphanFiles(table)
+        actions
+            .deleteOrphanFiles(table)
             .compareToFileList(compareToFileListWithOutsideLocation)
-            .deleteWith(s -> { })
+            .deleteWith(s -> {})
             .execute();
     Assert.assertEquals(
         "Action should find nothing", Lists.newArrayList(), result4.orphanFileLocations());
@@ -982,24 +900,28 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testPathsWithEqualSchemes() {
     List<String> validFiles = Lists.newArrayList("scheme1://bucket1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("scheme2://bucket1/dir1/dir2/file1");
-    AssertHelpers.assertThrows("Test remove orphan files with equal schemes",
+    AssertHelpers.assertThrows(
+        "Test remove orphan files with equal schemes",
         ValidationException.class,
         "Conflicting authorities/schemes: [(scheme1, scheme2)]",
-        () -> executeTest(validFiles,
-            actualFiles,
-            Lists.newArrayList(),
-            ImmutableMap.of(),
+        () ->
+            executeTest(
+                validFiles,
+                actualFiles,
+                Lists.newArrayList(),
                 ImmutableMap.of(),
-            DeleteOrphanFiles.PrefixMismatchMode.ERROR));
+                ImmutableMap.of(),
+                DeleteOrphanFiles.PrefixMismatchMode.ERROR));
 
     Map<String, String> equalSchemes = Maps.newHashMap();
     equalSchemes.put("scheme1", "scheme");
     equalSchemes.put("scheme2", "scheme");
-    executeTest(validFiles,
+    executeTest(
+        validFiles,
         actualFiles,
         Lists.newArrayList(),
         equalSchemes,
-            ImmutableMap.of(),
+        ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.ERROR);
   }
 
@@ -1007,23 +929,27 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testPathsWithEqualAuthorities() {
     List<String> validFiles = Lists.newArrayList("hdfs://servicename1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
-    AssertHelpers.assertThrows("Test remove orphan files with equal authorities",
+    AssertHelpers.assertThrows(
+        "Test remove orphan files with equal authorities",
         ValidationException.class,
         "Conflicting authorities/schemes: [(servicename1, servicename2)]",
-        () -> executeTest(validFiles,
-            actualFiles,
-            Lists.newArrayList(),
+        () ->
+            executeTest(
+                validFiles,
+                actualFiles,
+                Lists.newArrayList(),
                 ImmutableMap.of(),
                 ImmutableMap.of(),
-            DeleteOrphanFiles.PrefixMismatchMode.ERROR));
+                DeleteOrphanFiles.PrefixMismatchMode.ERROR));
 
     Map<String, String> equalAuthorities = Maps.newHashMap();
     equalAuthorities.put("servicename1", "servicename");
     equalAuthorities.put("servicename2", "servicename");
-    executeTest(validFiles,
+    executeTest(
+        validFiles,
         actualFiles,
         Lists.newArrayList(),
-            ImmutableMap.of(),
+        ImmutableMap.of(),
         equalAuthorities,
         DeleteOrphanFiles.PrefixMismatchMode.ERROR);
   }
@@ -1033,37 +959,39 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     List<String> validFiles = Lists.newArrayList("hdfs://servicename1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
 
-    executeTest(validFiles,
+    executeTest(
+        validFiles,
         actualFiles,
         Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1"),
-            ImmutableMap.of(),
-            ImmutableMap.of(),
+        ImmutableMap.of(),
+        ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.DELETE);
   }
 
-  private void executeTest(List<String> validFiles,
-                           List<String> actualFiles,
-                           List<String> expectedOrphanFiles) {
-    executeTest(validFiles, actualFiles, expectedOrphanFiles, ImmutableMap.of(), ImmutableMap.of(),
+  private void executeTest(
+      List<String> validFiles, List<String> actualFiles, List<String> expectedOrphanFiles) {
+    executeTest(
+        validFiles,
+        actualFiles,
+        expectedOrphanFiles,
+        ImmutableMap.of(),
+        ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.IGNORE);
   }
 
-  private void executeTest(List<String> validFiles,
-                           List<String> actualFiles,
-                           List<String> expectedOrphanFiles,
-                           Map<String, String> equalSchemes,
-                           Map<String, String> equalAuthorities,
-                           DeleteOrphanFiles.PrefixMismatchMode mode) {
+  private void executeTest(
+      List<String> validFiles,
+      List<String> actualFiles,
+      List<String> expectedOrphanFiles,
+      Map<String, String> equalSchemes,
+      Map<String, String> equalAuthorities,
+      DeleteOrphanFiles.PrefixMismatchMode mode) {
     Dataset<Row> validFilesDF = spark.createDataset(validFiles, Encoders.STRING()).toDF();
     Dataset<Row> actualFilesDF = spark.createDataset(actualFiles, Encoders.STRING()).toDF();
 
-    List<String> orphanFiles = DeleteOrphanFilesSparkAction.findOrphanFiles(
-        spark,
-        actualFilesDF,
-        validFilesDF,
-        equalSchemes,
-        equalAuthorities,
-        mode);
+    List<String> orphanFiles =
+        DeleteOrphanFilesSparkAction.findOrphanFiles(
+            spark, actualFilesDF, validFilesDF, equalSchemes, equalAuthorities, mode);
     Assert.assertEquals(expectedOrphanFiles, orphanFiles);
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.util.List;
@@ -37,8 +36,7 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 class SparkOrcValueWriters {
-  private SparkOrcValueWriters() {
-  }
+  private SparkOrcValueWriters() {}
 
   static OrcValueWriter<?> strings() {
     return StringWriter.INSTANCE;
@@ -60,8 +58,8 @@ class SparkOrcValueWriters {
     return new ListWriter<>(element, orcType);
   }
 
-  static OrcValueWriter<?> map(OrcValueWriter<?> keyWriter, OrcValueWriter<?> valueWriter,
-      List<TypeDescription> orcTypes) {
+  static OrcValueWriter<?> map(
+      OrcValueWriter<?> keyWriter, OrcValueWriter<?> valueWriter, List<TypeDescription> orcTypes) {
     return new MapWriter<>(keyWriter, valueWriter, orcTypes);
   }
 
@@ -73,7 +71,6 @@ class SparkOrcValueWriters {
       byte[] value = data.getBytes();
       ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
     }
-
   }
 
   private static class TimestampTzWriter implements OrcValueWriter<Long> {
@@ -85,7 +82,6 @@ class SparkOrcValueWriters {
       cv.time[rowId] = Math.floorDiv(micros, 1_000); // millis
       cv.nanos[rowId] = (int) Math.floorMod(micros, 1_000_000) * 1_000; // nanos
     }
-
   }
 
   private static class Decimal18Writer implements OrcValueWriter<Decimal> {
@@ -97,20 +93,18 @@ class SparkOrcValueWriters {
 
     @Override
     public void nonNullWrite(int rowId, Decimal decimal, ColumnVector output) {
-      ((DecimalColumnVector) output).vector[rowId].setFromLongAndScale(
-          decimal.toUnscaledLong(), scale);
+      ((DecimalColumnVector) output)
+          .vector[rowId].setFromLongAndScale(decimal.toUnscaledLong(), scale);
     }
-
   }
 
   private static class Decimal38Writer implements OrcValueWriter<Decimal> {
 
     @Override
     public void nonNullWrite(int rowId, Decimal decimal, ColumnVector output) {
-      ((DecimalColumnVector) output).vector[rowId].set(
-          HiveDecimal.create(decimal.toJavaBigDecimal()));
+      ((DecimalColumnVector) output)
+          .vector[rowId].set(HiveDecimal.create(decimal.toJavaBigDecimal()));
     }
-
   }
 
   private static class ListWriter<T> implements OrcValueWriter<ArrayData> {
@@ -120,10 +114,12 @@ class SparkOrcValueWriters {
     @SuppressWarnings("unchecked")
     ListWriter(OrcValueWriter<T> writer, List<TypeDescription> orcTypes) {
       if (orcTypes.size() != 1) {
-        throw new IllegalArgumentException("Expected one (and same) ORC type for list elements, got: " + orcTypes);
+        throw new IllegalArgumentException(
+            "Expected one (and same) ORC type for list elements, got: " + orcTypes);
       }
       this.writer = writer;
-      this.fieldGetter = (SparkOrcWriter.FieldGetter<T>) SparkOrcWriter.createFieldGetter(orcTypes.get(0));
+      this.fieldGetter =
+          (SparkOrcWriter.FieldGetter<T>) SparkOrcWriter.createFieldGetter(orcTypes.get(0));
     }
 
     @Override
@@ -145,7 +141,6 @@ class SparkOrcValueWriters {
     public Stream<FieldMetrics<?>> metrics() {
       return writer.metrics();
     }
-
   }
 
   private static class MapWriter<K, V> implements OrcValueWriter<MapData> {
@@ -155,14 +150,20 @@ class SparkOrcValueWriters {
     private final SparkOrcWriter.FieldGetter<V> valueFieldGetter;
 
     @SuppressWarnings("unchecked")
-    MapWriter(OrcValueWriter<K> keyWriter, OrcValueWriter<V> valueWriter, List<TypeDescription> orcTypes) {
+    MapWriter(
+        OrcValueWriter<K> keyWriter,
+        OrcValueWriter<V> valueWriter,
+        List<TypeDescription> orcTypes) {
       if (orcTypes.size() != 2) {
-        throw new IllegalArgumentException("Expected two ORC type descriptions for a map, got: " + orcTypes);
+        throw new IllegalArgumentException(
+            "Expected two ORC type descriptions for a map, got: " + orcTypes);
       }
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
-      this.keyFieldGetter = (SparkOrcWriter.FieldGetter<K>) SparkOrcWriter.createFieldGetter(orcTypes.get(0));
-      this.valueFieldGetter = (SparkOrcWriter.FieldGetter<V>) SparkOrcWriter.createFieldGetter(orcTypes.get(1));
+      this.keyFieldGetter =
+          (SparkOrcWriter.FieldGetter<K>) SparkOrcWriter.createFieldGetter(orcTypes.get(0));
+      this.valueFieldGetter =
+          (SparkOrcWriter.FieldGetter<V>) SparkOrcWriter.createFieldGetter(orcTypes.get(1));
     }
 
     @Override
@@ -189,7 +190,6 @@ class SparkOrcValueWriters {
     public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
-
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

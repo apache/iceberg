@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -40,13 +39,19 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
-  BaseRowReader(Table table, ScanTaskGroup<T> taskGroup, Schema expectedSchema, boolean caseSensitive) {
+  BaseRowReader(
+      Table table, ScanTaskGroup<T> taskGroup, Schema expectedSchema, boolean caseSensitive) {
     super(table, taskGroup, expectedSchema, caseSensitive);
   }
 
-  protected CloseableIterable<InternalRow> newIterable(InputFile file, FileFormat format, long start, long length,
-                                                       Expression residual, Schema projection,
-                                                       Map<Integer, ?> idToConstant) {
+  protected CloseableIterable<InternalRow> newIterable(
+      InputFile file,
+      FileFormat format,
+      long start,
+      long length,
+      Expression residual,
+      Schema projection,
+      Map<Integer, ?> idToConstant) {
     switch (format) {
       case PARQUET:
         return newParquetIterable(file, start, length, residual, projection, idToConstant);
@@ -62,8 +67,8 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
     }
   }
 
-  private CloseableIterable<InternalRow> newAvroIterable(InputFile file, long start, long length, Schema projection,
-                                                         Map<Integer, ?> idToConstant) {
+  private CloseableIterable<InternalRow> newAvroIterable(
+      InputFile file, long start, long length, Schema projection, Map<Integer, ?> idToConstant) {
     return Avro.read(file)
         .reuseContainers()
         .project(projection)
@@ -73,29 +78,41 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .build();
   }
 
-  private CloseableIterable<InternalRow> newParquetIterable(InputFile file, long start, long length,
-                                                            Expression residual, Schema readSchema,
-                                                            Map<Integer, ?> idToConstant) {
+  private CloseableIterable<InternalRow> newParquetIterable(
+      InputFile file,
+      long start,
+      long length,
+      Expression residual,
+      Schema readSchema,
+      Map<Integer, ?> idToConstant) {
     return Parquet.read(file)
         .reuseContainers()
         .split(start, length)
         .project(readSchema)
-        .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
+        .createReaderFunc(
+            fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
         .build();
   }
 
-  private CloseableIterable<InternalRow> newOrcIterable(InputFile file, long start, long length, Expression residual,
-                                                        Schema readSchema, Map<Integer, ?> idToConstant) {
-    Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
-        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+  private CloseableIterable<InternalRow> newOrcIterable(
+      InputFile file,
+      long start,
+      long length,
+      Expression residual,
+      Schema readSchema,
+      Map<Integer, ?> idToConstant) {
+    Schema readSchemaWithoutConstantAndMetadataFields =
+        TypeUtil.selectNot(
+            readSchema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
 
     return ORC.read(file)
         .project(readSchemaWithoutConstantAndMetadataFields)
         .split(start, length)
-        .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
+        .createReaderFunc(
+            readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())

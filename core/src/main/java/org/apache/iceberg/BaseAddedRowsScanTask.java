@@ -16,21 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-class BaseAddedRowsScanTask
-    extends BaseChangelogContentScanTask<AddedRowsScanTask, DataFile>
+class BaseAddedRowsScanTask extends BaseChangelogContentScanTask<AddedRowsScanTask, DataFile>
     implements AddedRowsScanTask {
 
   private final DeleteFile[] deletes;
 
-  BaseAddedRowsScanTask(int changeOrdinal, long commitSnapshotId, DataFile file, DeleteFile[] deletes,
-                        String schemaString, String specString, ResidualEvaluator residuals) {
+  BaseAddedRowsScanTask(
+      int changeOrdinal,
+      long commitSnapshotId,
+      DataFile file,
+      DeleteFile[] deletes,
+      String schemaString,
+      String specString,
+      ResidualEvaluator residuals) {
     super(changeOrdinal, commitSnapshotId, file, schemaString, specString, residuals);
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -27,13 +26,13 @@ import org.apache.iceberg.util.SnapshotUtil;
 
 public class MetadataLogsTable extends BaseMetadataTable {
 
-  private static final Schema METADATA_LOGS_SCHEMA = new Schema(
-      Types.NestedField.required(1, "timestamp_millis", Types.LongType.get()),
-      Types.NestedField.required(2, "file", Types.StringType.get()),
-      Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
-      Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),
-      Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get())
-  );
+  private static final Schema METADATA_LOGS_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "timestamp_millis", Types.LongType.get()),
+          Types.NestedField.required(2, "file", Types.StringType.get()),
+          Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
+          Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),
+          Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get()));
 
   MetadataLogsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".metadata_logs");
@@ -62,28 +61,40 @@ public class MetadataLogsTable extends BaseMetadataTable {
     TableOperations ops = operations();
     List<TableMetadata.MetadataLogEntry> metadataLogEntries =
         Lists.newArrayList(ops.current().previousFiles().listIterator());
-    metadataLogEntries.add(new TableMetadata.MetadataLogEntry(ops.current().lastUpdatedMillis(),
-        ops.current().metadataFileLocation()));
+    metadataLogEntries.add(
+        new TableMetadata.MetadataLogEntry(
+            ops.current().lastUpdatedMillis(), ops.current().metadataFileLocation()));
     return StaticDataTask.of(
         ops.io().newInputFile(ops.current().metadataFileLocation()),
         schema(),
         scan.schema(),
         metadataLogEntries,
-        metadataLogEntry -> MetadataLogsTable.metadataLogToRow(metadataLogEntry, table())
-    );
+        metadataLogEntry -> MetadataLogsTable.metadataLogToRow(metadataLogEntry, table()));
   }
 
   private class MetadataLogScan extends StaticTableScan {
     MetadataLogScan(TableOperations ops, Table table) {
-      super(ops, table, METADATA_LOGS_SCHEMA, MetadataTableType.METADATA_LOGS, MetadataLogsTable.this::task);
+      super(
+          ops,
+          table,
+          METADATA_LOGS_SCHEMA,
+          MetadataTableType.METADATA_LOGS,
+          MetadataLogsTable.this::task);
     }
 
     MetadataLogScan(TableOperations ops, Table table, TableScanContext context) {
-      super(ops, table, METADATA_LOGS_SCHEMA, MetadataTableType.METADATA_LOGS, MetadataLogsTable.this::task, context);
+      super(
+          ops,
+          table,
+          METADATA_LOGS_SCHEMA,
+          MetadataTableType.METADATA_LOGS,
+          MetadataLogsTable.this::task,
+          context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new MetadataLogScan(ops, table, context);
     }
 
@@ -93,7 +104,8 @@ public class MetadataLogsTable extends BaseMetadataTable {
     }
   }
 
-  private static StaticDataTask.Row metadataLogToRow(TableMetadata.MetadataLogEntry metadataLogEntry, Table table) {
+  private static StaticDataTask.Row metadataLogToRow(
+      TableMetadata.MetadataLogEntry metadataLogEntry, Table table) {
     Long latestSnapshotId = null;
     Snapshot latestSnapshot = null;
     try {
@@ -109,7 +121,6 @@ public class MetadataLogsTable extends BaseMetadataTable {
         // latest snapshot in this file corresponding to the log entry
         latestSnapshotId,
         latestSnapshot != null ? latestSnapshot.schemaId() : null,
-        latestSnapshot != null ? latestSnapshot.sequenceNumber() : null
-    );
+        latestSnapshot != null ? latestSnapshot.sequenceNumber() : null);
   }
 }

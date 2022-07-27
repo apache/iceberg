@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
@@ -61,8 +60,14 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private StructType eqDeleteSparkType = null;
   private StructType posDeleteSparkType = null;
 
-  SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
-                       int[] equalityFieldIds, Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
+  SparkAppenderFactory(
+      Map<String, String> properties,
+      Schema writeSchema,
+      StructType dsSchema,
+      PartitionSpec spec,
+      int[] equalityFieldIds,
+      Schema eqDeleteRowSchema,
+      Schema posDeleteRowSchema) {
     this.properties = properties;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
@@ -84,7 +89,6 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     private int[] equalityFieldIds;
     private Schema eqDeleteRowSchema;
     private Schema posDeleteRowSchema;
-
 
     Builder(Table table, Schema writeSchema, StructType dsSchema) {
       this.table = table;
@@ -118,16 +122,24 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
       Preconditions.checkNotNull(writeSchema, "Write Schema must not be null");
       Preconditions.checkNotNull(dsSchema, "DS Schema must not be null");
       if (equalityFieldIds != null) {
-        Preconditions.checkNotNull(eqDeleteRowSchema, "Equality Field Ids and Equality Delete Row Schema" +
-            " must be set together");
+        Preconditions.checkNotNull(
+            eqDeleteRowSchema,
+            "Equality Field Ids and Equality Delete Row Schema" + " must be set together");
       }
       if (eqDeleteRowSchema != null) {
-        Preconditions.checkNotNull(equalityFieldIds, "Equality Field Ids and Equality Delete Row Schema" +
-            " must be set together");
+        Preconditions.checkNotNull(
+            equalityFieldIds,
+            "Equality Field Ids and Equality Delete Row Schema" + " must be set together");
       }
 
-      return new SparkAppenderFactory(table.properties(), writeSchema, dsSchema, spec, equalityFieldIds,
-          eqDeleteRowSchema, posDeleteRowSchema);
+      return new SparkAppenderFactory(
+          table.properties(),
+          writeSchema,
+          dsSchema,
+          spec,
+          equalityFieldIds,
+          eqDeleteRowSchema,
+          posDeleteRowSchema);
     }
   }
 
@@ -141,7 +153,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   private StructType lazyPosDeleteSparkType() {
     if (posDeleteSparkType == null) {
-      Preconditions.checkNotNull(posDeleteRowSchema, "Position delete row schema shouldn't be null");
+      Preconditions.checkNotNull(
+          posDeleteRowSchema, "Position delete row schema shouldn't be null");
       this.posDeleteSparkType = SparkSchemaUtil.convert(posDeleteRowSchema);
     }
     return posDeleteSparkType;
@@ -187,24 +200,33 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   }
 
   @Override
-  public DataWriter<InternalRow> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    return new DataWriter<>(newAppender(file.encryptingOutputFile(), format), format,
-        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
+  public DataWriter<InternalRow> newDataWriter(
+      EncryptedOutputFile file, FileFormat format, StructLike partition) {
+    return new DataWriter<>(
+        newAppender(file.encryptingOutputFile(), format),
+        format,
+        file.encryptingOutputFile().location(),
+        spec,
+        partition,
+        file.keyMetadata());
   }
 
   @Override
-  public EqualityDeleteWriter<InternalRow> newEqDeleteWriter(EncryptedOutputFile file, FileFormat format,
-                                                             StructLike partition) {
-    Preconditions.checkState(equalityFieldIds != null && equalityFieldIds.length > 0,
+  public EqualityDeleteWriter<InternalRow> newEqDeleteWriter(
+      EncryptedOutputFile file, FileFormat format, StructLike partition) {
+    Preconditions.checkState(
+        equalityFieldIds != null && equalityFieldIds.length > 0,
         "Equality field ids shouldn't be null or empty when creating equality-delete writer");
-    Preconditions.checkNotNull(eqDeleteRowSchema,
+    Preconditions.checkNotNull(
+        eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
 
     try {
       switch (format) {
         case PARQUET:
           return Parquet.writeDeletes(file.encryptingOutputFile())
-              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(lazyEqDeleteSparkType(), msgType))
+              .createWriterFunc(
+                  msgType -> SparkParquetWriters.buildWriter(lazyEqDeleteSparkType(), msgType))
               .overwrite()
               .rowSchema(eqDeleteRowSchema)
               .withSpec(spec)
@@ -245,15 +267,16 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   }
 
   @Override
-  public PositionDeleteWriter<InternalRow> newPosDeleteWriter(EncryptedOutputFile file, FileFormat format,
-                                                              StructLike partition) {
+  public PositionDeleteWriter<InternalRow> newPosDeleteWriter(
+      EncryptedOutputFile file, FileFormat format, StructLike partition) {
     try {
       switch (format) {
         case PARQUET:
           StructType sparkPosDeleteSchema =
               SparkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
           return Parquet.writeDeletes(file.encryptingOutputFile())
-              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(sparkPosDeleteSchema, msgType))
+              .createWriterFunc(
+                  msgType -> SparkParquetWriters.buildWriter(sparkPosDeleteSchema, msgType))
               .overwrite()
               .rowSchema(posDeleteRowSchema)
               .withSpec(spec)

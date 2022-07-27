@@ -16,23 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-class BaseDeletedRowsScanTask
-    extends BaseChangelogContentScanTask<DeletedRowsScanTask, DataFile>
+class BaseDeletedRowsScanTask extends BaseChangelogContentScanTask<DeletedRowsScanTask, DataFile>
     implements DeletedRowsScanTask {
 
   private final DeleteFile[] addedDeletes;
   private final DeleteFile[] existingDeletes;
 
-  BaseDeletedRowsScanTask(int changeOrdinal, long commitSnapshotId, DataFile file,
-                          DeleteFile[] addedDeletes, DeleteFile[] existingDeletes,
-                          String schemaString, String specString, ResidualEvaluator residuals) {
+  BaseDeletedRowsScanTask(
+      int changeOrdinal,
+      long commitSnapshotId,
+      DataFile file,
+      DeleteFile[] addedDeletes,
+      DeleteFile[] existingDeletes,
+      String schemaString,
+      String specString,
+      ResidualEvaluator residuals) {
     super(changeOrdinal, commitSnapshotId, file, schemaString, specString, residuals);
     this.addedDeletes = addedDeletes != null ? addedDeletes : new DeleteFile[0];
     this.existingDeletes = existingDeletes != null ? existingDeletes : new DeleteFile[0];
@@ -44,7 +48,8 @@ class BaseDeletedRowsScanTask
   }
 
   @Override
-  protected DeletedRowsScanTask newSplitTask(DeletedRowsScanTask parentTask, long offset, long length) {
+  protected DeletedRowsScanTask newSplitTask(
+      DeletedRowsScanTask parentTask, long offset, long length) {
     return new SplitDeletedRowsScanTask(parentTask, offset, length);
   }
 

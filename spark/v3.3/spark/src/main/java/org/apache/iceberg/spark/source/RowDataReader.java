@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -35,7 +34,8 @@ import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 class RowDataReader extends BaseRowReader<FileScanTask> {
-  RowDataReader(ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive) {
+  RowDataReader(
+      ScanTaskGroup<FileScanTask> task, Table table, Schema expectedSchema, boolean caseSensitive) {
     super(table, task, expectedSchema, caseSensitive);
   }
 
@@ -59,13 +59,21 @@ class RowDataReader extends BaseRowReader<FileScanTask> {
     return deleteFilter.filter(open(task, requiredSchema, idToConstant)).iterator();
   }
 
-  protected CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
+  protected CloseableIterable<InternalRow> open(
+      FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
     if (task.isDataTask()) {
       return newDataIterable(task.asDataTask(), readSchema);
     } else {
       InputFile inputFile = getInputFile(task.file().path().toString());
-      Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
-      return newIterable(inputFile, task.file().format(), task.start(), task.length(), task.residual(), readSchema,
+      Preconditions.checkNotNull(
+          inputFile, "Could not find InputFile associated with FileScanTask");
+      return newIterable(
+          inputFile,
+          task.file().format(),
+          task.start(),
+          task.length(),
+          task.residual(),
+          readSchema,
           idToConstant);
     }
   }

@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,21 +33,18 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @RunWith(Parameterized.class)
 public class TestPartitionSpecInfo {
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
-  private final Schema schema = new Schema(
-      required(1, "id", Types.IntegerType.get()),
-      required(2, "data", Types.StringType.get()));
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  private final Schema schema =
+      new Schema(
+          required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
   private File tableDir = null;
 
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   private final int formatVersion;
@@ -89,24 +87,21 @@ public class TestPartitionSpecInfo {
 
   @Test
   public void testSpecInfoPartitionSpecEvolutionForV1Table() {
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .bucket("data", 4)
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 4).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
 
     Assert.assertEquals(spec, table.spec());
 
     TableMetadata base = TestTables.readMetadata("test");
-    PartitionSpec newSpec = PartitionSpec.builderFor(table.schema())
-        .bucket("data", 10)
-        .withSpecId(1)
-        .build();
+    PartitionSpec newSpec =
+        PartitionSpec.builderFor(table.schema()).bucket("data", 10).withSpecId(1).build();
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
     Assert.assertEquals(newSpec, table.spec());
     Assert.assertEquals(newSpec, table.specs().get(newSpec.specId()));
     Assert.assertEquals(spec, table.specs().get(spec.specId()));
-    Assert.assertEquals(ImmutableMap.of(spec.specId(), spec, newSpec.specId(), newSpec), table.specs());
+    Assert.assertEquals(
+        ImmutableMap.of(spec.specId(), spec, newSpec.specId(), newSpec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
   }
 }

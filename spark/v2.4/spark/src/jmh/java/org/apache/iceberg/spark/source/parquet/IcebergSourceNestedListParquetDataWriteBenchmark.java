@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet;
+
+import static org.apache.spark.sql.functions.array_repeat;
+import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.struct;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,22 +36,18 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.spark.sql.functions.array_repeat;
-import static org.apache.spark.sql.functions.expr;
-import static org.apache.spark.sql.functions.struct;
-
 /**
- * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg
- * and the built-in file source in Spark.
+ * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg and the
+ * built-in file source in Spark.
  *
- * To run this benchmark for spark-2.4:
- * <code>
+ * <p>To run this benchmark for spark-2.4: <code>
  *   ./gradlew -DsparkVersions=2.4 :iceberg-spark:iceberg-spark-2.4:jmh
  *       -PjmhIncludeRegex=IcebergSourceNestedListParquetDataWriteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-nested-list-parquet-data-write-benchmark-result.txt
  * </code>
  */
-public class IcebergSourceNestedListParquetDataWriteBenchmark extends IcebergSourceNestedListDataBenchmark {
+public class IcebergSourceNestedListParquetDataWriteBenchmark
+    extends IcebergSourceNestedListDataBenchmark {
 
   @Setup
   public void setupBenchmark() {
@@ -80,10 +79,11 @@ public class IcebergSourceNestedListParquetDataWriteBenchmark extends IcebergSou
   }
 
   private Dataset<Row> benchmarkData() {
-    return spark().range(numRows)
-        .withColumn("outerlist", array_repeat(struct(
-            expr("array_repeat(CAST(id AS string), 1000) AS innerlist")),
-            10))
+    return spark()
+        .range(numRows)
+        .withColumn(
+            "outerlist",
+            array_repeat(struct(expr("array_repeat(CAST(id AS string), 1000) AS innerlist")), 10))
         .coalesce(1);
   }
 }

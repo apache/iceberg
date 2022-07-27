@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
@@ -406,14 +405,22 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         T lower = min(colStats, id);
-        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
-        if (literals.isEmpty()) {  // if all values are less than lower bound, rows cannot match.
+        literals =
+            literals.stream()
+                .filter(v -> ref.comparator().compare(lower, v) <= 0)
+                .collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
 
         T upper = max(colStats, id);
-        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
-        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
+        literals =
+            literals.stream()
+                .filter(v -> ref.comparator().compare(upper, v) >= 0)
+                .collect(Collectors.toList());
+        if (literals
+            .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot
+          // match.
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -456,7 +463,9 @@ public class ParquetMetricsRowGroupFilter {
         Binary lower = colStats.genericGetMin();
         // truncate lower bound so that its length in bytes is not greater than the length of prefix
         int lowerLength = Math.min(prefixAsBytes.remaining(), lower.length());
-        int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), lowerLength), prefixAsBytes);
+        int lowerCmp =
+            comparator.compare(
+                BinaryUtil.truncateBinary(lower.toByteBuffer(), lowerLength), prefixAsBytes);
         if (lowerCmp > 0) {
           return ROWS_CANNOT_MATCH;
         }
@@ -464,7 +473,9 @@ public class ParquetMetricsRowGroupFilter {
         Binary upper = colStats.genericGetMax();
         // truncate upper bound so that its length in bytes is not greater than the length of prefix
         int upperLength = Math.min(prefixAsBytes.remaining(), upper.length());
-        int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper.toByteBuffer(), upperLength), prefixAsBytes);
+        int upperCmp =
+            comparator.compare(
+                BinaryUtil.truncateBinary(upper.toByteBuffer(), upperLength), prefixAsBytes);
         if (upperCmp < 0) {
           return ROWS_CANNOT_MATCH;
         }
@@ -497,7 +508,8 @@ public class ParquetMetricsRowGroupFilter {
         Binary lower = colStats.genericGetMin();
         Binary upper = colStats.genericGetMax();
 
-        // notStartsWith will match unless all values must start with the prefix. this happens when the lower and upper
+        // notStartsWith will match unless all values must start with the prefix. this happens when
+        // the lower and upper
         // bounds both start with the prefix.
         if (lower != null && upper != null) {
           ByteBuffer prefix = lit.toByteBuffer();
@@ -509,7 +521,9 @@ public class ParquetMetricsRowGroupFilter {
           }
 
           // truncate lower bound to the prefix and check for equality
-          int cmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), prefix.remaining()), prefix);
+          int cmp =
+              comparator.compare(
+                  BinaryUtil.truncateBinary(lower.toByteBuffer(), prefix.remaining()), prefix);
           if (cmp == 0) {
             // the lower bound starts with the prefix; check the upper bound
             // if upper is shorter than the prefix, it can't start with the prefix
@@ -517,10 +531,14 @@ public class ParquetMetricsRowGroupFilter {
               return ROWS_MIGHT_MATCH;
             }
 
-            // truncate upper bound so that its length in bytes is not greater than the length of prefix
-            cmp = comparator.compare(BinaryUtil.truncateBinary(upper.toByteBuffer(), prefix.remaining()), prefix);
+            // truncate upper bound so that its length in bytes is not greater than the length of
+            // prefix
+            cmp =
+                comparator.compare(
+                    BinaryUtil.truncateBinary(upper.toByteBuffer(), prefix.remaining()), prefix);
             if (cmp == 0) {
-              // both bounds match the prefix, so all rows must match the prefix and none do not match
+              // both bounds match the prefix, so all rows must match the prefix and none do not
+              // match
               return ROWS_CANNOT_MATCH;
             }
           }
@@ -542,23 +560,24 @@ public class ParquetMetricsRowGroupFilter {
   }
 
   /**
-   * Checks against older versions of Parquet statistics which may have a null count but undefined min and max
-   * statistics. Returns true if nonNull values exist in the row group but no further statistics are available.
-   * <p>
-   * We can't use {@code  statistics.hasNonNullValue()} because it is inaccurate with older files and will return
-   * false if min and max are not set.
-   * <p>
-   * This is specifically for 1.5.0-CDH Parquet builds and later which contain the different unusual hasNonNull
-   * behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits the reading of these statistics
-   * from versions of Parquet earlier than 1.8.0.
+   * Checks against older versions of Parquet statistics which may have a null count but undefined
+   * min and max statistics. Returns true if nonNull values exist in the row group but no further
+   * statistics are available.
+   *
+   * <p>We can't use {@code statistics.hasNonNullValue()} because it is inaccurate with older files
+   * and will return false if min and max are not set.
+   *
+   * <p>This is specifically for 1.5.0-CDH Parquet builds and later which contain the different
+   * unusual hasNonNull behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits
+   * the reading of these statistics from versions of Parquet earlier than 1.8.0.
    *
    * @param statistics Statistics to check
    * @param valueCount Number of values in the row group
    * @return true if nonNull values exist and no other stats can be used
    */
   static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
-    return statistics.getNumNulls() < valueCount &&
-        (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
+    return statistics.getNumNulls() < valueCount
+        && (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
   }
 
   private static boolean mayContainNull(Statistics statistics) {

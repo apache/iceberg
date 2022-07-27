@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import org.apache.iceberg.Schema;
@@ -36,8 +35,8 @@ class FlinkFixupTypes extends FixupTypes {
   }
 
   static Schema fixup(Schema schema, Schema referenceSchema) {
-    return new Schema(TypeUtil.visit(schema,
-        new FlinkFixupTypes(referenceSchema)).asStructType().fields());
+    return new Schema(
+        TypeUtil.visit(schema, new FlinkFixupTypes(referenceSchema)).asStructType().fields());
   }
 
   @Override

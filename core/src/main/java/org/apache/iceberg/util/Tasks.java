@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Arrays;
@@ -42,8 +41,7 @@ import org.slf4j.LoggerFactory;
 public class Tasks {
   private static final Logger LOG = LoggerFactory.getLogger(Tasks.class);
 
-  private Tasks() {
-  }
+  private Tasks() {}
 
   public static class UnrecoverableException extends RuntimeException {
     public UnrecoverableException(String message) {
@@ -79,15 +77,15 @@ public class Tasks {
     private boolean stopAbortsOnFailure = false;
 
     // retry settings
-    private List<Class<? extends Exception>> stopRetryExceptions = Lists.newArrayList(
-        UnrecoverableException.class);
+    private List<Class<? extends Exception>> stopRetryExceptions =
+        Lists.newArrayList(UnrecoverableException.class);
     private List<Class<? extends Exception>> onlyRetryExceptions = null;
     private Predicate<Exception> shouldRetryPredicate = null;
-    private int maxAttempts = 1;          // not all operations can be retried
-    private long minSleepTimeMs = 1000;   // 1 second
+    private int maxAttempts = 1; // not all operations can be retried
+    private long minSleepTimeMs = 1000; // 1 second
     private long maxSleepTimeMs = 600000; // 10 minutes
-    private long maxDurationMs = 600000;  // 10 minutes
-    private double scaleFactor = 2.0;     // exponential
+    private long maxDurationMs = 600000; // 10 minutes
+    private double scaleFactor = 2.0; // exponential
 
     public Builder(Iterable<I> items) {
       this.items = items;
@@ -175,10 +173,11 @@ public class Tasks {
       return this;
     }
 
-    public Builder<I> exponentialBackoff(long backoffMinSleepTimeMs,
-                                         long backoffMaxSleepTimeMs,
-                                         long backoffMaxRetryTimeMs,
-                                         double backoffScaleFactor) {
+    public Builder<I> exponentialBackoff(
+        long backoffMinSleepTimeMs,
+        long backoffMaxSleepTimeMs,
+        long backoffMaxRetryTimeMs,
+        double backoffScaleFactor) {
       this.minSleepTimeMs = backoffMinSleepTimeMs;
       this.maxSleepTimeMs = backoffMaxSleepTimeMs;
       this.maxDurationMs = backoffMaxRetryTimeMs;
@@ -190,8 +189,7 @@ public class Tasks {
       return run(task, RuntimeException.class);
     }
 
-    public <E extends Exception> boolean run(Task<I, E> task,
-                                             Class<E> exceptionClass) throws E {
+    public <E extends Exception> boolean run(Task<I, E> task, Class<E> exceptionClass) throws E {
       if (service != null) {
         return runParallel(task, exceptionClass);
       } else {
@@ -270,8 +268,7 @@ public class Tasks {
       if (throwFailureWhenFinished && !exceptions.isEmpty()) {
         Tasks.throwOne(exceptions, exceptionClass);
       } else if (throwFailureWhenFinished && threw) {
-        throw new RuntimeException(
-            "Task set failed with an uncaught throwable");
+        throw new RuntimeException("Task set failed with an uncaught throwable");
       }
 
       return !threw;
@@ -287,9 +284,8 @@ public class Tasks {
       }
     }
 
-    private <E extends Exception> boolean runParallel(final Task<I, E> task,
-                                                      Class<E> exceptionClass)
-        throws E {
+    private <E extends Exception> boolean runParallel(
+        final Task<I, E> task, Class<E> exceptionClass) throws E {
       final Queue<I> succeeded = new ConcurrentLinkedQueue<>();
       final Queue<Throwable> exceptions = new ConcurrentLinkedQueue<>();
       final AtomicBoolean taskFailed = new AtomicBoolean(false);
@@ -300,53 +296,55 @@ public class Tasks {
 
       for (final I item : items) {
         // submit a task for each item that will either run or abort the task
-        futures.add(service.submit(new Runnable() {
-          @Override
-          public void run() {
-            if (!(stopOnFailure && taskFailed.get())) {
-              // run the task with retries
-              boolean threw = true;
-              try {
-                runTaskWithRetry(task, item);
+        futures.add(
+            service.submit(
+                new Runnable() {
+                  @Override
+                  public void run() {
+                    if (!(stopOnFailure && taskFailed.get())) {
+                      // run the task with retries
+                      boolean threw = true;
+                      try {
+                        runTaskWithRetry(task, item);
 
-                succeeded.add(item);
+                        succeeded.add(item);
 
-                threw = false;
+                        threw = false;
 
-              } catch (Exception e) {
-                taskFailed.set(true);
-                exceptions.add(e);
+                      } catch (Exception e) {
+                        taskFailed.set(true);
+                        exceptions.add(e);
 
-                if (onFailure != null) {
-                  tryRunOnFailure(item, e);
-                }
-              } finally {
-                if (threw) {
-                  taskFailed.set(true);
-                }
-              }
+                        if (onFailure != null) {
+                          tryRunOnFailure(item, e);
+                        }
+                      } finally {
+                        if (threw) {
+                          taskFailed.set(true);
+                        }
+                      }
 
-            } else if (abortTask != null) {
-              // abort the task instead of running it
-              if (stopAbortsOnFailure && abortFailed.get()) {
-                return;
-              }
+                    } else if (abortTask != null) {
+                      // abort the task instead of running it
+                      if (stopAbortsOnFailure && abortFailed.get()) {
+                        return;
+                      }
 
-              boolean failed = true;
-              try {
-                abortTask.run(item);
-                failed = false;
-              } catch (Exception e) {
-                LOG.error("Failed to abort task", e);
-                // swallow the exception
-              } finally {
-                if (failed) {
-                  abortFailed.set(true);
-                }
-              }
-            }
-          }
-        }));
+                      boolean failed = true;
+                      try {
+                        abortTask.run(item);
+                        failed = false;
+                      } catch (Exception e) {
+                        LOG.error("Failed to abort task", e);
+                        // swallow the exception
+                      } finally {
+                        if (failed) {
+                          abortFailed.set(true);
+                        }
+                      }
+                    }
+                  }
+                }));
       }
 
       // let the above tasks complete (or abort)
@@ -356,27 +354,29 @@ public class Tasks {
       if (taskFailed.get() && revertTask != null) {
         // at least one task failed, revert any that succeeded
         for (final I item : succeeded) {
-          futures.add(service.submit(new Runnable() {
-            @Override
-            public void run() {
-              if (stopRevertsOnFailure && revertFailed.get()) {
-                return;
-              }
+          futures.add(
+              service.submit(
+                  new Runnable() {
+                    @Override
+                    public void run() {
+                      if (stopRevertsOnFailure && revertFailed.get()) {
+                        return;
+                      }
 
-              boolean failed = true;
-              try {
-                revertTask.run(item);
-                failed = false;
-              } catch (Exception e) {
-                LOG.error("Failed to revert task", e);
-                // swallow the exception
-              } finally {
-                if (failed) {
-                  revertFailed.set(true);
-                }
-              }
-            }
-          }));
+                      boolean failed = true;
+                      try {
+                        revertTask.run(item);
+                        failed = false;
+                      } catch (Exception e) {
+                        LOG.error("Failed to revert task", e);
+                        // swallow the exception
+                      } finally {
+                        if (failed) {
+                          revertFailed.set(true);
+                        }
+                      }
+                    }
+                  }));
         }
 
         // let the revert tasks complete
@@ -386,16 +386,14 @@ public class Tasks {
       if (throwFailureWhenFinished && !exceptions.isEmpty()) {
         Tasks.throwOne(exceptions, exceptionClass);
       } else if (throwFailureWhenFinished && taskFailed.get()) {
-        throw new RuntimeException(
-            "Task set failed with an uncaught throwable");
+        throw new RuntimeException("Task set failed with an uncaught throwable");
       }
 
       return !taskFailed.get();
     }
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    private <E extends Exception> void runTaskWithRetry(Task<I, E> task, I item)
-        throws E {
+    private <E extends Exception> void runTaskWithRetry(Task<I, E> task, I item) throws E {
       long start = System.currentTimeMillis();
       int attempt = 0;
       while (true) {
@@ -440,11 +438,9 @@ public class Tasks {
             }
           }
 
-          int delayMs = (int) Math.min(
-              minSleepTimeMs * Math.pow(scaleFactor, attempt - 1),
-              maxSleepTimeMs);
-          int jitter = ThreadLocalRandom.current()
-              .nextInt(Math.max(1, (int) (delayMs * 0.1)));
+          int delayMs =
+              (int) Math.min(minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), maxSleepTimeMs);
+          int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMs * 0.1)));
 
           LOG.warn("Retrying task after failure: {}", e.getMessage(), e);
 
@@ -522,9 +518,7 @@ public class Tasks {
     }
   }
 
-  /**
-   * A range, [ 0, size )
-   */
+  /** A range, [ 0, size ) */
   private static class Range implements Iterable<Integer> {
     private int size;
 
@@ -589,5 +583,4 @@ public class Tasks {
 
     ExceptionUtil.castAndThrow(exception, allowedException);
   }
-
 }

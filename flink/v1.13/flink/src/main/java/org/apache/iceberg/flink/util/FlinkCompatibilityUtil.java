@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.util;
 
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -26,14 +25,12 @@ import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.table.types.logical.RowType;
 
 /**
- * This is a small util class that try to hide calls to Flink
- * Internal or PublicEvolve interfaces as Flink can change
- * those APIs during minor version release.
+ * This is a small util class that try to hide calls to Flink Internal or PublicEvolve interfaces as
+ * Flink can change those APIs during minor version release.
  */
 public class FlinkCompatibilityUtil {
 
-  private FlinkCompatibilityUtil() {
-  }
+  private FlinkCompatibilityUtil() {}
 
   public static TypeInformation<RowData> toTypeInfo(RowType rowType) {
     return InternalTypeInfo.of(rowType);

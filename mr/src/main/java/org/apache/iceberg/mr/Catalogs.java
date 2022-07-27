@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr;
 
 import java.util.Map;
@@ -43,27 +42,30 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 
 /**
  * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
- * <p>
- * If the catalog name is provided, get the catalog type from iceberg.catalog.<code>catalogName</code>.type config.
- * <p>
- * In case the catalog name is {@link #ICEBERG_HADOOP_TABLE_NAME location_based_table},
- * type is ignored and tables will be loaded using {@link HadoopTables}.
- * <p>
- * In case the value of catalog type is null, iceberg.catalog.<code>catalogName</code>.catalog-impl config
- * is used to determine the catalog implementation class.
- * <p>
- * If catalog name is null, get the catalog type from {@link InputFormatConfig#CATALOG iceberg.mr.catalog} config:
+ *
+ * <p>If the catalog name is provided, get the catalog type from iceberg.catalog.<code>catalogName
+ * </code>.type config.
+ *
+ * <p>In case the catalog name is {@link #ICEBERG_HADOOP_TABLE_NAME location_based_table}, type is
+ * ignored and tables will be loaded using {@link HadoopTables}.
+ *
+ * <p>In case the value of catalog type is null, iceberg.catalog.<code>catalogName</code>
+ * .catalog-impl config is used to determine the catalog implementation class.
+ *
+ * <p>If catalog name is null, get the catalog type from {@link InputFormatConfig#CATALOG
+ * iceberg.mr.catalog} config:
+ *
  * <ul>
- *   <li>hive: HiveCatalog</li>
- *   <li>location: HadoopTables</li>
- *   <li>hadoop: HadoopCatalog</li>
+ *   <li>hive: HiveCatalog
+ *   <li>location: HadoopTables
+ *   <li>hadoop: HadoopCatalog
  * </ul>
- * <p>
- * In case the value of catalog type is null,
- * {@link InputFormatConfig#CATALOG_LOADER_CLASS iceberg.mr.catalog.loader.class} is used to determine
- * the catalog implementation class.
- * <p>
- * Note: null catalog name mode is only supported for backwards compatibility. Using this mode is NOT RECOMMENDED.
+ *
+ * <p>In case the value of catalog type is null, {@link InputFormatConfig#CATALOG_LOADER_CLASS
+ * iceberg.mr.catalog.loader.class} is used to determine the catalog implementation class.
+ *
+ * <p>Note: null catalog name mode is only supported for backwards compatibility. Using this mode is
+ * NOT RECOMMENDED.
  */
 public final class Catalogs {
 
@@ -74,40 +76,53 @@ public final class Catalogs {
 
   private static final String NO_CATALOG_TYPE = "no catalog";
   private static final Set<String> PROPERTIES_TO_REMOVE =
-      ImmutableSet.of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, LOCATION, NAME,
-              InputFormatConfig.CATALOG_NAME);
+      ImmutableSet.of(
+          InputFormatConfig.TABLE_SCHEMA,
+          InputFormatConfig.PARTITION_SPEC,
+          LOCATION,
+          NAME,
+          InputFormatConfig.CATALOG_NAME);
 
-  private Catalogs() {
-  }
+  private Catalogs() {}
 
   /**
-   * Load an Iceberg table using the catalog and table identifier (or table path) specified by the configuration.
+   * Load an Iceberg table using the catalog and table identifier (or table path) specified by the
+   * configuration.
+   *
    * @param conf a Hadoop conf
    * @return an Iceberg table
    */
   public static Table loadTable(Configuration conf) {
-    return loadTable(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER), conf.get(InputFormatConfig.TABLE_LOCATION),
-            conf.get(InputFormatConfig.CATALOG_NAME));
+    return loadTable(
+        conf,
+        conf.get(InputFormatConfig.TABLE_IDENTIFIER),
+        conf.get(InputFormatConfig.TABLE_LOCATION),
+        conf.get(InputFormatConfig.CATALOG_NAME));
   }
 
   /**
    * Load an Iceberg table using the catalog specified by the configuration.
-   * <p>
-   * The table identifier ({@link Catalogs#NAME}) and the catalog name ({@link InputFormatConfig#CATALOG_NAME}),
-   * or table path ({@link Catalogs#LOCATION}) should be specified by the controlling properties.
-   * <p>
-   * Used by HiveIcebergSerDe and HiveIcebergStorageHandler
+   *
+   * <p>The table identifier ({@link Catalogs#NAME}) and the catalog name ({@link
+   * InputFormatConfig#CATALOG_NAME}), or table path ({@link Catalogs#LOCATION}) should be specified
+   * by the controlling properties.
+   *
+   * <p>Used by HiveIcebergSerDe and HiveIcebergStorageHandler
+   *
    * @param conf a Hadoop
    * @param props the controlling properties
    * @return an Iceberg table
    */
   public static Table loadTable(Configuration conf, Properties props) {
-    return loadTable(conf, props.getProperty(NAME), props.getProperty(LOCATION),
-            props.getProperty(InputFormatConfig.CATALOG_NAME));
+    return loadTable(
+        conf,
+        props.getProperty(NAME),
+        props.getProperty(LOCATION),
+        props.getProperty(InputFormatConfig.CATALOG_NAME));
   }
 
-  private static Table loadTable(Configuration conf, String tableIdentifier, String tableLocation,
-                                 String catalogName) {
+  private static Table loadTable(
+      Configuration conf, String tableIdentifier, String tableLocation, String catalogName) {
     Optional<Catalog> catalog = loadCatalog(conf, catalogName);
 
     if (catalog.isPresent()) {
@@ -121,16 +136,20 @@ public final class Catalogs {
 
   /**
    * Creates an Iceberg table using the catalog specified by the configuration.
-   * <p>
-   * The properties should contain the following values:
+   *
+   * <p>The properties should contain the following values:
+   *
    * <ul>
-   * <li>Table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) is required
-   * <li>Table schema ({@link InputFormatConfig#TABLE_SCHEMA}) is required
-   * <li>Partition specification ({@link InputFormatConfig#PARTITION_SPEC}) is optional. Table will be unpartitioned if
-   *  not provided
-   * </ul><p>
-   * Other properties will be handled over to the Table creation. The controlling properties above will not be
-   * propagated.
+   *   <li>Table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) is
+   *       required
+   *   <li>Table schema ({@link InputFormatConfig#TABLE_SCHEMA}) is required
+   *   <li>Partition specification ({@link InputFormatConfig#PARTITION_SPEC}) is optional. Table
+   *       will be unpartitioned if not provided
+   * </ul>
+   *
+   * <p>Other properties will be handled over to the Table creation. The controlling properties
+   * above will not be propagated.
+   *
    * @param conf a Hadoop conf
    * @param props the controlling properties
    * @return the created Iceberg table
@@ -171,9 +190,10 @@ public final class Catalogs {
 
   /**
    * Drops an Iceberg table using the catalog specified by the configuration.
-   * <p>
-   * The table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) should be specified by
-   * the controlling properties.
+   *
+   * <p>The table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION})
+   * should be specified by the controlling properties.
+   *
    * @param conf a Hadoop conf
    * @param props the controlling properties
    * @return the created Iceberg table
@@ -196,6 +216,7 @@ public final class Catalogs {
 
   /**
    * Returns true if HiveCatalog is used
+   *
    * @param conf a Hadoop conf
    * @param props the controlling properties
    * @return true if the Catalog is HiveCatalog
@@ -210,7 +231,8 @@ public final class Catalogs {
     if (catalogType != null) {
       return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE.equalsIgnoreCase(catalogType);
     }
-    return getCatalogProperties(conf, catalogName, catalogType).get(CatalogProperties.CATALOG_IMPL) == null;
+    return getCatalogProperties(conf, catalogName, catalogType).get(CatalogProperties.CATALOG_IMPL)
+        == null;
   }
 
   @VisibleForTesting
@@ -220,37 +242,44 @@ public final class Catalogs {
       return Optional.empty();
     } else {
       String name = catalogName == null ? ICEBERG_DEFAULT_CATALOG_NAME : catalogName;
-      return Optional.of(CatalogUtil.buildIcebergCatalog(name,
-              getCatalogProperties(conf, name, catalogType), conf));
+      return Optional.of(
+          CatalogUtil.buildIcebergCatalog(
+              name, getCatalogProperties(conf, name, catalogType), conf));
     }
   }
 
   /**
    * Collect all the catalog specific configuration from the global hive configuration.
+   *
    * @param conf a Hadoop configuration
    * @param catalogName name of the catalog
    * @param catalogType type of the catalog
    * @return complete map of catalog properties
    */
-  private static Map<String, String> getCatalogProperties(Configuration conf, String catalogName, String catalogType) {
+  private static Map<String, String> getCatalogProperties(
+      Configuration conf, String catalogName, String catalogType) {
     String keyPrefix = InputFormatConfig.CATALOG_CONFIG_PREFIX + catalogName;
-    Map<String, String> catalogProperties = Streams.stream(conf.iterator())
+    Map<String, String> catalogProperties =
+        Streams.stream(conf.iterator())
             .filter(e -> e.getKey().startsWith(keyPrefix))
-            .collect(Collectors.toMap(e -> e.getKey().substring(keyPrefix.length() + 1), Map.Entry::getValue));
+            .collect(
+                Collectors.toMap(
+                    e -> e.getKey().substring(keyPrefix.length() + 1), Map.Entry::getValue));
     return addCatalogPropertiesIfMissing(conf, catalogType, catalogProperties);
   }
 
   /**
-   * This method is used for backward-compatible catalog configuration.
-   * Collect all the catalog specific configuration from the global hive configuration.
-   * Note: this should be removed when the old catalog configuration is deprecated.
+   * This method is used for backward-compatible catalog configuration. Collect all the catalog
+   * specific configuration from the global hive configuration. Note: this should be removed when
+   * the old catalog configuration is deprecated.
+   *
    * @param conf global hive configuration
    * @param catalogType type of the catalog
    * @param catalogProperties pre-populated catalog properties
    * @return complete map of catalog properties
    */
-  private static Map<String, String> addCatalogPropertiesIfMissing(Configuration conf, String catalogType,
-                                                                   Map<String, String> catalogProperties) {
+  private static Map<String, String> addCatalogPropertiesIfMissing(
+      Configuration conf, String catalogType, Map<String, String> catalogProperties) {
     if (catalogType != null) {
       catalogProperties.putIfAbsent(CatalogUtil.ICEBERG_CATALOG_TYPE, catalogType);
     }
@@ -269,8 +298,8 @@ public final class Catalogs {
 
   /**
    * Return the catalog type based on the catalog name.
-   * <p>
-   * See {@link Catalogs} documentation for catalog type resolution strategy.
+   *
+   * <p>See {@link Catalogs} documentation for catalog type resolution strategy.
    *
    * @param conf global hive configuration
    * @param catalogName name of the catalog
@@ -278,8 +307,10 @@ public final class Catalogs {
    */
   private static String getCatalogType(Configuration conf, String catalogName) {
     if (catalogName != null) {
-      String catalogType = conf.get(InputFormatConfig.catalogPropertyConfigKey(
-          catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE));
+      String catalogType =
+          conf.get(
+              InputFormatConfig.catalogPropertyConfigKey(
+                  catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE));
       if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME)) {
         return NO_CATALOG_TYPE;
       } else {

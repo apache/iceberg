@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.time.Duration;
@@ -60,9 +59,7 @@ public class TestIcebergSourceFailover {
 
   private static final int PARALLELISM = 4;
 
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
-
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   @Rule
   public final MiniClusterWithClientResource miniClusterResource =
@@ -75,12 +72,14 @@ public class TestIcebergSourceFailover {
               .build());
 
   @Rule
-  public final HadoopTableResource sourceTableResource = new HadoopTableResource(TEMPORARY_FOLDER,
-      TestFixtures.DATABASE, TestFixtures.TABLE, schema());
+  public final HadoopTableResource sourceTableResource =
+      new HadoopTableResource(
+          TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE, schema());
 
   @Rule
-  public final HadoopTableResource sinkTableResource = new HadoopTableResource(TEMPORARY_FOLDER,
-      TestFixtures.DATABASE, TestFixtures.SINK_TABLE, schema());
+  public final HadoopTableResource sinkTableResource =
+      new HadoopTableResource(
+          TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.SINK_TABLE, schema());
 
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
@@ -99,10 +98,9 @@ public class TestIcebergSourceFailover {
     return RandomGenericData.generate(schema(), numRecords, seed);
   }
 
-  protected void assertRecords(Table table, List<Record> expectedRecords, Duration interval, int maxCount)
-      throws Exception {
-    SimpleDataUtil.assertTableRecords(table,
-        expectedRecords, interval, maxCount);
+  protected void assertRecords(
+      Table table, List<Record> expectedRecords, Duration interval, int maxCount) throws Exception {
+    SimpleDataUtil.assertTableRecords(table, expectedRecords, interval, maxCount);
   }
 
   @Test
@@ -117,8 +115,9 @@ public class TestIcebergSourceFailover {
 
   private void testBoundedIcebergSource(FailoverType failoverType) throws Exception {
     List<Record> expectedRecords = Lists.newArrayList();
-    GenericAppenderHelper dataAppender = new GenericAppenderHelper(
-        sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(
+            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -129,11 +128,12 @@ public class TestIcebergSourceFailover {
     env.setParallelism(PARALLELISM);
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 0));
 
-    DataStream<RowData> stream = env.fromSource(
-        sourceBuilder().build(),
-        WatermarkStrategy.noWatermarks(),
-        "IcebergSource",
-        TypeInformation.of(RowData.class));
+    DataStream<RowData> stream =
+        env.fromSource(
+            sourceBuilder().build(),
+            WatermarkStrategy.noWatermarks(),
+            "IcebergSource",
+            TypeInformation.of(RowData.class));
 
     DataStream<RowData> streamFailingInTheMiddleOfReading =
         RecordCounterToFail.wrapWithFailureAfter(stream, expectedRecords.size() / 2);
@@ -170,8 +170,9 @@ public class TestIcebergSourceFailover {
   }
 
   private void testContinuousIcebergSource(FailoverType failoverType) throws Exception {
-    GenericAppenderHelper dataAppender = new GenericAppenderHelper(
-        sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(
+            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
     List<Record> expectedRecords = Lists.newArrayList();
 
     List<Record> batch = generateRecords(2, 0);
@@ -184,15 +185,16 @@ public class TestIcebergSourceFailover {
     Configuration config = new Configuration();
     config.setInteger(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 128);
 
-    DataStream<RowData> stream = env.fromSource(
-        sourceBuilder()
-            .streaming(true)
-            .monitorInterval(Duration.ofMillis(10))
-            .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
-            .build(),
-        WatermarkStrategy.noWatermarks(),
-        "IcebergSource",
-        TypeInformation.of(RowData.class));
+    DataStream<RowData> stream =
+        env.fromSource(
+            sourceBuilder()
+                .streaming(true)
+                .monitorInterval(Duration.ofMillis(10))
+                .streamingStartingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+                .build(),
+            WatermarkStrategy.noWatermarks(),
+            "IcebergSource",
+            TypeInformation.of(RowData.class));
 
     // CollectStreamSink from DataStream#executeAndCollect() doesn't guarantee
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
@@ -211,8 +213,7 @@ public class TestIcebergSourceFailover {
       expectedRecords.addAll(records);
       dataAppender.appendToTable(records);
       if (i == 2) {
-        triggerFailover(failoverType, jobId, () -> {
-        }, miniClusterResource.getMiniCluster());
+        triggerFailover(failoverType, jobId, () -> {}, miniClusterResource.getMiniCluster());
       }
     }
 

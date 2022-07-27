@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.ByteArrayInputStream;
@@ -36,8 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class AvroEncoderUtil {
 
-  private AvroEncoderUtil() {
-  }
+  private AvroEncoderUtil() {}
 
   static {
     LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
@@ -72,8 +70,11 @@ public class AvroEncoderUtil {
       // Read the magic bytes
       byte header0 = dataInput.readByte();
       byte header1 = dataInput.readByte();
-      Preconditions.checkState(header0 == MAGIC_BYTES[0] && header1 == MAGIC_BYTES[1],
-          "Unrecognized header bytes: 0x%02X 0x%02X", header0, header1);
+      Preconditions.checkState(
+          header0 == MAGIC_BYTES[0] && header1 == MAGIC_BYTES[1],
+          "Unrecognized header bytes: 0x%02X 0x%02X",
+          header0,
+          header1);
 
       // Read avro schema
       Schema avroSchema = new Schema.Parser().parse(dataInput.readUTF());

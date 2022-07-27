@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.math.BigDecimal;
@@ -46,7 +45,8 @@ public class TestIcebergDecimalObjectInspector {
     HiveDecimalObjectInspector oi = IcebergDecimalObjectInspector.get(38, 18);
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
-    Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.DECIMAL, oi.getPrimitiveCategory());
+    Assert.assertEquals(
+        PrimitiveObjectInspector.PrimitiveCategory.DECIMAL, oi.getPrimitiveCategory());
 
     Assert.assertEquals(new DecimalTypeInfo(38, 18), oi.getTypeInfo());
     Assert.assertEquals(TypeInfoFactory.decimalTypeInfo.getTypeName(), oi.getTypeName());
@@ -64,7 +64,8 @@ public class TestIcebergDecimalObjectInspector {
     HiveDecimal one = HiveDecimal.create(BigDecimal.ONE);
 
     Assert.assertEquals(one, oi.getPrimitiveJavaObject(BigDecimal.ONE));
-    Assert.assertEquals(new HiveDecimalWritable(one), oi.getPrimitiveWritableObject(BigDecimal.ONE));
+    Assert.assertEquals(
+        new HiveDecimalWritable(one), oi.getPrimitiveWritableObject(BigDecimal.ONE));
 
     HiveDecimal copy = (HiveDecimal) oi.copyObject(one);
 
@@ -73,5 +74,4 @@ public class TestIcebergDecimalObjectInspector {
 
     Assert.assertFalse(oi.preferWritable());
   }
-
 }

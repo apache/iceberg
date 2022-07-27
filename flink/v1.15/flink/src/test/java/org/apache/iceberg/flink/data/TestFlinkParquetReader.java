@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,28 +50,27 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestFlinkParquetReader extends DataTest {
   private static final int NUM_RECORDS = 100;
 
   @Test
   public void testTwoLevelList() throws IOException {
-    Schema schema = new Schema(
-        optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
-        optional(2, "topbytes", Types.BinaryType.get())
-    );
+    Schema schema =
+        new Schema(
+            optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
+            optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
     File testFile = temp.newFile();
     Assert.assertTrue(testFile.delete());
 
-    ParquetWriter<GenericRecord> writer = AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
-        .withDataModel(GenericData.get())
-        .withSchema(avroSchema)
-        .config("parquet.avro.add-list-element-records", "true")
-        .config("parquet.avro.write-old-list-structure", "true")
-        .build();
+    ParquetWriter<GenericRecord> writer =
+        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchema)
+            .config("parquet.avro.add-list-element-records", "true")
+            .config("parquet.avro.write-old-list-structure", "true")
+            .build();
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
     List<ByteBuffer> expectedByteList = Lists.newArrayList();
@@ -84,10 +84,11 @@ public class TestFlinkParquetReader extends DataTest {
     writer.write(expectedRecord);
     writer.close();
 
-    try (CloseableIterable<RowData> reader = Parquet.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
-        .build()) {
+    try (CloseableIterable<RowData> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+            .build()) {
       Iterator<RowData> rows = reader.iterator();
       Assert.assertTrue("Should have at least one row", rows.hasNext());
       RowData rowData = rows.next();
@@ -101,17 +102,19 @@ public class TestFlinkParquetReader extends DataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(schema)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> writer =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build()) {
       writer.addAll(iterable);
     }
 
-    try (CloseableIterable<RowData> reader = Parquet.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
-        .build()) {
+    try (CloseableIterable<RowData> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+            .build()) {
       Iterator<Record> expected = iterable.iterator();
       Iterator<RowData> rows = reader.iterator();
       LogicalType rowType = FlinkSchemaUtil.convert(schema);
@@ -126,7 +129,10 @@ public class TestFlinkParquetReader extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(RandomGenericData.generate(schema, NUM_RECORDS, 19981), schema);
-    writeAndValidate(RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124), schema);
-    writeAndValidate(RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20), schema);
+    writeAndValidate(
+        RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124), schema);
+    writeAndValidate(
+        RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20),
+        schema);
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -44,33 +43,39 @@ import org.apache.iceberg.util.StructProjection;
 
 /**
  * A {@link Table} implementation that exposes a table's valid manifest files as rows.
- * <p>
- * A valid manifest file is one that is referenced from any snapshot currently tracked by the table.
- * <p>
- * This table may return duplicate rows.
+ *
+ * <p>A valid manifest file is one that is referenced from any snapshot currently tracked by the
+ * table.
+ *
+ * <p>This table may return duplicate rows.
  */
 public class AllManifestsTable extends BaseMetadataTable {
   private static final int REF_SNAPSHOT_ID = 18;
-  private static final Schema MANIFEST_FILE_SCHEMA = new Schema(
-      Types.NestedField.required(14, "content", Types.IntegerType.get()),
-      Types.NestedField.required(1, "path", Types.StringType.get()),
-      Types.NestedField.required(2, "length", Types.LongType.get()),
-      Types.NestedField.optional(3, "partition_spec_id", Types.IntegerType.get()),
-      Types.NestedField.optional(4, "added_snapshot_id", Types.LongType.get()),
-      Types.NestedField.optional(5, "added_data_files_count", Types.IntegerType.get()),
-      Types.NestedField.optional(6, "existing_data_files_count", Types.IntegerType.get()),
-      Types.NestedField.optional(7, "deleted_data_files_count", Types.IntegerType.get()),
-      Types.NestedField.required(15, "added_delete_files_count", Types.IntegerType.get()),
-      Types.NestedField.required(16, "existing_delete_files_count", Types.IntegerType.get()),
-      Types.NestedField.required(17, "deleted_delete_files_count", Types.IntegerType.get()),
-      Types.NestedField.optional(8, "partition_summaries", Types.ListType.ofRequired(9, Types.StructType.of(
-          Types.NestedField.required(10, "contains_null", Types.BooleanType.get()),
-          Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
-          Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
-          Types.NestedField.optional(13, "upper_bound", Types.StringType.get())
-      ))),
-      Types.NestedField.required(REF_SNAPSHOT_ID, "reference_snapshot_id", Types.LongType.get())
-  );
+  private static final Schema MANIFEST_FILE_SCHEMA =
+      new Schema(
+          Types.NestedField.required(14, "content", Types.IntegerType.get()),
+          Types.NestedField.required(1, "path", Types.StringType.get()),
+          Types.NestedField.required(2, "length", Types.LongType.get()),
+          Types.NestedField.optional(3, "partition_spec_id", Types.IntegerType.get()),
+          Types.NestedField.optional(4, "added_snapshot_id", Types.LongType.get()),
+          Types.NestedField.optional(5, "added_data_files_count", Types.IntegerType.get()),
+          Types.NestedField.optional(6, "existing_data_files_count", Types.IntegerType.get()),
+          Types.NestedField.optional(7, "deleted_data_files_count", Types.IntegerType.get()),
+          Types.NestedField.required(15, "added_delete_files_count", Types.IntegerType.get()),
+          Types.NestedField.required(16, "existing_delete_files_count", Types.IntegerType.get()),
+          Types.NestedField.required(17, "deleted_delete_files_count", Types.IntegerType.get()),
+          Types.NestedField.optional(
+              8,
+              "partition_summaries",
+              Types.ListType.ofRequired(
+                  9,
+                  Types.StructType.of(
+                      Types.NestedField.required(10, "contains_null", Types.BooleanType.get()),
+                      Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
+                      Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
+                      Types.NestedField.optional(13, "upper_bound", Types.StringType.get())))),
+          Types.NestedField.required(
+              REF_SNAPSHOT_ID, "reference_snapshot_id", Types.LongType.get()));
 
   AllManifestsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".all_manifests");
@@ -101,14 +106,14 @@ public class AllManifestsTable extends BaseMetadataTable {
       super(ops, table, fileSchema, MetadataTableType.ALL_MANIFESTS);
     }
 
-    private AllManifestsTableScan(TableOperations ops, Table table, Schema schema,
-                                  TableScanContext context) {
+    private AllManifestsTableScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       super(ops, table, schema, MetadataTableType.ALL_MANIFESTS, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
-                                       TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new AllManifestsTableScan(ops, table, schema, context);
     }
 
@@ -121,28 +126,40 @@ public class AllManifestsTable extends BaseMetadataTable {
       Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      SnapshotEvaluator snapshotEvaluator = new SnapshotEvaluator(filter, MANIFEST_FILE_SCHEMA.asStruct(),
-          isCaseSensitive());
-      Iterable<Snapshot> filteredSnapshots = Iterables.filter(table().snapshots(), snapshotEvaluator::eval);
+      SnapshotEvaluator snapshotEvaluator =
+          new SnapshotEvaluator(filter, MANIFEST_FILE_SCHEMA.asStruct(), isCaseSensitive());
+      Iterable<Snapshot> filteredSnapshots =
+          Iterables.filter(table().snapshots(), snapshotEvaluator::eval);
 
-      return CloseableIterable.withNoopClose(Iterables.transform(filteredSnapshots, snap -> {
-        if (snap.manifestListLocation() != null) {
-          DataFile manifestListAsDataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-              .withInputFile(io.newInputFile(snap.manifestListLocation()))
-              .withRecordCount(1)
-              .withFormat(FileFormat.AVRO)
-              .build();
-          return new ManifestListReadTask(io, schema(), specs,
-              new BaseFileScanTask(manifestListAsDataFile, null, schemaString, specString, residuals),
-              snap.snapshotId());
-        } else {
-          return StaticDataTask.of(
-              io.newInputFile(tableOps().current().metadataFileLocation()),
-              MANIFEST_FILE_SCHEMA, schema(), snap.allManifests(io),
-              manifest -> manifestFileToRow(specs.get(manifest.partitionSpecId()), manifest, snap.snapshotId())
-          );
-        }
-      }));
+      return CloseableIterable.withNoopClose(
+          Iterables.transform(
+              filteredSnapshots,
+              snap -> {
+                if (snap.manifestListLocation() != null) {
+                  DataFile manifestListAsDataFile =
+                      DataFiles.builder(PartitionSpec.unpartitioned())
+                          .withInputFile(io.newInputFile(snap.manifestListLocation()))
+                          .withRecordCount(1)
+                          .withFormat(FileFormat.AVRO)
+                          .build();
+                  return new ManifestListReadTask(
+                      io,
+                      schema(),
+                      specs,
+                      new BaseFileScanTask(
+                          manifestListAsDataFile, null, schemaString, specString, residuals),
+                      snap.snapshotId());
+                } else {
+                  return StaticDataTask.of(
+                      io.newInputFile(tableOps().current().metadataFileLocation()),
+                      MANIFEST_FILE_SCHEMA,
+                      schema(),
+                      snap.allManifests(io),
+                      manifest ->
+                          manifestFileToRow(
+                              specs.get(manifest.partitionSpecId()), manifest, snap.snapshotId()));
+                }
+              }));
     }
   }
 
@@ -153,8 +170,12 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final FileScanTask manifestListTask;
     private final long referenceSnapshotId;
 
-    ManifestListReadTask(FileIO io, Schema schema, Map<Integer, PartitionSpec> specs, FileScanTask manifestListTask,
-                         long referenceSnapshotId) {
+    ManifestListReadTask(
+        FileIO io,
+        Schema schema,
+        Map<Integer, PartitionSpec> specs,
+        FileScanTask manifestListTask,
+        long referenceSnapshotId) {
       this.io = io;
       this.schema = schema;
       this.specs = specs;
@@ -169,24 +190,29 @@ public class AllManifestsTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
-      try (CloseableIterable<ManifestFile> manifests = Avro
-          .read(io.newInputFile(manifestListTask.file().path().toString()))
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .project(ManifestFile.schema())
-          .classLoader(GenericManifestFile.class.getClassLoader())
-          .reuseContainers(false)
-          .build()) {
+      try (CloseableIterable<ManifestFile> manifests =
+          Avro.read(io.newInputFile(manifestListTask.file().path().toString()))
+              .rename("manifest_file", GenericManifestFile.class.getName())
+              .rename("partitions", GenericPartitionFieldSummary.class.getName())
+              .rename("r508", GenericPartitionFieldSummary.class.getName())
+              .project(ManifestFile.schema())
+              .classLoader(GenericManifestFile.class.getClassLoader())
+              .reuseContainers(false)
+              .build()) {
 
-        CloseableIterable<StructLike> rowIterable =  CloseableIterable.transform(manifests,
-            manifest -> manifestFileToRow(specs.get(manifest.partitionSpecId()), manifest, referenceSnapshotId));
+        CloseableIterable<StructLike> rowIterable =
+            CloseableIterable.transform(
+                manifests,
+                manifest ->
+                    manifestFileToRow(
+                        specs.get(manifest.partitionSpecId()), manifest, referenceSnapshotId));
 
         StructProjection projection = StructProjection.create(MANIFEST_FILE_SCHEMA, schema);
         return CloseableIterable.transform(rowIterable, projection::wrap);
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestListTask.file().path());
+        throw new RuntimeIOException(
+            e, "Cannot read manifest list file: %s", manifestListTask.file().path());
       }
     }
 
@@ -221,7 +247,8 @@ public class AllManifestsTable extends BaseMetadataTable {
     }
   }
 
-  static StaticDataTask.Row manifestFileToRow(PartitionSpec spec, ManifestFile manifest, long referenceSnapshotId) {
+  static StaticDataTask.Row manifestFileToRow(
+      PartitionSpec spec, ManifestFile manifest, long referenceSnapshotId) {
     return StaticDataTask.Row.of(
         manifest.content().id(),
         manifest.path(),
@@ -235,8 +262,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         manifest.content() == ManifestContent.DELETES ? manifest.existingFilesCount() : 0,
         manifest.content() == ManifestContent.DELETES ? manifest.deletedFilesCount() : 0,
         ManifestsTable.partitionSummariesToRows(spec, manifest.partitions()),
-        referenceSnapshotId
-    );
+        referenceSnapshotId);
   }
 
   private static class SnapshotEvaluator {
@@ -378,13 +404,15 @@ public class AllManifestsTable extends BaseMetadataTable {
       /**
        * Comparison of snapshot reference and literal, using long comparator.
        *
-       * @param ref           bound reference, comparison attempted only if reference is for reference_snapshot_id
-       * @param lit           literal value to compare with snapshot id.
-       * @param desiredResult function to apply to long comparator result, returns true if result is as expected.
+       * @param ref bound reference, comparison attempted only if reference is for
+       *     reference_snapshot_id
+       * @param lit literal value to compare with snapshot id.
+       * @param desiredResult function to apply to long comparator result, returns true if result is
+       *     as expected.
        * @return false if comparator does not achieve desired result, true otherwise
        */
-      private <T> Boolean compareSnapshotRef(BoundReference<T> ref, Literal<T> lit,
-                                             Function<Integer, Boolean> desiredResult) {
+      private <T> Boolean compareSnapshotRef(
+          BoundReference<T> ref, Literal<T> lit, Function<Integer, Boolean> desiredResult) {
         if (isSnapshotRef(ref)) {
           Literal<Long> longLit = lit.to(Types.LongType.get());
           int cmp = longLit.comparator().compare(snapshotId, longLit.value());

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.orc;
 
 import java.io.File;
@@ -32,23 +31,24 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 public class TestGenericReadProjection extends TestReadProjection {
 
   @Override
-  protected Record writeAndRead(String desc,
-                                Schema writeSchema, Schema readSchema,
-                                Record record) throws IOException {
+  protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
+      throws IOException {
     File file = temp.newFile(desc + ".orc");
     file.delete();
 
-    try (FileAppender<Record> appender = ORC.write(Files.localOutput(file))
-        .schema(writeSchema)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> appender =
+        ORC.write(Files.localOutput(file))
+            .schema(writeSchema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build()) {
       appender.add(record);
     }
 
-    Iterable<Record> records = ORC.read(Files.localInput(file))
-        .project(readSchema)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema))
-        .build();
+    Iterable<Record> records =
+        ORC.read(Files.localInput(file))
+            .project(readSchema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema))
+            .build();
 
     return Iterables.getOnlyElement(records);
   }

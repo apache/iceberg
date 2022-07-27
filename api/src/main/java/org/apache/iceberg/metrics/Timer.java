@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.metrics;
 
 import java.time.Duration;
@@ -25,7 +24,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * Generalized Timer interface for creating telemetry related instances for measuring duration of operations.
+ * Generalized Timer interface for creating telemetry related instances for measuring duration of
+ * operations.
  */
 public interface Timer {
 
@@ -44,7 +44,8 @@ public interface Timer {
   Duration totalDuration();
 
   /**
-   * Starts the timer and returns a {@link Timed} instance. Call {@link Timed#stop()} to complete the timing.
+   * Starts the timer and returns a {@link Timed} instance. Call {@link Timed#stop()} to complete
+   * the timing.
    *
    * @return A {@link Timed} instance with the start time recorded.
    */
@@ -54,7 +55,7 @@ public interface Timer {
    * Records a custom amount in the given time unit.
    *
    * @param amount The amount to record
-   * @param unit   The time unit of the amount
+   * @param unit The time unit of the amount
    */
   void record(long amount, TimeUnit unit);
 
@@ -78,7 +79,7 @@ public interface Timer {
    * Executes and measures the given {@link Callable} and returns its result.
    *
    * @param callable The {@link Callable} to execute and measure.
-   * @param <T>      The type of the {@link Callable}
+   * @param <T> The type of the {@link Callable}
    * @return The result of the underlying {@link Callable}.
    * @throws Exception In case the {@link Callable} fails.
    */
@@ -88,19 +89,17 @@ public interface Timer {
    * Gets the result from the given {@link Supplier} and measures its execution time.
    *
    * @param supplier The {@link Supplier} to execute and measure.
-   * @param <T>      The type of the {@link Supplier}.
+   * @param <T> The type of the {@link Supplier}.
    * @return The result of the underlying {@link Supplier}.
    */
   <T> T time(Supplier<T> supplier);
 
   /**
-   * A timing sample that carries internal state about the Timer's start position. The timing can be completed by
-   * calling {@link Timed#stop()}.
+   * A timing sample that carries internal state about the Timer's start position. The timing can be
+   * completed by calling {@link Timed#stop()}.
    */
   interface Timed extends AutoCloseable {
-    /**
-     * Stops the timer and records the total duration up until {@link Timer#start()} was called.
-     */
+    /** Stops the timer and records the total duration up until {@link Timer#start()} was called. */
     void stop();
 
     @Override
@@ -108,41 +107,40 @@ public interface Timer {
       stop();
     }
 
-    Timed NOOP = () -> { };
+    Timed NOOP = () -> {};
   }
 
-  Timer NOOP = new Timer() {
-    @Override
-    public Timed start() {
-      return Timed.NOOP;
-    }
+  Timer NOOP =
+      new Timer() {
+        @Override
+        public Timed start() {
+          return Timed.NOOP;
+        }
 
-    @Override
-    public long count() {
-      return 0;
-    }
+        @Override
+        public long count() {
+          return 0;
+        }
 
-    @Override
-    public Duration totalDuration() {
-      return Duration.ZERO;
-    }
+        @Override
+        public Duration totalDuration() {
+          return Duration.ZERO;
+        }
 
-    @Override
-    public void record(long amount, TimeUnit unit) {
-    }
+        @Override
+        public void record(long amount, TimeUnit unit) {}
 
-    @Override
-    public void time(Runnable runnable) {
-    }
+        @Override
+        public void time(Runnable runnable) {}
 
-    @Override
-    public <T> T timeCallable(Callable<T> callable) throws Exception {
-      return callable.call();
-    }
+        @Override
+        public <T> T timeCallable(Callable<T> callable) throws Exception {
+          return callable.call();
+        }
 
-    @Override
-    public <T> T time(Supplier<T> supplier) {
-      return supplier.get();
-    }
-  };
+        @Override
+        public <T> T time(Supplier<T> supplier) {
+          return supplier.get();
+        }
+      };
 }

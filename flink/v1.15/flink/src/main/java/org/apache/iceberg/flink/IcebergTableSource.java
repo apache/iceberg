@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.util.Arrays;
@@ -44,11 +43,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-/**
- * Flink Iceberg table source.
- */
+/** Flink Iceberg table source. */
 public class IcebergTableSource
-    implements ScanTableSource, SupportsProjectionPushDown, SupportsFilterPushDown, SupportsLimitPushDown {
+    implements ScanTableSource,
+        SupportsProjectionPushDown,
+        SupportsFilterPushDown,
+        SupportsLimitPushDown {
 
   private int[] projectedFields;
   private long limit;
@@ -71,14 +71,23 @@ public class IcebergTableSource
     this.readableConfig = toCopy.readableConfig;
   }
 
-  public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
-                            ReadableConfig readableConfig) {
+  public IcebergTableSource(
+      TableLoader loader,
+      TableSchema schema,
+      Map<String, String> properties,
+      ReadableConfig readableConfig) {
     this(loader, schema, properties, null, false, -1, ImmutableList.of(), readableConfig);
   }
 
-  private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
-                             int[] projectedFields, boolean isLimitPushDown,
-                             long limit, List<Expression> filters, ReadableConfig readableConfig) {
+  private IcebergTableSource(
+      TableLoader loader,
+      TableSchema schema,
+      Map<String, String> properties,
+      int[] projectedFields,
+      boolean isLimitPushDown,
+      long limit,
+      List<Expression> filters,
+      ReadableConfig readableConfig) {
     this.loader = loader;
     this.schema = schema;
     this.properties = properties;
@@ -93,8 +102,8 @@ public class IcebergTableSource
   public void applyProjection(int[][] projectFields) {
     this.projectedFields = new int[projectFields.length];
     for (int i = 0; i < projectFields.length; i++) {
-      Preconditions.checkArgument(projectFields[i].length == 1,
-          "Don't support nested projection in iceberg source now.");
+      Preconditions.checkArgument(
+          projectFields[i].length == 1, "Don't support nested projection in iceberg source now.");
       this.projectedFields[i] = projectFields[i][0];
     }
   }
@@ -117,9 +126,11 @@ public class IcebergTableSource
     } else {
       String[] fullNames = schema.getFieldNames();
       DataType[] fullTypes = schema.getFieldDataTypes();
-      return TableSchema.builder().fields(
-          Arrays.stream(projectedFields).mapToObj(i -> fullNames[i]).toArray(String[]::new),
-          Arrays.stream(projectedFields).mapToObj(i -> fullTypes[i]).toArray(DataType[]::new)).build();
+      return TableSchema.builder()
+          .fields(
+              Arrays.stream(projectedFields).mapToObj(i -> fullNames[i]).toArray(String[]::new),
+              Arrays.stream(projectedFields).mapToObj(i -> fullTypes[i]).toArray(DataType[]::new))
+          .build();
     }
   }
 

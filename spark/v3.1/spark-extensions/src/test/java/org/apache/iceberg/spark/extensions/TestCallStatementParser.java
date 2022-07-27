@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.math.BigDecimal;
@@ -49,19 +48,19 @@ import scala.collection.JavaConverters;
 
 public class TestCallStatementParser {
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
   private static ParserInterface parser = null;
 
   @BeforeClass
   public static void startSpark() {
-    TestCallStatementParser.spark = SparkSession.builder()
-        .master("local[2]")
-        .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
-        .config("spark.extra.prop", "value")
-        .getOrCreate();
+    TestCallStatementParser.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
+            .config("spark.extra.prop", "value")
+            .getOrCreate();
     TestCallStatementParser.parser = spark.sessionState().sqlParser();
   }
 
@@ -75,8 +74,10 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallWithPositionalArgs() throws ParseException {
-    CallStatement call = (CallStatement) parser.parsePlan("CALL c.n.func(1, '2', 3L, true, 1.0D, 9.0e1, 900e-1BD)");
-    Assert.assertEquals(ImmutableList.of("c", "n", "func"), JavaConverters.seqAsJavaList(call.name()));
+    CallStatement call =
+        (CallStatement) parser.parsePlan("CALL c.n.func(1, '2', 3L, true, 1.0D, 9.0e1, 900e-1BD)");
+    Assert.assertEquals(
+        ImmutableList.of("c", "n", "func"), JavaConverters.seqAsJavaList(call.name()));
 
     Assert.assertEquals(7, call.args().size());
 
@@ -91,8 +92,10 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallWithNamedArgs() throws ParseException {
-    CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(c1 => 1, c2 => '2', c3 => true)");
-    Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+    CallStatement call =
+        (CallStatement) parser.parsePlan("CALL cat.system.func(c1 => 1, c2 => '2', c3 => true)");
+    Assert.assertEquals(
+        ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
 
     Assert.assertEquals(3, call.args().size());
 
@@ -104,7 +107,8 @@ public class TestCallStatementParser {
   @Test
   public void testCallWithMixedArgs() throws ParseException {
     CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(c1 => 1, '2')");
-    Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+    Assert.assertEquals(
+        ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
 
     Assert.assertEquals(2, call.args().size());
 
@@ -114,18 +118,24 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallWithTimestampArg() throws ParseException {
-    CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(TIMESTAMP '2017-02-03T10:37:30.00Z')");
-    Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+    CallStatement call =
+        (CallStatement)
+            parser.parsePlan("CALL cat.system.func(TIMESTAMP '2017-02-03T10:37:30.00Z')");
+    Assert.assertEquals(
+        ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
 
     Assert.assertEquals(1, call.args().size());
 
-    checkArg(call, 0, Timestamp.from(Instant.parse("2017-02-03T10:37:30.00Z")), DataTypes.TimestampType);
+    checkArg(
+        call, 0, Timestamp.from(Instant.parse("2017-02-03T10:37:30.00Z")), DataTypes.TimestampType);
   }
 
   @Test
   public void testCallWithVarSubstitution() throws ParseException {
-    CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func('${spark.extra.prop}')");
-    Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+    CallStatement call =
+        (CallStatement) parser.parsePlan("CALL cat.system.func('${spark.extra.prop}')");
+    Assert.assertEquals(
+        ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
 
     Assert.assertEquals(1, call.args().size());
 
@@ -134,22 +144,22 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallStripsComments() throws ParseException {
-    List<String> callStatementsWithComments = Lists.newArrayList(
-        "/* bracketed comment */  CALL cat.system.func('${spark.extra.prop}')",
-        "/**/  CALL cat.system.func('${spark.extra.prop}')",
-        "-- single line comment \n CALL cat.system.func('${spark.extra.prop}')",
-        "-- multiple \n-- single line \n-- comments \n CALL cat.system.func('${spark.extra.prop}')",
-        "/* select * from multiline_comment \n where x like '%sql%'; */ CALL cat.system.func('${spark.extra.prop}')",
-        "/* {\"app\": \"dbt\", \"dbt_version\": \"1.0.1\", \"profile_name\": \"profile1\", \"target_name\": \"dev\", " +
-            "\"node_id\": \"model.profile1.stg_users\"} \n*/ CALL cat.system.func('${spark.extra.prop}')",
-        "/* Some multi-line comment \n" +
-            "*/ CALL /* inline comment */ cat.system.func('${spark.extra.prop}') -- ending comment",
-        "CALL -- a line ending comment\n" +
-            "cat.system.func('${spark.extra.prop}')"
-    );
+    List<String> callStatementsWithComments =
+        Lists.newArrayList(
+            "/* bracketed comment */  CALL cat.system.func('${spark.extra.prop}')",
+            "/**/  CALL cat.system.func('${spark.extra.prop}')",
+            "-- single line comment \n CALL cat.system.func('${spark.extra.prop}')",
+            "-- multiple \n-- single line \n-- comments \n CALL cat.system.func('${spark.extra.prop}')",
+            "/* select * from multiline_comment \n where x like '%sql%'; */ CALL cat.system.func('${spark.extra.prop}')",
+            "/* {\"app\": \"dbt\", \"dbt_version\": \"1.0.1\", \"profile_name\": \"profile1\", \"target_name\": \"dev\", "
+                + "\"node_id\": \"model.profile1.stg_users\"} \n*/ CALL cat.system.func('${spark.extra.prop}')",
+            "/* Some multi-line comment \n"
+                + "*/ CALL /* inline comment */ cat.system.func('${spark.extra.prop}') -- ending comment",
+            "CALL -- a line ending comment\n" + "cat.system.func('${spark.extra.prop}')");
     for (String sqlText : callStatementsWithComments) {
       CallStatement call = (CallStatement) parser.parsePlan(sqlText);
-      Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+      Assert.assertEquals(
+          ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
 
       Assert.assertEquals(1, call.args().size());
 
@@ -159,17 +169,24 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallParseError() {
-    AssertHelpers.assertThrows("Should fail with a sensible parse error", IcebergParseException.class,
+    AssertHelpers.assertThrows(
+        "Should fail with a sensible parse error",
+        IcebergParseException.class,
         "missing '(' at 'radish'",
         () -> parser.parsePlan("CALL cat.system radish kebab"));
   }
 
-  private void checkArg(CallStatement call, int index, Object expectedValue, DataType expectedType) {
+  private void checkArg(
+      CallStatement call, int index, Object expectedValue, DataType expectedType) {
     checkArg(call, index, null, expectedValue, expectedType);
   }
 
-  private void checkArg(CallStatement call, int index, String expectedName,
-                        Object expectedValue, DataType expectedType) {
+  private void checkArg(
+      CallStatement call,
+      int index,
+      String expectedName,
+      Object expectedValue,
+      DataType expectedType) {
 
     if (expectedName != null) {
       NamedArgument arg = checkCast(call.args().apply(index), NamedArgument.class);
@@ -190,7 +207,8 @@ public class TestCallStatementParser {
   }
 
   private <T> T checkCast(Object value, Class<T> expectedClass) {
-    Assert.assertTrue("Expected instance of " + expectedClass.getName(), expectedClass.isInstance(value));
+    Assert.assertTrue(
+        "Expected instance of " + expectedClass.getName(), expectedClass.isInstance(value));
     return expectedClass.cast(value);
   }
 }

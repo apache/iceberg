@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.orc;
 
 import java.math.BigDecimal;
@@ -48,11 +47,9 @@ import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
-
 public class GenericOrcReaders {
 
-  private GenericOrcReaders() {
-  }
+  private GenericOrcReaders() {}
 
   public static OrcValueReader<Record> struct(
       List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
@@ -63,7 +60,8 @@ public class GenericOrcReaders {
     return new ListReader(elementReader);
   }
 
-  public static OrcValueReader<Map<?, ?>> map(OrcValueReader<?> keyReader, OrcValueReader<?> valueReader) {
+  public static OrcValueReader<Map<?, ?>> map(
+      OrcValueReader<?> keyReader, OrcValueReader<?> valueReader) {
     return new MapReader(keyReader, valueReader);
   }
 
@@ -102,21 +100,20 @@ public class GenericOrcReaders {
   private static class TimestampTzReader implements OrcValueReader<OffsetDateTime> {
     public static final OrcValueReader<OffsetDateTime> INSTANCE = new TimestampTzReader();
 
-    private TimestampTzReader() {
-    }
+    private TimestampTzReader() {}
 
     @Override
     public OffsetDateTime nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
-      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row]).atOffset(ZoneOffset.UTC);
+      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
+          .atOffset(ZoneOffset.UTC);
     }
   }
 
   private static class TimeReader implements OrcValueReader<LocalTime> {
     public static final OrcValueReader<LocalTime> INSTANCE = new TimeReader();
 
-    private TimeReader() {
-    }
+    private TimeReader() {}
 
     @Override
     public LocalTime nonNullRead(ColumnVector vector, int row) {
@@ -127,8 +124,7 @@ public class GenericOrcReaders {
   private static class DateReader implements OrcValueReader<LocalDate> {
     public static final OrcValueReader<LocalDate> INSTANCE = new DateReader();
 
-    private DateReader() {
-    }
+    private DateReader() {}
 
     @Override
     public LocalDate nonNullRead(ColumnVector vector, int row) {
@@ -139,22 +135,21 @@ public class GenericOrcReaders {
   private static class TimestampReader implements OrcValueReader<LocalDateTime> {
     public static final OrcValueReader<LocalDateTime> INSTANCE = new TimestampReader();
 
-    private TimestampReader() {
-    }
+    private TimestampReader() {}
 
     @Override
     public LocalDateTime nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
-      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row]).atOffset(ZoneOffset.UTC)
-                    .toLocalDateTime();
+      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
+          .atOffset(ZoneOffset.UTC)
+          .toLocalDateTime();
     }
   }
 
   private static class DecimalReader implements OrcValueReader<BigDecimal> {
     public static final OrcValueReader<BigDecimal> INSTANCE = new DecimalReader();
 
-    private DecimalReader() {
-    }
+    private DecimalReader() {}
 
     @Override
     public BigDecimal nonNullRead(ColumnVector vector, int row) {
@@ -166,27 +161,29 @@ public class GenericOrcReaders {
   private static class StringReader implements OrcValueReader<String> {
     public static final OrcValueReader<String> INSTANCE = new StringReader();
 
-    private StringReader() {
-    }
+    private StringReader() {}
 
     @Override
     public String nonNullRead(ColumnVector vector, int row) {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
-      return new String(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row],
-                        StandardCharsets.UTF_8);
+      return new String(
+          bytesVector.vector[row],
+          bytesVector.start[row],
+          bytesVector.length[row],
+          StandardCharsets.UTF_8);
     }
   }
 
   private static class UUIDReader implements OrcValueReader<UUID> {
     public static final OrcValueReader<UUID> INSTANCE = new UUIDReader();
 
-    private UUIDReader() {
-    }
+    private UUIDReader() {}
 
     @Override
     public UUID nonNullRead(ColumnVector vector, int row) {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
-      ByteBuffer buf = ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+      ByteBuffer buf =
+          ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
       return UUIDUtil.convert(buf);
     }
   }
@@ -194,27 +191,31 @@ public class GenericOrcReaders {
   private static class BytesReader implements OrcValueReader<ByteBuffer> {
     public static final OrcValueReader<ByteBuffer> INSTANCE = new BytesReader();
 
-    private BytesReader() {
-    }
+    private BytesReader() {}
 
     @Override
     public ByteBuffer nonNullRead(ColumnVector vector, int row) {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
-      return ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+      return ByteBuffer.wrap(
+          bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
     }
   }
 
   private static class StructReader extends OrcValueReaders.StructReader<Record> {
     private final GenericRecord template;
 
-    protected StructReader(List<OrcValueReader<?>> readers, Types.StructType structType, Map<Integer, ?> idToConstant) {
+    protected StructReader(
+        List<OrcValueReader<?>> readers,
+        Types.StructType structType,
+        Map<Integer, ?> idToConstant) {
       super(readers, structType, idToConstant);
       this.template = structType != null ? GenericRecord.create(structType) : null;
     }
 
     @Override
     protected Record create() {
-      // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since NAME_MAP_CACHE access
+      // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since
+      // NAME_MAP_CACHE access
       // is eliminated. Using copy here to gain performance.
       return template.copy();
     }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -38,10 +37,10 @@ class BaseSnapshot implements Snapshot {
   private static final long INITIAL_SEQUENCE_NUMBER = 0;
 
   /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; {@link FileIO} should be passed to methods which require it
+   * @deprecated since 0.14.0, will be removed in 1.0.0; {@link FileIO} should be passed to methods
+   *     which require it
    */
-  @Deprecated
-  private final FileIO io;
+  @Deprecated private final FileIO io;
 
   private final long snapshotId;
   private final Long parentId;
@@ -61,27 +60,31 @@ class BaseSnapshot implements Snapshot {
   private transient List<DeleteFile> addedDeleteFiles = null;
   private transient List<DeleteFile> removedDeleteFiles = null;
 
-  /**
-   * For testing only.
-   */
-  BaseSnapshot(FileIO io,
-               long snapshotId,
-               Integer schemaId,
-               String... manifestFiles) {
-    this(io, snapshotId, null, System.currentTimeMillis(), null, null,
-        schemaId, Lists.transform(Arrays.asList(manifestFiles),
+  /** For testing only. */
+  BaseSnapshot(FileIO io, long snapshotId, Integer schemaId, String... manifestFiles) {
+    this(
+        io,
+        snapshotId,
+        null,
+        System.currentTimeMillis(),
+        null,
+        null,
+        schemaId,
+        Lists.transform(
+            Arrays.asList(manifestFiles),
             path -> new GenericManifestFile(io.newInputFile(path), 0)));
   }
 
-  BaseSnapshot(FileIO io,
-               long sequenceNumber,
-               long snapshotId,
-               Long parentId,
-               long timestampMillis,
-               String operation,
-               Map<String, String> summary,
-               Integer schemaId,
-               String manifestList) {
+  BaseSnapshot(
+      FileIO io,
+      long sequenceNumber,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      String manifestList) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -93,14 +96,15 @@ class BaseSnapshot implements Snapshot {
     this.manifestListLocation = manifestList;
   }
 
-  BaseSnapshot(long sequenceNumber,
-               long snapshotId,
-               Long parentId,
-               long timestampMillis,
-               String operation,
-               Map<String, String> summary,
-               Integer schemaId,
-               String manifestList) {
+  BaseSnapshot(
+      long sequenceNumber,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      String manifestList) {
     this.io = null;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -112,15 +116,25 @@ class BaseSnapshot implements Snapshot {
     this.manifestListLocation = manifestList;
   }
 
-  BaseSnapshot(FileIO io,
-               long snapshotId,
-               Long parentId,
-               long timestampMillis,
-               String operation,
-               Map<String, String> summary,
-               Integer schemaId,
-               List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null);
+  BaseSnapshot(
+      FileIO io,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      List<ManifestFile> dataManifests) {
+    this(
+        io,
+        INITIAL_SEQUENCE_NUMBER,
+        snapshotId,
+        parentId,
+        timestampMillis,
+        operation,
+        summary,
+        schemaId,
+        null);
     this.allManifests = dataManifests;
   }
 
@@ -170,10 +184,14 @@ class BaseSnapshot implements Snapshot {
     }
 
     if (dataManifests == null || deleteManifests == null) {
-      this.dataManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
-          manifest -> manifest.content() == ManifestContent.DATA));
-      this.deleteManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
-          manifest -> manifest.content() == ManifestContent.DELETES));
+      this.dataManifests =
+          ImmutableList.copyOf(
+              Iterables.filter(
+                  allManifests, manifest -> manifest.content() == ManifestContent.DATA));
+      this.deleteManifests =
+          ImmutableList.copyOf(
+              Iterables.filter(
+                  allManifests, manifest -> manifest.content() == ManifestContent.DELETES));
     }
   }
 
@@ -186,7 +204,8 @@ class BaseSnapshot implements Snapshot {
   }
 
   /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#allManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#allManifests(FileIO)}
+   *     instead.
    */
   @Override
   @Deprecated
@@ -205,9 +224,9 @@ class BaseSnapshot implements Snapshot {
     return dataManifests;
   }
 
-
   /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#dataManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#dataManifests(FileIO)}
+   *     instead.
    */
   @Override
   @Deprecated
@@ -227,7 +246,8 @@ class BaseSnapshot implements Snapshot {
   }
 
   /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#deleteManifests(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link
+   *     Snapshot#deleteManifests(FileIO)} instead.
    */
   @Override
   @Deprecated
@@ -247,7 +267,8 @@ class BaseSnapshot implements Snapshot {
   }
 
   /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#addedDataFiles(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#addedDataFiles(FileIO)}
+   *     instead.
    */
   @Override
   @Deprecated
@@ -267,7 +288,8 @@ class BaseSnapshot implements Snapshot {
   }
 
   /**
-   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link Snapshot#removedDataFiles(FileIO)} instead.
+   * @deprecated since 0.14.0, will be removed in 1.0.0; Use {@link
+   *     Snapshot#removedDataFiles(FileIO)} instead.
    */
   @Override
   @Deprecated
@@ -305,11 +327,13 @@ class BaseSnapshot implements Snapshot {
     ImmutableList.Builder<DeleteFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> deletes = ImmutableList.builder();
 
-    Iterable<ManifestFile> changedManifests = Iterables.filter(deleteManifests(fileIO),
-        manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
+    Iterable<ManifestFile> changedManifests =
+        Iterables.filter(
+            deleteManifests(fileIO), manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
 
     for (ManifestFile manifest : changedManifests) {
-      try (ManifestReader<DeleteFile> reader = ManifestFiles.readDeleteManifest(manifest, fileIO, null)) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, fileIO, null)) {
         for (ManifestEntry<DeleteFile> entry : reader.entries()) {
           switch (entry.status()) {
             case ADDED:
@@ -338,11 +362,11 @@ class BaseSnapshot implements Snapshot {
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
 
     // read only manifests that were created by this snapshot
-    Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(fileIO),
-        manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(fileIO, changedManifests)
-        .ignoreExisting()
-        .entries()) {
+    Iterable<ManifestFile> changedManifests =
+        Iterables.filter(
+            dataManifests(fileIO), manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
+    try (CloseableIterable<ManifestEntry<DataFile>> entries =
+        new ManifestGroup(fileIO, changedManifests).ignoreExisting().entries()) {
       for (ManifestEntry<DataFile> entry : entries) {
         switch (entry.status()) {
           case ADDED:
@@ -372,11 +396,11 @@ class BaseSnapshot implements Snapshot {
 
     if (o instanceof BaseSnapshot) {
       BaseSnapshot other = (BaseSnapshot) o;
-      return this.snapshotId == other.snapshotId() &&
-          Objects.equal(this.parentId, other.parentId()) &&
-          this.sequenceNumber == other.sequenceNumber() &&
-          this.timestampMillis == other.timestampMillis() &&
-          Objects.equal(this.schemaId, other.schemaId());
+      return this.snapshotId == other.snapshotId()
+          && Objects.equal(this.parentId, other.parentId())
+          && this.sequenceNumber == other.sequenceNumber()
+          && this.timestampMillis == other.timestampMillis()
+          && Objects.equal(this.schemaId, other.schemaId());
     }
 
     return false;
@@ -385,12 +409,7 @@ class BaseSnapshot implements Snapshot {
   @Override
   public int hashCode() {
     return Objects.hashCode(
-      this.snapshotId,
-      this.parentId,
-      this.sequenceNumber,
-      this.timestampMillis,
-      this.schemaId
-    );
+        this.snapshotId, this.parentId, this.sequenceNumber, this.timestampMillis, this.schemaId);
   }
 
   @Override

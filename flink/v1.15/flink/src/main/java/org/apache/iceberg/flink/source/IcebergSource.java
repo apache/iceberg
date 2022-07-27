@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -95,8 +94,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
   @Override
   public SourceReader<T, IcebergSourceSplit> createReader(SourceReaderContext readerContext) {
-    ReaderMetricsContext readerMetrics =
-        new ReaderMetricsContext(readerContext.metricGroup());
+    ReaderMetricsContext readerMetrics = new ReaderMetricsContext(readerContext.metricGroup());
     return new IcebergSourceReader<>(readerFunction, readerContext, readerMetrics);
   }
 
@@ -130,20 +128,28 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     if (enumState == null) {
       assigner = assignerFactory.createAssigner();
     } else {
-      LOG.info("Iceberg source restored {} splits from state for table {}",
-          enumState.pendingSplits().size(), table.name());
+      LOG.info(
+          "Iceberg source restored {} splits from state for table {}",
+          enumState.pendingSplits().size(),
+          table.name());
       assigner = assignerFactory.createAssigner(enumState.pendingSplits());
     }
 
     if (scanContext.isStreaming()) {
-      // Ideally, operatorId should be used as the threadPoolName as Flink guarantees its uniqueness within a job.
-      // SplitEnumeratorContext doesn't expose the OperatorCoordinator.Context, which would contain the OperatorID.
-      // Need to discuss with Flink community whether it is ok to expose a public API like the protected method
-      // "OperatorCoordinator.Context getCoordinatorContext()" from SourceCoordinatorContext implementation.
+      // Ideally, operatorId should be used as the threadPoolName as Flink guarantees its uniqueness
+      // within a job.
+      // SplitEnumeratorContext doesn't expose the OperatorCoordinator.Context, which would contain
+      // the OperatorID.
+      // Need to discuss with Flink community whether it is ok to expose a public API like the
+      // protected method
+      // "OperatorCoordinator.Context getCoordinatorContext()" from SourceCoordinatorContext
+      // implementation.
       // For now, <table name>-<random UUID> is used as the unique thread pool name.
-      ContinuousSplitPlanner splitPlanner = new ContinuousSplitPlannerImpl(
-          table, scanContext, table.name() + "-" + UUID.randomUUID());
-      return new ContinuousIcebergEnumerator(enumContext, assigner, scanContext, splitPlanner, enumState);
+      ContinuousSplitPlanner splitPlanner =
+          new ContinuousSplitPlannerImpl(
+              table, scanContext, table.name() + "-" + UUID.randomUUID());
+      return new ContinuousIcebergEnumerator(
+          enumContext, assigner, scanContext, splitPlanner, enumState);
     } else {
       return new StaticIcebergEnumerator(enumContext, assigner, table, scanContext, enumState);
     }
@@ -168,8 +174,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     // optional
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
-    Builder() {
-    }
+    Builder() {}
 
     public Builder<T> tableLoader(TableLoader loader) {
       this.tableLoader = loader;
@@ -292,8 +297,15 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         try (TableLoader loader = tableLoader) {
           loader.open();
           Table table = tableLoader.loadTable();
-          RowDataReaderFunction rowDataReaderFunction = new RowDataReaderFunction(flinkConfig, table.schema(),
-              context.project(), context.nameMapping(), context.caseSensitive(), table.io(), table.encryption());
+          RowDataReaderFunction rowDataReaderFunction =
+              new RowDataReaderFunction(
+                  flinkConfig,
+                  table.schema(),
+                  context.project(),
+                  context.nameMapping(),
+                  context.caseSensitive(),
+                  table.io(),
+                  table.encryption());
           this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
         } catch (IOException e) {
           throw new UncheckedIOException(e);
