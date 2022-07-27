@@ -383,7 +383,7 @@ class NotNull(UnaryPredicate[T]):
 class BoundIsNaN(BoundUnaryPredicate[T]):
     def __new__(cls, term: BoundTerm[T]):
         bound_type = term.ref().field.field_type
-        if bound_type == FloatType() or bound_type == DoubleType():
+        if type(bound_type) in {FloatType, DoubleType}:
             return super().__new__(cls)
         return AlwaysFalse()
 
@@ -394,7 +394,7 @@ class BoundIsNaN(BoundUnaryPredicate[T]):
 class BoundNotNaN(BoundUnaryPredicate[T]):
     def __new__(cls, term: BoundTerm[T]):
         bound_type = term.ref().field.field_type
-        if bound_type == FloatType() or bound_type == DoubleType():
+        if type(bound_type) in {FloatType, DoubleType}:
             return super().__new__(cls)
         return AlwaysTrue()
 
