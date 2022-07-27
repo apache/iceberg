@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
@@ -42,7 +41,6 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
-import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -378,15 +376,5 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces> ex
         icebergCatalog instanceof HasIcebergCatalog,
         "Cannot return underlying Iceberg Catalog, wrapped catalog does not contain an Iceberg Catalog");
     return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
-  }
-
-  @Override
-  public Identifier[] listFunctions(String[] namespace) {
-    return new Identifier[0];
-  }
-
-  @Override
-  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
-    throw new NoSuchFunctionException(ident);
   }
 }
