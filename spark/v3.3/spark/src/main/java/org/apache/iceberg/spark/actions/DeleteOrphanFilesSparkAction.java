@@ -48,6 +48,7 @@ import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -123,7 +124,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
   private Dataset<Row> compareToFileList;
-  private Consumer<String> deleteFunc = defaultDelete;
+  private Consumer<String> deleteFunc;
   private ExecutorService deleteExecutorService = null;
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
@@ -134,7 +135,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
     this.location = table.location();
-
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
@@ -248,13 +248,22 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         findOrphanFiles(
             spark(), actualFileDF, validFileDF, equalSchemes, equalAuthorities, prefixMismatchMode);
 
-    Tasks.foreach(orphanFiles)
-        .noRetry()
-        .executeWith(deleteExecutorService)
-        .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-        .run(deleteFunc::accept);
+    boolean supportBulkOperation = table.io() instanceof SupportsBulkOperations;
+    if (deleteFunc == null && !supportBulkOperation) {
+      deleteFunc = defaultDelete;
+    }
 
+    if (deleteFunc != null) {
+      Tasks.foreach(orphanFiles)
+          .noRetry()
+          .executeWith(deleteExecutorService)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+          .run(deleteFunc::accept);
+    } else {
+      SupportsBulkOperations bulkOperations = (SupportsBulkOperations) table.io();
+      bulkOperations.deleteFiles(orphanFiles);
+    }
     return new BaseDeleteOrphanFilesActionResult(orphanFiles);
   }
 
