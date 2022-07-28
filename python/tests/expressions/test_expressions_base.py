@@ -246,7 +246,7 @@ def test_ref_binding_case_insensitive_failure(request):
 
 
 def test_in_to_eq():
-    assert base.In(base.Reference("x"), (literal(34.56),)) == base.Eq(base.Reference("x"), literal(34.56))
+    assert base.In(base.Reference("x"), (literal(34.56),)) == base.EqualTo(base.Reference("x"), literal(34.56))
 
 
 def test_bind_in(request):
@@ -267,7 +267,7 @@ def test_bind_dedup(request):
 
 def test_bind_dedup_to_eq(request):
     schema = request.getfixturevalue("table_schema_simple")
-    bound = base.BoundEq(base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)), literal("hello"))
+    bound = base.BoundEqualTo(base.BoundReference(schema.find_field(1), schema.accessor_for_field(1)), literal("hello"))
     assert base.In(base.Reference("foo"), (literal("hello"), literal("hello"))).bind(schema) == bound
 
 
@@ -279,27 +279,27 @@ def test_bind_dedup_to_eq(request):
             "table_schema_simple",
         ),
         (
-            base.NotEq(base.Reference("foo"), literal("hello")),
+            base.NotEqualTo(base.Reference("foo"), literal("hello")),
             "table_schema_simple",
         ),
         (
-            base.Eq(base.Reference("foo"), literal("hello")),
+            base.EqualTo(base.Reference("foo"), literal("hello")),
             "table_schema_simple",
         ),
         (
-            base.Gt(base.Reference("foo"), literal("hello")),
+            base.GreaterThan(base.Reference("foo"), literal("hello")),
             "table_schema_simple",
         ),
         (
-            base.Lt(base.Reference("foo"), literal("hello")),
+            base.LessThan(base.Reference("foo"), literal("hello")),
             "table_schema_simple",
         ),
         (
-            base.GtEq(base.Reference("foo"), literal("hello")),
+            base.GreaterThanOrEqual(base.Reference("foo"), literal("hello")),
             "table_schema_simple",
         ),
         (
-            base.LtEq(base.Reference("foo"), literal("hello")),
+            base.LessThanOrEqual(base.Reference("foo"), literal("hello")),
             "table_schema_simple",
         ),
     ],
@@ -321,27 +321,27 @@ def test_bind(a, schema, request):
             "table_schema_simple",
         ),
         (
-            base.NotEq(base.Reference("Bar"), literal(5)),
+            base.NotEqualTo(base.Reference("Bar"), literal(5)),
             "table_schema_simple",
         ),
         (
-            base.Eq(base.Reference("Bar"), literal(5)),
+            base.EqualTo(base.Reference("Bar"), literal(5)),
             "table_schema_simple",
         ),
         (
-            base.Gt(base.Reference("Bar"), literal(5)),
+            base.GreaterThan(base.Reference("Bar"), literal(5)),
             "table_schema_simple",
         ),
         (
-            base.Lt(base.Reference("Bar"), literal(5)),
+            base.LessThan(base.Reference("Bar"), literal(5)),
             "table_schema_simple",
         ),
         (
-            base.GtEq(base.Reference("Bar"), literal(5)),
+            base.GreaterThanOrEqual(base.Reference("Bar"), literal(5)),
             "table_schema_simple",
         ),
         (
-            base.LtEq(base.Reference("Bar"), literal(5)),
+            base.LessThanOrEqual(base.Reference("Bar"), literal(5)),
             "table_schema_simple",
         ),
     ],
@@ -406,9 +406,9 @@ def test_eq(exp, testexpra, testexprb):
             base.NotIn(base.Reference("foo"), (literal("hello"), literal("world"))),
             base.In(base.Reference("foo"), (literal("hello"), literal("world"))),
         ),
-        (base.Gt(base.Reference("foo"), literal(5)), base.LtEq(base.Reference("foo"), literal(5))),
-        (base.Lt(base.Reference("foo"), literal(5)), base.GtEq(base.Reference("foo"), literal(5))),
-        (base.Eq(base.Reference("foo"), literal(5)), base.NotEq(base.Reference("foo"), literal(5))),
+        (base.GreaterThan(base.Reference("foo"), literal(5)), base.LessThanOrEqual(base.Reference("foo"), literal(5))),
+        (base.LessThan(base.Reference("foo"), literal(5)), base.GreaterThanOrEqual(base.Reference("foo"), literal(5))),
+        (base.EqualTo(base.Reference("foo"), literal(5)), base.NotEqualTo(base.Reference("foo"), literal(5))),
         (
             ExpressionA(),
             ExpressionB(),
@@ -633,7 +633,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple):
                         ),
                         {StringLiteral("bar"), StringLiteral("baz")},
                     ),
-                    base.BoundEq[int](
+                    base.BoundEqualTo[int](
                         base.BoundReference(
                             field=NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
                             accessor=Accessor(position=1, inner=None),
@@ -641,7 +641,7 @@ def test_always_false_or_always_true_expression_binding(table_schema_simple):
                         LongLiteral(1),
                     ),
                 ),
-                base.BoundEq[str](
+                base.BoundEqualTo[str](
                     base.BoundReference(
                         field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                         accessor=Accessor(position=0, inner=None),
@@ -778,7 +778,7 @@ def test_or_expression_binding(unbound_or_expression, expected_bound_expression,
                 base.Reference("foo"),
                 (literal("bar"),),
             ),
-            base.BoundEq(
+            base.BoundEqualTo(
                 base.BoundReference[str](
                     field=NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
                     accessor=Accessor(position=0, inner=None),

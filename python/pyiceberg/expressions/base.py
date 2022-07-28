@@ -399,7 +399,7 @@ class BoundIn(BoundSetPredicate[T]):
         if count == 0:
             return AlwaysFalse()
         elif count == 1:
-            return BoundEq(term, next(iter(literals)))
+            return BoundEqualTo(term, next(iter(literals)))
         else:
             return super().__new__(cls)
 
@@ -414,7 +414,7 @@ class BoundNotIn(BoundSetPredicate[T]):
         if count == 0:
             return AlwaysTrue()
         elif count == 1:
-            return BoundNotEq(term, next(iter(literals)))
+            return BoundNotEqualTo(term, next(iter(literals)))
         else:
             return super().__new__(cls)
 
@@ -431,7 +431,7 @@ class In(SetPredicate[T]):
         if count == 0:
             return AlwaysFalse()
         elif count == 1:
-            return Eq(term, literals[0])
+            return EqualTo(term, literals[0])
         else:
             return super().__new__(cls)
 
@@ -448,7 +448,7 @@ class NotIn(SetPredicate[T]):
         if count == 0:
             return AlwaysTrue()
         elif count == 1:
-            return NotEq(term, literals[0])
+            return NotEqualTo(term, literals[0])
         else:
             return super().__new__(cls)
 
@@ -477,87 +477,87 @@ class BoundLiteralPredicate(BoundPredicate[T]):
 
 
 @dataclass(frozen=True)
-class BoundEq(BoundLiteralPredicate[T]):
-    def __invert__(self) -> BoundNotEq[T]:
-        return BoundNotEq(self.term, self.literal)
+class BoundEqualTo(BoundLiteralPredicate[T]):
+    def __invert__(self) -> BoundNotEqualTo[T]:
+        return BoundNotEqualTo(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class BoundNotEq(BoundLiteralPredicate[T]):
-    def __invert__(self) -> BoundEq[T]:
-        return BoundEq(self.term, self.literal)
+class BoundNotEqualTo(BoundLiteralPredicate[T]):
+    def __invert__(self) -> BoundEqualTo[T]:
+        return BoundEqualTo(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class BoundGtEq(BoundLiteralPredicate[T]):
-    def __invert__(self) -> BoundLt[T]:
-        return BoundLt(self.term, self.literal)
+class BoundGreaterThanOrEqual(BoundLiteralPredicate[T]):
+    def __invert__(self) -> BoundLessThan[T]:
+        return BoundLessThan(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class BoundGt(BoundLiteralPredicate[T]):
-    def __invert__(self) -> BoundLtEq[T]:
-        return BoundLtEq(self.term, self.literal)
+class BoundGreaterThan(BoundLiteralPredicate[T]):
+    def __invert__(self) -> BoundLessThanOrEqual[T]:
+        return BoundLessThanOrEqual(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class BoundLt(BoundLiteralPredicate[T]):
-    def __invert__(self) -> BoundGtEq[T]:
-        return BoundGtEq(self.term, self.literal)
+class BoundLessThan(BoundLiteralPredicate[T]):
+    def __invert__(self) -> BoundGreaterThanOrEqual[T]:
+        return BoundGreaterThanOrEqual(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class BoundLtEq(BoundLiteralPredicate[T]):
-    def __invert__(self) -> BoundGt[T]:
-        return BoundGt(self.term, self.literal)
+class BoundLessThanOrEqual(BoundLiteralPredicate[T]):
+    def __invert__(self) -> BoundGreaterThan[T]:
+        return BoundGreaterThan(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class Eq(LiteralPredicate[T]):
-    as_bound = BoundEq
+class EqualTo(LiteralPredicate[T]):
+    as_bound = BoundEqualTo
 
-    def __invert__(self) -> NotEq[T]:
-        return NotEq(self.term, self.literal)
-
-
-@dataclass(frozen=True)
-class NotEq(LiteralPredicate[T]):
-    as_bound = BoundNotEq
-
-    def __invert__(self) -> Eq[T]:
-        return Eq(self.term, self.literal)
+    def __invert__(self) -> NotEqualTo[T]:
+        return NotEqualTo(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class Lt(LiteralPredicate[T]):
-    as_bound = BoundLt
+class NotEqualTo(LiteralPredicate[T]):
+    as_bound = BoundNotEqualTo
 
-    def __invert__(self) -> GtEq[T]:
-        return GtEq(self.term, self.literal)
-
-
-@dataclass(frozen=True)
-class GtEq(LiteralPredicate[T]):
-    as_bound = BoundGtEq
-
-    def __invert__(self) -> Lt[T]:
-        return Lt(self.term, self.literal)
+    def __invert__(self) -> EqualTo[T]:
+        return EqualTo(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class Gt(LiteralPredicate[T]):
-    as_bound = BoundGt
+class LessThan(LiteralPredicate[T]):
+    as_bound = BoundLessThan
 
-    def __invert__(self) -> LtEq[T]:
-        return LtEq(self.term, self.literal)
+    def __invert__(self) -> GreaterThanOrEqual[T]:
+        return GreaterThanOrEqual(self.term, self.literal)
 
 
 @dataclass(frozen=True)
-class LtEq(LiteralPredicate[T]):
-    as_bound = BoundLtEq
+class GreaterThanOrEqual(LiteralPredicate[T]):
+    as_bound = BoundGreaterThanOrEqual
 
-    def __invert__(self) -> Gt[T]:
-        return Gt(self.term, self.literal)
+    def __invert__(self) -> LessThan[T]:
+        return LessThan(self.term, self.literal)
+
+
+@dataclass(frozen=True)
+class GreaterThan(LiteralPredicate[T]):
+    as_bound = BoundGreaterThan
+
+    def __invert__(self) -> LessThanOrEqual[T]:
+        return LessThanOrEqual(self.term, self.literal)
+
+
+@dataclass(frozen=True)
+class LessThanOrEqual(LiteralPredicate[T]):
+    as_bound = BoundLessThanOrEqual
+
+    def __invert__(self) -> GreaterThan[T]:
+        return GreaterThan(self.term, self.literal)
 
 
 class BooleanExpressionVisitor(Generic[T], ABC):
