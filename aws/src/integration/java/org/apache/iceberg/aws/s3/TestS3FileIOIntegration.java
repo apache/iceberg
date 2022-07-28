@@ -341,7 +341,7 @@ public class TestS3FileIOIntegration {
     String listPrefix = String.format("s3://%s/%s", bucketName, "prefix-list-test");
 
     scaleSizes.parallelStream().forEach(scale -> {
-      String scalePrefix = String.format("%s/%s/", prefix, scale);
+      String scalePrefix = String.format("%s/%s/", listPrefix, scale);
       createRandomObjects(scalePrefix, scale);
       assertEquals((long) scale, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
     });
