@@ -116,5 +116,13 @@ ignore_missing_imports = true
 module = "mmh3.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "hive_metastore.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "thrift.*"
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ['pyiceberg/']

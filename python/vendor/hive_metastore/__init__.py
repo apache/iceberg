@@ -1,1 +1,1 @@
-__all__ = ['ttypes', 'constants', 'ThriftHiveMetastore']
+__all__ = ["ttypes", "constants", "ThriftHiveMetastore"]

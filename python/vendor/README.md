@@ -21,7 +21,7 @@ The thrift definition require the fb303 service as a dependency
 
 ```bash
 rm -rf /tmp/hive
-mkdir -p /tmp/hive/share/fb303/if/  
+mkdir -p /tmp/hive/share/fb303/if/
 curl https://raw.githubusercontent.com/apache/thrift/master/contrib/fb303/if/fb303.thrift > /tmp/hive/share/fb303/if/fb303.thrift
 curl https://raw.githubusercontent.com/apache/hive/master/standalone-metastore/metastore-common/src/main/thrift/hive_metastore.thrift > /tmp/hive/hive_metastore.thrift
 thrift -gen py -o /tmp/hive /tmp/hive/hive_metastore.thrift
