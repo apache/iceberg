@@ -53,6 +53,7 @@ import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 import org.junit.runner.RunWith;
@@ -228,7 +229,12 @@ public class TestS3FileIO {
     Assertions.assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(prefix)).count());
   }
 
+  /**
+   * Ignoring because the test is flaky, failing with 500s from S3Mock. Coverage of prefix delete
+   * exists through integration tests.
+   */
   @Test
+  @Ignore
   public void testPrefixDelete() {
     String prefix = "s3://bucket/path/to/delete";
     List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1001);
