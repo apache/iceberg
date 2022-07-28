@@ -94,14 +94,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
   private String planningThreadName() {
     // Ideally, operatorId should be used as the threadPoolName as Flink guarantees its uniqueness
-    // within a job.
-    // SplitEnumeratorContext doesn't expose the OperatorCoordinator.Context, which would contain
-    // the OperatorID.
-    // Need to discuss with Flink community whether it is ok to expose a public API like the
-    // protected method
-    // "OperatorCoordinator.Context getCoordinatorContext()" from SourceCoordinatorContext
-    // implementation.
-    // For now, <table name>-<random UUID> is used as the unique thread pool name.
+    // within a job. SplitEnumeratorContext doesn't expose the OperatorCoordinator.Context, which
+    // would contain the OperatorID. Need to discuss with Flink community whether it is ok to expose
+    // a public API like the protected method "OperatorCoordinator.Context getCoordinatorContext()"
+    // from SourceCoordinatorContext implementation. For now, <table name>-<random UUID> is used as
+    // the unique thread pool name.
     return lazyTable().name() + "-" + UUID.randomUUID();
   }
 
@@ -110,11 +107,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
     try {
       List<IcebergSourceSplit> splits =
-          FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext, workerPool);
+          FlinkSplitPlanner.planIcebergSourceSplits(lazyTable(), scanContext, workerPool);
       LOG.info(
           "Discovered {} splits from table {} during job initialization",
           splits.size(),
-          table.name());
+          lazyTable().name());
       return splits;
     } finally {
       workerPool.shutdown();
@@ -130,6 +127,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         throw new UncheckedIOException("Failed to close table loader", e);
       }
     }
+
     return table;
   }
 
@@ -176,7 +174,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       LOG.info(
           "Iceberg source restored {} splits from state for table {}",
           enumState.pendingSplits().size(),
-          table.name());
+          lazyTable().name());
       assigner = assignerFactory.createAssigner(enumState.pendingSplits());
     }
 
