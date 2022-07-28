@@ -27,7 +27,12 @@ import pytest
 
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
-from pyiceberg.exceptions import AlreadyExistsError, NamespaceNotEmptyError, NoSuchNamespaceError
+from pyiceberg.exceptions import (
+    AlreadyExistsError,
+    NamespaceNotEmptyError,
+    NoSuchNamespaceError,
+    NoSuchTableError,
+)
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
 from pyiceberg.table.metadata import INITIAL_SPEC_ID
@@ -75,14 +80,14 @@ class InMemoryCatalog(Catalog):
         try:
             return self.__tables[identifier]
         except KeyError as error:
-            raise NoSuchNamespaceError(f"Table does not exist: {identifier}") from error
+            raise NoSuchTableError(f"Table does not exist: {identifier}") from error
 
     def drop_table(self, identifier: Union[str, Identifier]) -> None:
         identifier = Catalog.identifier_to_tuple(identifier)
         try:
             self.__tables.pop(identifier)
         except KeyError as error:
-            raise NoSuchNamespaceError(f"Table does not exist: {identifier}") from error
+            raise NoSuchTableError(f"Table does not exist: {identifier}") from error
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
         self.drop_table(identifier)
@@ -92,7 +97,7 @@ class InMemoryCatalog(Catalog):
         try:
             table = self.__tables.pop(from_identifier)
         except KeyError as error:
-            raise NoSuchNamespaceError(f"Table does not exist: {from_identifier}") from error
+            raise NoSuchTableError(f"Table does not exist: {from_identifier}") from error
 
         to_identifier = Catalog.identifier_to_tuple(to_identifier)
         to_namespace = Catalog.namespace_from(to_identifier)
@@ -256,7 +261,7 @@ def test_load_table(catalog: InMemoryCatalog):
 
 
 def test_table_raises_error_on_table_not_found(catalog: InMemoryCatalog):
-    with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_TABLE_ERROR):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
@@ -266,12 +271,12 @@ def test_drop_table(catalog: InMemoryCatalog):
     # When
     catalog.drop_table(TEST_TABLE_IDENTIFIER)
     # Then
-    with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_TABLE_ERROR):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
 def test_drop_table_that_does_not_exist_raise_error(catalog: InMemoryCatalog):
-    with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_TABLE_ERROR):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
@@ -281,7 +286,7 @@ def test_purge_table(catalog: InMemoryCatalog):
     # When
     catalog.purge_table(TEST_TABLE_IDENTIFIER)
     # Then
-    with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_TABLE_ERROR):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 
@@ -304,7 +309,7 @@ def test_rename_table(catalog: InMemoryCatalog):
     assert ("new", "namespace") in catalog.list_namespaces()
 
     # And
-    with pytest.raises(NoSuchNamespaceError, match=NO_SUCH_TABLE_ERROR):
+    with pytest.raises(NoSuchTableError, match=NO_SUCH_TABLE_ERROR):
         catalog.load_table(TEST_TABLE_IDENTIFIER)
 
 

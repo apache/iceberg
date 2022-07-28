@@ -20,10 +20,6 @@ class TableAlreadyExistsError(Exception):
     """Raised when creating a table with a name that already exists"""
 
 
-class NoSuchNamespaceError(Exception):
-    """Raised when a referenced name-space is not found"""
-
-
 class NamespaceNotEmptyError(Exception):
     """Raised when a name-space being dropped is not empty"""
 
@@ -66,3 +62,11 @@ class ForbiddenError(RESTError):
 
 class AuthorizationExpiredError(RESTError):
     """When the credentials are expired when performing an action on the REST catalog"""
+
+
+class NoSuchTableError(RESTError):
+    """Raises when the table can't be found in the REST catalog"""
+
+
+class NoSuchNamespaceError(RESTError):
+    """Raised when a referenced name-space is not found"""

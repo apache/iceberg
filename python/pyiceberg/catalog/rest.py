@@ -39,6 +39,7 @@ from pyiceberg.exceptions import (
     BadRequestError,
     ForbiddenError,
     NoSuchNamespaceError,
+    NoSuchTableError,
     RESTError,
     ServerError,
     ServiceUnavailableError,
@@ -249,7 +250,7 @@ class RestCatalog(Catalog):
         identifier = self.identifier_to_tuple(identifier)
         return {"namespace": NAMESPACE_SEPARATOR.join(identifier[:-1]), "table": identifier[-1]}
 
-    def _split_identifier_for_json(self, identifier: Union[str, Identifier]) -> Dict[str, Union[Tuple[str, ...], str]]:
+    def _split_identifier_for_json(self, identifier: Union[str, Identifier]) -> Dict[str, Union[Identifier, str]]:
         identifier = self.identifier_to_tuple(identifier)
         return {"namespace": identifier[:-1], "name": identifier[-1]}
 
@@ -336,9 +337,7 @@ class RestCatalog(Catalog):
             response.raise_for_status()
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
-        response = ListTablesResponse(**response.json())
-
-        return [(self.name, *entry.namespace, entry.name) for entry in response.identifiers]
+        return [(*table.namespace, table.name) for table in ListTablesResponse(**response.json()).identifiers]
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         response = requests.get(
@@ -347,7 +346,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
+            self._handle_non_200_response(exc, {404: NoSuchTableError})
 
         table_response = TableResponse(**response.json())
 
@@ -365,7 +364,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
+            self._handle_non_200_response(exc, {404: NoSuchTableError})
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
         self.drop_table(identifier=identifier, purge_requested=True)
@@ -379,7 +378,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: TableAlreadyExistsError})
+            self._handle_non_200_response(exc, {404: NoSuchTableError, 409: TableAlreadyExistsError})
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
         payload = {"namespace": self.identifier_to_tuple(namespace), "properties": properties or {}}

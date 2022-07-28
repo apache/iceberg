@@ -26,6 +26,7 @@ from pyiceberg.exceptions import (
     AlreadyExistsError,
     BadCredentialsError,
     NoSuchNamespaceError,
+    NoSuchTableError,
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
@@ -103,7 +104,7 @@ def test_list_tables_200(rest_mock: Mocker):
         status_code=200,
     )
 
-    assert RestCatalog("rest", {}, TEST_HOST, token=TEST_TOKEN).list_tables(namespace) == [("rest", "examples", "fooshare")]
+    assert RestCatalog("rest", {}, TEST_HOST, token=TEST_TOKEN).list_tables(namespace) == [("examples", "fooshare")]
 
 
 def test_list_tables_404(rest_mock: Mocker):
@@ -408,7 +409,7 @@ def test_load_table_404(rest_mock: Mocker):
         status_code=404,
     )
 
-    with pytest.raises(NoSuchNamespaceError) as e:
+    with pytest.raises(NoSuchTableError) as e:
         RestCatalog("rest", {}, TEST_HOST, token=TEST_TOKEN).load_table(("fokko", "does_not_exists"))
     assert "Table does not exist" in str(e.value)
 
@@ -426,7 +427,7 @@ def test_drop_table_404(rest_mock: Mocker):
         status_code=404,
     )
 
-    with pytest.raises(NoSuchNamespaceError) as e:
+    with pytest.raises(NoSuchTableError) as e:
         RestCatalog("rest", {}, TEST_HOST, token=TEST_TOKEN).drop_table(("fokko", "does_not_exists"))
     assert "Table does not exist" in str(e.value)
 
@@ -606,6 +607,6 @@ def test_delete_table_404(rest_mock: Mocker):
         },
         status_code=404,
     )
-    with pytest.raises(NoSuchNamespaceError) as e:
+    with pytest.raises(NoSuchTableError) as e:
         RestCatalog("rest", {}, TEST_HOST, token=TEST_TOKEN).drop_table(("example", "fokko"))
     assert "Table does not exist" in str(e.value)
