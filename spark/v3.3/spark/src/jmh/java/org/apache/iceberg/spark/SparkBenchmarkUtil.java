@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.List;
@@ -32,13 +31,13 @@ import scala.collection.JavaConverters;
 
 public class SparkBenchmarkUtil {
 
-  private SparkBenchmarkUtil() {
-  }
+  private SparkBenchmarkUtil() {}
 
   public static UnsafeProjection projection(Schema expectedSchema, Schema actualSchema) {
     StructType struct = SparkSchemaUtil.convert(actualSchema);
 
-    List<AttributeReference> refs = JavaConverters.seqAsJavaListConverter(struct.toAttributes()).asJava();
+    List<AttributeReference> refs =
+        JavaConverters.seqAsJavaListConverter(struct.toAttributes()).asJava();
     List<Attribute> attrs = Lists.newArrayListWithExpectedSize(struct.fields().length);
     List<Expression> exprs = Lists.newArrayListWithExpectedSize(struct.fields().length);
 

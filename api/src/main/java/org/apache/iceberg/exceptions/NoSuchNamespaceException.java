@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
-/**
- * Exception raised when attempting to load a namespace that does not exist.
- */
+/** Exception raised when attempting to load a namespace that does not exist. */
 public class NoSuchNamespaceException extends RuntimeException {
   @FormatMethod
   public NoSuchNamespaceException(String message, Object... args) {

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell;
 
 import com.emc.object.s3.S3Client;
@@ -29,12 +28,12 @@ import org.apache.iceberg.util.PropertyUtil;
 
 public class DellClientFactories {
 
-  private DellClientFactories() {
-  }
+  private DellClientFactories() {}
 
   public static DellClientFactory from(Map<String, String> properties) {
-    String factoryImpl = PropertyUtil.propertyAsString(
-        properties, DellProperties.CLIENT_FACTORY, DefaultDellClientFactory.class.getName());
+    String factoryImpl =
+        PropertyUtil.propertyAsString(
+            properties, DellProperties.CLIENT_FACTORY, DefaultDellClientFactory.class.getName());
     return loadClientFactory(factoryImpl, properties);
   }
 
@@ -43,8 +42,10 @@ public class DellClientFactories {
     try {
       ctor = DynConstructors.builder(DellClientFactory.class).hiddenImpl(impl).buildChecked();
     } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot initialize DellClientFactory, missing no-arg constructor: %s", impl), e);
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize DellClientFactory, missing no-arg constructor: %s", impl),
+          e);
     }
 
     DellClientFactory factory;
@@ -52,7 +53,10 @@ public class DellClientFactories {
       factory = ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize DellClientFactory, %s does not implement DellClientFactory.", impl), e);
+          String.format(
+              "Cannot initialize DellClientFactory, %s does not implement DellClientFactory.",
+              impl),
+          e);
     }
 
     factory.initialize(properties);
@@ -62,14 +66,14 @@ public class DellClientFactories {
   static class DefaultDellClientFactory implements DellClientFactory {
     private DellProperties dellProperties;
 
-    DefaultDellClientFactory() {
-    }
+    DefaultDellClientFactory() {}
 
     @Override
     public S3Client ecsS3() {
       S3Config config = new S3Config(URI.create(dellProperties.ecsS3Endpoint()));
 
-      config.withIdentity(dellProperties.ecsS3AccessKeyId())
+      config
+          .withIdentity(dellProperties.ecsS3AccessKeyId())
           .withSecretKey(dellProperties.ecsS3SecretAccessKey());
 
       return new S3JerseyClient(config);

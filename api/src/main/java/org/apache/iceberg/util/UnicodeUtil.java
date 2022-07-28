@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import org.apache.iceberg.expressions.Literal;
@@ -24,12 +23,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class UnicodeUtil {
   // not meant to be instantiated
-  private UnicodeUtil() {
-  }
+  private UnicodeUtil() {}
 
   /**
-   * Determines if the given character value is a unicode high-surrogate code unit.
-   * The range of high-surrogates is 0xD800 - 0xDBFF.
+   * Determines if the given character value is a unicode high-surrogate code unit. The range of
+   * high-surrogates is 0xD800 - 0xDBFF.
    */
   public static boolean isCharHighSurrogate(char ch) {
     return (ch & '\uFC00') == '\uD800'; // 0xDC00 - 0xDFFF shouldn't match
@@ -37,25 +35,28 @@ public class UnicodeUtil {
 
   /**
    * Truncates the input charSequence such that the truncated charSequence is a valid unicode string
-   * and the number of unicode characters in the truncated charSequence is lesser than or equal to length
+   * and the number of unicode characters in the truncated charSequence is lesser than or equal to
+   * length
    */
   public static CharSequence truncateString(CharSequence input, int length) {
     Preconditions.checkArgument(length > 0, "Truncate length should be positive");
     StringBuilder sb = new StringBuilder(input);
     // Get the number of unicode characters in the input
     int numUniCodeCharacters = sb.codePointCount(0, sb.length());
-    // No need to truncate if the number of unicode characters in the char sequence is <= truncate length
+    // No need to truncate if the number of unicode characters in the char sequence is <= truncate
+    // length
     if (length >= numUniCodeCharacters) {
       return input;
     }
-    // Get the offset in the input charSequence where the number of unicode characters = truncate length
+    // Get the offset in the input charSequence where the number of unicode characters = truncate
+    // length
     int offsetByCodePoint = sb.offsetByCodePoints(0, length);
     return input.subSequence(0, offsetByCodePoint);
   }
 
   /**
-   * Returns a valid unicode charsequence that is lower than the given input such that the
-   * number of unicode characters in the truncated charSequence is lesser than or equal to length
+   * Returns a valid unicode charsequence that is lower than the given input such that the number of
+   * unicode characters in the truncated charSequence is lesser than or equal to length
    */
   public static Literal<CharSequence> truncateStringMin(Literal<CharSequence> input, int length) {
     // Truncate the input to the specified truncate length.
@@ -64,8 +65,8 @@ public class UnicodeUtil {
   }
 
   /**
-   * Returns a valid unicode charsequence that is greater than the given input such that the
-   * number of unicode characters in the truncated charSequence is lesser than or equal to length
+   * Returns a valid unicode charsequence that is greater than the given input such that the number
+   * of unicode characters in the truncated charSequence is lesser than or equal to length
    */
   public static Literal<CharSequence> truncateStringMax(Literal<CharSequence> input, int length) {
     CharSequence inputCharSeq = input.value();

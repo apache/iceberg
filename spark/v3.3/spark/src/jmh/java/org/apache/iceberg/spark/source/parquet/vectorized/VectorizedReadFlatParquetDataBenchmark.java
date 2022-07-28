@@ -16,8 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.parquet.vectorized;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.current_date;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.lit;
+import static org.apache.spark.sql.functions.pmod;
+import static org.apache.spark.sql.functions.when;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,21 +46,11 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.current_date;
-import static org.apache.spark.sql.functions.date_add;
-import static org.apache.spark.sql.functions.expr;
-import static org.apache.spark.sql.functions.lit;
-import static org.apache.spark.sql.functions.pmod;
-import static org.apache.spark.sql.functions.when;
-
 /**
- * Benchmark to compare performance of reading Parquet data with a flat schema using vectorized Iceberg read path and
- * the built-in file source in Spark.
- * <p>
- * To run this benchmark for spark-3.3:
- * <code>
+ * Benchmark to compare performance of reading Parquet data with a flat schema using vectorized
+ * Iceberg read path and the built-in file source in Spark.
+ *
+ * <p>To run this benchmark for spark-3.3: <code>
  *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh \
  *       -PjmhIncludeRegex=VectorizedReadFlatParquetDataBenchmark \
  *       -PjmhOutputPath=benchmark/results.txt
@@ -67,7 +65,8 @@ public class VectorizedReadFlatParquetDataBenchmark extends IcebergSourceBenchma
   public void setupBenchmark() {
     setupSpark();
     appendData();
-    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
+    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within
+    // bounds
     System.setProperty("arrow.enable_unsafe_memory_access", "true");
     // Disable expensive null check for every get(index) call.
     // Iceberg manages nullability checks itself instead of relying on arrow.
@@ -89,16 +88,17 @@ public class VectorizedReadFlatParquetDataBenchmark extends IcebergSourceBenchma
   protected Table initTable() {
     // bigDecimalCol is big enough to be encoded as fix len binary (9 bytes),
     // decimalCol is small enough to be encoded as a 64-bit int
-    Schema schema = new Schema(
-        optional(1, "longCol", Types.LongType.get()),
-        optional(2, "intCol", Types.IntegerType.get()),
-        optional(3, "floatCol", Types.FloatType.get()),
-        optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(5, "bigDecimalCol", Types.DecimalType.of(20, 5)),
-        optional(6, "decimalCol", Types.DecimalType.of(18, 5)),
-        optional(7, "dateCol", Types.DateType.get()),
-        optional(8, "timestampCol", Types.TimestampType.withZone()),
-        optional(9, "stringCol", Types.StringType.get()));
+    Schema schema =
+        new Schema(
+            optional(1, "longCol", Types.LongType.get()),
+            optional(2, "intCol", Types.IntegerType.get()),
+            optional(3, "floatCol", Types.FloatType.get()),
+            optional(4, "doubleCol", Types.DoubleType.get()),
+            optional(5, "bigDecimalCol", Types.DecimalType.of(20, 5)),
+            optional(6, "decimalCol", Types.DecimalType.of(18, 5)),
+            optional(7, "dateCol", Types.DateType.get()),
+            optional(8, "timestampCol", Types.TimestampType.withZone()),
+            optional(9, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = parquetWriteProps();
@@ -114,20 +114,21 @@ public class VectorizedReadFlatParquetDataBenchmark extends IcebergSourceBenchma
 
   void appendData() {
     for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
-      Dataset<Row> df = spark().range(NUM_ROWS_PER_FILE)
-          .withColumn(
-              "longCol",
-              when(pmod(col("id"), lit(10)).equalTo(lit(0)), lit(null))
-                  .otherwise(col("id")))
-          .drop("id")
-          .withColumn("intCol", expr("CAST(longCol AS INT)"))
-          .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-          .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-          .withColumn("bigDecimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
-          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(18, 5))"))
-          .withColumn("dateCol", date_add(current_date(), fileNum))
-          .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-          .withColumn("stringCol", expr("CAST(longCol AS STRING)"));
+      Dataset<Row> df =
+          spark()
+              .range(NUM_ROWS_PER_FILE)
+              .withColumn(
+                  "longCol",
+                  when(pmod(col("id"), lit(10)).equalTo(lit(0)), lit(null)).otherwise(col("id")))
+              .drop("id")
+              .withColumn("intCol", expr("CAST(longCol AS INT)"))
+              .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+              .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+              .withColumn("bigDecimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+              .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(18, 5))"))
+              .withColumn("dateCol", date_add(current_date(), fileNum))
+              .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+              .withColumn("stringCol", expr("CAST(longCol AS STRING)"));
       appendAsFile(df);
     }
   }
@@ -135,181 +136,213 @@ public class VectorizedReadFlatParquetDataBenchmark extends IcebergSourceBenchma
   @Benchmark
   @Threads(1)
   public void readIntegersIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("intCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("intCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readIntegersSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("intCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("intCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readLongsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("longCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("longCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readLongsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("longCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("longCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readFloatsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("floatCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("floatCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readFloatsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("floatCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("floatCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readDoublesIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("doubleCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).select("doubleCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readDoublesSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("doubleCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("doubleCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readDecimalsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("decimalCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).select("decimalCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readDecimalsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("decimalCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readBigDecimalsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-              .load(tableLocation).select("bigDecimalCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).select("bigDecimalCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readBigDecimalsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("bigDecimalCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("bigDecimalCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readDatesIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("dateCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("dateCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readDatesSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("dateCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("dateCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readTimestampsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("timestampCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).select("timestampCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readTimestampsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("timestampCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("timestampCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readStringsIcebergVectorized5k() {
-    withTableProperties(tablePropsWithVectorizationEnabled(5000), () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg")
-          .load(tableLocation).select("stringCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tablePropsWithVectorizationEnabled(5000),
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).select("stringCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
   @Threads(1)
   public void readStringsSparkVectorized5k() {
-    withSQLConf(sparkConfWithVectorizationEnabled(5000), () -> {
-      Dataset<Row> df = spark().read().parquet(dataLocation()).select("stringCol");
-      materialize(df);
-    });
+    withSQLConf(
+        sparkConfWithVectorizationEnabled(5000),
+        () -> {
+          Dataset<Row> df = spark().read().parquet(dataLocation()).select("stringCol");
+          materialize(df);
+        });
   }
 
   private static Map<String, String> tablePropsWithVectorizationEnabled(int batchSize) {

@@ -16,8 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
+
+import static org.apache.iceberg.flink.SimpleDataUtil.createDelete;
+import static org.apache.iceberg.flink.SimpleDataUtil.createInsert;
+import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
+import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateAfter;
+import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateBefore;
 
 import java.io.File;
 import java.io.IOException;
@@ -50,12 +55,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.flink.SimpleDataUtil.createDelete;
-import static org.apache.iceberg.flink.SimpleDataUtil.createInsert;
-import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
-import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateAfter;
-import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateBefore;
-
 @RunWith(Parameterized.class)
 public class TestDeltaTaskWriter extends TableTestBase {
   private static final int FORMAT_V2 = 2;
@@ -64,11 +63,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
   @Parameterized.Parameters(name = "FileFormat = {0}")
   public static Object[][] parameters() {
-    return new Object[][] {
-        {"avro"},
-        {"orc"},
-        {"parquet"}
-    };
+    return new Object[][] {{"avro"}, {"orc"}, {"parquet"}};
   }
 
   public TestDeltaTaskWriter(String fileFormat) {
@@ -92,7 +87,8 @@ public class TestDeltaTaskWriter extends TableTestBase {
       this.table = create(SCHEMA, PartitionSpec.unpartitioned());
     }
 
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(8 * 1024))
         .defaultFormat(format)
         .commit();
@@ -139,12 +135,14 @@ public class TestDeltaTaskWriter extends TableTestBase {
     Assert.assertEquals(partitioned ? 3 : 1, result.deleteFiles().length);
     commitTransaction(result);
 
-    Assert.assertEquals("Should have expected records.", expectedRowSet(
-        createRecord(1, "eee"),
-        createRecord(2, "ddd"),
-        createRecord(4, "fff"),
-        createRecord(5, "ggg")
-    ), actualRowSet("*"));
+    Assert.assertEquals(
+        "Should have expected records.",
+        expectedRowSet(
+            createRecord(1, "eee"),
+            createRecord(2, "ddd"),
+            createRecord(4, "fff"),
+            createRecord(5, "ggg")),
+        actualRowSet("*"));
 
     // Start the 2nd transaction.
     writer = taskWriterFactory.create();
@@ -165,11 +163,10 @@ public class TestDeltaTaskWriter extends TableTestBase {
     Assert.assertEquals(partitioned ? 3 : 1, result.deleteFiles().length);
     commitTransaction(result);
 
-    Assert.assertEquals("Should have expected records", expectedRowSet(
-        createRecord(1, "eee"),
-        createRecord(5, "iii"),
-        createRecord(6, "hhh")
-    ), actualRowSet("*"));
+    Assert.assertEquals(
+        "Should have expected records",
+        expectedRowSet(createRecord(1, "eee"), createRecord(5, "iii"), createRecord(6, "hhh")),
+        actualRowSet("*"));
   }
 
   @Test
@@ -229,11 +226,15 @@ public class TestDeltaTaskWriter extends TableTestBase {
     }
 
     // Assert the current data/delete file count.
-    List<Path> files = Files.walk(Paths.get(tableDir.getPath(), "data"))
-        .filter(p -> p.toFile().isFile())
-        .filter(p -> !p.toString().endsWith(".crc"))
-        .collect(Collectors.toList());
-    Assert.assertEquals("Should have expected file count, but files are: " + files, partitioned ? 4 : 2, files.size());
+    List<Path> files =
+        Files.walk(Paths.get(tableDir.getPath(), "data"))
+            .filter(p -> p.toFile().isFile())
+            .filter(p -> !p.toString().endsWith(".crc"))
+            .collect(Collectors.toList());
+    Assert.assertEquals(
+        "Should have expected file count, but files are: " + files,
+        partitioned ? 4 : 2,
+        files.size());
 
     writer.abort();
     for (Path file : files) {
@@ -270,11 +271,10 @@ public class TestDeltaTaskWriter extends TableTestBase {
     Assert.assertEquals(1, result.deleteFiles().length);
     commitTransaction(result);
 
-    Assert.assertEquals("Should have expected records", expectedRowSet(
-        createRecord(2, "aaa"),
-        createRecord(3, "bbb"),
-        createRecord(4, "ccc")
-    ), actualRowSet("*"));
+    Assert.assertEquals(
+        "Should have expected records",
+        expectedRowSet(createRecord(2, "aaa"), createRecord(3, "bbb"), createRecord(4, "ccc")),
+        actualRowSet("*"));
 
     // Start the 2nd transaction.
     writer = taskWriterFactory.create();
@@ -287,12 +287,14 @@ public class TestDeltaTaskWriter extends TableTestBase {
     Assert.assertEquals(1, result.deleteFiles().length);
     commitTransaction(result);
 
-    Assert.assertEquals("Should have expected records", expectedRowSet(
-        createRecord(2, "aaa"),
-        createRecord(5, "aaa"),
-        createRecord(3, "bbb"),
-        createRecord(6, "bbb")
-    ), actualRowSet("*"));
+    Assert.assertEquals(
+        "Should have expected records",
+        expectedRowSet(
+            createRecord(2, "aaa"),
+            createRecord(5, "aaa"),
+            createRecord(3, "bbb"),
+            createRecord(6, "bbb")),
+        actualRowSet("*"));
   }
 
   @Test
@@ -311,20 +313,21 @@ public class TestDeltaTaskWriter extends TableTestBase {
     WriteResult result = writer.complete();
     Assert.assertEquals(1, result.dataFiles().length);
     Assert.assertEquals(1, result.deleteFiles().length);
-    Assert.assertEquals(Sets.newHashSet(FileContent.POSITION_DELETES),
-            Sets.newHashSet(result.deleteFiles()[0].content()));
+    Assert.assertEquals(
+        Sets.newHashSet(FileContent.POSITION_DELETES),
+        Sets.newHashSet(result.deleteFiles()[0].content()));
     commitTransaction(result);
 
-    Assert.assertEquals("Should have expected records", expectedRowSet(
-        createRecord(1, "aaa")
-    ), actualRowSet("*"));
+    Assert.assertEquals(
+        "Should have expected records", expectedRowSet(createRecord(1, "aaa")), actualRowSet("*"));
   }
 
   private void commitTransaction(WriteResult result) {
     RowDelta rowDelta = table.newRowDelta();
     Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
     Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-    rowDelta.validateDeletedFiles()
+    rowDelta
+        .validateDeletedFiles()
         .validateDataFilesExist(Lists.newArrayList(result.referencedDataFiles()))
         .commit();
   }
@@ -339,7 +342,11 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
   private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {
     return new RowDataTaskWriterFactory(
-        SerializableTable.copyOf(table), FlinkSchemaUtil.convert(table.schema()),
-        128 * 1024 * 1024, format, equalityFieldIds, false);
+        SerializableTable.copyOf(table),
+        FlinkSchemaUtil.convert(table.schema()),
+        128 * 1024 * 1024,
+        format,
+        equalityFieldIds,
+        false);
   }
 }

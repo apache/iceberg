@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.ByteArrayOutputStream;
@@ -116,7 +115,8 @@ public class InMemoryOutputFile implements OutputFile {
     }
 
     private void checkOpen() {
-      // ByteArrayOutputStream can be used even after close, so for test purposes disallow such use explicitly
+      // ByteArrayOutputStream can be used even after close, so for test purposes disallow such use
+      // explicitly
       Preconditions.checkState(!closed, "Stream is closed");
     }
   }

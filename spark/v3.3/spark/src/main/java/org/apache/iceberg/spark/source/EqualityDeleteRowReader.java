@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -30,20 +29,19 @@ import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 public class EqualityDeleteRowReader extends RowDataReader {
-  private final Schema expectedSchema;
-
-  public EqualityDeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(task, table, table.schema(), caseSensitive);
-    this.expectedSchema = expectedSchema;
+  public EqualityDeleteRowReader(
+      CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
+    super(task, table, expectedSchema, caseSensitive);
   }
 
   @Override
-  CloseableIterator<InternalRow> open(FileScanTask task) {
-    SparkDeleteFilter matches = new SparkDeleteFilter(task, tableSchema(), expectedSchema);
+  protected CloseableIterator<InternalRow> open(FileScanTask task) {
+    SparkDeleteFilter matches =
+        new SparkDeleteFilter(task.file().path().toString(), task.deletes());
 
     // schema or rows returned by readers
     Schema requiredSchema = matches.requiredSchema();
-    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema);
+    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function

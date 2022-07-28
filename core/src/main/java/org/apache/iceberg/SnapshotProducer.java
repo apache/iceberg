@@ -16,8 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
+import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -46,35 +56,21 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED;
-import static org.apache.iceberg.TableProperties.MANIFEST_LISTS_ENABLED_DEFAULT;
-
 @SuppressWarnings("UnnecessaryAnonymousClass")
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
 
-  /**
-   * Default callback used to delete files.
-   */
-  private final Consumer<String> defaultDelete = new Consumer<String>() {
-    @Override
-    public void accept(String file) {
-      ops.io().deleteFile(file);
-    }
-  };
+  /** Default callback used to delete files. */
+  private final Consumer<String> defaultDelete =
+      new Consumer<String>() {
+        @Override
+        public void accept(String file) {
+          ops.io().deleteFile(file);
+        }
+      };
 
-  /**
-   * Cache used to enrich ManifestFile instances that are written to a ManifestListWriter.
-   */
+  /** Cache used to enrich ManifestFile instances that are written to a ManifestListWriter. */
   private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata;
 
   private final TableOperations ops;
@@ -92,14 +88,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
-    this.manifestsWithMetadata = Caffeine
-      .newBuilder()
-      .build(file -> {
-        if (file.snapshotId() != null) {
-          return file;
-        }
-        return addMetadata(ops, file);
-      });
+    this.manifestsWithMetadata =
+        Caffeine.newBuilder()
+            .build(
+                file -> {
+                  if (file.snapshotId() != null) {
+                    return file;
+                  }
+                  return addMetadata(ops, file);
+                });
   }
 
   protected abstract ThisT self();
@@ -122,18 +119,19 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   @Override
   public ThisT deleteWith(Consumer<String> deleteCallback) {
-    Preconditions.checkArgument(this.deleteFunc == defaultDelete, "Cannot set delete callback more than once");
+    Preconditions.checkArgument(
+        this.deleteFunc == defaultDelete, "Cannot set delete callback more than once");
     this.deleteFunc = deleteCallback;
     return self();
   }
 
   /**
    * Clean up any uncommitted manifests that were created.
-   * <p>
-   * Manifests may not be committed if apply is called more because a commit conflict has occurred.
-   * Implementations may keep around manifests because the same changes will be made by both apply
-   * calls. This method instructs the implementation to clean up those manifests and passes the
-   * paths of the manifests that were actually committed.
+   *
+   * <p>Manifests may not be committed if apply is called more because a commit conflict has
+   * occurred. Implementations may keep around manifests because the same changes will be made by
+   * both apply calls. This method instructs the implementation to clean up those manifests and
+   * passes the paths of the manifests that were actually committed.
    *
    * @param committed a set of manifest paths that were actually committed
    */
@@ -148,13 +146,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   /**
    * Validate the current metadata.
-   * <p>
-   * Child operations can override this to add custom validation.
+   *
+   * <p>Child operations can override this to add custom validation.
    *
    * @param currentMetadata current table metadata to validate
    */
-  protected void validate(TableMetadata currentMetadata) {
-  }
+  protected void validate(TableMetadata currentMetadata) {}
 
   /**
    * Apply the update's changes to the base table metadata and return the new manifest list.
@@ -167,8 +164,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public Snapshot apply() {
     refresh();
-    Long parentSnapshotId = base.currentSnapshot() != null ?
-        base.currentSnapshot().snapshotId() : null;
+    Long parentSnapshotId =
+        base.currentSnapshot() != null ? base.currentSnapshot().snapshotId() : null;
     long sequenceNumber = base.nextSequenceNumber();
 
     // run validations from the child operation
@@ -176,11 +173,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     List<ManifestFile> manifests = apply(base);
 
-    if (base.formatVersion() > 1 || base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
+    if (base.formatVersion() > 1
+        || base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
       OutputFile manifestList = manifestListPath();
 
-      try (ManifestListWriter writer = ManifestLists.write(
-          ops.current().formatVersion(), manifestList, snapshotId(), parentSnapshotId, sequenceNumber)) {
+      try (ManifestListWriter writer =
+          ManifestLists.write(
+              ops.current().formatVersion(),
+              manifestList,
+              snapshotId(),
+              parentSnapshotId,
+              sequenceNumber)) {
 
         // keep track of the manifest lists created
         manifestLists.add(manifestList.location());
@@ -188,10 +191,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
 
         Tasks.range(manifestFiles.length)
-            .stopOnFailure().throwFailureWhenFinished()
+            .stopOnFailure()
+            .throwFailureWhenFinished()
             .executeWith(workerPool)
-            .run(index ->
-                manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
+            .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
         writer.addAll(Arrays.asList(manifestFiles));
 
@@ -199,22 +202,33 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw new RuntimeIOException(e, "Failed to write manifest list file");
       }
 
-      return new BaseSnapshot(ops.io(),
-          sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          base.currentSchemaId(), manifestList.location());
+      return new BaseSnapshot(
+          ops.io(),
+          sequenceNumber,
+          snapshotId(),
+          parentSnapshotId,
+          System.currentTimeMillis(),
+          operation(),
+          summary(base),
+          base.currentSchemaId(),
+          manifestList.location());
 
     } else {
-      return new BaseSnapshot(ops.io(),
-          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          base.currentSchemaId(), manifests);
+      return new BaseSnapshot(
+          ops.io(),
+          snapshotId(),
+          parentSnapshotId,
+          System.currentTimeMillis(),
+          operation(),
+          summary(base),
+          base.currentSchemaId(),
+          manifests);
     }
   }
 
   protected abstract Map<String, String> summary();
 
-  /**
-   * Returns the snapshot summary from the implementation and updates totals.
-   */
+  /** Returns the snapshot summary from the implementation and updates totals. */
   private Map<String, String> summary(TableMetadata previous) {
     Map<String, String> summary = summary();
 
@@ -249,23 +263,47 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     builder.putAll(summary);
 
     updateTotal(
-        builder, previousSummary, SnapshotSummary.TOTAL_RECORDS_PROP,
-        summary, SnapshotSummary.ADDED_RECORDS_PROP, SnapshotSummary.DELETED_RECORDS_PROP);
+        builder,
+        previousSummary,
+        SnapshotSummary.TOTAL_RECORDS_PROP,
+        summary,
+        SnapshotSummary.ADDED_RECORDS_PROP,
+        SnapshotSummary.DELETED_RECORDS_PROP);
     updateTotal(
-        builder, previousSummary, SnapshotSummary.TOTAL_FILE_SIZE_PROP,
-        summary, SnapshotSummary.ADDED_FILE_SIZE_PROP, SnapshotSummary.REMOVED_FILE_SIZE_PROP);
+        builder,
+        previousSummary,
+        SnapshotSummary.TOTAL_FILE_SIZE_PROP,
+        summary,
+        SnapshotSummary.ADDED_FILE_SIZE_PROP,
+        SnapshotSummary.REMOVED_FILE_SIZE_PROP);
     updateTotal(
-        builder, previousSummary, SnapshotSummary.TOTAL_DATA_FILES_PROP,
-        summary, SnapshotSummary.ADDED_FILES_PROP, SnapshotSummary.DELETED_FILES_PROP);
+        builder,
+        previousSummary,
+        SnapshotSummary.TOTAL_DATA_FILES_PROP,
+        summary,
+        SnapshotSummary.ADDED_FILES_PROP,
+        SnapshotSummary.DELETED_FILES_PROP);
     updateTotal(
-        builder, previousSummary, SnapshotSummary.TOTAL_DELETE_FILES_PROP,
-        summary, SnapshotSummary.ADDED_DELETE_FILES_PROP, SnapshotSummary.REMOVED_DELETE_FILES_PROP);
+        builder,
+        previousSummary,
+        SnapshotSummary.TOTAL_DELETE_FILES_PROP,
+        summary,
+        SnapshotSummary.ADDED_DELETE_FILES_PROP,
+        SnapshotSummary.REMOVED_DELETE_FILES_PROP);
     updateTotal(
-        builder, previousSummary, SnapshotSummary.TOTAL_POS_DELETES_PROP,
-        summary, SnapshotSummary.ADDED_POS_DELETES_PROP, SnapshotSummary.REMOVED_POS_DELETES_PROP);
+        builder,
+        previousSummary,
+        SnapshotSummary.TOTAL_POS_DELETES_PROP,
+        summary,
+        SnapshotSummary.ADDED_POS_DELETES_PROP,
+        SnapshotSummary.REMOVED_POS_DELETES_PROP);
     updateTotal(
-        builder, previousSummary, SnapshotSummary.TOTAL_EQ_DELETES_PROP,
-        summary, SnapshotSummary.ADDED_EQ_DELETES_PROP, SnapshotSummary.REMOVED_EQ_DELETES_PROP);
+        builder,
+        previousSummary,
+        SnapshotSummary.TOTAL_EQ_DELETES_PROP,
+        summary,
+        SnapshotSummary.ADDED_EQ_DELETES_PROP,
+        SnapshotSummary.REMOVED_EQ_DELETES_PROP);
 
     return builder.build();
   }
@@ -292,30 +330,34 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .run(taskOps -> {
-            Snapshot newSnapshot = apply();
-            newSnapshotId.set(newSnapshot.snapshotId());
-            TableMetadata.Builder update = TableMetadata.buildFrom(base);
-            if (base.snapshot(newSnapshot.snapshotId()) != null) {
-              // this is a rollback operation
-              update.setBranchSnapshot(newSnapshot.snapshotId(), SnapshotRef.MAIN_BRANCH);
-            } else if (stageOnly) {
-              update.addSnapshot(newSnapshot);
-            } else {
-              update.setBranchSnapshot(newSnapshot, SnapshotRef.MAIN_BRANCH);
-            }
+          .run(
+              taskOps -> {
+                Snapshot newSnapshot = apply();
+                newSnapshotId.set(newSnapshot.snapshotId());
+                TableMetadata.Builder update = TableMetadata.buildFrom(base);
+                if (base.snapshot(newSnapshot.snapshotId()) != null) {
+                  // this is a rollback operation
+                  update.setBranchSnapshot(newSnapshot.snapshotId(), SnapshotRef.MAIN_BRANCH);
+                } else if (stageOnly) {
+                  update.addSnapshot(newSnapshot);
+                } else {
+                  update.setBranchSnapshot(newSnapshot, SnapshotRef.MAIN_BRANCH);
+                }
 
-            TableMetadata updated = update.build();
-            if (updated.changes().isEmpty()) {
-              // do not commit if the metadata has not changed. for example, this may happen when setting the current
-              // snapshot to an ID that is already current. note that this check uses identity.
-              return;
-            }
+                TableMetadata updated = update.build();
+                if (updated.changes().isEmpty()) {
+                  // do not commit if the metadata has not changed. for example, this may happen
+                  // when setting the current
+                  // snapshot to an ID that is already current. note that this check uses identity.
+                  return;
+                }
 
-            // if the table UUID is missing, add it here. the UUID will be re-created each time this operation retries
-            // to ensure that if a concurrent operation assigns the UUID, this operation will not fail.
-            taskOps.commit(base, updated.withUUID());
-          });
+                // if the table UUID is missing, add it here. the UUID will be re-created each time
+                // this operation retries
+                // to ensure that if a concurrent operation assigns the UUID, this operation will
+                // not fail.
+                taskOps.commit(base, updated.withUUID());
+              });
 
     } catch (CommitStateUnknownException commitStateUnknownException) {
       throw commitStateUnknownException;
@@ -344,7 +386,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
 
     } catch (Throwable e) {
-      LOG.warn("Failed to load committed table metadata or during cleanup, skipping further cleanup", e);
+      LOG.warn(
+          "Failed to load committed table metadata or during cleanup, skipping further cleanup", e);
     }
 
     try {
@@ -378,21 +421,29 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected OutputFile manifestListPath() {
-    return ops.io().newOutputFile(ops.metadataFileLocation(FileFormat.AVRO.addExtension(
-        String.format("snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
+    return ops.io()
+        .newOutputFile(
+            ops.metadataFileLocation(
+                FileFormat.AVRO.addExtension(
+                    String.format(
+                        "snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
   }
 
   protected OutputFile newManifestOutput() {
-    return ops.io().newOutputFile(
-        ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
+    return ops.io()
+        .newOutputFile(
+            ops.metadataFileLocation(
+                FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
-    return ManifestFiles.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+    return ManifestFiles.write(
+        ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
   protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
-    return ManifestFiles.writeDeleteManifest(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+    return ManifestFiles.writeDeleteManifest(
+        ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
   protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
@@ -415,7 +466,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
       long addedRows = 0L;
@@ -460,19 +512,35 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         snapshotId = maxSnapshotId;
       }
 
-      return new GenericManifestFile(manifest.path(), manifest.length(), manifest.partitionSpecId(),
-          ManifestContent.DATA, manifest.sequenceNumber(), manifest.minSequenceNumber(), snapshotId,
-          addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(), null);
+      return new GenericManifestFile(
+          manifest.path(),
+          manifest.length(),
+          manifest.partitionSpecId(),
+          ManifestContent.DATA,
+          manifest.sequenceNumber(),
+          manifest.minSequenceNumber(),
+          snapshotId,
+          addedFiles,
+          addedRows,
+          existingFiles,
+          existingRows,
+          deletedFiles,
+          deletedRows,
+          stats.summaries(),
+          null);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
     }
   }
 
-  private static void updateTotal(ImmutableMap.Builder<String, String> summaryBuilder,
-                                  Map<String, String> previousSummary, String totalProperty,
-                                  Map<String, String> currentSummary,
-                                  String addedProperty, String deletedProperty) {
+  private static void updateTotal(
+      ImmutableMap.Builder<String, String> summaryBuilder,
+      Map<String, String> previousSummary,
+      String totalProperty,
+      Map<String, String> currentSummary,
+      String addedProperty,
+      String deletedProperty) {
     String totalStr = previousSummary.get(totalProperty);
     if (totalStr != null) {
       try {

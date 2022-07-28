@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.IsolationLevel;
@@ -70,7 +69,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   public WriteBuilder overwriteFiles(Scan scan, IsolationLevel writeIsolationLevel) {
     Preconditions.checkArgument(scan instanceof SparkMergeScan, "%s is not SparkMergeScan", scan);
     Preconditions.checkState(!overwriteByFilter, "Cannot overwrite individual files and by filter");
-    Preconditions.checkState(!overwriteDynamic, "Cannot overwrite individual files and dynamically");
+    Preconditions.checkState(
+        !overwriteDynamic, "Cannot overwrite individual files and dynamically");
     this.overwriteFiles = true;
     this.mergeScan = (SparkMergeScan) scan;
     this.isolationLevel = writeIsolationLevel;
@@ -79,7 +79,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   @Override
   public WriteBuilder overwriteDynamicPartitions() {
-    Preconditions.checkState(!overwriteByFilter, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
+    Preconditions.checkState(
+        !overwriteByFilter, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
     Preconditions.checkState(!overwriteFiles, "Cannot overwrite individual files and dynamically");
     this.overwriteDynamic = true;
     return this;
@@ -87,13 +88,15 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   @Override
   public WriteBuilder overwrite(Filter[] filters) {
-    Preconditions.checkState(!overwriteFiles, "Cannot overwrite individual files and using filters");
+    Preconditions.checkState(
+        !overwriteFiles, "Cannot overwrite individual files and using filters");
     this.overwriteExpr = SparkFilters.convert(filters);
     if (overwriteExpr == Expressions.alwaysTrue() && "dynamic".equals(overwriteMode)) {
       // use the write option to override truncating the table. use dynamic overwrite instead.
       this.overwriteDynamic = true;
     } else {
-      Preconditions.checkState(!overwriteDynamic, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
+      Preconditions.checkState(
+          !overwriteDynamic, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
       this.overwriteByFilter = true;
     }
     return this;
@@ -102,17 +105,20 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public BatchWrite buildForBatch() {
     // Validate
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+    Preconditions.checkArgument(
+        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    TypeUtil.validateWriteSchema(
+        table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Get application id
     String appId = spark.sparkContext().applicationId();
 
-    SparkWrite write = new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
+    SparkWrite write =
+        new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
     if (overwriteByFilter) {
       return write.asOverwriteByFilter(overwriteExpr);
     } else if (overwriteDynamic) {
@@ -127,23 +133,28 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public StreamingWrite buildForStreaming() {
     // Validate
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+    Preconditions.checkArgument(
+        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    TypeUtil.validateWriteSchema(
+        table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Change to streaming write if it is just append
-    Preconditions.checkState(!overwriteDynamic,
-        "Unsupported streaming operation: dynamic partition overwrite");
-    Preconditions.checkState(!overwriteByFilter || overwriteExpr == Expressions.alwaysTrue(),
-        "Unsupported streaming operation: overwrite by filter: %s", overwriteExpr);
+    Preconditions.checkState(
+        !overwriteDynamic, "Unsupported streaming operation: dynamic partition overwrite");
+    Preconditions.checkState(
+        !overwriteByFilter || overwriteExpr == Expressions.alwaysTrue(),
+        "Unsupported streaming operation: overwrite by filter: %s",
+        overwriteExpr);
 
     // Get application id
     String appId = spark.sparkContext().applicationId();
 
-    SparkWrite write = new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
+    SparkWrite write =
+        new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
     if (overwriteByFilter) {
       return write.asStreamingOverwrite();
     } else {

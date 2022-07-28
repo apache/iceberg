@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -24,10 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 
-
-/**
- * Throws an error on initialization to simulate class not found error.
- */
+/** Throws an error on initialization to simulate class not found error. */
 public class TestCatalogErrorConstructor extends BaseMetastoreCatalog {
   static {
     if (true) {
@@ -35,9 +31,7 @@ public class TestCatalogErrorConstructor extends BaseMetastoreCatalog {
     }
   }
 
-  public TestCatalogErrorConstructor() {
-
-  }
+  public TestCatalogErrorConstructor() {}
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
@@ -60,11 +54,8 @@ public class TestCatalogErrorConstructor extends BaseMetastoreCatalog {
   }
 
   @Override
-  public void renameTable(TableIdentifier from, TableIdentifier to) {
-
-  }
+  public void renameTable(TableIdentifier from, TableIdentifier to) {}
 
   @Override
-  public void initialize(String name, Map<String, String> properties) {
-  }
+  public void initialize(String name, Map<String, String> properties) {}
 }

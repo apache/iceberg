@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
+
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 import java.util.List;
 import java.util.Map;
@@ -40,8 +41,6 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-
 public abstract class SparkTestBase {
 
   protected static final Object ANY = new Object();
@@ -57,15 +56,18 @@ public abstract class SparkTestBase {
     metastore.start();
     SparkTestBase.hiveConf = metastore.hiveConf();
 
-    SparkTestBase.spark = SparkSession.builder()
-        .master("local[2]")
-        .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-        .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-        .enableHiveSupport()
-        .getOrCreate();
+    SparkTestBase.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
+            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .enableHiveSupport()
+            .getOrCreate();
 
-    SparkTestBase.catalog = (HiveCatalog)
-        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
+    SparkTestBase.catalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
     try {
       catalog.createNamespace(Namespace.of("default"));
@@ -106,22 +108,23 @@ public abstract class SparkTestBase {
 
   private Object[] toJava(Row row) {
     return IntStream.range(0, row.size())
-        .mapToObj(pos -> {
-          if (row.isNullAt(pos)) {
-            return null;
-          }
+        .mapToObj(
+            pos -> {
+              if (row.isNullAt(pos)) {
+                return null;
+              }
 
-          Object value = row.get(pos);
-          if (value instanceof Row) {
-            return toJava((Row) value);
-          } else if (value instanceof scala.collection.Seq) {
-            return row.getList(pos);
-          } else if (value instanceof scala.collection.Map) {
-            return row.getJavaMap(pos);
-          } else {
-            return value;
-          }
-        })
+              Object value = row.get(pos);
+              if (value instanceof Row) {
+                return toJava((Row) value);
+              } else if (value instanceof scala.collection.Seq) {
+                return row.getList(pos);
+              } else if (value instanceof scala.collection.Map) {
+                return row.getJavaMap(pos);
+              } else {
+                return value;
+              }
+            })
         .toArray(Object[]::new);
   }
 
@@ -137,8 +140,10 @@ public abstract class SparkTestBase {
     return values;
   }
 
-  protected void assertEquals(String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
-    Assert.assertEquals(context + ": number of results should match", expectedRows.size(), actualRows.size());
+  protected void assertEquals(
+      String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
+    Assert.assertEquals(
+        context + ": number of results should match", expectedRows.size(), actualRows.size());
     for (int row = 0; row < expectedRows.size(); row += 1) {
       Object[] expected = expectedRows.get(row);
       Object[] actual = actualRows.get(row);
@@ -172,30 +177,34 @@ public abstract class SparkTestBase {
     SQLConf sqlConf = SQLConf.get();
 
     Map<String, String> currentConfValues = Maps.newHashMap();
-    conf.keySet().forEach(confKey -> {
-      if (sqlConf.contains(confKey)) {
-        String currentConfValue = sqlConf.getConfString(confKey);
-        currentConfValues.put(confKey, currentConfValue);
-      }
-    });
+    conf.keySet()
+        .forEach(
+            confKey -> {
+              if (sqlConf.contains(confKey)) {
+                String currentConfValue = sqlConf.getConfString(confKey);
+                currentConfValues.put(confKey, currentConfValue);
+              }
+            });
 
-    conf.forEach((confKey, confValue) -> {
-      if (SQLConf.staticConfKeys().contains(confKey)) {
-        throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
-      }
-      sqlConf.setConfString(confKey, confValue);
-    });
+    conf.forEach(
+        (confKey, confValue) -> {
+          if (SQLConf.staticConfKeys().contains(confKey)) {
+            throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
+          }
+          sqlConf.setConfString(confKey, confValue);
+        });
 
     try {
       action.invoke();
     } finally {
-      conf.forEach((confKey, confValue) -> {
-        if (currentConfValues.containsKey(confKey)) {
-          sqlConf.setConfString(confKey, currentConfValues.get(confKey));
-        } else {
-          sqlConf.unsetConf(confKey);
-        }
-      });
+      conf.forEach(
+          (confKey, confValue) -> {
+            if (currentConfValues.containsKey(confKey)) {
+              sqlConf.setConfString(confKey, currentConfValues.get(confKey));
+            } else {
+              sqlConf.unsetConf(confKey);
+            }
+          });
     }
   }
 

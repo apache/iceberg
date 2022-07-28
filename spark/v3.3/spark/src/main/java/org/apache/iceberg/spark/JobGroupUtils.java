@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.spark.SparkContext;
@@ -26,10 +25,10 @@ public class JobGroupUtils {
 
   private static final String JOB_GROUP_ID = SparkContext$.MODULE$.SPARK_JOB_GROUP_ID();
   private static final String JOB_GROUP_DESC = SparkContext$.MODULE$.SPARK_JOB_DESCRIPTION();
-  private static final String JOB_INTERRUPT_ON_CANCEL = SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL();
+  private static final String JOB_INTERRUPT_ON_CANCEL =
+      SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL();
 
-  private JobGroupUtils() {
-  }
+  private JobGroupUtils() {}
 
   public static JobGroupInfo getJobGroupInfo(SparkContext sparkContext) {
     String groupId = sparkContext.getLocalProperty(JOB_GROUP_ID);
@@ -41,6 +40,7 @@ public class JobGroupUtils {
   public static void setJobGroupInfo(SparkContext sparkContext, JobGroupInfo info) {
     sparkContext.setLocalProperty(JOB_GROUP_ID, info.groupId());
     sparkContext.setLocalProperty(JOB_GROUP_DESC, info.description());
-    sparkContext.setLocalProperty(JOB_INTERRUPT_ON_CANCEL, String.valueOf(info.interruptOnCancel()));
+    sparkContext.setLocalProperty(
+        JOB_INTERRUPT_ON_CANCEL, String.valueOf(info.interruptOnCancel()));
   }
 }

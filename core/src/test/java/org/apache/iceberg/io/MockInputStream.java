@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.ByteArrayInputStream;
 
 class MockInputStream extends ByteArrayInputStream {
 
-  static final byte[] TEST_ARRAY = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+  static final byte[] TEST_ARRAY = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
   private int[] lengths;
   private int current = 0;
@@ -55,4 +54,3 @@ class MockInputStream extends ByteArrayInputStream {
     return this.pos;
   }
 }
-

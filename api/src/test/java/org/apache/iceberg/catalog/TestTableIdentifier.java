@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import org.assertj.core.api.Assertions;
@@ -45,12 +44,9 @@ public class TestTableIdentifier {
 
   @Test
   public void testToLowerCase() {
+    Assert.assertEquals(TableIdentifier.of("Tbl").toLowerCase(), TableIdentifier.of("tbl"));
     Assert.assertEquals(
-        TableIdentifier.of("Tbl").toLowerCase(),
-        TableIdentifier.of("tbl"));
-    Assert.assertEquals(
-        TableIdentifier.of("dB", "TBL").toLowerCase(),
-        TableIdentifier.of("db", "tbl"));
+        TableIdentifier.of("dB", "TBL").toLowerCase(), TableIdentifier.of("db", "tbl"));
     Assert.assertEquals(
         TableIdentifier.of("Catalog", "dB", "TBL").toLowerCase(),
         TableIdentifier.of("catalog", "db", "tbl"));

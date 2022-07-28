@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.storage.BlobId;
@@ -32,18 +31,19 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
-  static GCSOutputFile fromLocation(String location, Storage storage,
-      GCPProperties gcpProperties, MetricsContext metrics) {
+  static GCSOutputFile fromLocation(
+      String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
     return new GCSOutputFile(storage, BlobId.fromGsUtilUri(location), gcpProperties, metrics);
   }
 
-  GCSOutputFile(Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
+  GCSOutputFile(
+      Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
     super(storage, blobId, gcpProperties, metrics);
   }
 
   /**
-   * Create an output stream for the specified location if the target object
-   * does not exist in GCS at the time of invocation.
+   * Create an output stream for the specified location if the target object does not exist in GCS
+   * at the time of invocation.
    *
    * @return output stream
    */

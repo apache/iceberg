@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.lang.reflect.Array;
@@ -77,7 +76,8 @@ public class RowDataWrapper implements StructLike {
 
   @Override
   public <T> void set(int pos, T value) {
-    throw new UnsupportedOperationException("Could not set a field in the RowDataWrapper because rowData is read-only");
+    throw new UnsupportedOperationException(
+        "Could not set a field in the RowDataWrapper because rowData is read-only");
   }
 
   private interface PositionalGetter<T> {
@@ -104,16 +104,19 @@ public class RowDataWrapper implements StructLike {
 
       case DECIMAL:
         DecimalType decimalType = (DecimalType) logicalType;
-        return (row, pos) -> row.getDecimal(pos, decimalType.getPrecision(), decimalType.getScale()).toBigDecimal();
+        return (row, pos) ->
+            row.getDecimal(pos, decimalType.getPrecision(), decimalType.getScale()).toBigDecimal();
 
       case TIME_WITHOUT_TIME_ZONE:
-        // Time in RowData is in milliseconds (Integer), while iceberg's time is microseconds (Long).
+        // Time in RowData is in milliseconds (Integer), while iceberg's time is microseconds
+        // (Long).
         return (row, pos) -> ((long) row.getInt(pos)) * 1_000;
 
       case TIMESTAMP_WITHOUT_TIME_ZONE:
         TimestampType timestampType = (TimestampType) logicalType;
         return (row, pos) -> {
-          LocalDateTime localDateTime = row.getTimestamp(pos, timestampType.getPrecision()).toLocalDateTime();
+          LocalDateTime localDateTime =
+              row.getTimestamp(pos, timestampType.getPrecision()).toLocalDateTime();
           return DateTimeUtil.microsFromTimestamp(localDateTime);
         };
 
@@ -121,7 +124,8 @@ public class RowDataWrapper implements StructLike {
         LocalZonedTimestampType lzTs = (LocalZonedTimestampType) logicalType;
         return (row, pos) -> {
           TimestampData timestampData = row.getTimestamp(pos, lzTs.getPrecision());
-          return timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
+          return timestampData.getMillisecond() * 1000
+              + timestampData.getNanoOfMillisecond() / 1000;
         };
 
       case ROW:

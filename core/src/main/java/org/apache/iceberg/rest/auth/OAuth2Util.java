@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.auth;
+
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -47,13 +50,8 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-
 public class OAuth2Util {
-  private OAuth2Util() {
-  }
+  private OAuth2Util() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(OAuth2Util.class);
 
@@ -81,9 +79,14 @@ public class OAuth2Util {
   private static final String SUBJECT_TOKEN_TYPE = "subject_token_type";
   private static final String ACTOR_TOKEN = "actor_token";
   private static final String ACTOR_TOKEN_TYPE = "actor_token_type";
-  private static final Set<String> VALID_TOKEN_TYPES = Sets.newHashSet(
-      OAuth2Properties.ACCESS_TOKEN_TYPE, OAuth2Properties.REFRESH_TOKEN_TYPE, OAuth2Properties.ID_TOKEN_TYPE,
-      OAuth2Properties.SAML1_TOKEN_TYPE, OAuth2Properties.SAML2_TOKEN_TYPE, OAuth2Properties.JWT_TOKEN_TYPE);
+  private static final Set<String> VALID_TOKEN_TYPES =
+      Sets.newHashSet(
+          OAuth2Properties.ACCESS_TOKEN_TYPE,
+          OAuth2Properties.REFRESH_TOKEN_TYPE,
+          OAuth2Properties.ID_TOKEN_TYPE,
+          OAuth2Properties.SAML1_TOKEN_TYPE,
+          OAuth2Properties.SAML2_TOKEN_TYPE,
+          OAuth2Properties.JWT_TOKEN_TYPE);
 
   // response serialization
   private static final String ACCESS_TOKEN = "access_token";
@@ -112,57 +115,93 @@ public class OAuth2Util {
     return SCOPE_JOINER.join(scopes);
   }
 
-  private static OAuthTokenResponse refreshToken(RESTClient client, Map<String, String> headers,
-                                                 String subjectToken, String subjectTokenType, String scope) {
-    Map<String, String> request = tokenExchangeRequest(
-        subjectToken, subjectTokenType,
-        scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+  private static OAuthTokenResponse refreshToken(
+      RESTClient client,
+      Map<String, String> headers,
+      String subjectToken,
+      String subjectTokenType,
+      String scope) {
+    Map<String, String> request =
+        tokenExchangeRequest(
+            subjectToken,
+            subjectTokenType,
+            scope != null ? ImmutableList.of(scope) : ImmutableList.of());
 
-    OAuthTokenResponse response = client.postForm(
-        ResourcePaths.tokens(), request, OAuthTokenResponse.class, headers, ErrorHandlers.defaultErrorHandler());
+    OAuthTokenResponse response =
+        client.postForm(
+            ResourcePaths.tokens(),
+            request,
+            OAuthTokenResponse.class,
+            headers,
+            ErrorHandlers.defaultErrorHandler());
     response.validate();
 
     return response;
   }
 
-  public static OAuthTokenResponse exchangeToken(RESTClient client, Map<String, String> headers,
-                                                 String subjectToken, String subjectTokenType,
-                                                 String actorToken, String actorTokenType, String scope) {
-    Map<String, String> request = tokenExchangeRequest(
-        subjectToken, subjectTokenType, actorToken, actorTokenType,
-        scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+  public static OAuthTokenResponse exchangeToken(
+      RESTClient client,
+      Map<String, String> headers,
+      String subjectToken,
+      String subjectTokenType,
+      String actorToken,
+      String actorTokenType,
+      String scope) {
+    Map<String, String> request =
+        tokenExchangeRequest(
+            subjectToken,
+            subjectTokenType,
+            actorToken,
+            actorTokenType,
+            scope != null ? ImmutableList.of(scope) : ImmutableList.of());
 
-    OAuthTokenResponse response = client.postForm(
-        ResourcePaths.tokens(), request, OAuthTokenResponse.class, headers, ErrorHandlers.defaultErrorHandler());
+    OAuthTokenResponse response =
+        client.postForm(
+            ResourcePaths.tokens(),
+            request,
+            OAuthTokenResponse.class,
+            headers,
+            ErrorHandlers.defaultErrorHandler());
     response.validate();
 
     return response;
   }
 
-  public static OAuthTokenResponse fetchToken(RESTClient client, Map<String, String> headers, String credential,
-                                              String scope) {
-    Map<String, String> request = clientCredentialsRequest(
-        credential, scope != null ? ImmutableList.of(scope) : ImmutableList.of());
+  public static OAuthTokenResponse fetchToken(
+      RESTClient client, Map<String, String> headers, String credential, String scope) {
+    Map<String, String> request =
+        clientCredentialsRequest(
+            credential, scope != null ? ImmutableList.of(scope) : ImmutableList.of());
 
-    OAuthTokenResponse response = client.postForm(
-        ResourcePaths.tokens(), request, OAuthTokenResponse.class, headers, ErrorHandlers.defaultErrorHandler());
+    OAuthTokenResponse response =
+        client.postForm(
+            ResourcePaths.tokens(),
+            request,
+            OAuthTokenResponse.class,
+            headers,
+            ErrorHandlers.defaultErrorHandler());
     response.validate();
 
     return response;
   }
 
-  private static Map<String, String> tokenExchangeRequest(String subjectToken, String subjectTokenType,
-                                                         List<String> scopes) {
+  private static Map<String, String> tokenExchangeRequest(
+      String subjectToken, String subjectTokenType, List<String> scopes) {
     return tokenExchangeRequest(subjectToken, subjectTokenType, null, null, scopes);
   }
 
-  private static Map<String, String> tokenExchangeRequest(String subjectToken, String subjectTokenType,
-                                                         String actorToken, String actorTokenType,
-                                                         List<String> scopes) {
-    Preconditions.checkArgument(VALID_TOKEN_TYPES.contains(subjectTokenType),
-        "Invalid token type: %s", subjectTokenType);
-    Preconditions.checkArgument(actorToken == null || VALID_TOKEN_TYPES.contains(actorTokenType),
-        "Invalid token type: %s", actorTokenType);
+  private static Map<String, String> tokenExchangeRequest(
+      String subjectToken,
+      String subjectTokenType,
+      String actorToken,
+      String actorTokenType,
+      List<String> scopes) {
+    Preconditions.checkArgument(
+        VALID_TOKEN_TYPES.contains(subjectTokenType), "Invalid token type: %s", subjectTokenType);
+    Preconditions.checkArgument(
+        actorToken == null || VALID_TOKEN_TYPES.contains(actorTokenType),
+        "Invalid token type: %s",
+        actorTokenType);
 
     ImmutableMap.Builder<String, String> formData = ImmutableMap.builder();
     formData.put(GRANT_TYPE, TOKEN_EXCHANGE);
@@ -193,13 +232,14 @@ public class OAuth2Util {
     }
   }
 
-  private static Map<String, String> clientCredentialsRequest(String credential, List<String> scopes) {
+  private static Map<String, String> clientCredentialsRequest(
+      String credential, List<String> scopes) {
     Pair<String, String> credentialPair = parseCredential(credential);
     return clientCredentialsRequest(credentialPair.first(), credentialPair.second(), scopes);
   }
 
-  private static Map<String, String> clientCredentialsRequest(String clientId, String clientSecret,
-                                                             List<String> scopes) {
+  private static Map<String, String> clientCredentialsRequest(
+      String clientId, String clientSecret, List<String> scopes) {
     ImmutableMap.Builder<String, String> formData = ImmutableMap.builder();
     formData.put(GRANT_TYPE, CLIENT_CREDENTIALS);
     if (clientId != null) {
@@ -223,7 +263,8 @@ public class OAuth2Util {
     }
   }
 
-  public static void tokenResponseToJson(OAuthTokenResponse response, JsonGenerator gen) throws IOException {
+  public static void tokenResponseToJson(OAuthTokenResponse response, JsonGenerator gen)
+      throws IOException {
     response.validate();
 
     gen.writeStartObject();
@@ -255,12 +296,14 @@ public class OAuth2Util {
   }
 
   public static OAuthTokenResponse tokenResponseFromJson(JsonNode json) {
-    Preconditions.checkArgument(json.isObject(), "Cannot parse token response from non-object: %s", json);
+    Preconditions.checkArgument(
+        json.isObject(), "Cannot parse token response from non-object: %s", json);
 
-    OAuthTokenResponse.Builder builder = OAuthTokenResponse.builder()
-        .withToken(JsonUtil.getString(ACCESS_TOKEN, json))
-        .withTokenType(JsonUtil.getString(TOKEN_TYPE, json))
-        .withIssuedTokenType(JsonUtil.getStringOrNull(ISSUED_TOKEN_TYPE, json));
+    OAuthTokenResponse.Builder builder =
+        OAuthTokenResponse.builder()
+            .withToken(JsonUtil.getString(ACCESS_TOKEN, json))
+            .withTokenType(JsonUtil.getString(TOKEN_TYPE, json))
+            .withIssuedTokenType(JsonUtil.getStringOrNull(ISSUED_TOKEN_TYPE, json));
 
     if (json.has(EXPIRES_IN)) {
       builder.setExpirationInSeconds(JsonUtil.getInt(EXPIRES_IN, json));
@@ -273,9 +316,7 @@ public class OAuth2Util {
     return builder.build();
   }
 
-  /**
-   * Class to handle authorization headers and token refresh.
-   */
+  /** Class to handle authorization headers and token refresh. */
   public static class AuthSession {
     private Map<String, String> headers;
     private String token;
@@ -313,17 +354,25 @@ public class OAuth2Util {
     public Pair<Integer, TimeUnit> refresh(RESTClient client) {
       if (token != null && keepRefreshed) {
         AtomicReference<OAuthTokenResponse> ref = new AtomicReference<>(null);
-        boolean isSuccessful = Tasks.foreach(ref)
-            .suppressFailureWhenFinished()
-            .retry(5)
-            .onFailure((task, err) -> LOG.warn("Failed to refresh token", err))
-            .exponentialBackoff(
-                COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
-                COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
-                COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
-                2.0 /* exponential */)
-            .run(holder ->
-                holder.set(refreshToken(client, headers(), token, tokenType, OAuth2Properties.CATALOG_SCOPE)));
+        boolean isSuccessful =
+            Tasks.foreach(ref)
+                .suppressFailureWhenFinished()
+                .retry(5)
+                .onFailure((task, err) -> LOG.warn("Failed to refresh token", err))
+                .exponentialBackoff(
+                    COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+                    COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+                    COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
+                    2.0 /* exponential */)
+                .run(
+                    holder ->
+                        holder.set(
+                            refreshToken(
+                                client,
+                                headers(),
+                                token,
+                                tokenType,
+                                OAuth2Properties.CATALOG_SCOPE)));
 
         if (!isSuccessful || ref.get() == null) {
           return null;

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.concurrent.ExecutorService;
@@ -48,7 +47,8 @@ import org.apache.spark.sql.types.DataTypes;
 import scala.Option;
 
 abstract class BaseProcedure implements Procedure {
-  protected static final DataType STRING_MAP = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
+  protected static final DataType STRING_MAP =
+      DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
 
   private final SparkSession spark;
   private final TableCatalog tableCatalog;
@@ -92,7 +92,8 @@ abstract class BaseProcedure implements Procedure {
     }
   }
 
-  private <T> T execute(Identifier ident, boolean refreshSparkCache, Function<org.apache.iceberg.Table, T> func) {
+  private <T> T execute(
+      Identifier ident, boolean refreshSparkCache, Function<org.apache.iceberg.Table, T> func) {
     SparkTable sparkTable = loadSparkTable(ident);
     org.apache.iceberg.Table icebergTable = sparkTable.table();
 
@@ -106,38 +107,47 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected Identifier toIdentifier(String identifierAsString, String argName) {
-    CatalogAndIdentifier catalogAndIdentifier = toCatalogAndIdentifier(identifierAsString, argName, tableCatalog);
+    CatalogAndIdentifier catalogAndIdentifier =
+        toCatalogAndIdentifier(identifierAsString, argName, tableCatalog);
 
     Preconditions.checkArgument(
         catalogAndIdentifier.catalog().equals(tableCatalog),
         "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
-        tableCatalog.name(), identifierAsString, catalogAndIdentifier.catalog().name());
+        tableCatalog.name(),
+        identifierAsString,
+        catalogAndIdentifier.catalog().name());
 
     return catalogAndIdentifier.identifier();
   }
 
-  protected CatalogAndIdentifier toCatalogAndIdentifier(String identifierAsString, String argName,
-                                                        CatalogPlugin catalog) {
-    Preconditions.checkArgument(identifierAsString != null && !identifierAsString.isEmpty(),
-        "Cannot handle an empty identifier for argument %s", argName);
+  protected CatalogAndIdentifier toCatalogAndIdentifier(
+      String identifierAsString, String argName, CatalogPlugin catalog) {
+    Preconditions.checkArgument(
+        identifierAsString != null && !identifierAsString.isEmpty(),
+        "Cannot handle an empty identifier for argument %s",
+        argName);
 
-    return Spark3Util.catalogAndIdentifier("identifier for arg " + argName, spark, identifierAsString, catalog);
+    return Spark3Util.catalogAndIdentifier(
+        "identifier for arg " + argName, spark, identifierAsString, catalog);
   }
 
   protected SparkTable loadSparkTable(Identifier ident) {
     try {
       Table table = tableCatalog.loadTable(ident);
-      ValidationException.check(table instanceof SparkTable, "%s is not %s", ident, SparkTable.class.getName());
+      ValidationException.check(
+          table instanceof SparkTable, "%s is not %s", ident, SparkTable.class.getName());
       return (SparkTable) table;
     } catch (NoSuchTableException e) {
-      String errMsg = String.format("Couldn't load table '%s' in catalog '%s'", ident, tableCatalog.name());
+      String errMsg =
+          String.format("Couldn't load table '%s' in catalog '%s'", ident, tableCatalog.name());
       throw new RuntimeException(errMsg, e);
     }
   }
 
   protected void refreshSparkCache(Identifier ident, Table table) {
     CacheManager cacheManager = spark.sharedState().cacheManager();
-    DataSourceV2Relation relation = DataSourceV2Relation.create(table, Option.apply(tableCatalog), Option.apply(ident));
+    DataSourceV2Relation relation =
+        DataSourceV2Relation.create(table, Option.apply(tableCatalog), Option.apply(ident));
     cacheManager.recacheByPlan(spark, relation);
   }
 
@@ -167,8 +177,8 @@ abstract class BaseProcedure implements Procedure {
   }
 
   /**
-   * Closes this procedure's executor service if a new one was created with {@link #executorService(int, String)}. Does
-   * not block for any remaining tasks.
+   * Closes this procedure's executor service if a new one was created with {@link
+   * #executorService(int, String)}. Does not block for any remaining tasks.
    */
   protected void closeService() {
     if (executorService != null) {
@@ -177,24 +187,30 @@ abstract class BaseProcedure implements Procedure {
   }
 
   /**
-   * Starts a new executor service which can be used by this procedure in its work. The pool will be automatically
-   * shut down if {@link #withIcebergTable(Identifier, Function)} or {@link #modifyIcebergTable(Identifier, Function)}
-   * are called. If these methods are not used then the service can be shut down with {@link #closeService()} or left
-   * to be closed when this class is finalized.
+   * Starts a new executor service which can be used by this procedure in its work. The pool will be
+   * automatically shut down if {@link #withIcebergTable(Identifier, Function)} or {@link
+   * #modifyIcebergTable(Identifier, Function)} are called. If these methods are not used then the
+   * service can be shut down with {@link #closeService()} or left to be closed when this class is
+   * finalized.
+   *
    * @param threadPoolSize number of threads in the service
    * @param nameFormat name prefix for threads created in this service
    * @return the new executor service owned by this procedure
    */
   protected ExecutorService executorService(int threadPoolSize, String nameFormat) {
-    Preconditions.checkArgument(executorService == null, "Cannot create a new executor service, one already exists.");
-    Preconditions.checkArgument(nameFormat != null, "Cannot create a service with null nameFormat arg");
-    this.executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(
-            threadPoolSize,
-            new ThreadFactoryBuilder()
-                .setDaemon(true)
-                .setNameFormat(nameFormat + "-%d")
-                .build()));
+    Preconditions.checkArgument(
+        executorService == null, "Cannot create a new executor service, one already exists.");
+    Preconditions.checkArgument(
+        nameFormat != null, "Cannot create a service with null nameFormat arg");
+    this.executorService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor)
+                Executors.newFixedThreadPool(
+                    threadPoolSize,
+                    new ThreadFactoryBuilder()
+                        .setDaemon(true)
+                        .setNameFormat(nameFormat + "-%d")
+                        .build()));
 
     return executorService;
   }

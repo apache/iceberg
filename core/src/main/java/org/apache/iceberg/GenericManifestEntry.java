@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.avro.generic.IndexedRecord;
@@ -77,17 +76,13 @@ class GenericManifestEntry<F extends ContentFile<F>>
     return this;
   }
 
-  /**
-   * @return the status of the file, whether EXISTING, ADDED, or DELETED
-   */
+  /** @return the status of the file, whether EXISTING, ADDED, or DELETED */
   @Override
   public Status status() {
     return status;
   }
 
-  /**
-   * @return id of the snapshot in which the file was added to the table
-   */
+  /** @return id of the snapshot in which the file was added to the table */
   @Override
   public Long snapshotId() {
     return snapshotId;
@@ -98,9 +93,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
     return sequenceNumber;
   }
 
-  /**
-   * @return a file
-   */
+  /** @return a file */
   @Override
   public F file() {
     return file;

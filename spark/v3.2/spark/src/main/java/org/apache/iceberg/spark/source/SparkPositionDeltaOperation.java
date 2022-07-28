@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.IsolationLevel;
@@ -46,8 +45,8 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
   private Scan configuredScan;
   private DeltaWriteBuilder lazyWriteBuilder;
 
-  SparkPositionDeltaOperation(SparkSession spark, Table table, RowLevelOperationInfo info,
-                              IsolationLevel isolationLevel) {
+  SparkPositionDeltaOperation(
+      SparkSession spark, Table table, RowLevelOperationInfo info, IsolationLevel isolationLevel) {
     this.spark = spark;
     this.table = table;
     this.command = info.command();
@@ -62,14 +61,15 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
     if (lazyScanBuilder == null) {
-      this.lazyScanBuilder = new SparkScanBuilder(spark, table, options) {
-        @Override
-        public Scan build() {
-          Scan scan = super.buildMergeOnReadScan();
-          SparkPositionDeltaOperation.this.configuredScan = scan;
-          return scan;
-        }
-      };
+      this.lazyScanBuilder =
+          new SparkScanBuilder(spark, table, options) {
+            @Override
+            public Scan build() {
+              Scan scan = super.buildMergeOnReadScan();
+              SparkPositionDeltaOperation.this.configuredScan = scan;
+              return scan;
+            }
+          };
     }
 
     return lazyScanBuilder;
@@ -80,9 +80,9 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
     if (lazyWriteBuilder == null) {
       // don't validate the scan is not null as if the condition evaluates to false,
       // the optimizer replaces the original scan relation with a local relation
-      lazyWriteBuilder = new SparkPositionDeltaWriteBuilder(
-          spark, table, command, configuredScan,
-          isolationLevel, info);
+      lazyWriteBuilder =
+          new SparkPositionDeltaWriteBuilder(
+              spark, table, command, configuredScan, isolationLevel, info);
     }
 
     return lazyWriteBuilder;
@@ -92,13 +92,13 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
   public NamedReference[] requiredMetadataAttributes() {
     NamedReference specId = Expressions.column(MetadataColumns.SPEC_ID.name());
     NamedReference partition = Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME);
-    return new NamedReference[]{specId, partition};
+    return new NamedReference[] {specId, partition};
   }
 
   @Override
   public NamedReference[] rowId() {
     NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
     NamedReference pos = Expressions.column(MetadataColumns.ROW_POSITION.name());
-    return new NamedReference[]{file, pos};
+    return new NamedReference[] {file, pos};
   }
 }

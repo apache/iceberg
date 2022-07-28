@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.split;
 
 import java.util.List;
@@ -30,8 +29,7 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestIcebergSourceSplitSerializer {
 
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   private final IcebergSourceSplitSerializer serializer = IcebergSourceSplitSerializer.INSTANCE;
 
@@ -42,8 +40,9 @@ public class TestIcebergSourceSplitSerializer {
   }
 
   private void serializeAndDeserialize(int splitCount, int filesPerSplit) throws Exception {
-    final List<IcebergSourceSplit> splits = SplitHelpers
-        .createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, splitCount, filesPerSplit);
+    final List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(
+            TEMPORARY_FOLDER, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
       byte[] result = serializer.serialize(split);
       IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
@@ -51,14 +50,16 @@ public class TestIcebergSourceSplitSerializer {
 
       byte[] cachedResult = serializer.serialize(split);
       Assert.assertSame(result, cachedResult);
-      IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
+      IcebergSourceSplit deserialized2 =
+          serializer.deserialize(serializer.getVersion(), cachedResult);
       assertSplitEquals(split, deserialized2);
 
       split.updatePosition(0, 100);
       byte[] resultAfterUpdatePosition = serializer.serialize(split);
       // after position change, serialized bytes should have changed
       Assert.assertNotSame(cachedResult, resultAfterUpdatePosition);
-      IcebergSourceSplit deserialized3 = serializer.deserialize(serializer.getVersion(), resultAfterUpdatePosition);
+      IcebergSourceSplit deserialized3 =
+          serializer.deserialize(serializer.getVersion(), resultAfterUpdatePosition);
       assertSplitEquals(split, deserialized3);
     }
   }
@@ -70,8 +71,9 @@ public class TestIcebergSourceSplitSerializer {
   }
 
   private void serializeAndDeserializeV1(int splitCount, int filesPerSplit) throws Exception {
-    final List<IcebergSourceSplit> splits = SplitHelpers
-        .createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, splitCount, filesPerSplit);
+    final List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(
+            TEMPORARY_FOLDER, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
       byte[] result = split.serializeV1();
       IcebergSourceSplit deserialized = IcebergSourceSplit.deserializeV1(result);
@@ -82,19 +84,22 @@ public class TestIcebergSourceSplitSerializer {
   @Test
   public void testCheckpointedPosition() throws Exception {
     final AtomicInteger index = new AtomicInteger();
-    final List<IcebergSourceSplit> splits = SplitHelpers
-        .createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 10, 2).stream()
-        .map(split -> {
-          IcebergSourceSplit result;
-          if (index.get() % 2 == 0) {
-            result = IcebergSourceSplit.fromCombinedScanTask(split.task(), index.get(), index.get());
-          } else {
-            result = split;
-          }
-          index.incrementAndGet();
-          return result;
-        })
-        .collect(Collectors.toList());
+    final List<IcebergSourceSplit> splits =
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 10, 2).stream()
+            .map(
+                split -> {
+                  IcebergSourceSplit result;
+                  if (index.get() % 2 == 0) {
+                    result =
+                        IcebergSourceSplit.fromCombinedScanTask(
+                            split.task(), index.get(), index.get());
+                  } else {
+                    result = split;
+                  }
+                  index.incrementAndGet();
+                  return result;
+                })
+            .collect(Collectors.toList());
 
     for (IcebergSourceSplit split : splits) {
       byte[] result = serializer.serialize(split);
@@ -103,7 +108,8 @@ public class TestIcebergSourceSplitSerializer {
 
       byte[] cachedResult = serializer.serialize(split);
       Assert.assertSame(result, cachedResult);
-      IcebergSourceSplit deserialized2 = serializer.deserialize(serializer.getVersion(), cachedResult);
+      IcebergSourceSplit deserialized2 =
+          serializer.deserialize(serializer.getVersion(), cachedResult);
       assertSplitEquals(split, deserialized2);
     }
   }

@@ -16,16 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.write;
 
 import org.apache.spark.sql.connector.write.Write;
 
 /**
- * A logical representation of a data source write that handles a delta of rows.
- * A delta of rows is a set of instructions that indicate which records need to be deleted,
- * updated, or inserted. Data sources that support deltas allow Spark to discard unchanged rows
- * and pass only the information about what rows have changed during a row-level operation.
+ * A logical representation of a data source write that handles a delta of rows. A delta of rows is
+ * a set of instructions that indicate which records need to be deleted, updated, or inserted. Data
+ * sources that support deltas allow Spark to discard unchanged rows and pass only the information
+ * about what rows have changed during a row-level operation.
  */
 public interface DeltaWrite extends Write {
   @Override

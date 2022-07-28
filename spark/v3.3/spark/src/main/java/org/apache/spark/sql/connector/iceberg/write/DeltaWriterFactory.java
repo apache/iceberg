@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.write;
 
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
 
-/**
- * A factory for creating and initializing delta writers at the executor side.
- */
+/** A factory for creating and initializing delta writers at the executor side. */
 public interface DeltaWriterFactory extends DataWriterFactory {
   @Override
   DeltaWriter<InternalRow> createWriter(int partitionId, long taskId);

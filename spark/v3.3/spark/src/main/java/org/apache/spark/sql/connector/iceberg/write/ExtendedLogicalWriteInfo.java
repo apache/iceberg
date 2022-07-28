@@ -16,23 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.write;
 
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.types.StructType;
 
-/**
- * A class that holds logical write information not covered by LogicalWriteInfo in Spark.
- */
+/** A class that holds logical write information not covered by LogicalWriteInfo in Spark. */
 public interface ExtendedLogicalWriteInfo extends LogicalWriteInfo {
-  /**
-   * The schema of the input metadata from Spark to data source.
-   */
+  /** The schema of the input metadata from Spark to data source. */
   StructType metadataSchema();
 
-  /**
-   * The schema of the ID columns from Spark to data source.
-   */
+  /** The schema of the ID columns from Spark to data source. */
   StructType rowIdSchema();
 }

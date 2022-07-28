@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.math.BigDecimal;
@@ -28,16 +27,14 @@ import org.apache.iceberg.types.Types;
 
 public class RandomUtil {
 
-  private RandomUtil() {
-  }
+  private RandomUtil() {}
 
   private static boolean negate(int num) {
     return num % 2 == 1;
   }
 
   @SuppressWarnings("RandomModInteger")
-  public static Object generatePrimitive(Type.PrimitiveType primitive,
-                                         Random random) {
+  public static Object generatePrimitive(Type.PrimitiveType primitive, Random random) {
     int choice = random.nextInt(20);
 
     switch (primitive.typeId()) {
@@ -153,7 +150,8 @@ public class RandomUtil {
     }
   }
 
-  public static Object generateDictionaryEncodablePrimitive(Type.PrimitiveType primitive, Random random) {
+  public static Object generateDictionaryEncodablePrimitive(
+      Type.PrimitiveType primitive, Random random) {
     int value = random.nextInt(3);
     switch (primitive.typeId()) {
       case BOOLEAN:

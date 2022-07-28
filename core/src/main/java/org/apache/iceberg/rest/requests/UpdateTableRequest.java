@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.requests;
 
 import java.util.List;
@@ -47,8 +46,7 @@ public class UpdateTableRequest implements RESTRequest {
   }
 
   @Override
-  public void validate() {
-  }
+  public void validate() {}
 
   public List<UpdateRequirement> requirements() {
     return requirements != null ? requirements : ImmutableList.of();
@@ -227,8 +225,7 @@ public class UpdateTableRequest implements RESTRequest {
     void validate(TableMetadata base);
 
     class AssertTableDoesNotExist implements UpdateRequirement {
-      AssertTableDoesNotExist() {
-      }
+      AssertTableDoesNotExist() {}
 
       @Override
       public void validate(TableMetadata base) {

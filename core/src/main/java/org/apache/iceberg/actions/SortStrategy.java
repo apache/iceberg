@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.Map;
@@ -27,17 +26,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.SortOrderUtil;
 
 /**
- * A rewrite strategy for data files which aims to reorder data with data files to optimally lay them out
- * in relation to a column. For example, if the Sort strategy is used on a set of files which is ordered
- * by column x and original has files File A (x: 0 - 50), File B ( x: 10 - 40) and File C ( x: 30 - 60),
- * this Strategy will attempt to rewrite those files into File A' (x: 0-20), File B' (x: 21 - 40),
- * File C' (x: 41 - 60).
- * <p>
- * Currently the there is no file overlap detection and we will rewrite all files if {@link SortStrategy#REWRITE_ALL}
- * is true (default: false). If this property is disabled any files that would be chosen by
- * {@link BinPackStrategy} will be rewrite candidates.
- * <p>
- * In the future other algorithms for determining files to rewrite will be provided.
+ * A rewrite strategy for data files which aims to reorder data with data files to optimally lay
+ * them out in relation to a column. For example, if the Sort strategy is used on a set of files
+ * which is ordered by column x and original has files File A (x: 0 - 50), File B ( x: 10 - 40) and
+ * File C ( x: 30 - 60), this Strategy will attempt to rewrite those files into File A' (x: 0-20),
+ * File B' (x: 21 - 40), File C' (x: 41 - 60).
+ *
+ * <p>Currently the there is no file overlap detection and we will rewrite all files if {@link
+ * SortStrategy#REWRITE_ALL} is true (default: false). If this property is disabled any files that
+ * would be chosen by {@link BinPackStrategy} will be rewrite candidates.
+ *
+ * <p>In the future other algorithms for determining files to rewrite will be provided.
  */
 public abstract class SortStrategy extends BinPackStrategy {
 
@@ -45,6 +44,7 @@ public abstract class SortStrategy extends BinPackStrategy {
 
   /**
    * Sets the sort order to be used in this strategy when rewriting files
+   *
    * @param order the order to use
    * @return this for method chaining
    */
@@ -65,9 +65,7 @@ public abstract class SortStrategy extends BinPackStrategy {
 
   @Override
   public Set<String> validOptions() {
-    return ImmutableSet.<String>builder()
-        .addAll(super.validOptions())
-        .build();
+    return ImmutableSet.<String>builder().addAll(super.validOptions()).build();
   }
 
   @Override
@@ -83,10 +81,12 @@ public abstract class SortStrategy extends BinPackStrategy {
   }
 
   protected void validateOptions() {
-    Preconditions.checkArgument(!sortOrder.isUnsorted(),
-        "Can't use %s when there is no sort order, either define table %s's sort order or set sort" +
-            "order in the action",
-        name(), table().name());
+    Preconditions.checkArgument(
+        !sortOrder.isUnsorted(),
+        "Can't use %s when there is no sort order, either define table %s's sort order or set sort"
+            + "order in the action",
+        name(),
+        table().name());
 
     SortOrder.checkCompatibility(sortOrder, table().schema());
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Collections;
@@ -37,8 +36,7 @@ import org.apache.iceberg.transforms.Transform;
 
 public class SortOrderUtil {
 
-  private SortOrderUtil() {
-  }
+  private SortOrderUtil() {}
 
   public static SortOrder buildSortOrder(Table table) {
     return buildSortOrder(table.schema(), table.spec(), table.sortOrder());
@@ -51,27 +49,34 @@ public class SortOrderUtil {
 
   /**
    * Build a final sort order that satisfies the clustering required by the partition spec.
-   * <p>
-   * The incoming sort order may or may not satisfy the clustering needed by the partition spec. This modifies the sort
-   * order so that it clusters by partition and still produces the same order within each partition.
+   *
+   * <p>The incoming sort order may or may not satisfy the clustering needed by the partition spec.
+   * This modifies the sort order so that it clusters by partition and still produces the same order
+   * within each partition.
    *
    * @param schema a schema
    * @param spec a partition spec
    * @param sortOrder a sort order
-   * @return the sort order with additional sort fields to satisfy the clustering required by the spec
+   * @return the sort order with additional sort fields to satisfy the clustering required by the
+   *     spec
    */
   public static SortOrder buildSortOrder(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
     if (sortOrder.isUnsorted() && spec.isUnpartitioned()) {
       return SortOrder.unsorted();
     }
 
-    // make a map of the partition fields that need to be included in the clustering produced by the sort order
-    Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields = requiredClusteringFields(spec);
+    // make a map of the partition fields that need to be included in the clustering produced by the
+    // sort order
+    Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields =
+        requiredClusteringFields(spec);
 
-    // remove any partition fields that are clustered by the sort order by iterating over a prefix in the sort order.
-    // this will stop when a non-partition field is found, or when the sort field only satisfies the partition field.
+    // remove any partition fields that are clustered by the sort order by iterating over a prefix
+    // in the sort order.
+    // this will stop when a non-partition field is found, or when the sort field only satisfies the
+    // partition field.
     for (SortField sortField : sortOrder.fields()) {
-      Pair<Transform<?, ?>, Integer> sourceAndTransform = Pair.of(sortField.transform(), sortField.sourceId());
+      Pair<Transform<?, ?>, Integer> sourceAndTransform =
+          Pair.of(sortField.transform(), sortField.sourceId());
       if (requiredClusteringFields.containsKey(sourceAndTransform)) {
         requiredClusteringFields.remove(sourceAndTransform);
         continue; // keep processing the prefix
@@ -80,7 +85,8 @@ public class SortOrderUtil {
       // if the field satisfies the order of any partition fields, also remove them before stopping
       // use a set to avoid concurrent modification
       for (PartitionField field : spec.fields()) {
-        if (sortField.sourceId() == field.sourceId() && sortField.transform().satisfiesOrderOf(field.transform())) {
+        if (sortField.sourceId() == field.sourceId()
+            && sortField.transform().satisfiesOrderOf(field.transform())) {
           requiredClusteringFields.remove(Pair.of(field.transform(), field.sourceId()));
         }
       }
@@ -101,20 +107,24 @@ public class SortOrderUtil {
     return builder.build();
   }
 
-  private static Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields(PartitionSpec spec) {
-    Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields = Maps.newLinkedHashMap();
+  private static Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields(
+      PartitionSpec spec) {
+    Map<Pair<Transform<?, ?>, Integer>, PartitionField> requiredClusteringFields =
+        Maps.newLinkedHashMap();
     for (PartitionField partField : spec.fields()) {
       if (!partField.transform().toString().equals("void")) {
-        requiredClusteringFields.put(Pair.of(partField.transform(), partField.sourceId()), partField);
+        requiredClusteringFields.put(
+            Pair.of(partField.transform(), partField.sourceId()), partField);
       }
     }
 
-    // remove any partition fields that are satisfied by another partition field, like days(ts) and hours(ts)
+    // remove any partition fields that are satisfied by another partition field, like days(ts) and
+    // hours(ts)
     for (PartitionField partField : spec.fields()) {
       for (PartitionField field : spec.fields()) {
-        if (!partField.equals(field) &&
-            partField.sourceId() == field.sourceId() &&
-            partField.transform().satisfiesOrderOf(field.transform())) {
+        if (!partField.equals(field)
+            && partField.sourceId() == field.sourceId()
+            && partField.transform().satisfiesOrderOf(field.transform())) {
           requiredClusteringFields.remove(Pair.of(field.transform(), field.sourceId()));
         }
       }

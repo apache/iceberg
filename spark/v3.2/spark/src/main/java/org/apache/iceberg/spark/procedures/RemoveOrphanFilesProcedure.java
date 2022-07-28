@@ -16,14 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
@@ -37,6 +39,7 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import scala.runtime.BoxedUnit;
 
 /**
  * A procedure that removes orphan files in a table.
@@ -45,18 +48,24 @@ import org.apache.spark.unsafe.types.UTF8String;
  */
 public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("older_than", DataTypes.TimestampType),
-      ProcedureParameter.optional("location", DataTypes.StringType),
-      ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
-      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-      ProcedureParameter.optional("file_list_view", DataTypes.StringType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("older_than", DataTypes.TimestampType),
+        ProcedureParameter.optional("location", DataTypes.StringType),
+        ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
+        ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
+        ProcedureParameter.optional("file_list_view", DataTypes.StringType),
+        ProcedureParameter.optional("equal_schemes", STRING_MAP),
+        ProcedureParameter.optional("equal_authorities", STRING_MAP),
+        ProcedureParameter.optional("prefix_mismatch_mode", DataTypes.StringType),
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("orphan_file_location", DataTypes.StringType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("orphan_file_location", DataTypes.StringType, false, Metadata.empty())
+          });
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<RemoveOrphanFilesProcedure>() {
@@ -91,40 +100,77 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     Integer maxConcurrentDeletes = args.isNullAt(4) ? null : args.getInt(4);
     String fileListView = args.isNullAt(5) ? null : args.getString(5);
 
-    Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
-            "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
+    Preconditions.checkArgument(
+        maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
+        "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
 
-    return withIcebergTable(tableIdent, table -> {
-      DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
+    Map<String, String> equalSchemes = Maps.newHashMap();
+    if (!args.isNullAt(6)) {
+      args.getMap(6)
+          .foreach(
+              DataTypes.StringType,
+              DataTypes.StringType,
+              (k, v) -> {
+                equalSchemes.put(k.toString(), v.toString());
+                return BoxedUnit.UNIT;
+              });
+    }
 
-      if (olderThanMillis != null) {
-        boolean isTesting = Boolean.parseBoolean(spark().conf().get("spark.testing", "false"));
-        if (!isTesting) {
-          validateInterval(olderThanMillis);
-        }
-        action.olderThan(olderThanMillis);
-      }
+    Map<String, String> equalAuthorities = Maps.newHashMap();
+    if (!args.isNullAt(7)) {
+      args.getMap(7)
+          .foreach(
+              DataTypes.StringType,
+              DataTypes.StringType,
+              (k, v) -> {
+                equalSchemes.put(k.toString(), v.toString());
+                return BoxedUnit.UNIT;
+              });
+    }
 
-      if (location != null) {
-        action.location(location);
-      }
+    PrefixMismatchMode prefixMismatchMode =
+        args.isNullAt(8) ? null : PrefixMismatchMode.fromString(args.getString(8));
 
-      if (dryRun) {
-        action.deleteWith(file -> { });
-      }
+    return withIcebergTable(
+        tableIdent,
+        table -> {
+          DeleteOrphanFilesSparkAction action = actions().deleteOrphanFiles(table);
 
-      if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
-        action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
-      }
+          if (olderThanMillis != null) {
+            boolean isTesting = Boolean.parseBoolean(spark().conf().get("spark.testing", "false"));
+            if (!isTesting) {
+              validateInterval(olderThanMillis);
+            }
+            action.olderThan(olderThanMillis);
+          }
 
-      if (fileListView != null) {
-        action.compareToFileList(spark().table(fileListView));
-      }
+          if (location != null) {
+            action.location(location);
+          }
 
-      DeleteOrphanFiles.Result result = action.execute();
+          if (dryRun) {
+            action.deleteWith(file -> {});
+          }
 
-      return toOutputRows(result);
-    });
+          if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+            action.executeDeleteWith(executorService(maxConcurrentDeletes, "remove-orphans"));
+          }
+
+          if (fileListView != null) {
+            action.compareToFileList(spark().table(fileListView));
+          }
+
+          action.equalSchemes(equalSchemes);
+          action.equalAuthorities(equalAuthorities);
+
+          if (prefixMismatchMode != null) {
+            action.prefixMismatchMode(prefixMismatchMode);
+          }
+
+          DeleteOrphanFiles.Result result = action.execute();
+
+          return toOutputRows(result);
+        });
   }
 
   private InternalRow[] toOutputRows(DeleteOrphanFiles.Result result) {
@@ -146,11 +192,11 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     long intervalMillis = System.currentTimeMillis() - olderThanMillis;
     if (intervalMillis < TimeUnit.DAYS.toMillis(1)) {
       throw new IllegalArgumentException(
-          "Cannot remove orphan files with an interval less than 24 hours. Executing this " +
-          "procedure with a short interval may corrupt the table if other operations are happening " +
-          "at the same time. If you are absolutely confident that no concurrent operations will be " +
-          "affected by removing orphan files with such a short interval, you can use the Action API " +
-          "to remove orphan files with an arbitrary interval.");
+          "Cannot remove orphan files with an interval less than 24 hours. Executing this "
+              + "procedure with a short interval may corrupt the table if other operations are happening "
+              + "at the same time. If you are absolutely confident that no concurrent operations will be "
+              + "affected by removing orphan files with such a short interval, you can use the Action API "
+              + "to remove orphan files with an arbitrary interval.");
     }
   }
 

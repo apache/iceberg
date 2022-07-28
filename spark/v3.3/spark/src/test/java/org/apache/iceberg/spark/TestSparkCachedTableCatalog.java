@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.iceberg.Snapshot;
@@ -69,17 +68,24 @@ public class TestSparkCachedTableCatalog extends SparkTestBaseWithCatalog {
     try {
       TABLE_CACHE.add("key", table);
 
-      assertEquals("Should have expected rows in 3rd snapshot",
+      assertEquals(
+          "Should have expected rows in 3rd snapshot",
           ImmutableList.of(row(1, "hr"), row(2, "hr"), row(3, "hr")),
           sql("SELECT * FROM testcache.key ORDER BY id"));
 
-      assertEquals("Should have expected rows in 2nd snapshot",
+      assertEquals(
+          "Should have expected rows in 2nd snapshot",
           ImmutableList.of(row(1, "hr"), row(2, "hr")),
-          sql("SELECT * FROM testcache.`key#at_timestamp_%s` ORDER BY id", secondSnapshot.timestampMillis()));
+          sql(
+              "SELECT * FROM testcache.`key#at_timestamp_%s` ORDER BY id",
+              secondSnapshot.timestampMillis()));
 
-      assertEquals("Should have expected rows in 1st snapshot",
+      assertEquals(
+          "Should have expected rows in 1st snapshot",
           ImmutableList.of(row(1, "hr")),
-          sql("SELECT * FROM testcache.`key#snapshot_id_%d` ORDER BY id", firstSnapshot.snapshotId()));
+          sql(
+              "SELECT * FROM testcache.`key#snapshot_id_%d` ORDER BY id",
+              firstSnapshot.snapshotId()));
 
     } finally {
       TABLE_CACHE.remove("key");

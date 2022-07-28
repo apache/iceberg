@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -45,9 +44,9 @@ import org.apache.iceberg.types.Types.StructType;
 
 /**
  * The schema of a data table.
- * <p>
- * Schema ID will only be populated when reading from/writing to table metadata,
- * otherwise it will be default to 0.
+ *
+ * <p>Schema ID will only be populated when reading from/writing to table metadata, otherwise it
+ * will be default to 0.
  */
 public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
@@ -71,7 +70,8 @@ public class Schema implements Serializable {
     this(columns, aliases, ImmutableSet.of());
   }
 
-  public Schema(List<NestedField> columns, Map<String, Integer> aliases, Set<Integer> identifierFieldIds) {
+  public Schema(
+      List<NestedField> columns, Map<String, Integer> aliases, Set<Integer> identifierFieldIds) {
     this(DEFAULT_SCHEMA_ID, columns, aliases, identifierFieldIds);
   }
 
@@ -91,8 +91,11 @@ public class Schema implements Serializable {
     this(schemaId, columns, null, identifierFieldIds);
   }
 
-  public Schema(int schemaId, List<NestedField> columns, Map<String, Integer> aliases,
-                Set<Integer> identifierFieldIds) {
+  public Schema(
+      int schemaId,
+      List<NestedField> columns,
+      Map<String, Integer> aliases,
+      Set<Integer> identifierFieldIds) {
     this.schemaId = schemaId;
     this.struct = StructType.of(columns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
@@ -103,23 +106,31 @@ public class Schema implements Serializable {
       identifierFieldIds.forEach(id -> validateIdentifierField(id, lazyIdToField(), idToParent));
     }
 
-    this.identifierFieldIds = identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
+    this.identifierFieldIds =
+        identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
     this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
   }
 
-  static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
-                                              Map<Integer, Integer> idToParent) {
+  static void validateIdentifierField(
+      int fieldId, Map<Integer, Types.NestedField> idToField, Map<Integer, Integer> idToParent) {
     Types.NestedField field = idToField.get(fieldId);
-    Preconditions.checkArgument(field != null,
-        "Cannot add fieldId %s as an identifier field: field does not exist", fieldId);
-    Preconditions.checkArgument(field.type().isPrimitiveType(),
-        "Cannot add field %s as an identifier field: not a primitive type field", field.name());
-    Preconditions.checkArgument(field.isRequired(),
-        "Cannot add field %s as an identifier field: not a required field", field.name());
-    Preconditions.checkArgument(!Types.DoubleType.get().equals(field.type()) &&
-            !Types.FloatType.get().equals(field.type()),
-        "Cannot add field %s as an identifier field: must not be float or double field", field.name());
+    Preconditions.checkArgument(
+        field != null,
+        "Cannot add fieldId %s as an identifier field: field does not exist",
+        fieldId);
+    Preconditions.checkArgument(
+        field.type().isPrimitiveType(),
+        "Cannot add field %s as an identifier field: not a primitive type field",
+        field.name());
+    Preconditions.checkArgument(
+        field.isRequired(),
+        "Cannot add field %s as an identifier field: not a required field",
+        field.name());
+    Preconditions.checkArgument(
+        !Types.DoubleType.get().equals(field.type()) && !Types.FloatType.get().equals(field.type()),
+        "Cannot add field %s as an identifier field: must not be float or double field",
+        field.name());
 
     // check whether the nested field is in a chain of required struct fields
     // exploring from root for better error message for list and map types
@@ -132,11 +143,16 @@ public class Schema implements Serializable {
 
     while (!deque.isEmpty()) {
       Types.NestedField parent = idToField.get(deque.pop());
-      Preconditions.checkArgument(parent.type().isStructType(),
-          "Cannot add field %s as an identifier field: must not be nested in %s", field.name(), parent);
-      Preconditions.checkArgument(parent.isRequired(),
+      Preconditions.checkArgument(
+          parent.type().isStructType(),
+          "Cannot add field %s as an identifier field: must not be nested in %s",
+          field.name(),
+          parent);
+      Preconditions.checkArgument(
+          parent.isRequired(),
           "Cannot add field %s as an identifier field: must not be nested in an optional field %s",
-          field.name(), parent);
+          field.name(),
+          parent);
     }
   }
 
@@ -192,25 +208,23 @@ public class Schema implements Serializable {
 
   /**
    * Returns the schema ID for this schema.
-   * <p>
-   * Note that schema ID will only be populated when reading from/writing to table metadata,
+   *
+   * <p>Note that schema ID will only be populated when reading from/writing to table metadata,
    * otherwise it will be default to 0.
    */
   public int schemaId() {
     return this.schemaId;
   }
 
-  /**
-   * Returns the highest field ID in this schema, including nested fields.
-   */
+  /** Returns the highest field ID in this schema, including nested fields. */
   public int highestFieldId() {
     return highestFieldId;
   }
 
   /**
    * Returns an alias map for this schema, if set.
-   * <p>
-   * Alias maps are created when translating an external schema, like an Avro Schema, to this
+   *
+   * <p>Alias maps are created when translating an external schema, like an Avro Schema, to this
    * format. The original column names can be provided in a Map when constructing this Schema.
    *
    * @return a Map of column aliases to field ids
@@ -228,28 +242,28 @@ public class Schema implements Serializable {
     return struct;
   }
 
-  /**
-   * Returns a List of the {@link NestedField columns} in this Schema.
-   */
+  /** Returns a List of the {@link NestedField columns} in this Schema. */
   public List<NestedField> columns() {
     return struct.fields();
   }
 
   /**
    * The set of identifier field IDs.
-   * <p>
-   * Identifier is a concept similar to primary key in a relational database system.
-   * It consists of a unique set of primitive fields in the schema.
-   * An identifier field must be at root, or nested in a chain of structs (no maps or lists).
-   * A row should be unique in a table based on the values of the identifier fields.
-   * Optional, float and double columns cannot be used as identifier fields.
-   * However, Iceberg identifier differs from primary key in the following ways:
+   *
+   * <p>Identifier is a concept similar to primary key in a relational database system. It consists
+   * of a unique set of primitive fields in the schema. An identifier field must be at root, or
+   * nested in a chain of structs (no maps or lists). A row should be unique in a table based on the
+   * values of the identifier fields. Optional, float and double columns cannot be used as
+   * identifier fields. However, Iceberg identifier differs from primary key in the following ways:
+   *
    * <ul>
-   * <li>Iceberg does not enforce the uniqueness of a row based on this identifier information.
-   * It is used for operations like upsert to define the default upsert key.</li>
-   * <li>A nested field in a struct can be used as an identifier. For example, if there is a "last_name" field
-   * inside a "user" struct in a schema, field "user.last_name" can be set as a part of the identifier field.</li>
+   *   <li>Iceberg does not enforce the uniqueness of a row based on this identifier information. It
+   *       is used for operations like upsert to define the default upsert key.
+   *   <li>A nested field in a struct can be used as an identifier. For example, if there is a
+   *       "last_name" field inside a "user" struct in a schema, field "user.last_name" can be set
+   *       as a part of the identifier field.
    * </ul>
+   *
    * <p>
    *
    * @return the set of identifier field IDs in this schema.
@@ -258,14 +272,11 @@ public class Schema implements Serializable {
     return lazyIdentifierFieldIdSet();
   }
 
-  /**
-   * Returns the set of identifier field names.
-   */
+  /** Returns the set of identifier field names. */
   public Set<String> identifierFieldNames() {
-    return identifierFieldIds()
-            .stream()
-            .map(id -> lazyIdToName().get(id))
-            .collect(Collectors.toSet());
+    return identifierFieldIds().stream()
+        .map(id -> lazyIdToName().get(id))
+        .collect(Collectors.toSet());
   }
 
   /**
@@ -277,7 +288,7 @@ public class Schema implements Serializable {
   public Type findType(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     Integer id = lazyNameToId().get(name);
-    if (id != null) {  // name is found
+    if (id != null) { // name is found
       return findType(id);
     }
 
@@ -311,8 +322,8 @@ public class Schema implements Serializable {
 
   /**
    * Returns a sub-field by name as a {@link NestedField}.
-   * <p>
-   * The result may be a top-level or a nested field.
+   *
+   * <p>The result may be a top-level or a nested field.
    *
    * @param name a String name
    * @return a Type for the sub-field or null if it is not found
@@ -328,8 +339,8 @@ public class Schema implements Serializable {
 
   /**
    * Returns a sub-field by name as a {@link NestedField}.
-   * <p>
-   * The result may be a top-level or a nested field.
+   *
+   * <p>The result may be a top-level or a nested field.
    *
    * @param name a String name
    * @return the sub-field or null if it is not found
@@ -354,8 +365,8 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns the column id for the given column alias. Column aliases are set
-   * by conversions from Parquet or Avro to this Schema type.
+   * Returns the column id for the given column alias. Column aliases are set by conversions from
+   * Parquet or Avro to this Schema type.
    *
    * @param alias a full column name in the unconverted data schema
    * @return the column id in this schema, or null if the column wasn't found
@@ -368,8 +379,8 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns the full column name in the unconverted data schema for the given column id.
-   * Column aliases are set by conversions from Parquet or Avro to this Schema type.
+   * Returns the full column name in the unconverted data schema for the given column id. Column
+   * aliases are set by conversions from Parquet or Avro to this Schema type.
    *
    * @param fieldId a column id in this schema
    * @return the full column name in the unconverted data schema, or null if one wasn't found
@@ -383,8 +394,8 @@ public class Schema implements Serializable {
 
   /**
    * Returns an accessor for retrieving the data from {@link StructLike}.
-   * <p>
-   * Accessors do not retrieve data contained in lists or maps.
+   *
+   * <p>Accessors do not retrieve data contained in lists or maps.
    *
    * @param id a column id in this schema
    * @return an {@link Accessor} to retrieve values from a {@link StructLike} row
@@ -395,8 +406,8 @@ public class Schema implements Serializable {
 
   /**
    * Creates a projection schema for a subset of columns, selected by name.
-   * <p>
-   * Names that identify nested fields will select part or all of the field's top-level column.
+   *
+   * <p>Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names String names for selected columns
    * @return a projection schema from this schema, by name
@@ -407,8 +418,8 @@ public class Schema implements Serializable {
 
   /**
    * Creates a projection schema for a subset of columns, selected by name.
-   * <p>
-   * Names that identify nested fields will select part or all of the field's top-level column.
+   *
+   * <p>Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names a List of String names for selected columns
    * @return a projection schema from this schema, by name
@@ -419,8 +430,8 @@ public class Schema implements Serializable {
 
   /**
    * Creates a projection schema for a subset of columns, selected by case insensitive names
-   * <p>
-   * Names that identify nested fields will select part or all of the field's top-level column.
+   *
+   * <p>Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names a List of String names for selected columns
    * @return a projection schema from this schema, by names
@@ -431,8 +442,8 @@ public class Schema implements Serializable {
 
   /**
    * Creates a projection schema for a subset of columns, selected by case insensitive names
-   * <p>
-   * Names that identify nested fields will select part or all of the field's top-level column.
+   *
+   * <p>Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names a List of String names for selected columns
    * @return a projection schema from this schema, by names
@@ -443,12 +454,13 @@ public class Schema implements Serializable {
 
   /**
    * Checks whether this schema is equivalent to another schema while ignoring the schema ID.
+   *
    * @param anotherSchema another schema
    * @return true if this schema is equivalent to the given schema
    */
   public boolean sameSchema(Schema anotherSchema) {
-    return asStruct().equals(anotherSchema.asStruct()) &&
-        identifierFieldIds().equals(anotherSchema.identifierFieldIds());
+    return asStruct().equals(anotherSchema.asStruct())
+        && identifierFieldIds().equals(anotherSchema.identifierFieldIds());
   }
 
   private Schema internalSelect(Collection<String> names, boolean caseSensitive) {
@@ -479,9 +491,11 @@ public class Schema implements Serializable {
 
   @Override
   public String toString() {
-    return String.format("table {\n%s\n}",
-        NEWLINE.join(struct.fields().stream()
-            .map(this::identifierFieldToString)
-            .collect(Collectors.toList())));
+    return String.format(
+        "table {\n%s\n}",
+        NEWLINE.join(
+            struct.fields().stream()
+                .map(this::identifierFieldToString)
+                .collect(Collectors.toList())));
   }
 }

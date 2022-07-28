@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -28,8 +27,9 @@ import org.apache.iceberg.transforms.Transform;
 
 /**
  * A struct of partition values.
- * <p>
- * Instances of this class can produce partition values from a data row passed to {@link #partition(StructLike)}.
+ *
+ * <p>Instances of this class can produce partition values from a data row passed to {@link
+ * #partition(StructLike)}.
  */
 public class PartitionKey implements StructLike, Serializable {
 
@@ -53,7 +53,8 @@ public class PartitionKey implements StructLike, Serializable {
     for (int i = 0; i < size; i += 1) {
       PartitionField field = fields.get(i);
       Accessor<StructLike> accessor = inputSchema.accessorForField(field.sourceId());
-      Preconditions.checkArgument(accessor != null,
+      Preconditions.checkArgument(
+          accessor != null,
           "Cannot build accessor for field: " + schema.findField(field.sourceId()));
       this.accessors[i] = accessor;
       this.transforms[i] = field.transform();

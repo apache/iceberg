@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.Iterator;
@@ -24,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
+import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.DeletedVectorReader;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -37,21 +37,24 @@ import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 /**
- * {@link VectorizedReader} that returns Spark's {@link ColumnarBatch} to support Spark's vectorized read path. The
- * {@link ColumnarBatch} returned is created by passing in the Arrow vectors populated via delegated read calls to
- * {@linkplain VectorizedArrowReader VectorReader(s)}.
+ * {@link VectorizedReader} that returns Spark's {@link ColumnarBatch} to support Spark's vectorized
+ * read path. The {@link ColumnarBatch} returned is created by passing in the Arrow vectors
+ * populated via delegated read calls to {@linkplain VectorizedArrowReader VectorReader(s)}.
  */
 public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
+  private final boolean hasIsDeletedColumn;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
 
   public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
     super(readers);
+    this.hasIsDeletedColumn =
+        readers.stream().anyMatch(reader -> reader instanceof DeletedVectorReader);
   }
 
   @Override
-  public void setRowGroupInfo(PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData,
-                              long rowPosition) {
+  public void setRowGroupInfo(
+      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
     super.setRowGroupInfo(pageStore, metaData, rowPosition);
     this.rowStartPosInBatch = rowPosition;
   }
@@ -66,91 +69,107 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       closeVectors();
     }
 
-    ColumnBatchLoader batchLoader = new ColumnBatchLoader(numRowsToRead);
+    ColumnarBatch columnarBatch = new ColumnBatchLoader(numRowsToRead).loadDataToColumnBatch();
     rowStartPosInBatch += numRowsToRead;
-    return batchLoader.columnarBatch;
+    return columnarBatch;
   }
 
   private class ColumnBatchLoader {
-    private int[] rowIdMapping; // the rowId mapping to skip deleted rows for all column vectors inside a batch
-    private int numRows;
-    private ColumnarBatch columnarBatch;
+    private final int numRowsToRead;
+    // the rowId mapping to skip deleted rows for all column vectors inside a batch, it is null when
+    // there is no deletes
+    private int[] rowIdMapping;
+    // the array to indicate if a row is deleted or not, it is null when there is no "_deleted"
+    // metadata column
+    private boolean[] isDeleted;
 
     ColumnBatchLoader(int numRowsToRead) {
-      initRowIdMapping(numRowsToRead);
-      loadDataToColumnBatch(numRowsToRead);
+      Preconditions.checkArgument(
+          numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
+      this.numRowsToRead = numRowsToRead;
+      if (hasIsDeletedColumn) {
+        isDeleted = new boolean[numRowsToRead];
+      }
     }
 
-    ColumnarBatch loadDataToColumnBatch(int numRowsToRead) {
-      Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
-      ColumnVector[] arrowColumnVectors = readDataToColumnVectors(numRowsToRead);
+    ColumnarBatch loadDataToColumnBatch() {
+      int numRowsUndeleted = initRowIdMapping();
 
-      columnarBatch = new ColumnarBatch(arrowColumnVectors);
-      columnarBatch.setNumRows(numRows);
+      ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
+
+      ColumnarBatch newColumnarBatch = new ColumnarBatch(arrowColumnVectors);
+      newColumnarBatch.setNumRows(numRowsUndeleted);
 
       if (hasEqDeletes()) {
-        applyEqDelete();
+        applyEqDelete(newColumnarBatch);
       }
-      return columnarBatch;
+
+      if (hasIsDeletedColumn && rowIdMapping != null) {
+        // reset the row id mapping array, so that it doesn't filter out the deleted rows
+        for (int i = 0; i < numRowsToRead; i++) {
+          rowIdMapping[i] = i;
+        }
+        newColumnarBatch.setNumRows(numRowsToRead);
+      }
+
+      return newColumnarBatch;
     }
 
-    ColumnVector[] readDataToColumnVectors(int numRowsToRead) {
+    ColumnVector[] readDataToColumnVectors() {
       ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
 
+      ColumnVectorBuilder columnVectorBuilder = new ColumnVectorBuilder();
       for (int i = 0; i < readers.length; i += 1) {
         vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
         int numRowsInVector = vectorHolders[i].numValues();
         Preconditions.checkState(
             numRowsInVector == numRowsToRead,
-            "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
+            "Number of rows in the vector %s didn't match expected %s ",
+            numRowsInVector,
             numRowsToRead);
 
-        arrowColumnVectors[i] = hasDeletes() ?
-            ColumnVectorWithFilter.forHolder(vectorHolders[i], rowIdMapping, numRows) :
-            IcebergArrowColumnVector.forHolder(vectorHolders[i], numRowsInVector);
+        arrowColumnVectors[i] =
+            columnVectorBuilder
+                .withDeletedRows(rowIdMapping, isDeleted)
+                .build(vectorHolders[i], numRowsInVector);
       }
       return arrowColumnVectors;
-    }
-
-    boolean hasDeletes() {
-      return rowIdMapping != null;
     }
 
     boolean hasEqDeletes() {
       return deletes != null && deletes.hasEqDeletes();
     }
 
-    void initRowIdMapping(int numRowsToRead) {
-      Pair<int[], Integer> posDeleteRowIdMapping = posDelRowIdMapping(numRowsToRead);
+    int initRowIdMapping() {
+      Pair<int[], Integer> posDeleteRowIdMapping = posDelRowIdMapping();
       if (posDeleteRowIdMapping != null) {
         rowIdMapping = posDeleteRowIdMapping.first();
-        numRows = posDeleteRowIdMapping.second();
+        return posDeleteRowIdMapping.second();
       } else {
-        numRows = numRowsToRead;
-        rowIdMapping = initEqDeleteRowIdMapping(numRowsToRead);
+        rowIdMapping = initEqDeleteRowIdMapping();
+        return numRowsToRead;
       }
     }
 
-    Pair<int[], Integer> posDelRowIdMapping(int numRowsToRead) {
+    Pair<int[], Integer> posDelRowIdMapping() {
       if (deletes != null && deletes.hasPosDeletes()) {
-        return buildPosDelRowIdMapping(deletes.deletedRowPositions(), numRowsToRead);
+        return buildPosDelRowIdMapping(deletes.deletedRowPositions());
       } else {
         return null;
       }
     }
 
     /**
-     * Build a row id mapping inside a batch, which skips deleted rows. Here is an example of how we delete 2 rows in a
-     * batch with 8 rows in total.
-     * [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array
-     * Position delete 2, 6
-     * [0,1,3,4,5,7,-,-] -- After applying position deletes [Set Num records to 6]
+     * Build a row id mapping inside a batch, which skips deleted rows. Here is an example of how we
+     * delete 2 rows in a batch with 8 rows in total. [0,1,2,3,4,5,6,7] -- Original status of the
+     * row id mapping array [F,F,F,F,F,F,F,F] -- Original status of the isDeleted array Position
+     * delete 2, 6 [0,1,3,4,5,7,-,-] -- After applying position deletes [Set Num records to 6]
+     * [F,F,T,F,F,F,T,F] -- After applying position deletes
      *
      * @param deletedRowPositions a set of deleted row positions
-     * @param numRowsToRead       the num of rows
      * @return the mapping array and the new num of rows in a batch, null if no row is deleted
      */
-    Pair<int[], Integer> buildPosDelRowIdMapping(PositionDeleteIndex deletedRowPositions, int numRowsToRead) {
+    Pair<int[], Integer> buildPosDelRowIdMapping(PositionDeleteIndex deletedRowPositions) {
       if (deletedRowPositions == null) {
         return null;
       }
@@ -162,6 +181,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         if (!deletedRowPositions.isDeleted(originalRowId + rowStartPosInBatch)) {
           posDelRowIdMapping[currentRowId] = originalRowId;
           currentRowId++;
+        } else if (hasIsDeletedColumn) {
+          isDeleted[originalRowId] = true;
         }
         originalRowId++;
       }
@@ -174,7 +195,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       }
     }
 
-    int[] initEqDeleteRowIdMapping(int numRowsToRead) {
+    int[] initEqDeleteRowIdMapping() {
       int[] eqDeleteRowIdMapping = null;
       if (hasEqDeletes()) {
         eqDeleteRowIdMapping = new int[numRowsToRead];
@@ -186,14 +207,16 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     }
 
     /**
-     * Filter out the equality deleted rows. Here is an example,
-     * [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array
-     * Position delete 2, 6
-     * [0,1,3,4,5,7,-,-] -- After applying position deletes [Set Num records to 6]
-     * Equality delete 1 <= x <= 3
-     * [0,4,5,7,-,-,-,-] -- After applying equality deletes [Set Num records to 4]
+     * Filter out the equality deleted rows. Here is an example, [0,1,2,3,4,5,6,7] -- Original
+     * status of the row id mapping array [F,F,F,F,F,F,F,F] -- Original status of the isDeleted
+     * array Position delete 2, 6 [0,1,3,4,5,7,-,-] -- After applying position deletes [Set Num
+     * records to 6] [F,F,T,F,F,F,T,F] -- After applying position deletes Equality delete 1 <= x <=
+     * 3 [0,4,5,7,-,-,-,-] -- After applying equality deletes [Set Num records to 4]
+     * [F,T,T,T,F,F,T,F] -- After applying equality deletes
+     *
+     * @param columnarBatch the {@link ColumnarBatch} to apply the equality delete
      */
-    void applyEqDelete() {
+    void applyEqDelete(ColumnarBatch columnarBatch) {
       Iterator<InternalRow> it = columnarBatch.rowIterator();
       int rowId = 0;
       int currentRowId = 0;
@@ -204,6 +227,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
           // skip deleted rows by pointing to the next undeleted row Id
           rowIdMapping[currentRowId] = rowIdMapping[rowId];
           currentRowId++;
+        } else if (hasIsDeletedColumn) {
+          isDeleted[rowIdMapping[rowId]] = true;
         }
 
         rowId++;

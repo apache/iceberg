@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Set;
@@ -45,8 +44,11 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     return DataOperations.REPLACE;
   }
 
-  private void verifyInputAndOutputFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
-                                         Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
+  private void verifyInputAndOutputFiles(
+      Set<DataFile> dataFilesToDelete,
+      Set<DeleteFile> deleteFilesToDelete,
+      Set<DataFile> dataFilesToAdd,
+      Set<DeleteFile> deleteFilesToAdd) {
     Preconditions.checkNotNull(dataFilesToDelete, "Data files to delete can not be null");
     Preconditions.checkNotNull(deleteFilesToDelete, "Delete files to delete can not be null");
     Preconditions.checkNotNull(dataFilesToAdd, "Data files to add can not be null");
@@ -59,21 +61,27 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     Preconditions.checkArgument(filesToDelete > 0, "Files to delete cannot be null or empty");
 
     if (deleteFilesToDelete.isEmpty()) {
-      Preconditions.checkArgument(deleteFilesToAdd.isEmpty(),
+      Preconditions.checkArgument(
+          deleteFilesToAdd.isEmpty(),
           "Delete files to add must be empty because there's no delete file to be rewritten");
     }
   }
 
   @Override
-  public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber) {
+  public RewriteFiles rewriteFiles(
+      Set<DataFile> filesToDelete, Set<DataFile> filesToAdd, long sequenceNumber) {
     setNewFilesSequenceNumber(sequenceNumber);
     return rewriteFiles(filesToDelete, ImmutableSet.of(), filesToAdd, ImmutableSet.of());
   }
 
   @Override
-  public RewriteFiles rewriteFiles(Set<DataFile> dataFilesToReplace, Set<DeleteFile> deleteFilesToReplace,
-                                   Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
-    verifyInputAndOutputFiles(dataFilesToReplace, deleteFilesToReplace, dataFilesToAdd, deleteFilesToAdd);
+  public RewriteFiles rewriteFiles(
+      Set<DataFile> dataFilesToReplace,
+      Set<DeleteFile> deleteFilesToReplace,
+      Set<DataFile> dataFilesToAdd,
+      Set<DeleteFile> deleteFilesToAdd) {
+    verifyInputAndOutputFiles(
+        dataFilesToReplace, deleteFilesToReplace, dataFilesToAdd, deleteFilesToAdd);
     replacedDataFiles.addAll(dataFilesToReplace);
 
     for (DataFile dataFile : dataFilesToReplace) {
@@ -104,7 +112,8 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   @Override
   protected void validate(TableMetadata base) {
     if (replacedDataFiles.size() > 0) {
-      // if there are replaced data files, there cannot be any new row-level deletes for those data files
+      // if there are replaced data files, there cannot be any new row-level deletes for those data
+      // files
       validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles);
     }
   }

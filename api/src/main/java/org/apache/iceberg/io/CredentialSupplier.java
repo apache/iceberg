@@ -16,19 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 /**
  * Interface used to expose credentials held by a FileIO instance.
- * <p>
- * Tables supply a FileIO instance to use for file access that is configured with the credentials needed to access the
- * table's files. Systems that do not use FileIO can use this interface to get the configured credential as a string,
- * and use the credential for file access via other IO libraries.
+ *
+ * <p>Tables supply a FileIO instance to use for file access that is configured with the credentials
+ * needed to access the table's files. Systems that do not use FileIO can use this interface to get
+ * the configured credential as a string, and use the credential for file access via other IO
+ * libraries.
  */
 public interface CredentialSupplier {
-  /**
-   * Returns the credential string
-   */
+  /** Returns the credential string */
   String getCredential();
 }

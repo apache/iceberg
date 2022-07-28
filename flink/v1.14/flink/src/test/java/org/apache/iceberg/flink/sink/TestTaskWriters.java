@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.io.File;
@@ -54,18 +53,17 @@ public class TestTaskWriters {
   private static final Configuration CONF = new Configuration();
   private static final long TARGET_FILE_SIZE = 128 * 1024 * 1024;
 
-  @Rule
-  public final TemporaryFolder tempFolder = new TemporaryFolder();
+  @Rule public final TemporaryFolder tempFolder = new TemporaryFolder();
 
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        {"avro", true},
-        {"avro", false},
-        {"orc", true},
-        {"orc", false},
-        {"parquet", true},
-        {"parquet", false}
+      {"avro", true},
+      {"avro", false},
+      {"orc", true},
+      {"orc", false},
+      {"parquet", true},
+      {"parquet", false}
     };
   }
 
@@ -172,12 +170,13 @@ public class TestTaskWriters {
       appendFiles.commit();
 
       // Assert the data rows.
-      SimpleDataUtil.assertTableRecords(path, Lists.newArrayList(
-          SimpleDataUtil.createRecord(1, "a"),
-          SimpleDataUtil.createRecord(2, "b"),
-          SimpleDataUtil.createRecord(3, "c"),
-          SimpleDataUtil.createRecord(4, "d")
-      ));
+      SimpleDataUtil.assertTableRecords(
+          path,
+          Lists.newArrayList(
+              SimpleDataUtil.createRecord(1, "a"),
+              SimpleDataUtil.createRecord(2, "b"),
+              SimpleDataUtil.createRecord(3, "c"),
+              SimpleDataUtil.createRecord(4, "d")));
     }
   }
 
@@ -233,9 +232,14 @@ public class TestTaskWriters {
   }
 
   private TaskWriter<RowData> createTaskWriter(long targetFileSize) {
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
-        SerializableTable.copyOf(table), (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(),
-        targetFileSize, format, null, false);
+    TaskWriterFactory<RowData> taskWriterFactory =
+        new RowDataTaskWriterFactory(
+            SerializableTable.copyOf(table),
+            (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(),
+            targetFileSize,
+            format,
+            null,
+            false);
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();
   }

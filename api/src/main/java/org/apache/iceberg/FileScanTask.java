@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
 
-/**
- * A scan task over a range of bytes in a single data file.
- */
+/** A scan task over a range of bytes in a single data file. */
 public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
   /**
    * A list of {@link DeleteFile delete files} to apply when reading the task's data file.

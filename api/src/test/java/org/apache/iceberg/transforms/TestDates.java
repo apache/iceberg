@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import org.apache.iceberg.expressions.Literal;
@@ -55,16 +54,22 @@ public class TestDates {
     Literal<Integer> date = Literal.of("2017-12-01").to(type);
 
     Transform<Integer, Integer> year = Transforms.year(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "2017", year.toHumanString(year.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "2017",
+        year.toHumanString(year.apply(date.value())));
 
     Transform<Integer, Integer> month = Transforms.month(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "2017-12", month.toHumanString(month.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "2017-12",
+        month.toHumanString(month.apply(date.value())));
 
     Transform<Integer, Integer> day = Transforms.day(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "2017-12-01", day.toHumanString(day.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "2017-12-01",
+        day.toHumanString(day.apply(date.value())));
   }
 
   @Test
@@ -73,16 +78,22 @@ public class TestDates {
     Literal<Integer> date = Literal.of("1969-12-30").to(type);
 
     Transform<Integer, Integer> year = Transforms.year(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969", year.toHumanString(year.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969",
+        year.toHumanString(year.apply(date.value())));
 
     Transform<Integer, Integer> month = Transforms.month(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969-12", month.toHumanString(month.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969-12",
+        month.toHumanString(month.apply(date.value())));
 
     Transform<Integer, Integer> day = Transforms.day(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969-12-30", day.toHumanString(day.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969-12-30",
+        day.toHumanString(day.apply(date.value())));
   }
 
   @Test
@@ -91,16 +102,22 @@ public class TestDates {
     Literal<Integer> date = Literal.of("1970-01-01").to(type);
 
     Transform<Integer, Integer> year = Transforms.year(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1970", year.toHumanString(year.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1970",
+        year.toHumanString(year.apply(date.value())));
 
     Transform<Integer, Integer> month = Transforms.month(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1970-01", month.toHumanString(month.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1970-01",
+        month.toHumanString(month.apply(date.value())));
 
     Transform<Integer, Integer> day = Transforms.day(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1970-01-01", day.toHumanString(day.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1970-01-01",
+        day.toHumanString(day.apply(date.value())));
   }
 
   @Test
@@ -109,16 +126,22 @@ public class TestDates {
     Literal<Integer> date = Literal.of("1969-01-01").to(type);
 
     Transform<Integer, Integer> year = Transforms.year(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969", year.toHumanString(year.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969",
+        year.toHumanString(year.apply(date.value())));
 
     Transform<Integer, Integer> month = Transforms.month(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969-01", month.toHumanString(month.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969-01",
+        month.toHumanString(month.apply(date.value())));
 
     Transform<Integer, Integer> day = Transforms.day(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969-01-01", day.toHumanString(day.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969-01-01",
+        day.toHumanString(day.apply(date.value())));
   }
 
   @Test
@@ -127,27 +150,33 @@ public class TestDates {
     Literal<Integer> date = Literal.of("1969-12-31").to(type);
 
     Transform<Integer, Integer> year = Transforms.year(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969", year.toHumanString(year.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969",
+        year.toHumanString(year.apply(date.value())));
 
     Transform<Integer, Integer> month = Transforms.month(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969-12", month.toHumanString(month.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969-12",
+        month.toHumanString(month.apply(date.value())));
 
     Transform<Integer, Integer> day = Transforms.day(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "1969-12-31", day.toHumanString(day.apply(date.value())));
+    Assert.assertEquals(
+        "Should produce the correct Human string",
+        "1969-12-31",
+        day.toHumanString(day.apply(date.value())));
   }
 
   @Test
   public void testNullHumanString() {
     Types.DateType type = Types.DateType.get();
-    Assert.assertEquals("Should produce \"null\" for null",
-        "null", Transforms.year(type).toHumanString(null));
-    Assert.assertEquals("Should produce \"null\" for null",
-        "null", Transforms.month(type).toHumanString(null));
-    Assert.assertEquals("Should produce \"null\" for null",
-        "null", Transforms.day(type).toHumanString(null));
+    Assert.assertEquals(
+        "Should produce \"null\" for null", "null", Transforms.year(type).toHumanString(null));
+    Assert.assertEquals(
+        "Should produce \"null\" for null", "null", Transforms.month(type).toHumanString(null));
+    Assert.assertEquals(
+        "Should produce \"null\" for null", "null", Transforms.day(type).toHumanString(null));
   }
 
   @Test

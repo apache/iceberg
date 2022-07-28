@@ -57,6 +57,7 @@ Iceberg is built using Gradle with Java 1.8 or Java 11.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
+* To fix code style: `./gradlew spotlessApply`
 
 Iceberg table support is organized in library modules:
 
@@ -69,7 +70,7 @@ Iceberg table support is organized in library modules:
 * `iceberg-hive-metastore` is an implementation of Iceberg tables backed by the Hive metastore Thrift client
 * `iceberg-data` is an optional module for working with tables directly from JVM applications
 
-This project Iceberg also has modules for adding Iceberg support to processing engines:
+Iceberg also has modules for adding Iceberg support to processing engines:
 
 * `iceberg-spark2` is an implementation of Spark's Datasource V2 API in 2.4 for Iceberg (use iceberg-spark-runtime for a shaded version)
 * `iceberg-spark3` is an implementation of Spark's Datasource V2 API in 3.0 for Iceberg (use iceberg-spark3-runtime for a shaded version)

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -61,8 +60,7 @@ public class SnapshotSummary {
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 
-  private SnapshotSummary() {
-  }
+  private SnapshotSummary() {}
 
   public static Builder builder() {
     return new Builder();
@@ -77,8 +75,7 @@ public class SnapshotSummary {
     private long deletedDuplicateFiles = 0L;
     private boolean trustPartitionMetrics = true;
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public void clear() {
       partitionMetrics.clear();
@@ -89,10 +86,11 @@ public class SnapshotSummary {
 
     /**
      * Sets the maximum number of changed partitions before partition summaries will be excluded.
-     * <p>
-     * If the number of changed partitions is over this max, summaries will not be included. If the number of changed
-     * partitions is &lt;= this limit, then partition-level summaries will be included in the summary if they are
-     * available, and "partition-summaries-included" will be set to "true".
+     *
+     * <p>If the number of changed partitions is over this max, summaries will not be included. If
+     * the number of changed partitions is &lt;= this limit, then partition-level summaries will be
+     * included in the summary if they are available, and "partition-summaries-included" will be set
+     * to "true".
      *
      * @param max maximum number of changed partitions
      */
@@ -124,7 +122,8 @@ public class SnapshotSummary {
       } else if (file instanceof DeleteFile) {
         deletedFile(spec, (DeleteFile) file);
       } else {
-        throw new IllegalArgumentException("Unsupported file type: " + file.getClass().getSimpleName());
+        throw new IllegalArgumentException(
+            "Unsupported file type: " + file.getClass().getSimpleName());
       }
     }
 
@@ -150,9 +149,9 @@ public class SnapshotSummary {
 
     private void updatePartitions(PartitionSpec spec, ContentFile<?> file, boolean isAddition) {
       if (trustPartitionMetrics) {
-        UpdateMetrics partMetrics = partitionMetrics.computeIfAbsent(
-            spec.partitionToPath(file.partition()),
-            key -> new UpdateMetrics());
+        UpdateMetrics partMetrics =
+            partitionMetrics.computeIfAbsent(
+                spec.partitionToPath(file.partition()), key -> new UpdateMetrics());
 
         if (isAddition) {
           partMetrics.addedFile(file);
@@ -169,7 +168,9 @@ public class SnapshotSummary {
       this.trustPartitionMetrics = trustPartitionMetrics && builder.trustPartitionMetrics;
       if (trustPartitionMetrics) {
         for (Map.Entry<String, UpdateMetrics> entry : builder.partitionMetrics.entrySet()) {
-          partitionMetrics.computeIfAbsent(entry.getKey(), key -> new UpdateMetrics()).merge(entry.getValue());
+          partitionMetrics
+              .computeIfAbsent(entry.getKey(), key -> new UpdateMetrics())
+              .merge(entry.getValue());
         }
       } else {
         partitionMetrics.clear();
@@ -192,7 +193,11 @@ public class SnapshotSummary {
       if (trustPartitionMetrics && changedPartitions.size() <= maxChangedPartitionsForSummaries) {
         setIf(changedPartitions.size() > 0, builder, PARTITION_SUMMARY_PROP, "true");
         for (String key : changedPartitions) {
-          setIf(key != null, builder, CHANGED_PARTITION_PREFIX + key, partitionSummary(partitionMetrics.get(key)));
+          setIf(
+              key != null,
+              builder,
+              CHANGED_PARTITION_PREFIX + key,
+              partitionSummary(partitionMetrics.get(key)));
         }
       }
 
@@ -251,7 +256,8 @@ public class SnapshotSummary {
       setIf(addedEqDeleteFiles > 0, builder, ADD_EQ_DELETE_FILES_PROP, addedEqDeleteFiles);
       setIf(removedEqDeleteFiles > 0, builder, REMOVED_EQ_DELETE_FILES_PROP, removedEqDeleteFiles);
       setIf(addedPosDeleteFiles > 0, builder, ADD_POS_DELETE_FILES_PROP, addedPosDeleteFiles);
-      setIf(removedPosDeleteFiles > 0, builder, REMOVED_POS_DELETE_FILES_PROP, removedPosDeleteFiles);
+      setIf(
+          removedPosDeleteFiles > 0, builder, REMOVED_POS_DELETE_FILES_PROP, removedPosDeleteFiles);
       setIf(addedDeleteFiles > 0, builder, ADDED_DELETE_FILES_PROP, addedDeleteFiles);
       setIf(removedDeleteFiles > 0, builder, REMOVED_DELETE_FILES_PROP, removedDeleteFiles);
       setIf(addedRecords > 0, builder, ADDED_RECORDS_PROP, addedRecords);
@@ -285,7 +291,8 @@ public class SnapshotSummary {
           this.addedEqDeletes += file.recordCount();
           break;
         default:
-          throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
       }
     }
 
@@ -307,7 +314,8 @@ public class SnapshotSummary {
           this.removedEqDeletes += file.recordCount();
           break;
         default:
-          throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
       }
     }
 
@@ -348,8 +356,11 @@ public class SnapshotSummary {
     }
   }
 
-  private static void setIf(boolean expression, ImmutableMap.Builder<String, String> builder,
-                            String property, Object value) {
+  private static void setIf(
+      boolean expression,
+      ImmutableMap.Builder<String, String> builder,
+      String property,
+      Object value) {
     if (expression) {
       builder.put(property, String.valueOf(value));
     }

@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -92,14 +92,14 @@ import scala.collection.immutable.Seq;
 
 public class Spark3Util {
 
-  private static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
-      TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
+  private static final Set<String> RESERVED_PROPERTIES =
+      ImmutableSet.of(TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
 
-  private Spark3Util() {
-  }
+  private Spark3Util() {}
 
-  public static CaseInsensitiveStringMap setOption(String key, String value, CaseInsensitiveStringMap options) {
+  public static CaseInsensitiveStringMap setOption(
+      String key, String value, CaseInsensitiveStringMap options) {
     Map<String, String> newOptions = Maps.newHashMap();
     newOptions.putAll(options);
     newOptions.put(key, value);
@@ -133,7 +133,8 @@ public class Spark3Util {
    * @param changes a list of Spark table changes
    * @return the UpdateProperties operation configured with the changes
    */
-  public static UpdateProperties applyPropertyChanges(UpdateProperties pendingUpdate, List<TableChange> changes) {
+  public static UpdateProperties applyPropertyChanges(
+      UpdateProperties pendingUpdate, List<TableChange> changes) {
     for (TableChange change : changes) {
       if (change instanceof TableChange.SetProperty) {
         TableChange.SetProperty set = (TableChange.SetProperty) change;
@@ -158,7 +159,8 @@ public class Spark3Util {
    * @param changes a list of Spark table changes
    * @return the UpdateSchema operation configured with the changes
    */
-  public static UpdateSchema applySchemaChanges(UpdateSchema pendingUpdate, List<TableChange> changes) {
+  public static UpdateSchema applySchemaChanges(
+      UpdateSchema pendingUpdate, List<TableChange> changes) {
     for (TableChange change : changes) {
       if (change instanceof TableChange.AddColumn) {
         apply(pendingUpdate, (TableChange.AddColumn) change);
@@ -166,8 +168,11 @@ public class Spark3Util {
       } else if (change instanceof TableChange.UpdateColumnType) {
         TableChange.UpdateColumnType update = (TableChange.UpdateColumnType) change;
         Type newType = SparkSchemaUtil.convert(update.newDataType());
-        Preconditions.checkArgument(newType.isPrimitiveType(),
-            "Cannot update '%s', not a primitive type: %s", DOT.join(update.fieldNames()), update.newDataType());
+        Preconditions.checkArgument(
+            newType.isPrimitiveType(),
+            "Cannot update '%s', not a primitive type: %s",
+            DOT.join(update.fieldNames()),
+            update.newDataType());
         pendingUpdate.updateColumn(DOT.join(update.fieldNames()), newType.asPrimitiveType());
 
       } else if (change instanceof TableChange.UpdateColumnComment) {
@@ -218,10 +223,13 @@ public class Spark3Util {
   }
 
   private static void apply(UpdateSchema pendingUpdate, TableChange.AddColumn add) {
-    Preconditions.checkArgument(add.isNullable(),
-        "Incompatible change: cannot add required column: %s", leafName(add.fieldNames()));
+    Preconditions.checkArgument(
+        add.isNullable(),
+        "Incompatible change: cannot add required column: %s",
+        leafName(add.fieldNames()));
     Type type = SparkSchemaUtil.convert(add.dataType());
-    pendingUpdate.addColumn(parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
+    pendingUpdate.addColumn(
+        parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
 
     if (add.position() instanceof TableChange.After) {
       TableChange.After after = (TableChange.After) add.position();
@@ -232,13 +240,17 @@ public class Spark3Util {
       pendingUpdate.moveFirst(DOT.join(add.fieldNames()));
 
     } else {
-      Preconditions.checkArgument(add.position() == null,
-          "Cannot add '%s' at unknown position: %s", DOT.join(add.fieldNames()), add.position());
+      Preconditions.checkArgument(
+          add.position() == null,
+          "Cannot add '%s' at unknown position: %s",
+          DOT.join(add.fieldNames()),
+          add.position());
     }
   }
 
   public static org.apache.iceberg.Table toIcebergTable(Table table) {
-    Preconditions.checkArgument(table instanceof SparkTable, "Table %s is not an Iceberg table", table);
+    Preconditions.checkArgument(
+        table instanceof SparkTable, "Table %s is not an Iceberg table", table);
     SparkTable sparkTable = (SparkTable) table;
     return sparkTable.table();
   }
@@ -251,58 +263,64 @@ public class Spark3Util {
    */
   public static Transform[] toTransforms(PartitionSpec spec) {
     Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(spec.schema());
-    List<Transform> transforms = PartitionSpecVisitor.visit(spec,
-        new PartitionSpecVisitor<Transform>() {
-          @Override
-          public Transform identity(String sourceName, int sourceId) {
-            return Expressions.identity(quotedName(sourceId));
-          }
+    List<Transform> transforms =
+        PartitionSpecVisitor.visit(
+            spec,
+            new PartitionSpecVisitor<Transform>() {
+              @Override
+              public Transform identity(String sourceName, int sourceId) {
+                return Expressions.identity(quotedName(sourceId));
+              }
 
-          @Override
-          public Transform bucket(String sourceName, int sourceId, int numBuckets) {
-            return Expressions.bucket(numBuckets, quotedName(sourceId));
-          }
+              @Override
+              public Transform bucket(String sourceName, int sourceId, int numBuckets) {
+                return Expressions.bucket(numBuckets, quotedName(sourceId));
+              }
 
-          @Override
-          public Transform truncate(String sourceName, int sourceId, int width) {
-            return Expressions.apply("truncate", Expressions.column(quotedName(sourceId)), Expressions.literal(width));
-          }
+              @Override
+              public Transform truncate(String sourceName, int sourceId, int width) {
+                return Expressions.apply(
+                    "truncate",
+                    Expressions.column(quotedName(sourceId)),
+                    Expressions.literal(width));
+              }
 
-          @Override
-          public Transform year(String sourceName, int sourceId) {
-            return Expressions.years(quotedName(sourceId));
-          }
+              @Override
+              public Transform year(String sourceName, int sourceId) {
+                return Expressions.years(quotedName(sourceId));
+              }
 
-          @Override
-          public Transform month(String sourceName, int sourceId) {
-            return Expressions.months(quotedName(sourceId));
-          }
+              @Override
+              public Transform month(String sourceName, int sourceId) {
+                return Expressions.months(quotedName(sourceId));
+              }
 
-          @Override
-          public Transform day(String sourceName, int sourceId) {
-            return Expressions.days(quotedName(sourceId));
-          }
+              @Override
+              public Transform day(String sourceName, int sourceId) {
+                return Expressions.days(quotedName(sourceId));
+              }
 
-          @Override
-          public Transform hour(String sourceName, int sourceId) {
-            return Expressions.hours(quotedName(sourceId));
-          }
+              @Override
+              public Transform hour(String sourceName, int sourceId) {
+                return Expressions.hours(quotedName(sourceId));
+              }
 
-          @Override
-          public Transform alwaysNull(int fieldId, String sourceName, int sourceId) {
-            // do nothing for alwaysNull, it doesn't need to be converted to a transform
-            return null;
-          }
+              @Override
+              public Transform alwaysNull(int fieldId, String sourceName, int sourceId) {
+                // do nothing for alwaysNull, it doesn't need to be converted to a transform
+                return null;
+              }
 
-          @Override
-          public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
-            return Expressions.apply(transform, Expressions.column(quotedName(sourceId)));
-          }
+              @Override
+              public Transform unknown(
+                  int fieldId, String sourceName, int sourceId, String transform) {
+                return Expressions.apply(transform, Expressions.column(quotedName(sourceId)));
+              }
 
-          private String quotedName(int id) {
-            return quotedNameById.get(id);
-          }
-        });
+              private String quotedName(int id) {
+                return quotedNameById.get(id);
+              }
+            });
 
     return transforms.stream().filter(Objects::nonNull).toArray(Transform[]::new);
   }
@@ -314,10 +332,12 @@ public class Spark3Util {
   public static Term toIcebergTerm(Expression expr) {
     if (expr instanceof Transform) {
       Transform transform = (Transform) expr;
-      Preconditions.checkArgument("zorder".equals(transform.name()) || transform.references().length == 1,
-          "Cannot convert transform with more than one column reference: %s", transform);
+      Preconditions.checkArgument(
+          "zorder".equals(transform.name()) || transform.references().length == 1,
+          "Cannot convert transform with more than one column reference: %s",
+          transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
-      switch (transform.name()) {
+      switch (transform.name().toLowerCase(Locale.ROOT)) {
         case "identity":
           return org.apache.iceberg.expressions.Expressions.ref(colName);
         case "bucket":
@@ -335,10 +355,11 @@ public class Spark3Util {
         case "truncate":
           return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
         case "zorder":
-          return new Zorder(Stream.of(transform.references())
-              .map(ref -> DOT.join(ref.fieldNames()))
-              .map(org.apache.iceberg.expressions.Expressions::ref)
-              .collect(Collectors.toList()));
+          return new Zorder(
+              Stream.of(transform.references())
+                  .map(ref -> DOT.join(ref.fieldNames()))
+                  .map(org.apache.iceberg.expressions.Expressions::ref)
+                  .collect(Collectors.toList()));
         default:
           throw new UnsupportedOperationException("Transform is not supported: " + transform);
       }
@@ -366,10 +387,12 @@ public class Spark3Util {
 
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema);
     for (Transform transform : partitioning) {
-      Preconditions.checkArgument(transform.references().length == 1,
-          "Cannot convert transform with more than one column reference: %s", transform);
+      Preconditions.checkArgument(
+          transform.references().length == 1,
+          "Cannot convert transform with more than one column reference: %s",
+          transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
-      switch (transform.name()) {
+      switch (transform.name().toLowerCase(Locale.ROOT)) {
         case "identity":
           builder.identity(colName);
           break;
@@ -407,14 +430,16 @@ public class Spark3Util {
       if (expr instanceof Literal) {
         if (((Literal) expr).dataType() instanceof IntegerType) {
           Literal<Integer> lit = (Literal<Integer>) expr;
-          Preconditions.checkArgument(lit.value() > 0,
-              "Unsupported width for transform: %s", transform.describe());
+          Preconditions.checkArgument(
+              lit.value() > 0, "Unsupported width for transform: %s", transform.describe());
           return lit.value();
 
         } else if (((Literal) expr).dataType() instanceof LongType) {
           Literal<Long> lit = (Literal<Long>) expr;
-          Preconditions.checkArgument(lit.value() > 0 && lit.value() < Integer.MAX_VALUE,
-              "Unsupported width for transform: %s", transform.describe());
+          Preconditions.checkArgument(
+              lit.value() > 0 && lit.value() < Integer.MAX_VALUE,
+              "Unsupported width for transform: %s",
+              transform.describe());
           if (lit.value() > Integer.MAX_VALUE) {
             throw new IllegalArgumentException();
           }
@@ -427,7 +452,8 @@ public class Spark3Util {
   }
 
   private static String leafName(String[] fieldNames) {
-    Preconditions.checkArgument(fieldNames.length > 0, "Invalid field name: at least one name is required");
+    Preconditions.checkArgument(
+        fieldNames.length > 0, "Invalid field name: at least one name is required");
     return fieldNames[fieldNames.length - 1];
   }
 
@@ -472,8 +498,7 @@ public class Spark3Util {
     private static final Joiner COMMA = Joiner.on(',');
     private static final DescribeSchemaVisitor INSTANCE = new DescribeSchemaVisitor();
 
-    private DescribeSchemaVisitor() {
-    }
+    private DescribeSchemaVisitor() {}
 
     @Override
     public String schema(Schema schema, String structResult) {
@@ -533,11 +558,11 @@ public class Spark3Util {
     }
   }
 
-  private static class DescribeExpressionVisitor extends ExpressionVisitors.ExpressionVisitor<String> {
+  private static class DescribeExpressionVisitor
+      extends ExpressionVisitors.ExpressionVisitor<String> {
     private static final DescribeExpressionVisitor INSTANCE = new DescribeExpressionVisitor();
 
-    private DescribeExpressionVisitor() {
-    }
+    private DescribeExpressionVisitor() {}
 
     @Override
     public String alwaysTrue() {
@@ -606,7 +631,9 @@ public class Spark3Util {
     }
 
     private static <T> String sqlString(List<org.apache.iceberg.expressions.Literal<T>> literals) {
-      return literals.stream().map(DescribeExpressionVisitor::sqlString).collect(Collectors.joining(", "));
+      return literals.stream()
+          .map(DescribeExpressionVisitor::sqlString)
+          .collect(Collectors.joining(", "));
     }
 
     private static String sqlString(org.apache.iceberg.expressions.Literal<?> lit) {
@@ -622,11 +649,12 @@ public class Spark3Util {
   }
 
   /**
-   * Returns an Iceberg Table by its name from a Spark V2 Catalog. If cache is enabled in {@link SparkCatalog},
-   * the {@link TableOperations} of the table may be stale, please refresh the table to get the latest one.
+   * Returns an Iceberg Table by its name from a Spark V2 Catalog. If cache is enabled in {@link
+   * SparkCatalog}, the {@link TableOperations} of the table may be stale, please refresh the table
+   * to get the latest one.
    *
    * @param spark SparkSession used for looking up catalog references and tables
-   * @param name  The multipart identifier of the Iceberg table
+   * @param name The multipart identifier of the Iceberg table
    * @return an Iceberg table
    */
   public static org.apache.iceberg.Table loadIcebergTable(SparkSession spark, String name)
@@ -640,38 +668,44 @@ public class Spark3Util {
 
   /**
    * Returns the underlying Iceberg Catalog object represented by a Spark Catalog
+   *
    * @param spark SparkSession used for looking up catalog reference
    * @param catalogName The name of the Spark Catalog being referenced
    * @return the Iceberg catalog class being wrapped by the Spark Catalog
    */
   public static Catalog loadIcebergCatalog(SparkSession spark, String catalogName) {
     CatalogPlugin catalogPlugin = spark.sessionState().catalogManager().catalog(catalogName);
-    Preconditions.checkArgument(catalogPlugin instanceof HasIcebergCatalog,
-        String.format("Cannot load Iceberg catalog from catalog %s because it does not contain an Iceberg Catalog. " +
-                          "Actual Class: %s",
+    Preconditions.checkArgument(
+        catalogPlugin instanceof HasIcebergCatalog,
+        String.format(
+            "Cannot load Iceberg catalog from catalog %s because it does not contain an Iceberg Catalog. "
+                + "Actual Class: %s",
             catalogName, catalogPlugin.getClass().getName()));
     return ((HasIcebergCatalog) catalogPlugin).icebergCatalog();
   }
 
-
-  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
-    return catalogAndIdentifier(spark, name, spark.sessionState().catalogManager().currentCatalog());
+  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name)
+      throws ParseException {
+    return catalogAndIdentifier(
+        spark, name, spark.sessionState().catalogManager().currentCatalog());
   }
 
-  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name,
-                                                          CatalogPlugin defaultCatalog) throws ParseException {
+  public static CatalogAndIdentifier catalogAndIdentifier(
+      SparkSession spark, String name, CatalogPlugin defaultCatalog) throws ParseException {
     ParserInterface parser = spark.sessionState().sqlParser();
     Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name).toIndexedSeq();
     List<String> javaMultiPartIdentifier = JavaConverters.seqAsJavaList(multiPartIdentifier);
     return catalogAndIdentifier(spark, javaMultiPartIdentifier, defaultCatalog);
   }
 
-  public static CatalogAndIdentifier catalogAndIdentifier(String description, SparkSession spark, String name) {
-    return catalogAndIdentifier(description, spark, name, spark.sessionState().catalogManager().currentCatalog());
+  public static CatalogAndIdentifier catalogAndIdentifier(
+      String description, SparkSession spark, String name) {
+    return catalogAndIdentifier(
+        description, spark, name, spark.sessionState().catalogManager().currentCatalog());
   }
 
-  public static CatalogAndIdentifier catalogAndIdentifier(String description, SparkSession spark,
-                                                          String name, CatalogPlugin defaultCatalog) {
+  public static CatalogAndIdentifier catalogAndIdentifier(
+      String description, SparkSession spark, String name, CatalogPlugin defaultCatalog) {
     try {
       return catalogAndIdentifier(spark, name, defaultCatalog);
     } catch (ParseException e) {
@@ -679,20 +713,23 @@ public class Spark3Util {
     }
   }
 
-  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts) {
-    return catalogAndIdentifier(spark, nameParts, spark.sessionState().catalogManager().currentCatalog());
+  public static CatalogAndIdentifier catalogAndIdentifier(
+      SparkSession spark, List<String> nameParts) {
+    return catalogAndIdentifier(
+        spark, nameParts, spark.sessionState().catalogManager().currentCatalog());
   }
 
   /**
-   * A modified version of Spark's LookupCatalog.CatalogAndIdentifier.unapply
-   * Attempts to find the catalog and identifier a multipart identifier represents
+   * A modified version of Spark's LookupCatalog.CatalogAndIdentifier.unapply Attempts to find the
+   * catalog and identifier a multipart identifier represents
+   *
    * @param spark Spark session to use for resolution
    * @param nameParts Multipart identifier representing a table
    * @param defaultCatalog Catalog to use if none is specified
    * @return The CatalogPlugin and Identifier for the table
    */
-  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts,
-                                                          CatalogPlugin defaultCatalog) {
+  public static CatalogAndIdentifier catalogAndIdentifier(
+      SparkSession spark, List<String> nameParts, CatalogPlugin defaultCatalog) {
     CatalogManager catalogManager = spark.sessionState().catalogManager();
 
     String[] currentNamespace;
@@ -702,18 +739,19 @@ public class Spark3Util {
       currentNamespace = defaultCatalog.defaultNamespace();
     }
 
-    Pair<CatalogPlugin, Identifier> catalogIdentifier = SparkUtil.catalogAndIdentifier(nameParts,
-        catalogName ->  {
-          try {
-            return catalogManager.catalog(catalogName);
-          } catch (Exception e) {
-            return null;
-          }
-        },
-        Identifier::of,
-        defaultCatalog,
-        currentNamespace
-    );
+    Pair<CatalogPlugin, Identifier> catalogIdentifier =
+        SparkUtil.catalogAndIdentifier(
+            nameParts,
+            catalogName -> {
+              try {
+                return catalogManager.catalog(catalogName);
+              } catch (Exception e) {
+                return null;
+              }
+            },
+            Identifier::of,
+            defaultCatalog,
+            currentNamespace);
     return new CatalogAndIdentifier(catalogIdentifier);
   }
 
@@ -722,17 +760,16 @@ public class Spark3Util {
       return (TableCatalog) catalog;
     }
 
-    throw new IllegalArgumentException(String.format(
-        "Cannot use catalog %s(%s): not a TableCatalog", catalog.name(), catalog.getClass().getName()));
+    throw new IllegalArgumentException(
+        String.format(
+            "Cannot use catalog %s(%s): not a TableCatalog",
+            catalog.name(), catalog.getClass().getName()));
   }
 
-  /**
-   * This mimics a class inside of Spark which is private inside of LookupCatalog.
-   */
+  /** This mimics a class inside of Spark which is private inside of LookupCatalog. */
   public static class CatalogAndIdentifier {
     private final CatalogPlugin catalog;
     private final Identifier identifier;
-
 
     public CatalogAndIdentifier(CatalogPlugin catalog, Identifier identifier) {
       this.catalog = catalog;
@@ -766,8 +803,8 @@ public class Spark3Util {
             .build();
 
     return CatalogV2Implicits.MultipartIdentifierHelper(
-        JavaConverters.asScalaIteratorConverter(parts.iterator()).asScala().toSeq()
-    ).quoted();
+            JavaConverters.asScalaIteratorConverter(parts.iterator()).asScala().toSeq())
+        .quoted();
   }
 
   /**
@@ -779,21 +816,21 @@ public class Spark3Util {
    * @param partitionFilter partitionFilter of the file
    * @return all table's partitions
    */
-  public static List<SparkPartition> getPartitions(SparkSession spark, Path rootPath, String format,
-                                                   Map<String, String> partitionFilter) {
+  public static List<SparkPartition> getPartitions(
+      SparkSession spark, Path rootPath, String format, Map<String, String> partitionFilter) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
 
-    InMemoryFileIndex fileIndex = new InMemoryFileIndex(
-        spark,
-        JavaConverters
-            .collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
-            .asScala()
-            .toSeq(),
+    InMemoryFileIndex fileIndex =
+        new InMemoryFileIndex(
+            spark,
+            JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
+                .asScala()
+                .toSeq(),
             scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
-        Option.empty(),
-        fileStatusCache,
-        Option.empty(),
-        Option.empty());
+            Option.empty(),
+            fileStatusCache,
+            Option.empty(),
+            Option.empty());
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
@@ -813,31 +850,38 @@ public class Spark3Util {
     Seq<PartitionDirectory> filteredPartitions =
         fileIndex.listFiles(scalaPartitionFilters, scalaDataFilters).toIndexedSeq();
 
-    return JavaConverters
-        .seqAsJavaListConverter(filteredPartitions)
-        .asJava()
-        .stream()
-        .map(partition -> {
-          Map<String, String> values = Maps.newHashMap();
-          JavaConverters.asJavaIterableConverter(schema).asJava().forEach(field -> {
-            int fieldIndex = schema.fieldIndex(field.name());
-            Object catalystValue = partition.values().get(fieldIndex, field.dataType());
-            Object value = CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
-            values.put(field.name(), String.valueOf(value));
-          });
+    return JavaConverters.seqAsJavaListConverter(filteredPartitions).asJava().stream()
+        .map(
+            partition -> {
+              Map<String, String> values = Maps.newHashMap();
+              JavaConverters.asJavaIterableConverter(schema)
+                  .asJava()
+                  .forEach(
+                      field -> {
+                        int fieldIndex = schema.fieldIndex(field.name());
+                        Object catalystValue = partition.values().get(fieldIndex, field.dataType());
+                        Object value =
+                            CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
+                        values.put(field.name(), String.valueOf(value));
+                      });
 
-          FileStatus fileStatus =
-              JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
+              FileStatus fileStatus =
+                  JavaConverters.seqAsJavaListConverter(partition.files()).asJava().get(0);
 
-          return new SparkPartition(values, fileStatus.getPath().getParent().toString(), format);
-        }).collect(Collectors.toList());
+              return new SparkPartition(
+                  values, fileStatus.getPath().getParent().toString(), format);
+            })
+        .collect(Collectors.toList());
   }
 
-  public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(Identifier identifier) {
+  public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(
+      Identifier identifier) {
     String[] namespace = identifier.namespace();
 
-    Preconditions.checkArgument(namespace.length <= 1,
-        "Cannot convert %s to a Spark v1 identifier, namespace contains more than 1 part", identifier);
+    Preconditions.checkArgument(
+        namespace.length <= 1,
+        "Cannot convert %s to a Spark v1 identifier, namespace contains more than 1 part",
+        identifier);
 
     String table = identifier.name();
     Option<String> database = namespace.length == 1 ? Option.apply(namespace[0]) : Option.empty();
@@ -847,54 +891,80 @@ public class Spark3Util {
   private static class DescribeSortOrderVisitor implements SortOrderVisitor<String> {
     private static final DescribeSortOrderVisitor INSTANCE = new DescribeSortOrderVisitor();
 
-    private DescribeSortOrderVisitor() {
-    }
+    private DescribeSortOrderVisitor() {}
 
     @Override
-    public String field(String sourceName, int sourceId,
-                        org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+    public String field(
+        String sourceName,
+        int sourceId,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
       return String.format("%s %s %s", sourceName, direction, nullOrder);
     }
 
     @Override
-    public String bucket(String sourceName, int sourceId, int numBuckets,
-                         org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+    public String bucket(
+        String sourceName,
+        int sourceId,
+        int numBuckets,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
       return String.format("bucket(%s, %s) %s %s", numBuckets, sourceName, direction, nullOrder);
     }
 
     @Override
-    public String truncate(String sourceName, int sourceId, int width,
-                           org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+    public String truncate(
+        String sourceName,
+        int sourceId,
+        int width,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
       return String.format("truncate(%s, %s) %s %s", sourceName, width, direction, nullOrder);
     }
 
     @Override
-    public String year(String sourceName, int sourceId,
-                       org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+    public String year(
+        String sourceName,
+        int sourceId,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
       return String.format("years(%s) %s %s", sourceName, direction, nullOrder);
     }
 
     @Override
-    public String month(String sourceName, int sourceId,
-                        org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+    public String month(
+        String sourceName,
+        int sourceId,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
       return String.format("months(%s) %s %s", sourceName, direction, nullOrder);
     }
 
     @Override
-    public String day(String sourceName, int sourceId,
-                      org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+    public String day(
+        String sourceName,
+        int sourceId,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
       return String.format("days(%s) %s %s", sourceName, direction, nullOrder);
     }
 
     @Override
-    public String hour(String sourceName, int sourceId,
-                       org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+    public String hour(
+        String sourceName,
+        int sourceId,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
       return String.format("hours(%s) %s %s", sourceName, direction, nullOrder);
     }
 
     @Override
-    public String unknown(String sourceName, int sourceId, String transform,
-                          org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
+    public String unknown(
+        String sourceName,
+        int sourceId,
+        String transform,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
       return String.format("%s(%s) %s %s", transform, sourceName, direction, nullOrder);
     }
   }

@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
+
+import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 
 import java.util.List;
 import java.util.Map;
@@ -34,11 +35,10 @@ import org.junit.After;
 import org.junit.Assume;
 import org.junit.Test;
 
-import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
-
 public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
-  public TestSetCurrentSnapshotProcedure(String catalogName, String implementation, Map<String, String> config) {
+  public TestSetCurrentSnapshotProcedure(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -57,7 +57,8 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -65,15 +66,18 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
     Snapshot secondSnapshot = table.currentSnapshot();
 
-    List<Object[]> output = sql(
-        "CALL %s.system.set_current_snapshot('%s', %dL)",
-        catalogName, tableIdent, firstSnapshot.snapshotId());
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.set_current_snapshot('%s', %dL)",
+            catalogName, tableIdent, firstSnapshot.snapshotId());
 
-    assertEquals("Procedure output must match",
+    assertEquals(
+        "Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
         output);
 
-    assertEquals("Set must be successful",
+    assertEquals(
+        "Set must be successful",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -88,7 +92,8 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -96,15 +101,18 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
     Snapshot secondSnapshot = table.currentSnapshot();
 
-    List<Object[]> output = sql(
-        "CALL %s.system.set_current_snapshot(snapshot_id => %dL, table => '%s')",
-        catalogName, firstSnapshot.snapshotId(), tableIdent);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.set_current_snapshot(snapshot_id => %dL, table => '%s')",
+            catalogName, firstSnapshot.snapshotId(), tableIdent);
 
-    assertEquals("Procedure output must match",
+    assertEquals(
+        "Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
         output);
 
-    assertEquals("Set must be successful",
+    assertEquals(
+        "Set must be successful",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -118,22 +126,26 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should not see rows from staged snapshot",
+    assertEquals(
+        "Should not see rows from staged snapshot",
         ImmutableList.of(),
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
-    List<Object[]> output = sql(
-        "CALL %s.system.set_current_snapshot(table => '%s', snapshot_id => %dL)",
-        catalogName, tableIdent, wapSnapshot.snapshotId());
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.set_current_snapshot(table => '%s', snapshot_id => %dL)",
+            catalogName, tableIdent, wapSnapshot.snapshotId());
 
-    assertEquals("Procedure output must match",
+    assertEquals(
+        "Procedure output must match",
         ImmutableList.of(row(null, wapSnapshot.snapshotId())),
         output);
 
-    assertEquals("Current snapshot must be set correctly",
+    assertEquals(
+        "Current snapshot must be set correctly",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", tableName));
   }
@@ -150,7 +162,8 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -159,15 +172,16 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
     Snapshot secondSnapshot = table.currentSnapshot();
 
     // use camel case intentionally to test case sensitivity
-    List<Object[]> output = sql(
-        "CALL SyStEm.sEt_cuRrEnT_sNaPsHot('%s', %dL)",
-        tableIdent, firstSnapshot.snapshotId());
+    List<Object[]> output =
+        sql("CALL SyStEm.sEt_cuRrEnT_sNaPsHot('%s', %dL)", tableIdent, firstSnapshot.snapshotId());
 
-    assertEquals("Procedure output must match",
+    assertEquals(
+        "Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
         output);
 
-    assertEquals("Set must be successful",
+    assertEquals(
+        "Set must be successful",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -179,43 +193,64 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
     Namespace namespace = tableIdent.namespace();
     String tableName = tableIdent.name();
 
-    AssertHelpers.assertThrows("Should reject invalid snapshot id",
-        ValidationException.class, "Cannot roll back to unknown snapshot id",
+    AssertHelpers.assertThrows(
+        "Should reject invalid snapshot id",
+        ValidationException.class,
+        "Cannot roll back to unknown snapshot id",
         () -> sql("CALL %s.system.set_current_snapshot('%s', -1L)", catalogName, tableIdent));
   }
 
   @Test
   public void testInvalidRollbackToSnapshotCases() {
-    AssertHelpers.assertThrows("Should not allow mixed args",
-        AnalysisException.class, "Named and positional arguments cannot be mixed",
-        () -> sql("CALL %s.system.set_current_snapshot(namespace => 'n1', table => 't', 1L)", catalogName));
+    AssertHelpers.assertThrows(
+        "Should not allow mixed args",
+        AnalysisException.class,
+        "Named and positional arguments cannot be mixed",
+        () ->
+            sql(
+                "CALL %s.system.set_current_snapshot(namespace => 'n1', table => 't', 1L)",
+                catalogName));
 
-    AssertHelpers.assertThrows("Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class, "not found",
+    AssertHelpers.assertThrows(
+        "Should not resolve procedures in arbitrary namespaces",
+        NoSuchProcedureException.class,
+        "not found",
         () -> sql("CALL %s.custom.set_current_snapshot('n', 't', 1L)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.set_current_snapshot('t')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.set_current_snapshot(1L)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.set_current_snapshot(snapshot_id => 1L)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.set_current_snapshot(table => 't')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type for snapshot_id: cannot cast",
+    AssertHelpers.assertThrows(
+        "Should reject calls with invalid arg types",
+        AnalysisException.class,
+        "Wrong arg type for snapshot_id: cannot cast",
         () -> sql("CALL %s.system.set_current_snapshot('t', 2.2)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
-        IllegalArgumentException.class, "Cannot handle an empty identifier",
+    AssertHelpers.assertThrows(
+        "Should reject calls with empty table identifier",
+        IllegalArgumentException.class,
+        "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName));
   }
 }

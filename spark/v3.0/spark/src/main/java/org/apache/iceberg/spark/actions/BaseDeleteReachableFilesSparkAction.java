@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.util.Iterator;
 import java.util.List;
@@ -47,17 +49,16 @@ import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.GC_ENABLED;
-import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
-
 /**
- * An implementation of {@link DeleteReachableFiles} that uses metadata tables in Spark
- * to determine which files should be deleted.
+ * An implementation of {@link DeleteReachableFiles} that uses metadata tables in Spark to determine
+ * which files should be deleted.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
 public class BaseDeleteReachableFilesSparkAction
-    extends BaseSparkAction<DeleteReachableFiles, DeleteReachableFiles.Result> implements DeleteReachableFiles {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteReachableFilesSparkAction.class);
+    extends BaseSparkAction<DeleteReachableFiles, DeleteReachableFiles.Result>
+    implements DeleteReachableFiles {
+  private static final Logger LOG =
+      LoggerFactory.getLogger(BaseDeleteReachableFilesSparkAction.class);
 
   private static final String DATA_FILE = "Data File";
   private static final String MANIFEST = "Manifest";
@@ -71,12 +72,13 @@ public class BaseDeleteReachableFilesSparkAction
 
   private final TableMetadata tableMetadata;
 
-  private final Consumer<String> defaultDelete = new Consumer<String>() {
-    @Override
-    public void accept(String file) {
-      io.deleteFile(file);
-    }
-  };
+  private final Consumer<String> defaultDelete =
+      new Consumer<String>() {
+        @Override
+        public void accept(String file) {
+          io.deleteFile(file);
+        }
+      };
 
   private Consumer<String> removeFunc = defaultDelete;
   private ExecutorService removeExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
@@ -105,7 +107,6 @@ public class BaseDeleteReachableFilesSparkAction
   public DeleteReachableFiles deleteWith(Consumer<String> deleteFunc) {
     this.removeFunc = deleteFunc;
     return this;
-
   }
 
   @Override
@@ -117,7 +118,8 @@ public class BaseDeleteReachableFilesSparkAction
   @Override
   public Result execute() {
     Preconditions.checkArgument(io != null, "File IO cannot be null");
-    String msg = String.format("Removing files reachable from %s", tableMetadata.metadataFileLocation());
+    String msg =
+        String.format("Removing files reachable from %s", tableMetadata.metadataFileLocation());
     JobGroupInfo info = newJobGroupInfo("REMOVE-FILES", msg);
     return withJobGroupInfo(info, this::doExecute);
   }
@@ -165,40 +167,45 @@ public class BaseDeleteReachableFilesSparkAction
     AtomicLong otherFilesCount = new AtomicLong(0L);
 
     Tasks.foreach(deleted)
-        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
+        .retry(3)
+        .stopRetryOn(NotFoundException.class)
+        .suppressFailureWhenFinished()
         .executeWith(removeExecutorService)
-        .onFailure((fileInfo, exc) -> {
-          String file = fileInfo.getString(0);
-          String type = fileInfo.getString(1);
-          LOG.warn("Delete failed for {}: {}", type, file, exc);
-        })
-        .run(fileInfo -> {
-          String file = fileInfo.getString(0);
-          String type = fileInfo.getString(1);
-          removeFunc.accept(file);
-          switch (type) {
-            case DATA_FILE:
-              dataFileCount.incrementAndGet();
-              LOG.trace("Deleted Data File: {}", file);
-              break;
-            case MANIFEST:
-              manifestCount.incrementAndGet();
-              LOG.debug("Deleted Manifest: {}", file);
-              break;
-            case MANIFEST_LIST:
-              manifestListCount.incrementAndGet();
-              LOG.debug("Deleted Manifest List: {}", file);
-              break;
-            case OTHERS:
-              otherFilesCount.incrementAndGet();
-              LOG.debug("Others: {}", file);
-              break;
-          }
-        });
+        .onFailure(
+            (fileInfo, exc) -> {
+              String file = fileInfo.getString(0);
+              String type = fileInfo.getString(1);
+              LOG.warn("Delete failed for {}: {}", type, file, exc);
+            })
+        .run(
+            fileInfo -> {
+              String file = fileInfo.getString(0);
+              String type = fileInfo.getString(1);
+              removeFunc.accept(file);
+              switch (type) {
+                case DATA_FILE:
+                  dataFileCount.incrementAndGet();
+                  LOG.trace("Deleted Data File: {}", file);
+                  break;
+                case MANIFEST:
+                  manifestCount.incrementAndGet();
+                  LOG.debug("Deleted Manifest: {}", file);
+                  break;
+                case MANIFEST_LIST:
+                  manifestListCount.incrementAndGet();
+                  LOG.debug("Deleted Manifest List: {}", file);
+                  break;
+                case OTHERS:
+                  otherFilesCount.incrementAndGet();
+                  LOG.debug("Others: {}", file);
+                  break;
+              }
+            });
 
-    long filesCount = dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
+    long filesCount =
+        dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
     LOG.info("Total files removed: {}", filesCount);
-    return new BaseDeleteReachableFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
-        otherFilesCount.get());
+    return new BaseDeleteReachableFilesActionResult(
+        dataFileCount.get(), manifestCount.get(), manifestListCount.get(), otherFilesCount.get());
   }
 }

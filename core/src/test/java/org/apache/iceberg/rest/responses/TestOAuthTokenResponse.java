@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -29,7 +28,7 @@ import org.junit.Test;
 public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenResponse> {
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] { "access_token", "token_type", "issued_token_type", "expires_in", "scope" };
+    return new String[] {"access_token", "token_type", "issued_token_type", "expires_in", "scope"};
   }
 
   @Override
@@ -47,8 +46,10 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
   public void assertEquals(OAuthTokenResponse actual, OAuthTokenResponse expected) {
     Assert.assertEquals("Token should match", expected.token(), actual.token());
     Assert.assertEquals("Token type should match", expected.tokenType(), actual.tokenType());
-    Assert.assertEquals("Issued token type should match", expected.issuedTokenType(), actual.issuedTokenType());
-    Assert.assertEquals("Expiration should match", expected.expiresInSeconds(), actual.expiresInSeconds());
+    Assert.assertEquals(
+        "Issued token type should match", expected.issuedTokenType(), actual.issuedTokenType());
+    Assert.assertEquals(
+        "Expiration should match", expected.expiresInSeconds(), actual.expiresInSeconds());
     Assert.assertEquals("Scope should match", expected.scopes(), actual.scopes());
   }
 
@@ -69,8 +70,8 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
         OAuthTokenResponse.builder().withToken("bearer-token").withTokenType("bearer").build());
 
     assertRoundTripSerializesEquallyFrom(
-        "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\"," +
-            "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\"}",
+        "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\","
+            + "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\"}",
         OAuthTokenResponse.builder()
             .withToken("bearer-token")
             .withTokenType("bearer")
@@ -95,9 +96,9 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
             .build());
 
     assertRoundTripSerializesEquallyFrom(
-        "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\"," +
-            "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\"," +
-            "\"expires_in\":600,\"scope\":\"a b\"}",
+        "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\","
+            + "\"issued_token_type\":\"urn:ietf:params:oauth:token-type:access_token\","
+            + "\"expires_in\":600,\"scope\":\"a b\"}",
         OAuthTokenResponse.builder()
             .withToken("bearer-token")
             .withTokenType("bearer")

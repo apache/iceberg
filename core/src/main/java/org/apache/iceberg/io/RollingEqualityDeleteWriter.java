@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.util.List;
@@ -29,17 +28,22 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
- * A rolling equality delete writer that splits incoming deletes into multiple files within one spec/partition
- * based on the target file size.
+ * A rolling equality delete writer that splits incoming deletes into multiple files within one
+ * spec/partition based on the target file size.
  */
-public class RollingEqualityDeleteWriter<T> extends RollingFileWriter<T, EqualityDeleteWriter<T>, DeleteWriteResult> {
+public class RollingEqualityDeleteWriter<T>
+    extends RollingFileWriter<T, EqualityDeleteWriter<T>, DeleteWriteResult> {
 
   private final FileWriterFactory<T> writerFactory;
   private final List<DeleteFile> deleteFiles;
 
-  public RollingEqualityDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                                     FileIO io, long targetFileSizeInBytes,
-                                     PartitionSpec spec, StructLike partition) {
+  public RollingEqualityDeleteWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes,
+      PartitionSpec spec,
+      StructLike partition) {
     super(fileFactory, io, targetFileSizeInBytes, spec, partition);
     this.writerFactory = writerFactory;
     this.deleteFiles = Lists.newArrayList();
@@ -53,7 +57,8 @@ public class RollingEqualityDeleteWriter<T> extends RollingFileWriter<T, Equalit
 
   @Override
   protected void addResult(DeleteWriteResult result) {
-    Preconditions.checkArgument(!result.referencesDataFiles(), "Equality deletes cannot reference data files");
+    Preconditions.checkArgument(
+        !result.referencesDataFiles(), "Equality deletes cannot reference data files");
     deleteFiles.addAll(result.deleteFiles());
   }
 

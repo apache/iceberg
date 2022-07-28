@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.metrics;
 
 import java.util.Optional;
@@ -24,8 +23,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
- * A default {@link org.apache.iceberg.metrics.MetricsContext.Counter} implementation that uses a {@link Long} to count
- * events.
+ * A default {@link org.apache.iceberg.metrics.MetricsContext.Counter} implementation that uses a
+ * {@link Long} to count events.
  */
 class LongCounter implements MetricsContext.Counter<Long> {
   private final AtomicLong counter;
@@ -50,9 +49,12 @@ class LongCounter implements MetricsContext.Counter<Long> {
   }
 
   @Override
+  public Long value() {
+    return counter.get();
+  }
+
+  @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("counter", counter)
-        .toString();
+    return MoreObjects.toStringHelper(this).add("counter", counter).toString();
   }
 }

@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
 package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
@@ -51,26 +49,20 @@ public class TestZOrderByteUtil {
     return result.toString();
   }
 
-  /**
-   * Returns a non-0 length byte array
-   */
-  private byte[]  generateRandomBytes() {
+  /** Returns a non-0 length byte array */
+  private byte[] generateRandomBytes() {
     int length = Math.abs(random.nextInt(100) + 1);
     return generateRandomBytes(length);
   }
 
-  /**
-   * Returns a byte array of a specified length
-   */
-  private byte[]  generateRandomBytes(int length) {
+  /** Returns a byte array of a specified length */
+  private byte[] generateRandomBytes(int length) {
     byte[] result = new byte[length];
     random.nextBytes(result);
     return result;
   }
 
-  /**
-   * Test method to ensure correctness of byte interleaving code
-   */
+  /** Test method to ensure correctness of byte interleaving code */
   private String interleaveStrings(String[] strings) {
     StringBuilder result = new StringBuilder();
     int totalLength = Arrays.stream(strings).mapToInt(String::length).sum();
@@ -89,17 +81,17 @@ public class TestZOrderByteUtil {
   }
 
   /**
-   * Compares the result of a string based interleaving algorithm implemented above
-   * versus the binary bit-shifting algorithm used in ZOrderByteUtils. Either both
-   * algorithms are identically wrong or are both identically correct.
+   * Compares the result of a string based interleaving algorithm implemented above versus the
+   * binary bit-shifting algorithm used in ZOrderByteUtils. Either both algorithms are identically
+   * wrong or are both identically correct.
    */
   @Test
   public void testInterleaveRandomExamples() {
     for (int test = 0; test < NUM_INTERLEAVE_TESTS; test++) {
       int numByteArrays = Math.abs(random.nextInt(6)) + 1;
-      byte[][] testBytes =  new byte[numByteArrays][];
+      byte[][] testBytes = new byte[numByteArrays][];
       String[] testStrings = new String[numByteArrays];
-      for (int byteIndex = 0;  byteIndex < numByteArrays; byteIndex++) {
+      for (int byteIndex = 0; byteIndex < numByteArrays; byteIndex++) {
         testBytes[byteIndex] = generateRandomBytes();
         testStrings[byteIndex] = bytesToString(testBytes[byteIndex]);
       }
@@ -110,7 +102,8 @@ public class TestZOrderByteUtil {
 
       String stringResult = interleaveStrings(testStrings);
 
-      Assert.assertEquals("String interleave didn't match byte interleave", stringResult, byteResultAsString);
+      Assert.assertEquals(
+          "String interleave didn't match byte interleave", stringResult, byteResultAsString);
     }
   }
 
@@ -120,19 +113,21 @@ public class TestZOrderByteUtil {
     int colLength = 16;
     ByteBuffer interleaveBuffer = ByteBuffer.allocate(numByteArrays * colLength);
     for (int test = 0; test < NUM_INTERLEAVE_TESTS; test++) {
-      byte[][] testBytes =  new byte[numByteArrays][];
+      byte[][] testBytes = new byte[numByteArrays][];
       String[] testStrings = new String[numByteArrays];
-      for (int byteIndex = 0;  byteIndex < numByteArrays; byteIndex++) {
+      for (int byteIndex = 0; byteIndex < numByteArrays; byteIndex++) {
         testBytes[byteIndex] = generateRandomBytes(colLength);
         testStrings[byteIndex] = bytesToString(testBytes[byteIndex]);
       }
 
-      byte[] byteResult = ZOrderByteUtils.interleaveBits(testBytes, numByteArrays * colLength, interleaveBuffer);
+      byte[] byteResult =
+          ZOrderByteUtils.interleaveBits(testBytes, numByteArrays * colLength, interleaveBuffer);
       String byteResultAsString = bytesToString(byteResult);
 
       String stringResult = interleaveStrings(testStrings);
 
-      Assert.assertEquals("String interleave didn't match byte interleave", stringResult, byteResultAsString);
+      Assert.assertEquals(
+          "String interleave didn't match byte interleave", stringResult, byteResultAsString);
     }
   }
 
@@ -141,37 +136,36 @@ public class TestZOrderByteUtil {
     byte[][] test = new byte[4][10];
     byte[] expected = new byte[40];
 
-    Assert.assertArrayEquals("Should combine empty arrays",
-        expected, ZOrderByteUtils.interleaveBits(test, 40));
+    Assert.assertArrayEquals(
+        "Should combine empty arrays", expected, ZOrderByteUtils.interleaveBits(test, 40));
   }
 
   @Test
   public void testInterleaveFullBits() {
     byte[][] test = new byte[4][];
-    test[0] = new byte[]{IIIIIIII, IIIIIIII};
-    test[1] = new byte[]{IIIIIIII};
+    test[0] = new byte[] {IIIIIIII, IIIIIIII};
+    test[1] = new byte[] {IIIIIIII};
     test[2] = new byte[0];
-    test[3] = new byte[]{IIIIIIII, IIIIIIII, IIIIIIII};
-    byte[] expected = new byte[]{IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII};
+    test[3] = new byte[] {IIIIIIII, IIIIIIII, IIIIIIII};
+    byte[] expected = new byte[] {IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII, IIIIIIII};
 
-    Assert.assertArrayEquals("Should combine full arrays",
-        expected, ZOrderByteUtils.interleaveBits(test, 6));
+    Assert.assertArrayEquals(
+        "Should combine full arrays", expected, ZOrderByteUtils.interleaveBits(test, 6));
   }
 
   @Test
   public void testInterleaveMixedBits() {
     byte[][] test = new byte[4][];
-    test[0] = new byte[]{OOOOOOOI, IIIIIIII, OOOOOOOO, OOOOIIII};
-    test[1] = new byte[]{OOOOOOOI, OOOOOOOO, IIIIIIII};
-    test[2] = new byte[]{OOOOOOOI};
-    test[3] = new byte[]{OOOOOOOI};
-    byte[] expected = new byte[]{
-        OOOOOOOO, OOOOOOOO, OOOOOOOO, OOOOIIII,
-        IOIOIOIO, IOIOIOIO,
-        OIOIOIOI, OIOIOIOI,
-        OOOOIIII};
-    Assert.assertArrayEquals("Should combine mixed byte arrays",
-        expected, ZOrderByteUtils.interleaveBits(test, 9));
+    test[0] = new byte[] {OOOOOOOI, IIIIIIII, OOOOOOOO, OOOOIIII};
+    test[1] = new byte[] {OOOOOOOI, OOOOOOOO, IIIIIIII};
+    test[2] = new byte[] {OOOOOOOI};
+    test[3] = new byte[] {OOOOOOOI};
+    byte[] expected =
+        new byte[] {
+          OOOOOOOO, OOOOOOOO, OOOOOOOO, OOOOIIII, IOIOIOIO, IOIOIOIO, OIOIOIOI, OIOIOIOI, OOOOIIII
+        };
+    Assert.assertArrayEquals(
+        "Should combine mixed byte arrays", expected, ZOrderByteUtils.interleaveBits(test, 9));
   }
 
   @Test
@@ -184,12 +178,20 @@ public class TestZOrderByteUtil {
       int intCompare = Integer.signum(Integer.compare(aInt, bInt));
       byte[] aBytes = ZOrderByteUtils.intToOrderedBytes(aInt, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.intToOrderedBytes(bInt, bBuffer).array();
-      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
 
-      Assert.assertEquals(String.format(
-          "Ordering of ints should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-          aInt, bInt, intCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
-          intCompare, byteCompare);
+      Assert.assertEquals(
+          String.format(
+              "Ordering of ints should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aInt,
+              bInt,
+              intCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare),
+          intCompare,
+          byteCompare);
     }
   }
 
@@ -203,12 +205,20 @@ public class TestZOrderByteUtil {
       int longCompare = Integer.signum(Long.compare(aLong, bLong));
       byte[] aBytes = ZOrderByteUtils.longToOrderedBytes(aLong, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.longToOrderedBytes(bLong, bBuffer).array();
-      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
 
-      Assert.assertEquals(String.format(
-          "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-          aLong, bLong, longCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
-          longCompare, byteCompare);
+      Assert.assertEquals(
+          String.format(
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aLong,
+              bLong,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare),
+          longCompare,
+          byteCompare);
     }
   }
 
@@ -222,12 +232,20 @@ public class TestZOrderByteUtil {
       int longCompare = Integer.signum(Long.compare(aShort, bShort));
       byte[] aBytes = ZOrderByteUtils.shortToOrderedBytes(aShort, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.shortToOrderedBytes(bShort, bBuffer).array();
-      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
 
-      Assert.assertEquals(String.format(
+      Assert.assertEquals(
+          String.format(
               "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-              aShort, bShort, longCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
-          longCompare, byteCompare);
+              aShort,
+              bShort,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare),
+          longCompare,
+          byteCompare);
     }
   }
 
@@ -241,12 +259,20 @@ public class TestZOrderByteUtil {
       int longCompare = Integer.signum(Long.compare(aByte, bByte));
       byte[] aBytes = ZOrderByteUtils.tinyintToOrderedBytes(aByte, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.tinyintToOrderedBytes(bByte, bBuffer).array();
-      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
 
-      Assert.assertEquals(String.format(
+      Assert.assertEquals(
+          String.format(
               "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-              aByte, bByte, longCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
-          longCompare, byteCompare);
+              aByte,
+              bByte,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare),
+          longCompare,
+          byteCompare);
     }
   }
 
@@ -260,12 +286,20 @@ public class TestZOrderByteUtil {
       int floatCompare = Integer.signum(Float.compare(aFloat, bFloat));
       byte[] aBytes = ZOrderByteUtils.floatToOrderedBytes(aFloat, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.floatToOrderedBytes(bFloat, bBuffer).array();
-      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
 
-      Assert.assertEquals(String.format(
-          "Ordering of floats should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-          aFloat, bFloat, floatCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
-          floatCompare, byteCompare);
+      Assert.assertEquals(
+          String.format(
+              "Ordering of floats should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aFloat,
+              bFloat,
+              floatCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare),
+          floatCompare,
+          byteCompare);
     }
   }
 
@@ -279,32 +313,48 @@ public class TestZOrderByteUtil {
       int doubleCompare = Integer.signum(Double.compare(aDouble, bDouble));
       byte[] aBytes = ZOrderByteUtils.doubleToOrderedBytes(aDouble, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.doubleToOrderedBytes(bDouble, bBuffer).array();
-      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
 
-      Assert.assertEquals(String.format(
-          "Ordering of doubles should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-          aDouble, bDouble, doubleCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
-          doubleCompare, byteCompare);
+      Assert.assertEquals(
+          String.format(
+              "Ordering of doubles should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aDouble,
+              bDouble,
+              doubleCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare),
+          doubleCompare,
+          byteCompare);
     }
   }
 
   @Test
   public void testStringOrdering() {
-    CharsetEncoder encoder =  StandardCharsets.UTF_8.newEncoder();
+    CharsetEncoder encoder = StandardCharsets.UTF_8.newEncoder();
     ByteBuffer aBuffer = ByteBuffer.allocate(128);
     ByteBuffer bBuffer = ByteBuffer.allocate(128);
     for (int i = 0; i < NUM_TESTS; i++) {
-      String aString =  (String) RandomUtil.generatePrimitive(Types.StringType.get(), random);
-      String bString =  (String) RandomUtil.generatePrimitive(Types.StringType.get(), random);
+      String aString = (String) RandomUtil.generatePrimitive(Types.StringType.get(), random);
+      String bString = (String) RandomUtil.generatePrimitive(Types.StringType.get(), random);
       int stringCompare = Integer.signum(aString.compareTo(bString));
       byte[] aBytes = ZOrderByteUtils.stringToOrderedBytes(aString, 128, aBuffer, encoder).array();
       byte[] bBytes = ZOrderByteUtils.stringToOrderedBytes(bString, 128, bBuffer, encoder).array();
-      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
 
-      Assert.assertEquals(String.format(
-          "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-          aString, bString, stringCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
-          stringCompare, byteCompare);
+      Assert.assertEquals(
+          String.format(
+              "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aString,
+              bString,
+              stringCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare),
+          stringCompare,
+          byteCompare);
     }
   }
 
@@ -313,17 +363,26 @@ public class TestZOrderByteUtil {
     ByteBuffer aBuffer = ByteBuffer.allocate(128);
     ByteBuffer bBuffer = ByteBuffer.allocate(128);
     for (int i = 0; i < NUM_TESTS; i++) {
-      byte[] aBytesRaw =  (byte[]) RandomUtil.generatePrimitive(Types.BinaryType.get(), random);
-      byte[] bBytesRaw =  (byte[]) RandomUtil.generatePrimitive(Types.BinaryType.get(), random);
-      int stringCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytesRaw, bBytesRaw));
+      byte[] aBytesRaw = (byte[]) RandomUtil.generatePrimitive(Types.BinaryType.get(), random);
+      byte[] bBytesRaw = (byte[]) RandomUtil.generatePrimitive(Types.BinaryType.get(), random);
+      int stringCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytesRaw, bBytesRaw));
       byte[] aBytes = ZOrderByteUtils.byteTruncateOrFill(aBytesRaw, 128, aBuffer).array();
       byte[] bBytes = ZOrderByteUtils.byteTruncateOrFill(bBytesRaw, 128, bBuffer).array();
-      int byteCompare = Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
+      int byteCompare =
+          Integer.signum(UnsignedBytes.lexicographicalComparator().compare(aBytes, bBytes));
 
-      Assert.assertEquals(String.format(
+      Assert.assertEquals(
+          String.format(
               "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-              aBytesRaw, bBytesRaw, stringCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare),
-          stringCompare, byteCompare);
+              aBytesRaw,
+              bBytesRaw,
+              stringCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare),
+          stringCompare,
+          byteCompare);
     }
   }
 }

@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.FileFormat.PARQUET;
+import static org.apache.iceberg.Files.localOutput;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,10 +29,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
@@ -48,13 +52,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.FileFormat.PARQUET;
-import static org.apache.iceberg.Files.localOutput;
+public class TestBaseReader {
 
-public class TestSparkBaseDataReader {
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private Table table;
 
@@ -86,15 +86,20 @@ public class TestSparkBaseDataReader {
 
   // Main reader class to test base class iteration logic.
   // Keeps track of iterator closure.
-  private static class ClosureTrackingReader extends BaseDataReader<Integer> {
+  private static class ClosureTrackingReader extends BaseReader<Integer, FileScanTask> {
     private Map<String, CloseableIntegerRange> tracker = Maps.newHashMap();
 
     ClosureTrackingReader(Table table, List<FileScanTask> tasks) {
-      super(table, new BaseCombinedScanTask(tasks));
+      super(table, new BaseCombinedScanTask(tasks), null, false);
     }
 
     @Override
-    CloseableIterator<Integer> open(FileScanTask task) {
+    protected Stream<ContentFile<?>> referencedFiles(FileScanTask task) {
+      return Stream.of();
+    }
+
+    @Override
+    protected CloseableIterator<Integer> open(FileScanTask task) {
       CloseableIntegerRange intRange = new CloseableIntegerRange(task.file().recordCount());
       tracker.put(getKey(task), intRange);
       return intRange;
@@ -127,14 +132,12 @@ public class TestSparkBaseDataReader {
       Assert.assertNotNull("Reader should return non-null value", reader.get());
     }
 
-    Assert.assertEquals("Reader returned incorrect number of records",
-        totalTasks * recordPerTask,
-        countRecords
-    );
-    tasks.forEach(t ->
-        Assert.assertTrue("All iterators should be closed after read exhausion",
-            reader.isIteratorClosed(t))
-    );
+    Assert.assertEquals(
+        "Reader returned incorrect number of records", totalTasks * recordPerTask, countRecords);
+    tasks.forEach(
+        t ->
+            Assert.assertTrue(
+                "All iterators should be closed after read exhausion", reader.isIteratorClosed(t)));
   }
 
   @Test
@@ -150,13 +153,15 @@ public class TestSparkBaseDataReader {
 
     // Total of 2 elements
     Assert.assertTrue(reader.next());
-    Assert.assertFalse("First iter should not be closed on its last element",
-        reader.isIteratorClosed(firstTask));
+    Assert.assertFalse(
+        "First iter should not be closed on its last element", reader.isIteratorClosed(firstTask));
 
     Assert.assertTrue(reader.next());
-    Assert.assertTrue("First iter should be closed after moving to second iter",
+    Assert.assertTrue(
+        "First iter should be closed after moving to second iter",
         reader.isIteratorClosed(firstTask));
-    Assert.assertFalse("Second iter should not be closed on its last element",
+    Assert.assertFalse(
+        "Second iter should not be closed on its last element",
         reader.isIteratorClosed(secondTask));
 
     Assert.assertFalse(reader.next());
@@ -174,10 +179,10 @@ public class TestSparkBaseDataReader {
 
     reader.close();
 
-    tasks.forEach(t ->
-        Assert.assertFalse("Iterator should not be created eagerly for tasks",
-            reader.hasIterator(t))
-    );
+    tasks.forEach(
+        t ->
+            Assert.assertFalse(
+                "Iterator should not be created eagerly for tasks", reader.hasIterator(t)));
   }
 
   @Test
@@ -198,12 +203,13 @@ public class TestSparkBaseDataReader {
 
     // Some tasks might have not been opened yet, so we don't have corresponding tracker for it.
     // But all that have been created must be closed.
-    tasks.forEach(t -> {
-      if (reader.hasIterator(t)) {
-        Assert.assertTrue("Iterator should be closed after read exhausion",
-            reader.isIteratorClosed(t));
-      }
-    });
+    tasks.forEach(
+        t -> {
+          if (reader.hasIterator(t)) {
+            Assert.assertTrue(
+                "Iterator should be closed after read exhausion", reader.isIteratorClosed(t));
+          }
+        });
   }
 
   @Test
@@ -223,26 +229,26 @@ public class TestSparkBaseDataReader {
     for (int closeAttempt = 0; closeAttempt < 5; closeAttempt++) {
       reader.close();
       for (int i = 0; i < 5; i++) {
-        Assert.assertTrue("Iterator should be closed after read exhausion",
+        Assert.assertTrue(
+            "Iterator should be closed after read exhausion",
             reader.isIteratorClosed(tasks.get(i)));
       }
       for (int i = 5; i < 10; i++) {
-        Assert.assertFalse("Iterator should not be created eagerly for tasks",
-            reader.hasIterator(tasks.get(i)));
+        Assert.assertFalse(
+            "Iterator should not be created eagerly for tasks", reader.hasIterator(tasks.get(i)));
       }
     }
   }
 
-  private List<FileScanTask> createFileScanTasks(Integer totalTasks, Integer recordPerTask) throws IOException {
+  private List<FileScanTask> createFileScanTasks(Integer totalTasks, Integer recordPerTask)
+      throws IOException {
     String desc = "make_scan_tasks";
     File parent = temp.newFolder(desc);
     File location = new File(parent, "test");
     File dataFolder = new File(location, "data");
     Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-    Schema schema = new Schema(
-        Types.NestedField.required(0, "id", Types.LongType.get())
-    );
+    Schema schema = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     try {
       this.table = TestTables.create(location, desc, schema, PartitionSpec.unpartitioned());
@@ -254,22 +260,21 @@ public class TestSparkBaseDataReader {
       AppendFiles appendFiles = table.newAppend();
       for (int i = 0; i < totalTasks; i++) {
         File parquetFile = new File(dataFolder, PARQUET.addExtension(UUID.randomUUID().toString()));
-        try (FileAppender<GenericData.Record> writer = Parquet.write(localOutput(parquetFile))
-            .schema(tableSchema)
-            .build()) {
+        try (FileAppender<GenericData.Record> writer =
+            Parquet.write(localOutput(parquetFile)).schema(tableSchema).build()) {
           writer.addAll(expected);
         }
-        DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
-            .withFileSizeInBytes(parquetFile.length())
-            .withPath(parquetFile.toString())
-            .withRecordCount(recordPerTask)
-            .build();
+        DataFile file =
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withFileSizeInBytes(parquetFile.length())
+                .withPath(parquetFile.toString())
+                .withRecordCount(recordPerTask)
+                .build();
         appendFiles.appendFile(file);
       }
       appendFiles.commit();
 
-      return StreamSupport
-          .stream(table.newScan().planFiles().spliterator(), false)
+      return StreamSupport.stream(table.newScan().planFiles().spliterator(), false)
           .collect(Collectors.toList());
     } finally {
       TestTables.clearTables();

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.orc;
 
 import java.util.Collections;
@@ -39,10 +38,13 @@ public class GenericOrcReader implements OrcRowReader<Record> {
 
   public GenericOrcReader(
       Schema expectedSchema, TypeDescription readOrcSchema, Map<Integer, ?> idToConstant) {
-    this.reader = OrcSchemaWithTypeVisitor.visit(expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
+    this.reader =
+        OrcSchemaWithTypeVisitor.visit(
+            expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
   }
 
-  public static OrcRowReader<Record> buildReader(Schema expectedSchema, TypeDescription fileSchema) {
+  public static OrcRowReader<Record> buildReader(
+      Schema expectedSchema, TypeDescription fileSchema) {
     return new GenericOrcReader(expectedSchema, fileSchema, Collections.emptyMap());
   }
 
@@ -70,18 +72,25 @@ public class GenericOrcReader implements OrcRowReader<Record> {
 
     @Override
     public OrcValueReader<?> record(
-        Types.StructType expected, TypeDescription record, List<String> names, List<OrcValueReader<?>> fields) {
+        Types.StructType expected,
+        TypeDescription record,
+        List<String> names,
+        List<OrcValueReader<?>> fields) {
       return GenericOrcReaders.struct(fields, expected, idToConstant);
     }
 
     @Override
-    public OrcValueReader<?> list(Types.ListType iList, TypeDescription array, OrcValueReader<?> elementReader) {
+    public OrcValueReader<?> list(
+        Types.ListType iList, TypeDescription array, OrcValueReader<?> elementReader) {
       return GenericOrcReaders.array(elementReader);
     }
 
     @Override
     public OrcValueReader<?> map(
-        Types.MapType iMap, TypeDescription map, OrcValueReader<?> keyReader, OrcValueReader<?> valueReader) {
+        Types.MapType iMap,
+        TypeDescription map,
+        OrcValueReader<?> keyReader,
+        OrcValueReader<?> valueReader) {
       return GenericOrcReaders.map(keyReader, valueReader);
     }
 
@@ -104,7 +113,9 @@ public class GenericOrcReader implements OrcRowReader<Record> {
               return OrcValueReaders.longs();
             default:
               throw new IllegalStateException(
-                  String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
+                  String.format(
+                      "Invalid iceberg type %s corresponding to ORC type %s",
+                      iPrimitive, primitive));
           }
 
         case FLOAT:
@@ -133,7 +144,9 @@ public class GenericOrcReader implements OrcRowReader<Record> {
               return GenericOrcReaders.bytes();
             default:
               throw new IllegalStateException(
-                  String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
+                  String.format(
+                      "Invalid iceberg type %s corresponding to ORC type %s",
+                      iPrimitive, primitive));
           }
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);

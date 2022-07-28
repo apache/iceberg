@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,15 +47,11 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestEcsCatalog {
 
-  static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()));
+  static final Schema SCHEMA = new Schema(required(1, "id", Types.IntegerType.get()));
 
-  @Rule
-  public EcsS3MockRule rule = EcsS3MockRule.create();
+  @Rule public EcsS3MockRule rule = EcsS3MockRule.create();
 
   private EcsCatalog ecsCatalog;
 
@@ -105,17 +102,23 @@ public class TestEcsCatalog {
   public void testNamespaceProperties() {
     ecsCatalog.createNamespace(Namespace.of("a"), ImmutableMap.of("a", "a"));
 
-    Assert.assertEquals("The initial properties", ImmutableMap.of("a", "a"),
+    Assert.assertEquals(
+        "The initial properties",
+        ImmutableMap.of("a", "a"),
         ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
 
     ecsCatalog.setProperties(Namespace.of("a"), ImmutableMap.of("b", "b"));
 
-    Assert.assertEquals("Update properties", ImmutableMap.of("a", "a", "b", "b"),
+    Assert.assertEquals(
+        "Update properties",
+        ImmutableMap.of("a", "a", "b", "b"),
         ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
 
     ecsCatalog.removeProperties(Namespace.of("a"), ImmutableSet.of("a"));
 
-    Assert.assertEquals("Remove properties", ImmutableMap.of("b", "b"),
+    Assert.assertEquals(
+        "Remove properties",
+        ImmutableMap.of("b", "b"),
         ecsCatalog.loadNamespaceMetadata(Namespace.of("a")));
   }
 
@@ -137,7 +140,8 @@ public class TestEcsCatalog {
 
     Assert.assertTrue("Drop namespace [a, b1]", ecsCatalog.dropNamespace(Namespace.of("a", "b1")));
 
-    Assert.assertFalse("The [a, b1] is absent", ecsCatalog.namespaceExists(Namespace.of("a", "b1")));
+    Assert.assertFalse(
+        "The [a, b1] is absent", ecsCatalog.namespaceExists(Namespace.of("a", "b1")));
     Assert.assertTrue(
         "The [a, b1] is not in list result of [a]",
         ecsCatalog.listNamespaces(Namespace.of("a")).isEmpty());
@@ -148,8 +152,7 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(TableIdentifier.of("a"), SCHEMA);
 
     Assert.assertFalse(
-        "Drop an unknown table return false",
-        ecsCatalog.dropTable(TableIdentifier.of("unknown")));
+        "Drop an unknown table return false", ecsCatalog.dropTable(TableIdentifier.of("unknown")));
 
     Assert.assertTrue("Drop a table", ecsCatalog.dropTable(TableIdentifier.of("a"), true));
   }
@@ -168,11 +171,14 @@ public class TestEcsCatalog {
     AssertHelpers.assertThrows(
         "Rename to an unknown namespace should throw exception",
         NoSuchNamespaceException.class,
-        () -> ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")));
+        () ->
+            ecsCatalog.renameTable(
+                TableIdentifier.of("a", "t1"), TableIdentifier.of("unknown", "t2")));
 
     ecsCatalog.renameTable(TableIdentifier.of("a", "t1"), TableIdentifier.of("b", "t2"));
 
-    Assert.assertFalse("Old table does not exist", ecsCatalog.tableExists(TableIdentifier.of("a", "t1")));
+    Assert.assertFalse(
+        "Old table does not exist", ecsCatalog.tableExists(TableIdentifier.of("a", "t1")));
     Assert.assertTrue("New table exists", ecsCatalog.tableExists(TableIdentifier.of("b", "t2")));
   }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.metrics;
 
 import java.time.Duration;
@@ -29,7 +28,8 @@ public class TestDefaultMetricsContext {
   @Test
   public void unsupportedCounter() {
     MetricsContext metricsContext = new DefaultMetricsContext();
-    Assertions.assertThatThrownBy(() -> metricsContext.counter("test", Double.class, MetricsContext.Unit.COUNT))
+    Assertions.assertThatThrownBy(
+            () -> metricsContext.counter("test", Double.class, MetricsContext.Unit.COUNT))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Counter for type java.lang.Double is not supported");
   }
@@ -37,39 +37,43 @@ public class TestDefaultMetricsContext {
   @Test
   public void intCounter() {
     MetricsContext metricsContext = new DefaultMetricsContext();
-    MetricsContext.Counter<Integer> counter = metricsContext.counter("test", Integer.class, MetricsContext.Unit.COUNT);
+    MetricsContext.Counter<Integer> counter =
+        metricsContext.counter("test", Integer.class, MetricsContext.Unit.COUNT);
     counter.increment(5);
-    Assertions.assertThat(counter.count()).isPresent().get().isEqualTo(5);
+    Assertions.assertThat(counter.value()).isEqualTo(5);
   }
 
   @Test
   public void intCounterOverflow() {
     MetricsContext metricsContext = new DefaultMetricsContext();
-    MetricsContext.Counter<Integer> counter = metricsContext.counter("test", Integer.class, MetricsContext.Unit.COUNT);
+    MetricsContext.Counter<Integer> counter =
+        metricsContext.counter("test", Integer.class, MetricsContext.Unit.COUNT);
     counter.increment(Integer.MAX_VALUE);
     Assertions.assertThatThrownBy(counter::increment)
         .isInstanceOf(ArithmeticException.class)
         .hasMessage("integer overflow");
-    Assertions.assertThat(counter.count()).isPresent().get().isEqualTo(Integer.MAX_VALUE);
+    Assertions.assertThat(counter.value()).isEqualTo(Integer.MAX_VALUE);
   }
 
   @Test
   public void longCounter() {
     MetricsContext metricsContext = new DefaultMetricsContext();
-    MetricsContext.Counter<Long> counter = metricsContext.counter("test", Long.class, MetricsContext.Unit.COUNT);
+    MetricsContext.Counter<Long> counter =
+        metricsContext.counter("test", Long.class, MetricsContext.Unit.COUNT);
     counter.increment(5L);
-    Assertions.assertThat(counter.count()).isPresent().get().isEqualTo(5L);
+    Assertions.assertThat(counter.value()).isEqualTo(5L);
   }
 
   @Test
   public void longCounterOverflow() {
     MetricsContext metricsContext = new DefaultMetricsContext();
-    MetricsContext.Counter<Long> counter = metricsContext.counter("test", Long.class, MetricsContext.Unit.COUNT);
+    MetricsContext.Counter<Long> counter =
+        metricsContext.counter("test", Long.class, MetricsContext.Unit.COUNT);
     counter.increment(Long.MAX_VALUE);
     Assertions.assertThatThrownBy(counter::increment)
         .isInstanceOf(ArithmeticException.class)
         .hasMessage("long overflow");
-    Assertions.assertThat(counter.count()).isPresent().get().isEqualTo(Long.MAX_VALUE);
+    Assertions.assertThat(counter.value()).isEqualTo(Long.MAX_VALUE);
   }
 
   @Test

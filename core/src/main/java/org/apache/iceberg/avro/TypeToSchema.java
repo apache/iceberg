@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.Deque;
@@ -37,17 +36,17 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema LONG_SCHEMA = Schema.create(Schema.Type.LONG);
   private static final Schema FLOAT_SCHEMA = Schema.create(Schema.Type.FLOAT);
   private static final Schema DOUBLE_SCHEMA = Schema.create(Schema.Type.DOUBLE);
-  private static final Schema DATE_SCHEMA = LogicalTypes.date()
-      .addToSchema(Schema.create(Schema.Type.INT));
-  private static final Schema TIME_SCHEMA = LogicalTypes.timeMicros()
-      .addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema TIMESTAMP_SCHEMA = LogicalTypes.timestampMicros()
-      .addToSchema(Schema.create(Schema.Type.LONG));
-  private static final Schema TIMESTAMPTZ_SCHEMA = LogicalTypes.timestampMicros()
-      .addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema DATE_SCHEMA =
+      LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT));
+  private static final Schema TIME_SCHEMA =
+      LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema TIMESTAMP_SCHEMA =
+      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+  private static final Schema TIMESTAMPTZ_SCHEMA =
+      LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
   private static final Schema STRING_SCHEMA = Schema.create(Schema.Type.STRING);
-  private static final Schema UUID_SCHEMA = LogicalTypes.uuid()
-      .addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
+  private static final Schema UUID_SCHEMA =
+      LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
 
   static {
@@ -100,10 +99,13 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       Types.NestedField structField = structFields.get(i);
       String origFieldName = structField.name();
       boolean isValidFieldName = AvroSchemaUtil.validAvroName(origFieldName);
-      String fieldName =  isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
-      Schema.Field field = new Schema.Field(
-          fieldName, fieldSchemas.get(i), structField.doc(),
-          structField.isOptional() ? JsonProperties.NULL_VALUE : null);
+      String fieldName = isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
+      Schema.Field field =
+          new Schema.Field(
+              fieldName,
+              fieldSchemas.get(i),
+              structField.doc(),
+              structField.isOptional() ? JsonProperties.NULL_VALUE : null);
       if (!isValidFieldName) {
         field.addProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP, origFieldName);
       }
@@ -156,14 +158,19 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     if (keySchema.getType() == Schema.Type.STRING) {
       // if the map has string keys, use Avro's map type
-      mapSchema = Schema.createMap(
-          map.isValueOptional() ? AvroSchemaUtil.toOption(valueSchema) : valueSchema);
+      mapSchema =
+          Schema.createMap(
+              map.isValueOptional() ? AvroSchemaUtil.toOption(valueSchema) : valueSchema);
       mapSchema.addProp(AvroSchemaUtil.KEY_ID_PROP, map.keyId());
       mapSchema.addProp(AvroSchemaUtil.VALUE_ID_PROP, map.valueId());
 
     } else {
-      mapSchema = AvroSchemaUtil.createMap(map.keyId(), keySchema,
-          map.valueId(), map.isValueOptional() ? AvroSchemaUtil.toOption(valueSchema) : valueSchema);
+      mapSchema =
+          AvroSchemaUtil.createMap(
+              map.keyId(),
+              keySchema,
+              map.valueId(),
+              map.isValueOptional() ? AvroSchemaUtil.toOption(valueSchema) : valueSchema);
     }
 
     results.put(map, mapSchema);
@@ -218,14 +225,17 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         break;
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
-        primitiveSchema = LogicalTypes.decimal(decimal.precision(), decimal.scale())
-            .addToSchema(Schema.createFixed(
-                "decimal_" + decimal.precision() + "_" + decimal.scale(),
-                null, null, TypeUtil.decimalRequiredBytes(decimal.precision())));
+        primitiveSchema =
+            LogicalTypes.decimal(decimal.precision(), decimal.scale())
+                .addToSchema(
+                    Schema.createFixed(
+                        "decimal_" + decimal.precision() + "_" + decimal.scale(),
+                        null,
+                        null,
+                        TypeUtil.decimalRequiredBytes(decimal.precision())));
         break;
       default:
-        throw new UnsupportedOperationException(
-            "Unsupported type ID: " + primitive.typeId());
+        throw new UnsupportedOperationException("Unsupported type ID: " + primitive.typeId());
     }
 
     results.put(primitive, primitiveSchema);

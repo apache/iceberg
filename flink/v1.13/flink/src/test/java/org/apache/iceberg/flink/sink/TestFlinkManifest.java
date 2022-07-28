@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
+
+import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,13 +52,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
-
 public class TestFlinkManifest {
   private static final Configuration CONF = new Configuration();
 
-  @Rule
-  public TemporaryFolder tempFolder = new TemporaryFolder();
+  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
 
   private String tablePath;
   private Table table;
@@ -75,14 +73,20 @@ public class TestFlinkManifest {
     // Construct the iceberg table.
     table = SimpleDataUtil.createTable(tablePath, ImmutableMap.of(), false);
 
-    int[] equalityFieldIds = new int[] {
-        table.schema().findField("id").fieldId(),
-        table.schema().findField("data").fieldId()
-    };
-    this.appenderFactory = new FlinkAppenderFactory(table.schema(), FlinkSchemaUtil.convert(table.schema()),
-        table.properties(), table.spec(), equalityFieldIds, table.schema(), null);
+    int[] equalityFieldIds =
+        new int[] {
+          table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()
+        };
+    this.appenderFactory =
+        new FlinkAppenderFactory(
+            table.schema(),
+            FlinkSchemaUtil.convert(table.schema()),
+            table.properties(),
+            table.spec(),
+            equalityFieldIds,
+            table.schema(),
+            null);
   }
-
 
   @Test
   public void testIO() throws IOException {
@@ -95,13 +99,15 @@ public class TestFlinkManifest {
       List<DataFile> dataFiles = generateDataFiles(10);
       List<DeleteFile> eqDeleteFiles = generateEqDeleteFiles(5);
       List<DeleteFile> posDeleteFiles = generatePosDeleteFiles(5);
-      DeltaManifests deltaManifests = FlinkManifestUtil.writeCompletedFiles(
-          WriteResult.builder()
-              .addDataFiles(dataFiles)
-              .addDeleteFiles(eqDeleteFiles)
-              .addDeleteFiles(posDeleteFiles)
-              .build(),
-          () -> factory.create(curCkpId), table.spec());
+      DeltaManifests deltaManifests =
+          FlinkManifestUtil.writeCompletedFiles(
+              WriteResult.builder()
+                  .addDataFiles(dataFiles)
+                  .addDeleteFiles(eqDeleteFiles)
+                  .addDeleteFiles(posDeleteFiles)
+                  .build(),
+              () -> factory.create(curCkpId),
+              table.spec());
 
       WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io());
       Assert.assertEquals("Size of data file list are not equal.", 10, result.deleteFiles().length);
@@ -123,30 +129,33 @@ public class TestFlinkManifest {
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
     File userProvidedFolder = tempFolder.newFolder();
-    Map<String, String> props = ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
-    ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
-        ((HasTableOperations) table).operations(), table.io(), props,
-        flinkJobId, 1, 1);
+    Map<String, String> props =
+        ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
+    ManifestOutputFileFactory factory =
+        new ManifestOutputFileFactory(
+            ((HasTableOperations) table).operations(), table.io(), props, flinkJobId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(5);
-    DeltaManifests deltaManifests = FlinkManifestUtil.writeCompletedFiles(
-        WriteResult.builder()
-            .addDataFiles(dataFiles)
-            .build(),
-        () -> factory.create(checkpointId),
-        table.spec());
+    DeltaManifests deltaManifests =
+        FlinkManifestUtil.writeCompletedFiles(
+            WriteResult.builder().addDataFiles(dataFiles).build(),
+            () -> factory.create(checkpointId),
+            table.spec());
 
     Assert.assertNotNull("Data manifest shouldn't be null", deltaManifests.dataManifest());
     Assert.assertNull("Delete manifest should be null", deltaManifests.deleteManifest());
-    Assert.assertEquals("The newly created manifest file should be located under the user provided directory",
-        userProvidedFolder.toPath(), Paths.get(deltaManifests.dataManifest().path()).getParent());
+    Assert.assertEquals(
+        "The newly created manifest file should be located under the user provided directory",
+        userProvidedFolder.toPath(),
+        Paths.get(deltaManifests.dataManifest().path()).getParent());
 
     WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io());
 
     Assert.assertEquals(0, result.deleteFiles().length);
     Assert.assertEquals(5, result.dataFiles().length);
 
-    Assert.assertEquals("Size of data file list are not equal.", dataFiles.size(), result.dataFiles().length);
+    Assert.assertEquals(
+        "Size of data file list are not equal.", dataFiles.size(), result.dataFiles().length);
     for (int i = 0; i < dataFiles.size(); i++) {
       TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
     }
@@ -156,28 +165,34 @@ public class TestFlinkManifest {
   public void testVersionedSerializer() throws IOException {
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
-    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
+    ManifestOutputFileFactory factory =
+        FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
     List<DeleteFile> eqDeleteFiles = generateEqDeleteFiles(10);
     List<DeleteFile> posDeleteFiles = generatePosDeleteFiles(10);
-    DeltaManifests expected = FlinkManifestUtil.writeCompletedFiles(
-        WriteResult.builder()
-            .addDataFiles(dataFiles)
-            .addDeleteFiles(eqDeleteFiles)
-            .addDeleteFiles(posDeleteFiles)
-            .build(),
-        () -> factory.create(checkpointId), table.spec());
+    DeltaManifests expected =
+        FlinkManifestUtil.writeCompletedFiles(
+            WriteResult.builder()
+                .addDataFiles(dataFiles)
+                .addDeleteFiles(eqDeleteFiles)
+                .addDeleteFiles(posDeleteFiles)
+                .build(),
+            () -> factory.create(checkpointId),
+            table.spec());
 
     byte[] versionedSerializeData =
-        SimpleVersionedSerialization.writeVersionAndSerialize(DeltaManifestsSerializer.INSTANCE, expected);
-    DeltaManifests actual = SimpleVersionedSerialization
-        .readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, versionedSerializeData);
+        SimpleVersionedSerialization.writeVersionAndSerialize(
+            DeltaManifestsSerializer.INSTANCE, expected);
+    DeltaManifests actual =
+        SimpleVersionedSerialization.readVersionAndDeSerialize(
+            DeltaManifestsSerializer.INSTANCE, versionedSerializeData);
     TestHelpers.assertEquals(expected.dataManifest(), actual.dataManifest());
     TestHelpers.assertEquals(expected.deleteManifest(), actual.deleteManifest());
 
     byte[] versionedSerializeData2 =
-        SimpleVersionedSerialization.writeVersionAndSerialize(DeltaManifestsSerializer.INSTANCE, actual);
+        SimpleVersionedSerialization.writeVersionAndSerialize(
+            DeltaManifestsSerializer.INSTANCE, actual);
     Assert.assertArrayEquals(versionedSerializeData, versionedSerializeData2);
   }
 
@@ -186,16 +201,21 @@ public class TestFlinkManifest {
     // The v2 deserializer should be able to deserialize the v1 binary.
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
-    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
+    ManifestOutputFileFactory factory =
+        FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
 
     List<DataFile> dataFiles = generateDataFiles(10);
-    ManifestFile manifest = FlinkManifestUtil.writeDataFiles(factory.create(checkpointId), table.spec(), dataFiles);
-    byte[] dataV1 = SimpleVersionedSerialization.writeVersionAndSerialize(new V1Serializer(), manifest);
+    ManifestFile manifest =
+        FlinkManifestUtil.writeDataFiles(factory.create(checkpointId), table.spec(), dataFiles);
+    byte[] dataV1 =
+        SimpleVersionedSerialization.writeVersionAndSerialize(new V1Serializer(), manifest);
 
     DeltaManifests delta =
-        SimpleVersionedSerialization.readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, dataV1);
+        SimpleVersionedSerialization.readVersionAndDeSerialize(
+            DeltaManifestsSerializer.INSTANCE, dataV1);
     Assert.assertNull("Serialization v1 don't include delete files.", delta.deleteManifest());
-    Assert.assertNotNull("Serialization v1 should not have null data manifest.", delta.dataManifest());
+    Assert.assertNotNull(
+        "Serialization v1 should not have null data manifest.", delta.dataManifest());
     TestHelpers.assertEquals(manifest, delta.dataManifest());
 
     List<DataFile> actualFiles = FlinkManifestUtil.readDataFiles(delta.dataManifest(), table.io());
@@ -224,18 +244,24 @@ public class TestFlinkManifest {
   }
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
-    return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF,
-        tablePath, FileFormat.PARQUET.addExtension(filename), rows);
+    return SimpleDataUtil.writeFile(
+        table.schema(),
+        table.spec(),
+        CONF,
+        tablePath,
+        FileFormat.PARQUET.addExtension(filename),
+        rows);
   }
 
   private DeleteFile writeEqDeleteFile(String filename, List<RowData> deletes) throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
+    return SimpleDataUtil.writeEqDeleteFile(
+        table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
   }
 
   private DeleteFile writePosDeleteFile(String filename, List<Pair<CharSequence, Long>> positions)
       throws IOException {
-    return SimpleDataUtil
-        .writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, positions);
+    return SimpleDataUtil.writePosDeleteFile(
+        table, FileFormat.PARQUET, tablePath, filename, appenderFactory, positions);
   }
 
   private List<DataFile> generateDataFiles(int fileNum) throws IOException {
@@ -253,7 +279,8 @@ public class TestFlinkManifest {
     List<DeleteFile> deleteFiles = Lists.newArrayList();
     for (int i = 0; i < fileNum; i++) {
       rowDataList.add(SimpleDataUtil.createDelete(i, "a" + i));
-      deleteFiles.add(writeEqDeleteFile("eq-delete-file-" + fileCount.incrementAndGet(), rowDataList));
+      deleteFiles.add(
+          writeEqDeleteFile("eq-delete-file-" + fileCount.incrementAndGet(), rowDataList));
     }
     return deleteFiles;
   }
@@ -263,7 +290,8 @@ public class TestFlinkManifest {
     List<DeleteFile> deleteFiles = Lists.newArrayList();
     for (int i = 0; i < fileNum; i++) {
       positions.add(Pair.of("data-file-1", (long) i));
-      deleteFiles.add(writePosDeleteFile("pos-delete-file-" + fileCount.incrementAndGet(), positions));
+      deleteFiles.add(
+          writePosDeleteFile("pos-delete-file-" + fileCount.incrementAndGet(), positions));
     }
     return deleteFiles;
   }

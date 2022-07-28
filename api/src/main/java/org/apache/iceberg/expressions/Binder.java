@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.util.List;
@@ -34,32 +33,30 @@ import org.apache.iceberg.types.Types.StructType;
  * fields in a struct schema.
  */
 public class Binder {
-  private Binder() {
-  }
+  private Binder() {}
 
   /**
    * Replaces all unbound/named references with bound references to fields in the given struct.
-   * <p>
-   * When a reference is resolved, any literal used in a predicate for that field is converted to
+   *
+   * <p>When a reference is resolved, any literal used in a predicate for that field is converted to
    * the field's type using {@link Literal#to(Type)}. If automatic conversion to that type isn't
    * allowed, a {@link ValidationException validation exception} is thrown.
-   * <p>
-   * The result expression may be simplified when constructed. For example, {@code isNull("a")} is
-   * replaced with {@code alwaysFalse()} when {@code "a"} is resolved to a required field.
-   * <p>
-   * The expression cannot contain references that are already bound, or an
-   * {@link IllegalStateException} will be thrown.
+   *
+   * <p>The result expression may be simplified when constructed. For example, {@code isNull("a")}
+   * is replaced with {@code alwaysFalse()} when {@code "a"} is resolved to a required field.
+   *
+   * <p>The expression cannot contain references that are already bound, or an {@link
+   * IllegalStateException} will be thrown.
    *
    * @param struct The {@link StructType struct type} to resolve references by name.
    * @param expr An {@link Expression expression} to rewrite with bound references.
-   * @param caseSensitive A boolean flag to control whether the bind should enforce case sensitivity.
+   * @param caseSensitive A boolean flag to control whether the bind should enforce case
+   *     sensitivity.
    * @return the expression rewritten with bound references
    * @throws ValidationException if literals do not match bound references
    * @throws IllegalStateException if any references are already bound
    */
-  public static Expression bind(StructType struct,
-                                Expression expr,
-                                boolean caseSensitive) {
+  public static Expression bind(StructType struct, Expression expr, boolean caseSensitive) {
     return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive));
   }
 
@@ -67,31 +64,29 @@ public class Binder {
    * Replaces all unbound/named references with bound references to fields in the given struct,
    * defaulting to case sensitive mode.
    *
-   * Access modifier is package-private, to only allow use from existing tests.
+   * <p>Access modifier is package-private, to only allow use from existing tests.
    *
-   * <p>
-   * When a reference is resolved, any literal used in a predicate for that field is converted to
+   * <p>When a reference is resolved, any literal used in a predicate for that field is converted to
    * the field's type using {@link Literal#to(Type)}. If automatic conversion to that type isn't
    * allowed, a {@link ValidationException validation exception} is thrown.
-   * <p>
-   * The result expression may be simplified when constructed. For example, {@code isNull("a")} is
-   * replaced with {@code alwaysFalse()} when {@code "a"} is resolved to a required field.
-   * <p>
-   * The expression cannot contain references that are already bound, or an
-   * {@link IllegalStateException} will be thrown.
+   *
+   * <p>The result expression may be simplified when constructed. For example, {@code isNull("a")}
+   * is replaced with {@code alwaysFalse()} when {@code "a"} is resolved to a required field.
+   *
+   * <p>The expression cannot contain references that are already bound, or an {@link
+   * IllegalStateException} will be thrown.
    *
    * @param struct The {@link StructType struct type} to resolve references by name.
    * @param expr An {@link Expression expression} to rewrite with bound references.
    * @return the expression rewritten with bound references
-   *
    * @throws IllegalStateException if any references are already bound
    */
-  static Expression bind(StructType struct,
-                         Expression expr) {
+  static Expression bind(StructType struct, Expression expr) {
     return Binder.bind(struct, expr, true);
   }
 
-  public static Set<Integer> boundReferences(StructType struct, List<Expression> exprs, boolean caseSensitive) {
+  public static Set<Integer> boundReferences(
+      StructType struct, List<Expression> exprs, boolean caseSensitive) {
     if (exprs == null) {
       return ImmutableSet.of();
     }
@@ -108,8 +103,8 @@ public class Binder {
 
   /**
    * Returns whether an expression is bound.
-   * <p>
-   * An expression is bound if all of its predicates are bound.
+   *
+   * <p>An expression is bound if all of its predicates are bound.
    *
    * @param expr an {@link Expression}
    * @return true if the expression is bound
@@ -228,7 +223,8 @@ public class Binder {
 
     private Boolean combineResults(Boolean isLeftBound, Boolean isRightBound) {
       if (isLeftBound != null) {
-        Preconditions.checkArgument(isRightBound == null || isLeftBound.equals(isRightBound),
+        Preconditions.checkArgument(
+            isRightBound == null || isLeftBound.equals(isRightBound),
             "Found partially bound expression");
         return isLeftBound;
       } else {

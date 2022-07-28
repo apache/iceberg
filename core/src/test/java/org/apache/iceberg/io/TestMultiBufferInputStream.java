@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.nio.ByteBuffer;
@@ -27,15 +26,15 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
-  private static final List<ByteBuffer> DATA = Arrays.asList(
-      ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }),
-      ByteBuffer.wrap(new byte[] { 9, 10, 11, 12 }),
-      ByteBuffer.wrap(new byte[] {  }),
-      ByteBuffer.wrap(new byte[] { 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 }),
-      ByteBuffer.wrap(new byte[] { 25 }),
-      ByteBuffer.wrap(new byte[] { 26, 27, 28, 29, 30, 31, 32 }),
-      ByteBuffer.wrap(new byte[] { 33, 34 })
-  );
+  private static final List<ByteBuffer> DATA =
+      Arrays.asList(
+          ByteBuffer.wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8}),
+          ByteBuffer.wrap(new byte[] {9, 10, 11, 12}),
+          ByteBuffer.wrap(new byte[] {}),
+          ByteBuffer.wrap(new byte[] {13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}),
+          ByteBuffer.wrap(new byte[] {25}),
+          ByteBuffer.wrap(new byte[] {26, 27, 28, 29, 30, 31, 32}),
+          ByteBuffer.wrap(new byte[] {33, 34}));
 
   @Override
   protected ByteBufferInputStream newStream() {
@@ -46,8 +45,7 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
   protected void checkOriginalData() {
     for (ByteBuffer buffer : DATA) {
       Assert.assertEquals("Position should not change", 0, buffer.position());
-      Assert.assertEquals("Limit should not change",
-          buffer.array().length, buffer.limit());
+      Assert.assertEquals("Limit should not change", buffer.array().length, buffer.limit());
     }
   }
 
@@ -71,8 +69,7 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
 
     // one is a view of the first buffer because it is smaller
     ByteBuffer one = buffers.get(0);
-    Assert.assertSame("Should be a duplicate of the first array",
-        one.array(), DATA.get(0).array());
+    Assert.assertSame("Should be a duplicate of the first array", one.array(), DATA.get(0).array());
     Assert.assertEquals(8, one.remaining());
     Assert.assertEquals(0, one.position());
     Assert.assertEquals(8, one.limit());
@@ -93,8 +90,8 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
 
     // three is a copy of part of the 4th buffer
     ByteBuffer three = buffers.get(2);
-    Assert.assertSame("Should be a duplicate of the fourth array",
-        three.array(), DATA.get(3).array());
+    Assert.assertSame(
+        "Should be a duplicate of the fourth array", three.array(), DATA.get(3).array());
     Assert.assertEquals(8, three.remaining());
     Assert.assertEquals(3, three.position());
     Assert.assertEquals(11, three.limit());
@@ -136,7 +133,7 @@ public class TestMultiBufferInputStream extends TestByteBufferInputStreams {
       }
     }
 
-    Assert.assertEquals("Should return duplicates of all non-empty buffers",
-        nonEmptyBuffers, buffers);
+    Assert.assertEquals(
+        "Should return duplicates of all non-empty buffers", nonEmptyBuffers, buffers);
   }
 }

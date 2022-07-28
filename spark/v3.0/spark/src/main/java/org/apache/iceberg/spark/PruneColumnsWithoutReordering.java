@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.List;
@@ -68,7 +67,8 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
 
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldResults) {
-    Preconditions.checkNotNull(struct, "Cannot prune null struct. Pruning must start with a schema.");
+    Preconditions.checkNotNull(
+        struct, "Cannot prune null struct. Pruning must start with a schema.");
     Preconditions.checkArgument(current instanceof StructType, "Not a struct: %s", current);
 
     List<Types.NestedField> fields = struct.fields();
@@ -120,8 +120,10 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
     int fieldIndex = requestedStruct.fieldIndex(field.name());
     StructField requestedField = requestedStruct.fields()[fieldIndex];
 
-    Preconditions.checkArgument(requestedField.nullable() || field.isRequired(),
-        "Cannot project an optional field as non-null: %s", field.name());
+    Preconditions.checkArgument(
+        requestedField.nullable() || field.isRequired(),
+        "Cannot project an optional field as non-null: %s",
+        field.name());
 
     this.current = requestedField.dataType();
     try {
@@ -139,8 +141,10 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
     Preconditions.checkArgument(current instanceof ArrayType, "Not an array: %s", current);
     ArrayType requestedArray = (ArrayType) current;
 
-    Preconditions.checkArgument(requestedArray.containsNull() || !list.isElementOptional(),
-        "Cannot project an array of optional elements as required elements: %s", requestedArray);
+    Preconditions.checkArgument(
+        requestedArray.containsNull() || !list.isElementOptional(),
+        "Cannot project an array of optional elements as required elements: %s",
+        requestedArray);
 
     this.current = requestedArray.elementType();
     try {
@@ -165,8 +169,10 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
     Preconditions.checkArgument(current instanceof MapType, "Not a map: %s", current);
     MapType requestedMap = (MapType) current;
 
-    Preconditions.checkArgument(requestedMap.valueContainsNull() || !map.isValueOptional(),
-        "Cannot project a map of optional values as required values: %s", map);
+    Preconditions.checkArgument(
+        requestedMap.valueContainsNull() || !map.isValueOptional(),
+        "Cannot project a map of optional values as required values: %s",
+        map);
 
     this.current = requestedMap.valueType();
     try {
@@ -188,19 +194,27 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
     Class<? extends DataType> expectedType = TYPES.get(primitive.typeId());
-    Preconditions.checkArgument(expectedType != null && expectedType.isInstance(current),
-        "Cannot project %s to incompatible type: %s", primitive, current);
+    Preconditions.checkArgument(
+        expectedType != null && expectedType.isInstance(current),
+        "Cannot project %s to incompatible type: %s",
+        primitive,
+        current);
 
     // additional checks based on type
     switch (primitive.typeId()) {
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         DecimalType requestedDecimal = (DecimalType) current;
-        Preconditions.checkArgument(requestedDecimal.scale() == decimal.scale(),
-            "Cannot project decimal with incompatible scale: %s != %s", requestedDecimal.scale(), decimal.scale());
-        Preconditions.checkArgument(requestedDecimal.precision() >= decimal.precision(),
+        Preconditions.checkArgument(
+            requestedDecimal.scale() == decimal.scale(),
+            "Cannot project decimal with incompatible scale: %s != %s",
+            requestedDecimal.scale(),
+            decimal.scale());
+        Preconditions.checkArgument(
+            requestedDecimal.precision() >= decimal.precision(),
             "Cannot project decimal with incompatible precision: %s < %s",
-            requestedDecimal.precision(), decimal.precision());
+            requestedDecimal.precision(),
+            decimal.precision());
         break;
       default:
     }
@@ -208,19 +222,19 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
     return primitive;
   }
 
-  private static final ImmutableMap<TypeID, Class<? extends DataType>> TYPES = ImmutableMap
-      .<TypeID, Class<? extends DataType>>builder()
-      .put(TypeID.BOOLEAN, BooleanType.class)
-      .put(TypeID.INTEGER, IntegerType.class)
-      .put(TypeID.LONG, LongType.class)
-      .put(TypeID.FLOAT, FloatType.class)
-      .put(TypeID.DOUBLE, DoubleType.class)
-      .put(TypeID.DATE, DateType.class)
-      .put(TypeID.TIMESTAMP, TimestampType.class)
-      .put(TypeID.DECIMAL, DecimalType.class)
-      .put(TypeID.UUID, StringType.class)
-      .put(TypeID.STRING, StringType.class)
-      .put(TypeID.FIXED, BinaryType.class)
-      .put(TypeID.BINARY, BinaryType.class)
-      .build();
+  private static final ImmutableMap<TypeID, Class<? extends DataType>> TYPES =
+      ImmutableMap.<TypeID, Class<? extends DataType>>builder()
+          .put(TypeID.BOOLEAN, BooleanType.class)
+          .put(TypeID.INTEGER, IntegerType.class)
+          .put(TypeID.LONG, LongType.class)
+          .put(TypeID.FLOAT, FloatType.class)
+          .put(TypeID.DOUBLE, DoubleType.class)
+          .put(TypeID.DATE, DateType.class)
+          .put(TypeID.TIMESTAMP, TimestampType.class)
+          .put(TypeID.DECIMAL, DecimalType.class)
+          .put(TypeID.UUID, StringType.class)
+          .put(TypeID.STRING, StringType.class)
+          .put(TypeID.FIXED, BinaryType.class)
+          .put(TypeID.BINARY, BinaryType.class)
+          .build();
 }

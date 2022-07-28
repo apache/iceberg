@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.List;
@@ -58,10 +57,12 @@ public interface ExtendedParser extends ParserInterface {
       try {
         return parser.parseSortOrder(orderString);
       } catch (AnalysisException e) {
-        throw new IllegalArgumentException(String.format("Unable to parse sortOrder: %s", orderString), e);
+        throw new IllegalArgumentException(
+            String.format("Unable to parse sortOrder: %s", orderString), e);
       }
     } else {
-      throw new IllegalStateException("Cannot parse order: parser is not an Iceberg ExtendedParser");
+      throw new IllegalStateException(
+          "Cannot parse order: parser is not an Iceberg ExtendedParser");
     }
   }
 

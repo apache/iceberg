@@ -16,20 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.function.Predicate;
 import org.apache.iceberg.ManifestFile;
 
-/**
- * An action that rewrites manifests.
- */
-public interface RewriteManifests extends SnapshotUpdate<RewriteManifests, RewriteManifests.Result> {
+/** An action that rewrites manifests. */
+public interface RewriteManifests
+    extends SnapshotUpdate<RewriteManifests, RewriteManifests.Result> {
   /**
    * Rewrites manifests for a given spec id.
-   * <p>
-   * If not set, defaults to the table's default spec ID.
+   *
+   * <p>If not set, defaults to the table's default spec ID.
    *
    * @param specId a spec id
    * @return this for method chaining
@@ -38,8 +36,8 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests, Rewri
 
   /**
    * Rewrites only manifests that match the given predicate.
-   * <p>
-   * If not set, all manifests will be rewritten.
+   *
+   * <p>If not set, all manifests will be rewritten.
    *
    * @param predicate a predicate
    * @return this for method chaining
@@ -48,26 +46,20 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests, Rewri
 
   /**
    * Passes a location where the staged manifests should be written.
-   * <p>
-   * If not set, defaults to the table's metadata location.
+   *
+   * <p>If not set, defaults to the table's metadata location.
    *
    * @param stagingLocation a staging location
    * @return this for method chaining
    */
   RewriteManifests stagingLocation(String stagingLocation);
 
-  /**
-   * The action result that contains a summary of the execution.
-   */
+  /** The action result that contains a summary of the execution. */
   interface Result {
-    /**
-     * Returns rewritten manifests.
-     */
+    /** Returns rewritten manifests. */
     Iterable<ManifestFile> rewrittenManifests();
 
-    /**
-     * Returns added manifests.
-     */
+    /** Returns added manifests. */
     Iterable<ManifestFile> addedManifests();
   }
 }
