@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,6 +38,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
@@ -168,56 +169,42 @@ public class S3FileIO
   @Override
   public void deleteFiles(Iterable<String> paths) throws BulkDeletionFailureException {
     if (awsProperties.s3DeleteTags() != null && !awsProperties.s3DeleteTags().isEmpty()) {
+      Set<Tag> deleteTags = awsProperties.s3DeleteTags();
       Tasks.foreach(paths)
           .noRetry()
           .executeWith(executorService())
           .suppressFailureWhenFinished()
           .onFailure(
-              (path, exc) ->
-                  LOG.warn(
-                      "Failed to add delete tags: {} to {}",
-                      awsProperties.s3DeleteTags(),
-                      path,
-                      exc))
-          .run(path -> tagFileToDelete(path, awsProperties.s3DeleteTags()));
+              (path, exc) -> LOG.warn("Failed to add delete tags: {} to {}", deleteTags, path, exc))
+          .run(path -> tagFileToDelete(path, deleteTags));
     }
 
-    if (!awsProperties.isS3DeleteEnabled()) {
-      return;
+    if (awsProperties.isS3DeleteEnabled()) {
+      SetMultimap<String, String> bucketToObjects = computeBucketToObjects(paths);
+      List<String> failures = Collections.synchronizedList(Lists.newArrayList());
+      bucketToObjects
+          .asMap()
+          .entrySet()
+          .forEach(
+              bucketToObjectsEntry ->
+                  batchDeleteObjects(
+                      bucketToObjectsEntry.getKey(), bucketToObjectsEntry.getValue(), failures));
+      if (!failures.isEmpty()) {
+        throw new BulkDeletionFailureException(failures.size());
+      }
     }
+  }
 
+  private SetMultimap<String, String> computeBucketToObjects(Iterable<String> paths) {
     SetMultimap<String, String> bucketToObjects =
         Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
-    int numberOfFailedDeletions = 0;
     for (String path : paths) {
       S3URI location = new S3URI(path, awsProperties.s3BucketToAccessPointMapping());
       String bucket = location.bucket();
       String objectKey = location.key();
-      Set<String> objectsInBucket = bucketToObjects.get(bucket);
-      if (objectsInBucket.size() == awsProperties.s3FileIoDeleteBatchSize()) {
-        List<String> failedDeletionsForBatch = deleteObjectsInBucket(bucket, objectsInBucket);
-        numberOfFailedDeletions += failedDeletionsForBatch.size();
-        failedDeletionsForBatch.forEach(
-            failedPath -> LOG.warn("Failed to delete object at path {}", failedPath));
-        bucketToObjects.removeAll(bucket);
-      }
       bucketToObjects.get(bucket).add(objectKey);
     }
-
-    // Delete the remainder
-    for (Map.Entry<String, Collection<String>> bucketToObjectsEntry :
-        bucketToObjects.asMap().entrySet()) {
-      final String bucket = bucketToObjectsEntry.getKey();
-      final Collection<String> objects = bucketToObjectsEntry.getValue();
-      List<String> failedDeletions = deleteObjectsInBucket(bucket, objects);
-      failedDeletions.forEach(
-          failedPath -> LOG.warn("Failed to delete object at path {}", failedPath));
-      numberOfFailedDeletions += failedDeletions.size();
-    }
-
-    if (numberOfFailedDeletions > 0) {
-      throw new BulkDeletionFailureException(numberOfFailedDeletions);
-    }
+    return bucketToObjects;
   }
 
   private void tagFileToDelete(String path, Set<Tag> deleteTags) throws S3Exception {
@@ -244,26 +231,34 @@ public class S3FileIO
     client().putObjectTagging(putObjectTaggingRequest);
   }
 
-  private List<String> deleteObjectsInBucket(String bucket, Collection<String> objects) {
-    if (!objects.isEmpty()) {
-      List<ObjectIdentifier> objectIds =
-          objects.stream()
-              .map(objectKey -> ObjectIdentifier.builder().key(objectKey).build())
-              .collect(Collectors.toList());
-      DeleteObjectsRequest deleteObjectsRequest =
-          DeleteObjectsRequest.builder()
-              .bucket(bucket)
-              .delete(Delete.builder().objects(objectIds).build())
-              .build();
-      DeleteObjectsResponse response = client().deleteObjects(deleteObjectsRequest);
-      if (response.hasErrors()) {
-        return response.errors().stream()
-            .map(error -> String.format("s3://%s/%s", bucket, error.key()))
-            .collect(Collectors.toList());
-      }
-    }
+  // Helper to batch delete objects in a single bucket
+  private List<String> batchDeleteObjects(
+      String bucket, Iterable<String> objects, List<String> failures)
+      throws BulkDeletionFailureException {
+    Iterable<List<String>> batches =
+        Iterables.partition(objects, awsProperties.s3FileIoDeleteBatchSize());
+    Tasks.foreach(batches)
+        .executeWith(executorService())
+        .noRetry()
+        .run(batch -> deleteObjects(bucket, batch, failures));
+    return failures;
+  }
 
-    return Lists.newArrayList();
+  private void deleteObjects(String bucket, Iterable<String> objects, List<String> failures) {
+    List<ObjectIdentifier> objectIds = Lists.newArrayList();
+    objects.forEach(key -> objectIds.add(ObjectIdentifier.builder().key(key).build()));
+    DeleteObjectsRequest deleteObjectsRequest =
+        DeleteObjectsRequest.builder()
+            .bucket(bucket)
+            .delete(Delete.builder().objects(objectIds).build())
+            .build();
+    DeleteObjectsResponse response = client().deleteObjects(deleteObjectsRequest);
+    if (response.hasErrors()) {
+      failures.addAll(
+          response.errors().stream()
+              .map(error -> String.format("s3://%s/%s", bucket, error.key()))
+              .collect(Collectors.toList()));
+    }
   }
 
   @Override

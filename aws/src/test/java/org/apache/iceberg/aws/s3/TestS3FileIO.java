@@ -81,7 +81,9 @@ public class TestS3FileIO {
           "s3.write.tags.tagKey1",
           "TagValue1",
           "s3.delete.batch-size",
-          Integer.toString(batchDeletionSize));
+          Integer.toString(batchDeletionSize),
+          "s3.delete.num-threads",
+          "1");
 
   @Before
   public void before() {
