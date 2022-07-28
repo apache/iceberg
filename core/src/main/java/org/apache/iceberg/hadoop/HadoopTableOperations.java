@@ -45,9 +45,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.FileIOUtil;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -427,15 +428,13 @@ public class HadoopTableOperations implements TableOperations {
       Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
           Sets.newHashSet(base.previousFiles());
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      Tasks.foreach(removedPreviousMetadataFiles)
+      Iterable<String> removedFiles =
+          Iterables.transform(removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file);
+
+      FileIOUtil.bulkDelete(io(), removedFiles)
+          .name("previous metadata file")
           .executeWith(ThreadPools.getWorkerPool())
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure(
-              (previousMetadataFile, exc) ->
-                  LOG.warn(
-                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+          .execute();
     }
   }
 

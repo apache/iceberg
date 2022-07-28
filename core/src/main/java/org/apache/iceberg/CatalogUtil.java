@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +30,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
@@ -38,8 +38,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.FileIOUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +92,7 @@ public class CatalogUtil {
 
     LOG.info("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
 
-    // run all of the deletes
+    // run all the deletes
 
     boolean gcEnabled =
         PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
@@ -102,37 +102,26 @@ public class CatalogUtil {
       deleteFiles(io, manifestsToDelete);
     }
 
-    Tasks.foreach(Iterables.transform(manifestsToDelete, ManifestFile::path))
+    FileIOUtil.bulkDelete(io, Iterables.transform(manifestsToDelete, ManifestFile::path))
+        .name("manifest")
         .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
-        .run(io::deleteFile);
+        .execute();
 
-    Tasks.foreach(manifestListsToDelete)
+    FileIOUtil.bulkDelete(io, manifestListsToDelete)
+        .name("manifest list")
         .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
-        .run(io::deleteFile);
+        .execute();
 
-    Tasks.foreach(
-            Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file))
+    FileIOUtil.bulkDelete(
+            io, Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file))
+        .name("previous metadata file")
         .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (metadataFile, exc) ->
-                LOG.warn("Delete failed for previous metadata file: {}", metadataFile, exc))
-        .run(io::deleteFile);
+        .execute();
 
-    Tasks.foreach(metadata.metadataFileLocation())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (metadataFile, exc) ->
-                LOG.warn("Delete failed for metadata file: {}", metadataFile, exc))
-        .run(io::deleteFile);
+    FileIOUtil.bulkDelete(io, metadata.metadataFileLocation())
+        .name("metadata file")
+        .executeWith(ThreadPools.getWorkerPool())
+        .execute();
   }
 
   @SuppressWarnings("DangerousStringInternUsage")
@@ -141,35 +130,33 @@ public class CatalogUtil {
     Map<String, Boolean> deletedFiles =
         new MapMaker().concurrencyLevel(ThreadPools.WORKER_THREAD_POOL_SIZE).weakKeys().makeMap();
 
-    Tasks.foreach(allManifests)
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
-        .onFailure(
-            (item, exc) ->
-                LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
-        .run(
-            manifest -> {
-              try (ManifestReader<?> reader = ManifestFiles.open(manifest, io)) {
-                for (ManifestEntry<?> entry : reader.entries()) {
-                  // intern the file path because the weak key map uses identity (==) instead of
-                  // equals
-                  String path = entry.file().path().toString().intern();
-                  Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
-                  if (alreadyDeleted == null || !alreadyDeleted) {
-                    try {
-                      io.deleteFile(path);
-                    } catch (RuntimeException e) {
-                      // this may happen if the map of deleted files gets cleaned up by gc
-                      LOG.warn("Delete failed for data file: {}", path, e);
-                    }
+    Iterable<String> removedFiles =
+        Iterables.concat(
+            Iterables.transform(
+                allManifests,
+                manifest -> {
+                  try (ManifestReader<?> reader = ManifestFiles.open(manifest, io)) {
+                    Iterable<String> paths =
+                        // intern the file path because the weak key map uses identity (==)
+                        // instead of equals
+                        Iterables.transform(
+                            reader.entries(), entry -> entry.file().path().toString().intern());
+                    return Iterables.filter(
+                        paths,
+                        path -> {
+                          Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
+                          return alreadyDeleted == null || !alreadyDeleted;
+                        });
+                  } catch (IOException e) {
+                    throw new UncheckedIOException(
+                        "Failed to read manifest file: " + manifest.path(), e);
                   }
-                }
-              } catch (IOException e) {
-                throw new RuntimeIOException(
-                    e, "Failed to read manifest file: %s", manifest.path());
-              }
-            });
+                }));
+
+    FileIOUtil.bulkDelete(io, removedFiles)
+        .name("data file")
+        .executeWith(ThreadPools.getWorkerPool())
+        .execute();
   }
 
   /**

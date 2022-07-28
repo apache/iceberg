@@ -53,8 +53,8 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.FileIOUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
@@ -322,12 +322,7 @@ public class RewriteManifestsSparkAction
   }
 
   private void deleteFiles(Iterable<String> locations) {
-    Tasks.foreach(locations)
-        .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-        .run(fileIO::deleteFile);
+    FileIOUtil.bulkDelete(fileIO, locations).executeWith(ThreadPools.getWorkerPool()).execute();
   }
 
   private static ManifestFile writeManifest(

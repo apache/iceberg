@@ -61,10 +61,7 @@ import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.CharSequenceSet;
-import org.apache.iceberg.util.StructProjection;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
+import org.apache.iceberg.util.*;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -144,11 +141,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   }
 
   private static <T extends ContentFile<T>> void cleanFiles(FileIO io, Iterable<T> files) {
-    Tasks.foreach(files)
-        .executeWith(ThreadPools.getWorkerPool())
-        .throwFailureWhenFinished()
-        .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
+    FileIOUtil.bulkDeleteFiles(io, files).executeWith(ThreadPools.getWorkerPool()).execute();
   }
 
   private class PositionDeltaBatchWrite implements DeltaBatchWrite {
