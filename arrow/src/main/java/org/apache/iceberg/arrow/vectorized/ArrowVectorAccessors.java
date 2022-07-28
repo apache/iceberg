@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow.vectorized;
 
 import java.nio.ByteBuffer;
@@ -30,12 +29,12 @@ final class ArrowVectorAccessors {
   private static final GenericArrowVectorAccessorFactory<?, String, ?, ?> factory;
 
   static {
-    factory = new GenericArrowVectorAccessorFactory<>(
-        throwingSupplier("Decimal type is not supported"),
-        JavaStringFactory::new,
-        throwingSupplier("Struct type is not supported"),
-        throwingSupplier("List type is not supported")
-    );
+    factory =
+        new GenericArrowVectorAccessorFactory<>(
+            throwingSupplier("Decimal type is not supported"),
+            JavaStringFactory::new,
+            throwingSupplier("Struct type is not supported"),
+            throwingSupplier("List type is not supported"));
   }
 
   private static <T> Supplier<T> throwingSupplier(String message) {
@@ -45,7 +44,8 @@ final class ArrowVectorAccessors {
   }
 
   private ArrowVectorAccessors() {
-    throw new UnsupportedOperationException(ArrowVectorAccessors.class.getName() + " cannot be instantiated.");
+    throw new UnsupportedOperationException(
+        ArrowVectorAccessors.class.getName() + " cannot be instantiated.");
   }
 
   static ArrowVectorAccessor<?, String, ?, ?> getVectorAccessor(VectorHolder holder) {
@@ -71,8 +71,11 @@ final class ArrowVectorAccessors {
     @Override
     public String ofByteBuffer(ByteBuffer byteBuffer) {
       if (byteBuffer.hasArray()) {
-        return new String(byteBuffer.array(), byteBuffer.arrayOffset() + byteBuffer.position(),
-            byteBuffer.remaining(), StandardCharsets.UTF_8);
+        return new String(
+            byteBuffer.array(),
+            byteBuffer.arrayOffset() + byteBuffer.position(),
+            byteBuffer.remaining(),
+            StandardCharsets.UTF_8);
       }
       byte[] bytes = new byte[byteBuffer.remaining()];
       byteBuffer.get(bytes);

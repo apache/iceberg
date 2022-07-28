@@ -16,18 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
-
-import java.util.Map;
-import org.apache.iceberg.IsolationLevel;
-import org.apache.iceberg.RowLevelOperationMode;
-import org.apache.iceberg.Table;
-import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.write.RowLevelOperation;
-import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
-import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
-import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
@@ -41,6 +30,16 @@ import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL_DEFAULT;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
+
+import java.util.Map;
+import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.Table;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.write.RowLevelOperation;
+import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
+import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
+import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 
 class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
 

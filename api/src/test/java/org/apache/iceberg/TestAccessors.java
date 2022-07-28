@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -30,9 +32,6 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestAccessors {
 
   private static Accessor<StructLike> direct(Type type) {
@@ -41,40 +40,92 @@ public class TestAccessors {
   }
 
   private static Accessor<StructLike> nested1(Type type) {
-    Schema schema = new Schema(required(11, "struct1", Types.StructType.of(
-        Types.NestedField.required(17, "field_" + type.typeId(), type))));
+    Schema schema =
+        new Schema(
+            required(
+                11,
+                "struct1",
+                Types.StructType.of(
+                    Types.NestedField.required(17, "field_" + type.typeId(), type))));
     return schema.accessorForField(17);
   }
 
   private static Accessor<StructLike> nested2(Type type) {
-    Schema schema = new Schema(required(11, "s", Types.StructType.of(
-        Types.NestedField.required(22, "s2", Types.StructType.of(
-            Types.NestedField.required(17, "field_" + type.typeId(), type))))));
+    Schema schema =
+        new Schema(
+            required(
+                11,
+                "s",
+                Types.StructType.of(
+                    Types.NestedField.required(
+                        22,
+                        "s2",
+                        Types.StructType.of(
+                            Types.NestedField.required(17, "field_" + type.typeId(), type))))));
     return schema.accessorForField(17);
   }
 
   private static Accessor<StructLike> nested3(Type type) {
-    Schema schema = new Schema(required(11, "s", Types.StructType.of(
-        Types.NestedField.required(22, "s2", Types.StructType.of(
-            Types.NestedField.required(33, "s3", Types.StructType.of(
-                Types.NestedField.required(17, "field_" + type.typeId(), type))))))));
+    Schema schema =
+        new Schema(
+            required(
+                11,
+                "s",
+                Types.StructType.of(
+                    Types.NestedField.required(
+                        22,
+                        "s2",
+                        Types.StructType.of(
+                            Types.NestedField.required(
+                                33,
+                                "s3",
+                                Types.StructType.of(
+                                    Types.NestedField.required(
+                                        17, "field_" + type.typeId(), type))))))));
     return schema.accessorForField(17);
   }
 
   private static Accessor<StructLike> nested3optional(Type type) {
-    Schema schema = new Schema(optional(11, "s", Types.StructType.of(
-        Types.NestedField.optional(22, "s2", Types.StructType.of(
-            Types.NestedField.optional(33, "s3", Types.StructType.of(
-                Types.NestedField.optional(17, "field_" + type.typeId(), type))))))));
+    Schema schema =
+        new Schema(
+            optional(
+                11,
+                "s",
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        22,
+                        "s2",
+                        Types.StructType.of(
+                            Types.NestedField.optional(
+                                33,
+                                "s3",
+                                Types.StructType.of(
+                                    Types.NestedField.optional(
+                                        17, "field_" + type.typeId(), type))))))));
     return schema.accessorForField(17);
   }
 
   private static Accessor<StructLike> nested4(Type type) {
-    Schema schema = new Schema(required(11, "s", Types.StructType.of(
-        Types.NestedField.required(22, "s2", Types.StructType.of(
-            Types.NestedField.required(33, "s3", Types.StructType.of(
-                Types.NestedField.required(44, "s4", Types.StructType.of(
-                    Types.NestedField.required(17, "field_" + type.typeId(), type))))))))));
+    Schema schema =
+        new Schema(
+            required(
+                11,
+                "s",
+                Types.StructType.of(
+                    Types.NestedField.required(
+                        22,
+                        "s2",
+                        Types.StructType.of(
+                            Types.NestedField.required(
+                                33,
+                                "s3",
+                                Types.StructType.of(
+                                    Types.NestedField.required(
+                                        44,
+                                        "s4",
+                                        Types.StructType.of(
+                                            Types.NestedField.required(
+                                                17, "field_" + type.typeId(), type))))))))));
     return schema.accessorForField(17);
   }
 
@@ -158,8 +209,10 @@ public class TestAccessors {
 
   @Test
   public void testList() {
-    assertAccessorReturns(Types.ListType.ofRequired(18, Types.IntegerType.get()), ImmutableList.of(1, 2, 3));
-    assertAccessorReturns(Types.ListType.ofRequired(18, Types.StringType.get()), ImmutableList.of("a", "b", "c"));
+    assertAccessorReturns(
+        Types.ListType.ofRequired(18, Types.IntegerType.get()), ImmutableList.of(1, 2, 3));
+    assertAccessorReturns(
+        Types.ListType.ofRequired(18, Types.StringType.get()), ImmutableList.of("a", "b", "c"));
   }
 
   @Test
@@ -181,8 +234,7 @@ public class TestAccessors {
   @Test
   public void testEmptyStructAsObject() {
     assertAccessorReturns(
-        Types.StructType.of(
-            Types.NestedField.optional(19, "int19", Types.IntegerType.get())),
+        Types.StructType.of(Types.NestedField.optional(19, "int19", Types.IntegerType.get())),
         Row.of());
 
     assertAccessorReturns(Types.StructType.of(), Row.of());

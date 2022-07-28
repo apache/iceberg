@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -39,23 +38,27 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
   @Test
   // Test cases that are JSON that can be created via the Builder
   public void testRoundTripSerDe() throws JsonProcessingException {
-    String fullJson = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":{\"owner\":\"Hank\"}}";
-    CreateNamespaceRequest req = CreateNamespaceRequest.builder()
-        .withNamespace(NAMESPACE).setProperties(PROPERTIES).build();
+    String fullJson =
+        "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":{\"owner\":\"Hank\"}}";
+    CreateNamespaceRequest req =
+        CreateNamespaceRequest.builder().withNamespace(NAMESPACE).setProperties(PROPERTIES).build();
     assertRoundTripSerializesEquallyFrom(fullJson, req);
 
     String jsonEmptyProperties = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":{}}";
-    CreateNamespaceRequest reqWithExplicitEmptyProperties = CreateNamespaceRequest.builder()
-        .withNamespace(NAMESPACE).setProperties(EMPTY_PROPERTIES).build();
+    CreateNamespaceRequest reqWithExplicitEmptyProperties =
+        CreateNamespaceRequest.builder()
+            .withNamespace(NAMESPACE)
+            .setProperties(EMPTY_PROPERTIES)
+            .build();
     assertRoundTripSerializesEquallyFrom(jsonEmptyProperties, reqWithExplicitEmptyProperties);
 
-    CreateNamespaceRequest reqWithImplicitEmptyProperties = CreateNamespaceRequest.builder()
-        .withNamespace(NAMESPACE).build();
+    CreateNamespaceRequest reqWithImplicitEmptyProperties =
+        CreateNamespaceRequest.builder().withNamespace(NAMESPACE).build();
     assertRoundTripSerializesEquallyFrom(jsonEmptyProperties, reqWithImplicitEmptyProperties);
 
     String jsonWithEmptyNamespace = "{\"namespace\":[],\"properties\":{}}";
-    CreateNamespaceRequest reqUsingEmptyNamespace = CreateNamespaceRequest.builder()
-        .withNamespace(Namespace.empty()).build();
+    CreateNamespaceRequest reqUsingEmptyNamespace =
+        CreateNamespaceRequest.builder().withNamespace(Namespace.empty()).build();
     assertRoundTripSerializesEquallyFrom(jsonWithEmptyNamespace, reqUsingEmptyNamespace);
   }
 
@@ -72,42 +75,40 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
 
   @Test
   public void testDeserializeInvalidRequest() {
-    String jsonIncorrectTypeForNamespace = "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
+    String jsonIncorrectTypeForNamespace =
+        "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
     AssertHelpers.assertThrows(
         "A JSON request with incorrect types for fields should fail to deserialize and validate",
         JsonProcessingException.class,
         "Cannot parse string array from non-array",
-        () -> deserialize(jsonIncorrectTypeForNamespace)
-    );
+        () -> deserialize(jsonIncorrectTypeForNamespace));
 
-    String jsonIncorrectTypeForProperties = "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";
+    String jsonIncorrectTypeForProperties =
+        "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";
     AssertHelpers.assertThrows(
         "A JSON request with incorrect types for fields should fail to parse and validate",
         JsonProcessingException.class,
-        () -> deserialize(jsonIncorrectTypeForProperties)
-    );
+        () -> deserialize(jsonIncorrectTypeForProperties));
 
-    String jsonMisspelledKeys = "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
+    String jsonMisspelledKeys =
+        "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
     AssertHelpers.assertThrows(
         "A JSON request with the keys spelled incorrectly should fail to deserialize and validate",
         IllegalArgumentException.class,
         "Invalid namespace: null",
-        () -> deserialize(jsonMisspelledKeys)
-    );
+        () -> deserialize(jsonMisspelledKeys));
 
     String emptyJson = "{}";
     AssertHelpers.assertThrows(
         "An empty JSON object should not parse into a CreateNamespaceRequest instance that passes validation",
         IllegalArgumentException.class,
         "Invalid namespace: null",
-        () -> deserialize(emptyJson)
-    );
+        () -> deserialize(emptyJson));
 
     AssertHelpers.assertThrows(
         "An empty JSON request should fail to deserialize",
         IllegalArgumentException.class,
-        () -> deserialize(null)
-    );
+        () -> deserialize(null));
   }
 
   @Test
@@ -116,15 +117,13 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
         "The builder should not allow using null for the namespace",
         NullPointerException.class,
         "Invalid namespace: null",
-        () -> CreateNamespaceRequest.builder().withNamespace(null).build()
-    );
+        () -> CreateNamespaceRequest.builder().withNamespace(null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null collection of properties",
         NullPointerException.class,
         "Invalid collection of properties: null",
-        () -> CreateNamespaceRequest.builder().setProperties(null).build()
-    );
+        () -> CreateNamespaceRequest.builder().setProperties(null).build());
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
@@ -132,8 +131,7 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
         "The builder should not allow using null as a key in the properties to set",
         IllegalArgumentException.class,
         "Invalid property: null",
-        () -> CreateNamespaceRequest.builder().setProperties(mapWithNullKey).build()
-    );
+        () -> CreateNamespaceRequest.builder().setProperties(mapWithNullKey).build());
 
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
     mapWithMultipleNullValues.put("a", null);
@@ -142,8 +140,7 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
         "The builder should not allow using null as a value in the properties to set",
         IllegalArgumentException.class,
         "Invalid value for properties [a]: null",
-        () -> CreateNamespaceRequest.builder().setProperties(mapWithMultipleNullValues).build()
-    );
+        () -> CreateNamespaceRequest.builder().setProperties(mapWithMultipleNullValues).build());
   }
 
   @Override

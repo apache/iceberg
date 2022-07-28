@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
@@ -51,7 +50,6 @@ class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
 
   @Override
   public EncryptionKeyMetadata copy() {
-    return new BaseEncryptionKeyMetadata(
-        ByteBuffers.copy(keyMetadata));
+    return new BaseEncryptionKeyMetadata(ByteBuffers.copy(keyMetadata));
   }
 }

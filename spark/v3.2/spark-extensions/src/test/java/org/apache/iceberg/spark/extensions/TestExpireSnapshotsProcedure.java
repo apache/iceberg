@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 import java.io.IOException;
 import java.sql.Timestamp;
@@ -45,11 +46,10 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.TableProperties.GC_ENABLED;
-
 public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
-  public TestExpireSnapshotsProcedure(String catalogName, String implementation, Map<String, String> config) {
+  public TestExpireSnapshotsProcedure(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -62,9 +62,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
   public void testExpireSnapshotsInEmptyTable() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    List<Object[]> output = sql(
-        "CALL %s.system.expire_snapshots('%s')",
-        catalogName, tableIdent);
+    List<Object[]> output = sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent);
     assertEquals("Should not delete any files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L)), output);
   }
 
@@ -83,17 +81,17 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     table.refresh();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    Timestamp secondSnapshotTimestamp = Timestamp.from(Instant.ofEpochMilli(secondSnapshot.timestampMillis()));
+    Timestamp secondSnapshotTimestamp =
+        Timestamp.from(Instant.ofEpochMilli(secondSnapshot.timestampMillis()));
 
     Assert.assertEquals("Should be 2 snapshots", 2, Iterables.size(table.snapshots()));
 
     // expire without retainLast param
-    List<Object[]> output1 = sql(
-        "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s')",
-        catalogName, tableIdent, secondSnapshotTimestamp);
-    assertEquals("Procedure output must match",
-        ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)),
-        output1);
+    List<Object[]> output1 =
+        sql(
+            "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s')",
+            catalogName, tableIdent, secondSnapshotTimestamp);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output1);
 
     table.refresh();
 
@@ -101,7 +99,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT OVERWRITE %s VALUES (3, 'c')", tableName);
     sql("INSERT INTO TABLE %s VALUES (4, 'd')", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(3L, "c"), row(4L, "d")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -114,12 +113,11 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals("Should be 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     // expire with retainLast param
-    List<Object[]> output = sql(
-        "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s', 2)",
-        catalogName, tableIdent, currentTimestamp);
-    assertEquals("Procedure output must match",
-        ImmutableList.of(row(2L, 0L, 0L, 2L, 1L)),
-        output);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s', 2)",
+            catalogName, tableIdent, currentTimestamp);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 0L, 0L, 2L, 1L)), output);
   }
 
   @Test
@@ -137,15 +135,14 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
 
-    List<Object[]> output = sql(
-        "CALL %s.system.expire_snapshots(" +
-            "older_than => TIMESTAMP '%s'," +
-            "table => '%s'," +
-            "retain_last => 1)",
-        catalogName, currentTimestamp, tableIdent);
-    assertEquals("Procedure output must match",
-        ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)),
-        output);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "older_than => TIMESTAMP '%s',"
+                + "table => '%s',"
+                + "retain_last => 1)",
+            catalogName, currentTimestamp, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output);
   }
 
   @Test
@@ -154,31 +151,43 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, GC_ENABLED);
 
-    AssertHelpers.assertThrows("Should reject call",
-        ValidationException.class, "Cannot expire snapshots: GC is disabled",
+    AssertHelpers.assertThrows(
+        "Should reject call",
+        ValidationException.class,
+        "Cannot expire snapshots: GC is disabled",
         () -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent));
   }
 
   @Test
   public void testInvalidExpireSnapshotsCases() {
-    AssertHelpers.assertThrows("Should not allow mixed args",
-        AnalysisException.class, "Named and positional arguments cannot be mixed",
+    AssertHelpers.assertThrows(
+        "Should not allow mixed args",
+        AnalysisException.class,
+        "Named and positional arguments cannot be mixed",
         () -> sql("CALL %s.system.expire_snapshots('n', table => 't')", catalogName));
 
-    AssertHelpers.assertThrows("Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class, "not found",
+    AssertHelpers.assertThrows(
+        "Should not resolve procedures in arbitrary namespaces",
+        NoSuchProcedureException.class,
+        "not found",
         () -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.expire_snapshots()", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type",
+    AssertHelpers.assertThrows(
+        "Should reject calls with invalid arg types",
+        AnalysisException.class,
+        "Wrong arg type",
         () -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
-        IllegalArgumentException.class, "Cannot handle an empty identifier",
+    AssertHelpers.assertThrows(
+        "Should reject calls with empty table identifier",
+        IllegalArgumentException.class,
+        "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.expire_snapshots('')", catalogName));
   }
 
@@ -187,13 +196,24 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     String anotherCatalog = "another_" + catalogName;
     spark.conf().set("spark.sql.catalog." + anotherCatalog, SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog." + anotherCatalog + ".type", "hadoop");
-    spark.conf().set("spark.sql.catalog." + anotherCatalog + ".warehouse", "file:" + temp.newFolder().toString());
+    spark
+        .conf()
+        .set(
+            "spark.sql.catalog." + anotherCatalog + ".warehouse",
+            "file:" + temp.newFolder().toString());
 
-    sql("CREATE TABLE %s.%s (id bigint NOT NULL, data string) USING iceberg", anotherCatalog, tableIdent);
+    sql(
+        "CREATE TABLE %s.%s (id bigint NOT NULL, data string) USING iceberg",
+        anotherCatalog, tableIdent);
 
-    AssertHelpers.assertThrows("Should reject calls for a table in another catalog",
-        IllegalArgumentException.class, "Cannot run procedure in catalog",
-        () -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, anotherCatalog + "." + tableName));
+    AssertHelpers.assertThrows(
+        "Should reject calls for a table in another catalog",
+        IllegalArgumentException.class,
+        "Cannot run procedure in catalog",
+        () ->
+            sql(
+                "CALL %s.system.expire_snapshots('%s')",
+                catalogName, anotherCatalog + "." + tableName));
   }
 
   @Test
@@ -206,68 +226,89 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (4, 'd')", tableName);
 
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
-    List<Object[]> output = sql(
-        "CALL %s.system.expire_snapshots(" +
-            "older_than => TIMESTAMP '%s'," +
-            "table => '%s'," +
-            "max_concurrent_deletes => %s," +
-            "retain_last => 1)",
-        catalogName, currentTimestamp, tableIdent, 4);
-    assertEquals("Expiring snapshots concurrently should succeed",
-        ImmutableList.of(row(0L, 0L, 0L, 0L, 3L)), output);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "older_than => TIMESTAMP '%s',"
+                + "table => '%s',"
+                + "max_concurrent_deletes => %s,"
+                + "retain_last => 1)",
+            catalogName, currentTimestamp, tableIdent, 4);
+    assertEquals(
+        "Expiring snapshots concurrently should succeed",
+        ImmutableList.of(row(0L, 0L, 0L, 0L, 3L)),
+        output);
   }
 
   @Test
   public void testConcurrentExpireSnapshotsWithInvalidInput() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    AssertHelpers.assertThrows("Should throw an error when max_concurrent_deletes = 0",
-        IllegalArgumentException.class, "max_concurrent_deletes should have value > 0",
-        () -> sql("CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
-            catalogName, tableIdent, 0));
+    AssertHelpers.assertThrows(
+        "Should throw an error when max_concurrent_deletes = 0",
+        IllegalArgumentException.class,
+        "max_concurrent_deletes should have value > 0",
+        () ->
+            sql(
+                "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
+                catalogName, tableIdent, 0));
 
-    AssertHelpers.assertThrows("Should throw an error when max_concurrent_deletes < 0 ",
-        IllegalArgumentException.class, "max_concurrent_deletes should have value > 0",
-        () -> sql(
-            "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
-            catalogName, tableIdent, -1));
-
+    AssertHelpers.assertThrows(
+        "Should throw an error when max_concurrent_deletes < 0 ",
+        IllegalArgumentException.class,
+        "max_concurrent_deletes should have value > 0",
+        () ->
+            sql(
+                "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
+                catalogName, tableIdent, -1));
   }
 
   @Test
   public void testExpireDeleteFiles() throws Exception {
-    sql("CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES" +
-        "('format-version'='2', 'write.delete.mode'='merge-on-read')", tableName);
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES"
+            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
+        tableName);
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c"),
-        new SimpleRecord(4, "d")
-    );
-    spark.createDataset(records, Encoders.bean(SimpleRecord.class)).coalesce(1).writeTo(tableName).append();
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
     sql("DELETE FROM %s WHERE id=1", tableName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
-    Assert.assertEquals("Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
+    Assert.assertEquals(
+        "Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
     Assert.assertEquals("Should have 1 delete file", 1, TestHelpers.deleteFiles(table).size());
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
-    Path deleteFilePath = new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+    Path deleteFilePath =
+        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
 
-    sql("CALL %s.system.rewrite_data_files(" +
-            "table => '%s'," +
-            "options => map(" +
-            "'delete-file-threshold','1'," +
-            "'use-starting-sequence-number', 'false'))",
+    sql(
+        "CALL %s.system.rewrite_data_files("
+            + "table => '%s',"
+            + "options => map("
+            + "'delete-file-threshold','1',"
+            + "'use-starting-sequence-number', 'false'))",
         catalogName, tableIdent);
     table.refresh();
 
-    sql("INSERT INTO TABLE %s VALUES (5, 'e')", tableName); // this txn moves the file to the DELETED state
+    sql(
+        "INSERT INTO TABLE %s VALUES (5, 'e')",
+        tableName); // this txn moves the file to the DELETED state
     sql("INSERT INTO TABLE %s VALUES (6, 'f')", tableName); // this txn removes the file reference
     table.refresh();
 
-    Assert.assertEquals("Should have no delete manifests", 0, TestHelpers.deleteManifests(table).size());
+    Assert.assertEquals(
+        "Should have no delete manifests", 0, TestHelpers.deleteManifests(table).size());
     Assert.assertEquals("Should have no delete files", 0, TestHelpers.deleteFiles(table).size());
 
     FileSystem localFs = FileSystem.getLocal(new Configuration());
@@ -275,14 +316,18 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Assert.assertTrue("Delete file should still exist", localFs.exists(deleteFilePath));
 
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
-    List<Object[]> output = sql("CALL %s.system.expire_snapshots(" +
-            "older_than => TIMESTAMP '%s'," +
-            "table => '%s'," +
-            "retain_last => 1)",
-        catalogName, currentTimestamp, tableIdent);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "older_than => TIMESTAMP '%s',"
+                + "table => '%s',"
+                + "retain_last => 1)",
+            catalogName, currentTimestamp, tableIdent);
 
-    assertEquals("Should deleted 1 data and pos delete file and 4 manifests and lists (one for each txn)",
-        ImmutableList.of(row(1L, 1L, 0L, 4L, 4L)), output);
+    assertEquals(
+        "Should deleted 1 data and pos delete file and 4 manifests and lists (one for each txn)",
+        ImmutableList.of(row(1L, 1L, 0L, 4L, 4L)),
+        output);
     Assert.assertFalse("Delete manifest should be removed", localFs.exists(deleteManifestPath));
     Assert.assertFalse("Delete file should be removed", localFs.exists(deleteFilePath));
   }
@@ -302,13 +347,14 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
 
-    List<Object[]> output = sql(
-        "CALL %s.system.expire_snapshots(" +
-            "older_than => TIMESTAMP '%s'," +
-            "table => '%s'," +
-            "retain_last => 1, " +
-            "stream_results => true)",
-        catalogName, currentTimestamp, tableIdent);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "older_than => TIMESTAMP '%s',"
+                + "table => '%s',"
+                + "retain_last => 1, "
+                + "stream_results => true)",
+            catalogName, currentTimestamp, tableIdent);
     assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output);
   }
 
@@ -330,18 +376,15 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
 
     String callStatement =
-        "/* CALL statement is used to expire snapshots */\n" +
-        "-- And we have single line comments as well \n" +
-        "/* And comments that span *multiple* \n" +
-        " lines */ CALL /* this is the actual CALL */ %s.system.expire_snapshots(" +
-        "   older_than => TIMESTAMP '%s'," +
-        "   table => '%s'," +
-        "   retain_last => 1)";
-    List<Object[]> output = sql(
-        callStatement, catalogName, currentTimestamp, tableIdent);
-    assertEquals("Procedure output must match",
-        ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)),
-        output);
+        "/* CALL statement is used to expire snapshots */\n"
+            + "-- And we have single line comments as well \n"
+            + "/* And comments that span *multiple* \n"
+            + " lines */ CALL /* this is the actual CALL */ %s.system.expire_snapshots("
+            + "   older_than => TIMESTAMP '%s',"
+            + "   table => '%s',"
+            + "   retain_last => 1)";
+    List<Object[]> output = sql(callStatement, catalogName, currentTimestamp, tableIdent);
+    assertEquals("Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L)), output);
 
     table.refresh();
 

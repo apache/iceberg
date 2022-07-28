@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import java.util.Map;
@@ -29,19 +28,20 @@ public class TestRESTUtil {
 
   @Test
   public void testExtractPrefixMap() {
-    Map<String, String> input = ImmutableMap.of(
-        "warehouse", "/tmp/warehouse",
-        "rest.prefix", "/ws/ralphs_catalog",
-        "rest.token", "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=",
-        "rest.rest.uri", "https://localhost:1080/",
-        "doesnt_start_with_prefix.rest", "",
-        "", "");
+    Map<String, String> input =
+        ImmutableMap.of(
+            "warehouse", "/tmp/warehouse",
+            "rest.prefix", "/ws/ralphs_catalog",
+            "rest.token", "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=",
+            "rest.rest.uri", "https://localhost:1080/",
+            "doesnt_start_with_prefix.rest", "",
+            "", "");
 
-    Map<String, String> expected = ImmutableMap.of(
-        "prefix", "/ws/ralphs_catalog",
-        "token", "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=",
-        "rest.uri", "https://localhost:1080/"
-    );
+    Map<String, String> expected =
+        ImmutableMap.of(
+            "prefix", "/ws/ralphs_catalog",
+            "token", "YnVybiBhZnRlciByZWFkaW5nIC0gYWxzbyBoYW5rIGFuZCByYXVsIDQgZXZlcgo=",
+            "rest.uri", "https://localhost:1080/");
 
     Map<String, String> actual = RESTUtil.extractPrefixMap(input, "rest.");
 
@@ -50,12 +50,13 @@ public class TestRESTUtil {
 
   @Test
   public void testStripTrailingSlash() {
-    String[][] testCases = new String[][] {
-        new String[] {"https://foo", "https://foo"},
-        new String[] {"https://foo/", "https://foo"},
-        new String[] {"https://foo////", "https://foo"},
-        new String[] {null, null}
-    };
+    String[][] testCases =
+        new String[][] {
+          new String[] {"https://foo", "https://foo"},
+          new String[] {"https://foo/", "https://foo"},
+          new String[] {"https://foo////", "https://foo"},
+          new String[] {null, null}
+        };
 
     for (String[] testCase : testCases) {
       String input = testCase[0];
@@ -67,16 +68,17 @@ public class TestRESTUtil {
   @Test
   public void testRoundTripUrlEncodeDecodeNamespace() {
     // Namespace levels and their expected url encoded form
-    Object[][] testCases = new Object[][] {
-        new Object[] {new String[] {"dogs"}, "dogs"},
-        new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
-        new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
-        new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%1Fnamed%1Fhank"},
-        new Object[] {
+    Object[][] testCases =
+        new Object[][] {
+          new Object[] {new String[] {"dogs"}, "dogs"},
+          new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
+          new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
+          new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%1Fnamed%1Fhank"},
+          new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
             "dogs.and.cats%1Fnamed%1Fhank.or.james-westfall"
-        }
-    };
+          }
+        };
 
     for (Object[] namespaceWithEncoding : testCases) {
       String[] levels = (String[]) namespaceWithEncoding[0];
@@ -85,8 +87,7 @@ public class TestRESTUtil {
       Namespace namespace = Namespace.of(levels);
 
       // To be placed into a URL path as query parameter or path parameter
-      Assertions.assertThat(RESTUtil.encodeNamespace(namespace))
-          .isEqualTo(encodedNs);
+      Assertions.assertThat(RESTUtil.encodeNamespace(namespace)).isEqualTo(encodedNs);
 
       // Decoded (after pulling as String) from URL
       Namespace asNamespace = RESTUtil.decodeNamespace(encodedNs);

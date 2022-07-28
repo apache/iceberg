@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.io.IOException;
@@ -35,12 +34,12 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
-  public TestMigrateTableProcedure(String catalogName, String implementation, Map<String, String> config) {
+  public TestMigrateTableProcedure(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @After
   public void removeTables() {
@@ -52,7 +51,9 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   public void testMigrate() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
 
@@ -65,7 +66,8 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -76,10 +78,13 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   public void testMigrateWithOptions() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    Object result = scalarSql("CALL %s.system.migrate('%s', map('foo', 'bar'))", catalogName, tableName);
+    Object result =
+        scalarSql("CALL %s.system.migrate('%s', map('foo', 'bar'))", catalogName, tableName);
 
     Assert.assertEquals("Should have added one file", 1L, result);
 
@@ -93,7 +98,8 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -105,10 +111,14 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
 
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
 
-    AssertHelpers.assertThrows("Should reject invalid metrics config",
-        ValidationException.class, "Invalid metrics config",
+    AssertHelpers.assertThrows(
+        "Should reject invalid metrics config",
+        ValidationException.class,
+        "Invalid metrics config",
         () -> {
           String props = "map('write.metadata.metrics.column.x', 'X')";
           sql("CALL %s.system.migrate('%s', %s)", catalogName, tableName, props);
@@ -120,13 +130,17 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
 
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    Object result = scalarSql("CALL %s.system.migrate('%s', map('migrated', 'false'))", catalogName, tableName);
+    Object result =
+        scalarSql("CALL %s.system.migrate('%s', map('migrated', 'false'))", catalogName, tableName);
     Assert.assertEquals("Should have added one file", 1L, result);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", tableName));
 
@@ -136,16 +150,22 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidMigrateCases() {
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.migrate()", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type",
+    AssertHelpers.assertThrows(
+        "Should reject calls with invalid arg types",
+        AnalysisException.class,
+        "Wrong arg type",
         () -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
-        IllegalArgumentException.class, "Cannot handle an empty identifier",
+    AssertHelpers.assertThrows(
+        "Should reject calls with empty table identifier",
+        IllegalArgumentException.class,
+        "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.migrate('')", catalogName));
   }
 }

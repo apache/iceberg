@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.assigner;
 
 import java.util.Collection;
@@ -32,8 +31,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestSimpleSplitAssigner {
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   @Test
   public void testEmptyInitialization() {
@@ -41,19 +39,17 @@ public class TestSimpleSplitAssigner {
     assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
   }
 
-  /**
-   * Test a sequence of interactions for StaticEnumerator
-   */
+  /** Test a sequence of interactions for StaticEnumerator */
   @Test
   public void testStaticEnumeratorSequence() throws Exception {
     SimpleSplitAssigner assigner = new SimpleSplitAssigner();
-    assigner.onDiscoveredSplits(SplitHelpers.createSplitsFromTransientHadoopTable(
-        TEMPORARY_FOLDER, 4, 2));
+    assigner.onDiscoveredSplits(
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 2));
 
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertSnapshot(assigner, 1);
-    assigner.onUnassignedSplits(SplitHelpers.createSplitsFromTransientHadoopTable(
-        TEMPORARY_FOLDER, 1, 1));
+    assigner.onUnassignedSplits(
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1));
     assertSnapshot(assigner, 2);
 
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
@@ -62,20 +58,21 @@ public class TestSimpleSplitAssigner {
     assertSnapshot(assigner, 0);
   }
 
-  /**
-   * Test a sequence of interactions for ContinuousEnumerator
-   */
+  /** Test a sequence of interactions for ContinuousEnumerator */
   @Test
   public void testContinuousEnumeratorSequence() throws Exception {
     SimpleSplitAssigner assigner = new SimpleSplitAssigner();
     assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
 
-    List<IcebergSourceSplit> splits1 = SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+    List<IcebergSourceSplit> splits1 =
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
     assertAvailableFuture(assigner, 1, () -> assigner.onDiscoveredSplits(splits1));
-    List<IcebergSourceSplit> splits2 = SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+    List<IcebergSourceSplit> splits2 =
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
     assertAvailableFuture(assigner, 1, () -> assigner.onUnassignedSplits(splits2));
 
-    assigner.onDiscoveredSplits(SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 2, 1));
+    assigner.onDiscoveredSplits(
+        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 2, 1));
     assertSnapshot(assigner, 2);
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
@@ -83,7 +80,8 @@ public class TestSimpleSplitAssigner {
     assertSnapshot(assigner, 0);
   }
 
-  private void assertAvailableFuture(SimpleSplitAssigner assigner, int splitCount, Runnable addSplitsRunnable) {
+  private void assertAvailableFuture(
+      SimpleSplitAssigner assigner, int splitCount, Runnable addSplitsRunnable) {
     // register callback
     AtomicBoolean futureCompleted = new AtomicBoolean();
     CompletableFuture<Void> future = assigner.isAvailable();

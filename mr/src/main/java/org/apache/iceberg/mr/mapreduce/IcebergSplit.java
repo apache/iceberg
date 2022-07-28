@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.mapreduce;
 
 import java.io.DataInput;
@@ -31,11 +30,13 @@ import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.util.SerializationUtil;
 
-// Since this class extends `mapreduce.InputSplit and implements `mapred.InputSplit`, it can be returned by both MR v1
+// Since this class extends `mapreduce.InputSplit and implements `mapred.InputSplit`, it can be
+// returned by both MR v1
 // and v2 file formats.
-public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred.InputSplit, IcebergSplitContainer {
+public class IcebergSplit extends InputSplit
+    implements org.apache.hadoop.mapred.InputSplit, IcebergSplitContainer {
 
-  private static final String[] ANYWHERE = new String[]{"*"};
+  private static final String[] ANYWHERE = new String[] {"*"};
 
   private Table table;
   private CombinedScanTask task;
@@ -44,8 +45,7 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
   private transient Configuration conf;
 
   // public no-argument constructor for deserialization
-  public IcebergSplit() {
-  }
+  public IcebergSplit() {}
 
   IcebergSplit(Table table, Configuration conf, CombinedScanTask task) {
     this.table = table;

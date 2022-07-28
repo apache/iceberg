@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,19 +43,15 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestSparkSchema {
 
   private static final Configuration CONF = new Configuration();
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static SparkSession spark = null;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
   public static void startSpark() {
@@ -76,26 +73,18 @@ public class TestSparkSchema {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     tables.create(SCHEMA, spec, null, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a")
-    );
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     StructType sparkReadSchema =
         new StructType(
             new StructField[] {
-                new StructField("id", DataTypes.IntegerType, true, Metadata.empty())
-            }
-        );
+              new StructField("id", DataTypes.IntegerType, true, Metadata.empty())
+            });
 
-    Dataset<Row> resultDf = spark.read()
-        .schema(sparkReadSchema)
-        .format("iceberg")
-        .load(tableLocation);
+    Dataset<Row> resultDf =
+        spark.read().schema(sparkReadSchema).format("iceberg").load(tableLocation);
 
     Row[] results = (Row[]) resultDf.collect();
 
@@ -112,30 +101,22 @@ public class TestSparkSchema {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     tables.create(SCHEMA, spec, null, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a")
-    );
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     StructType sparkReadSchema =
         new StructType(
             new StructField[] {
-                new StructField("idd", DataTypes.IntegerType, true, Metadata.empty()) // wrong field name
-            }
-        );
+              new StructField(
+                  "idd", DataTypes.IntegerType, true, Metadata.empty()) // wrong field name
+            });
 
-    AssertHelpers.assertThrows("Iceberg should not allow a projection that contain unknown fields",
-        java.lang.IllegalArgumentException.class, "Field idd not found in source schema",
-        () ->
-            spark.read()
-                .schema(sparkReadSchema)
-                .format("iceberg")
-                .load(tableLocation)
-    );
+    AssertHelpers.assertThrows(
+        "Iceberg should not allow a projection that contain unknown fields",
+        java.lang.IllegalArgumentException.class,
+        "Field idd not found in source schema",
+        () -> spark.read().schema(sparkReadSchema).format("iceberg").load(tableLocation));
   }
 
   @Test
@@ -146,28 +127,19 @@ public class TestSparkSchema {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     tables.create(SCHEMA, spec, null, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a")
-    );
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     StructType sparkReadSchema =
         new StructType(
             new StructField[] {
-                new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
-                new StructField("data", DataTypes.StringType, true, Metadata.empty())
-            }
-        );
+              new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
+              new StructField("data", DataTypes.StringType, true, Metadata.empty())
+            });
 
-    Dataset<Row> resultDf = spark.read()
-        .schema(sparkReadSchema)
-        .format("iceberg")
-        .load(tableLocation)
-        .select("id");
+    Dataset<Row> resultDf =
+        spark.read().schema(sparkReadSchema).format("iceberg").load(tableLocation).select("id");
 
     Row[] results = (Row[]) resultDf.collect();
 
@@ -177,37 +149,34 @@ public class TestSparkSchema {
   }
 
   @Test
-  public void testFailSparkReadSchemaCombinedWithProjectionWhenSchemaDoesNotContainProjection() throws IOException {
+  public void testFailSparkReadSchemaCombinedWithProjectionWhenSchemaDoesNotContainProjection()
+      throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
     tables.create(SCHEMA, spec, null, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a")
-    );
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     StructType sparkReadSchema =
         new StructType(
             new StructField[] {
-                new StructField("data", DataTypes.StringType, true, Metadata.empty())
-            }
-        );
+              new StructField("data", DataTypes.StringType, true, Metadata.empty())
+            });
 
-    AssertHelpers.assertThrows("Spark should not allow a projection that is not included in the read schema",
-        org.apache.spark.sql.AnalysisException.class, "cannot resolve '`id`' given input columns: [data]",
+    AssertHelpers.assertThrows(
+        "Spark should not allow a projection that is not included in the read schema",
+        org.apache.spark.sql.AnalysisException.class,
+        "cannot resolve '`id`' given input columns: [data]",
         () ->
-            spark.read()
-              .schema(sparkReadSchema)
-              .format("iceberg")
-              .load(tableLocation)
-              .select("id")
-    );
+            spark
+                .read()
+                .schema(sparkReadSchema)
+                .format("iceberg")
+                .load(tableLocation)
+                .select("id"));
   }
 }

@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.Arrays;
 import java.util.List;
@@ -36,8 +37,6 @@ import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
-
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestNamespace extends BaseTestIceberg {
   private static final String BRANCH = "test-namespace";
@@ -90,15 +89,17 @@ public class TestNamespace extends BaseTestIceberg {
     Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
     TableIdentifier identifier = TableIdentifier.of(namespace, "tbl");
 
-    Schema schema = new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+    Schema schema =
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
     Assertions.assertThat(catalog.createTable(identifier, schema)).isNotNull();
 
     ContentKey key = NessieUtil.toKey(identifier);
-    Assertions.assertThat(api.getContent().key(key).refName(BRANCH).get().get(key).unwrap(IcebergTable.class))
+    Assertions.assertThat(
+            api.getContent().key(key).refName(BRANCH).get().get(key).unwrap(IcebergTable.class))
         .isPresent();
 
     Assertions.assertThatThrownBy(() -> catalog.dropNamespace(namespace))
-            .isInstanceOf(NamespaceNotEmptyException.class)
+        .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Namespace 'test' is not empty. One or more tables exist.");
 
     catalog.dropTable(identifier, true);
@@ -114,11 +115,13 @@ public class TestNamespace extends BaseTestIceberg {
     Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
     Assertions.assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(properties);
 
-    ImmutableMap<String, String> updatedProperties = ImmutableMap.of("prop2", "val2", "prop", "new_val");
+    ImmutableMap<String, String> updatedProperties =
+        ImmutableMap.of("prop2", "val2", "prop", "new_val");
     catalog.setProperties(namespace, updatedProperties);
     Assertions.assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(updatedProperties);
 
-    Assertions.assertThatThrownBy(() -> catalog.setProperties(Namespace.of("unknown"), updatedProperties))
+    Assertions.assertThatThrownBy(
+            () -> catalog.setProperties(Namespace.of("unknown"), updatedProperties))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: unknown");
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.File;
@@ -54,19 +53,16 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestStreamingMonitorFunction extends TableTestBase {
 
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.IntegerType.get()),
-      Types.NestedField.required(2, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "data", Types.StringType.get()));
   private static final FileFormat DEFAULT_FORMAT = FileFormat.PARQUET;
   private static final long WAIT_TIME_MILLIS = 10 * 1000L;
 
   @Parameterized.Parameters(name = "FormatVersion={0}")
   public static Iterable<Object[]> parameters() {
-    return ImmutableList.of(
-        new Object[] {1},
-        new Object[] {2}
-    );
+    return ImmutableList.of(new Object[] {1}, new Object[] {2});
   }
 
   public TestStreamingMonitorFunction(int formatVersion) {
@@ -84,23 +80,24 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     table = create(SCHEMA, PartitionSpec.unpartitioned());
   }
 
-  private void runSourceFunctionInTask(TestSourceContext sourceContext, StreamingMonitorFunction function) {
-    Thread task = new Thread(() -> {
-      try {
-        function.run(sourceContext);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    });
+  private void runSourceFunctionInTask(
+      TestSourceContext sourceContext, StreamingMonitorFunction function) {
+    Thread task =
+        new Thread(
+            () -> {
+              try {
+                function.run(sourceContext);
+              } catch (Exception e) {
+                throw new RuntimeException(e);
+              }
+            });
     task.start();
   }
 
   @Test
   public void testConsumeWithoutStartSnapshotId() throws Exception {
     List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
-    ScanContext scanContext = ScanContext.builder()
-        .monitorInterval(Duration.ofMillis(100))
-        .build();
+    ScanContext scanContext = ScanContext.builder().monitorInterval(Duration.ofMillis(100)).build();
 
     StreamingMonitorFunction function = createFunction(scanContext);
     try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
@@ -111,14 +108,16 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
       Thread.sleep(1000L);
 
       // Stop the stream task.
       function.close();
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
-      TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+      TestHelpers.assertRecords(
+          sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
   }
 
@@ -131,10 +130,11 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     // Commit the next five transactions.
     List<List<Record>> recordsList = generateRecordsAndCommitTxn(5);
 
-    ScanContext scanContext = ScanContext.builder()
-        .monitorInterval(Duration.ofMillis(100))
-        .startSnapshotId(startSnapshotId)
-        .build();
+    ScanContext scanContext =
+        ScanContext.builder()
+            .monitorInterval(Duration.ofMillis(100))
+            .startSnapshotId(startSnapshotId)
+            .build();
 
     StreamingMonitorFunction function = createFunction(scanContext);
     try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
@@ -145,23 +145,23 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, function);
 
-      Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
       Thread.sleep(1000L);
 
       // Stop the stream task.
       function.close();
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
-      TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+      TestHelpers.assertRecords(
+          sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
   }
 
   @Test
   public void testCheckpointRestore() throws Exception {
     List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
-    ScanContext scanContext = ScanContext.builder()
-        .monitorInterval(Duration.ofMillis(100))
-        .build();
+    ScanContext scanContext = ScanContext.builder().monitorInterval(Duration.ofMillis(100)).build();
 
     StreamingMonitorFunction func = createFunction(scanContext);
     OperatorSubtaskState state;
@@ -173,7 +173,8 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, func);
 
-      Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
       Thread.sleep(1000L);
 
       state = harness.snapshot(1, 1);
@@ -182,7 +183,8 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       func.close();
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
-      TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+      TestHelpers.assertRecords(
+          sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
 
     List<List<Record>> newRecordsList = generateRecordsAndCommitTxn(10);
@@ -197,14 +199,16 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       TestSourceContext sourceContext = new TestSourceContext(latch);
       runSourceFunctionInTask(sourceContext, newFunc);
 
-      Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Assert.assertTrue(
+          "Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
       Thread.sleep(1000L);
 
       // Stop the stream task.
       newFunc.close();
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
-      TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(newRecordsList)), SCHEMA);
+      TestHelpers.assertRecords(
+          sourceContext.toRows(), Lists.newArrayList(Iterables.concat(newRecordsList)), SCHEMA);
     }
   }
 
@@ -226,12 +230,14 @@ public class TestStreamingMonitorFunction extends TableTestBase {
   }
 
   private StreamingMonitorFunction createFunction(ScanContext scanContext) {
-    return new StreamingMonitorFunction(TestTableLoader.of(tableDir.getAbsolutePath()), scanContext);
+    return new StreamingMonitorFunction(
+        TestTableLoader.of(tableDir.getAbsolutePath()), scanContext);
   }
 
-  private AbstractStreamOperatorTestHarness<FlinkInputSplit> createHarness(StreamingMonitorFunction function)
-      throws Exception {
-    StreamSource<FlinkInputSplit, StreamingMonitorFunction> streamSource = new StreamSource<>(function);
+  private AbstractStreamOperatorTestHarness<FlinkInputSplit> createHarness(
+      StreamingMonitorFunction function) throws Exception {
+    StreamSource<FlinkInputSplit, StreamingMonitorFunction> streamSource =
+        new StreamSource<>(function);
     return new AbstractStreamOperatorTestHarness<>(streamSource, 1, 1, 0);
   }
 
@@ -256,14 +262,10 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     }
 
     @Override
-    public void emitWatermark(Watermark mark) {
-
-    }
+    public void emitWatermark(Watermark mark) {}
 
     @Override
-    public void markAsTemporarilyIdle() {
-
-    }
+    public void markAsTemporarilyIdle() {}
 
     @Override
     public Object getCheckpointLock() {
@@ -271,14 +273,13 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     }
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 
     private List<Row> toRows() throws IOException {
-      FlinkInputFormat format = FlinkSource.forRowData()
-          .tableLoader(TestTableLoader.of(tableDir.getAbsolutePath()))
-          .buildFormat();
+      FlinkInputFormat format =
+          FlinkSource.forRowData()
+              .tableLoader(TestTableLoader.of(tableDir.getAbsolutePath()))
+              .buildFormat();
 
       List<Row> rows = Lists.newArrayList();
       for (FlinkInputSplit split : splits) {

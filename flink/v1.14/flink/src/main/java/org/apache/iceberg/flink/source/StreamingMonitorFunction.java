@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -43,19 +42,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * This is the single (non-parallel) monitoring task which takes a {@link FlinkInputFormat},
- * it is responsible for:
+ * This is the single (non-parallel) monitoring task which takes a {@link FlinkInputFormat}, it is
+ * responsible for:
  *
  * <ol>
- *     <li>Monitoring snapshots of the Iceberg table.</li>
- *     <li>Creating the {@link FlinkInputSplit splits} corresponding to the incremental files</li>
- *     <li>Assigning them to downstream tasks for further processing.</li>
+ *   <li>Monitoring snapshots of the Iceberg table.
+ *   <li>Creating the {@link FlinkInputSplit splits} corresponding to the incremental files
+ *   <li>Assigning them to downstream tasks for further processing.
  * </ol>
  *
- * <p>The splits to be read are forwarded to the downstream {@link StreamingReaderOperator}
- * which can have parallelism greater than one.
+ * <p>The splits to be read are forwarded to the downstream {@link StreamingReaderOperator} which
+ * can have parallelism greater than one.
  */
-public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit> implements CheckpointedFunction {
+public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit>
+    implements CheckpointedFunction {
 
   private static final Logger LOG = LoggerFactory.getLogger(StreamingMonitorFunction.class);
 
@@ -66,7 +66,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
   private volatile boolean isRunning = true;
 
-  // The checkpoint thread is not the same thread that running the function for SourceStreamTask now. It's necessary to
+  // The checkpoint thread is not the same thread that running the function for SourceStreamTask
+  // now. It's necessary to
   // mark this as volatile.
   private volatile long lastSnapshotId = INIT_LAST_SNAPSHOT_ID;
 
@@ -76,11 +77,13 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   private transient ExecutorService workerPool;
 
   public StreamingMonitorFunction(TableLoader tableLoader, ScanContext scanContext) {
-    Preconditions.checkArgument(scanContext.snapshotId() == null,
-        "Cannot set snapshot-id option for streaming reader");
-    Preconditions.checkArgument(scanContext.asOfTimestamp() == null,
+    Preconditions.checkArgument(
+        scanContext.snapshotId() == null, "Cannot set snapshot-id option for streaming reader");
+    Preconditions.checkArgument(
+        scanContext.asOfTimestamp() == null,
         "Cannot set as-of-timestamp option for streaming reader");
-    Preconditions.checkArgument(scanContext.endSnapshotId() == null,
+    Preconditions.checkArgument(
+        scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
@@ -92,9 +95,12 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
     final RuntimeContext runtimeContext = getRuntimeContext();
     ValidationException.check(
-        runtimeContext instanceof StreamingRuntimeContext, "context should be instance of StreamingRuntimeContext");
+        runtimeContext instanceof StreamingRuntimeContext,
+        "context should be instance of StreamingRuntimeContext");
     final String operatorID = ((StreamingRuntimeContext) runtimeContext).getOperatorUniqueID();
-    this.workerPool = ThreadPools.newWorkerPool("iceberg-worker-pool-" + operatorID, scanContext.planParallelism());
+    this.workerPool =
+        ThreadPools.newWorkerPool(
+            "iceberg-worker-pool-" + operatorID, scanContext.planParallelism());
   }
 
   @Override
@@ -104,21 +110,24 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     table = tableLoader.loadTable();
 
     // Initialize the flink state for last snapshot id.
-    lastSnapshotIdState = context.getOperatorStateStore().getListState(
-        new ListStateDescriptor<>(
-            "snapshot-id-state",
-            LongSerializer.INSTANCE));
+    lastSnapshotIdState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("snapshot-id-state", LongSerializer.INSTANCE));
 
     // Restore the last-snapshot-id from flink's state if possible.
     if (context.isRestored()) {
       LOG.info("Restoring state for the {}.", getClass().getSimpleName());
       lastSnapshotId = lastSnapshotIdState.get().iterator().next();
     } else if (scanContext.startSnapshotId() != null) {
-      Preconditions.checkNotNull(table.currentSnapshot(), "Don't have any available snapshot in table.");
+      Preconditions.checkNotNull(
+          table.currentSnapshot(), "Don't have any available snapshot in table.");
 
       long currentSnapshotId = table.currentSnapshot().snapshotId();
-      Preconditions.checkState(SnapshotUtil.isAncestorOf(table, currentSnapshotId, scanContext.startSnapshotId()),
-          "The option start-snapshot-id %s is not an ancestor of the current snapshot.", scanContext.startSnapshotId());
+      Preconditions.checkState(
+          SnapshotUtil.isAncestorOf(table, currentSnapshotId, scanContext.startSnapshotId()),
+          "The option start-snapshot-id %s is not an ancestor of the current snapshot.",
+          scanContext.startSnapshotId());
 
       lastSnapshotId = scanContext.startSnapshotId();
     }
@@ -154,7 +163,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 
-      FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
+      FlinkInputSplit[] splits =
+          FlinkSplitPlanner.planInputSplits(table, newScanContext, workerPool);
 
       // only need to hold the checkpoint lock when emitting the splits and updating lastSnapshotId
       synchronized (sourceContext.getCheckpointLock()) {

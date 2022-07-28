@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.vector;
 
 import java.io.IOException;
@@ -30,13 +29,17 @@ import org.apache.iceberg.mr.mapreduce.IcebergSplit;
  * Basically an MR1 API implementing wrapper for transferring VectorizedRowBatch's produced by
  * IcebergInputformat$IcebergRecordReader which relies on the MR2 API format.
  */
-public final class HiveIcebergVectorizedRecordReader extends AbstractMapredIcebergRecordReader<VectorizedRowBatch> {
+public final class HiveIcebergVectorizedRecordReader
+    extends AbstractMapredIcebergRecordReader<VectorizedRowBatch> {
 
   private final JobConf job;
 
   public HiveIcebergVectorizedRecordReader(
-      org.apache.iceberg.mr.mapreduce.IcebergInputFormat<VectorizedRowBatch> mapreduceInputFormat, IcebergSplit split,
-      JobConf job, Reporter reporter) throws IOException {
+      org.apache.iceberg.mr.mapreduce.IcebergInputFormat<VectorizedRowBatch> mapreduceInputFormat,
+      IcebergSplit split,
+      JobConf job,
+      Reporter reporter)
+      throws IOException {
     super(mapreduceInputFormat, split, job, reporter);
     this.job = job;
   }
@@ -62,12 +65,13 @@ public final class HiveIcebergVectorizedRecordReader extends AbstractMapredIcebe
 
   @Override
   public VectorizedRowBatch createValue() {
-    return CompatibilityHiveVectorUtils.findMapWork(job).getVectorizedRowBatchCtx().createVectorizedRowBatch();
+    return CompatibilityHiveVectorUtils.findMapWork(job)
+        .getVectorizedRowBatchCtx()
+        .createVectorizedRowBatch();
   }
 
   @Override
   public long getPos() {
     return -1;
   }
-
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -26,7 +25,7 @@ import java.io.InputStream;
  * {@code SeekableInputStream} is an interface with the methods needed to read data from a file or
  * Hadoop data stream.
  *
- * This class is based on Parquet's SeekableInputStream.
+ * <p>This class is based on Parquet's SeekableInputStream.
  */
 public abstract class SeekableInputStream extends InputStream {
   /**

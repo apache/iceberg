@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis;
 
 import org.apache.spark.sql.AnalysisException;
@@ -25,7 +24,13 @@ import scala.Option;
 
 public class NoSuchProcedureException extends AnalysisException {
   public NoSuchProcedureException(Identifier ident) {
-    super("Procedure " + ident + " not found", Option.empty(), Option.empty(), Option.empty(),
-        Option.empty(), Option.empty(), new String[0]);
+    super(
+        "Procedure " + ident + " not found",
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        new String[0]);
   }
 }

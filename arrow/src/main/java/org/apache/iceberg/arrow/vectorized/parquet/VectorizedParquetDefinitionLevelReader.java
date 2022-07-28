@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.nio.ByteBuffer;
@@ -33,21 +32,27 @@ import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.column.Dictionary;
 
-public final class VectorizedParquetDefinitionLevelReader extends BaseVectorizedParquetValuesReader {
+public final class VectorizedParquetDefinitionLevelReader
+    extends BaseVectorizedParquetValuesReader {
 
-  public VectorizedParquetDefinitionLevelReader(int bitWidth, int maxDefLevel, boolean setArrowValidityVector) {
+  public VectorizedParquetDefinitionLevelReader(
+      int bitWidth, int maxDefLevel, boolean setArrowValidityVector) {
     super(bitWidth, maxDefLevel, setArrowValidityVector);
   }
 
-  public VectorizedParquetDefinitionLevelReader(int bitWidth, int maxDefLevel, boolean readLength,
-                                                boolean setArrowValidityVector) {
+  public VectorizedParquetDefinitionLevelReader(
+      int bitWidth, int maxDefLevel, boolean readLength, boolean setArrowValidityVector) {
     super(bitWidth, maxDefLevel, readLength, setArrowValidityVector);
   }
 
   abstract class NumericBaseReader {
     public void nextBatch(
-        final FieldVector vector, final int startOffset, final int typeWidth,
-        final int numValsToRead, NullabilityHolder nullabilityHolder, ValuesAsBytesReader valuesReader) {
+        final FieldVector vector,
+        final int startOffset,
+        final int typeWidth,
+        final int numValsToRead,
+        NullabilityHolder nullabilityHolder,
+        ValuesAsBytesReader valuesReader) {
       int bufferIdx = startOffset;
       int left = numValsToRead;
       while (left > 0) {
@@ -57,7 +62,8 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         int numValues = Math.min(left, currentCount);
         switch (mode) {
           case RLE:
-            setNextNValuesInVector(typeWidth, nullabilityHolder, valuesReader, bufferIdx, vector, numValues);
+            setNextNValuesInVector(
+                typeWidth, nullabilityHolder, valuesReader, bufferIdx, vector, numValues);
             bufferIdx += numValues;
             break;
           case PACKED:
@@ -81,9 +87,13 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     }
 
     public void nextDictEncodedBatch(
-        final FieldVector vector, final int startOffset, final int typeWidth,
-        final int numValsToRead, NullabilityHolder nullabilityHolder,
-        VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader, Dictionary dict) {
+        final FieldVector vector,
+        final int startOffset,
+        final int typeWidth,
+        final int numValsToRead,
+        NullabilityHolder nullabilityHolder,
+        VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
+        Dictionary dict) {
       int idx = startOffset;
       int left = numValsToRead;
       while (left > 0) {
@@ -95,8 +105,15 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         switch (mode) {
           case RLE:
             if (currentValue == maxDefLevel) {
-              nextDictEncodedVal(vector, idx, dictionaryEncodedValuesReader, dict, mode,
-                  numValues, nullabilityHolder, typeWidth);
+              nextDictEncodedVal(
+                  vector,
+                  idx,
+                  dictionaryEncodedValuesReader,
+                  dict,
+                  mode,
+                  numValues,
+                  nullabilityHolder,
+                  typeWidth);
             } else {
               setNulls(nullabilityHolder, idx, numValues, validityBuffer);
             }
@@ -105,8 +122,15 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
           case PACKED:
             for (int i = 0; i < numValues; i++) {
               if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-                nextDictEncodedVal(vector, idx, dictionaryEncodedValuesReader, dict, mode,
-                    numValues, nullabilityHolder, typeWidth);
+                nextDictEncodedVal(
+                    vector,
+                    idx,
+                    dictionaryEncodedValuesReader,
+                    dict,
+                    mode,
+                    numValues,
+                    nullabilityHolder,
+                    typeWidth);
                 nullabilityHolder.setNotNull(idx);
                 if (setArrowValidityVector) {
                   BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
@@ -125,97 +149,149 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
 
     protected abstract void nextVal(
         FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode);
+
     protected abstract void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
-        Dictionary dict, Mode mode, int numValues, NullabilityHolder holder, int typeWidth);
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
+        Dictionary dict,
+        Mode mode,
+        int numValues,
+        NullabilityHolder holder,
+        int typeWidth);
   }
 
   class LongReader extends NumericBaseReader {
     @Override
-    protected void nextVal(FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
+    protected void nextVal(
+        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setLong(idx, valuesReader.readLong());
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
-        Dictionary dict, Mode mode, int numValues, NullabilityHolder holder, int typeWidth) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
+        Dictionary dict,
+        Mode mode,
+        int numValues,
+        NullabilityHolder holder,
+        int typeWidth) {
       if (Mode.RLE.equals(mode)) {
-        dictionaryEncodedValuesReader.longDictEncodedReader()
+        dictionaryEncodedValuesReader
+            .longDictEncodedReader()
             .nextBatch(vector, idx, numValues, dict, holder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        vector.getDataBuffer()
-            .setLong((long) idx * typeWidth, dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()));
+        vector
+            .getDataBuffer()
+            .setLong(
+                (long) idx * typeWidth,
+                dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()));
       }
     }
   }
 
   class DoubleReader extends NumericBaseReader {
     @Override
-    protected void nextVal(FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
+    protected void nextVal(
+        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setDouble(idx, valuesReader.readDouble());
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
-        Dictionary dict, Mode mode, int numValues, NullabilityHolder holder, int typeWidth) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
+        Dictionary dict,
+        Mode mode,
+        int numValues,
+        NullabilityHolder holder,
+        int typeWidth) {
       if (Mode.RLE.equals(mode)) {
-        dictionaryEncodedValuesReader.doubleDictEncodedReader().nextBatch(vector,
-            idx, numValues, dict, holder, typeWidth);
+        dictionaryEncodedValuesReader
+            .doubleDictEncodedReader()
+            .nextBatch(vector, idx, numValues, dict, holder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        vector.getDataBuffer()
-            .setDouble((long) idx * typeWidth, dict.decodeToDouble(dictionaryEncodedValuesReader.readInteger()));
+        vector
+            .getDataBuffer()
+            .setDouble(
+                (long) idx * typeWidth,
+                dict.decodeToDouble(dictionaryEncodedValuesReader.readInteger()));
       }
     }
   }
 
   class FloatReader extends NumericBaseReader {
     @Override
-    protected void nextVal(FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
+    protected void nextVal(
+        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setFloat(idx, valuesReader.readFloat());
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx,
+        FieldVector vector,
+        int idx,
         VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
-        Dictionary dict, Mode mode, int numValues, NullabilityHolder holder, int typeWidth) {
+        Dictionary dict,
+        Mode mode,
+        int numValues,
+        NullabilityHolder holder,
+        int typeWidth) {
       if (Mode.RLE.equals(mode)) {
-        dictionaryEncodedValuesReader.floatDictEncodedReader().nextBatch(vector,
-            idx, numValues, dict, holder, typeWidth);
+        dictionaryEncodedValuesReader
+            .floatDictEncodedReader()
+            .nextBatch(vector, idx, numValues, dict, holder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        vector.getDataBuffer()
-            .setFloat((long) idx * typeWidth, dict.decodeToFloat(dictionaryEncodedValuesReader.readInteger()));
+        vector
+            .getDataBuffer()
+            .setFloat(
+                (long) idx * typeWidth,
+                dict.decodeToFloat(dictionaryEncodedValuesReader.readInteger()));
       }
     }
   }
 
   class IntegerReader extends NumericBaseReader {
     @Override
-    protected void nextVal(FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
+    protected void nextVal(
+        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, Mode mode) {
       vector.getDataBuffer().setInt(idx, valuesReader.readInteger());
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx,
+        FieldVector vector,
+        int idx,
         VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
-        Dictionary dict, Mode mode, int numValues, NullabilityHolder holder, int typeWidth) {
+        Dictionary dict,
+        Mode mode,
+        int numValues,
+        NullabilityHolder holder,
+        int typeWidth) {
       if (Mode.RLE.equals(mode)) {
-        dictionaryEncodedValuesReader.integerDictEncodedReader().nextBatch(vector,
-            idx, numValues, dict, holder, typeWidth);
+        dictionaryEncodedValuesReader
+            .integerDictEncodedReader()
+            .nextBatch(vector, idx, numValues, dict, holder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        vector.getDataBuffer()
-            .setInt((long) idx * typeWidth, dict.decodeToInt(dictionaryEncodedValuesReader.readInteger()));
+        vector
+            .getDataBuffer()
+            .setInt(
+                (long) idx * typeWidth,
+                dict.decodeToInt(dictionaryEncodedValuesReader.readInteger()));
       }
     }
   }
 
   abstract class BaseReader {
     public void nextBatch(
-        final FieldVector vector, final int startOffset, final int typeWidth,
-        final int numValsToRead, NullabilityHolder nullabilityHolder,
+        final FieldVector vector,
+        final int startOffset,
+        final int typeWidth,
+        final int numValsToRead,
+        NullabilityHolder nullabilityHolder,
         ValuesAsBytesReader valuesReader) {
       int bufferIdx = startOffset;
       int left = numValsToRead;
@@ -259,8 +335,11 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     }
 
     public void nextDictEncodedBatch(
-        final FieldVector vector, final int startOffset, final int typeWidth,
-        final int numValsToRead, NullabilityHolder nullabilityHolder,
+        final FieldVector vector,
+        final int startOffset,
+        final int typeWidth,
+        final int numValsToRead,
+        NullabilityHolder nullabilityHolder,
         VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
         Dictionary dict) {
       int idx = startOffset;
@@ -274,8 +353,15 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         switch (mode) {
           case RLE:
             if (currentValue == maxDefLevel) {
-              nextDictEncodedVal(vector,
-                  idx, dictionaryEncodedValuesReader, numValues, dict, nullabilityHolder, typeWidth, mode);
+              nextDictEncodedVal(
+                  vector,
+                  idx,
+                  dictionaryEncodedValuesReader,
+                  numValues,
+                  dict,
+                  nullabilityHolder,
+                  typeWidth,
+                  mode);
             } else {
               setNulls(nullabilityHolder, idx, numValues, validityBuffer);
             }
@@ -284,8 +370,15 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
           case PACKED:
             for (int i = 0; i < numValues; i++) {
               if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-                nextDictEncodedVal(vector,
-                    idx, dictionaryEncodedValuesReader, numValues, dict, nullabilityHolder, typeWidth, mode);
+                nextDictEncodedVal(
+                    vector,
+                    idx,
+                    dictionaryEncodedValuesReader,
+                    numValues,
+                    dict,
+                    nullabilityHolder,
+                    typeWidth,
+                    mode);
                 nullabilityHolder.setNotNull(idx);
                 if (setArrowValidityVector) {
                   BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
@@ -303,29 +396,53 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     }
 
     protected abstract void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray);
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray);
+
     protected abstract void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode);
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode);
   }
 
   class TimestampMillisReader extends BaseReader {
 
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       vector.getDataBuffer().setLong((long) idx * typeWidth, valuesReader.readLong() * 1000);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       if (Mode.RLE.equals(mode)) {
-        reader.timestampMillisDictEncodedReader().nextBatch(vector,
-            idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
+        reader
+            .timestampMillisDictEncodedReader()
+            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        vector.getDataBuffer().setLong((long) idx * typeWidth, dict.decodeToLong(reader.readInteger()) * 1000);
+        vector
+            .getDataBuffer()
+            .setLong((long) idx * typeWidth, dict.decodeToLong(reader.readInteger()) * 1000);
       }
     }
   }
@@ -333,18 +450,33 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   class FixedWidthBinaryReader extends BaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       ByteBuffer buffer = valuesReader.getBuffer(typeWidth);
-      ((VarBinaryVector) vector).setSafe(idx, buffer.array(), buffer.position() + buffer.arrayOffset(),
-          buffer.limit() - buffer.position());
+      ((VarBinaryVector) vector)
+          .setSafe(
+              idx,
+              buffer.array(),
+              buffer.position() + buffer.arrayOffset(),
+              buffer.limit() - buffer.position());
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       if (Mode.RLE.equals(mode)) {
-        reader.fixedWidthBinaryDictEncodedReader()
+        reader
+            .fixedWidthBinaryDictEncodedReader()
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
         ByteBuffer buffer = dict.decodeToBinary(reader.readInteger()).toByteBuffer();
@@ -356,17 +488,28 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   class FixedLengthDecimalReader extends BaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
       DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, byteArray);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       if (Mode.RLE.equals(mode)) {
-        reader.fixedLengthDecimalDictEncodedReader()
+        reader
+            .fixedLengthDecimalDictEncodedReader()
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
         byte[] bytes = dict.decodeToBinary(reader.readInteger()).getBytesUnsafe();
@@ -378,18 +521,29 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   class FixedSizeBinaryReader extends BaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
       ((FixedSizeBinaryVector) vector).set(idx, byteArray);
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       if (Mode.RLE.equals(mode)) {
-        reader.fixedSizeBinaryDictEncodedReader().nextBatch(vector, idx,
-            numValuesToRead, dict, nullabilityHolder, typeWidth);
+        reader
+            .fixedSizeBinaryDictEncodedReader()
+            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
         byte[] bytes = dict.decodeToBinary(reader.readInteger()).getBytes();
         byte[] vectorBytes = new byte[typeWidth];
@@ -402,7 +556,11 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   class VarWidthReader extends BaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       int len = valuesReader.readInteger();
       ByteBuffer buffer = valuesReader.getBuffer(len);
       // Calling setValueLengthSafe takes care of allocating a larger buffer if
@@ -421,14 +579,21 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       if (Mode.RLE.equals(mode)) {
-        reader.varWidthBinaryDictEncodedReader().nextBatch(vector, idx,
-            numValuesToRead, dict, nullabilityHolder, typeWidth);
+        reader
+            .varWidthBinaryDictEncodedReader()
+            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        ((BaseVariableWidthVector) vector).setSafe(
-            idx, dict.decodeToBinary(reader.readInteger()).getBytesUnsafe());
+        ((BaseVariableWidthVector) vector)
+            .setSafe(idx, dict.decodeToBinary(reader.readInteger()).getBytesUnsafe());
       }
     }
   }
@@ -436,16 +601,27 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   class IntBackedDecimalReader extends BaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Integer.BYTES).getInt());
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       if (Mode.RLE.equals(mode)) {
-        reader.intBackedDecimalDictEncodedReader()
+        reader
+            .intBackedDecimalDictEncodedReader()
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
         ((DecimalVector) vector).set(idx, dict.decodeToInt(reader.readInteger()));
@@ -456,20 +632,30 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   class LongBackedDecimalReader extends BaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Long.BYTES).getLong());
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       if (Mode.RLE.equals(mode)) {
-        reader.longBackedDecimalDictEncodedReader()
+        reader
+            .longBackedDecimalDictEncodedReader()
             .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        ((DecimalVector) vector).set(
-            idx, dict.decodeToLong(reader.readInteger()));
+        ((DecimalVector) vector).set(idx, dict.decodeToLong(reader.readInteger()));
       }
     }
   }
@@ -477,14 +663,24 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   class BooleanReader extends BaseReader {
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       ((BitVector) vector).setSafe(idx, valuesReader.readBooleanAsInt());
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       throw new UnsupportedOperationException();
     }
   }
@@ -493,30 +689,44 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
 
     @Override
     protected void nextVal(
-        FieldVector vector, int idx, ValuesAsBytesReader valuesReader, int typeWidth, byte[] byteArray) {
+        FieldVector vector,
+        int idx,
+        ValuesAsBytesReader valuesReader,
+        int typeWidth,
+        byte[] byteArray) {
       throw new UnsupportedOperationException();
     }
 
     @Override
     protected void nextDictEncodedVal(
-        FieldVector vector, int idx, VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead, Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth, Mode mode) {
+        FieldVector vector,
+        int idx,
+        VectorizedDictionaryEncodedParquetValuesReader reader,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth,
+        Mode mode) {
       if (Mode.RLE.equals(mode)) {
-        reader.dictionaryIdReader().nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
+        reader
+            .dictionaryIdReader()
+            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
         vector.getDataBuffer().setInt((long) idx * IntVector.TYPE_WIDTH, reader.readInteger());
       }
     }
   }
 
-  private void setNull(NullabilityHolder nullabilityHolder, int bufferIdx, ArrowBuf validityBuffer) {
+  private void setNull(
+      NullabilityHolder nullabilityHolder, int bufferIdx, ArrowBuf validityBuffer) {
     nullabilityHolder.setNull(bufferIdx);
     if (setArrowValidityVector) {
       BitVectorHelper.setValidityBit(validityBuffer, bufferIdx, 0);
     }
   }
 
-  private void setNulls(NullabilityHolder nullabilityHolder, int idx, int numValues, ArrowBuf validityBuffer) {
+  private void setNulls(
+      NullabilityHolder nullabilityHolder, int idx, int numValues, ArrowBuf validityBuffer) {
     nullabilityHolder.setNulls(idx, numValues);
     if (setArrowValidityVector) {
       for (int i = 0; i < numValues; i++) {
@@ -526,8 +736,12 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   }
 
   private void setNextNValuesInVector(
-      int typeWidth, NullabilityHolder nullabilityHolder,
-      ValuesAsBytesReader valuesReader, int bufferIdx, FieldVector vector, int numValues) {
+      int typeWidth,
+      NullabilityHolder nullabilityHolder,
+      ValuesAsBytesReader valuesReader,
+      int bufferIdx,
+      FieldVector vector,
+      int numValues) {
     ArrowBuf validityBuffer = vector.getValidityBuffer();
     if (currentValue == maxDefLevel) {
       ByteBuffer buffer = valuesReader.getBuffer(numValues * typeWidth);

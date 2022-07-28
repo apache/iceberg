@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
@@ -28,9 +27,9 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
 /**
  * An implementation of {@link ActionsProvider} for Spark.
- * <p>
- * This class is the primary API for interacting with actions in Spark that users should use
- * to instantiate particular actions.
+ *
+ * <p>This class is the primary API for interacting with actions in Spark that users should use to
+ * instantiate particular actions.
  */
 public class SparkActions implements ActionsProvider {
 
@@ -52,16 +51,20 @@ public class SparkActions implements ActionsProvider {
   public SnapshotTableSparkAction snapshotTable(String tableIdent) {
     String ctx = "snapshot source";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
-    return new SnapshotTableSparkAction(spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
+    CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
+    return new SnapshotTableSparkAction(
+        spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
   @Override
   public MigrateTableSparkAction migrateTable(String tableIdent) {
     String ctx = "migrate target";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
-    return new MigrateTableSparkAction(spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
+    CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
+    return new MigrateTableSparkAction(
+        spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
   @Override

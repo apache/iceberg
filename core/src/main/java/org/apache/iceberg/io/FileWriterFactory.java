@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import org.apache.iceberg.PartitionSpec;
@@ -25,9 +24,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 
-/**
- * A factory for creating data and delete writers.
- */
+/** A factory for creating data and delete writers. */
 public interface FileWriterFactory<T> {
 
   /**
@@ -48,7 +45,8 @@ public interface FileWriterFactory<T> {
    * @param partition the partition written deletes belong to or null if the spec is unpartitioned
    * @return the constructed equality delete writer
    */
-  EqualityDeleteWriter<T> newEqualityDeleteWriter(EncryptedOutputFile file, PartitionSpec spec, StructLike partition);
+  EqualityDeleteWriter<T> newEqualityDeleteWriter(
+      EncryptedOutputFile file, PartitionSpec spec, StructLike partition);
 
   /**
    * Creates a new {@link PositionDeleteWriter}.
@@ -58,5 +56,6 @@ public interface FileWriterFactory<T> {
    * @param partition the partition written deletes belong to or null if the spec is unpartitioned
    * @return the constructed position delete writer
    */
-  PositionDeleteWriter<T> newPositionDeleteWriter(EncryptedOutputFile file, PartitionSpec spec, StructLike partition);
+  PositionDeleteWriter<T> newPositionDeleteWriter(
+      EncryptedOutputFile file, PartitionSpec spec, StructLike partition);
 }

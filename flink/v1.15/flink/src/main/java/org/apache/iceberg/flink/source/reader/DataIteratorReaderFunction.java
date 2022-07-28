@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
@@ -24,9 +23,7 @@ import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
 
-/**
- * A {@link ReaderFunction} implementation that uses {@link DataIterator}.
- */
+/** A {@link ReaderFunction} implementation that uses {@link DataIterator}. */
 public abstract class DataIteratorReaderFunction<T> implements ReaderFunction<T> {
   private final DataIteratorBatcher<T> batcher;
 
@@ -37,10 +34,10 @@ public abstract class DataIteratorReaderFunction<T> implements ReaderFunction<T>
   protected abstract DataIterator<T> createDataIterator(IcebergSourceSplit split);
 
   @Override
-  public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> apply(IcebergSourceSplit split) {
+  public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> apply(
+      IcebergSourceSplit split) {
     DataIterator<T> inputIterator = createDataIterator(split);
     inputIterator.seek(split.fileOffset(), split.recordOffset());
     return batcher.batch(split.splitId(), inputIterator);
   }
-
 }

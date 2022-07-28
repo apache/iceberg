@@ -16,8 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
 import java.io.IOException;
@@ -56,21 +66,9 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.S3Error;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.AdditionalAnswers.delegatesTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
 @RunWith(MockitoJUnitRunner.class)
 public class TestS3FileIO {
-  @ClassRule
-  public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
+  @ClassRule public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
   public SerializableSupplier<S3Client> s3 = S3_MOCK_RULE::createS3ClientV2;
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
@@ -78,9 +76,12 @@ public class TestS3FileIO {
   private final String batchDeletionBucketPrefix = "batch-delete-";
   private final int batchDeletionSize = 5;
   private S3FileIO s3FileIO;
-  private final Map<String, String> properties = ImmutableMap.of(
-      "s3.write.tags.tagKey1", "TagValue1",
-      "s3.delete.batch-size", Integer.toString(batchDeletionSize));
+  private final Map<String, String> properties =
+      ImmutableMap.of(
+          "s3.write.tags.tagKey1",
+          "TagValue1",
+          "s3.delete.batch-size",
+          Integer.toString(batchDeletionSize));
 
   @Before
   public void before() {
@@ -88,14 +89,16 @@ public class TestS3FileIO {
     s3FileIO.initialize(properties);
     s3.get().createBucket(CreateBucketRequest.builder().bucket("bucket").build());
     for (int i = 1; i <= numBucketsForBatchDeletion; i++) {
-      s3.get().createBucket(CreateBucketRequest.builder().bucket(batchDeletionBucketPrefix + i).build());
+      s3.get()
+          .createBucket(
+              CreateBucketRequest.builder().bucket(batchDeletionBucketPrefix + i).build());
     }
   }
 
   @Test
   public void testNewInputFile() throws IOException {
     String location = "s3://bucket/path/to/file.txt";
-    byte [] expected = new byte[1024 * 1024];
+    byte[] expected = new byte[1024 * 1024];
     random.nextBytes(expected);
 
     InputFile in = s3FileIO.newInputFile(location);
@@ -107,7 +110,7 @@ public class TestS3FileIO {
     }
 
     assertTrue(in.exists());
-    byte [] actual;
+    byte[] actual;
 
     try (InputStream is = in.newStream()) {
       actual = IOUtils.readFully(is, expected.length);
@@ -155,12 +158,14 @@ public class TestS3FileIO {
   @Test
   public void testDeleteFilesS3ReturnsError() {
     String location = "s3://bucket/path/to/file-to-delete.txt";
-    DeleteObjectsResponse deleteObjectsResponse = DeleteObjectsResponse.builder()
-        .errors(ImmutableList.of(S3Error.builder().key("path/to/file.txt").build()))
-        .build();
+    DeleteObjectsResponse deleteObjectsResponse =
+        DeleteObjectsResponse.builder()
+            .errors(ImmutableList.of(S3Error.builder().key("path/to/file.txt").build()))
+            .build();
     doReturn(deleteObjectsResponse).when(s3mock).deleteObjects((DeleteObjectsRequest) any());
 
-    AssertHelpers.assertThrows("A failure during S3 DeleteObjects call should result in FileIODeleteException",
+    AssertHelpers.assertThrows(
+        "A failure during S3 DeleteObjects call should result in FileIODeleteException",
         BulkDeletionFailureException.class,
         "Failed to delete 1 file",
         () -> s3FileIO.deleteFiles(Lists.newArrayList(location)));
@@ -189,9 +194,13 @@ public class TestS3FileIO {
   @Test
   public void testSerializeClient() {
     SerializableSupplier<S3Client> pre =
-        () -> S3Client.builder().httpClientBuilder(UrlConnectionHttpClient.builder()).region(Region.US_EAST_1).build();
+        () ->
+            S3Client.builder()
+                .httpClientBuilder(UrlConnectionHttpClient.builder())
+                .region(Region.US_EAST_1)
+                .build();
 
-    byte [] data = SerializationUtils.serialize(pre);
+    byte[] data = SerializationUtils.serialize(pre);
     SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
 
     assertEquals("s3", post.get().serviceName());
@@ -203,12 +212,15 @@ public class TestS3FileIO {
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
 
-    scaleSizes.parallelStream().forEach(scale -> {
-      String scalePrefix = String.format("%s/%s/", prefix, scale);
+    scaleSizes
+        .parallelStream()
+        .forEach(
+            scale -> {
+              String scalePrefix = String.format("%s/%s/", prefix, scale);
 
-      createRandomObjects(scalePrefix, scale);
-      assertEquals((long) scale, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
-    });
+              createRandomObjects(scalePrefix, scale);
+              assertEquals((long) scale, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+            });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
     Assertions.assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(prefix)).count());
@@ -219,13 +231,16 @@ public class TestS3FileIO {
     String prefix = "s3://bucket/path/to/delete";
     List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
 
-    scaleSizes.parallelStream().forEach(scale -> {
-      String scalePrefix = String.format("%s/%s/", prefix, scale);
+    scaleSizes
+        .parallelStream()
+        .forEach(
+            scale -> {
+              String scalePrefix = String.format("%s/%s/", prefix, scale);
 
-      createRandomObjects(scalePrefix, scale);
-      s3FileIO.deletePrefix(scalePrefix);
-      assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
-    });
+              createRandomObjects(scalePrefix, scale);
+              s3FileIO.deletePrefix(scalePrefix);
+              assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+            });
   }
 
   @Test
@@ -247,8 +262,13 @@ public class TestS3FileIO {
   private void createRandomObjects(String prefix, int count) {
     S3URI s3URI = new S3URI(prefix);
 
-    random.ints(count).parallel().forEach(i ->
-        s3mock.putObject(builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(), RequestBody.empty())
-    );
+    random
+        .ints(count)
+        .parallel()
+        .forEach(
+            i ->
+                s3mock.putObject(
+                    builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(),
+                    RequestBody.empty()));
   }
 }

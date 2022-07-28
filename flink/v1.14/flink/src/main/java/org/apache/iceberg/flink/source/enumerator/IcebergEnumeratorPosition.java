@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.enumerator;
 
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -62,9 +61,7 @@ class IcebergEnumeratorPosition {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(
-        snapshotId,
-        snapshotTimestampMs);
+    return Objects.hashCode(snapshotId, snapshotTimestampMs);
   }
 
   @Override
@@ -76,7 +73,7 @@ class IcebergEnumeratorPosition {
       return false;
     }
     IcebergEnumeratorPosition other = (IcebergEnumeratorPosition) o;
-    return Objects.equal(snapshotId, other.snapshotId()) &&
-        Objects.equal(snapshotTimestampMs, other.snapshotTimestampMs());
+    return Objects.equal(snapshotId, other.snapshotId())
+        && Objects.equal(snapshotTimestampMs, other.snapshotTimestampMs());
   }
 }

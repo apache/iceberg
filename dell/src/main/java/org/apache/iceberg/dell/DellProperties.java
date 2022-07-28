@@ -16,32 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell;
 
 import java.io.Serializable;
 import java.util.Map;
 
 public class DellProperties implements Serializable {
-  /**
-   * S3 Access key id of Dell EMC ECS
-   */
+  /** S3 Access key id of Dell EMC ECS */
   public static final String ECS_S3_ACCESS_KEY_ID = "ecs.s3.access-key-id";
 
-  /**
-   * S3 Secret access key of Dell EMC ECS
-   */
+  /** S3 Secret access key of Dell EMC ECS */
   public static final String ECS_S3_SECRET_ACCESS_KEY = "ecs.s3.secret-access-key";
 
-  /**
-   * S3 endpoint of Dell EMC ECS
-   */
+  /** S3 endpoint of Dell EMC ECS */
   public static final String ECS_S3_ENDPOINT = "ecs.s3.endpoint";
 
   /**
    * The implementation class of {@link DellClientFactory} to customize Dell client configurations.
-   * If set, all Dell clients will be initialized by the specified factory.
-   * If not set, {@link DellClientFactories.DefaultDellClientFactory} is used as default factory.
+   * If set, all Dell clients will be initialized by the specified factory. If not set, {@link
+   * DellClientFactories.DefaultDellClientFactory} is used as default factory.
    */
   public static final String CLIENT_FACTORY = "client.factory";
 
@@ -49,8 +42,7 @@ public class DellProperties implements Serializable {
   private String ecsS3AccessKeyId;
   private String ecsS3SecretAccessKey;
 
-  public DellProperties() {
-  }
+  public DellProperties() {}
 
   public DellProperties(Map<String, String> properties) {
     this.ecsS3AccessKeyId = properties.get(DellProperties.ECS_S3_ACCESS_KEY_ID);

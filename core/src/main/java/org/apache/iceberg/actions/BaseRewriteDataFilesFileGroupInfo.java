@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.StructLike;
@@ -27,7 +26,8 @@ public class BaseRewriteDataFilesFileGroupInfo implements RewriteDataFiles.FileG
   private final int partitionIndex;
   private final StructLike partition;
 
-  public BaseRewriteDataFilesFileGroupInfo(int globalIndex, int partitionIndex, StructLike partition) {
+  public BaseRewriteDataFilesFileGroupInfo(
+      int globalIndex, int partitionIndex, StructLike partition) {
     this.globalIndex = globalIndex;
     this.partitionIndex = partitionIndex;
     this.partition = partition;

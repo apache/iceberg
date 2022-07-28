@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.List;
@@ -25,14 +24,16 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
-
 public abstract class OrcSchemaWithTypeVisitor<T> {
   public static <T> T visit(
-      org.apache.iceberg.Schema iSchema, TypeDescription schema, OrcSchemaWithTypeVisitor<T> visitor) {
+      org.apache.iceberg.Schema iSchema,
+      TypeDescription schema,
+      OrcSchemaWithTypeVisitor<T> visitor) {
     return visit(iSchema.asStruct(), schema, visitor);
   }
 
-  public static <T> T visit(Type iType, TypeDescription schema, OrcSchemaWithTypeVisitor<T> visitor) {
+  public static <T> T visit(
+      Type iType, TypeDescription schema, OrcSchemaWithTypeVisitor<T> visitor) {
     switch (schema.getCategory()) {
       case STRUCT:
         return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
@@ -43,13 +44,15 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
       case LIST:
         Types.ListType list = iType != null ? iType.asListType() : null;
         return visitor.list(
-            list, schema,
+            list,
+            schema,
             visit(list != null ? list.elementType() : null, schema.getChildren().get(0), visitor));
 
       case MAP:
         Types.MapType map = iType != null ? iType.asMapType() : null;
         return visitor.map(
-            map, schema,
+            map,
+            schema,
             visit(map != null ? map.keyType() : null, schema.getChildren().get(0), visitor),
             visit(map != null ? map.valueType() : null, schema.getChildren().get(1), visitor));
 
@@ -71,7 +74,8 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
     return visitor.record(struct, record, names, results);
   }
 
-  public T record(Types.StructType iStruct, TypeDescription record, List<String> names, List<T> fields) {
+  public T record(
+      Types.StructType iStruct, TypeDescription record, List<String> names, List<T> fields) {
     return null;
   }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Locale;
@@ -24,8 +23,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
 public class MetadataTableUtils {
-  private MetadataTableUtils() {
-  }
+  private MetadataTableUtils() {}
 
   public static boolean hasMetadataTableName(TableIdentifier identifier) {
     return MetadataTableType.from(identifier.name()) != null;
@@ -36,21 +34,19 @@ public class MetadataTableUtils {
       TableOperations ops = ((BaseTable) table).operations();
       return createMetadataTableInstance(ops, table, metadataTableName(table.name(), type), type);
     } else {
-      throw new IllegalArgumentException(String.format(
-          "Cannot create metadata table for table %s: not a base table", table));
+      throw new IllegalArgumentException(
+          String.format("Cannot create metadata table for table %s: not a base table", table));
     }
   }
 
-  public static Table createMetadataTableInstance(TableOperations ops,
-                                                  String baseTableName,
-                                                  String metadataTableName,
-                                                  MetadataTableType type) {
+  public static Table createMetadataTableInstance(
+      TableOperations ops, String baseTableName, String metadataTableName, MetadataTableType type) {
     Table baseTable = new BaseTable(ops, baseTableName);
     return createMetadataTableInstance(ops, baseTable, metadataTableName, type);
   }
 
-  private static Table createMetadataTableInstance(TableOperations ops, Table baseTable, String metadataTableName,
-                                                   MetadataTableType type) {
+  private static Table createMetadataTableInstance(
+      TableOperations ops, Table baseTable, String metadataTableName, MetadataTableType type) {
     switch (type) {
       case ENTRIES:
         return new ManifestEntriesTable(ops, baseTable, metadataTableName);
@@ -79,17 +75,20 @@ public class MetadataTableUtils {
       case ALL_ENTRIES:
         return new AllEntriesTable(ops, baseTable, metadataTableName);
       default:
-        throw new NoSuchTableException("Unknown metadata table type: %s for %s", type, metadataTableName);
+        throw new NoSuchTableException(
+            "Unknown metadata table type: %s for %s", type, metadataTableName);
     }
   }
 
-  public static Table createMetadataTableInstance(TableOperations ops,
-                                                  String catalogName,
-                                                  TableIdentifier baseTableIdentifier,
-                                                  TableIdentifier metadataTableIdentifier,
-                                                  MetadataTableType type) {
+  public static Table createMetadataTableInstance(
+      TableOperations ops,
+      String catalogName,
+      TableIdentifier baseTableIdentifier,
+      TableIdentifier metadataTableIdentifier,
+      MetadataTableType type) {
     String baseTableName = BaseMetastoreCatalog.fullTableName(catalogName, baseTableIdentifier);
-    String metadataTableName = BaseMetastoreCatalog.fullTableName(catalogName, metadataTableIdentifier);
+    String metadataTableName =
+        BaseMetastoreCatalog.fullTableName(catalogName, metadataTableIdentifier);
     return createMetadataTableInstance(ops, baseTableName, metadataTableName, type);
   }
 

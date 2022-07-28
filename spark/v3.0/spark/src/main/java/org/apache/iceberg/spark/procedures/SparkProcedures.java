@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Locale;
@@ -30,8 +29,7 @@ public class SparkProcedures {
 
   private static final Map<String, Supplier<ProcedureBuilder>> BUILDERS = initProcedureBuilders();
 
-  private SparkProcedures() {
-  }
+  private SparkProcedures() {}
 
   public static ProcedureBuilder newBuilder(String name) {
     // procedure resolution is case insensitive to match the existing Spark behavior for functions
@@ -59,6 +57,7 @@ public class SparkProcedures {
 
   public interface ProcedureBuilder {
     ProcedureBuilder withTableCatalog(TableCatalog tableCatalog);
+
     Procedure build();
   }
 }

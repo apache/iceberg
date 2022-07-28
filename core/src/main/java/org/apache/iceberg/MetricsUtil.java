@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
@@ -27,11 +26,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class MetricsUtil {
 
-  private MetricsUtil() {
-  }
+  private MetricsUtil() {}
 
   /**
-   * Construct mapping relationship between column id to NaN value counts from input metrics and metrics config.
+   * Construct mapping relationship between column id to NaN value counts from input metrics and
+   * metrics config.
    */
   public static Map<Integer, Long> createNanValueCounts(
       Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig, Schema inputSchema) {
@@ -42,19 +41,19 @@ public class MetricsUtil {
     }
 
     return fieldMetrics
-        .filter(metrics -> metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
+        .filter(
+            metrics ->
+                metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
-  /**
-   * Extract MetricsMode for the given field id from metrics config.
-   */
-  public static MetricsModes.MetricsMode metricsMode(Schema inputSchema, MetricsConfig metricsConfig, int fieldId) {
+  /** Extract MetricsMode for the given field id from metrics config. */
+  public static MetricsModes.MetricsMode metricsMode(
+      Schema inputSchema, MetricsConfig metricsConfig, int fieldId) {
     Preconditions.checkNotNull(inputSchema, "inputSchema is required");
     Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
 
     String columnName = inputSchema.findColumnName(fieldId);
     return metricsConfig.columnMode(columnName);
   }
-
 }

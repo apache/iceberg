@@ -16,8 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
+
+import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -35,34 +45,31 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.expressions.Expressions.greaterThan;
-import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.in;
-import static org.apache.iceberg.expressions.Expressions.lessThan;
-import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.notEqual;
-import static org.apache.iceberg.expressions.Expressions.notIn;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestBucketingProjection {
 
-  public void assertProjectionStrict(PartitionSpec spec, UnboundPredicate<?> filter,
-                                     Expression.Operation expectedOp, String expectedLiteral) {
+  public void assertProjectionStrict(
+      PartitionSpec spec,
+      UnboundPredicate<?> filter,
+      Expression.Operation expectedOp,
+      String expectedLiteral) {
 
     Expression projection = Projections.strict(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
     Assert.assertEquals(expectedOp, predicate.op());
 
-    Assert.assertNotEquals("Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
+    Assert.assertNotEquals(
+        "Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
 
     Bucket transform = (Bucket) spec.getFieldsBySourceId(1).get(0).transform();
     if (predicate.op() == Expression.Operation.NOT_IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
-      String actual = Lists.newArrayList(values).stream().sorted()
-          .map(v -> transform.toHumanString(v)).collect(Collectors.toList()).toString();
+      String actual =
+          Lists.newArrayList(values).stream()
+              .sorted()
+              .map(v -> transform.toHumanString(v))
+              .collect(Collectors.toList())
+              .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
       Literal literal = predicate.literal();
@@ -71,32 +78,40 @@ public class TestBucketingProjection {
     }
   }
 
-  public void assertProjectionStrictValue(PartitionSpec spec, UnboundPredicate<?> filter,
-                                          Expression.Operation expectedOp) {
+  public void assertProjectionStrictValue(
+      PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
     Expression projection = Projections.strict(spec).project(filter);
     Assert.assertEquals(projection.op(), expectedOp);
   }
 
-  public void assertProjectionInclusiveValue(PartitionSpec spec, UnboundPredicate<?> filter,
-                                             Expression.Operation expectedOp) {
+  public void assertProjectionInclusiveValue(
+      PartitionSpec spec, UnboundPredicate<?> filter, Expression.Operation expectedOp) {
     Expression projection = Projections.inclusive(spec).project(filter);
     Assert.assertEquals(projection.op(), expectedOp);
   }
 
-  public void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,
-                                        Expression.Operation expectedOp, String expectedLiteral) {
+  public void assertProjectionInclusive(
+      PartitionSpec spec,
+      UnboundPredicate<?> filter,
+      Expression.Operation expectedOp,
+      String expectedLiteral) {
     Expression projection = Projections.inclusive(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
     Assert.assertEquals(predicate.op(), expectedOp);
 
-    Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
+    Assert.assertNotEquals(
+        "Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
 
     Bucket transform = (Bucket) spec.getFieldsBySourceId(1).get(0).transform();
     if (predicate.op() == Expression.Operation.IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
-      String actual = Lists.newArrayList(values).stream().sorted()
-          .map(v -> transform.toHumanString(v)).collect(Collectors.toList()).toString();
+      String actual =
+          Lists.newArrayList(values).stream()
+              .sorted()
+              .map(v -> transform.toHumanString(v))
+              .collect(Collectors.toList())
+              .toString();
       Assert.assertEquals(expectedLiteral, actual);
     } else {
       Literal literal = predicate.literal();
@@ -117,10 +132,14 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, greaterThan("value", value), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
-    assertProjectionStrict(spec, notIn("value", value - 1, value, value + 1),
-        Expression.Operation.NOT_IN, "[6, 7, 8]");
+    assertProjectionStrict(
+        spec,
+        notIn("value", value - 1, value, value + 1),
+        Expression.Operation.NOT_IN,
+        "[6, 7, 8]");
     assertProjectionStrictValue(spec, in("value", value, value + 1), Expression.Operation.FALSE);
   }
 
@@ -134,13 +153,16 @@ public class TestBucketingProjection {
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "6");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, greaterThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
-    assertProjectionInclusive(spec, in("value", value - 1, value, value + 1),
-        Expression.Operation.IN, "[6, 7, 8]");
-    assertProjectionInclusiveValue(spec, notIn("value", value, value + 1), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("value", value - 1, value, value + 1), Expression.Operation.IN, "[6, 7, 8]");
+    assertProjectionInclusiveValue(
+        spec, notIn("value", value, value + 1), Expression.Operation.TRUE);
   }
 
   // all types
@@ -157,10 +179,14 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, greaterThan("value", value), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
-    assertProjectionStrict(spec, notIn("value", value - 1, value, value + 1),
-        Expression.Operation.NOT_IN, "[6, 7, 8]");
+    assertProjectionStrict(
+        spec,
+        notIn("value", value - 1, value, value + 1),
+        Expression.Operation.NOT_IN,
+        "[6, 7, 8]");
     assertProjectionStrictValue(spec, in("value", value, value + 1), Expression.Operation.FALSE);
   }
 
@@ -174,13 +200,16 @@ public class TestBucketingProjection {
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "6");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, greaterThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
-    assertProjectionInclusive(spec, in("value", value - 1, value, value + 1),
-        Expression.Operation.IN, "[6, 7, 8]");
-    assertProjectionInclusiveValue(spec, notIn("value", value, value + 1), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("value", value - 1, value, value + 1), Expression.Operation.IN, "[6, 7, 8]");
+    assertProjectionInclusiveValue(
+        spec, notIn("value", value, value + 1), Expression.Operation.TRUE);
   }
 
   @Test
@@ -196,12 +225,17 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, greaterThan("value", value), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
     BigDecimal delta = new BigDecimal(1);
-    assertProjectionStrict(spec, notIn("value", value.add(delta), value, value.subtract(delta)),
-        Expression.Operation.NOT_IN, "[2, 2, 6]");
-    assertProjectionStrictValue(spec, in("value", value, value.add(delta)), Expression.Operation.FALSE);
+    assertProjectionStrict(
+        spec,
+        notIn("value", value.add(delta), value, value.subtract(delta)),
+        Expression.Operation.NOT_IN,
+        "[2, 2, 6]");
+    assertProjectionStrictValue(
+        spec, in("value", value, value.add(delta)), Expression.Operation.FALSE);
   }
 
   @Test
@@ -215,14 +249,20 @@ public class TestBucketingProjection {
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "2");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, greaterThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
     BigDecimal delta = new BigDecimal(1);
-    assertProjectionInclusive(spec, in("value", value.add(delta), value, value.subtract(delta)),
-        Expression.Operation.IN, "[2, 2, 6]");
-    assertProjectionInclusiveValue(spec, notIn("value", value, value.add(delta)), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec,
+        in("value", value.add(delta), value, value.subtract(delta)),
+        Expression.Operation.IN,
+        "[2, 2, 6]");
+    assertProjectionInclusiveValue(
+        spec, notIn("value", value, value.add(delta)), Expression.Operation.TRUE);
   }
 
   @Test
@@ -237,11 +277,13 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, greaterThan("value", value), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
-    assertProjectionStrict(spec, notIn("value", value, value + "abc"),
-        Expression.Operation.NOT_IN, "[4, 9]");
-    assertProjectionStrictValue(spec, in("value", value, value + "abc"), Expression.Operation.FALSE);
+    assertProjectionStrict(
+        spec, notIn("value", value, value + "abc"), Expression.Operation.NOT_IN, "[4, 9]");
+    assertProjectionStrictValue(
+        spec, in("value", value, value + "abc"), Expression.Operation.FALSE);
   }
 
   @Test
@@ -254,13 +296,16 @@ public class TestBucketingProjection {
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "4");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, greaterThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
-    assertProjectionInclusive(spec, in("value", value, value + "abc"),
-        Expression.Operation.IN, "[4, 9]");
-    assertProjectionInclusiveValue(spec, notIn("value", value, value + "abc"), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("value", value, value + "abc"), Expression.Operation.IN, "[4, 9]");
+    assertProjectionInclusiveValue(
+        spec, notIn("value", value, value + "abc"), Expression.Operation.TRUE);
   }
 
   @Test
@@ -275,11 +320,12 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, greaterThan("value", value), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
     ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
-    assertProjectionStrict(spec, notIn("value", value, anotherValue),
-        Expression.Operation.NOT_IN, "[4, 6]");
+    assertProjectionStrict(
+        spec, notIn("value", value, anotherValue), Expression.Operation.NOT_IN, "[4, 6]");
     assertProjectionStrictValue(spec, in("value", value, anotherValue), Expression.Operation.FALSE);
   }
 
@@ -293,14 +339,17 @@ public class TestBucketingProjection {
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "4");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, greaterThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
     ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
-    assertProjectionInclusive(spec, in("value", value, anotherValue),
-        Expression.Operation.IN, "[4, 6]");
-    assertProjectionInclusiveValue(spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("value", value, anotherValue), Expression.Operation.IN, "[4, 6]");
+    assertProjectionInclusiveValue(
+        spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
   }
 
   @Test
@@ -315,11 +364,12 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(spec, lessThan("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("value", value), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, greaterThan("value", value), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
+    assertProjectionStrictValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
     UUID anotherValue = new UUID(456L, 123L);
-    assertProjectionStrict(spec, notIn("value", value, anotherValue),
-        Expression.Operation.NOT_IN, "[4, 6]");
+    assertProjectionStrict(
+        spec, notIn("value", value, anotherValue), Expression.Operation.NOT_IN, "[4, 6]");
     assertProjectionStrictValue(spec, in("value", value, anotherValue), Expression.Operation.FALSE);
   }
 
@@ -333,13 +383,16 @@ public class TestBucketingProjection {
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, "4");
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, lessThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, lessThanOrEqual("value", value), Expression.Operation.TRUE);
     assertProjectionInclusiveValue(spec, greaterThan("value", value), Expression.Operation.TRUE);
-    assertProjectionInclusiveValue(spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
+    assertProjectionInclusiveValue(
+        spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
     UUID anotherValue = new UUID(456L, 123L);
-    assertProjectionInclusive(spec, in("value", value, anotherValue),
-        Expression.Operation.IN, "[4, 6]");
-    assertProjectionInclusiveValue(spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
+    assertProjectionInclusive(
+        spec, in("value", value, anotherValue), Expression.Operation.IN, "[4, 6]");
+    assertProjectionInclusiveValue(
+        spec, notIn("value", value, anotherValue), Expression.Operation.TRUE);
   }
 }

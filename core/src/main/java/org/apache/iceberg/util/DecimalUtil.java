@@ -16,24 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.math.BigDecimal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class DecimalUtil {
-  private DecimalUtil() {
-  }
+  private DecimalUtil() {}
 
   /**
-   * Convert a {@link BigDecimal} to reused fix length bytes, the extra bytes are filled according to the signum.
+   * Convert a {@link BigDecimal} to reused fix length bytes, the extra bytes are filled according
+   * to the signum.
    */
-  public static byte[] toReusedFixLengthBytes(int precision, int scale, BigDecimal decimal, byte[] reuseBuf) {
-    Preconditions.checkArgument(decimal.scale() == scale,
-        "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-    Preconditions.checkArgument(decimal.precision() <= precision,
-        "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
+  public static byte[] toReusedFixLengthBytes(
+      int precision, int scale, BigDecimal decimal, byte[] reuseBuf) {
+    Preconditions.checkArgument(
+        decimal.scale() == scale,
+        "Cannot write value as decimal(%s,%s), wrong scale: %s",
+        precision,
+        scale,
+        decimal);
+    Preconditions.checkArgument(
+        decimal.precision() <= precision,
+        "Cannot write value as decimal(%s,%s), too large: %s",
+        precision,
+        scale,
+        decimal);
 
     byte[] unscaled = decimal.unscaledValue().toByteArray();
     if (unscaled.length == reuseBuf.length) {

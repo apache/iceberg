@@ -16,15 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 public final class StandardBlobTypes {
-  private StandardBlobTypes() {
-  }
+  private StandardBlobTypes() {}
 
   /**
-   * A serialized form of a "compact" Theta sketch produced by the <a href="https://datasketches.apache.org/">Apache DataSketches</a> library
+   * A serialized form of a "compact" Theta sketch produced by the <a
+   * href="https://datasketches.apache.org/">Apache DataSketches</a> library
    */
   public static final String APACHE_DATASKETCHES_THETA_V1 = "apache-datasketches-theta-v1";
 }

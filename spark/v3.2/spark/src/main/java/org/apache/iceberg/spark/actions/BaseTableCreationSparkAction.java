@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import java.util.List;
@@ -50,7 +49,8 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 
 abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT> {
-  private static final Set<String> ALLOWED_SOURCES = ImmutableSet.of("parquet", "avro", "orc", "hive");
+  private static final Set<String> ALLOWED_SOURCES =
+      ImmutableSet.of("parquet", "avro", "orc", "hive");
   protected static final String LOCATION = "location";
   protected static final String ICEBERG_METADATA_FOLDER = "metadata";
   protected static final List<String> EXCLUDED_PROPERTIES =
@@ -66,7 +66,8 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
   // Optional Parameters for destination
   private final Map<String, String> additionalProperties = Maps.newHashMap();
 
-  BaseTableCreationSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+  BaseTableCreationSparkAction(
+      SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark);
 
     this.sourceCatalog = checkSourceCatalog(sourceCatalog);
@@ -78,12 +79,13 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
       throw new NoSuchTableException("Cannot not find source table '%s'", sourceTableIdent);
     } catch (ClassCastException e) {
-      throw new IllegalArgumentException(String.format("Cannot use non-v1 table '%s' as a source", sourceTableIdent),
-          e);
+      throw new IllegalArgumentException(
+          String.format("Cannot use non-v1 table '%s' as a source", sourceTableIdent), e);
     }
     validateSourceTable();
 
-    this.sourceTableLocation = CatalogUtils.URIToString(sourceCatalogTable.storage().locationUri().get());
+    this.sourceTableLocation =
+        CatalogUtils.URIToString(sourceCatalogTable.storage().locationUri().get());
   }
 
   protected abstract TableCatalog checkSourceCatalog(CatalogPlugin catalog);
@@ -124,17 +126,23 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
 
   private void validateSourceTable() {
     String sourceTableProvider = sourceCatalogTable.provider().get().toLowerCase(Locale.ROOT);
-    Preconditions.checkArgument(ALLOWED_SOURCES.contains(sourceTableProvider),
-        "Cannot create an Iceberg table from source provider: '%s'", sourceTableProvider);
-    Preconditions.checkArgument(!sourceCatalogTable.storage().locationUri().isEmpty(),
+    Preconditions.checkArgument(
+        ALLOWED_SOURCES.contains(sourceTableProvider),
+        "Cannot create an Iceberg table from source provider: '%s'",
+        sourceTableProvider);
+    Preconditions.checkArgument(
+        !sourceCatalogTable.storage().locationUri().isEmpty(),
         "Cannot create an Iceberg table from a source without an explicit location");
   }
 
   protected StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
-    Preconditions.checkArgument(catalog instanceof SparkSessionCatalog || catalog instanceof SparkCatalog,
-        "Cannot create Iceberg table in non-Iceberg Catalog. " +
-            "Catalog '%s' was of class '%s' but '%s' or '%s' are required",
-        catalog.name(), catalog.getClass().getName(), SparkSessionCatalog.class.getName(),
+    Preconditions.checkArgument(
+        catalog instanceof SparkSessionCatalog || catalog instanceof SparkCatalog,
+        "Cannot create Iceberg table in non-Iceberg Catalog. "
+            + "Catalog '%s' was of class '%s' but '%s' or '%s' are required",
+        catalog.name(),
+        catalog.getClass().getName(),
+        SparkSessionCatalog.class.getName(),
         SparkCatalog.class.getName());
 
     return (StagingTableCatalog) catalog;
@@ -145,11 +153,14 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
       Map<String, String> props = destTableProps();
       StructType schema = sourceTable.schema();
       Transform[] partitioning = sourceTable.partitioning();
-      return (StagedSparkTable) destCatalog().stageCreate(destTableIdent(), schema, partitioning, props);
+      return (StagedSparkTable)
+          destCatalog().stageCreate(destTableIdent(), schema, partitioning, props);
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException e) {
-      throw new NoSuchNamespaceException("Cannot create table %s as the namespace does not exist", destTableIdent());
+      throw new NoSuchNamespaceException(
+          "Cannot create table %s as the namespace does not exist", destTableIdent());
     } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
-      throw new AlreadyExistsException("Cannot create table %s as it already exists", destTableIdent());
+      throw new AlreadyExistsException(
+          "Cannot create table %s as it already exists", destTableIdent());
     }
   }
 
@@ -162,7 +173,10 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
   }
 
   protected String getMetadataLocation(Table table) {
-    return table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION,
-        table.location() + "/" + ICEBERG_METADATA_FOLDER);
+    return table
+        .properties()
+        .getOrDefault(
+            TableProperties.WRITE_METADATA_LOCATION,
+            table.location() + "/" + ICEBERG_METADATA_FOLDER);
   }
 }

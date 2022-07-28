@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -25,36 +26,48 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestIdToOrcName {
 
   @Test
   public void testIdToQuotedColumnName() {
-    Schema schema = new Schema(
-        required(1, "long", Types.LongType.get()),
-        required(2, "struct", Types.StructType.of(
-            required(3, "long", Types.LongType.get())
-        )),
-        required(4, "listOfLongs", Types.ListType.ofRequired(5, Types.LongType.get())),
-        required(6, "listOfStructs", Types.ListType.ofRequired(7, Types.StructType.of(
-            required(8, "long", Types.LongType.get())
-        ))),
-        required(9, "map", Types.MapType.ofRequired(10, 11, Types.LongType.get(), Types.LongType.get())),
-        required(12, "mapOfStructs", Types.MapType.ofRequired(13, 14,
-            Types.StructType.of(required(15, "long", Types.LongType.get())),
-            Types.StructType.of(required(16, "long", Types.LongType.get()))
-        )),
-        required(17, "listOfMapsOfStruct", Types.ListType.ofRequired(18, Types.MapType.ofRequired(19, 20,
-            Types.StructType.of(required(21, "long", Types.LongType.get())),
-            Types.StructType.of(required(22, "long", Types.LongType.get()))
-        ))),
-        required(23, "col.with.dots", Types.StructType.of(
-            required(24, "inner.col.with.dots", Types.LongType.get())
-        )),
-        required(25, "colW!th$peci@lCh@rs", Types.LongType.get()),
-        required(26, "colWith`Quotes`", Types.LongType.get())
-    );
+    Schema schema =
+        new Schema(
+            required(1, "long", Types.LongType.get()),
+            required(2, "struct", Types.StructType.of(required(3, "long", Types.LongType.get()))),
+            required(4, "listOfLongs", Types.ListType.ofRequired(5, Types.LongType.get())),
+            required(
+                6,
+                "listOfStructs",
+                Types.ListType.ofRequired(
+                    7, Types.StructType.of(required(8, "long", Types.LongType.get())))),
+            required(
+                9,
+                "map",
+                Types.MapType.ofRequired(10, 11, Types.LongType.get(), Types.LongType.get())),
+            required(
+                12,
+                "mapOfStructs",
+                Types.MapType.ofRequired(
+                    13,
+                    14,
+                    Types.StructType.of(required(15, "long", Types.LongType.get())),
+                    Types.StructType.of(required(16, "long", Types.LongType.get())))),
+            required(
+                17,
+                "listOfMapsOfStruct",
+                Types.ListType.ofRequired(
+                    18,
+                    Types.MapType.ofRequired(
+                        19,
+                        20,
+                        Types.StructType.of(required(21, "long", Types.LongType.get())),
+                        Types.StructType.of(required(22, "long", Types.LongType.get()))))),
+            required(
+                23,
+                "col.with.dots",
+                Types.StructType.of(required(24, "inner.col.with.dots", Types.LongType.get()))),
+            required(25, "colW!th$peci@lCh@rs", Types.LongType.get()),
+            required(26, "colWith`Quotes`", Types.LongType.get()));
 
     Map<Integer, String> actual = ORCSchemaUtil.idToOrcName(schema);
     Assert.assertEquals("`long`", actual.get(1));

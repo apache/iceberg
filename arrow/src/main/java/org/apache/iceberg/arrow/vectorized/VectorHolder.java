@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.vector.FieldVector;
@@ -26,8 +25,8 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 
 /**
- * Container class for holding the Arrow vector storing a batch of values along with other state needed for reading
- * values out of it.
+ * Container class for holding the Arrow vector storing a batch of values along with other state
+ * needed for reading values out of it.
  */
 public class VectorHolder {
   private final ColumnDescriptor columnDescriptor;
@@ -38,8 +37,12 @@ public class VectorHolder {
   private final Type icebergType;
 
   public VectorHolder(
-      ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded,
-      Dictionary dictionary, NullabilityHolder holder, Type type) {
+      ColumnDescriptor columnDescriptor,
+      FieldVector vector,
+      boolean isDictionaryEncoded,
+      Dictionary dictionary,
+      NullabilityHolder holder,
+      Type type) {
     // All the fields except dictionary are not nullable unless it is a dummy holder
     Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
     Preconditions.checkNotNull(vector, "Vector cannot be null");
@@ -113,8 +116,8 @@ public class VectorHolder {
   }
 
   /**
-   * A Vector Holder which does not actually produce values, consumers of this class should
-   * use the constantValue to populate their ColumnVector implementation.
+   * A Vector Holder which does not actually produce values, consumers of this class should use the
+   * constantValue to populate their ColumnVector implementation.
    */
   public static class ConstantVectorHolder<T> extends VectorHolder {
     private final T constantValue;
@@ -145,5 +148,4 @@ public class VectorHolder {
       super(vector, type, nulls);
     }
   }
-
 }

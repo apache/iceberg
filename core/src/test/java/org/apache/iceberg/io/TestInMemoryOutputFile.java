@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -33,8 +32,7 @@ public class TestInMemoryOutputFile {
     outputStream.write('a');
     outputStream.write('b');
     outputStream.close();
-    Assertions.assertThatThrownBy(() -> outputStream.write('c'))
-        .hasMessage("Stream is closed");
+    Assertions.assertThatThrownBy(() -> outputStream.write('c')).hasMessage("Stream is closed");
     Assertions.assertThat(outputFile.toByteArray())
         .isEqualTo("ab".getBytes(StandardCharsets.ISO_8859_1));
   }

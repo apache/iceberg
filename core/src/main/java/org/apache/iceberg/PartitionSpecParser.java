@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -33,8 +32,7 @@ import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
 
 public class PartitionSpecParser {
-  private PartitionSpecParser() {
-  }
+  private PartitionSpecParser() {}
 
   private static final String SPEC_ID = "spec-id";
   private static final String FIELDS = "fields";
@@ -95,13 +93,12 @@ public class PartitionSpecParser {
     return builder.build();
   }
 
-  private static final Cache<Pair<Types.StructType, String>, PartitionSpec> SPEC_CACHE = Caffeine
-      .newBuilder()
-      .weakValues()
-      .build();
+  private static final Cache<Pair<Types.StructType, String>, PartitionSpec> SPEC_CACHE =
+      Caffeine.newBuilder().weakValues().build();
 
   public static PartitionSpec fromJson(Schema schema, String json) {
-    return SPEC_CACHE.get(Pair.of(schema.asStruct(), json),
+    return SPEC_CACHE.get(
+        Pair.of(schema.asStruct(), json),
         schemaJsonPair -> {
           try {
             return fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class));
@@ -156,21 +153,22 @@ public class PartitionSpecParser {
   }
 
   private static void buildFromJsonFields(UnboundPartitionSpec.Builder builder, JsonNode json) {
-    Preconditions.checkArgument(json.isArray(),
-        "Cannot parse partition spec fields, not an array: %s", json);
+    Preconditions.checkArgument(
+        json.isArray(), "Cannot parse partition spec fields, not an array: %s", json);
 
     Iterator<JsonNode> elements = json.elements();
     int fieldIdCount = 0;
     while (elements.hasNext()) {
       JsonNode element = elements.next();
-      Preconditions.checkArgument(element.isObject(),
-          "Cannot parse partition field, not an object: %s", element);
+      Preconditions.checkArgument(
+          element.isObject(), "Cannot parse partition field, not an object: %s", element);
 
       String name = JsonUtil.getString(NAME, element);
       String transform = JsonUtil.getString(TRANSFORM, element);
       int sourceId = JsonUtil.getInt(SOURCE_ID, element);
 
-      // partition field ids are missing in old PartitionSpec, they always auto-increment from PARTITION_DATA_ID_START
+      // partition field ids are missing in old PartitionSpec, they always auto-increment from
+      // PARTITION_DATA_ID_START
       if (element.has(FIELD_ID)) {
         builder.addField(transform, sourceId, JsonUtil.getInt(FIELD_ID, element), name);
         fieldIdCount++;
@@ -179,8 +177,10 @@ public class PartitionSpecParser {
       }
     }
 
-    Preconditions.checkArgument(fieldIdCount == 0 || fieldIdCount == json.size(),
+    Preconditions.checkArgument(
+        fieldIdCount == 0 || fieldIdCount == json.size(),
         "Cannot parse spec with missing field IDs: %s missing of %s fields.",
-        json.size() - fieldIdCount, json.size());
+        json.size() - fieldIdCount,
+        json.size());
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -43,26 +42,35 @@ public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBas
   }
 
   @Override
-  protected StructLikeSet rowSet(String tableName, Table testTable, String... columns) throws IOException {
+  protected StructLikeSet rowSet(String tableName, Table testTable, String... columns)
+      throws IOException {
     Schema projected = testTable.schema().select(columns);
     RowType rowType = FlinkSchemaUtil.convert(projected);
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, hiveConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
+    properties.put(
+        CatalogProperties.WAREHOUSE_LOCATION,
+        hiveConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
     properties.put(CatalogProperties.URI, hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
-    properties.put(CatalogProperties.CLIENT_POOL_SIZE,
+    properties.put(
+        CatalogProperties.CLIENT_POOL_SIZE,
         Integer.toString(hiveConf.getInt("iceberg.hive.client-pool-size", 5)));
     CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(), hiveConf, properties);
-    FlinkInputFormat inputFormat = FlinkSource.forRowData()
-        .tableLoader(TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of("default", tableName)))
-        .project(FlinkSchemaUtil.toSchema(rowType)).buildFormat();
+    FlinkInputFormat inputFormat =
+        FlinkSource.forRowData()
+            .tableLoader(
+                TableLoader.fromCatalog(
+                    hiveCatalogLoader, TableIdentifier.of("default", tableName)))
+            .project(FlinkSchemaUtil.toSchema(rowType))
+            .buildFormat();
 
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
-    TestHelpers.readRowData(inputFormat, rowType).forEach(rowData -> {
-      RowDataWrapper wrapper = new RowDataWrapper(rowType, projected.asStruct());
-      set.add(wrapper.wrap(rowData));
-    });
+    TestHelpers.readRowData(inputFormat, rowType)
+        .forEach(
+            rowData -> {
+              RowDataWrapper wrapper = new RowDataWrapper(rowType, projected.asStruct());
+              set.add(wrapper.wrap(rowData));
+            });
 
     return set;
   }
-
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
@@ -98,8 +97,9 @@ public class ColumnVectorWithFilter extends IcebergArrowColumnVector {
   }
 
   public static ColumnVector forHolder(VectorHolder holder, int[] rowIdMapping, int numRows) {
-    return holder.isDummy() ?
-        new ConstantColumnVector(Types.IntegerType.get(), numRows, ((ConstantVectorHolder) holder).getConstant()) :
-        new ColumnVectorWithFilter(holder, rowIdMapping);
+    return holder.isDummy()
+        ? new ConstantColumnVector(
+            Types.IntegerType.get(), numRows, ((ConstantVectorHolder) holder).getConstant())
+        : new ColumnVectorWithFilter(holder, rowIdMapping);
   }
 }

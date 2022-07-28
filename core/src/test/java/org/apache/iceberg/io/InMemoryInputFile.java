@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.ByteArrayInputStream;
@@ -81,8 +80,11 @@ public class InMemoryInputFile implements InputFile {
     public void seek(long newPos) throws IOException {
       checkOpen();
       delegate.reset(); // resets to a marked position
-      Preconditions.checkState(delegate.skip(newPos) == newPos,
-          "Invalid position %s within stream of length %s", newPos, length);
+      Preconditions.checkState(
+          delegate.skip(newPos) == newPos,
+          "Invalid position %s within stream of length %s",
+          newPos,
+          length);
     }
 
     @Override
@@ -139,7 +141,8 @@ public class InMemoryInputFile implements InputFile {
     }
 
     private void checkOpen() {
-      // ByteArrayInputStream can be used even after close, so for test purposes disallow such use explicitly
+      // ByteArrayInputStream can be used even after close, so for test purposes disallow such use
+      // explicitly
       Preconditions.checkState(!closed, "Stream is closed");
     }
   }

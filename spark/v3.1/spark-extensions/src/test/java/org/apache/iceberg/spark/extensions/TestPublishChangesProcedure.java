@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
+
+import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 
 import java.util.List;
 import java.util.Map;
@@ -34,11 +35,10 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
 import org.junit.Test;
 
-import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
-
 public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
 
-  public TestPublishChangesProcedure(String catalogName, String implementation, Map<String, String> config) {
+  public TestPublishChangesProcedure(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -57,26 +57,28 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should not see rows from staged snapshot",
+    assertEquals(
+        "Should not see rows from staged snapshot",
         ImmutableList.of(),
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
-    List<Object[]> output = sql(
-        "CALL %s.system.publish_changes('%s', '%s')",
-        catalogName, tableIdent, wapId);
+    List<Object[]> output =
+        sql("CALL %s.system.publish_changes('%s', '%s')", catalogName, tableIdent, wapId);
 
     table.refresh();
 
     Snapshot currentSnapshot = table.currentSnapshot();
 
-    assertEquals("Procedure output must match",
+    assertEquals(
+        "Procedure output must match",
         ImmutableList.of(row(wapSnapshot.snapshotId(), currentSnapshot.snapshotId())),
         output);
 
-    assertEquals("Apply of WAP changes must be successful",
+    assertEquals(
+        "Apply of WAP changes must be successful",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", tableName));
   }
@@ -91,26 +93,30 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should not see rows from staged snapshot",
+    assertEquals(
+        "Should not see rows from staged snapshot",
         ImmutableList.of(),
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
-    List<Object[]> output = sql(
-        "CALL %s.system.publish_changes(wap_id => '%s', table => '%s')",
-        catalogName, wapId, tableIdent);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.publish_changes(wap_id => '%s', table => '%s')",
+            catalogName, wapId, tableIdent);
 
     table.refresh();
 
     Snapshot currentSnapshot = table.currentSnapshot();
 
-    assertEquals("Procedure output must match",
+    assertEquals(
+        "Procedure output must match",
         ImmutableList.of(row(wapSnapshot.snapshotId(), currentSnapshot.snapshotId())),
         output);
 
-    assertEquals("Apply of WAP changes must be successful",
+    assertEquals(
+        "Apply of WAP changes must be successful",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", tableName));
   }
@@ -132,14 +138,15 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should not see rows from staged snapshot",
+    assertEquals(
+        "Should not see rows from staged snapshot",
         ImmutableList.of(),
         sql("SELECT * FROM %s", tableName));
 
-    sql("CALL %s.system.publish_changes('%s', '%s')",
-        catalogName, tableIdent, wapId);
+    sql("CALL %s.system.publish_changes('%s', '%s')", catalogName, tableIdent, wapId);
 
-    assertEquals("Apply of WAP changes should be visible",
+    assertEquals(
+        "Apply of WAP changes should be visible",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM tmp"));
 
@@ -150,27 +157,37 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
   public void testApplyInvalidWapId() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    AssertHelpers.assertThrows("Should reject invalid wap id",
-        ValidationException.class, "Cannot apply unknown WAP ID",
+    AssertHelpers.assertThrows(
+        "Should reject invalid wap id",
+        ValidationException.class,
+        "Cannot apply unknown WAP ID",
         () -> sql("CALL %s.system.publish_changes('%s', 'not_valid')", catalogName, tableIdent));
   }
 
   @Test
   public void testInvalidApplyWapChangesCases() {
-    AssertHelpers.assertThrows("Should not allow mixed args",
-        AnalysisException.class, "Named and positional arguments cannot be mixed",
+    AssertHelpers.assertThrows(
+        "Should not allow mixed args",
+        AnalysisException.class,
+        "Named and positional arguments cannot be mixed",
         () -> sql("CALL %s.system.publish_changes('n', table => 't', 'not_valid')", catalogName));
 
-    AssertHelpers.assertThrows("Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class, "not found",
+    AssertHelpers.assertThrows(
+        "Should not resolve procedures in arbitrary namespaces",
+        NoSuchProcedureException.class,
+        "not found",
         () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.publish_changes('t')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
-        IllegalArgumentException.class, "Cannot handle an empty identifier",
+    AssertHelpers.assertThrows(
+        "Should reject calls with empty table identifier",
+        IllegalArgumentException.class,
+        "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.publish_changes('', 'not_valid')", catalogName));
   }
 }

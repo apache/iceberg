@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Iterator;
@@ -38,8 +37,12 @@ public class BaseFileScanTask implements FileScanTask {
 
   private transient PartitionSpec spec = null;
 
-  public BaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString, String specString,
-                   ResidualEvaluator residuals) {
+  public BaseFileScanTask(
+      DataFile file,
+      DeleteFile[] deletes,
+      String schemaString,
+      String specString,
+      ResidualEvaluator residuals) {
     this.file = file;
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
     this.schemaString = schemaString;
@@ -101,9 +104,7 @@ public class BaseFileScanTask implements FileScanTask {
         .toString();
   }
 
-  /**
-   * This iterator returns {@link FileScanTask} using guidance provided by split offsets.
-   */
+  /** This iterator returns {@link FileScanTask} using guidance provided by split offsets. */
   @VisibleForTesting
   static final class OffsetsAwareTargetSplitSizeScanTaskIterator implements Iterator<FileScanTask> {
     private final List<Long> offsets;
@@ -111,7 +112,8 @@ public class BaseFileScanTask implements FileScanTask {
     private final FileScanTask parentScanTask;
     private int sizeIdx = 0;
 
-    OffsetsAwareTargetSplitSizeScanTaskIterator(List<Long> offsetList, FileScanTask parentScanTask) {
+    OffsetsAwareTargetSplitSizeScanTaskIterator(
+        List<Long> offsetList, FileScanTask parentScanTask) {
       this.offsets = ImmutableList.copyOf(offsetList);
       this.parentScanTask = parentScanTask;
       this.splitSizes = Lists.newArrayListWithCapacity(offsets.size());
@@ -139,7 +141,6 @@ public class BaseFileScanTask implements FileScanTask {
       sizeIdx += 1; // Create 1 split per offset
       return new SplitScanTask(offsets.get(offsetIdx), currentSize, parentScanTask);
     }
-
   }
 
   @VisibleForTesting
@@ -171,7 +172,8 @@ public class BaseFileScanTask implements FileScanTask {
     }
   }
 
-  private static final class SplitScanTask implements FileScanTask, MergeableScanTask<SplitScanTask> {
+  private static final class SplitScanTask
+      implements FileScanTask, MergeableScanTask<SplitScanTask> {
     private final long len;
     private final long offset;
     private final FileScanTask fileScanTask;

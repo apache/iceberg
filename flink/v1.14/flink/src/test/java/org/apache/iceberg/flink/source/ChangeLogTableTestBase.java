@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.util.List;
@@ -36,8 +35,7 @@ import org.junit.rules.TestName;
 public class ChangeLogTableTestBase extends FlinkTestBase {
   private volatile TableEnvironment tEnv = null;
 
-  @Rule
-  public TestName name = new TestName();
+  @Rule public TestName name = new TestName();
 
   @After
   public void clean() {
@@ -50,16 +48,15 @@ public class ChangeLogTableTestBase extends FlinkTestBase {
     if (tEnv == null) {
       synchronized (this) {
         if (tEnv == null) {
-          EnvironmentSettings settings = EnvironmentSettings
-              .newInstance()
-              .inStreamingMode()
-              .build();
+          EnvironmentSettings settings =
+              EnvironmentSettings.newInstance().inStreamingMode().build();
 
-          StreamExecutionEnvironment env = StreamExecutionEnvironment
-              .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
-              .enableCheckpointing(400)
-              .setMaxParallelism(1)
-              .setParallelism(1);
+          StreamExecutionEnvironment env =
+              StreamExecutionEnvironment.getExecutionEnvironment(
+                      MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
+                  .enableCheckpointing(400)
+                  .setMaxParallelism(1)
+                  .setParallelism(1);
 
           tEnv = StreamTableEnvironment.create(env, settings);
         }
@@ -85,8 +82,6 @@ public class ChangeLogTableTestBase extends FlinkTestBase {
   }
 
   protected static <T> List<T> listJoin(List<List<T>> lists) {
-    return lists.stream()
-        .flatMap(List::stream)
-        .collect(Collectors.toList());
+    return lists.stream().flatMap(List::stream).collect(Collectors.toList());
   }
 }

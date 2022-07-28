@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.util.Map;
@@ -24,15 +23,13 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 
-/**
- * Interface for vectorized Iceberg readers.
- */
+/** Interface for vectorized Iceberg readers. */
 public interface VectorizedReader<T> {
 
   /**
    * Reads a batch of type @param &lt;T&gt; and of size numRows
    *
-   * @param reuse   container for the last batch to be reused for next batch
+   * @param reuse container for the last batch to be reused for next batch
    * @param numRows number of rows to read
    * @return batch of records of type @param &lt;T&gt;
    */
@@ -43,14 +40,13 @@ public interface VectorizedReader<T> {
   /**
    * Sets the row group information to be used with this reader
    *
-   * @param pages    row group information for all the columns
+   * @param pages row group information for all the columns
    * @param metadata map of {@link ColumnPath} -&gt; {@link ColumnChunkMetaData} for the row group
    * @param rowPosition the row group's row offset in the parquet file
    */
-  void setRowGroupInfo(PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition);
+  void setRowGroupInfo(
+      PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition);
 
-  /**
-   * Release any resources allocated.
-   */
+  /** Release any resources allocated. */
   void close();
 }

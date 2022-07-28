@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
 package org.apache.iceberg.spark.sql;
 
 import java.util.List;
@@ -49,7 +47,8 @@ public class TestRefreshTable extends SparkCatalogTestBase {
 
   @Test
   public void testRefreshCommand() {
-    // We are not allowed to change the session catalog after it has been initialized, so build a new one
+    // We are not allowed to change the session catalog after it has been initialized, so build a
+    // new one
     if (catalogName.equals("spark_catalog")) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".cache-enabled", true);
       spark = spark.cloneSession();
@@ -59,7 +58,8 @@ public class TestRefreshTable extends SparkCatalogTestBase {
     List<Object[]> originalActual = sql("SELECT * FROM %s", tableName);
     assertEquals("Table should start as expected", originalExpected, originalActual);
 
-    // Modify table outside of spark, it should be cached so Spark should see the same value after mutation
+    // Modify table outside of spark, it should be cached so Spark should see the same value after
+    // mutation
     Table table = validationCatalog.loadTable(tableIdent);
     DataFile file = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
     table.newDelete().deleteFile(file).commit();

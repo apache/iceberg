@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
@@ -24,9 +23,11 @@ import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
 
-class IcebergEnumeratorPositionSerializer implements SimpleVersionedSerializer<IcebergEnumeratorPosition> {
+class IcebergEnumeratorPositionSerializer
+    implements SimpleVersionedSerializer<IcebergEnumeratorPosition> {
 
-  public static final IcebergEnumeratorPositionSerializer INSTANCE = new IcebergEnumeratorPositionSerializer();
+  public static final IcebergEnumeratorPositionSerializer INSTANCE =
+      new IcebergEnumeratorPositionSerializer();
 
   private static final int VERSION = 1;
 

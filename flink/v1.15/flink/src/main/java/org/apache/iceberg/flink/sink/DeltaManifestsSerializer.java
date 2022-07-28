@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.io.ByteArrayInputStream;
@@ -43,7 +42,8 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
 
   @Override
   public byte[] serialize(DeltaManifests deltaManifests) throws IOException {
-    Preconditions.checkNotNull(deltaManifests, "DeltaManifests to be serialized should not be null");
+    Preconditions.checkNotNull(
+        deltaManifests, "DeltaManifests to be serialized should not be null");
 
     ByteArrayOutputStream binaryOut = new ByteArrayOutputStream();
     DataOutputStream out = new DataOutputStream(binaryOut);

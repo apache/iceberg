@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Map;
@@ -37,10 +36,10 @@ import org.slf4j.LoggerFactory;
 
 public class LockManagers {
 
-  private static final LockManager LOCK_MANAGER_DEFAULT = new InMemoryLockManager(Maps.newHashMap());
+  private static final LockManager LOCK_MANAGER_DEFAULT =
+      new InMemoryLockManager(Maps.newHashMap());
 
-  private LockManagers() {
-  }
+  private LockManagers() {}
 
   public static LockManager defaultLockManager() {
     return LOCK_MANAGER_DEFAULT;
@@ -59,8 +58,8 @@ public class LockManagers {
     try {
       ctor = DynConstructors.builder(LockManager.class).hiddenImpl(impl).buildChecked();
     } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot initialize LockManager, missing no-arg constructor: %s", impl), e);
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize LockManager, missing no-arg constructor: %s", impl), e);
     }
 
     LockManager lockManager;
@@ -68,7 +67,8 @@ public class LockManagers {
       lockManager = ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize LockManager, %s does not implement LockManager.", impl), e);
+          String.format("Cannot initialize LockManager, %s does not implement LockManager.", impl),
+          e);
     }
 
     lockManager.initialize(properties);
@@ -109,13 +109,15 @@ public class LockManagers {
       if (scheduler == null) {
         synchronized (BaseLockManager.class) {
           if (scheduler == null) {
-            scheduler = MoreExecutors.getExitingScheduledExecutorService(
-                (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(
-                    heartbeatThreads(),
-                    new ThreadFactoryBuilder()
-                        .setDaemon(true)
-                        .setNameFormat("iceberg-lock-manager-%d")
-                        .build()));
+            scheduler =
+                MoreExecutors.getExitingScheduledExecutorService(
+                    (ScheduledThreadPoolExecutor)
+                        Executors.newScheduledThreadPool(
+                            heartbeatThreads(),
+                            new ThreadFactoryBuilder()
+                                .setDaemon(true)
+                                .setNameFormat("iceberg-lock-manager-%d")
+                                .build()));
           }
         }
       }
@@ -125,23 +127,38 @@ public class LockManagers {
 
     @Override
     public void initialize(Map<String, String> properties) {
-      this.acquireTimeoutMs = PropertyUtil.propertyAsLong(properties,
-          CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT);
-      this.acquireIntervalMs = PropertyUtil.propertyAsLong(properties,
-          CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS_DEFAULT);
-      this.heartbeatIntervalMs = PropertyUtil.propertyAsLong(properties,
-          CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS, CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT);
-      this.heartbeatTimeoutMs = PropertyUtil.propertyAsLong(properties,
-          CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS, CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS_DEFAULT);
-      this.heartbeatThreads = PropertyUtil.propertyAsInt(properties,
-          CatalogProperties.LOCK_HEARTBEAT_THREADS, CatalogProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
+      this.acquireTimeoutMs =
+          PropertyUtil.propertyAsLong(
+              properties,
+              CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS,
+              CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT);
+      this.acquireIntervalMs =
+          PropertyUtil.propertyAsLong(
+              properties,
+              CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS,
+              CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS_DEFAULT);
+      this.heartbeatIntervalMs =
+          PropertyUtil.propertyAsLong(
+              properties,
+              CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS,
+              CatalogProperties.LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT);
+      this.heartbeatTimeoutMs =
+          PropertyUtil.propertyAsLong(
+              properties,
+              CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS,
+              CatalogProperties.LOCK_HEARTBEAT_TIMEOUT_MS_DEFAULT);
+      this.heartbeatThreads =
+          PropertyUtil.propertyAsInt(
+              properties,
+              CatalogProperties.LOCK_HEARTBEAT_THREADS,
+              CatalogProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
     }
   }
 
   /**
-   * Implementation of {@link LockManager} that uses an in-memory concurrent map for locking.
-   * This implementation should only be used for testing,
-   * or if the caller only needs locking within the same JVM during table commits.
+   * Implementation of {@link LockManager} that uses an in-memory concurrent map for locking. This
+   * implementation should only be used for testing, or if the caller only needs locking within the
+   * same JVM during table commits.
    */
   static class InMemoryLockManager extends BaseLockManager {
 
@@ -158,15 +175,17 @@ public class LockManagers {
     void acquireOnce(String entityId, String ownerId) {
       InMemoryLockContent content = LOCKS.get(entityId);
       if (content != null && content.expireMs() > System.currentTimeMillis()) {
-        throw new IllegalStateException(String.format("Lock for %s currently held by %s, expiration: %s",
-            entityId, content.ownerId(), content.expireMs()));
+        throw new IllegalStateException(
+            String.format(
+                "Lock for %s currently held by %s, expiration: %s",
+                entityId, content.ownerId(), content.expireMs()));
       }
 
       long expiration = System.currentTimeMillis() + heartbeatTimeoutMs();
       boolean succeed;
       if (content == null) {
-        InMemoryLockContent previous = LOCKS.putIfAbsent(
-            entityId, new InMemoryLockContent(ownerId, expiration));
+        InMemoryLockContent previous =
+            LOCKS.putIfAbsent(entityId, new InMemoryLockContent(ownerId, expiration));
         succeed = previous == null;
       } else {
         succeed = LOCKS.replace(entityId, content, new InMemoryLockContent(ownerId, expiration));
@@ -178,16 +197,24 @@ public class LockManagers {
           HEARTBEATS.remove(entityId).cancel(false);
         }
 
-        HEARTBEATS.put(entityId, scheduler().scheduleAtFixedRate(() -> {
-          InMemoryLockContent lastContent = LOCKS.get(entityId);
-          try {
-            long newExpiration = System.currentTimeMillis() + heartbeatTimeoutMs();
-            LOCKS.replace(entityId, lastContent, new InMemoryLockContent(ownerId, newExpiration));
-          } catch (NullPointerException e) {
-            throw new RuntimeException("Cannot heartbeat to a deleted lock " + entityId, e);
-          }
-
-        }, 0, heartbeatIntervalMs(), TimeUnit.MILLISECONDS));
+        HEARTBEATS.put(
+            entityId,
+            scheduler()
+                .scheduleAtFixedRate(
+                    () -> {
+                      InMemoryLockContent lastContent = LOCKS.get(entityId);
+                      try {
+                        long newExpiration = System.currentTimeMillis() + heartbeatTimeoutMs();
+                        LOCKS.replace(
+                            entityId, lastContent, new InMemoryLockContent(ownerId, newExpiration));
+                      } catch (NullPointerException e) {
+                        throw new RuntimeException(
+                            "Cannot heartbeat to a deleted lock " + entityId, e);
+                      }
+                    },
+                    0,
+                    heartbeatIntervalMs(),
+                    TimeUnit.MILLISECONDS));
 
       } else {
         throw new IllegalStateException("Unable to acquire lock " + entityId);
@@ -218,7 +245,11 @@ public class LockManagers {
       }
 
       if (!currentContent.ownerId().equals(ownerId)) {
-        LOG.error("Cannot unlock {} by {}, current owner: {}", entityId, ownerId, currentContent.ownerId());
+        LOG.error(
+            "Cannot unlock {} by {}, current owner: {}",
+            entityId,
+            ownerId,
+            currentContent.ownerId());
         return false;
       }
 
@@ -251,6 +282,5 @@ public class LockManagers {
     public String ownerId() {
       return ownerId;
     }
-
   }
 }

@@ -16,41 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.expressions.Expression;
 
-/**
- * An action for converting the equality delete files to position delete files.
- */
+/** An action for converting the equality delete files to position delete files. */
 public interface ConvertEqualityDeleteFiles
     extends SnapshotUpdate<ConvertEqualityDeleteFiles, ConvertEqualityDeleteFiles.Result> {
 
   /**
    * A filter for finding the equality deletes to convert.
-   * <p>
-   * The filter will be converted to a partition filter with an inclusive projection. Any file that may contain rows
-   * matching this filter will be used by the action. The matching delete files will be converted to position delete
-   * files.
+   *
+   * <p>The filter will be converted to a partition filter with an inclusive projection. Any file
+   * that may contain rows matching this filter will be used by the action. The matching delete
+   * files will be converted to position delete files.
    *
    * @param expression An iceberg expression used to find deletes.
    * @return this for method chaining
    */
   ConvertEqualityDeleteFiles filter(Expression expression);
 
-  /**
-   * The action result that contains a summary of the execution.
-   */
+  /** The action result that contains a summary of the execution. */
   interface Result {
-    /**
-     * Returns the count of the deletes that been converted.
-     */
+    /** Returns the count of the deletes that been converted. */
     int convertedEqualityDeleteFilesCount();
 
-    /**
-     * Returns the count of the added position delete files.
-     */
+    /** Returns the count of the added position delete files. */
     int addedPositionDeleteFilesCount();
   }
 }

@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
+import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.MERGE;
+import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -80,11 +84,6 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.DELETE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.MERGE;
-import static org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.UPDATE;
-
 class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrdering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPositionDeltaWrite.class);
@@ -104,10 +103,17 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
   private boolean cleanupOnAbort = true;
 
-  SparkPositionDeltaWrite(SparkSession spark, Table table, Command command, SparkBatchQueryScan scan,
-                          IsolationLevel isolationLevel, SparkWriteConf writeConf,
-                          ExtendedLogicalWriteInfo info, Schema dataSchema,
-                          Distribution requiredDistribution, SortOrder[] requiredOrdering) {
+  SparkPositionDeltaWrite(
+      SparkSession spark,
+      Table table,
+      Command command,
+      SparkBatchQueryScan scan,
+      IsolationLevel isolationLevel,
+      SparkWriteConf writeConf,
+      ExtendedLogicalWriteInfo info,
+      Schema dataSchema,
+      Distribution requiredDistribution,
+      SortOrder[] requiredOrdering) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.command = command;
@@ -150,7 +156,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     @Override
     public DeltaWriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
       // broadcast the table metadata as the writer factory will be sent to executors
-      Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+      Broadcast<Table> tableBroadcast =
+          sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
       return new PositionDeltaWriteFactory(tableBroadcast, command, context);
     }
 
@@ -179,8 +186,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         referencedDataFiles.addAll(Arrays.asList(taskCommit.referencedDataFiles()));
       }
 
-      // the scan may be null if the optimizer replaces it with an empty relation (e.g. the cond is false)
-      // no validation is needed in this case as the command does not depend on the scanned table state
+      // the scan may be null if the optimizer replaces it with an empty relation (e.g. the cond is
+      // false)
+      // no validation is needed in this case as the command does not depend on the scanned table
+      // state
       if (scan != null) {
         Expression conflictDetectionFilter = conflictDetectionFilter(scan);
         rowDelta.conflictDetectionFilter(conflictDetectionFilter);
@@ -202,16 +211,22 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
           rowDelta.validateNoConflictingDataFiles();
         }
 
-        String commitMsg = String.format(
-            "position delta with %d data files and %d delete files " +
-            "(scanSnapshotId: %d, conflictDetectionFilter: %s, isolationLevel: %s)",
-            addedDataFilesCount, addedDeleteFilesCount, scan.snapshotId(), conflictDetectionFilter, isolationLevel);
+        String commitMsg =
+            String.format(
+                "position delta with %d data files and %d delete files "
+                    + "(scanSnapshotId: %d, conflictDetectionFilter: %s, isolationLevel: %s)",
+                addedDataFilesCount,
+                addedDeleteFilesCount,
+                scan.snapshotId(),
+                conflictDetectionFilter,
+                isolationLevel);
         commitOperation(rowDelta, commitMsg);
 
       } else {
-        String commitMsg = String.format(
-            "position delta with %d data files and %d delete files (no validation required)",
-            addedDataFilesCount, addedDeleteFilesCount);
+        String commitMsg =
+            String.format(
+                "position delta with %d data files and %d delete files (no validation required)",
+                addedDataFilesCount, addedDeleteFilesCount);
         commitOperation(rowDelta, commitMsg);
       }
     }
@@ -317,29 +332,34 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     public DeltaWriter<InternalRow> createWriter(int partitionId, long taskId) {
       Table table = tableBroadcast.value();
 
-      OutputFileFactory dataFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
-          .format(context.dataFileFormat())
-          .build();
-      OutputFileFactory deleteFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
-          .format(context.deleteFileFormat())
-          .build();
+      OutputFileFactory dataFileFactory =
+          OutputFileFactory.builderFor(table, partitionId, taskId)
+              .format(context.dataFileFormat())
+              .build();
+      OutputFileFactory deleteFileFactory =
+          OutputFileFactory.builderFor(table, partitionId, taskId)
+              .format(context.deleteFileFormat())
+              .build();
 
-      SparkFileWriterFactory writerFactory = SparkFileWriterFactory.builderFor(table)
-          .dataFileFormat(context.dataFileFormat())
-          .dataSchema(context.dataSchema())
-          .dataSparkType(context.dataSparkType())
-          .deleteFileFormat(context.deleteFileFormat())
-          .positionDeleteSparkType(context.deleteSparkType())
-          .build();
+      SparkFileWriterFactory writerFactory =
+          SparkFileWriterFactory.builderFor(table)
+              .dataFileFormat(context.dataFileFormat())
+              .dataSchema(context.dataSchema())
+              .dataSparkType(context.dataSparkType())
+              .deleteFileFormat(context.deleteFileFormat())
+              .positionDeleteSparkType(context.deleteSparkType())
+              .build();
 
       if (command == DELETE) {
         return new DeleteOnlyDeltaWriter(table, writerFactory, deleteFileFactory, context);
 
       } else if (table.spec().isUnpartitioned()) {
-        return new UnpartitionedDeltaWriter(table, writerFactory, dataFileFactory, deleteFileFactory, context);
+        return new UnpartitionedDeltaWriter(
+            table, writerFactory, dataFileFactory, deleteFileFactory, context);
 
       } else {
-        return new PartitionedDeltaWriter(table, writerFactory, dataFileFactory, deleteFileFactory, context);
+        return new PartitionedDeltaWriter(
+            table, writerFactory, dataFileFactory, deleteFileFactory, context);
       }
     }
   }
@@ -351,12 +371,13 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       return new InternalRowWrapper(sparkPartitionType);
     }
 
-    protected Map<Integer, StructProjection> buildPartitionProjections(Types.StructType partitionType,
-                                                                       Map<Integer, PartitionSpec> specs) {
+    protected Map<Integer, StructProjection> buildPartitionProjections(
+        Types.StructType partitionType, Map<Integer, PartitionSpec> specs) {
       Map<Integer, StructProjection> partitionProjections = Maps.newHashMap();
-      specs.forEach((specID, spec) ->
-          partitionProjections.put(specID, StructProjection.create(partitionType, spec.partitionType()))
-      );
+      specs.forEach(
+          (specID, spec) ->
+              partitionProjections.put(
+                  specID, StructProjection.create(partitionType, spec.partitionType())));
       return partitionProjections;
     }
   }
@@ -375,11 +396,15 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     private boolean closed = false;
 
-    DeleteOnlyDeltaWriter(Table table, SparkFileWriterFactory writerFactory,
-                          OutputFileFactory deleteFileFactory, Context context) {
+    DeleteOnlyDeltaWriter(
+        Table table,
+        SparkFileWriterFactory writerFactory,
+        OutputFileFactory deleteFileFactory,
+        Context context) {
 
-      this.delegate = new ClusteredPositionDeleteWriter<>(
-          writerFactory, deleteFileFactory, table.io(), context.targetDeleteFileSize());
+      this.delegate =
+          new ClusteredPositionDeleteWriter<>(
+              writerFactory, deleteFileFactory, table.io(), context.targetDeleteFileSize());
       this.positionDelete = PositionDelete.create();
       this.io = table.io();
       this.specs = table.specs();
@@ -389,9 +414,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.partitionProjections = buildPartitionProjections(partitionType, specs);
 
       this.specIdOrdinal = context.metadataSparkType().fieldIndex(MetadataColumns.SPEC_ID.name());
-      this.partitionOrdinal = context.metadataSparkType().fieldIndex(MetadataColumns.PARTITION_COLUMN_NAME);
+      this.partitionOrdinal =
+          context.metadataSparkType().fieldIndex(MetadataColumns.PARTITION_COLUMN_NAME);
       this.fileOrdinal = context.deleteSparkType().fieldIndex(MetadataColumns.FILE_PATH.name());
-      this.positionOrdinal = context.deleteSparkType().fieldIndex(MetadataColumns.ROW_POSITION.name());
+      this.positionOrdinal =
+          context.deleteSparkType().fieldIndex(MetadataColumns.ROW_POSITION.name());
     }
 
     @Override
@@ -411,12 +438,14 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public void update(InternalRow metadata, InternalRow id, InternalRow row) {
-      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement update");
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not implement update");
     }
 
     @Override
     public void insert(InternalRow row) throws IOException {
-      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement insert");
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not implement insert");
     }
 
     @Override
@@ -458,13 +487,17 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     private boolean closed = false;
 
-    DeleteAndDataDeltaWriter(Table table, SparkFileWriterFactory writerFactory,
-                             OutputFileFactory dataFileFactory, OutputFileFactory deleteFileFactory,
-                             Context context) {
-      this.delegate = new BasePositionDeltaWriter<>(
-          newInsertWriter(table, writerFactory, dataFileFactory, context),
-          newUpdateWriter(table, writerFactory, dataFileFactory, context),
-          newDeleteWriter(table, writerFactory, deleteFileFactory, context));
+    DeleteAndDataDeltaWriter(
+        Table table,
+        SparkFileWriterFactory writerFactory,
+        OutputFileFactory dataFileFactory,
+        OutputFileFactory deleteFileFactory,
+        Context context) {
+      this.delegate =
+          new BasePositionDeltaWriter<>(
+              newInsertWriter(table, writerFactory, dataFileFactory, context),
+              newUpdateWriter(table, writerFactory, dataFileFactory, context),
+              newDeleteWriter(table, writerFactory, deleteFileFactory, context));
       this.io = table.io();
       this.specs = table.specs();
 
@@ -473,9 +506,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.deletePartitionProjections = buildPartitionProjections(partitionType, specs);
 
       this.specIdOrdinal = context.metadataSparkType().fieldIndex(MetadataColumns.SPEC_ID.name());
-      this.partitionOrdinal = context.metadataSparkType().fieldIndex(MetadataColumns.PARTITION_COLUMN_NAME);
+      this.partitionOrdinal =
+          context.metadataSparkType().fieldIndex(MetadataColumns.PARTITION_COLUMN_NAME);
       this.fileOrdinal = context.deleteSparkType().fieldIndex(MetadataColumns.FILE_PATH.name());
-      this.positionOrdinal = context.deleteSparkType().fieldIndex(MetadataColumns.ROW_POSITION.name());
+      this.positionOrdinal =
+          context.deleteSparkType().fieldIndex(MetadataColumns.ROW_POSITION.name());
     }
 
     @Override
@@ -517,10 +552,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       }
     }
 
-    private PartitioningWriter<InternalRow, DataWriteResult> newInsertWriter(Table table,
-                                                                             SparkFileWriterFactory writerFactory,
-                                                                             OutputFileFactory fileFactory,
-                                                                             Context context) {
+    private PartitioningWriter<InternalRow, DataWriteResult> newInsertWriter(
+        Table table,
+        SparkFileWriterFactory writerFactory,
+        OutputFileFactory fileFactory,
+        Context context) {
       long targetFileSize = context.targetDataFileSize();
 
       if (table.spec().isPartitioned() && context.fanoutWriterEnabled()) {
@@ -530,10 +566,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       }
     }
 
-    private PartitioningWriter<InternalRow, DataWriteResult> newUpdateWriter(Table table,
-                                                                             SparkFileWriterFactory writerFactory,
-                                                                             OutputFileFactory fileFactory,
-                                                                             Context context) {
+    private PartitioningWriter<InternalRow, DataWriteResult> newUpdateWriter(
+        Table table,
+        SparkFileWriterFactory writerFactory,
+        OutputFileFactory fileFactory,
+        Context context) {
       long targetFileSize = context.targetDataFileSize();
 
       if (table.spec().isPartitioned()) {
@@ -544,21 +581,26 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       }
     }
 
-    private ClusteredPositionDeleteWriter<InternalRow> newDeleteWriter(Table table,
-                                                                       SparkFileWriterFactory writerFactory,
-                                                                       OutputFileFactory fileFactory,
-                                                                       Context context) {
+    private ClusteredPositionDeleteWriter<InternalRow> newDeleteWriter(
+        Table table,
+        SparkFileWriterFactory writerFactory,
+        OutputFileFactory fileFactory,
+        Context context) {
       long targetFileSize = context.targetDeleteFileSize();
-      return new ClusteredPositionDeleteWriter<>(writerFactory, fileFactory, table.io(), targetFileSize);
+      return new ClusteredPositionDeleteWriter<>(
+          writerFactory, fileFactory, table.io(), targetFileSize);
     }
   }
 
   private static class UnpartitionedDeltaWriter extends DeleteAndDataDeltaWriter {
     private final PartitionSpec dataSpec;
 
-    UnpartitionedDeltaWriter(Table table, SparkFileWriterFactory writerFactory,
-                             OutputFileFactory dataFileFactory, OutputFileFactory deleteFileFactory,
-                             Context context) {
+    UnpartitionedDeltaWriter(
+        Table table,
+        SparkFileWriterFactory writerFactory,
+        OutputFileFactory dataFileFactory,
+        OutputFileFactory deleteFileFactory,
+        Context context) {
       super(table, writerFactory, dataFileFactory, deleteFileFactory, context);
       this.dataSpec = table.spec();
     }
@@ -580,9 +622,12 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final PartitionKey dataPartitionKey;
     private final InternalRowWrapper internalRowDataWrapper;
 
-    PartitionedDeltaWriter(Table table, SparkFileWriterFactory writerFactory,
-                           OutputFileFactory dataFileFactory, OutputFileFactory deleteFileFactory,
-                           Context context) {
+    PartitionedDeltaWriter(
+        Table table,
+        SparkFileWriterFactory writerFactory,
+        OutputFileFactory dataFileFactory,
+        OutputFileFactory deleteFileFactory,
+        Context context) {
       super(table, writerFactory, dataFileFactory, deleteFileFactory, context);
 
       this.dataSpec = table.spec();

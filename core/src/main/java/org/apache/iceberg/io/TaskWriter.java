@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
@@ -31,9 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 public interface TaskWriter<T> extends Closeable {
 
-  /**
-   * Write the row into the data files.
-   */
+  /** Write the row into the data files. */
   void write(T row) throws IOException;
 
   /**
@@ -44,13 +41,15 @@ public interface TaskWriter<T> extends Closeable {
   void abort() throws IOException;
 
   /**
-   * Close the writer and get the completed data files, it requires that the task writer would produce data files only.
+   * Close the writer and get the completed data files, it requires that the task writer would
+   * produce data files only.
    *
    * @return the completed data files of this task writer.
    */
   default DataFile[] dataFiles() throws IOException {
     WriteResult result = complete();
-    Preconditions.checkArgument(result.deleteFiles() == null || result.deleteFiles().length == 0,
+    Preconditions.checkArgument(
+        result.deleteFiles() == null || result.deleteFiles().length == 0,
         "Should have no delete files in this write result.");
 
     return result.dataFiles();

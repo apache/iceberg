@@ -16,8 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.current_date;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,13 +58,6 @@ import org.openjdk.jmh.annotations.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.apache.spark.sql.functions.current_date;
-import static org.apache.spark.sql.functions.date_add;
-import static org.apache.spark.sql.functions.expr;
-
 public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmark {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceDeleteBenchmark.class);
   private static final long TARGET_FILE_SIZE_IN_BYTES = 512L * 1024 * 1024;
@@ -83,11 +82,13 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readIceberg() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
-      materialize(df);
-    });
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
+          materialize(df);
+        });
   }
 
   @Benchmark
@@ -96,11 +97,13 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     tableProperties.put(TableProperties.PARQUET_VECTORIZATION_ENABLED, "true");
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
-      materialize(df);
-    });
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
+          materialize(df);
+        });
   }
 
   @Benchmark
@@ -108,11 +111,14 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readIcebergWithIsDeletedColumn() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = false");
-      materialize(df);
-    });
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).filter("_deleted = false");
+          materialize(df);
+        });
   }
 
   @Benchmark
@@ -120,37 +126,43 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   public void readDeletedRows() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter("_deleted = true");
-      materialize(df);
-    });
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df =
+              spark().read().format("iceberg").load(tableLocation).filter("_deleted = true");
+          materialize(df);
+        });
   }
 
   protected abstract void appendData() throws IOException;
 
   protected void writeData(int fileNum) {
-    Dataset<Row> df = spark().range(NUM_ROWS)
-        .withColumnRenamed("id", "longCol")
-        .withColumn("intCol", expr("CAST(MOD(longCol, 2147483647) AS INT)"))
-        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-        .withColumn("dateCol", date_add(current_date(), fileNum))
-        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
+    Dataset<Row> df =
+        spark()
+            .range(NUM_ROWS)
+            .withColumnRenamed("id", "longCol")
+            .withColumn("intCol", expr("CAST(MOD(longCol, 2147483647) AS INT)"))
+            .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+            .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+            .withColumn("dateCol", date_add(current_date(), fileNum))
+            .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+            .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
     appendAsFile(df);
   }
 
   @Override
   protected Table initTable() {
-    Schema schema = new Schema(
-        required(1, "longCol", Types.LongType.get()),
-        required(2, "intCol", Types.IntegerType.get()),
-        required(3, "floatCol", Types.FloatType.get()),
-        optional(4, "doubleCol", Types.DoubleType.get()),
-        optional(6, "dateCol", Types.DateType.get()),
-        optional(7, "timestampCol", Types.TimestampType.withZone()),
-        optional(8, "stringCol", Types.StringType.get()));
+    Schema schema =
+        new Schema(
+            required(1, "longCol", Types.LongType.get()),
+            required(2, "intCol", Types.IntegerType.get()),
+            required(3, "floatCol", Types.FloatType.get()),
+            optional(4, "doubleCol", Types.DoubleType.get()),
+            optional(6, "dateCol", Types.DateType.get()),
+            optional(7, "timestampCol", Types.TimestampType.withZone()),
+            optional(8, "stringCol", Types.StringType.get()));
     PartitionSpec partitionSpec = PartitionSpec.unpartitioned();
     HadoopTables tables = new HadoopTables(hadoopConf());
     Map<String, String> properties = Maps.newHashMap();
@@ -164,17 +176,19 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
     return new Configuration();
   }
 
-  protected void writePosDeletes(CharSequence path, long numRows, double percentage) throws IOException {
+  protected void writePosDeletes(CharSequence path, long numRows, double percentage)
+      throws IOException {
     writePosDeletes(path, numRows, percentage, 1);
   }
 
-  protected void writePosDeletes(CharSequence path, long numRows, double percentage,
-                                 int numDeleteFile) throws IOException {
+  protected void writePosDeletes(
+      CharSequence path, long numRows, double percentage, int numDeleteFile) throws IOException {
     writePosDeletesWithNoise(path, numRows, percentage, 0, numDeleteFile);
   }
 
-  protected void writePosDeletesWithNoise(CharSequence path, long numRows, double percentage, int numNoise,
-                                          int numDeleteFile) throws IOException {
+  protected void writePosDeletesWithNoise(
+      CharSequence path, long numRows, double percentage, int numNoise, int numDeleteFile)
+      throws IOException {
     Set<Long> deletedPos = Sets.newHashSet();
     while (deletedPos.size() < numRows * percentage) {
       deletedPos.add(ThreadLocalRandom.current().nextLong(numRows));
@@ -188,14 +202,15 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
     }
   }
 
-  protected void writePosDeletes(CharSequence path, List<Long> deletedPos, int numNoise) throws IOException {
+  protected void writePosDeletes(CharSequence path, List<Long> deletedPos, int numNoise)
+      throws IOException {
     OutputFileFactory fileFactory = newFileFactory();
-    SparkFileWriterFactory writerFactory = SparkFileWriterFactory.builderFor(table())
-        .dataFileFormat(fileFormat())
-        .build();
+    SparkFileWriterFactory writerFactory =
+        SparkFileWriterFactory.builderFor(table()).dataFileFormat(fileFormat()).build();
 
-    ClusteredPositionDeleteWriter<InternalRow> writer = new ClusteredPositionDeleteWriter<>(
-        writerFactory, fileFactory, table().io(), TARGET_FILE_SIZE_IN_BYTES);
+    ClusteredPositionDeleteWriter<InternalRow> writer =
+        new ClusteredPositionDeleteWriter<>(
+            writerFactory, fileFactory, table().io(), TARGET_FILE_SIZE_IN_BYTES);
 
     PartitionSpec unpartitionedSpec = table().specs().get(0);
 
@@ -243,15 +258,16 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
     int equalityFieldId = table().schema().findField("longCol").fieldId();
 
     OutputFileFactory fileFactory = newFileFactory();
-    SparkFileWriterFactory writerFactory = SparkFileWriterFactory
-        .builderFor(table())
-        .dataFileFormat(fileFormat())
-        .equalityDeleteRowSchema(table().schema())
-        .equalityFieldIds(new int[]{equalityFieldId})
-        .build();
+    SparkFileWriterFactory writerFactory =
+        SparkFileWriterFactory.builderFor(table())
+            .dataFileFormat(fileFormat())
+            .equalityDeleteRowSchema(table().schema())
+            .equalityFieldIds(new int[] {equalityFieldId})
+            .build();
 
-    ClusteredEqualityDeleteWriter<InternalRow> writer = new ClusteredEqualityDeleteWriter<>(
-        writerFactory, fileFactory, table().io(), TARGET_FILE_SIZE_IN_BYTES);
+    ClusteredEqualityDeleteWriter<InternalRow> writer =
+        new ClusteredEqualityDeleteWriter<>(
+            writerFactory, fileFactory, table().io(), TARGET_FILE_SIZE_IN_BYTES);
 
     PartitionSpec unpartitionedSpec = table().specs().get(0);
     try (ClusteredEqualityDeleteWriter<InternalRow> closeableWriter = writer) {
@@ -267,14 +283,14 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
   }
 
   private OutputFileFactory newFileFactory() {
-    return OutputFileFactory.builderFor(table(), 1, 1)
-        .format(fileFormat())
-        .build();
+    return OutputFileFactory.builderFor(table(), 1, 1).format(fileFormat()).build();
   }
 
   private CharSequence noisePath(CharSequence path) {
-    // assume the data file name would be something like "00000-0-30da64e0-56b5-4743-a11b-3188a1695bf7-00001.parquet"
-    // so the dataFileSuffixLen is the UUID string length + length of "-00001.parquet", which is 36 + 14 = 60. It's OK
+    // assume the data file name would be something like
+    // "00000-0-30da64e0-56b5-4743-a11b-3188a1695bf7-00001.parquet"
+    // so the dataFileSuffixLen is the UUID string length + length of "-00001.parquet", which is 36
+    // + 14 = 60. It's OK
     // to be not accurate here.
     int dataFileSuffixLen = 60;
     UUID uuid = UUID.randomUUID();

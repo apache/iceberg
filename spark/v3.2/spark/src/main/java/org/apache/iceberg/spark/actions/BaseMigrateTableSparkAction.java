@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import org.apache.spark.sql.SparkSession;
@@ -26,12 +25,13 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 /**
  * An action to migrate a table to Iceberg.
  *
- * @deprecated since 0.14.0, will be removed in 1.0.0;
- *             use {@link SparkActions} and {@link MigrateTableSparkAction} instead.
+ * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
+ *     MigrateTableSparkAction} instead.
  */
 @Deprecated
 public class BaseMigrateTableSparkAction extends MigrateTableSparkAction {
-  public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+  public BaseMigrateTableSparkAction(
+      SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent);
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
@@ -31,8 +30,7 @@ class RESTObjectMapper {
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
   private static volatile boolean isInitialized = false;
 
-  private RESTObjectMapper() {
-  }
+  private RESTObjectMapper() {}
 
   static ObjectMapper mapper() {
     if (!isInitialized) {

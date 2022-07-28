@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
@@ -57,13 +56,23 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
   private Set<String> filteredLocations = null;
 
-  SparkCopyOnWriteScan(SparkSession spark, Table table, SparkReadConf readConf,
-                       Schema expectedSchema, List<Expression> filters) {
+  SparkCopyOnWriteScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
     this(spark, table, null, null, readConf, expectedSchema, filters);
   }
 
-  SparkCopyOnWriteScan(SparkSession spark, Table table, TableScan scan, Snapshot snapshot,
-                       SparkReadConf readConf, Schema expectedSchema, List<Expression> filters) {
+  SparkCopyOnWriteScan(
+      SparkSession spark,
+      Table table,
+      TableScan scan,
+      Snapshot snapshot,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
 
     super(spark, table, readConf, expectedSchema, filters);
 
@@ -88,14 +97,15 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
 
   public NamedReference[] filterAttributes() {
     NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
-    return new NamedReference[]{file};
+    return new NamedReference[] {file};
   }
 
   @Override
   public void filter(Filter[] filters) {
     for (Filter filter : filters) {
       // Spark can only pass In filters at the moment
-      if (filter instanceof In && ((In) filter).attribute().equalsIgnoreCase(MetadataColumns.FILE_PATH.name())) {
+      if (filter instanceof In
+          && ((In) filter).attribute().equalsIgnoreCase(MetadataColumns.FILE_PATH.name())) {
         In in = (In) filter;
 
         Set<String> fileLocations = Sets.newHashSet();
@@ -109,9 +119,10 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
         if (filteredLocations == null || fileLocations.size() < filteredLocations.size()) {
           this.tasks = null;
           this.filteredLocations = fileLocations;
-          this.files = files().stream()
-              .filter(file -> fileLocations.contains(file.file().path().toString()))
-              .collect(Collectors.toList());
+          this.files =
+              files().stream()
+                  .filter(file -> fileLocations.contains(file.file().path().toString()))
+                  .collect(Collectors.toList());
         }
       }
     }
@@ -133,12 +144,12 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
   @Override
   protected synchronized List<CombinedScanTask> tasks() {
     if (tasks == null) {
-      CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
-          CloseableIterable.withNoopClose(files()),
-          scan.targetSplitSize());
-      CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-          splitFiles, scan.targetSplitSize(),
-          scan.splitLookback(), scan.splitOpenFileCost());
+      CloseableIterable<FileScanTask> splitFiles =
+          TableScanUtil.splitFiles(
+              CloseableIterable.withNoopClose(files()), scan.targetSplitSize());
+      CloseableIterable<CombinedScanTask> scanTasks =
+          TableScanUtil.planTasks(
+              splitFiles, scan.targetSplitSize(), scan.splitLookback(), scan.splitOpenFileCost());
       tasks = Lists.newArrayList(scanTasks);
     }
 
@@ -156,18 +167,22 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
     }
 
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
-    return table().name().equals(that.table().name()) &&
-        readSchema().equals(that.readSchema()) && // compare Spark schemas to ignore field ids
-        filterExpressions().toString().equals(that.filterExpressions().toString()) &&
-        Objects.equals(snapshotId(), that.snapshotId()) &&
-        Objects.equals(filteredLocations, that.filteredLocations);
+    return table().name().equals(that.table().name())
+        && readSchema().equals(that.readSchema())
+        && // compare Spark schemas to ignore field ids
+        filterExpressions().toString().equals(that.filterExpressions().toString())
+        && Objects.equals(snapshotId(), that.snapshotId())
+        && Objects.equals(filteredLocations, that.filteredLocations);
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), readSchema(), filterExpressions().toString(),
-        snapshotId(), filteredLocations);
+        table().name(),
+        readSchema(),
+        filterExpressions().toString(),
+        snapshotId(),
+        filteredLocations);
   }
 
   @Override

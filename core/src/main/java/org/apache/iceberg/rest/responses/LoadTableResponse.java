@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import java.util.Map;
@@ -29,11 +28,11 @@ import org.apache.iceberg.rest.RESTResponse;
 
 /**
  * A REST response that is used when a table is successfully loaded.
- * <p>
- * This class is used whenever the response to a request is a table's requested metadata and the associated location
- * of its metadata, to reduce code duplication. This includes using this class as the response for
- * {@link org.apache.iceberg.rest.requests.CreateTableRequest}, including when that request is used to commit
- * an already staged table creation as part of a transaction.
+ *
+ * <p>This class is used whenever the response to a request is a table's requested metadata and the
+ * associated location of its metadata, to reduce code duplication. This includes using this class
+ * as the response for {@link org.apache.iceberg.rest.requests.CreateTableRequest}, including when
+ * that request is used to commit an already staged table creation as part of a transaction.
  */
 public class LoadTableResponse implements RESTResponse {
 
@@ -45,7 +44,8 @@ public class LoadTableResponse implements RESTResponse {
     // Required for Jackson deserialization
   }
 
-  private LoadTableResponse(String metadataLocation, TableMetadata metadata, Map<String, String> config) {
+  private LoadTableResponse(
+      String metadataLocation, TableMetadata metadata, Map<String, String> config) {
     this.metadataLocation = metadataLocation;
     this.metadata = metadata;
     this.config = config;
@@ -86,8 +86,7 @@ public class LoadTableResponse implements RESTResponse {
     private TableMetadata metadata;
     private Map<String, String> config = Maps.newHashMap();
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public Builder withTableMetadata(TableMetadata tableMetadata) {
       this.metadataLocation = tableMetadata.metadataFileLocation();

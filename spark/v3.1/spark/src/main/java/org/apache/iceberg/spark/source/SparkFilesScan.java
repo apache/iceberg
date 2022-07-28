@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
@@ -43,8 +42,12 @@ class SparkFilesScan extends SparkBatchScan {
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkFilesScan(SparkSession spark, Table table, SparkReadConf readConf,
-                 boolean caseSensitive, CaseInsensitiveStringMap options) {
+  SparkFilesScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      boolean caseSensitive,
+      CaseInsensitiveStringMap options) {
     super(spark, table, readConf, caseSensitive, table.schema(), ImmutableList.of(), options);
 
     this.taskSetID = options.get(SparkReadOptions.FILE_SCAN_TASK_SET_ID);
@@ -58,16 +61,18 @@ class SparkFilesScan extends SparkBatchScan {
     if (tasks == null) {
       FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
       List<FileScanTask> files = taskSetManager.fetchTasks(table(), taskSetID);
-      ValidationException.check(files != null,
+      ValidationException.check(
+          files != null,
           "Task set manager has no tasks for table %s with id %s",
-          table(), taskSetID);
+          table(),
+          taskSetID);
 
-      CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
-          CloseableIterable.withNoopClose(files),
-          splitSize);
-      CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-          splitFiles, splitSize,
-          splitLookback, splitOpenFileCost);
+      CloseableIterable<FileScanTask> splitFiles =
+          TableScanUtil.splitFiles(CloseableIterable.withNoopClose(files), splitSize);
+      CloseableIterable<CombinedScanTask> scanTasks =
+          TableScanUtil.planTasks(
+              splitFiles, splitSize,
+              splitLookback, splitOpenFileCost);
       this.tasks = Lists.newArrayList(scanTasks);
     }
 
@@ -85,11 +90,11 @@ class SparkFilesScan extends SparkBatchScan {
     }
 
     SparkFilesScan that = (SparkFilesScan) other;
-    return table().name().equals(that.table().name()) &&
-        Objects.equals(taskSetID, that.taskSetID) &&
-        Objects.equals(splitSize, that.splitSize) &&
-        Objects.equals(splitLookback, that.splitLookback) &&
-        Objects.equals(splitOpenFileCost, that.splitOpenFileCost);
+    return table().name().equals(that.table().name())
+        && Objects.equals(taskSetID, that.taskSetID)
+        && Objects.equals(splitSize, that.splitSize)
+        && Objects.equals(splitLookback, that.splitLookback)
+        && Objects.equals(splitOpenFileCost, that.splitOpenFileCost);
   }
 
   @Override

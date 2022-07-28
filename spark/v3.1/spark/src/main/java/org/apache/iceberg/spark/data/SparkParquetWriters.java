@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.util.Iterator;
@@ -54,12 +53,12 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkParquetWriters {
-  private SparkParquetWriters() {
-  }
+  private SparkParquetWriters() {}
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(StructType dfSchema, MessageType type) {
-    return (ParquetValueWriter<T>) ParquetWithSparkSchemaVisitor.visit(dfSchema, type, new WriteBuilder(type));
+    return (ParquetValueWriter<T>)
+        ParquetWithSparkSchemaVisitor.visit(dfSchema, type, new WriteBuilder(type));
   }
 
   private static class WriteBuilder extends ParquetWithSparkSchemaVisitor<ParquetValueWriter<?>> {
@@ -70,14 +69,14 @@ public class SparkParquetWriters {
     }
 
     @Override
-    public ParquetValueWriter<?> message(StructType sStruct, MessageType message,
-                                         List<ParquetValueWriter<?>> fieldWriters) {
+    public ParquetValueWriter<?> message(
+        StructType sStruct, MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
       return struct(sStruct, message.asGroupType(), fieldWriters);
     }
 
     @Override
-    public ParquetValueWriter<?> struct(StructType sStruct, GroupType struct,
-                                        List<ParquetValueWriter<?>> fieldWriters) {
+    public ParquetValueWriter<?> struct(
+        StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
       StructField[] sparkFields = sStruct.fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
@@ -91,31 +90,40 @@ public class SparkParquetWriters {
     }
 
     @Override
-    public ParquetValueWriter<?> list(ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
+    public ParquetValueWriter<?> list(
+        ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath);
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath);
 
-      return new ArrayDataWriter<>(repeatedD, repeatedR,
+      return new ArrayDataWriter<>(
+          repeatedD,
+          repeatedR,
           newOption(repeated.getType(0), elementWriter),
           sArray.elementType());
     }
 
     @Override
-    public ParquetValueWriter<?> map(MapType sMap, GroupType map,
-                                     ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
+    public ParquetValueWriter<?> map(
+        MapType sMap,
+        GroupType map,
+        ParquetValueWriter<?> keyWriter,
+        ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath);
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath);
 
-      return new MapDataWriter<>(repeatedD, repeatedR,
+      return new MapDataWriter<>(
+          repeatedD,
+          repeatedR,
           newOption(repeatedKeyValue.getType(0), keyWriter),
           newOption(repeatedKeyValue.getType(1), valueWriter),
-          sMap.keyType(), sMap.valueType());
+          sMap.keyType(),
+          sMap.valueType());
     }
 
     private ParquetValueWriter<?> newOption(Type fieldType, ParquetValueWriter<?> writer) {
@@ -197,18 +205,18 @@ public class SparkParquetWriters {
     return new UTF8StringWriter(desc);
   }
 
-  private static PrimitiveWriter<Decimal> decimalAsInteger(ColumnDescriptor desc,
-                                                           int precision, int scale) {
+  private static PrimitiveWriter<Decimal> decimalAsInteger(
+      ColumnDescriptor desc, int precision, int scale) {
     return new IntegerDecimalWriter(desc, precision, scale);
   }
 
-  private static PrimitiveWriter<Decimal> decimalAsLong(ColumnDescriptor desc,
-                                                        int precision, int scale) {
+  private static PrimitiveWriter<Decimal> decimalAsLong(
+      ColumnDescriptor desc, int precision, int scale) {
     return new LongDecimalWriter(desc, precision, scale);
   }
 
-  private static PrimitiveWriter<Decimal> decimalAsFixed(ColumnDescriptor desc,
-                                                         int precision, int scale) {
+  private static PrimitiveWriter<Decimal> decimalAsFixed(
+      ColumnDescriptor desc, int precision, int scale) {
     return new FixedDecimalWriter(desc, precision, scale);
   }
 
@@ -239,10 +247,18 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, Decimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
+      Preconditions.checkArgument(
+          decimal.scale() == scale,
+          "Cannot write value as decimal(%s,%s), wrong scale: %s",
+          precision,
+          scale,
+          decimal);
+      Preconditions.checkArgument(
+          decimal.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          decimal);
 
       column.writeInteger(repetitionLevel, (int) decimal.toUnscaledLong());
     }
@@ -260,10 +276,18 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, Decimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
+      Preconditions.checkArgument(
+          decimal.scale() == scale,
+          "Cannot write value as decimal(%s,%s), wrong scale: %s",
+          precision,
+          scale,
+          decimal);
+      Preconditions.checkArgument(
+          decimal.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          decimal);
 
       column.writeLong(repetitionLevel, decimal.toUnscaledLong());
     }
@@ -278,12 +302,15 @@ public class SparkParquetWriters {
       super(desc);
       this.precision = precision;
       this.scale = scale;
-      this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
+      this.bytes =
+          ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
     public void write(int repetitionLevel, Decimal decimal) {
-      byte[] binary = DecimalUtil.toReusedFixLengthBytes(precision, scale, decimal.toJavaBigDecimal(), bytes.get());
+      byte[] binary =
+          DecimalUtil.toReusedFixLengthBytes(
+              precision, scale, decimal.toJavaBigDecimal(), bytes.get());
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(binary));
     }
   }
@@ -302,8 +329,11 @@ public class SparkParquetWriters {
   private static class ArrayDataWriter<E> extends RepeatedWriter<ArrayData, E> {
     private final DataType elementType;
 
-    private ArrayDataWriter(int definitionLevel, int repetitionLevel,
-                            ParquetValueWriter<E> writer, DataType elementType) {
+    private ArrayDataWriter(
+        int definitionLevel,
+        int repetitionLevel,
+        ParquetValueWriter<E> writer,
+        DataType elementType) {
       super(definitionLevel, repetitionLevel, writer);
       this.elementType = elementType;
     }
@@ -354,9 +384,13 @@ public class SparkParquetWriters {
     private final DataType keyType;
     private final DataType valueType;
 
-    private MapDataWriter(int definitionLevel, int repetitionLevel,
-                          ParquetValueWriter<K> keyWriter, ParquetValueWriter<V> valueWriter,
-                          DataType keyType, DataType valueType) {
+    private MapDataWriter(
+        int definitionLevel,
+        int repetitionLevel,
+        ParquetValueWriter<K> keyWriter,
+        ParquetValueWriter<V> valueWriter,
+        DataType keyType,
+        DataType valueType) {
       super(definitionLevel, repetitionLevel, keyWriter, valueWriter);
       this.keyType = keyType;
       this.valueType = valueType;

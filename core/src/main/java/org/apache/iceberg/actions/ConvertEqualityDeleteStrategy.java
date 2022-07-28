@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.Map;
@@ -25,30 +24,22 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 
-/**
- * A strategy for the action to convert equality delete to position deletes.
- */
+/** A strategy for the action to convert equality delete to position deletes. */
 public interface ConvertEqualityDeleteStrategy {
 
-  /**
-   * Returns the name of this convert deletes strategy
-   */
+  /** Returns the name of this convert deletes strategy */
   String name();
 
-  /**
-   * Returns the table being modified by this convert strategy
-   */
+  /** Returns the table being modified by this convert strategy */
   Table table();
 
   /**
-   * Returns a set of options which this convert strategy can use. This is an allowed-list and any options not
-   * specified here will be rejected at runtime.
+   * Returns a set of options which this convert strategy can use. This is an allowed-list and any
+   * options not specified here will be rejected at runtime.
    */
   Set<String> validOptions();
 
-  /**
-   * Sets options to be used with this strategy
-   */
+  /** Sets options to be used with this strategy */
   ConvertEqualityDeleteStrategy options(Map<String, String> options);
 
   /**
@@ -60,9 +51,9 @@ public interface ConvertEqualityDeleteStrategy {
   Iterable<DeleteFile> selectDeleteFiles(Iterable<DeleteFile> deleteFiles);
 
   /**
-   * Groups delete files into lists which will be processed in a single executable unit. Each group will end up being
-   * committed as an independent set of changes. This creates the jobs which will eventually be run as by the underlying
-   * Action.
+   * Groups delete files into lists which will be processed in a single executable unit. Each group
+   * will end up being committed as an independent set of changes. This creates the jobs which will
+   * eventually be run as by the underlying Action.
    *
    * @param dataFiles iterable of data files that contain the DeleteFile to be converted
    * @return iterable of lists of FileScanTasks which will be processed together

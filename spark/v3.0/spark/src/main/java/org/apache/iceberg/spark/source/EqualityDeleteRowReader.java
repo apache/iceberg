@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -32,7 +31,8 @@ import org.apache.spark.sql.catalyst.InternalRow;
 public class EqualityDeleteRowReader extends RowDataReader {
   private final Schema expectedSchema;
 
-  public EqualityDeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
+  public EqualityDeleteRowReader(
+      CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
     super(task, table, table.schema(), caseSensitive);
     this.expectedSchema = expectedSchema;
   }

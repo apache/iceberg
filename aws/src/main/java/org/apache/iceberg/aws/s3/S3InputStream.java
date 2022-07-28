@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
@@ -67,7 +66,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     this.awsProperties = awsProperties;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+    this.readOperations =
+        metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
 
     this.createStack = Thread.currentThread().getStackTrace();
   }
@@ -132,10 +132,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   }
 
   private InputStream readRange(String range) {
-    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
-        .bucket(location.bucket())
-        .key(location.key())
-        .range(range);
+    GetObjectRequest.Builder requestBuilder =
+        GetObjectRequest.builder().bucket(location.bucket()).key(location.key()).range(range);
 
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
@@ -178,10 +176,11 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   }
 
   private void openStream() throws IOException {
-    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
-        .bucket(location.bucket())
-        .key(location.key())
-        .range(String.format("bytes=%s-", pos));
+    GetObjectRequest.Builder requestBuilder =
+        GetObjectRequest.builder()
+            .bucket(location.bucket())
+            .key(location.key())
+            .range(String.format("bytes=%s-", pos));
 
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
@@ -205,8 +204,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     super.finalize();
     if (!closed) {
       close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(
-          Arrays.copyOfRange(createStack, 1, createStack.length));
+      String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed input stream created by:\n\t{}", trace);
     }
   }

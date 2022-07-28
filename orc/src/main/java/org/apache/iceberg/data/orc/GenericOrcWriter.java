@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.orc;
 
 import java.util.List;
@@ -38,35 +37,41 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   private final RecordWriter writer;
 
   private GenericOrcWriter(Schema expectedSchema, TypeDescription orcSchema) {
-    Preconditions.checkArgument(orcSchema.getCategory() == TypeDescription.Category.STRUCT,
+    Preconditions.checkArgument(
+        orcSchema.getCategory() == TypeDescription.Category.STRUCT,
         "Top level must be a struct " + orcSchema);
 
-    writer = (RecordWriter) OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
+    writer =
+        (RecordWriter)
+            OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
   }
 
-  public static OrcRowWriter<Record> buildWriter(Schema expectedSchema, TypeDescription fileSchema) {
+  public static OrcRowWriter<Record> buildWriter(
+      Schema expectedSchema, TypeDescription fileSchema) {
     return new GenericOrcWriter(expectedSchema, fileSchema);
   }
 
   private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter<?>> {
-    private WriteBuilder() {
-    }
+    private WriteBuilder() {}
 
     @Override
-    public OrcValueWriter<Record> record(Types.StructType iStruct, TypeDescription record,
-                                         List<String> names, List<OrcValueWriter<?>> fields) {
+    public OrcValueWriter<Record> record(
+        Types.StructType iStruct,
+        TypeDescription record,
+        List<String> names,
+        List<OrcValueWriter<?>> fields) {
       return new RecordWriter(fields);
     }
 
     @Override
-    public OrcValueWriter<?> list(Types.ListType iList, TypeDescription array,
-                                  OrcValueWriter<?> element) {
+    public OrcValueWriter<?> list(
+        Types.ListType iList, TypeDescription array, OrcValueWriter<?> element) {
       return GenericOrcWriters.list(element);
     }
 
     @Override
-    public OrcValueWriter<?> map(Types.MapType iMap, TypeDescription map,
-                                 OrcValueWriter<?> key, OrcValueWriter<?> value) {
+    public OrcValueWriter<?> map(
+        Types.MapType iMap, TypeDescription map, OrcValueWriter<?> key, OrcValueWriter<?> value) {
       return GenericOrcWriters.map(key, value);
     }
 
@@ -106,8 +111,9 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
           Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
           return GenericOrcWriters.decimal(decimalType.precision(), decimalType.scale());
         default:
-          throw new IllegalArgumentException(String.format("Invalid iceberg type %s corresponding to ORC type %s",
-              iPrimitive, primitive));
+          throw new IllegalArgumentException(
+              String.format(
+                  "Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
       }
     }
   }

@@ -16,8 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
+
+import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_MODE;
+import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
+import static org.apache.spark.sql.functions.lit;
 
 import java.util.Arrays;
 import java.util.List;
@@ -57,18 +64,15 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
-import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
-import static org.apache.iceberg.TableProperties.DELETE_MODE;
-import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.spark.sql.functions.lit;
-
 public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
-  public TestDelete(String catalogName, String implementation, Map<String, String> config,
-                    String fileFormat, Boolean vectorized, String distributionMode) {
+  public TestDelete(
+      String catalogName,
+      String implementation,
+      Map<String, String> config,
+      String fileFormat,
+      Boolean vectorized,
+      String distributionMode) {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
@@ -101,9 +105,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("DELETE FROM %s AS t WHERE t.id = 1", tableName);
 
     Set<DataFile> dataFilesAfter = TestHelpers.dataFiles(table);
-    Assert.assertTrue("Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
+    Assert.assertTrue(
+        "Data file should have been removed", dataFilesBefore.size() > dataFilesAfter.size());
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -119,7 +125,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -134,7 +141,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -152,7 +160,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 1 snapshot", 1, Iterables.size(table.snapshots()));
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
@@ -165,7 +174,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("DELETE FROM %s AS t WHERE t.id IS NULL", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -189,7 +199,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       validateMergeOnRead(currentSnapshot, "1", "1", null);
     }
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hardware"), row(1, "hr"), row(3, "hr")),
         sql("SELECT * FROM %s ORDER BY id, dep", tableName));
   }
@@ -217,7 +228,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       }
     }
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
@@ -239,9 +251,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Snapshot currentSnapshot = table.currentSnapshot();
     validateDelete(currentSnapshot, "2", "3");
 
-    assertEquals("Should have expected rows",
-        ImmutableList.of(),
-        sql("SELECT * FROM %s", tableName));
+    assertEquals(
+        "Should have expected rows", ImmutableList.of(), sql("SELECT * FROM %s", tableName));
   }
 
   @Test
@@ -261,7 +272,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Snapshot currentSnapshot = table.currentSnapshot();
     validateDelete(currentSnapshot, "2", "2");
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "dep1")),
         sql("SELECT * FROM %s", tableName));
   }
@@ -288,7 +300,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       validateMergeOnRead(currentSnapshot, "1", "1", null);
     }
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
@@ -299,8 +312,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
 
-    AssertHelpers.assertThrows("Should complain about non-deterministic expressions",
-        AnalysisException.class, "nondeterministic expressions are only allowed",
+    AssertHelpers.assertThrows(
+        "Should complain about non-deterministic expressions",
+        AnalysisException.class,
+        "nondeterministic expressions are only allowed",
         () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", tableName));
   }
 
@@ -312,25 +327,29 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // should keep all rows and don't trigger execution
     sql("DELETE FROM %s WHERE false", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // should keep all rows and don't trigger execution
     sql("DELETE FROM %s WHERE 50 <> 50", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // should keep all rows and don't trigger execution
     sql("DELETE FROM %s WHERE 1 > null", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // should remove all rows
     sql("DELETE FROM %s WHERE 21 = 21", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -342,24 +361,29 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteWithNullConditions() {
     createAndInitPartitionedTable();
 
-    sql("INSERT INTO TABLE %s VALUES (0, null), (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (0, null), (1, 'hr'), (2, 'hardware'), (null, 'hr')",
+        tableName);
 
     // should keep all rows as null is never equal to null
     sql("DELETE FROM %s WHERE dep = null", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(0, null), row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     // null = 'software' -> null
     // should delete using metadata operation only
     sql("DELETE FROM %s WHERE dep = 'software'", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(0, null), row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     // should delete using metadata operation only
     sql("DELETE FROM %s WHERE dep <=> NULL", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
@@ -377,17 +401,20 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
 
     sql("DELETE FROM %s WHERE id IN (1, null)", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     sql("DELETE FROM %s WHERE id NOT IN (null, 1)", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     sql("DELETE FROM %s WHERE id NOT IN (1, 10)", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
@@ -398,16 +425,20 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     createAndInitPartitionedTable();
 
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, PARQUET_ROW_GROUP_SIZE_BYTES, 100);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')",
+        tableName, PARQUET_ROW_GROUP_SIZE_BYTES, 100);
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')", tableName, SPLIT_SIZE, 100);
 
     List<Integer> ids = Lists.newArrayListWithCapacity(200);
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }
-    Dataset<Row> df = spark.createDataset(ids, Encoders.INT())
-        .withColumnRenamed("value", "id")
-        .withColumn("dep", lit("hr"));
+    Dataset<Row> df =
+        spark
+            .createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id")
+            .withColumn("dep", lit("hr"));
     df.coalesce(1).writeTo(tableName).append();
 
     Assert.assertEquals(200, spark.table(tableName).count());
@@ -426,14 +457,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))", tableName);
 
     sql("DELETE FROM %s WHERE complex.c1 = id + 2", tableName);
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(2)),
-        sql("SELECT id FROM %s", tableName));
+    assertEquals(
+        "Should have expected rows", ImmutableList.of(row(2)), sql("SELECT id FROM %s", tableName));
 
     sql("DELETE FROM %s t WHERE t.complex.c1 = id", tableName);
-    assertEquals("Should have expected rows",
-        ImmutableList.of(),
-        sql("SELECT id FROM %s", tableName));
+    assertEquals(
+        "Should have expected rows", ImmutableList.of(), sql("SELECT id FROM %s", tableName));
   }
 
   @Test
@@ -445,28 +474,35 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("deleted_id", Arrays.asList(0, 1, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
 
-    sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id) AND dep IN (SELECT * from deleted_dep)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id) AND dep IN (SELECT * from deleted_dep)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     append(new Employee(1, "hr"), new Employee(-1, "hr"));
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     sql("DELETE FROM %s WHERE id IS NULL OR id IN (SELECT value + 2 FROM deleted_id)", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     append(new Employee(null, "hr"), new Employee(2, "hr"));
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr"), row(2, "hr"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     sql("DELETE FROM %s WHERE id IN (SELECT value + 2 FROM deleted_id) AND dep = 'hr'", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(-1, "hr"), row(1, "hr"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
@@ -477,11 +513,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     append(new Employee(1, "hr"), new Employee(2, "hardware"), new Employee(null, "hr"));
 
-    List<Employee> deletedEmployees = Arrays.asList(new Employee(null, "hr"), new Employee(1, "hr"));
+    List<Employee> deletedEmployees =
+        Arrays.asList(new Employee(null, "hr"), new Employee(1, "hr"));
     createOrReplaceView("deleted_employee", deletedEmployees, Encoders.bean(Employee.class));
 
     sql("DELETE FROM %s WHERE (id, dep) IN (SELECT id, dep FROM deleted_employee)", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
@@ -497,36 +535,50 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // the file filter subquery (nested loop lef-anti join) returns 0 records
     sql("DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id)", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware'), (null, 'hr')", tableName);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id) OR dep IN ('software', 'hr')", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id) OR dep IN ('software', 'hr')",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("DELETE FROM %s t WHERE " +
-        "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) AND " +
-        "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s t WHERE "
+            + "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) AND "
+            + "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("DELETE FROM %s t WHERE " +
-        "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) OR " +
-        "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s t WHERE "
+            + "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) OR "
+            + "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
@@ -535,8 +587,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteOnNonIcebergTableNotSupported() {
     createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
 
-    AssertHelpers.assertThrows("Delete is supported only for Iceberg tables",
-        AnalysisException.class, "DELETE is only supported with v2 tables.",
+    AssertHelpers.assertThrows(
+        "Delete is supported only for Iceberg tables",
+        AnalysisException.class,
+        "DELETE is only supported with v2 tables.",
         () -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"));
   }
 
@@ -549,25 +603,37 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
 
-    sql("DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value) OR t.id IS NULL", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s t WHERE EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value) OR t.id IS NULL",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s", tableName));
 
-    sql("DELETE FROM %s t WHERE " +
-        "EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value) AND " +
-        "EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s t WHERE "
+            + "EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value) AND "
+            + "EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s", tableName));
   }
@@ -581,21 +647,28 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
 
-    sql("DELETE FROM %s t WHERE " +
-        "NOT EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value + 2) AND " +
-        "NOT EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s t WHERE "
+            + "NOT EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value + 2) AND "
+            + "NOT EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("DELETE FROM %s t WHERE NOT EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2)", tableName);
-    assertEquals("Should have expected rows",
+    sql(
+        "DELETE FROM %s t WHERE NOT EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2)",
+        tableName);
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     String subquery = "SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2";
     sql("DELETE FROM %s t WHERE NOT EXISTS (%s) OR t.id = 1", tableName, subquery);
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
@@ -609,12 +682,15 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("deleted_id", Arrays.asList(1, 100, null), Encoders.INT());
 
     // TODO: Spark does not support AQE and DPP with aggregates at the moment
-    withSQLConf(ImmutableMap.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"), () -> {
-      sql("DELETE FROM %s t WHERE id <= (SELECT min(value) FROM deleted_id)", tableName);
-      assertEquals("Should have expected rows",
-          ImmutableList.of(row(2, "hardware"), row(null, "hr")),
-          sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
-    });
+    withSQLConf(
+        ImmutableMap.of(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false"),
+        () -> {
+          sql("DELETE FROM %s t WHERE id <= (SELECT min(value) FROM deleted_id)", tableName);
+          assertEquals(
+              "Should have expected rows",
+              ImmutableList.of(row(2, "hardware"), row(null, "hr")),
+              sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        });
   }
 
   @Test
@@ -647,52 +723,61 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     createAndInitUnpartitionedTable();
 
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DELETE_ISOLATION_LEVEL, "serializable");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, DELETE_ISOLATION_LEVEL, "serializable");
 
     // Pre-populate the table to force it to use the Spark Writers instead of Metadata-Only Delete
     // for more consistent exception stack
     List<Integer> ids = ImmutableList.of(1, 2);
-    Dataset<Row> inputDF = spark.createDataset(ids, Encoders.INT())
-        .withColumnRenamed("value", "id")
-        .withColumn("dep", lit("hr"));
+    Dataset<Row> inputDF =
+        spark
+            .createDataset(ids, Encoders.INT())
+            .withColumnRenamed("value", "id")
+            .withColumn("dep", lit("hr"));
     try {
       inputDF.coalesce(1).writeTo(tableName).append();
     } catch (NoSuchTableException e) {
       throw new RuntimeException(e);
     }
 
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
+    ExecutorService executorService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
 
     // delete thread
-    Future<?> deleteFuture = executorService.submit(() -> {
-      for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-        while (barrier.get() < numOperations * 2) {
-          sleep(10);
-        }
-        sql("DELETE FROM %s WHERE id = 1", tableName);
-        barrier.incrementAndGet();
-      }
-    });
+    Future<?> deleteFuture =
+        executorService.submit(
+            () -> {
+              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                while (barrier.get() < numOperations * 2) {
+                  sleep(10);
+                }
+                sql("DELETE FROM %s WHERE id = 1", tableName);
+                barrier.incrementAndGet();
+              }
+            });
 
     // append thread
-    Future<?> appendFuture = executorService.submit(() -> {
-      for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-        while (barrier.get() < numOperations * 2) {
-          sleep(10);
-        }
+    Future<?> appendFuture =
+        executorService.submit(
+            () -> {
+              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+                while (barrier.get() < numOperations * 2) {
+                  sleep(10);
+                }
 
-        try {
-          inputDF.coalesce(1).writeTo(tableName).append();
-        } catch (NoSuchTableException e) {
-          throw new RuntimeException(e);
-        }
+                try {
+                  inputDF.coalesce(1).writeTo(tableName).append();
+                } catch (NoSuchTableException e) {
+                  throw new RuntimeException(e);
+                }
 
-        barrier.incrementAndGet();
-      }
-    });
+                barrier.incrementAndGet();
+              }
+            });
 
     try {
       deleteFuture.get();
@@ -703,7 +788,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       Throwable validationException = sparkException.getCause();
       Assert.assertThat(validationException, CoreMatchers.instanceOf(ValidationException.class));
       String errMsg = validationException.getMessage();
-      Assert.assertThat(errMsg, CoreMatchers.containsString("Found conflicting files that can contain"));
+      Assert.assertThat(
+          errMsg, CoreMatchers.containsString("Found conflicting files that can contain"));
     } finally {
       appendFuture.cancel(true);
     }
@@ -713,51 +799,61 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
-  public synchronized void testDeleteWithSnapshotIsolation() throws InterruptedException, ExecutionException {
+  public synchronized void testDeleteWithSnapshotIsolation()
+      throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
 
     createAndInitUnpartitionedTable();
 
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DELETE_ISOLATION_LEVEL, "snapshot");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, DELETE_ISOLATION_LEVEL, "snapshot");
 
-    ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
+    ExecutorService executorService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(2));
 
     AtomicInteger barrier = new AtomicInteger(0);
 
     // delete thread
-    Future<?> deleteFuture = executorService.submit(() -> {
-      for (int numOperations = 0; numOperations < 20; numOperations++) {
-        while (barrier.get() < numOperations * 2) {
-          sleep(10);
-        }
-        sql("DELETE FROM %s WHERE id = 1", tableName);
-        barrier.incrementAndGet();
-      }
-    });
+    Future<?> deleteFuture =
+        executorService.submit(
+            () -> {
+              for (int numOperations = 0; numOperations < 20; numOperations++) {
+                while (barrier.get() < numOperations * 2) {
+                  sleep(10);
+                }
+                sql("DELETE FROM %s WHERE id = 1", tableName);
+                barrier.incrementAndGet();
+              }
+            });
 
     // append thread
-    Future<?> appendFuture = executorService.submit(() -> {
-      List<Integer> ids = ImmutableList.of(1, 2);
-      Dataset<Row> inputDF = spark.createDataset(ids, Encoders.INT())
-          .withColumnRenamed("value", "id")
-          .withColumn("dep", lit("hr"));
+    Future<?> appendFuture =
+        executorService.submit(
+            () -> {
+              List<Integer> ids = ImmutableList.of(1, 2);
+              Dataset<Row> inputDF =
+                  spark
+                      .createDataset(ids, Encoders.INT())
+                      .withColumnRenamed("value", "id")
+                      .withColumn("dep", lit("hr"));
 
-      for (int numOperations = 0; numOperations < 20; numOperations++) {
-        while (barrier.get() < numOperations * 2) {
-          sleep(10);
-        }
+              for (int numOperations = 0; numOperations < 20; numOperations++) {
+                while (barrier.get() < numOperations * 2) {
+                  sleep(10);
+                }
 
-        try {
-          inputDF.coalesce(1).writeTo(tableName).append();
-        } catch (NoSuchTableException e) {
-          throw new RuntimeException(e);
-        }
+                try {
+                  inputDF.coalesce(1).writeTo(tableName).append();
+                } catch (NoSuchTableException e) {
+                  throw new RuntimeException(e);
+                }
 
-        barrier.incrementAndGet();
-      }
-    });
+                barrier.incrementAndGet();
+              }
+            });
 
     try {
       deleteFuture.get();
@@ -781,7 +877,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     spark.sql("CACHE TABLE tmp");
 
-    assertEquals("View should have correct data",
+    assertEquals(
+        "View should have correct data",
         ImmutableList.of(row(1, "hardware"), row(1, "hr")),
         sql("SELECT * FROM tmp ORDER BY id, dep"));
 
@@ -796,11 +893,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     } else {
       validateMergeOnRead(currentSnapshot, "2", "2", null);
     }
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(3, "hr")),
         sql("SELECT * FROM %s ORDER BY id, dep", tableName));
 
-    assertEquals("Should refresh the relation cache",
+    assertEquals(
+        "Should refresh the relation cache",
         ImmutableList.of(),
         sql("SELECT * FROM tmp ORDER BY id, dep"));
 
@@ -816,8 +915,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // write a file partitioned by dep
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
-    append(tableName, "{ \"id\": 2, \"dep\": \"hr\", \"category\": \"c1\" }\n" +
-        "{ \"id\": 3, \"dep\": \"hr\", \"category\": \"c1\" }");
+    append(
+        tableName,
+        "{ \"id\": 2, \"dep\": \"hr\", \"category\": \"c1\" }\n"
+            + "{ \"id\": 3, \"dep\": \"hr\", \"category\": \"c1\" }");
 
     // write a file partitioned by dep and category
     sql("ALTER TABLE %s ADD PARTITION FIELD category", tableName);
@@ -834,14 +935,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = table.currentSnapshot();
     if (mode(table) == COPY_ON_WRITE) {
-      // copy-on-write is tested against v1 and such tables have different partition evolution behavior
+      // copy-on-write is tested against v1 and such tables have different partition evolution
+      // behavior
       // that's why the number of changed partitions is 4 for copy-on-write
       validateCopyOnWrite(currentSnapshot, "4", "4", "1");
     } else {
       validateMergeOnRead(currentSnapshot, "3", "3", null);
     }
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(2, "hr", "c1")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }

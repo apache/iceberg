@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -25,8 +24,7 @@ public class SimpleRecord {
   private Integer id;
   private String data;
 
-  public SimpleRecord() {
-  }
+  public SimpleRecord() {}
 
   public SimpleRecord(Integer id, String data) {
     this.id = id;

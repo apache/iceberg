@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Map;
@@ -35,9 +34,10 @@ class TestEnvironmentUtil {
 
   @Test
   public void testMultipleEnvironmentSubstitutions() {
-    Map<String, String> result = EnvironmentUtil.resolveAll(
-        ImmutableMap.of("USER", "u", "VAR", "value"),
-        ImmutableMap.of("user-test", "env:USER", "other", "left-alone", "var", "env:VAR"));
+    Map<String, String> result =
+        EnvironmentUtil.resolveAll(
+            ImmutableMap.of("USER", "u", "VAR", "value"),
+            ImmutableMap.of("user-test", "env:USER", "other", "left-alone", "var", "env:VAR"));
 
     Assertions.assertEquals(
         ImmutableMap.of("user-test", "u", "other", "left-alone", "var", "value"),
@@ -47,13 +47,10 @@ class TestEnvironmentUtil {
 
   @Test
   public void testEnvironmentSubstitutionWithMissingVar() {
-    Map<String, String> result = EnvironmentUtil.resolveAll(
-        ImmutableMap.of(),
-        ImmutableMap.of("user-test", "env:USER"));
+    Map<String, String> result =
+        EnvironmentUtil.resolveAll(ImmutableMap.of(), ImmutableMap.of("user-test", "env:USER"));
 
     Assertions.assertEquals(
-        ImmutableMap.of(),
-        result,
-        "Should not contain values with missing environment variables");
+        ImmutableMap.of(), result, "Should not contain values with missing environment variables");
   }
 }

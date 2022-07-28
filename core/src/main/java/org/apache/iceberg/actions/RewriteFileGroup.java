@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.Collections;
@@ -30,8 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Container class representing a set of files to be rewritten by a RewriteAction and the new files which have been
- * written by the action.
+ * Container class representing a set of files to be rewritten by a RewriteAction and the new files
+ * which have been written by the action.
  */
 public class RewriteFileGroup {
   private final FileGroupInfo info;
@@ -74,7 +73,9 @@ public class RewriteFileGroup {
     return MoreObjects.toStringHelper(this)
         .add("info", info)
         .add("numRewrittenFiles", fileScanTasks.size())
-        .add("numAddedFiles", addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
+        .add(
+            "numAddedFiles",
+            addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
         .toString();
   }
 

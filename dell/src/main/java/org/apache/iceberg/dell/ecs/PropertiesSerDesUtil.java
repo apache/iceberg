@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import java.io.ByteArrayInputStream;
@@ -37,17 +36,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Convert Map properties to bytes.
- */
+/** Convert Map properties to bytes. */
 public class PropertiesSerDesUtil {
 
-  private PropertiesSerDesUtil() {
-  }
+  private PropertiesSerDesUtil() {}
 
-  /**
-   * Version of current implementation.
-   */
+  /** Version of current implementation. */
   private static final String CURRENT_VERSION = "0";
 
   private static final Logger LOG = LoggerFactory.getLogger(PropertiesSerDesUtil.class);
@@ -58,10 +52,11 @@ public class PropertiesSerDesUtil {
    * @param version is the version of {@link PropertiesSerDesUtil}
    */
   public static Map<String, String> read(byte[] content, String version) {
-    Preconditions.checkArgument(version.equals(CURRENT_VERSION),
-        "Properties version is not match", version);
+    Preconditions.checkArgument(
+        version.equals(CURRENT_VERSION), "Properties version is not match", version);
     Properties jdkProperties = new Properties();
-    try (Reader reader = new InputStreamReader(new ByteArrayInputStream(content), StandardCharsets.UTF_8)) {
+    try (Reader reader =
+        new InputStreamReader(new ByteArrayInputStream(content), StandardCharsets.UTF_8)) {
       jdkProperties.load(reader);
     } catch (IOException e) {
       LOG.error("Fail to read properties", e);
@@ -77,9 +72,7 @@ public class PropertiesSerDesUtil {
     return Collections.unmodifiableMap(properties);
   }
 
-  /**
-   * Write properties, the version is {@link #currentVersion()}
-   */
+  /** Write properties, the version is {@link #currentVersion()} */
   public static byte[] toBytes(Map<String, String> value) {
     Properties jdkProperties = new Properties();
     for (Map.Entry<String, String> entry : value.entrySet()) {
@@ -87,7 +80,7 @@ public class PropertiesSerDesUtil {
     }
 
     try (ByteArrayOutputStream output = new ByteArrayOutputStream();
-         Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
+        Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
       jdkProperties.store(writer, null);
       return output.toByteArray();
     } catch (IOException e) {
@@ -96,9 +89,7 @@ public class PropertiesSerDesUtil {
     }
   }
 
-  /**
-   * Get version of current serializer implementation.
-   */
+  /** Get version of current serializer implementation. */
   public static String currentVersion() {
     return CURRENT_VERSION;
   }

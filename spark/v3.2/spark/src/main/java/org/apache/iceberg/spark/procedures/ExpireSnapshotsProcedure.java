@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Table;
@@ -42,21 +41,28 @@ import org.apache.spark.sql.types.StructType;
  */
 public class ExpireSnapshotsProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[] {
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("older_than", DataTypes.TimestampType),
-      ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
-      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
-      ProcedureParameter.optional("stream_results", DataTypes.BooleanType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("older_than", DataTypes.TimestampType),
+        ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
+        ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType),
+        ProcedureParameter.optional("stream_results", DataTypes.BooleanType)
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("deleted_data_files_count", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("deleted_position_delete_files_count", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("deleted_equality_delete_files_count", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("deleted_manifest_files_count", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("deleted_data_files_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_position_delete_files_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_equality_delete_files_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_manifest_files_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField(
+                "deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
+          });
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<ExpireSnapshotsProcedure>() {
@@ -89,43 +95,47 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
     Boolean streamResult = args.isNullAt(4) ? null : args.getBoolean(4);
 
-    Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
+    Preconditions.checkArgument(
+        maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
         "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
 
-    return modifyIcebergTable(tableIdent, table -> {
-      ExpireSnapshots action = actions().expireSnapshots(table);
+    return modifyIcebergTable(
+        tableIdent,
+        table -> {
+          ExpireSnapshots action = actions().expireSnapshots(table);
 
-      if (olderThanMillis != null) {
-        action.expireOlderThan(olderThanMillis);
-      }
+          if (olderThanMillis != null) {
+            action.expireOlderThan(olderThanMillis);
+          }
 
-      if (retainLastNum != null) {
-        action.retainLast(retainLastNum);
-      }
+          if (retainLastNum != null) {
+            action.retainLast(retainLastNum);
+          }
 
-      if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
-        action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
-      }
+          if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+            action.executeDeleteWith(executorService(maxConcurrentDeletes, "expire-snapshots"));
+          }
 
-      if (streamResult != null) {
-        action.option(ExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
-      }
+          if (streamResult != null) {
+            action.option(
+                ExpireSnapshotsSparkAction.STREAM_RESULTS, Boolean.toString(streamResult));
+          }
 
-      ExpireSnapshots.Result result = action.execute();
+          ExpireSnapshots.Result result = action.execute();
 
-      return toOutputRows(result);
-    });
+          return toOutputRows(result);
+        });
   }
 
   private InternalRow[] toOutputRows(ExpireSnapshots.Result result) {
-    InternalRow row = newInternalRow(
-        result.deletedDataFilesCount(),
-        result.deletedPositionDeleteFilesCount(),
-        result.deletedEqualityDeleteFilesCount(),
-        result.deletedManifestsCount(),
-        result.deletedManifestListsCount()
-    );
-    return new InternalRow[]{row};
+    InternalRow row =
+        newInternalRow(
+            result.deletedDataFilesCount(),
+            result.deletedPositionDeleteFilesCount(),
+            result.deletedEqualityDeleteFilesCount(),
+            result.deletedManifestsCount(),
+            result.deletedManifestListsCount());
+    return new InternalRow[] {row};
   }
 
   @Override

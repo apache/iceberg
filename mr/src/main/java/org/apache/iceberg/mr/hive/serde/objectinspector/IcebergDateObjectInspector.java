@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.sql.Date;
@@ -59,7 +58,8 @@ public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjec
     if (o instanceof Date) {
       return new Date(((Date) o).getTime());
     } else if (o instanceof LocalDate) {
-      return LocalDate.of(((LocalDate) o).getYear(), ((LocalDate) o).getMonth(), ((LocalDate) o).getDayOfMonth());
+      return LocalDate.of(
+          ((LocalDate) o).getYear(), ((LocalDate) o).getMonth(), ((LocalDate) o).getDayOfMonth());
     } else {
       return o;
     }

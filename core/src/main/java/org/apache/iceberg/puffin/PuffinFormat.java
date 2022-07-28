@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import io.airlift.compress.Compressor;
@@ -35,16 +34,17 @@ import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
 
 final class PuffinFormat {
-  private PuffinFormat() {
-  }
+  private PuffinFormat() {}
 
   enum Flag {
     FOOTER_PAYLOAD_COMPRESSED(0, 0),
-    /**/;
+  /**/ ;
 
-    private static final Map<Pair<Integer, Integer>, Flag> BY_BYTE_AND_BIT = Stream.of(values())
-        .collect(ImmutableMap.toImmutableMap(
-            flag -> Pair.of(flag.byteNumber(), flag.bitNumber()), Function.identity()));
+    private static final Map<Pair<Integer, Integer>, Flag> BY_BYTE_AND_BIT =
+        Stream.of(values())
+            .collect(
+                ImmutableMap.toImmutableMap(
+                    flag -> Pair.of(flag.byteNumber(), flag.bitNumber()), Function.identity()));
 
     private final int byteNumber;
     private final int bitNumber;
@@ -79,7 +79,8 @@ final class PuffinFormat {
   static final int FOOTER_STRUCT_PAYLOAD_SIZE_OFFSET = 0;
   static final int FOOTER_STRUCT_FLAGS_OFFSET = FOOTER_STRUCT_PAYLOAD_SIZE_OFFSET + 4;
   static final int FOOTER_STRUCT_FLAGS_LENGTH = 4;
-  static final int FOOTER_STRUCT_MAGIC_OFFSET = FOOTER_STRUCT_FLAGS_OFFSET + FOOTER_STRUCT_FLAGS_LENGTH;
+  static final int FOOTER_STRUCT_MAGIC_OFFSET =
+      FOOTER_STRUCT_FLAGS_OFFSET + FOOTER_STRUCT_FLAGS_LENGTH;
   static final int FOOTER_STRUCT_LENGTH = FOOTER_STRUCT_MAGIC_OFFSET + getMagic().length;
 
   static final PuffinCompressionCodec FOOTER_COMPRESSION_CODEC = PuffinCompressionCodec.LZ4;
@@ -96,10 +97,10 @@ final class PuffinFormat {
   }
 
   static int readIntegerLittleEndian(byte[] data, int offset) {
-    return Byte.toUnsignedInt(data[offset]) |
-        (Byte.toUnsignedInt(data[offset + 1]) << 8) |
-        (Byte.toUnsignedInt(data[offset + 2]) << 16) |
-        (Byte.toUnsignedInt(data[offset + 3]) << 24);
+    return Byte.toUnsignedInt(data[offset])
+        | (Byte.toUnsignedInt(data[offset + 1]) << 8)
+        | (Byte.toUnsignedInt(data[offset + 2]) << 16)
+        | (Byte.toUnsignedInt(data[offset + 3]) << 24);
   }
 
   static ByteBuffer compress(PuffinCompressionCodec codec, ByteBuffer input) {
@@ -107,7 +108,8 @@ final class PuffinFormat {
       case NONE:
         return input.duplicate();
       case LZ4:
-        // TODO requires LZ4 frame compressor, e.g. https://github.com/airlift/aircompressor/pull/142
+        // TODO requires LZ4 frame compressor, e.g.
+        // https://github.com/airlift/aircompressor/pull/142
         break;
       case ZSTD:
         return compress(new ZstdCompressor(), input);
@@ -128,7 +130,8 @@ final class PuffinFormat {
         return input.duplicate();
 
       case LZ4:
-        // TODO requires LZ4 frame decompressor, e.g. https://github.com/airlift/aircompressor/pull/142
+        // TODO requires LZ4 frame decompressor, e.g.
+        // https://github.com/airlift/aircompressor/pull/142
         break;
 
       case ZSTD:
@@ -154,16 +157,14 @@ final class PuffinFormat {
     }
 
     byte[] decompressed =
-        new byte[Math.toIntExact(ZstdDecompressor.getDecompressedSize(inputBytes, inputOffset, inputLength))];
+        new byte
+            [Math.toIntExact(
+                ZstdDecompressor.getDecompressedSize(inputBytes, inputOffset, inputLength))];
     int decompressedLength =
-        new ZstdDecompressor().decompress(
-            inputBytes,
-            inputOffset,
-            inputLength,
-            decompressed,
-            0,
-            decompressed.length);
-    Preconditions.checkState(decompressedLength == decompressed.length, "Invalid decompressed length");
+        new ZstdDecompressor()
+            .decompress(inputBytes, inputOffset, inputLength, decompressed, 0, decompressed.length);
+    Preconditions.checkState(
+        decompressedLength == decompressed.length, "Invalid decompressed length");
     return ByteBuffer.wrap(decompressed);
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
@@ -25,8 +24,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class TestMergeOnReadUpdate extends TestUpdate {
 
-  public TestMergeOnReadUpdate(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, boolean vectorized, String distributionMode) {
+  public TestMergeOnReadUpdate(
+      String catalogName,
+      String implementation,
+      Map<String, String> config,
+      String fileFormat,
+      boolean vectorized,
+      String distributionMode) {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
@@ -34,7 +38,6 @@ public class TestMergeOnReadUpdate extends TestUpdate {
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
         TableProperties.FORMAT_VERSION, "2",
-        TableProperties.UPDATE_MODE, "merge-on-read"
-    );
+        TableProperties.UPDATE_MODE, "merge-on-read");
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.time.Instant;
@@ -53,20 +52,21 @@ enum Timestamps implements Transform<Long, Integer> {
     }
 
     if (timestampMicros >= 0) {
-      OffsetDateTime timestamp = Instant
-          .ofEpochSecond(
-              Math.floorDiv(timestampMicros, 1_000_000),
-              Math.floorMod(timestampMicros, 1_000_000) * 1000)
-          .atOffset(ZoneOffset.UTC);
+      OffsetDateTime timestamp =
+          Instant.ofEpochSecond(
+                  Math.floorDiv(timestampMicros, 1_000_000),
+                  Math.floorMod(timestampMicros, 1_000_000) * 1000)
+              .atOffset(ZoneOffset.UTC);
       return (int) granularity.between(EPOCH, timestamp);
     } else {
-      // add 1 micro to the value to account for the case where there is exactly 1 unit between the timestamp and epoch
+      // add 1 micro to the value to account for the case where there is exactly 1 unit between the
+      // timestamp and epoch
       // because the result will always be decremented.
-      OffsetDateTime timestamp = Instant
-          .ofEpochSecond(
-              Math.floorDiv(timestampMicros, 1_000_000),
-              Math.floorMod(timestampMicros + 1, 1_000_000) * 1000)
-          .atOffset(ZoneOffset.UTC);
+      OffsetDateTime timestamp =
+          Instant.ofEpochSecond(
+                  Math.floorDiv(timestampMicros, 1_000_000),
+                  Math.floorMod(timestampMicros + 1, 1_000_000) * 1000)
+              .atOffset(ZoneOffset.UTC);
       return (int) granularity.between(EPOCH, timestamp) - 1;
     }
   }
@@ -96,9 +96,11 @@ enum Timestamps implements Transform<Long, Integer> {
     }
 
     if (other instanceof Timestamps) {
-      // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies the order of day
+      // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies
+      // the order of day
       Timestamps otherTransform = (Timestamps) other;
-      return granularity.getDuration().toHours() <= otherTransform.granularity.getDuration().toHours();
+      return granularity.getDuration().toHours()
+          <= otherTransform.granularity.getDuration().toHours();
     }
 
     return false;
@@ -114,11 +116,13 @@ enum Timestamps implements Transform<Long, Integer> {
       return Expressions.predicate(pred.op(), fieldName);
 
     } else if (pred.isLiteralPredicate()) {
-      UnboundPredicate<Integer> projected = ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
+      UnboundPredicate<Integer> projected =
+          ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
       return ProjectionUtil.fixInclusiveTimeProjection(projected);
 
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-      UnboundPredicate<Integer> projected = ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      UnboundPredicate<Integer> projected =
+          ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
       return ProjectionUtil.fixInclusiveTimeProjection(projected);
     }
 
@@ -135,12 +139,13 @@ enum Timestamps implements Transform<Long, Integer> {
       return Expressions.predicate(pred.op(), fieldName);
 
     } else if (pred.isLiteralPredicate()) {
-      UnboundPredicate<Integer> projected = ProjectionUtil.truncateLongStrict(
-          fieldName, pred.asLiteralPredicate(), this);
+      UnboundPredicate<Integer> projected =
+          ProjectionUtil.truncateLongStrict(fieldName, pred.asLiteralPredicate(), this);
       return ProjectionUtil.fixStrictTimeProjection(projected);
 
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-      UnboundPredicate<Integer> projected = ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      UnboundPredicate<Integer> projected =
+          ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
       return ProjectionUtil.fixStrictTimeProjection(projected);
     }
 

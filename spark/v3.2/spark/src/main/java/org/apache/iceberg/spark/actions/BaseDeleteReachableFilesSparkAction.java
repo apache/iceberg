@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import org.apache.spark.sql.SparkSession;
@@ -24,8 +23,8 @@ import org.apache.spark.sql.SparkSession;
 /**
  * An action that deletes reachable files from a given metadata file.
  *
- * @deprecated since 0.14.0, will be removed in 1.0.0;
- *             use {@link SparkActions} and {@link DeleteReachableFilesSparkAction} instead.
+ * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
+ *     DeleteReachableFilesSparkAction} instead.
  */
 @Deprecated
 public class BaseDeleteReachableFilesSparkAction extends DeleteReachableFilesSparkAction {

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
@@ -31,8 +30,8 @@ import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.StructProjection;
 
 /**
- * Create a {@link KeySelector} to shuffle by equality fields, to ensure same equality fields record will be emitted to
- * same writer in order.
+ * Create a {@link KeySelector} to shuffle by equality fields, to ensure same equality fields record
+ * will be emitted to same writer in order.
  */
 class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
 
@@ -51,8 +50,8 @@ class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
   }
 
   /**
-   * Construct the {@link RowDataWrapper} lazily here because few members in it are not serializable. In this way, we
-   * don't have to serialize them with forcing.
+   * Construct the {@link RowDataWrapper} lazily here because few members in it are not
+   * serializable. In this way, we don't have to serialize them with forcing.
    */
   protected RowDataWrapper lazyRowDataWrapper() {
     if (rowDataWrapper == null) {
@@ -61,9 +60,7 @@ class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
     return rowDataWrapper;
   }
 
-  /**
-   * Construct the {@link StructProjection} lazily because it is not serializable.
-   */
+  /** Construct the {@link StructProjection} lazily because it is not serializable. */
   protected StructProjection lazyStructProjection() {
     if (structProjection == null) {
       structProjection = StructProjection.create(schema, deleteSchema);
@@ -71,9 +68,7 @@ class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
     return structProjection;
   }
 
-  /**
-   * Construct the {@link StructLikeWrapper} lazily because it is not serializable.
-   */
+  /** Construct the {@link StructLikeWrapper} lazily because it is not serializable. */
   protected StructLikeWrapper lazyStructLikeWrapper() {
     if (structLikeWrapper == null) {
       structLikeWrapper = StructLikeWrapper.forType(deleteSchema.asStruct());
