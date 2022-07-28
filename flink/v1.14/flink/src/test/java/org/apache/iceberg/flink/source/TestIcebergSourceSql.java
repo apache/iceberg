@@ -19,25 +19,16 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import org.apache.flink.table.api.EnvironmentSettings;
-import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.config.TableConfigOptions;
-import org.apache.flink.types.Row;
-import org.junit.Before;
+import org.apache.iceberg.flink.FlinkConfigOptions;
 
-/** Test Flink SELECT SQLs. */
-public class TestFlinkScanSql extends TestFlinkSource {
-
-  private volatile TableEnvironment tEnv;
-
-  public TestFlinkScanSql(String fileFormat) {
-    super(fileFormat);
-  }
-
-  @Before
+/** Use the IcebergSource (FLIP-27) */
+public class TestIcebergSourceSql extends TestSqlBase {
+  @Override
   public void before() throws IOException {
+    Configuration tableConf = getTableEnv().getConfig().getConfiguration();
+    tableConf.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE.key(), true);
     SqlHelpers.sql(
         getTableEnv(),
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
@@ -47,28 +38,5 @@ public class TestFlinkScanSql extends TestFlinkSource {
         .getConfig()
         .getConfiguration()
         .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
-  }
-
-  private TableEnvironment getTableEnv() {
-    if (tEnv == null) {
-      synchronized (this) {
-        if (tEnv == null) {
-          this.tEnv =
-              TableEnvironment.create(EnvironmentSettings.newInstance().inBatchMode().build());
-        }
-      }
-    }
-    return tEnv;
-  }
-
-  @Override
-  protected List<Row> run(
-      FlinkSource.Builder formatBuilder,
-      Map<String, String> sqlOptions,
-      String sqlFilter,
-      String... sqlSelectedFields) {
-    String select = String.join(",", sqlSelectedFields);
-    String optionStr = SqlHelpers.sqlOptionsToString(sqlOptions);
-    return SqlHelpers.sql(getTableEnv(), "select %s from t %s %s", select, optionStr, sqlFilter);
   }
 }

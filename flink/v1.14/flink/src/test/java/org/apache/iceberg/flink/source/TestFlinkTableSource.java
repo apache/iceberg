@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.source;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +30,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.flink.FlinkTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
 import org.junit.After;

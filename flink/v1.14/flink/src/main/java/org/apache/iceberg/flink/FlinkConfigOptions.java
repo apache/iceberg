@@ -21,7 +21,10 @@ package org.apache.iceberg.flink;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.description.Description;
+import org.apache.flink.configuration.description.TextElement;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.util.ThreadPools;
 
 /**
@@ -81,4 +84,24 @@ public class FlinkConfigOptions {
           .intType()
           .defaultValue(ThreadPools.WORKER_THREAD_POOL_SIZE)
           .withDescription("The size of workers pool used to plan or scan manifests.");
+
+  public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE =
+      ConfigOptions.key("table.exec.iceberg.use-flip27-source")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription("Use the FLIP-27 based Iceberg source implementation.");
+
+  public static final ConfigOption<SplitAssignerType> TABLE_EXEC_SPLIT_ASSIGNER_TYPE =
+      ConfigOptions.key("table.exec.iceberg.split-assigner-type")
+          .enumType(SplitAssignerType.class)
+          .defaultValue(SplitAssignerType.SIMPLE)
+          .withDescription(
+              Description.builder()
+                  .text("Split assigner type that determine how splits are assigned to readers.")
+                  .linebreak()
+                  .list(
+                      TextElement.text(
+                          SplitAssignerType.SIMPLE
+                              + ": simple assigner that doesn't provide any guarantee on order or locality."))
+                  .build());
 }
