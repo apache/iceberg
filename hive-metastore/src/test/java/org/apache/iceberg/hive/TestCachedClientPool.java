@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.hive;
 
+import static org.apache.iceberg.hive.CachedClientPool.CATALOG_DEFAULT;
+
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -37,5 +39,22 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     Assert.assertTrue(clientPool1 == clientPool2);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL + TimeUnit.SECONDS.toMillis(5));
     Assert.assertNull(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri));
+  }
+
+  @Test
+  public void testClientPoolWithDefaultCatalog() throws InterruptedException {
+    hiveConf.set(CATALOG_DEFAULT, "catalog1");
+    String key1 = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "") + "catalog1";
+    HiveClientPool clientPool1 =
+        new CachedClientPool(hiveConf, Collections.emptyMap()).clientPool();
+
+    hiveConf.set(CATALOG_DEFAULT, "catalog2");
+    String key2 = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "") + "catalog2";
+    HiveClientPool clientPool2 =
+        new CachedClientPool(hiveConf, Collections.emptyMap()).clientPool();
+
+    Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(key1) == clientPool1);
+    Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(key2) == clientPool2);
+    Assert.assertTrue(clientPool1 != clientPool2);
   }
 }

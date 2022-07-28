@@ -32,7 +32,8 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 
 public class CachedClientPool implements ClientPool<IMetaStoreClient, TException> {
-  private static final String CATALOG_DEFAULT = "metastore.catalog.default";
+
+  @VisibleForTesting static final String CATALOG_DEFAULT = "metastore.catalog.default";
   private static Cache<String, HiveClientPool> clientPoolCache;
 
   private final Configuration conf;
