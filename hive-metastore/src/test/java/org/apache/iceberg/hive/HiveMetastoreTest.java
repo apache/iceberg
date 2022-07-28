@@ -49,16 +49,16 @@ public abstract class HiveMetastoreTest {
 
   public static void startMetastore(Map<String, String> hiveConfOverride) throws Exception {
     HiveMetastoreTest.metastore = new TestHiveMetastore();
-    HiveConf hiveConf = new HiveConf(new Configuration(), TestHiveMetastore.class);
+    HiveConf hiveConfWithOverrides = new HiveConf(new Configuration(), TestHiveMetastore.class);
     if (hiveConfOverride != null) {
       for (Map.Entry<String, String> kv : hiveConfOverride.entrySet()) {
-        hiveConf.set(kv.getKey(), kv.getValue());
+        hiveConfWithOverrides.set(kv.getKey(), kv.getValue());
       }
     }
 
-    metastore.start(hiveConf);
+    metastore.start(hiveConfWithOverrides);
     HiveMetastoreTest.hiveConf = metastore.hiveConf();
-    HiveMetastoreTest.metastoreClient = new HiveMetaStoreClient(hiveConf);
+    HiveMetastoreTest.metastoreClient = new HiveMetaStoreClient(hiveConfWithOverrides);
     String dbPath = metastore.getDatabasePath(DB_NAME);
     Database db = new Database(DB_NAME, "description", dbPath, Maps.newHashMap());
     metastoreClient.createDatabase(db);
@@ -70,7 +70,7 @@ public abstract class HiveMetastoreTest {
                 ImmutableMap.of(
                     CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
                     String.valueOf(EVICTION_INTERVAL)),
-                hiveConf);
+                hiveConfWithOverrides);
   }
 
   @AfterClass

@@ -168,7 +168,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
   private final ScheduledExecutorService exitingScheduledExecutorService;
-  private HiveLockHeartbeat hiveLockHeartbeat;
 
   protected HiveTableOperations(
       Configuration conf,
@@ -384,6 +383,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (hiveLockHeartbeat != null) {
         hiveLockHeartbeat.cancel();
       }
+
       cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId, tableLevelMutex);
     }
 
