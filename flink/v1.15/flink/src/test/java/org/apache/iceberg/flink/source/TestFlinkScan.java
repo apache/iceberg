@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.source;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -30,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -42,20 +39,19 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -70,9 +66,9 @@ public abstract class TestFlinkScan {
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
-  protected HadoopCatalog catalog;
-  protected String warehouse;
-  protected String location;
+  @Rule
+  public final HadoopCatalogResource catalogResource =
+      new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
 
   // parametrized variables
   protected final FileFormat fileFormat;
@@ -86,22 +82,8 @@ public abstract class TestFlinkScan {
     this.fileFormat = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
   }
 
-  @Before
-  public void before() throws IOException {
-    File warehouseFile = TEMPORARY_FOLDER.newFolder();
-    Assert.assertTrue(warehouseFile.delete());
-    // before variables
-    warehouse = "file:" + warehouseFile;
-    Configuration conf = new Configuration();
-    catalog = new HadoopCatalog(conf, warehouse);
-    location = String.format("%s/%s/%s", warehouse, TestFixtures.DATABASE, TestFixtures.TABLE);
-  }
-
-  @After
-  public void after() throws IOException {}
-
   protected TableLoader tableLoader() {
-    return TableLoader.fromHadoopTable(location);
+    return catalogResource.tableLoader();
   }
 
   protected abstract List<Row> runWithProjection(String... projected) throws Exception;
@@ -114,7 +96,8 @@ public abstract class TestFlinkScan {
 
   @Test
   public void testUnpartitionedTable() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
@@ -123,7 +106,9 @@ public abstract class TestFlinkScan {
   @Test
   public void testPartitionedTable() throws Exception {
     Table table =
-        catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
+        catalogResource
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
@@ -134,7 +119,9 @@ public abstract class TestFlinkScan {
   @Test
   public void testProjection() throws Exception {
     Table table =
-        catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
+        catalogResource
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> inputRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
         .appendToTable(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), inputRecords);
@@ -152,7 +139,8 @@ public abstract class TestFlinkScan {
     PartitionSpec spec =
         PartitionSpec.builderFor(logSchema).identity("dt").identity("level").build();
 
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, logSchema, spec);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, logSchema, spec);
     List<Record> inputRecords = RandomGenericData.generate(logSchema, 10, 0L);
 
     int idx = 0;
@@ -217,7 +205,8 @@ public abstract class TestFlinkScan {
 
   @Test
   public void testSnapshotReads() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
 
@@ -243,7 +232,8 @@ public abstract class TestFlinkScan {
 
   @Test
   public void testIncrementalRead() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
 
@@ -278,7 +268,9 @@ public abstract class TestFlinkScan {
   @Test
   public void testFilterExp() throws Exception {
     Table table =
-        catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
+        catalogResource
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
 
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
@@ -319,7 +311,8 @@ public abstract class TestFlinkScan {
             .identity("timestamp")
             .build();
 
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, typesSchema, spec);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, typesSchema, spec);
     List<Record> records = RandomGenericData.generate(typesSchema, 10, 0L);
     GenericAppenderHelper appender = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
     for (Record record : records) {
@@ -349,7 +342,7 @@ public abstract class TestFlinkScan {
                 Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.StringType.get())),
             Types.NestedField.required(
                 4, "arr", Types.ListType.ofRequired(5, Types.StringType.get())));
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, schema);
+    Table table = catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, schema);
     List<Record> records = RandomGenericData.generate(schema, 10, 0L);
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
     helper.appendToTable(records);

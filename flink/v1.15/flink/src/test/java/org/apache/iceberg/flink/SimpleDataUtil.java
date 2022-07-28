@@ -260,7 +260,7 @@ public class SimpleDataUtil {
       }
     }
     // success or failure, assert on the latest table state
-    assertRecordsEqual(tableRecords(table), expected, table.schema());
+    assertRecordsEqual(expected, tableRecords(table), table.schema());
   }
 
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {

@@ -21,23 +21,27 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.junit.Before;
 
-/** Test Flink SELECT SQLs. */
-public class TestFlinkScanSql extends TestFlinkSource {
-
+public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
   private volatile TableEnvironment tEnv;
 
-  public TestFlinkScanSql(String fileFormat) {
+  public TestIcebergSourceBoundedSql(String fileFormat) {
     super(fileFormat);
   }
 
   @Before
   public void before() throws IOException {
+    Configuration tableConf = getTableEnv().getConfig().getConfiguration();
+    tableConf.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE.key(), true);
     SqlHelpers.sql(
         getTableEnv(),
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
@@ -63,12 +67,14 @@ public class TestFlinkScanSql extends TestFlinkSource {
 
   @Override
   protected List<Row> run(
-      FlinkSource.Builder formatBuilder,
-      Map<String, String> sqlOptions,
+      Schema projectedSchema,
+      List<Expression> filters,
+      Map<String, String> options,
       String sqlFilter,
-      String... sqlSelectedFields) {
+      String... sqlSelectedFields)
+      throws Exception {
     String select = String.join(",", sqlSelectedFields);
-    String optionStr = SqlHelpers.sqlOptionsToString(sqlOptions);
+    String optionStr = SqlHelpers.sqlOptionsToString(options);
     return SqlHelpers.sql(getTableEnv(), "select %s from t %s %s", select, optionStr, sqlFilter);
   }
 }
