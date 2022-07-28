@@ -19,13 +19,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce, singledispatch
-from typing import (
-    ClassVar,
-    Generic,
-    Literal,
-    TypeVar,
-)
+from typing import ClassVar, Generic, TypeVar
 
+from pyiceberg.expressions.literals import Literal
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Accessor, Schema
 from pyiceberg.types import DoubleType, FloatType, NestedField
@@ -329,13 +325,12 @@ class AlwaysFalse(BooleanExpression, Singleton):
 
 
 @dataclass(frozen=True)
-class UnaryPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
+class UnaryPredicate(Unbound[T, BooleanExpression], BooleanExpression):
     as_bound: ClassVar[type]
     term: UnboundTerm[T]
 
-    @abstractmethod
-    def __invert__(self) -> UnaryPredicate:
-        ...
+    def __invert__(self) -> UnaryPredicate[T]:
+        raise NotImplementedError
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         bound_term = self.term.bind(schema, case_sensitive)
@@ -343,24 +338,26 @@ class UnaryPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
 
 
 @dataclass(frozen=True)
-class BoundUnaryPredicate(Bound[T], BooleanExpression, ABC):
+class BoundUnaryPredicate(Bound[T], BooleanExpression):
+    inverse: ClassVar[type]
     term: BoundTerm[T]
 
-    @abstractmethod
-    def __invert__(self) -> BoundUnaryPredicate:
-        ...
+    def __invert__(self) -> BoundUnaryPredicate[T]:
+        raise NotImplementedError
 
 
+@dataclass(frozen=True)
 class BoundIsNull(BoundUnaryPredicate[T]):
     def __new__(cls, term: BoundTerm[T]):
         if term.ref().field.required:
             return AlwaysFalse()
         return super().__new__(cls)
 
-    def __invert__(self) -> BoundNotNull:
+    def __invert__(self) -> BoundNotNull[T]:
         return BoundNotNull(self.term)
 
 
+@dataclass(frozen=True)
 class BoundNotNull(BoundUnaryPredicate[T]):
     def __new__(cls, term: BoundTerm[T]):
         if term.ref().field.required:
@@ -371,20 +368,23 @@ class BoundNotNull(BoundUnaryPredicate[T]):
         return BoundIsNull(self.term)
 
 
+@dataclass(frozen=True)
 class IsNull(UnaryPredicate[T]):
     as_bound = BoundIsNull
 
-    def __invert__(self) -> NotNull:
+    def __invert__(self) -> NotNull[T]:
         return NotNull(self.term)
 
 
+@dataclass(frozen=True)
 class NotNull(UnaryPredicate[T]):
     as_bound = BoundNotNull
 
-    def __invert__(self) -> IsNull:
+    def __invert__(self) -> IsNull[T]:
         return IsNull(self.term)
 
 
+@dataclass(frozen=True)
 class BoundIsNaN(BoundUnaryPredicate[T]):
     def __new__(cls, term: BoundTerm[T]):
         bound_type = term.ref().field.field_type
@@ -392,10 +392,11 @@ class BoundIsNaN(BoundUnaryPredicate[T]):
             return super().__new__(cls)
         return AlwaysFalse()
 
-    def __invert__(self) -> BoundNotNaN:
+    def __invert__(self) -> BoundNotNaN[T]:
         return BoundNotNaN(self.term)
 
 
+@dataclass(frozen=True)
 class BoundNotNaN(BoundUnaryPredicate[T]):
     def __new__(cls, term: BoundTerm[T]):
         bound_type = term.ref().field.field_type
@@ -403,33 +404,34 @@ class BoundNotNaN(BoundUnaryPredicate[T]):
             return super().__new__(cls)
         return AlwaysTrue()
 
-    def __invert__(self) -> BoundIsNaN:
+    def __invert__(self) -> BoundIsNaN[T]:
         return BoundIsNaN(self.term)
 
 
+@dataclass(frozen=True)
 class IsNaN(UnaryPredicate[T]):
     as_bound = BoundIsNaN
 
-    def __invert__(self) -> NotNaN:
+    def __invert__(self) -> NotNaN[T]:
         return NotNaN(self.term)
 
 
+@dataclass(frozen=True)
 class NotNaN(UnaryPredicate[T]):
     as_bound = BoundNotNaN
 
-    def __invert__(self) -> IsNaN:
+    def __invert__(self) -> IsNaN[T]:
         return IsNaN(self.term)
 
 
 @dataclass(frozen=True)
-class SetPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
+class SetPredicate(Unbound[T, BooleanExpression], BooleanExpression):
     as_bound: ClassVar[type]
     term: UnboundTerm[T]
     literals: tuple[Literal[T], ...]
 
-    @abstractmethod
-    def __invert__(self) -> BooleanExpression:
-        ...
+    def __invert__(self) -> SetPredicate[T]:
+        raise NotImplementedError
 
     def bind(self, schema: Schema, case_sensitive: bool = True) -> BooleanExpression:
         bound_term = self.term.bind(schema, case_sensitive)
@@ -437,72 +439,75 @@ class SetPredicate(Unbound[T, BooleanExpression], BooleanExpression, ABC):
 
 
 @dataclass(frozen=True)
-class BoundSetPredicate(Bound[T], BooleanExpression, ABC):
+class BoundSetPredicate(Bound[T], BooleanExpression):
     term: BoundTerm[T]
     literals: set[Literal[T]]
 
-    @abstractmethod
-    def __invert__(self) -> BooleanExpression:
-        ...
+    def __invert__(self) -> BoundSetPredicate[T]:
+        raise NotImplementedError
 
 
+@dataclass(frozen=True)
 class BoundIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]) -> BooleanExpression:
+    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]):
         count = len(literals)
         if count == 0:
             return AlwaysFalse()
-        if count == 1:
-            return BoundEq(term, literals.pop())
+        elif count == 1:
+            return BoundEq(term, next(iter(literals)))
         else:
             return super().__new__(cls)
 
-    def __invert__(self) -> BooleanExpression:
+    def __invert__(self) -> BoundNotIn[T]:
         return BoundNotIn(self.term, self.literals)
 
 
+@dataclass(frozen=True)
 class BoundNotIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]) -> BooleanExpression:
+    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]):
         count = len(literals)
         if count == 0:
             return AlwaysTrue()
-        if count == 1:
-            return BoundNotEq(term, literals.pop())
+        elif count == 1:
+            return BoundNotEq(term, next(iter(literals)))
         else:
             return super().__new__(cls)
 
-    def __invert__(self) -> BooleanExpression:
+    def __invert__(self) -> BoundIn[T]:
         return BoundIn(self.term, self.literals)
 
 
+@dataclass(frozen=True)
 class In(SetPredicate[T]):
     as_bound = BoundIn
 
-    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]) -> BooleanExpression:
+    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]):
         count = len(literals)
         if count == 0:
             return AlwaysFalse()
-        if count == 1:
+        elif count == 1:
             return Eq(term, literals[0])
         else:
             return super().__new__(cls)
 
-    def __invert__(self) -> BooleanExpression:
+    def __invert__(self) -> NotIn[T]:
         return NotIn(self.term, self.literals)
 
 
+@dataclass(frozen=True)
 class NotIn(SetPredicate[T]):
     as_bound = BoundNotIn
 
-    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]) -> BooleanExpression:
+    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]):
         count = len(literals)
         if count == 0:
             return AlwaysTrue()
-        if count == 1:
+        elif count == 1:
             return NotEq(term, literals[0])
         else:
             return super().__new__(cls)
 
-    def __invert__(self) -> BooleanExpression:
+    def __invert__(self) -> In[T]:
         return In(self.term, self.literals)
 
 
