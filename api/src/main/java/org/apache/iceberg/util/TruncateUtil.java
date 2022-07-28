@@ -46,7 +46,7 @@ public class TruncateUtil {
     return ret;
   }
 
-  public static byte truncateByte(int width, short value) {
+  public static byte truncateByte(int width, byte value) {
     return (byte) (value - (((value % width) + width) % width));
   }
 
