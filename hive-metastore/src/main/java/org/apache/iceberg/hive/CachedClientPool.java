@@ -37,13 +37,13 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   private static Cache<String, HiveClientPool> clientPoolCache;
 
   private final Configuration conf;
-  private final String key;
+  private final String clientPoolKey;
   private final int clientPoolSize;
   private final long evictionInterval;
 
   CachedClientPool(Configuration conf, Map<String, String> properties) {
     this.conf = conf;
-    this.key =
+    this.clientPoolKey =
         conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "") + conf.get(CATALOG_DEFAULT, "");
     this.clientPoolSize =
         PropertyUtil.propertyAsInt(
@@ -60,7 +60,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
 
   @VisibleForTesting
   HiveClientPool clientPool() {
-    return clientPoolCache.get(key, k -> new HiveClientPool(clientPoolSize, conf));
+    return clientPoolCache.get(clientPoolKey, k -> new HiveClientPool(clientPoolSize, conf));
   }
 
   private synchronized void init() {
