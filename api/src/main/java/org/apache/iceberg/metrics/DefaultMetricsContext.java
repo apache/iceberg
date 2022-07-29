@@ -26,11 +26,11 @@ public class DefaultMetricsContext implements MetricsContext {
   @Override
   public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
     if (Integer.class.equals(type)) {
-      return (Counter<T>) new IntCounter();
+      return (Counter<T>) new IntCounter(name, unit);
     }
 
     if (Long.class.equals(type)) {
-      return (Counter<T>) new LongCounter();
+      return (Counter<T>) new LongCounter(name, unit);
     }
     throw new IllegalArgumentException(
         String.format("Counter for type %s is not supported", type.getName()));
@@ -38,6 +38,6 @@ public class DefaultMetricsContext implements MetricsContext {
 
   @Override
   public Timer timer(String name, TimeUnit unit) {
-    return new DefaultTimer(unit);
+    return new DefaultTimer(name, unit);
   }
 }

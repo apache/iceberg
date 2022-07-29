@@ -52,6 +52,24 @@ public interface Timer {
   Timed start();
 
   /**
+   * The name of the timer.
+   *
+   * @return The name of the timer.
+   */
+  default String name() {
+    return "undefined";
+  }
+
+  /**
+   * The {@link TimeUnit} of the timer.
+   *
+   * @return The {@link TimeUnit} of the timer.
+   */
+  default TimeUnit unit() {
+    return TimeUnit.NANOSECONDS;
+  }
+
+  /**
    * Records a custom amount in the given time unit.
    *
    * @param amount The amount to record

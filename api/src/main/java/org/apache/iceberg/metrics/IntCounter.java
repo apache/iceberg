@@ -20,7 +20,7 @@ package org.apache.iceberg.metrics;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * A default {@link org.apache.iceberg.metrics.MetricsContext.Counter} implementation that uses an
@@ -28,8 +28,14 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  */
 class IntCounter implements MetricsContext.Counter<Integer> {
   private final AtomicInteger counter;
+  private final String name;
+  private final MetricsContext.Unit unit;
 
-  IntCounter() {
+  IntCounter(String name, MetricsContext.Unit unit) {
+    Preconditions.checkArgument(null != name, "Invalid counter name: null");
+    Preconditions.checkArgument(null != unit, "Invalid count unit: null");
+    this.name = name;
+    this.unit = unit;
     this.counter = new AtomicInteger(0);
   }
 
@@ -55,6 +61,16 @@ class IntCounter implements MetricsContext.Counter<Integer> {
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this).add("counter", counter).toString();
+    return String.format("%s{%s=%s}", name(), unit().displayName(), value());
+  }
+
+  @Override
+  public MetricsContext.Unit unit() {
+    return unit;
+  }
+
+  @Override
+  public String name() {
+    return name;
   }
 }
