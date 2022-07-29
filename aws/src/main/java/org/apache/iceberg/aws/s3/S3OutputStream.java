@@ -104,6 +104,7 @@ class S3OutputStream extends PositionOutputStream {
 
   private long pos = 0;
   private boolean closed = false;
+  private Throwable closeFailureException;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
   S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties, MetricsContext metrics)
@@ -257,6 +258,13 @@ class S3OutputStream extends PositionOutputStream {
 
   @Override
   public void close() throws IOException {
+
+    // A failed s3 close removes state that is required for a successful close.
+    if (closeFailureException != null) {
+      throw new IOException(
+          "Attempted to close a S3 stream that failed to close earlier", closeFailureException);
+    }
+
     if (closed) {
       return;
     }
@@ -266,8 +274,10 @@ class S3OutputStream extends PositionOutputStream {
 
     try {
       stream.close();
-
       completeUploads();
+    } catch (Exception e) {
+      closeFailureException = e;
+      throw e;
     } finally {
       cleanUpStagingFiles();
     }
