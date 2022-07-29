@@ -94,6 +94,7 @@ public class AwsClientFactories {
     private String s3SessionToken;
     private Boolean s3PathStyleAccess;
     private Boolean s3UseArnRegionEnabled;
+    private Boolean s3AccelerationEnabled;
     private String dynamoDbEndpoint;
     private String httpClientType;
 
@@ -104,7 +105,12 @@ public class AwsClientFactories {
       return S3Client.builder()
           .httpClientBuilder(configureHttpClientBuilder(httpClientType))
           .applyMutation(builder -> configureEndpoint(builder, s3Endpoint))
-          .serviceConfiguration(s3Configuration(s3PathStyleAccess, s3UseArnRegionEnabled))
+          .serviceConfiguration(
+              S3Configuration.builder()
+                  .pathStyleAccessEnabled(s3PathStyleAccess)
+                  .useArnRegionEnabled(s3UseArnRegionEnabled)
+                  .accelerateModeEnabled(s3AccelerationEnabled)
+                  .build())
           .credentialsProvider(
               credentialsProvider(s3AccessKeyId, s3SecretAccessKey, s3SessionToken))
           .build();
@@ -150,6 +156,11 @@ public class AwsClientFactories {
               properties,
               AwsProperties.S3_USE_ARN_REGION_ENABLED,
               AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+      this.s3AccelerationEnabled =
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              AwsProperties.S3_ACCELERATION_ENABLED,
+              AwsProperties.S3_ACCELERATION_ENABLED_DEFAULT);
 
       ValidationException.check(
           (s3AccessKeyId == null) == (s3SecretAccessKey == null),
