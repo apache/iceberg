@@ -106,7 +106,7 @@ public class FlinkDynamicTableFactory
   public DynamicTableSink createDynamicTableSink(Context context) {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
     CatalogTable catalogTable = context.getCatalogTable();
-    Map<String, String> tableProps = catalogTable.getOptions();
+    Map<String, String> writeProps = catalogTable.getOptions();
     TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(catalogTable.getSchema());
 
     TableLoader tableLoader;
@@ -115,10 +115,10 @@ public class FlinkDynamicTableFactory
     } else {
       tableLoader =
           createTableLoader(
-              catalogTable, tableProps, objectPath.getDatabaseName(), objectPath.getObjectName());
+              catalogTable, writeProps, objectPath.getDatabaseName(), objectPath.getObjectName());
     }
 
-    return new IcebergTableSink(tableLoader, tableSchema, context.getConfiguration());
+    return new IcebergTableSink(tableLoader, tableSchema, context.getConfiguration(), writeProps);
   }
 
   @Override

@@ -562,6 +562,11 @@ FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SC
     .set("write-format", "orc")
     .set(FlinkWriteOptions.OVERWRITE_MODE, "true");
 ```
+For Flink SQL, write options can be passed in via SQL hints like this:
+```
+INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
+...
+```
 
 | Flink option           | Default                    | Description                                                                                                |
 |------------------------| -------------------------- |------------------------------------------------------------------------------------------------------------|
