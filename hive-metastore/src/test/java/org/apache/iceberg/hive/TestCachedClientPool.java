@@ -56,5 +56,7 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(key1) == clientPool1);
     Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(key2) == clientPool2);
     Assert.assertTrue(clientPool1 != clientPool2);
+
+    hiveConf.unset(CATALOG_DEFAULT);
   }
 }
