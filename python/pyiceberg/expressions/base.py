@@ -296,7 +296,7 @@ class BoundUnaryPredicate(BoundPredicate[T]):
 
 @dataclass(frozen=True)
 class BoundIsNull(BoundUnaryPredicate[T]):
-    def __new__(cls, term: BoundTerm[T]):
+    def __new__(cls, term: BoundTerm[T]):  # pylint: disable=W0221
         if term.ref().field.required:
             return AlwaysFalse()
         return super().__new__(cls)
@@ -307,7 +307,7 @@ class BoundIsNull(BoundUnaryPredicate[T]):
 
 @dataclass(frozen=True)
 class BoundNotNull(BoundUnaryPredicate[T]):
-    def __new__(cls, term: BoundTerm[T]):
+    def __new__(cls, term: BoundTerm[T]):  # pylint: disable=W0221
         if term.ref().field.required:
             return AlwaysTrue()
         return super().__new__(cls)
@@ -334,7 +334,7 @@ class NotNull(UnaryPredicate[T]):
 
 @dataclass(frozen=True)
 class BoundIsNaN(BoundUnaryPredicate[T]):
-    def __new__(cls, term: BoundTerm[T]):
+    def __new__(cls, term: BoundTerm[T]):  # pylint: disable=W0221
         bound_type = term.ref().field.field_type
         if type(bound_type) in {FloatType, DoubleType}:
             return super().__new__(cls)
@@ -346,7 +346,7 @@ class BoundIsNaN(BoundUnaryPredicate[T]):
 
 @dataclass(frozen=True)
 class BoundNotNaN(BoundUnaryPredicate[T]):
-    def __new__(cls, term: BoundTerm[T]):
+    def __new__(cls, term: BoundTerm[T]):  # pylint: disable=W0221
         bound_type = term.ref().field.field_type
         if type(bound_type) in {FloatType, DoubleType}:
             return super().__new__(cls)
@@ -394,7 +394,7 @@ class BoundSetPredicate(BoundPredicate[T]):
 
 @dataclass(frozen=True)
 class BoundIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]):
+    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]):  # pylint: disable=W0221
         count = len(literals)
         if count == 0:
             return AlwaysFalse()
@@ -409,7 +409,7 @@ class BoundIn(BoundSetPredicate[T]):
 
 @dataclass(frozen=True)
 class BoundNotIn(BoundSetPredicate[T]):
-    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]):
+    def __new__(cls, term: BoundTerm[T], literals: set[Literal[T]]):  # pylint: disable=W0221
         count = len(literals)
         if count == 0:
             return AlwaysTrue()
@@ -426,7 +426,7 @@ class BoundNotIn(BoundSetPredicate[T]):
 class In(SetPredicate[T]):
     as_bound = BoundIn
 
-    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]):
+    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]):  # pylint: disable=W0221
         count = len(literals)
         if count == 0:
             return AlwaysFalse()
@@ -443,7 +443,7 @@ class In(SetPredicate[T]):
 class NotIn(SetPredicate[T]):
     as_bound = BoundNotIn
 
-    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]):
+    def __new__(cls, term: UnboundTerm[T], literals: tuple[Literal[T], ...]):  # pylint: disable=W0221
         count = len(literals)
         if count == 0:
             return AlwaysTrue()
