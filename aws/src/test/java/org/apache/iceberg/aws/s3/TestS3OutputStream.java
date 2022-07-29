@@ -184,9 +184,11 @@ public class TestS3OutputStream {
 
   @Test
   public void testCloseFailureShouldPersistOnFutureClose() throws IOException {
-    IllegalStateException mockException = new IllegalStateException("mock failure to completeUploads on close");
+    IllegalStateException mockException =
+        new IllegalStateException("mock failure to completeUploads on close");
     Mockito.doThrow(mockException)
-        .when(s3mock).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+        .when(s3mock)
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class));
     S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics());
 
     Assertions.assertThatThrownBy(stream::close)
