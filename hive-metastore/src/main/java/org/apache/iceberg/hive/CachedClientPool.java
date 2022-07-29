@@ -43,8 +43,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
 
   CachedClientPool(Configuration conf, Map<String, String> properties) {
     this.conf = conf;
-    this.clientPoolKey =
-        conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "") + conf.get(CATALOG_DEFAULT, "");
+    this.clientPoolKey = cacheKey(conf);
     this.clientPoolSize =
         PropertyUtil.propertyAsInt(
             properties,
@@ -56,6 +55,13 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT);
     init();
+  }
+
+  @VisibleForTesting
+  static String cacheKey(Configuration conf) {
+    return String.format(
+        "%s:%s",
+        conf.get(HiveConf.ConfVars.METASTOREURIS.varname, ""), conf.get(CATALOG_DEFAULT, ""));
   }
 
   @VisibleForTesting

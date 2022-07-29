@@ -22,7 +22,6 @@ import static org.apache.iceberg.hive.CachedClientPool.CATALOG_DEFAULT;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -30,26 +29,26 @@ public class TestCachedClientPool extends HiveMetastoreTest {
 
   @Test
   public void testClientPoolCleaner() throws InterruptedException {
-    String metastoreUri = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
+    String cacheKey = CachedClientPool.cacheKey(hiveConf);
     CachedClientPool clientPool = new CachedClientPool(hiveConf, Collections.emptyMap());
     HiveClientPool clientPool1 = clientPool.clientPool();
-    Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri) == clientPool1);
+    Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(cacheKey) == clientPool1);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL - TimeUnit.SECONDS.toMillis(2));
     HiveClientPool clientPool2 = clientPool.clientPool();
     Assert.assertTrue(clientPool1 == clientPool2);
     TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL + TimeUnit.SECONDS.toMillis(5));
-    Assert.assertNull(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri));
+    Assert.assertNull(CachedClientPool.clientPoolCache().getIfPresent(cacheKey));
   }
 
   @Test
-  public void testClientPoolWithDefaultCatalog() throws InterruptedException {
+  public void testClientPoolWithDefaultCatalog() {
     hiveConf.set(CATALOG_DEFAULT, "catalog1");
-    String key1 = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "") + "catalog1";
+    String key1 = CachedClientPool.cacheKey(hiveConf);
     HiveClientPool clientPool1 =
         new CachedClientPool(hiveConf, Collections.emptyMap()).clientPool();
 
     hiveConf.set(CATALOG_DEFAULT, "catalog2");
-    String key2 = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "") + "catalog2";
+    String key2 = CachedClientPool.cacheKey(hiveConf);
     HiveClientPool clientPool2 =
         new CachedClientPool(hiveConf, Collections.emptyMap()).clientPool();
 
