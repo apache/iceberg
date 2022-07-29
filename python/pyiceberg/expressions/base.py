@@ -138,8 +138,11 @@ class Reference(UnboundTerm[T], BaseReference[T]):
         return BoundReference(field=field, accessor=accessor)
 
 
+@dataclass(frozen=True, init=False)
 class And(BooleanExpression):
     """AND operation expression - logical conjunction"""
+    left: BooleanExpression
+    right: BooleanExpression
 
     def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if rest:
@@ -150,34 +153,21 @@ class And(BooleanExpression):
             return right
         elif right is AlwaysTrue():
             return left
-        self = super().__new__(cls)
-        self._left = left  # type: ignore
-        self._right = right  # type: ignore
-        return self
-
-    @property
-    def left(self) -> BooleanExpression:
-        return self._left  # type: ignore
-
-    @property
-    def right(self) -> BooleanExpression:
-        return self._right  # type: ignore
-
-    def __eq__(self, other) -> bool:
-        return id(self) == id(other) or (isinstance(other, And) and self.left == other.left and self.right == other.right)
+        else:
+            result = super().__new__(cls)
+            object.__setattr__(result, "left", left)
+            object.__setattr__(result, "right", right)
+            return result
 
     def __invert__(self) -> Or:
         return Or(~self.left, ~self.right)
 
-    def __repr__(self) -> str:
-        return f"And({repr(self.left)}, {repr(self.right)})"
 
-    def __str__(self) -> str:
-        return f"And({str(self.left)}, {str(self.right)})"
-
-
+@dataclass(frozen=True, init=False)
 class Or(BooleanExpression):
     """OR operation expression - logical disjunction"""
+    left: BooleanExpression
+    right: BooleanExpression
 
     def __new__(cls, left: BooleanExpression, right: BooleanExpression, *rest: BooleanExpression):
         if rest:
@@ -188,34 +178,20 @@ class Or(BooleanExpression):
             return right
         elif right is AlwaysFalse():
             return left
-        self = super().__new__(cls)
-        self._left = left  # type: ignore
-        self._right = right  # type: ignore
-        return self
-
-    @property
-    def left(self) -> BooleanExpression:
-        return self._left  # type: ignore
-
-    @property
-    def right(self) -> BooleanExpression:
-        return self._right  # type: ignore
-
-    def __eq__(self, other) -> bool:
-        return id(self) == id(other) or (isinstance(other, Or) and self.left == other.left and self.right == other.right)
+        else:
+            result = super().__new__(cls)
+            object.__setattr__(result, "left", left)
+            object.__setattr__(result, "right", right)
+            return result
 
     def __invert__(self) -> And:
         return And(~self.left, ~self.right)
 
-    def __repr__(self) -> str:
-        return f"Or({repr(self.left)}, {repr(self.right)})"
 
-    def __str__(self) -> str:
-        return f"Or({str(self.left)}, {str(self.right)})"
-
-
+@dataclass(frozen=True, init=False)
 class Not(BooleanExpression):
     """NOT operation expression - logical negation"""
+    child: BooleanExpression
 
     def __new__(cls, child: BooleanExpression):
         if child is AlwaysTrue():
@@ -224,22 +200,12 @@ class Not(BooleanExpression):
             return AlwaysTrue()
         elif isinstance(child, Not):
             return child.child
-        return super().__new__(cls)
-
-    def __init__(self, child):
-        self.child = child
-
-    def __eq__(self, other) -> bool:
-        return id(self) == id(other) or (isinstance(other, Not) and self.child == other.child)
+        result = super().__new__(cls)
+        object.__setattr__(result, "child", child)
+        return result
 
     def __invert__(self) -> BooleanExpression:
         return self.child
-
-    def __repr__(self) -> str:
-        return f"Not({repr(self.child)})"
-
-    def __str__(self) -> str:
-        return f"Not({str(self.child)})"
 
 
 @dataclass(frozen=True)
