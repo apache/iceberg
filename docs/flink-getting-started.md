@@ -571,6 +571,13 @@ FlinkSink.Builder builder = FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SC
 | overwrite-enabled      | false | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
 | distribution-mode      | Table write.distribution-mode | Overrides this table's write.distribution-mode                                                             |
 
+Table properties are also passed when configuring the FlinkSink.
+
+The following table properties currently only are supported in Flink:
+
+| Table properties     | Default | Description                        |
+|----------------------| ------- |------------------------------------|
+| write.upsert.enabled | false   | Enables upsert mode for Flink Sink |
 
 ## Inspecting tables.
 
