@@ -26,10 +26,21 @@ import org.junit.jupiter.api.Test;
 class TestEnvironmentUtil {
   @Test
   public void testEnvironmentSubstitution() {
-    Assertions.assertEquals(
-        ImmutableMap.of("user-test", System.getenv().get("USER")),
-        EnvironmentUtil.resolveAll(ImmutableMap.of("user-test", "env:USER")),
-        "Should get the user from the environment");
+    String userFromEnv = System.getenv().get("USER");
+    Map<String, String> resolvedProps =
+        EnvironmentUtil.resolveAll(ImmutableMap.of("user-test", "env:USER"));
+    if (userFromEnv == null) {
+      // some build env may not have the USER env variable set
+      Assertions.assertEquals(
+          ImmutableMap.of(),
+          resolvedProps,
+          "Resolved properties should be empty if not exist from environment variables");
+    } else {
+      Assertions.assertEquals(
+          ImmutableMap.of("user-test", userFromEnv),
+          resolvedProps,
+          "Should get the user from the environment");
+    }
   }
 
   @Test
