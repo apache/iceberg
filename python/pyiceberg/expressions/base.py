@@ -32,50 +32,43 @@ B = TypeVar("B")
 
 
 class BooleanExpression(ABC):
-    """Represents a boolean expression tree."""
+    """An expression that evaluates to a boolean"""
 
     @abstractmethod
     def __invert__(self) -> BooleanExpression:
         """Transform the Expression into its negated version."""
 
 
-class Bound(Generic[T], ABC):
-    """Represents a bound value expression."""
-
-    def eval(self, struct: StructProtocol):  # pylint: disable=W0613
-        ...  # pragma: no cover
+class Term(Generic[T], ABC):
+    """A simple expression that evaluates to a value"""
 
 
-class Unbound(Generic[T, B], ABC):
-    """Represents an unbound expression node."""
+class Bound(ABC):
+    """Represents a bound value expression"""
+
+
+class Unbound(Generic[B], ABC):
+    """Represents an unbound value expression"""
 
     @abstractmethod
-    def bind(self, schema: Schema, case_sensitive: bool) -> B:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> B:
         ...  # pragma: no cover
 
 
-class Term(ABC):
-    """An expression that evaluates to a value."""
-
-
-class BaseReference(Generic[T], Term, ABC):
-    """Represents a variable reference in an expression."""
-
-
-class BoundTerm(Bound[T], Term):
-    """Represents a bound term."""
+class BoundTerm(Term[T], Bound, ABC):
+    """Represents a bound term"""
 
     @abstractmethod
     def ref(self) -> BoundReference[T]:
         ...
 
-
-class UnboundTerm(Unbound[T, BoundTerm[T]], Term):
-    """Represents an unbound term."""
+    @abstractmethod
+    def eval(self, struct: StructProtocol):  # pylint: disable=W0613
+        ...  # pragma: no cover
 
 
 @dataclass(frozen=True)
-class BoundReference(BoundTerm[T], BaseReference[T]):
+class BoundReference(BoundTerm[T]):
     """A reference bound to a field in a schema
 
     Args:
@@ -88,6 +81,7 @@ class BoundReference(BoundTerm[T], BaseReference[T]):
 
     def eval(self, struct: StructProtocol) -> T:
         """Returns the value at the referenced field's position in an object that abides by the StructProtocol
+
         Args:
             struct (StructProtocol): A row object that abides by the StructProtocol and returns values given a position
         Returns:
@@ -99,8 +93,12 @@ class BoundReference(BoundTerm[T], BaseReference[T]):
         return self
 
 
+class UnboundTerm(Term[T], Unbound[BoundTerm[T]], ABC):
+    """Represents an unbound term."""
+
+
 @dataclass(frozen=True)
-class Reference(UnboundTerm[T], BaseReference[T]):
+class Reference(UnboundTerm[T]):
     """A reference not yet bound to a field in a schema
 
     Args:
@@ -112,7 +110,7 @@ class Reference(UnboundTerm[T], BaseReference[T]):
 
     name: str
 
-    def bind(self, schema: Schema, case_sensitive: bool) -> BoundReference[T]:
+    def bind(self, schema: Schema, case_sensitive: bool = True) -> BoundReference[T]:
         """Bind the reference to an Iceberg schema
 
         Args:
@@ -125,13 +123,11 @@ class Reference(UnboundTerm[T], BaseReference[T]):
         Returns:
             BoundReference: A reference bound to the specific field in the Iceberg schema
         """
-        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)  # pylint: disable=redefined-outer-name
-
+        field = schema.find_field(name_or_id=self.name, case_sensitive=case_sensitive)
         if not field:
             raise ValueError(f"Cannot find field '{self.name}' in schema: {schema}")
 
         accessor = schema.accessor_for_field(field.field_id)
-
         if not accessor:
             raise ValueError(f"Cannot find accessor for field '{self.name}' in schema: {schema}")
 
@@ -141,6 +137,7 @@ class Reference(UnboundTerm[T], BaseReference[T]):
 @dataclass(frozen=True, init=False)
 class And(BooleanExpression):
     """AND operation expression - logical conjunction"""
+
     left: BooleanExpression
     right: BooleanExpression
 
@@ -166,6 +163,7 @@ class And(BooleanExpression):
 @dataclass(frozen=True, init=False)
 class Or(BooleanExpression):
     """OR operation expression - logical disjunction"""
+
     left: BooleanExpression
     right: BooleanExpression
 
@@ -191,6 +189,7 @@ class Or(BooleanExpression):
 @dataclass(frozen=True, init=False)
 class Not(BooleanExpression):
     """NOT operation expression - logical negation"""
+
     child: BooleanExpression
 
     def __new__(cls, child: BooleanExpression):
@@ -225,7 +224,7 @@ class AlwaysFalse(BooleanExpression, Singleton):
 
 
 @dataclass(frozen=True)
-class BoundPredicate(Bound[T], BooleanExpression):
+class BoundPredicate(Generic[T], Bound, BooleanExpression):
     term: BoundTerm[T]
 
     def __invert__(self) -> BoundPredicate[T]:
@@ -233,7 +232,7 @@ class BoundPredicate(Bound[T], BooleanExpression):
 
 
 @dataclass(frozen=True)
-class UnboundPredicate(Unbound[T, BooleanExpression], BooleanExpression):
+class UnboundPredicate(Generic[T], Unbound[BooleanExpression], BooleanExpression):
     as_bound: ClassVar[type]
     term: UnboundTerm[T]
 
@@ -625,12 +624,6 @@ def _(obj: And, visitor: BooleanExpressionVisitor[T]) -> T:
     left_result: T = visit(obj.left, visitor=visitor)
     right_result: T = visit(obj.right, visitor=visitor)
     return visitor.visit_and(left_result=left_result, right_result=right_result)
-
-
-@visit.register(In)
-def _(obj: In, visitor: BooleanExpressionVisitor[T]) -> T:
-    """Visit an In boolean expression with a concrete BooleanExpressionVisitor"""
-    return visitor.visit_unbound_predicate(predicate=obj)
 
 
 @visit.register(UnboundPredicate)
