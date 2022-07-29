@@ -428,6 +428,17 @@ Those are the options that could be set in flink SQL hint options for streaming 
 * monitor-interval: time interval for consecutively monitoring newly committed data files (default value: '10s').
 * start-snapshot-id: the snapshot id that streaming job starts from.
 
+### FLIP-27 source for SQL
+
+Here are the SQL settings for the FLIP-27 source, which is only available
+for Flink 1.14 or above.  All other SQL settings and options
+documented above are applicable to the FLIP-27 source.
+
+```sql
+-- Opt in the FLIP-27 source. Default is false.
+SET table.exec.iceberg.use-flip27-source = true;
+```
+
 ## Writing with SQL
 
 Iceberg support both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.11 now.
@@ -506,6 +517,78 @@ env.execute("Test Iceberg Streaming Read");
 ```
 
 There are other options that we could set by Java API, please see the [FlinkSource#Builder](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/source/FlinkSource.html).
+
+## Reading with DataStream (FLIP-27 source)
+
+[FLIP-27 source interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-27%3A+Refactor+Source+Interface)
+was introduced in Flink 1.12. It aims to solve several shortcomings of the old `SourceFunction`
+streaming source interface. It also unifies the source interfaces for both batch and streaming executions.
+Most source connectors (like Kafka, file) in Flink repo have  migrated to the FLIP-27 interface.
+Flink is planning to deprecate the old `SourceFunction` interface in the near future.
+
+A FLIP-27 based Flink `IcebergSource` is added in `iceberg-flink` module for Flink 1.14 or above.
+The FLIP-27 `IcebergSource` is currently an experimental feature.
+
+### Batch Read
+
+This example will read all records from iceberg table and then print to the stdout console in flink batch job:
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
+
+IcebergSource<RowData> source = IcebergSource.forRowData()
+    .tableLoader(tableLoader)
+    .assignerFactory(new SimpleSplitAssignerFactory())
+    .build();
+
+DataStream<RowData> batch = env.fromSource(
+    source,
+    WatermarkStrategy.noWatermarks(),
+    "My Iceberg Source",
+    TypeInformation.of(RowData.class));
+
+// Print all records to stdout.
+batch.print();
+
+// Submit and execute this batch read job.
+env.execute("Test Iceberg Batch Read");
+```
+
+### Streaming read
+
+This example will start the streaming read from the latest table snapshot (inclusive).
+Every 60s, it polls Iceberg table to discover new append-only snapshots.
+CDC read is not supported yet.
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
+
+IcebergSource source = IcebergSource.forRowData()
+    .tableLoader(tableLoader)
+    .assignerFactory(new SimpleSplitAssignerFactory())
+    .streaming(true)
+    .streamingStartingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
+    .monitorInterval(Duration.ofSeconds(60))
+    .build()
+
+DataStream<RowData> stream = env.fromSource(
+    source,
+    WatermarkStrategy.noWatermarks(),
+    "My Iceberg Source",
+    TypeInformation.of(RowData.class));
+
+// Print all records to stdout.
+stream.print();
+
+// Submit and execute this streaming read job.
+env.execute("Test Iceberg Streaming Read");
+```
+
+There are other options that we could set by Java API, please see the 
+[IcebergSource#Builder](../../../javadoc/{{% icebergVersion %}}/org/apache/iceberg/flink/source/IcebergSource.html).
+
 
 ## Writing with DataStream
 
