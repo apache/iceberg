@@ -31,10 +31,9 @@ public class IcebergSourceReader<T>
     extends SingleThreadMultiplexSourceReaderBase<
         RecordAndPosition<T>, T, IcebergSourceSplit, IcebergSourceSplit> {
 
-  public IcebergSourceReader(
-      ReaderFunction<T> readerFunction, SourceReaderContext context, ReaderMetricsContext metrics) {
+  public IcebergSourceReader(ReaderFunction<T> readerFunction, SourceReaderContext context) {
     super(
-        () -> new IcebergSourceSplitReader<>(readerFunction, context, metrics),
+        () -> new IcebergSourceSplitReader<>(readerFunction, context),
         new IcebergSourceRecordEmitter<>(),
         context.getConfiguration(),
         context);
