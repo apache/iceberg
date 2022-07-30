@@ -54,7 +54,6 @@ import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializ
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
-import org.apache.iceberg.flink.source.reader.ReaderMetricsContext;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
@@ -138,8 +137,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
   @Override
   public SourceReader<T, IcebergSourceSplit> createReader(SourceReaderContext readerContext) {
-    ReaderMetricsContext readerMetrics = new ReaderMetricsContext(readerContext.metricGroup());
-    return new IcebergSourceReader<>(readerFunction, readerContext, readerMetrics);
+    return new IcebergSourceReader<>(readerFunction, readerContext);
   }
 
   @Override
