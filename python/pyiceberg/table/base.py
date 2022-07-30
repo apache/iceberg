@@ -15,17 +15,16 @@
 #  specific language governing permissions and limitations
 #  under the License.
 
-from __future__ import annotations
+from typing import Optional, Union
 
-from abc import ABC
+from pydantic import Field
 
 from pyiceberg.catalog.base import Identifier
+from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
-class Table(ABC):
-    """Placeholder for Table managed by the Catalog that points to the current Table Metadata.
-
-    To be implemented by https://github.com/apache/iceberg/issues/3227
-    """
-
-    identifier: str | Identifier
+class Table(IcebergBaseModel):
+    identifier: Identifier = Field()
+    metadata_location: Optional[str] = Field()
+    metadata: Union[TableMetadataV1, TableMetadataV2] = Field()

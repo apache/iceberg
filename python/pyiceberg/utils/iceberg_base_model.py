@@ -37,6 +37,7 @@ class IcebergBaseModel(BaseModel):
     class Config:
         keep_untouched = (cached_property,)
         allow_population_by_field_name = True
+        copy_on_model_validation = False
         frozen = True
 
     def dict(self, exclude_none: bool = True, **kwargs):

@@ -24,6 +24,7 @@ from typing import (
     Dict,
     Generic,
     List,
+    Literal,
     Optional,
     Tuple,
     TypeVar,
@@ -54,6 +55,7 @@ class Schema(IcebergBaseModel):
         >>> from pyiceberg import types
     """
 
+    type: Literal["struct"] = "struct"
     fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
     schema_id: int = Field(alias="schema-id")
     identifier_field_ids: List[int] = Field(alias="identifier-field-ids", default_factory=list)
