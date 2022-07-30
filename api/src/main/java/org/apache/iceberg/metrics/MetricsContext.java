@@ -77,8 +77,22 @@ public interface MetricsContext extends Serializable {
       throw new UnsupportedOperationException("Count is not supported.");
     }
 
+    /**
+     * The unit of the counter.
+     *
+     * @return The unit of the counter.
+     */
     default Unit unit() {
       return Unit.UNDEFINED;
+    }
+
+    /**
+     * The name of the counter.
+     *
+     * @return The name of the counter.
+     */
+    default String name() {
+      return "undefined";
     }
   }
 

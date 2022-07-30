@@ -35,12 +35,27 @@ public class TestDefaultMetricsContext {
   }
 
   @Test
+  public void intCounterNullCheck() {
+    Assertions.assertThatThrownBy(
+            () ->
+                new DefaultMetricsContext().counter(null, Integer.class, MetricsContext.Unit.BYTES))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid counter name: null");
+    Assertions.assertThatThrownBy(
+            () -> new DefaultMetricsContext().counter("name", Integer.class, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid count unit: null");
+  }
+
+  @Test
   public void intCounter() {
     MetricsContext metricsContext = new DefaultMetricsContext();
     MetricsContext.Counter<Integer> counter =
-        metricsContext.counter("test", Integer.class, MetricsContext.Unit.COUNT);
+        metricsContext.counter("intCounter", Integer.class, MetricsContext.Unit.BYTES);
     counter.increment(5);
     Assertions.assertThat(counter.value()).isEqualTo(5);
+    Assertions.assertThat(counter.name()).isEqualTo("intCounter");
+    Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
   }
 
   @Test
@@ -56,12 +71,26 @@ public class TestDefaultMetricsContext {
   }
 
   @Test
+  public void longCounterNullCheck() {
+    Assertions.assertThatThrownBy(
+            () -> new DefaultMetricsContext().counter(null, Long.class, MetricsContext.Unit.BYTES))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid counter name: null");
+    Assertions.assertThatThrownBy(
+            () -> new DefaultMetricsContext().counter("name", Long.class, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid count unit: null");
+  }
+
+  @Test
   public void longCounter() {
     MetricsContext metricsContext = new DefaultMetricsContext();
     MetricsContext.Counter<Long> counter =
-        metricsContext.counter("test", Long.class, MetricsContext.Unit.COUNT);
+        metricsContext.counter("longCounter", Long.class, MetricsContext.Unit.COUNT);
     counter.increment(5L);
     Assertions.assertThat(counter.value()).isEqualTo(5L);
+    Assertions.assertThat(counter.name()).isEqualTo("longCounter");
+    Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.COUNT);
   }
 
   @Test
