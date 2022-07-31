@@ -34,7 +34,6 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.internal.SQLConf;
 
 public class SparkBinPackStrategy extends BinPackStrategy {
   private final Table table;
@@ -45,9 +44,7 @@ public class SparkBinPackStrategy extends BinPackStrategy {
 
   public SparkBinPackStrategy(Table table, SparkSession spark) {
     this.table = table;
-    // Disable Adaptive Query Execution as this may change the output partitioning of our write
-    this.spark = spark.cloneSession();
-    this.spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+    this.spark = spark;
   }
 
   @Override

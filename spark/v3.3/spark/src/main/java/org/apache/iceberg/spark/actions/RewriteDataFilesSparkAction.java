@@ -68,6 +68,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -489,7 +490,10 @@ public class RewriteDataFilesSparkAction
   }
 
   private BinPackStrategy binPackStrategy() {
-    return new SparkBinPackStrategy(table, spark());
+    // Disable Adaptive Query Execution as this may change the output partitioning of our write
+    SparkSession spark = spark().cloneSession();
+    spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+    return new SparkBinPackStrategy(table, spark);
   }
 
   private SortStrategy sortStrategy() {
