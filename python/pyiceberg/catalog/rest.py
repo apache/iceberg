@@ -204,11 +204,11 @@ class RestCatalog(Catalog):
             headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {self.token}"
         return headers
 
-    def url(self, uri: str, prefixed: bool = True, **kwargs) -> str:
+    def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
         """Constructs the endpoint
 
         Args:
-            uri: Resource identifier that points to the REST catalog
+            endpoint: Resource identifier that points to the REST catalog
             prefixed: If the prefix return by the config needs to be appended
 
         Returns:
@@ -222,7 +222,7 @@ class RestCatalog(Catalog):
             url += self.config.get(PREFIX, "")
             url = url if url.endswith("/") else url + "/"
 
-        return url + uri.format(**kwargs)
+        return url + endpoint.format(**kwargs)
 
     def _fetch_access_token(self, credentials: str) -> str:
         client_id, client_secret = credentials.split(":")
