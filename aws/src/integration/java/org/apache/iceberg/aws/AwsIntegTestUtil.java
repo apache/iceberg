@@ -88,6 +88,10 @@ public class AwsIntegTestUtil {
     return System.getenv("AWS_TEST_ACCOUNT_ID");
   }
 
+  public static String testAssumeRoleArn() {
+    return System.getenv("AWS_TEST_ASSUME_ROLE_ARN");
+  }
+
   public static void cleanS3Bucket(S3Client s3, String bucketName, String prefix) {
     boolean hasContent = true;
     while (hasContent) {
