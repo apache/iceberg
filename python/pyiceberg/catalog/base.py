@@ -91,7 +91,7 @@ class Catalog(ABC):
     def load_table(self, identifier: str | Identifier) -> Table:
         """Loads the table's metadata and returns the table instance.
 
-        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
+        You can also use this method to check for table existence using 'try catalog.table() except NoSuchTableError'
         Note: This method doesn't scan data stored in the table.
 
         Args:
@@ -101,7 +101,7 @@ class Catalog(ABC):
             Table: the table instance with its metadata
 
         Raises:
-            TableNotFoundError: If a table with the name does not exist
+            NoSuchTableError: If a table with the name does not exist
         """
 
     @abstractmethod
@@ -112,7 +112,7 @@ class Catalog(ABC):
             identifier: Table identifier.
 
         Raises:
-            TableNotFoundError: If a table with the name does not exist
+            NoSuchTableError: If a table with the name does not exist
         """
 
     @abstractmethod
@@ -123,7 +123,7 @@ class Catalog(ABC):
             identifier: Table identifier.
 
         Raises:
-            TableNotFoundError: If a table with the name does not exist
+            NoSuchTableError: If a table with the name does not exist
         """
 
     @abstractmethod
@@ -138,7 +138,7 @@ class Catalog(ABC):
             Table: the updated table instance with its metadata
 
         Raises:
-            TableNotFoundError: If a table with the name does not exist
+            NoSuchTableError: If a table with the name does not exist
         """
 
     @abstractmethod
@@ -161,7 +161,7 @@ class Catalog(ABC):
             namespace: Namespace identifier
 
         Raises:
-            NamespaceNotFoundError: If a namespace with the given name does not exist
+            NoSuchNamespaceError: If a namespace with the given name does not exist
             NamespaceNotEmptyError: If the namespace is not empty
         """
 
@@ -178,7 +178,7 @@ class Catalog(ABC):
             List[Identifier]: list of table identifiers.
 
         Raises:
-            NamespaceNotFoundError: If a namespace with the given name does not exist
+            NoSuchNamespaceError: If a namespace with the given name does not exist
         """
 
     @abstractmethod
@@ -200,7 +200,7 @@ class Catalog(ABC):
             Properties: Properties for the given namespace
 
         Raises:
-            NamespaceNotFoundError: If a namespace with the given name does not exist
+            NoSuchNamespaceError: If a namespace with the given name does not exist
         """
 
     @abstractmethod
@@ -215,7 +215,7 @@ class Catalog(ABC):
             updates: Properties to be updated for the given namespace. Optional Argument.
 
         Raises:
-            NamespaceNotFoundError: If a namespace with the given name does not exist
+            NoSuchNamespaceError: If a namespace with the given name does not exist
             ValueError: If removals and updates have overlapping keys.
         """
 

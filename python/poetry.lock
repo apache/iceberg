@@ -405,7 +405,7 @@ name = "thrift"
 version = "0.16.0"
 description = "Python bindings for the Apache Thrift RPC system"
 category = "main"
-optional = false
+optional = true
 python-versions = "*"
 
 [package.dependencies]
@@ -497,6 +497,7 @@ cffi = {version = ">=1.11", markers = "platform_python_implementation == \"PyPy\
 cffi = ["cffi (>=1.11)"]
 
 [extras]
+hive = ["thrift"]
 pyarrow = ["pyarrow"]
 python-snappy = ["zstandard"]
 snappy = ["python-snappy"]
@@ -504,7 +505,7 @@ snappy = ["python-snappy"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "b5c9905e0826ec68716afd0f8d8f590763f8fa9c21cb13f09a7963ab59c09671"
+content-hash = "fa4637615911260d5d031479bd2e2481d952e1ecb6feaddfe6be6c358132465c"
 
 [metadata.files]
 atomicwrites = []

@@ -14,8 +14,8 @@
 #  KIND, either express or implied.  See the License for the
 #  specific language governing permissions and limitations
 #  under the License.
-from getpass import getuser
-from time import time
+import getpass
+import time
 from typing import (
     Any,
     Dict,
@@ -23,6 +23,7 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    Type,
     Union,
 )
 from urllib.parse import urlparse
@@ -169,24 +170,29 @@ class HiveCatalog(Catalog):
     _client: _HiveClient
 
     @staticmethod
-    def identifier_to_database(identifier: Union[str, Identifier]) -> str:
+    def identifier_to_database(
+        identifier: Union[str, Identifier], err: Union[Type[ValueError], Type[NoSuchNamespaceError]] = ValueError
+    ) -> str:
         tuple_identifier = Catalog.identifier_to_tuple(identifier)
         if len(tuple_identifier) != 1:
-            raise ValueError("We expect a database name, Hive does not support hierarchical namespaces")
+            raise err(f"Invalid database, hierarchical namespaces are not supported: {identifier}")
 
         return tuple_identifier[0]
 
     @staticmethod
-    def identifier_to_database_table(identifier: Union[str, Identifier]) -> Tuple[str, str]:
+    def identifier_to_database_and_table(
+        identifier: Union[str, Identifier],
+        err: Union[Type[ValueError], Type[NoSuchTableError], Type[NoSuchNamespaceError]] = ValueError,
+    ) -> Tuple[str, str]:
         tuple_identifier = Catalog.identifier_to_tuple(identifier)
         if len(tuple_identifier) != 2:
-            raise ValueError("We expect a database.table, Hive does not support hierarchical namespaces")
+            raise err(f"Invalid path, hierarchical namespaces are not supported: {identifier}")
 
         return tuple_identifier[0], tuple_identifier[1]
 
-    def __init__(self, name: str, properties: Properties, url: str):
+    def __init__(self, name: str, properties: Properties, uri: str):
         super().__init__(name, properties)
-        self._client = _HiveClient(url)
+        self._client = _HiveClient(uri)
 
     def _convert_hive_into_iceberg(self, table: HiveTable) -> Table:
         # Requires reading the manifest, will implement this in another PR
@@ -202,12 +208,29 @@ class HiveCatalog(Catalog):
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Optional[Properties] = None,
     ) -> Table:
-        database_name, table_name = self.identifier_to_database_table(identifier)
-        current_time_millis = int(time())
+        """Create a table
+
+        Args:
+            identifier: Table identifier.
+            schema: Table's schema.
+            location: Location for the table. Optional Argument.
+            partition_spec: PartitionSpec for the table.
+            sort_order: SortOrder for the table.
+            properties: Table properties that can be a string based dictionary. Optional Argument.
+
+        Returns:
+            Table: the created table instance
+
+        Raises:
+            AlreadyExistsError: If a table with the name already exists
+            ValueError: If the identifier is invalid
+        """
+        database_name, table_name = self.identifier_to_database_and_table(identifier)
+        current_time_millis = int(time.time())
         tbl = HiveTable(
             dbName=database_name,
             tableName=table_name,
-            owner=getuser(),
+            owner=getpass.getuser(),
             createTime=current_time_millis // 1000,
             lastAccessTime=current_time_millis // 1000,
             sd=_construct_hive_storage_descriptor(schema, location),
@@ -223,7 +246,21 @@ class HiveCatalog(Catalog):
         return self._convert_hive_into_iceberg(hive_table)
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
-        database_name, table_name = self.identifier_to_database_table(identifier)
+        """Loads the table's metadata and returns the table instance.
+
+        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
+        Note: This method doesn't scan data stored in the table.
+
+        Args:
+            identifier: Table identifier.
+
+        Returns:
+            Table: the table instance with its metadata
+
+        Raises:
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+        """
+        database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         try:
             with self._client as open_client:
                 hive_table = open_client.get_table(dbname=database_name, tbl_name=table_name)
@@ -232,25 +269,44 @@ class HiveCatalog(Catalog):
 
         return self._convert_hive_into_iceberg(hive_table)
 
-    def _drop_table(self, identifier: Union[str, Identifier], delete_data: bool = False) -> None:
-        database_name, table_name = self.identifier_to_database_table(identifier)
+    def drop_table(self, identifier: Union[str, Identifier]) -> None:
+        """Drop a table.
+
+        Args:
+            identifier: Table identifier.
+
+        Raises:
+            NoSuchTableError: If a table with the name does not exist, or the identifier is invalid
+        """
+        database_name, table_name = self.identifier_to_database_and_table(identifier, NoSuchTableError)
         try:
             with self._client as open_client:
-                open_client.drop_table(dbname=database_name, name=table_name, deleteData=delete_data)
+                open_client.drop_table(dbname=database_name, name=table_name, deleteData=False)
         except NoSuchObjectException as e:
             # When the namespace doesn't exists, it throws the same error
             raise NoSuchTableError(f"Table does not exists: {table_name}") from e
-
-    def drop_table(self, identifier: Union[str, Identifier]) -> None:
-        self._drop_table(identifier)
 
     def purge_table(self, identifier: Union[str, Identifier]) -> None:
         # This requires to traverse the reachability set, and drop all the data files.
         raise NotImplementedError("Not yet implemented")
 
     def rename_table(self, from_identifier: Union[str, Identifier], to_identifier: Union[str, Identifier]) -> Table:
-        from_database_name, from_table_name = self.identifier_to_database_table(from_identifier)
-        to_database_name, to_table_name = self.identifier_to_database_table(to_identifier)
+        """Rename a fully classified table name
+
+        Args:
+            from_identifier: Existing table identifier.
+            to_identifier: New table identifier.
+
+        Returns:
+            Table: the updated table instance with its metadata
+
+        Raises:
+            ValueError: If the from table identifier is invalid
+            NoSuchTableError: If a table with the name does not exist
+            NoSuchNamespaceError: If the destination namespace doesn't exists
+        """
+        from_database_name, from_table_name = self.identifier_to_database_and_table(from_identifier)
+        to_database_name, to_table_name = self.identifier_to_database_and_table(to_identifier, NoSuchNamespaceError)
         try:
             with self._client as open_client:
                 tbl = open_client.get_table(dbname=from_database_name, tbl_name=from_table_name)
@@ -264,8 +320,17 @@ class HiveCatalog(Catalog):
         return Table()
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
-        database_name = self.identifier_to_database(namespace)
+        """Create a namespace in the catalog.
 
+        Args:
+            namespace: Namespace identifier
+            properties: A string dictionary of properties for the given namespace
+
+        Raises:
+            ValueError: If the identifier is invalid
+            AlreadyExistsError: If a namespace with the given name already exists
+        """
+        database_name = self.identifier_to_database(namespace)
         hive_database = HiveDatabase(name=database_name, parameters=properties)
 
         try:
@@ -275,7 +340,16 @@ class HiveCatalog(Catalog):
             raise AlreadyExistsError(f"Database {database_name} already exists") from e
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
-        database_name = self.identifier_to_database(namespace)
+        """Drop a namespace.
+
+        Args:
+            namespace: Namespace identifier
+
+        Raises:
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
+            NamespaceNotEmptyError: If the namespace is not empty
+        """
+        database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         try:
             with self._client as open_client:
                 open_client.drop_database(database_name, deleteData=False, cascade=False)
@@ -285,27 +359,48 @@ class HiveCatalog(Catalog):
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
-        """Returns all the tables in a given database (including non-Iceberg tables)
+        """List tables under the given namespace in the catalog (including non-Iceberg tables)
+
+        When the database doesn't exist, it will just return an empty list
 
         Args:
-            namespace: The database name
+            namespace: Database to list.
 
         Returns:
-            A list of tables (including non-Iceberg tables)
+            List[Identifier]: list of table identifiers.
+
+        Raises:
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or the identifier is invalid
         """
-        database_name = self.identifier_to_database(namespace)
+        database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         with self._client as open_client:
             return [(database_name, table_name) for table_name in open_client.get_all_tables(db_name=database_name)]
 
     def list_namespaces(self) -> List[Identifier]:
+        """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
+
+        Returns:
+            List[Identifier]: a List of namespace identifiers
+        """
         with self._client as open_client:
             return list(map(self.identifier_to_tuple, open_client.get_all_databases()))
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
-        database_name = self.identifier_to_database(namespace)
+        """Get properties for a namespace.
+
+        Args:
+            namespace: Namespace identifier
+
+        Returns:
+            Properties: Properties for the given namespace
+
+        Raises:
+            NoSuchNamespaceError: If a namespace with the given name does not exist, or identifier is invalid
+        """
+        database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         try:
             with self._client as open_client:
-                database = open_client.get_database(database_name)
+                database = open_client.get_database(name=database_name)
                 properties = database.parameters
                 properties["location"] = database.locationUri
                 if comment := database.description:
@@ -317,10 +412,26 @@ class HiveCatalog(Catalog):
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
     ) -> PropertiesUpdateSummary:
+        """Removes provided property keys and updates properties for a namespace.
+
+        Args:
+            namespace: Namespace identifier
+            removals: Set of property keys that need to be removed. Optional Argument.
+            updates: Properties to be updated for the given namespace. Optional Argument.
+
+        Raises:
+            NoSuchNamespaceError: If a namespace with the given name does not exist
+            ValueError: If removals and updates have overlapping keys.
+        """
         removed: Set[str] = set()
         updated: Set[str] = set()
 
-        database_name = self.identifier_to_database(namespace)
+        if updates and removals:
+            overlap = set(removals) & set(updates.keys())
+            if overlap:
+                raise ValueError(f"Updates and deletes have an overlap: {overlap}")
+
+        database_name = self.identifier_to_database(namespace, NoSuchNamespaceError)
         with self._client as open_client:
             try:
                 database = open_client.get_database(database_name)
