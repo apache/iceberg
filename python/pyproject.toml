@@ -54,7 +54,7 @@ python-snappy = { version = "^0.6.1", optional = true }
 pytest = "^7.0.0"
 pytest-checkdocs = "^2.0.0"
 pre-commit = "^2.0.0"
-fastavro = "^1.5.1"
+fastavro = "^1.5.4"
 coverage = { version = "^6.0.0", extras = ["toml"] }
 requests-mock = "^1.9.3"
 
