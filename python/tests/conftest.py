@@ -76,7 +76,7 @@ def table_schema_simple():
         NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
         NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
         schema_id=1,
-        identifier_field_ids=[1],
+        identifier_field_ids=[2],
     )
 
 

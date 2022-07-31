@@ -33,13 +33,16 @@ import org.apache.iceberg.relocated.com.google.common.base.Stopwatch;
  * measure time.
  */
 public class DefaultTimer implements Timer {
-  private final TimeUnit defaultTimeUnit;
+  private final TimeUnit timeUnit;
   private final LongAdder count = new LongAdder();
   private final LongAdder totalTime = new LongAdder();
+  private final String name;
 
-  public DefaultTimer(TimeUnit timeUnit) {
-    Preconditions.checkArgument(null != timeUnit, "TimeUnit must be non-null");
-    this.defaultTimeUnit = timeUnit;
+  public DefaultTimer(String name, TimeUnit timeUnit) {
+    Preconditions.checkArgument(null != name, "Invalid timer name: null");
+    Preconditions.checkArgument(null != timeUnit, "Invalid time unit: null");
+    this.name = name;
+    this.timeUnit = timeUnit;
   }
 
   @Override
@@ -54,7 +57,7 @@ public class DefaultTimer implements Timer {
 
   @Override
   public Timed start() {
-    return new DefaultTimed(this, defaultTimeUnit);
+    return new DefaultTimed(this, timeUnit);
   }
 
   @Override
@@ -95,11 +98,21 @@ public class DefaultTimer implements Timer {
   }
 
   @Override
+  public String name() {
+    return name;
+  }
+
+  @Override
+  public TimeUnit unit() {
+    return timeUnit;
+  }
+
+  @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("defaultTimeUnit", defaultTimeUnit)
-        .add("count", count)
+    return MoreObjects.toStringHelper(name())
         .add("duration", totalDuration())
+        .add("count", count)
+        .add("timeUnit", timeUnit)
         .toString();
   }
 

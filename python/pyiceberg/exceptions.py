@@ -16,12 +16,8 @@
 #  under the License.
 
 
-class NoSuchTableError(Exception):
-    """Raised when a referenced table is not found"""
-
-
-class NoSuchNamespaceError(Exception):
-    """Raised when a referenced name-space is not found"""
+class TableAlreadyExistsError(Exception):
+    """Raised when creating a table with a name that already exists"""
 
 
 class NamespaceNotEmptyError(Exception):
@@ -34,3 +30,43 @@ class AlreadyExistsError(Exception):
 
 class ValidationError(Exception):
     """Raises when there is an issue with the schema"""
+
+
+class RESTError(Exception):
+    """Raises when there is an unknown response from the REST Catalog"""
+
+
+class BadCredentialsError(RESTError):
+    """Raises when providing invalid credentials"""
+
+
+class BadRequestError(RESTError):
+    """Raises when an invalid request is being made"""
+
+
+class UnauthorizedError(RESTError):
+    """Raises when you don't have the proper authorization"""
+
+
+class ServiceUnavailableError(RESTError):
+    """Raises when the service doesn't respond"""
+
+
+class ServerError(RESTError):
+    """Raises when there is an unhandled exception on the server side"""
+
+
+class ForbiddenError(RESTError):
+    """Raises when you don't have the credentials to perform the action on the REST catalog"""
+
+
+class AuthorizationExpiredError(RESTError):
+    """When the credentials are expired when performing an action on the REST catalog"""
+
+
+class NoSuchTableError(RESTError):
+    """Raises when the table can't be found in the REST catalog"""
+
+
+class NoSuchNamespaceError(RESTError):
+    """Raised when a referenced name-space is not found"""
