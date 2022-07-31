@@ -6,11 +6,11 @@ body:
   - type: dropdown
     attributes:
       label: Apache Iceberg version
-      description: >
-        What Apache Iceberg version are you using?
+      description: What Apache Iceberg version are you using?
       multiple: false
       options:
-        - "0.13.1 (latest released)"
+        - "0.14.0 (latest release)"
+        - "0.13.1"
         - "0.13.0"
         - "0.12.1"
         - "0.12.0"
@@ -18,13 +18,29 @@ body:
         - "0.11.0"
         - "main (development)"
     validations:
-      required: true
-  - type: textarea
+      required: false
+  - type: dropdown
     attributes:
       label: Query engine
-      description: Which query engine (Flink, Spark, EMR, etc) are you using? What version?
+      description: Which query engine?
+      multiple: false
+      options:
+        - Spark
+        - Trino
+        - Starburst
+        - Snowflake
+        - Dremio
+        - Starrocks
+        - Doris
+        - EMR
+        - Athena
+        - PrestoDB
+        - Flink
+        - Impala
+        - Hive
+        - Other
     validations:
-      required: true
+      required: false
   - type: textarea
     attributes:
       label: Please describe the bug 🐞
