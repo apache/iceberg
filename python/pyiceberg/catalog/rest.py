@@ -327,8 +327,8 @@ class RestCatalog(Catalog):
             metadata=table_response.metadata,
         )
 
-    def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
-        namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace or ""))
+    def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
+        namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
         response = requests.get(
             self.url(Endpoints.list_tables, namespace=namespace_concat),
             headers=self.headers,
