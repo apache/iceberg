@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
@@ -65,10 +64,17 @@ class ReadConf<T> {
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
   @SuppressWarnings("unchecked")
-  ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
-           Function<MessageType, ParquetValueReader<?>> readerFunc, Function<MessageType,
-           VectorizedReader<?>> batchedReaderFunc, NameMapping nameMapping, boolean reuseContainers,
-           boolean caseSensitive, Integer bSize) {
+  ReadConf(
+      InputFile file,
+      ParquetReadOptions options,
+      Schema expectedSchema,
+      Expression filter,
+      Function<MessageType, ParquetValueReader<?>> readerFunc,
+      Function<MessageType, VectorizedReader<?>> batchedReaderFunc,
+      NameMapping nameMapping,
+      boolean reuseContainers,
+      boolean caseSensitive,
+      Integer bSize) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
@@ -95,18 +101,25 @@ class ReadConf<T> {
 
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
+    ParquetBloomRowGroupFilter bloomFilter = null;
     if (filter != null) {
       statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
       dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
+      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
     }
 
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
-      startRowPositions[i] = offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
-      boolean shouldRead = filter == null || (
-          statsFilter.shouldRead(typeWithIds, rowGroup) &&
-              dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
+      startRowPositions[i] =
+          offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
+      boolean shouldRead =
+          filter == null
+              || (statsFilter.shouldRead(typeWithIds, rowGroup)
+                  && dictFilter.shouldRead(
+                      typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup))
+                  && bloomFilter.shouldRead(
+                      typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup)));
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
         computedTotalValues += rowGroup.getRowCount();
@@ -222,16 +235,21 @@ class ReadConf<T> {
   }
 
   private List<Map<ColumnPath, ColumnChunkMetaData>> getColumnChunkMetadataForRowGroups() {
-    Set<ColumnPath> projectedColumns = projection.getColumns().stream()
-        .map(columnDescriptor -> ColumnPath.get(columnDescriptor.getPath())).collect(Collectors.toSet());
-    ImmutableList.Builder<Map<ColumnPath, ColumnChunkMetaData>> listBuilder = ImmutableList.builder();
+    Set<ColumnPath> projectedColumns =
+        projection.getColumns().stream()
+            .map(columnDescriptor -> ColumnPath.get(columnDescriptor.getPath()))
+            .collect(Collectors.toSet());
+    ImmutableList.Builder<Map<ColumnPath, ColumnChunkMetaData>> listBuilder =
+        ImmutableList.builder();
     for (int i = 0; i < rowGroups.size(); i++) {
       if (!shouldSkip[i]) {
         BlockMetaData blockMetaData = rowGroups.get(i);
         ImmutableMap.Builder<ColumnPath, ColumnChunkMetaData> mapBuilder = ImmutableMap.builder();
         blockMetaData.getColumns().stream()
             .filter(columnChunkMetaData -> projectedColumns.contains(columnChunkMetaData.getPath()))
-            .forEach(columnChunkMetaData -> mapBuilder.put(columnChunkMetaData.getPath(), columnChunkMetaData));
+            .forEach(
+                columnChunkMetaData ->
+                    mapBuilder.put(columnChunkMetaData.getPath(), columnChunkMetaData));
         listBuilder.add(mapBuilder.build());
       } else {
         listBuilder.add(ImmutableMap.of());

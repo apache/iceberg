@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
@@ -30,13 +29,12 @@ import java.util.Map;
  */
 public interface ContentFile<F> {
   /**
-   * Returns the ordinal position of the file in a manifest, or null if it was not read from a manifest.
+   * Returns the ordinal position of the file in a manifest, or null if it was not read from a
+   * manifest.
    */
   Long pos();
 
-  /**
-   * Returns id of the partition spec used for partition metadata.
-   */
+  /** Returns id of the partition spec used for partition metadata. */
   int specId();
 
   /**
@@ -44,29 +42,19 @@ public interface ContentFile<F> {
    */
   FileContent content();
 
-  /**
-   * Returns fully qualified path to the file, suitable for constructing a Hadoop Path.
-   */
+  /** Returns fully qualified path to the file, suitable for constructing a Hadoop Path. */
   CharSequence path();
 
-  /**
-   * Returns format of the file.
-   */
+  /** Returns format of the file. */
   FileFormat format();
 
-  /**
-   * Returns partition for this file as a {@link StructLike}.
-   */
+  /** Returns partition for this file as a {@link StructLike}. */
   StructLike partition();
 
-  /**
-   * Returns the number of top-level records in the file.
-   */
+  /** Returns the number of top-level records in the file. */
   long recordCount();
 
-  /**
-   * Returns the file size in bytes.
-   */
+  /** Returns the file size in bytes. */
   long fileSizeInBytes();
 
   /**
@@ -79,24 +67,16 @@ public interface ContentFile<F> {
    */
   Map<Integer, Long> valueCounts();
 
-  /**
-   * Returns if collected, map from column ID to its null value count, null otherwise.
-   */
+  /** Returns if collected, map from column ID to its null value count, null otherwise. */
   Map<Integer, Long> nullValueCounts();
 
-  /**
-   * Returns if collected, map from column ID to its NaN value count, null otherwise.
-   */
+  /** Returns if collected, map from column ID to its NaN value count, null otherwise. */
   Map<Integer, Long> nanValueCounts();
 
-  /**
-   * Returns if collected, map from column ID to value lower bounds, null otherwise.
-   */
+  /** Returns if collected, map from column ID to value lower bounds, null otherwise. */
   Map<Integer, ByteBuffer> lowerBounds();
 
-  /**
-   * Returns if collected, map from column ID to value upper bounds, null otherwise.
-   */
+  /** Returns if collected, map from column ID to value upper bounds, null otherwise. */
   Map<Integer, ByteBuffer> upperBounds();
 
   /**
@@ -106,48 +86,60 @@ public interface ContentFile<F> {
 
   /**
    * Returns list of recommended split locations, if applicable, null otherwise.
-   * <p>
-   * When available, this information is used for planning scan tasks whose boundaries
-   * are determined by these offsets. The returned list must be sorted in ascending order.
+   *
+   * <p>When available, this information is used for planning scan tasks whose boundaries are
+   * determined by these offsets. The returned list must be sorted in ascending order.
    */
   List<Long> splitOffsets();
 
   /**
    * Returns the set of field IDs used for equality comparison, in equality delete files.
-   * <p>
-   * An equality delete file may contain additional data fields that are not used by equality
+   *
+   * <p>An equality delete file may contain additional data fields that are not used by equality
    * comparison. The subset of columns in a delete file to be used in equality comparison are
-   * tracked by ID. Extra columns can be used to reconstruct changes and metrics from extra
-   * columns are used during job planning.
+   * tracked by ID. Extra columns can be used to reconstruct changes and metrics from extra columns
+   * are used during job planning.
    *
    * @return IDs of the fields used in equality comparison with the records in this delete file
    */
   List<Integer> equalityFieldIds();
 
   /**
-   * Returns the sort order id of this file, which describes how the file is ordered.
-   * This information will be useful for merging data and equality delete files more efficiently
-   * when they share the same sort order id.
+   * Returns the sort order id of this file, which describes how the file is ordered. This
+   * information will be useful for merging data and equality delete files more efficiently when
+   * they share the same sort order id.
    */
   default Integer sortOrderId() {
     return null;
   }
 
   /**
-   * Copies this file. Manifest readers can reuse file instances; use
-   * this method to copy data when collecting files from tasks.
+   * Copies this file. Manifest readers can reuse file instances; use this method to copy data when
+   * collecting files from tasks.
    *
    * @return a copy of this data file
    */
   F copy();
 
   /**
-   * Copies this file without file stats. Manifest readers can reuse file instances; use
-   * this method to copy data without stats when collecting files.
+   * Copies this file without file stats. Manifest readers can reuse file instances; use this method
+   * to copy data without stats when collecting files.
    *
-   * @return a copy of this data file, without lower bounds, upper bounds, value counts,
-   *         null value counts, or nan value counts
+   * @return a copy of this data file, without lower bounds, upper bounds, value counts, null value
+   *     counts, or nan value counts
    */
   F copyWithoutStats();
 
+  /**
+   * Copies this file (potentially without file stats). Manifest readers can reuse file instances;
+   * use this method to copy data when collecting files from tasks.
+   *
+   * @param withStats Will copy this file without file stats if set to <code>false</code>.
+   * @return a copy of this data file. If <code>withStats</code> is set to <code>false</code> the
+   *     file will not contain lower bounds, upper bounds, value counts, null value counts, or nan
+   *     value counts
+   */
+  default F copy(boolean withStats) {
+    return withStats ? copy() : copyWithoutStats();
+  }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
@@ -24,14 +23,14 @@ import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 
 class RESTObjectMapper {
   private static final JsonFactory FACTORY = new JsonFactory();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
   private static volatile boolean isInitialized = false;
 
-  private RESTObjectMapper() {
-  }
+  private RESTObjectMapper() {}
 
   static ObjectMapper mapper() {
     if (!isInitialized) {
@@ -39,6 +38,7 @@ class RESTObjectMapper {
         if (!isInitialized) {
           MAPPER.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
           MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+          MAPPER.setPropertyNamingStrategy(new PropertyNamingStrategy.KebabCaseStrategy());
           RESTSerializers.registerAll(MAPPER);
           isInitialized = true;
         }

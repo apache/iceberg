@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
@@ -25,41 +27,51 @@ import org.apache.orc.TypeDescription;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestEstimateOrcAvgWidthVisitor {
 
   // all supported fields
   protected static final Types.NestedField ID_FIELD = required(1, "id", Types.IntegerType.get());
   protected static final Types.NestedField DATA_FIELD = optional(2, "data", Types.StringType.get());
-  protected static final Types.NestedField FLOAT_FIELD = required(3, "float", Types.FloatType.get());
-  protected static final Types.NestedField DOUBLE_FIELD = optional(4, "double", Types.DoubleType.get());
-  protected static final Types.NestedField DECIMAL_FIELD = optional(5, "decimal", Types.DecimalType.of(5, 3));
-  protected static final Types.NestedField FIXED_FIELD = optional(7, "fixed", Types.FixedType.ofLength(4));
-  protected static final Types.NestedField BINARY_FIELD = optional(8, "binary", Types.BinaryType.get());
-  protected static final Types.NestedField FLOAT_LIST_FIELD = optional(9, "floatList",
-      Types.ListType.ofRequired(10, Types.FloatType.get()));
+  protected static final Types.NestedField FLOAT_FIELD =
+      required(3, "float", Types.FloatType.get());
+  protected static final Types.NestedField DOUBLE_FIELD =
+      optional(4, "double", Types.DoubleType.get());
+  protected static final Types.NestedField DECIMAL_FIELD =
+      optional(5, "decimal", Types.DecimalType.of(5, 3));
+  protected static final Types.NestedField FIXED_FIELD =
+      optional(7, "fixed", Types.FixedType.ofLength(4));
+  protected static final Types.NestedField BINARY_FIELD =
+      optional(8, "binary", Types.BinaryType.get());
+  protected static final Types.NestedField FLOAT_LIST_FIELD =
+      optional(9, "floatList", Types.ListType.ofRequired(10, Types.FloatType.get()));
   protected static final Types.NestedField LONG_FIELD = optional(11, "long", Types.LongType.get());
-  protected static final Types.NestedField BOOLEAN_FIELD = optional(12, "boolean", Types.BooleanType.get());
-  protected static final Types.NestedField TIMESTAMP_ZONE_FIELD = optional(13, "timestampZone",
-      Types.TimestampType.withZone());
-  protected static final Types.NestedField TIMESTAMP_FIELD = optional(14, "timestamp",
-      Types.TimestampType.withoutZone());
+  protected static final Types.NestedField BOOLEAN_FIELD =
+      optional(12, "boolean", Types.BooleanType.get());
+  protected static final Types.NestedField TIMESTAMP_ZONE_FIELD =
+      optional(13, "timestampZone", Types.TimestampType.withZone());
+  protected static final Types.NestedField TIMESTAMP_FIELD =
+      optional(14, "timestamp", Types.TimestampType.withoutZone());
   protected static final Types.NestedField DATE_FIELD = optional(15, "date", Types.DateType.get());
   protected static final Types.NestedField UUID_FIELD = required(16, "uuid", Types.UUIDType.get());
 
-  protected static final Types.NestedField MAP_FIELD_1 = optional(17, "map1",
-      Types.MapType.ofOptional(18, 19, Types.FloatType.get(), Types.StringType.get())
-  );
-  protected static final Types.NestedField MAP_FIELD_2 = optional(20, "map2",
-      Types.MapType.ofOptional(21, 22, Types.IntegerType.get(), Types.DoubleType.get())
-  );
-  protected static final Types.NestedField STRUCT_FIELD = optional(23, "struct", Types.StructType.of(
-      required(24, "booleanField", Types.BooleanType.get()),
-      optional(25, "date", Types.DateType.get()),
-      optional(27, "timestamp", Types.TimestampType.withZone())
-  ));
+  protected static final Types.NestedField MAP_FIELD_1 =
+      optional(
+          17,
+          "map1",
+          Types.MapType.ofOptional(18, 19, Types.FloatType.get(), Types.StringType.get()));
+  protected static final Types.NestedField MAP_FIELD_2 =
+      optional(
+          20,
+          "map2",
+          Types.MapType.ofOptional(21, 22, Types.IntegerType.get(), Types.DoubleType.get()));
+  protected static final Types.NestedField STRUCT_FIELD =
+      optional(
+          23,
+          "struct",
+          Types.StructType.of(
+              required(24, "booleanField", Types.BooleanType.get()),
+              optional(25, "date", Types.DateType.get()),
+              optional(27, "timestamp", Types.TimestampType.withZone())));
 
   @Test
   public void testEstimateIntegerWidth() {
@@ -146,7 +158,8 @@ public class TestEstimateOrcAvgWidthVisitor {
     Schema timestampZoneSchema = new Schema(TIMESTAMP_ZONE_FIELD);
     TypeDescription timestampZoneOrcSchema = ORCSchemaUtil.convert(timestampZoneSchema);
     long estimateLength = getEstimateLength(timestampZoneOrcSchema);
-    Assert.assertEquals("Estimated average length of timestamps with zone must be 12.", 12, estimateLength);
+    Assert.assertEquals(
+        "Estimated average length of timestamps with zone must be 12.", 12, estimateLength);
 
     Schema timestampSchema = new Schema(TIMESTAMP_FIELD);
     TypeDescription timestampOrcSchema = ORCSchemaUtil.convert(timestampSchema);
@@ -188,8 +201,20 @@ public class TestEstimateOrcAvgWidthVisitor {
 
   @Test
   public void testEstimateFullWidth() {
-    Schema fullSchema = new Schema(ID_FIELD, DATA_FIELD, FLOAT_FIELD, DOUBLE_FIELD, DECIMAL_FIELD, FIXED_FIELD,
-        BINARY_FIELD, FLOAT_LIST_FIELD, LONG_FIELD, MAP_FIELD_1, MAP_FIELD_2, STRUCT_FIELD);
+    Schema fullSchema =
+        new Schema(
+            ID_FIELD,
+            DATA_FIELD,
+            FLOAT_FIELD,
+            DOUBLE_FIELD,
+            DECIMAL_FIELD,
+            FIXED_FIELD,
+            BINARY_FIELD,
+            FLOAT_LIST_FIELD,
+            LONG_FIELD,
+            MAP_FIELD_1,
+            MAP_FIELD_2,
+            STRUCT_FIELD);
     TypeDescription fullOrcSchema = ORCSchemaUtil.convert(fullSchema);
     long estimateLength = getEstimateLength(fullOrcSchema);
     Assert.assertEquals("Estimated average length of the row must be 611.", 611, estimateLength);
@@ -197,6 +222,8 @@ public class TestEstimateOrcAvgWidthVisitor {
 
   private Integer getEstimateLength(TypeDescription orcSchemaWithDate) {
     return OrcSchemaVisitor.visitSchema(orcSchemaWithDate, new EstimateOrcAvgWidthVisitor())
-        .stream().reduce(Integer::sum).orElse(0);
+        .stream()
+        .reduce(Integer::sum)
+        .orElse(0);
   }
 }

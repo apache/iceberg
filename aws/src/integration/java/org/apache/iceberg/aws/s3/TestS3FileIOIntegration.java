@@ -27,6 +27,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -39,11 +40,13 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.PartitionMetadata;
@@ -65,8 +68,11 @@ import software.amazon.awssdk.services.s3control.S3ControlClient;
 import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.awssdk.utils.IoUtils;
 
+import static org.junit.Assert.assertEquals;
+
 public class TestS3FileIOIntegration {
 
+  private final Random random = new Random(1);
   private static AwsClientFactory clientFactory;
   private static S3Client s3;
   private static S3ControlClient s3Control;
@@ -328,6 +334,38 @@ public class TestS3FileIOIntegration {
     testDeleteFiles(5, s3FileIO);
   }
 
+  @Test
+  public void testPrefixList() {
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+    List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
+    String listPrefix = String.format("s3://%s/%s", bucketName, "prefix-list-test");
+
+    scaleSizes.parallelStream().forEach(scale -> {
+      String scalePrefix = String.format("%s/%s/", listPrefix, scale);
+      createRandomObjects(scalePrefix, scale);
+      assertEquals((long) scale, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+    });
+
+    long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
+    Assertions.assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(listPrefix)).count());
+  }
+
+  @Test
+  public void testPrefixDelete() {
+    AwsProperties properties = new AwsProperties();
+    properties.setS3FileIoDeleteBatchSize(100);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
+    String deletePrefix = String.format("s3://%s/%s", bucketName, "prefix-delete-test");
+
+    List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
+    scaleSizes.parallelStream().forEach(scale -> {
+      String scalePrefix = String.format("%s/%s/", deletePrefix, scale);
+      createRandomObjects(scalePrefix, scale);
+      s3FileIO.deletePrefix(scalePrefix);
+      assertEquals(0L, Streams.stream(s3FileIO.listPrefix(scalePrefix)).count());
+    });
+  }
+
   private AwsProperties getDeletionTestProperties() {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoDeleteBatchSize(deletionBatchSize);
@@ -371,5 +409,12 @@ public class TestS3FileIOIntegration {
     // format: arn:aws:s3:region:account-id:accesspoint/resource
     return String.format("arn:%s:s3:%s:%s:accesspoint/%s",
         PartitionMetadata.of(Region.of(region)).id(), region, AwsIntegTestUtil.testAccountId(), accessPoint);
+  }
+
+  private void createRandomObjects(String objectPrefix, int count) {
+    S3URI s3URI = new S3URI(objectPrefix);
+    random.ints(count).parallel().forEach(i ->
+        s3.putObject(builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(), RequestBody.empty())
+    );
   }
 }

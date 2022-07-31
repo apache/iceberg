@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -25,8 +24,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
  * An interface used to read input files using {@link SeekableInputStream} instances.
- * <p>
- * This class is based on Parquet's InputFile.
+ *
+ * <p>This class is based on Parquet's InputFile.
  */
 public interface InputFile {
   /**

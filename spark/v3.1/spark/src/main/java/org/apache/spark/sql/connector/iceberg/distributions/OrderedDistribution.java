@@ -16,22 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.distributions;
 
 import org.apache.spark.annotation.Experimental;
 import org.apache.spark.sql.connector.iceberg.expressions.SortOrder;
 
 /**
- * A distribution where tuples have been ordered across partitions according
- * to ordering expressions, but not necessarily within a given partition.
+ * A distribution where tuples have been ordered across partitions according to ordering
+ * expressions, but not necessarily within a given partition.
  *
  * @since 3.2.0
  */
 @Experimental
 public interface OrderedDistribution extends Distribution {
-  /**
-   * Returns ordering expressions.
-   */
+  /** Returns ordering expressions. */
   SortOrder[] ordering();
 }

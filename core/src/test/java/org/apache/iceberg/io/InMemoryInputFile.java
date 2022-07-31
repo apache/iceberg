@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.ByteArrayInputStream;
@@ -64,6 +63,7 @@ public class InMemoryInputFile implements InputFile {
 
     private final int length;
     private final ByteArrayInputStream delegate;
+    private boolean closed = false;
 
     InMemorySeekableInputStream(byte[] contents) {
       this.length = contents.length;
@@ -72,38 +72,48 @@ public class InMemoryInputFile implements InputFile {
 
     @Override
     public long getPos() throws IOException {
+      checkOpen();
       return length - delegate.available();
     }
 
     @Override
     public void seek(long newPos) throws IOException {
+      checkOpen();
       delegate.reset(); // resets to a marked position
-      Preconditions.checkState(delegate.skip(newPos) == newPos,
-          "Invalid position %s within stream of length %s", newPos, length);
+      Preconditions.checkState(
+          delegate.skip(newPos) == newPos,
+          "Invalid position %s within stream of length %s",
+          newPos,
+          length);
     }
 
     @Override
     public int read() {
+      checkOpen();
       return delegate.read();
     }
 
     @Override
     public int read(byte[] b) throws IOException {
+      checkOpen();
       return delegate.read(b);
     }
 
     @Override
     public int read(byte[] b, int off, int len) {
+      checkOpen();
       return delegate.read(b, off, len);
     }
 
     @Override
     public long skip(long n) {
+      checkOpen();
       return delegate.skip(n);
     }
 
     @Override
     public int available() {
+      checkOpen();
       return delegate.available();
     }
 
@@ -120,12 +130,20 @@ public class InMemoryInputFile implements InputFile {
 
     @Override
     public void reset() {
+      checkOpen();
       delegate.reset();
     }
 
     @Override
     public void close() throws IOException {
       delegate.close();
+      closed = true;
+    }
+
+    private void checkOpen() {
+      // ByteArrayInputStream can be used even after close, so for test purposes disallow such use
+      // explicitly
+      Preconditions.checkState(!closed, "Stream is closed");
     }
   }
 }

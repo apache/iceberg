@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
+import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
 import java.util.Map;
@@ -72,24 +74,33 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
-import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
-
-public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsDelete, SupportsRowLevelOperations, SupportsMetadataColumns {
+public class SparkTable
+    implements org.apache.spark.sql.connector.catalog.Table,
+        SupportsRead,
+        SupportsWrite,
+        SupportsDelete,
+        SupportsRowLevelOperations,
+        SupportsMetadataColumns {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
   private static final Set<String> RESERVED_PROPERTIES =
-      ImmutableSet.of("provider", "format", CURRENT_SNAPSHOT_ID, "location", FORMAT_VERSION, "sort-order",
+      ImmutableSet.of(
+          "provider",
+          "format",
+          CURRENT_SNAPSHOT_ID,
+          "location",
+          FORMAT_VERSION,
+          "sort-order",
           "identifier-fields");
-  private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
-      TableCapability.BATCH_READ,
-      TableCapability.BATCH_WRITE,
-      TableCapability.MICRO_BATCH_READ,
-      TableCapability.STREAMING_WRITE,
-      TableCapability.OVERWRITE_BY_FILTER,
-      TableCapability.OVERWRITE_DYNAMIC);
+  private static final Set<TableCapability> CAPABILITIES =
+      ImmutableSet.of(
+          TableCapability.BATCH_READ,
+          TableCapability.BATCH_WRITE,
+          TableCapability.MICRO_BATCH_READ,
+          TableCapability.STREAMING_WRITE,
+          TableCapability.OVERWRITE_BY_FILTER,
+          TableCapability.OVERWRITE_DYNAMIC);
   private static final Set<TableCapability> CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA =
       ImmutableSet.<TableCapability>builder()
           .addAll(CAPABILITIES)
@@ -112,8 +123,11 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
 
-    boolean acceptAnySchema = PropertyUtil.propertyAsBoolean(icebergTable.properties(),
-        TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
+    boolean acceptAnySchema =
+        PropertyUtil.propertyAsBoolean(
+            icebergTable.properties(),
+            TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA,
+            TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
     this.capabilities = acceptAnySchema ? CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA : CAPABILITIES;
   }
 
@@ -156,12 +170,17 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public Map<String, String> properties() {
     ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
 
-    String fileFormat = icebergTable.properties()
-        .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    String fileFormat =
+        icebergTable
+            .properties()
+            .getOrDefault(
+                TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     propsBuilder.put("format", "iceberg/" + fileFormat);
     propsBuilder.put("provider", "iceberg");
-    String currentSnapshotId = icebergTable.currentSnapshot() != null ?
-        String.valueOf(icebergTable.currentSnapshot().snapshotId()) : "none";
+    String currentSnapshotId =
+        icebergTable.currentSnapshot() != null
+            ? String.valueOf(icebergTable.currentSnapshot().snapshotId())
+            : "none";
     propsBuilder.put(CURRENT_SNAPSHOT_ID, currentSnapshotId);
     propsBuilder.put("location", icebergTable.location());
 
@@ -195,10 +214,11 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public MetadataColumn[] metadataColumns() {
     DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
     return new MetadataColumn[] {
-        new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
-        new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
-        new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
-        new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false)
+      new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
+      new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
+      new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
+      new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),
+      new SparkMetadataColumn(MetadataColumns.IS_DELETED.name(), DataTypes.BooleanType, false)
     };
   }
 
@@ -220,8 +240,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
-        snapshotId == null,
-        "Cannot write to table at a specific snapshot: %s", snapshotId);
+        snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
 
     return new SparkWriteBuilder(sparkSession(), icebergTable, info);
   }
@@ -234,8 +253,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public boolean canDeleteWhere(Filter[] filters) {
     Preconditions.checkArgument(
-        snapshotId == null,
-        "Cannot delete from table at a specific snapshot: %s", snapshotId);
+        snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
 
     Expression deleteExpr = Expressions.alwaysTrue();
 
@@ -253,25 +271,34 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   // a metadata delete is possible iff matching files can be deleted entirely
   private boolean canDeleteUsingMetadata(Expression deleteExpr) {
-    boolean caseSensitive = Boolean.parseBoolean(sparkSession().conf().get("spark.sql.caseSensitive"));
-    TableScan scan = table().newScan()
-        .filter(deleteExpr)
-        .caseSensitive(caseSensitive)
-        .includeColumnStats()
-        .ignoreResiduals();
+    boolean caseSensitive =
+        Boolean.parseBoolean(sparkSession().conf().get("spark.sql.caseSensitive"));
+    TableScan scan =
+        table()
+            .newScan()
+            .filter(deleteExpr)
+            .caseSensitive(caseSensitive)
+            .includeColumnStats()
+            .ignoreResiduals();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Map<Integer, Evaluator> evaluators = Maps.newHashMap();
-      StrictMetricsEvaluator metricsEvaluator = new StrictMetricsEvaluator(table().schema(), deleteExpr);
+      StrictMetricsEvaluator metricsEvaluator =
+          new StrictMetricsEvaluator(table().schema(), deleteExpr);
 
-      return Iterables.all(tasks, task -> {
-        DataFile file = task.file();
-        PartitionSpec spec = task.spec();
-        Evaluator evaluator = evaluators.computeIfAbsent(
-            spec.specId(),
-            specId -> new Evaluator(spec.partitionType(), Projections.strict(spec).project(deleteExpr)));
-        return evaluator.eval(file.partition()) || metricsEvaluator.eval(file);
-      });
+      return Iterables.all(
+          tasks,
+          task -> {
+            DataFile file = task.file();
+            PartitionSpec spec = task.spec();
+            Evaluator evaluator =
+                evaluators.computeIfAbsent(
+                    spec.specId(),
+                    specId ->
+                        new Evaluator(
+                            spec.partitionType(), Projections.strict(spec).project(deleteExpr)));
+            return evaluator.eval(file.partition()) || metricsEvaluator.eval(file);
+          });
 
     } catch (IOException ioe) {
       LOG.warn("Failed to close task iterable", ioe);
@@ -288,7 +315,8 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       return;
     }
 
-    icebergTable.newDelete()
+    icebergTable
+        .newDelete()
         .set("spark.app.id", sparkSession().sparkContext().applicationId())
         .deleteFromRowFilter(deleteExpr)
         .commit();
@@ -318,12 +346,15 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return icebergTable.name().hashCode();
   }
 
-  private static CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options, Long snapshotId) {
+  private static CaseInsensitiveStringMap addSnapshotId(
+      CaseInsensitiveStringMap options, Long snapshotId) {
     if (snapshotId != null) {
       String snapshotIdFromOptions = options.get(SparkReadOptions.SNAPSHOT_ID);
       String value = snapshotId.toString();
-      Preconditions.checkArgument(snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
-          "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
+      Preconditions.checkArgument(
+          snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
+          "Cannot override snapshot ID more than once: %s",
+          snapshotIdFromOptions);
 
       Map<String, String> scanOptions = Maps.newHashMap();
       scanOptions.putAll(options.asCaseSensitiveMap());

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.math.BigDecimal;
@@ -71,28 +70,29 @@ public class TestTruncate {
   @Test
   public void testTruncateString() {
     Truncate<String> trunc = Truncate.get(Types.StringType.get(), 5);
-    Assert.assertEquals("Should truncate strings longer than length",
-        "abcde", trunc.apply("abcdefg"));
-    Assert.assertEquals("Should not pad strings shorter than length",
-        "abc", trunc.apply("abc"));
-    Assert.assertEquals("Should not alter strings equal to length",
-        "abcde", trunc.apply("abcde"));
+    Assert.assertEquals(
+        "Should truncate strings longer than length", "abcde", trunc.apply("abcdefg"));
+    Assert.assertEquals("Should not pad strings shorter than length", "abc", trunc.apply("abc"));
+    Assert.assertEquals("Should not alter strings equal to length", "abcde", trunc.apply("abcde"));
   }
 
   @Test
   public void testTruncateByteBuffer() throws Exception {
     Truncate<ByteBuffer> trunc = Truncate.get(Types.BinaryType.get(), 4);
-    Assert.assertEquals("Should truncate binary longer than length",
+    Assert.assertEquals(
+        "Should truncate binary longer than length",
         ByteBuffer.wrap("abcd".getBytes("UTF-8")),
         trunc.apply(ByteBuffer.wrap("abcdefg".getBytes("UTF-8"))));
-    Assert.assertEquals("Should not pad binary shorter than length",
+    Assert.assertEquals(
+        "Should not pad binary shorter than length",
         ByteBuffer.wrap("abc".getBytes("UTF-8")),
         trunc.apply(ByteBuffer.wrap("abc".getBytes("UTF-8"))));
   }
 
   @Test
   public void testVerifiedIllegalWidth() {
-    AssertHelpers.assertThrows("Should fail if width is less than or equal to zero",
+    AssertHelpers.assertThrows(
+        "Should fail if width is less than or equal to zero",
         IllegalArgumentException.class,
         "Invalid truncate width: 0 (must be > 0)",
         () -> Truncate.get(Types.IntegerType.get(), 0));

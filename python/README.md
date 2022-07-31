@@ -17,7 +17,7 @@
 
 # Iceberg Python
 
-py-iceberg is a python library for programmatic access to iceberg table metadata as well as to table data in iceberg format. 
+py-iceberg is a python library for programmatic access to iceberg table metadata as well as to table data in iceberg format.
 It is an implementation of [iceberg table spec](https://iceberg.apache.org/spec/) in Python.
 
 ## Getting Started
@@ -30,26 +30,27 @@ cd iceberg/python
 pip install -e .
 ```
 
+Development is made easy using [Poetry](https://python-poetry.org/docs/#installation).
+
+## Development
+
+Poetry provides virtual environments for development:
+
+```bash
+poetry shell
+poetry install -E pyarrow
+pytest
+```
+
+For more information, please refer to the [Manage environments](https://python-poetry.org/docs/managing-environments/) section of Poetry.
+
 ## Testing
 
-Testing is done using tox. The config can be found in `tox.ini` within the python directory of the iceberg project.
+Testing is done using Poetry:
 
 ```
-tox
-```
-
-## Solution for `InterpreterNotFound` Errors
-
-Currently, tests run against python `3.7.12`, `3.8.12`, and `3.9.10`. It's recommended to install and manage multiple interpreters using [pyenv](https://github.com/pyenv/pyenv).
-```
-pyenv install 3.7.12
-pyenv install 3.8.12
-pyenv install 3.9.10
-```
-
-Once all three versions are installed, you can set an application-specific pyenv environment by running the following in the python directory.
-```
-pyenv local 3.7.12 3.8.12 3.9.10
+poetry install -E pyarrow
+poetry run pytest
 ```
 
 ## Get in Touch

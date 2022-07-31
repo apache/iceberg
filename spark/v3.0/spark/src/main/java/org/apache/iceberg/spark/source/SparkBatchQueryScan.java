@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
@@ -49,8 +48,14 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkBatchQueryScan(SparkSession spark, Table table, SparkReadConf readConf, boolean caseSensitive,
-                      Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
+  SparkBatchQueryScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      boolean caseSensitive,
+      Schema expectedSchema,
+      List<Expression> filters,
+      CaseInsensitiveStringMap options) {
 
     super(spark, table, readConf, caseSensitive, expectedSchema, filters, options);
 
@@ -67,26 +72,28 @@ class SparkBatchQueryScan extends SparkBatchScan {
     if (snapshotId != null || asOfTimestamp != null) {
       if (startSnapshotId != null || endSnapshotId != null) {
         throw new IllegalArgumentException(
-            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either " +
-                SparkReadOptions.SNAPSHOT_ID + " or " + SparkReadOptions.AS_OF_TIMESTAMP + " is specified");
+            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either "
+                + SparkReadOptions.SNAPSHOT_ID
+                + " or "
+                + SparkReadOptions.AS_OF_TIMESTAMP
+                + " is specified");
       }
     } else if (startSnapshotId == null && endSnapshotId != null) {
-      throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
+      throw new IllegalArgumentException(
+          "Cannot only specify option end-snapshot-id to do incremental scan");
     }
 
     // look for split behavior overrides in options
     this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null);
     this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, null);
-    this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null);
+    this.splitOpenFileCost =
+        Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null);
   }
 
   @Override
   protected List<CombinedScanTask> tasks() {
     if (tasks == null) {
-      TableScan scan = table()
-          .newScan()
-          .caseSensitive(caseSensitive())
-          .project(expectedSchema());
+      TableScan scan = table().newScan().caseSensitive(caseSensitive()).project(expectedSchema());
 
       if (snapshotId != null) {
         scan = scan.useSnapshot(snapshotId);
@@ -122,7 +129,7 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
       try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
         this.tasks = Lists.newArrayList(tasksIterable);
-      }  catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
       }
     }
@@ -141,19 +148,25 @@ class SparkBatchQueryScan extends SparkBatchScan {
     }
 
     SparkBatchQueryScan that = (SparkBatchQueryScan) o;
-    return table().name().equals(that.table().name()) &&
-        readSchema().equals(that.readSchema()) && // compare Spark schemas to ignore field ids
-        filterExpressions().toString().equals(that.filterExpressions().toString()) &&
-        Objects.equals(snapshotId, that.snapshotId) &&
-        Objects.equals(startSnapshotId, that.startSnapshotId) &&
-        Objects.equals(endSnapshotId, that.endSnapshotId) &&
-        Objects.equals(asOfTimestamp, that.asOfTimestamp);
+    return table().name().equals(that.table().name())
+        && readSchema().equals(that.readSchema())
+        && // compare Spark schemas to ignore field ids
+        filterExpressions().toString().equals(that.filterExpressions().toString())
+        && Objects.equals(snapshotId, that.snapshotId)
+        && Objects.equals(startSnapshotId, that.startSnapshotId)
+        && Objects.equals(endSnapshotId, that.endSnapshotId)
+        && Objects.equals(asOfTimestamp, that.asOfTimestamp);
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), readSchema(), filterExpressions().toString(), snapshotId, startSnapshotId, endSnapshotId,
+        table().name(),
+        readSchema(),
+        filterExpressions().toString(),
+        snapshotId,
+        startSnapshotId,
+        endSnapshotId,
         asOfTimestamp);
   }
 

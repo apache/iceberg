@@ -52,6 +52,10 @@ subprojects {
 
     // add LICENSE and NOTICE
     [jar, sourceJar, javadocJar, testJar].each { task ->
+      task.dependsOn rootProject.tasks.buildInfo
+      task.from("${rootDir}/build") {
+        include 'iceberg-build.properties'
+      }
       task.from(rootDir) {
         include 'LICENSE'
         include 'NOTICE'

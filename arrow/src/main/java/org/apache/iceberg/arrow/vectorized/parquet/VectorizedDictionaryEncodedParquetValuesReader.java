@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.nio.ByteBuffer;
@@ -31,19 +30,25 @@ import org.apache.parquet.column.Dictionary;
 
 /**
  * This decoder reads Parquet dictionary encoded data in a vectorized fashion. Unlike other
- * vectorized readers, methods in this decoder don't need to read definition levels. In other
- * words, these methods are called when there are non-null values to be read.
+ * vectorized readers, methods in this decoder don't need to read definition levels. In other words,
+ * these methods are called when there are non-null values to be read.
  */
-public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectorizedParquetValuesReader {
+public class VectorizedDictionaryEncodedParquetValuesReader
+    extends BaseVectorizedParquetValuesReader {
 
-  public VectorizedDictionaryEncodedParquetValuesReader(int maxDefLevel, boolean setValidityVector) {
+  public VectorizedDictionaryEncodedParquetValuesReader(
+      int maxDefLevel, boolean setValidityVector) {
     super(maxDefLevel, setValidityVector);
   }
 
   abstract class BaseDictEncodedReader {
     public void nextBatch(
-        FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-        NullabilityHolder nullabilityHolder, int typeWidth) {
+        FieldVector vector,
+        int startOffset,
+        int numValuesToRead,
+        Dictionary dict,
+        NullabilityHolder nullabilityHolder,
+        int typeWidth) {
       int left = numValuesToRead;
       int idx = startOffset;
       while (left > 0) {
@@ -72,99 +77,110 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
       }
     }
 
-    protected abstract void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth);
+    protected abstract void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth);
   }
 
   class DictionaryIdReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ((IntVector) vector).set(idx, currentVal);
     }
   }
 
   class LongDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentVal));
     }
   }
 
   class TimestampMillisDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentVal) * 1000);
     }
   }
 
   class IntegerDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       vector.getDataBuffer().setInt(idx, dict.decodeToInt(currentVal));
     }
   }
 
   class FloatDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       vector.getDataBuffer().setFloat(idx, dict.decodeToFloat(currentVal));
     }
   }
 
   class DoubleDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       vector.getDataBuffer().setDouble(idx, dict.decodeToDouble(currentVal));
     }
   }
 
   class FixedWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer()
-          .setBytes(idx, buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+      vector.getDataBuffer().setBytes(idx, buffer);
     }
   }
 
   class FixedLengthDecimalDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      byte[] decimalBytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
-      byte[] vectorBytes = new byte[typeWidth];
-      System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
-      ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
-      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer()
-          .setBytes(idx, buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      byte[] bytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
+      DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, bytes);
     }
   }
 
   class VarWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      ((BaseVariableWidthVector) vector).setSafe(idx, buffer.array(),
-          buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+      ((BaseVariableWidthVector) vector)
+          .setSafe(
+              idx,
+              buffer.array(),
+              buffer.position() + buffer.arrayOffset(),
+              buffer.limit() - buffer.position());
     }
   }
 
   class IntBackedDecimalDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ((DecimalVector) vector).set(idx, dict.decodeToInt(currentVal));
     }
   }
 
   class LongBackedDecimalDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ((DecimalVector) vector).set(idx, dict.decodeToLong(currentVal));
     }
   }
 
   class FixedSizeBinaryDictEncodedReader extends BaseDictEncodedReader {
     @Override
-    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+    protected void nextVal(
+        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       byte[] bytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
       byte[] vectorBytes = new byte[typeWidth];
       System.arraycopy(bytes, 0, vectorBytes, 0, typeWidth);

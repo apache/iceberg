@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
@@ -43,10 +42,16 @@ class AvroFileAppender<D> implements FileAppender<D> {
   private long numRecords = 0L;
   private boolean isClosed = false;
 
-  AvroFileAppender(org.apache.iceberg.Schema icebergSchema, Schema schema, OutputFile file,
-                   Function<Schema, DatumWriter<?>> createWriterFunc,
-                   CodecFactory codec, Map<String, String> metadata,
-                   MetricsConfig metricsConfig, boolean overwrite) throws IOException {
+  AvroFileAppender(
+      org.apache.iceberg.Schema icebergSchema,
+      Schema schema,
+      OutputFile file,
+      Function<Schema, DatumWriter<?>> createWriterFunc,
+      CodecFactory codec,
+      Map<String, String> metadata,
+      MetricsConfig metricsConfig,
+      boolean overwrite)
+      throws IOException {
     this.icebergSchema = icebergSchema;
     this.stream = overwrite ? file.createOrOverwrite() : file.create();
     this.datumWriter = createWriterFunc.apply(schema);
@@ -66,8 +71,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @Override
   public Metrics metrics() {
-    Preconditions.checkState(isClosed,
-        "Cannot return metrics while appending to an open file.");
+    Preconditions.checkState(isClosed, "Cannot return metrics while appending to an open file.");
 
     return AvroMetrics.fromWriter(datumWriter, icebergSchema, numRecords, metricsConfig);
   }
@@ -95,10 +99,13 @@ class AvroFileAppender<D> implements FileAppender<D> {
 
   @SuppressWarnings("unchecked")
   private static <D> DataFileWriter<D> newAvroWriter(
-      Schema schema, PositionOutputStream stream, DatumWriter<?> metricsAwareDatumWriter,
-      CodecFactory codec, Map<String, String> metadata) throws IOException {
-    DataFileWriter<D> writer = new DataFileWriter<>(
-        (DatumWriter<D>) metricsAwareDatumWriter);
+      Schema schema,
+      PositionOutputStream stream,
+      DatumWriter<?> metricsAwareDatumWriter,
+      CodecFactory codec,
+      Map<String, String> metadata)
+      throws IOException {
+    DataFileWriter<D> writer = new DataFileWriter<>((DatumWriter<D>) metricsAwareDatumWriter);
 
     writer.setCodec(codec);
 

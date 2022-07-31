@@ -22,8 +22,14 @@ from urllib.parse import ParseResult, urlparse
 
 import pytest
 
-from iceberg.io.base import FileIO, InputFile, InputStream, OutputFile, OutputStream
-from iceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
+from pyiceberg.io.base import (
+    FileIO,
+    InputFile,
+    InputStream,
+    OutputFile,
+    OutputStream,
+)
+from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 
 class LocalInputFile(InputFile):
@@ -98,7 +104,7 @@ class LocalOutputFile(OutputFile):
 
     def create(self, overwrite: bool = False) -> OutputStream:
         output_file = open(self.parsed_location.path, "wb" if overwrite else "xb")
-        if not isinstance(output_file, OutputStream):
+        if not issubclass(type(output_file), OutputStream):
             raise TypeError("Object returned from LocalOutputFile.create(...) does not match the OutputStream protocol.")
         return output_file
 
@@ -112,12 +118,13 @@ class LocalFileIO(FileIO):
     def new_output(self, location: str):
         return LocalOutputFile(location=location)
 
-    def delete(self, location: Union[str, LocalInputFile, LocalOutputFile]):
-        parsed_location = location.parsed_location if isinstance(location, (InputFile, OutputFile)) else urlparse(location)
+    def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
+        location = location.location if isinstance(location, (InputFile, OutputFile)) else location
+        parsed_location = urlparse(location)
         try:
             os.remove(parsed_location.path)
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path} - Caused by: " + str(e))
+            raise FileNotFoundError(f"Cannot delete file, does not exist: {parsed_location.path}") from e
 
 
 @pytest.mark.parametrize("CustomInputFile", [LocalInputFile, PyArrowFile])
@@ -315,7 +322,7 @@ def test_raise_file_not_found_error_for_fileio_delete(CustomFileIO):
         with pytest.raises(FileNotFoundError) as exc_info:
             file_io.delete(output_file_location)
 
-        assert (f"Cannot delete file") in str(exc_info.value)
+        assert "Cannot delete file" in str(exc_info.value)
 
         # Confirm that the file no longer exists
         assert not os.path.exists(output_file_location)

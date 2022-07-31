@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.util.Map;
@@ -28,7 +27,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 class ManifestOutputFileFactory {
-  // Users could define their own flink manifests directory by setting this value in table properties.
+  // Users could define their own flink manifests directory by setting this value in table
+  // properties.
   static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
 
   private final TableOperations ops;
@@ -40,8 +40,14 @@ class ManifestOutputFileFactory {
   private final long attemptNumber;
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
-  ManifestOutputFileFactory(TableOperations ops, FileIO io, Map<String, String> props,
-                            String flinkJobId,  String operatorUniqueId, int subTaskId, long attemptNumber) {
+  ManifestOutputFileFactory(
+      TableOperations ops,
+      FileIO io,
+      Map<String, String> props,
+      String flinkJobId,
+      String operatorUniqueId,
+      int subTaskId,
+      long attemptNumber) {
     this.ops = ops;
     this.io = io;
     this.props = props;
@@ -52,8 +58,15 @@ class ManifestOutputFileFactory {
   }
 
   private String generatePath(long checkpointId) {
-    return FileFormat.AVRO.addExtension(String.format("%s-%s-%05d-%d-%d-%05d", flinkJobId, operatorUniqueId,
-        subTaskId, attemptNumber, checkpointId, fileCount.incrementAndGet()));
+    return FileFormat.AVRO.addExtension(
+        String.format(
+            "%s-%s-%05d-%d-%d-%05d",
+            flinkJobId,
+            operatorUniqueId,
+            subTaskId,
+            attemptNumber,
+            checkpointId,
+            fileCount.incrementAndGet()));
   }
 
   OutputFile create(long checkpointId) {
@@ -64,7 +77,8 @@ class ManifestOutputFileFactory {
       // User don't specify any flink manifest directory, so just use the default metadata path.
       newManifestFullPath = ops.metadataFileLocation(generatePath(checkpointId));
     } else {
-      newManifestFullPath = String.format("%s/%s", stripTrailingSlash(flinkManifestDir), generatePath(checkpointId));
+      newManifestFullPath =
+          String.format("%s/%s", stripTrailingSlash(flinkManifestDir), generatePath(checkpointId));
     }
 
     return io.newOutputFile(newManifestFullPath);

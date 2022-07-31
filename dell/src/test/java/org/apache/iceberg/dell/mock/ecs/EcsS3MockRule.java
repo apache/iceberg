@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.mock.ecs;
 
 import com.emc.object.s3.S3Client;
@@ -39,14 +38,12 @@ import org.junit.runners.model.Statement;
 
 /**
  * Mock rule of ECS S3 mock.
- * <p>
- * Use environment parameter to specify use mock client or real client.
+ *
+ * <p>Use environment parameter to specify use mock client or real client.
  */
 public class EcsS3MockRule implements TestRule {
 
-  /**
-   * Object ID generator
-   */
+  /** Object ID generator */
   private static final AtomicInteger ID = new AtomicInteger(0);
 
   // Config fields
@@ -71,9 +68,7 @@ public class EcsS3MockRule implements TestRule {
 
   private static final ThreadLocal<EcsS3MockRule> TEST_RULE_FOR_MOCK_CLIENT = new ThreadLocal<>();
 
-  /**
-   * Load rule from thread local and check bucket
-   */
+  /** Load rule from thread local and check bucket */
   public static EcsS3MockRule rule(String id) {
     EcsS3MockRule rule = TEST_RULE_FOR_MOCK_CLIENT.get();
     Assert.assertTrue("Test Rule must match id", rule != null && rule.bucket().equals(id));
@@ -112,8 +107,11 @@ public class EcsS3MockRule implements TestRule {
     } else {
       mock = false;
       Map<String, String> properties = new LinkedHashMap<>();
-      properties.put(DellProperties.ECS_S3_ACCESS_KEY_ID, System.getenv(DellProperties.ECS_S3_ACCESS_KEY_ID));
-      properties.put(DellProperties.ECS_S3_SECRET_ACCESS_KEY, System.getenv(DellProperties.ECS_S3_SECRET_ACCESS_KEY));
+      properties.put(
+          DellProperties.ECS_S3_ACCESS_KEY_ID, System.getenv(DellProperties.ECS_S3_ACCESS_KEY_ID));
+      properties.put(
+          DellProperties.ECS_S3_SECRET_ACCESS_KEY,
+          System.getenv(DellProperties.ECS_S3_SECRET_ACCESS_KEY));
       properties.put(DellProperties.ECS_S3_ENDPOINT, System.getenv(DellProperties.ECS_S3_ENDPOINT));
       clientProperties = properties;
       client = DellClientFactories.from(properties).ecsS3();
@@ -154,10 +152,10 @@ public class EcsS3MockRule implements TestRule {
         break;
       }
 
-      List<ObjectKey> keys = result.getObjects()
-          .stream()
-          .map(it -> new ObjectKey(it.getKey()))
-          .collect(Collectors.toList());
+      List<ObjectKey> keys =
+          result.getObjects().stream()
+              .map(it -> new ObjectKey(it.getKey()))
+              .collect(Collectors.toList());
       client().deleteObjects(new DeleteObjectsRequest(bucket).withKeys(keys));
     }
 

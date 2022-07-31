@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import java.util.Arrays;
@@ -25,9 +24,7 @@ import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * A namespace in a {@link Catalog}.
- */
+/** A namespace in a {@link Catalog}. */
 public class Namespace {
   private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
   private static final Joiner DOT = Joiner.on('.');
@@ -45,9 +42,9 @@ public class Namespace {
     }
 
     for (String level : levels) {
-      Preconditions.checkNotNull(level,
-          "Cannot create a namespace with a null level");
-      Preconditions.checkArgument(!CONTAINS_NULL_CHARACTER.test(level),
+      Preconditions.checkNotNull(level, "Cannot create a namespace with a null level");
+      Preconditions.checkArgument(
+          !CONTAINS_NULL_CHARACTER.test(level),
           "Cannot create a namespace with the null-byte character");
     }
 

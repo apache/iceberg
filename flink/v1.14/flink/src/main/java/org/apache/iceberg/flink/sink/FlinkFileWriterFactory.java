@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
+
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 
 import java.io.Serializable;
 import java.util.Locale;
@@ -40,24 +44,35 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
-
 class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements Serializable {
   private RowType dataFlinkType;
   private RowType equalityDeleteFlinkType;
   private RowType positionDeleteFlinkType;
 
-  FlinkFileWriterFactory(Table table, FileFormat dataFileFormat, Schema dataSchema, RowType dataFlinkType,
-                         SortOrder dataSortOrder, FileFormat deleteFileFormat,
-                         int[] equalityFieldIds, Schema equalityDeleteRowSchema, RowType equalityDeleteFlinkType,
-                         SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema,
-                         RowType positionDeleteFlinkType) {
+  FlinkFileWriterFactory(
+      Table table,
+      FileFormat dataFileFormat,
+      Schema dataSchema,
+      RowType dataFlinkType,
+      SortOrder dataSortOrder,
+      FileFormat deleteFileFormat,
+      int[] equalityFieldIds,
+      Schema equalityDeleteRowSchema,
+      RowType equalityDeleteFlinkType,
+      SortOrder equalityDeleteSortOrder,
+      Schema positionDeleteRowSchema,
+      RowType positionDeleteFlinkType) {
 
-    super(table, dataFileFormat, dataSchema, dataSortOrder, deleteFileFormat, equalityFieldIds,
-        equalityDeleteRowSchema, equalityDeleteSortOrder, positionDeleteRowSchema);
+    super(
+        table,
+        dataFileFormat,
+        dataSchema,
+        dataSortOrder,
+        deleteFileFormat,
+        equalityFieldIds,
+        equalityDeleteRowSchema,
+        equalityDeleteSortOrder,
+        positionDeleteRowSchema);
 
     this.dataFlinkType = dataFlinkType;
     this.equalityDeleteFlinkType = equalityDeleteFlinkType;
@@ -83,7 +98,8 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
     int rowFieldIndex = positionDeleteFlinkType().getFieldIndex(DELETE_FILE_ROW_FIELD_NAME);
     if (rowFieldIndex >= 0) {
       // FlinkAvroWriter accepts just the Flink type of the row ignoring the path and pos
-      RowType positionDeleteRowFlinkType = (RowType) positionDeleteFlinkType().getTypeAt(rowFieldIndex);
+      RowType positionDeleteRowFlinkType =
+          (RowType) positionDeleteFlinkType().getTypeAt(rowFieldIndex);
       builder.createWriterFunc(ignored -> new FlinkAvroWriter(positionDeleteRowFlinkType));
     }
   }
@@ -95,28 +111,33 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
   @Override
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(equalityDeleteFlinkType(), msgType));
+    builder.createWriterFunc(
+        msgType -> FlinkParquetWriters.buildWriter(equalityDeleteFlinkType(), msgType));
   }
 
   @Override
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(positionDeleteFlinkType(), msgType));
+    builder.createWriterFunc(
+        msgType -> FlinkParquetWriters.buildWriter(positionDeleteFlinkType(), msgType));
     builder.transformPaths(path -> StringData.fromString(path.toString()));
   }
 
   @Override
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(dataFlinkType(), iSchema));
+    builder.createWriterFunc(
+        (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(dataFlinkType(), iSchema));
   }
 
   @Override
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(equalityDeleteFlinkType(), iSchema));
+    builder.createWriterFunc(
+        (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(equalityDeleteFlinkType(), iSchema));
   }
 
   @Override
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(positionDeleteFlinkType(), iSchema));
+    builder.createWriterFunc(
+        (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(positionDeleteFlinkType(), iSchema));
     builder.transformPaths(path -> StringData.fromString(path.toString()));
   }
 
@@ -131,7 +152,8 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
   private RowType equalityDeleteFlinkType() {
     if (equalityDeleteFlinkType == null) {
-      Preconditions.checkNotNull(equalityDeleteRowSchema(), "Equality delete schema must not be null");
+      Preconditions.checkNotNull(
+          equalityDeleteRowSchema(), "Equality delete schema must not be null");
       this.equalityDeleteFlinkType = FlinkSchemaUtil.convert(equalityDeleteRowSchema());
     }
 
@@ -140,7 +162,8 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
   private RowType positionDeleteFlinkType() {
     if (positionDeleteFlinkType == null) {
-      // wrap the optional row schema into the position delete schema that contains path and position
+      // wrap the optional row schema into the position delete schema that contains path and
+      // position
       Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema());
       this.positionDeleteFlinkType = FlinkSchemaUtil.convert(positionDeleteSchema);
     }
@@ -167,10 +190,12 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
       Map<String, String> properties = table.properties();
 
-      String dataFileFormatName = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+      String dataFileFormatName =
+          properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
       this.dataFileFormat = FileFormat.valueOf(dataFileFormatName.toUpperCase(Locale.ENGLISH));
 
-      String deleteFileFormatName = properties.getOrDefault(DELETE_DEFAULT_FILE_FORMAT, dataFileFormatName);
+      String deleteFileFormatName =
+          properties.getOrDefault(DELETE_DEFAULT_FILE_FORMAT, dataFileFormatName);
       this.deleteFileFormat = FileFormat.valueOf(deleteFileFormatName.toUpperCase(Locale.ENGLISH));
     }
 
@@ -186,8 +211,8 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
     /**
      * Sets a Flink type for data.
-     * <p>
-     * If not set, the value is derived from the provided Iceberg schema.
+     *
+     * <p>If not set, the value is derived from the provided Iceberg schema.
      */
     Builder dataFlinkType(RowType newDataFlinkType) {
       this.dataFlinkType = newDataFlinkType;
@@ -216,8 +241,8 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
     /**
      * Sets a Flink type for equality deletes.
-     * <p>
-     * If not set, the value is derived from the provided Iceberg schema.
+     *
+     * <p>If not set, the value is derived from the provided Iceberg schema.
      */
     Builder equalityDeleteFlinkType(RowType newEqualityDeleteFlinkType) {
       this.equalityDeleteFlinkType = newEqualityDeleteFlinkType;
@@ -236,8 +261,8 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
     /**
      * Sets a Flink type for position deletes.
-     * <p>
-     * If not set, the value is derived from the provided Iceberg schema.
+     *
+     * <p>If not set, the value is derived from the provided Iceberg schema.
      */
     Builder positionDeleteFlinkType(RowType newPositionDeleteFlinkType) {
       this.positionDeleteFlinkType = newPositionDeleteFlinkType;
@@ -247,13 +272,23 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
     FlinkFileWriterFactory build() {
       boolean noEqualityDeleteConf = equalityFieldIds == null && equalityDeleteRowSchema == null;
       boolean fullEqualityDeleteConf = equalityFieldIds != null && equalityDeleteRowSchema != null;
-      Preconditions.checkArgument(noEqualityDeleteConf || fullEqualityDeleteConf,
+      Preconditions.checkArgument(
+          noEqualityDeleteConf || fullEqualityDeleteConf,
           "Equality field IDs and equality delete row schema must be set together");
 
       return new FlinkFileWriterFactory(
-          table, dataFileFormat, dataSchema, dataFlinkType, dataSortOrder, deleteFileFormat,
-          equalityFieldIds, equalityDeleteRowSchema, equalityDeleteFlinkType, equalityDeleteSortOrder,
-          positionDeleteRowSchema, positionDeleteFlinkType);
+          table,
+          dataFileFormat,
+          dataSchema,
+          dataFlinkType,
+          dataSortOrder,
+          deleteFileFormat,
+          equalityFieldIds,
+          equalityDeleteRowSchema,
+          equalityDeleteFlinkType,
+          equalityDeleteSortOrder,
+          positionDeleteRowSchema,
+          positionDeleteFlinkType);
     }
   }
 }

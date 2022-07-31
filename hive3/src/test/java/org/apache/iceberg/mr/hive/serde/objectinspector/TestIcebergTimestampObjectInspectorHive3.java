@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.time.Instant;
@@ -37,7 +36,8 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     IcebergTimestampObjectInspectorHive3 oi = IcebergTimestampObjectInspectorHive3.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
-    Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP, oi.getPrimitiveCategory());
+    Assert.assertEquals(
+        PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP, oi.getPrimitiveCategory());
 
     Assert.assertEquals(TypeInfoFactory.timestampTypeInfo, oi.getTypeInfo());
     Assert.assertEquals(TypeInfoFactory.timestampTypeInfo.getTypeName(), oi.getTypeName());
@@ -51,7 +51,9 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNull(oi.convert(null));
 
     long epochMilli = 1601471970000L;
-    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC")).plusNanos(34000);
+    LocalDateTime local =
+        LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC"))
+            .plusNanos(34000);
     Timestamp ts = Timestamp.ofEpochMilli(epochMilli);
     ts.setNanos(34000);
 
@@ -67,5 +69,4 @@ public class TestIcebergTimestampObjectInspectorHive3 {
 
     Assert.assertEquals(local, oi.convert(ts));
   }
-
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import org.apache.iceberg.AssertHelpers;
@@ -35,20 +34,24 @@ public class TestStaticTable extends HadoopTableTestBase {
   }
 
   private Table getStaticTable(MetadataTableType type) {
-    return TABLES.load(((HasTableOperations) table).operations().current().metadataFileLocation() + "#" + type);
+    return TABLES.load(
+        ((HasTableOperations) table).operations().current().metadataFileLocation() + "#" + type);
   }
 
   @Test
   public void testLoadFromMetadata() {
     Table staticTable = getStaticTable();
-    Assert.assertTrue("Loading a metadata file based table should return StaticTableOperations",
+    Assert.assertTrue(
+        "Loading a metadata file based table should return StaticTableOperations",
         ((HasTableOperations) staticTable).operations() instanceof StaticTableOperations);
   }
 
   @Test
   public void testCannotBeAddedTo() {
     Table staticTable = getStaticTable();
-    AssertHelpers.assertThrows("Cannot modify a static table", UnsupportedOperationException.class,
+    AssertHelpers.assertThrows(
+        "Cannot modify a static table",
+        UnsupportedOperationException.class,
         () -> staticTable.newOverwrite().addFile(FILE_A).commit());
   }
 
@@ -56,7 +59,9 @@ public class TestStaticTable extends HadoopTableTestBase {
   public void testCannotBeDeletedFrom() {
     table.newAppend().appendFile(FILE_A).commit();
     Table staticTable = getStaticTable();
-    AssertHelpers.assertThrows("Cannot modify a static table", UnsupportedOperationException.class,
+    AssertHelpers.assertThrows(
+        "Cannot modify a static table",
+        UnsupportedOperationException.class,
         () -> staticTable.newDelete().deleteFile(FILE_A).commit());
   }
 
@@ -66,7 +71,8 @@ public class TestStaticTable extends HadoopTableTestBase {
 
     for (MetadataTableType type : MetadataTableType.values()) {
       Table staticTable = getStaticTable(type);
-      AssertHelpers.assertThrows("Static tables do not support incremental scans",
+      AssertHelpers.assertThrows(
+          "Static tables do not support incremental scans",
           UnsupportedOperationException.class,
           String.format("Cannot incrementally scan table of type %s", type),
           () -> staticTable.newScan().appendsAfter(1));
@@ -79,11 +85,12 @@ public class TestStaticTable extends HadoopTableTestBase {
     table.newAppend().appendFile(FILE_B).commit();
     table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
     Table staticTable = getStaticTable();
-    Assert.assertTrue("Same history?",
-        table.history().containsAll(staticTable.history()));
-    Assert.assertTrue("Same snapshot?",
-        table.currentSnapshot().snapshotId() ==  staticTable.currentSnapshot().snapshotId());
-    Assert.assertTrue("Same properties?",
+    Assert.assertTrue("Same history?", table.history().containsAll(staticTable.history()));
+    Assert.assertTrue(
+        "Same snapshot?",
+        table.currentSnapshot().snapshotId() == staticTable.currentSnapshot().snapshotId());
+    Assert.assertTrue(
+        "Same properties?",
         Maps.difference(table.properties(), staticTable.properties()).areEqual());
   }
 
@@ -97,18 +104,19 @@ public class TestStaticTable extends HadoopTableTestBase {
     table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
     staticTable.refresh();
 
-    Assert.assertEquals("Snapshot unchanged after table modified",
-        staticTable.currentSnapshot().snapshotId(), originalSnapshot);
+    Assert.assertEquals(
+        "Snapshot unchanged after table modified",
+        staticTable.currentSnapshot().snapshotId(),
+        originalSnapshot);
   }
 
   @Test
   public void testMetadataTables() {
     for (MetadataTableType type : MetadataTableType.values()) {
       String enumName = type.name().replace("_", "").toLowerCase();
-      Assert.assertTrue("Should be able to get MetadataTable of type : " + type,
+      Assert.assertTrue(
+          "Should be able to get MetadataTable of type : " + type,
           getStaticTable(type).getClass().getName().toLowerCase().contains(enumName));
     }
   }
-
-
 }

@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 /**
- * This exception occurs when one cherrypicks an ancestor or when the picked snapshot is already linked to
- * a published ancestor. This additionally helps avoid duplicate cherrypicks on non-WAP snapshots.
+ * This exception occurs when one cherrypicks an ancestor or when the picked snapshot is already
+ * linked to a published ancestor. This additionally helps avoid duplicate cherrypicks on non-WAP
+ * snapshots.
  */
 public class CherrypickAncestorCommitException extends ValidationException {
 
@@ -30,7 +30,8 @@ public class CherrypickAncestorCommitException extends ValidationException {
   }
 
   public CherrypickAncestorCommitException(long snapshotId, long publishedAncestorId) {
-    super("Cannot cherrypick snapshot %s: already picked to create ancestor %s",
+    super(
+        "Cannot cherrypick snapshot %s: already picked to create ancestor %s",
         String.valueOf(snapshotId), String.valueOf(publishedAncestorId));
   }
 }

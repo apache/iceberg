@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -25,6 +24,9 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.IncrementalAppendScan;
+import org.apache.iceberg.Scan;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -37,11 +39,12 @@ import org.apache.iceberg.util.Tasks;
 
 @Internal
 public class FlinkSplitPlanner {
-  private FlinkSplitPlanner() {
-  }
+  private FlinkSplitPlanner() {}
 
-  static FlinkInputSplit[] planInputSplits(Table table, ScanContext context, ExecutorService workerPool) {
-    try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context, workerPool)) {
+  static FlinkInputSplit[] planInputSplits(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    try (CloseableIterable<CombinedScanTask> tasksIterable =
+        planTasks(table, context, workerPool)) {
       List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
       FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
       boolean exposeLocality = context.exposeLocality();
@@ -49,77 +52,111 @@ public class FlinkSplitPlanner {
       Tasks.range(tasks.size())
           .stopOnFailure()
           .executeWith(exposeLocality ? workerPool : null)
-          .run(index -> {
-            CombinedScanTask task = tasks.get(index);
-            String[] hostnames = null;
-            if (exposeLocality) {
-              hostnames = Util.blockLocations(table.io(), task);
-            }
-            splits[index] = new FlinkInputSplit(index, task, hostnames);
-          });
+          .run(
+              index -> {
+                CombinedScanTask task = tasks.get(index);
+                String[] hostnames = null;
+                if (exposeLocality) {
+                  hostnames = Util.blockLocations(table.io(), task);
+                }
+                splits[index] = new FlinkInputSplit(index, task, hostnames);
+              });
       return splits;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process tasks iterable", e);
     }
   }
 
-  /**
-   * This returns splits for the FLIP-27 source
-   */
+  /** This returns splits for the FLIP-27 source */
   public static List<IcebergSourceSplit> planIcebergSourceSplits(
       Table table, ScanContext context, ExecutorService workerPool) {
-    try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context, workerPool)) {
-      return Lists.newArrayList(CloseableIterable.transform(tasksIterable, IcebergSourceSplit::fromCombinedScanTask));
+    try (CloseableIterable<CombinedScanTask> tasksIterable =
+        planTasks(table, context, workerPool)) {
+      return Lists.newArrayList(
+          CloseableIterable.transform(tasksIterable, IcebergSourceSplit::fromCombinedScanTask));
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process task iterable: ", e);
     }
   }
 
-  static CloseableIterable<CombinedScanTask> planTasks(Table table, ScanContext context, ExecutorService workerPool) {
-    TableScan scan = table
-        .newScan()
-        .caseSensitive(context.caseSensitive())
-        .project(context.project())
-        .planWith(workerPool);
+  static CloseableIterable<CombinedScanTask> planTasks(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    ScanMode scanMode = checkScanMode(context);
+    if (scanMode == ScanMode.INCREMENTAL_APPEND_SCAN) {
+      IncrementalAppendScan scan = table.newIncrementalAppendScan();
+      scan = refineScanWithBaseConfigs(scan, context, workerPool);
+
+      if (context.startSnapshotId() != null) {
+        scan = scan.fromSnapshotExclusive(context.startSnapshotId());
+      }
+
+      if (context.endSnapshotId() != null) {
+        scan = scan.toSnapshot(context.endSnapshotId());
+      }
+
+      return scan.planTasks();
+    } else {
+      TableScan scan = table.newScan();
+      scan = refineScanWithBaseConfigs(scan, context, workerPool);
+
+      if (context.snapshotId() != null) {
+        scan = scan.useSnapshot(context.snapshotId());
+      }
+
+      if (context.asOfTimestamp() != null) {
+        scan = scan.asOfTime(context.asOfTimestamp());
+      }
+
+      return scan.planTasks();
+    }
+  }
+
+  private enum ScanMode {
+    BATCH,
+    INCREMENTAL_APPEND_SCAN
+  }
+
+  private static ScanMode checkScanMode(ScanContext context) {
+    if (context.isStreaming()
+        || context.startSnapshotId() != null
+        || context.endSnapshotId() != null) {
+      return ScanMode.INCREMENTAL_APPEND_SCAN;
+    } else {
+      return ScanMode.BATCH;
+    }
+  }
+
+  /** refine scan with common configs */
+  private static <T extends Scan<T, FileScanTask, CombinedScanTask>> T refineScanWithBaseConfigs(
+      T scan, ScanContext context, ExecutorService workerPool) {
+    T refinedScan =
+        scan.caseSensitive(context.caseSensitive()).project(context.project()).planWith(workerPool);
 
     if (context.includeColumnStats()) {
-      scan = scan.includeColumnStats();
-    }
-
-    if (context.snapshotId() != null) {
-      scan = scan.useSnapshot(context.snapshotId());
-    }
-
-    if (context.asOfTimestamp() != null) {
-      scan = scan.asOfTime(context.asOfTimestamp());
-    }
-
-    if (context.startSnapshotId() != null) {
-      if (context.endSnapshotId() != null) {
-        scan = scan.appendsBetween(context.startSnapshotId(), context.endSnapshotId());
-      } else {
-        scan = scan.appendsAfter(context.startSnapshotId());
-      }
+      refinedScan = refinedScan.includeColumnStats();
     }
 
     if (context.splitSize() != null) {
-      scan = scan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
+      refinedScan = refinedScan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
     }
 
     if (context.splitLookback() != null) {
-      scan = scan.option(TableProperties.SPLIT_LOOKBACK, context.splitLookback().toString());
+      refinedScan =
+          refinedScan.option(TableProperties.SPLIT_LOOKBACK, context.splitLookback().toString());
     }
 
     if (context.splitOpenFileCost() != null) {
-      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
+      refinedScan =
+          refinedScan.option(
+              TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
     }
 
     if (context.filters() != null) {
       for (Expression filter : context.filters()) {
-        scan = scan.filter(filter);
+        refinedScan = refinedScan.filter(filter);
       }
     }
 
-    return scan.planTasks();
+    return refinedScan;
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
@@ -32,9 +31,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 
-/**
- * {@link OutputFile} implementation using the Hadoop {@link FileSystem} API.
- */
+/** {@link OutputFile} implementation using the Hadoop {@link FileSystem} API. */
 public class HadoopOutputFile implements OutputFile, NativelyEncryptedFile {
 
   private final FileSystem fs;

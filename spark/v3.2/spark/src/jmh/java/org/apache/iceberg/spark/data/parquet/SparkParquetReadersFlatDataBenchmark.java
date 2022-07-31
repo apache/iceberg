@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.parquet;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,15 +54,11 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 /**
  * A benchmark that evaluates the performance of reading Parquet data with a flat schema using
  * Iceberg and Spark Parquet readers.
  *
- * To run this benchmark for spark-3.2:
- * <code>
+ * <p>To run this benchmark for spark-3.2: <code>
  *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
  *       -PjmhIncludeRegex=SparkParquetReadersFlatDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-readers-flat-data-benchmark-result.txt
@@ -73,22 +71,23 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @BenchmarkMode(Mode.SingleShotTime)
 public class SparkParquetReadersFlatDataBenchmark {
 
-  private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
-      .impl(UnsafeProjection.class, InternalRow.class)
-      .build();
-  private static final Schema SCHEMA = new Schema(
-      required(1, "longCol", Types.LongType.get()),
-      required(2, "intCol", Types.IntegerType.get()),
-      required(3, "floatCol", Types.FloatType.get()),
-      optional(4, "doubleCol", Types.DoubleType.get()),
-      optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-      optional(6, "dateCol", Types.DateType.get()),
-      optional(7, "timestampCol", Types.TimestampType.withZone()),
-      optional(8, "stringCol", Types.StringType.get()));
-  private static final Schema PROJECTED_SCHEMA = new Schema(
-      required(1, "longCol", Types.LongType.get()),
-      optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-      optional(8, "stringCol", Types.StringType.get()));
+  private static final DynMethods.UnboundMethod APPLY_PROJECTION =
+      DynMethods.builder("apply").impl(UnsafeProjection.class, InternalRow.class).build();
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "longCol", Types.LongType.get()),
+          required(2, "intCol", Types.IntegerType.get()),
+          required(3, "floatCol", Types.FloatType.get()),
+          optional(4, "doubleCol", Types.DoubleType.get()),
+          optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
+          optional(6, "dateCol", Types.DateType.get()),
+          optional(7, "timestampCol", Types.TimestampType.withZone()),
+          optional(8, "stringCol", Types.StringType.get()));
+  private static final Schema PROJECTED_SCHEMA =
+      new Schema(
+          required(1, "longCol", Types.LongType.get()),
+          optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
+          optional(8, "stringCol", Types.StringType.get()));
   private static final int NUM_RECORDS = 10000000;
   private File dataFile;
 
@@ -97,10 +96,8 @@ public class SparkParquetReadersFlatDataBenchmark {
     dataFile = File.createTempFile("parquet-flat-data-benchmark", ".parquet");
     dataFile.delete();
     List<GenericData.Record> records = RandomData.generateList(SCHEMA, NUM_RECORDS, 0L);
-    try (FileAppender<GenericData.Record> writer = Parquet.write(Files.localOutput(dataFile))
-        .schema(SCHEMA)
-        .named("benchmark")
-        .build()) {
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(dataFile)).schema(SCHEMA).named("benchmark").build()) {
       writer.addAll(records);
     }
   }
@@ -115,10 +112,11 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Benchmark
   @Threads(1)
   public void readUsingIcebergReader(Blackhole blackHole) throws IOException {
-    try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
-        .project(SCHEMA)
-        .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
-        .build()) {
+    try (CloseableIterable<InternalRow> rows =
+        Parquet.read(Files.localInput(dataFile))
+            .project(SCHEMA)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
+            .build()) {
 
       for (InternalRow row : rows) {
         blackHole.consume(row);
@@ -129,14 +127,15 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Benchmark
   @Threads(1)
   public void readUsingIcebergReaderUnsafe(Blackhole blackhole) throws IOException {
-    try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
-        .project(SCHEMA)
-        .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
-        .build()) {
+    try (CloseableIterable<InternalRow> rows =
+        Parquet.read(Files.localInput(dataFile))
+            .project(SCHEMA)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
+            .build()) {
 
-      Iterable<InternalRow> unsafeRows = Iterables.transform(
-          rows,
-          APPLY_PROJECTION.bind(SparkBenchmarkUtil.projection(SCHEMA, SCHEMA))::invoke);
+      Iterable<InternalRow> unsafeRows =
+          Iterables.transform(
+              rows, APPLY_PROJECTION.bind(SparkBenchmarkUtil.projection(SCHEMA, SCHEMA))::invoke);
 
       for (InternalRow row : unsafeRows) {
         blackhole.consume(row);
@@ -148,14 +147,15 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Threads(1)
   public void readUsingSparkReader(Blackhole blackhole) throws IOException {
     StructType sparkSchema = SparkSchemaUtil.convert(SCHEMA);
-    try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
-        .project(SCHEMA)
-        .readSupport(new ParquetReadSupport())
-        .set("org.apache.spark.sql.parquet.row.requested_schema", sparkSchema.json())
-        .set("spark.sql.parquet.binaryAsString", "false")
-        .set("spark.sql.parquet.int96AsTimestamp", "false")
-        .callInit()
-        .build()) {
+    try (CloseableIterable<InternalRow> rows =
+        Parquet.read(Files.localInput(dataFile))
+            .project(SCHEMA)
+            .readSupport(new ParquetReadSupport())
+            .set("org.apache.spark.sql.parquet.row.requested_schema", sparkSchema.json())
+            .set("spark.sql.parquet.binaryAsString", "false")
+            .set("spark.sql.parquet.int96AsTimestamp", "false")
+            .callInit()
+            .build()) {
 
       for (InternalRow row : rows) {
         blackhole.consume(row);
@@ -166,10 +166,11 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Benchmark
   @Threads(1)
   public void readWithProjectionUsingIcebergReader(Blackhole blackhole) throws IOException {
-    try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
-        .project(PROJECTED_SCHEMA)
-        .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
-        .build()) {
+    try (CloseableIterable<InternalRow> rows =
+        Parquet.read(Files.localInput(dataFile))
+            .project(PROJECTED_SCHEMA)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
+            .build()) {
 
       for (InternalRow row : rows) {
         blackhole.consume(row);
@@ -180,14 +181,18 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Benchmark
   @Threads(1)
   public void readWithProjectionUsingIcebergReaderUnsafe(Blackhole blackhole) throws IOException {
-    try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
-        .project(PROJECTED_SCHEMA)
-        .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
-        .build()) {
+    try (CloseableIterable<InternalRow> rows =
+        Parquet.read(Files.localInput(dataFile))
+            .project(PROJECTED_SCHEMA)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
+            .build()) {
 
-      Iterable<InternalRow> unsafeRows = Iterables.transform(
-          rows,
-          APPLY_PROJECTION.bind(SparkBenchmarkUtil.projection(PROJECTED_SCHEMA, PROJECTED_SCHEMA))::invoke);
+      Iterable<InternalRow> unsafeRows =
+          Iterables.transform(
+              rows,
+              APPLY_PROJECTION.bind(
+                      SparkBenchmarkUtil.projection(PROJECTED_SCHEMA, PROJECTED_SCHEMA))
+                  ::invoke);
 
       for (InternalRow row : unsafeRows) {
         blackhole.consume(row);
@@ -199,14 +204,15 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Threads(1)
   public void readWithProjectionUsingSparkReader(Blackhole blackhole) throws IOException {
     StructType sparkSchema = SparkSchemaUtil.convert(PROJECTED_SCHEMA);
-    try (CloseableIterable<InternalRow> rows = Parquet.read(Files.localInput(dataFile))
-        .project(PROJECTED_SCHEMA)
-        .readSupport(new ParquetReadSupport())
-        .set("org.apache.spark.sql.parquet.row.requested_schema", sparkSchema.json())
-        .set("spark.sql.parquet.binaryAsString", "false")
-        .set("spark.sql.parquet.int96AsTimestamp", "false")
-        .callInit()
-        .build()) {
+    try (CloseableIterable<InternalRow> rows =
+        Parquet.read(Files.localInput(dataFile))
+            .project(PROJECTED_SCHEMA)
+            .readSupport(new ParquetReadSupport())
+            .set("org.apache.spark.sql.parquet.row.requested_schema", sparkSchema.json())
+            .set("spark.sql.parquet.binaryAsString", "false")
+            .set("spark.sql.parquet.int96AsTimestamp", "false")
+            .callInit()
+            .build()) {
 
       for (InternalRow row : rows) {
         blackhole.consume(row);

@@ -16,15 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.concurrent.TimeUnit;
 
 public class CatalogProperties {
 
-  private CatalogProperties() {
-  }
+  private CatalogProperties() {}
 
   public static final String CATALOG_IMPL = "catalog-impl";
   public static final String FILE_IO_IMPL = "io-impl";
@@ -34,32 +32,38 @@ public class CatalogProperties {
 
   /**
    * Controls whether the catalog will cache table entries upon load.
-   * <p>
-   * If {@link #CACHE_EXPIRATION_INTERVAL_MS} is set to zero, this value
-   * will be ignored and the cache will be disabled.
+   *
+   * <p>If {@link #CACHE_EXPIRATION_INTERVAL_MS} is set to zero, this value will be ignored and the
+   * cache will be disabled.
    */
   public static final String CACHE_ENABLED = "cache-enabled";
+
   public static final boolean CACHE_ENABLED_DEFAULT = true;
 
   /**
    * Controls the duration for which entries in the catalog are cached.
-   * <p>
-   * Behavior of specific values of cache.expiration-interval-ms:
+   *
+   * <p>Behavior of specific values of cache.expiration-interval-ms:
+   *
    * <ul>
-   *   <li> Zero - Caching and cache expiration are both disabled</li>
-   *   <li> Negative Values - Cache expiration is turned off and entries expire only on refresh etc</li>
-   *   <li> Positive Values - Cache entries expire if not accessed via the cache after this many milliseconds</li>
+   *   <li>Zero - Caching and cache expiration are both disabled
+   *   <li>Negative Values - Cache expiration is turned off and entries expire only on refresh etc
+   *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
+   *       milliseconds
    * </ul>
    */
   public static final String CACHE_EXPIRATION_INTERVAL_MS = "cache.expiration-interval-ms";
+
   public static final long CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(30);
   public static final long CACHE_EXPIRATION_INTERVAL_MS_OFF = -1;
 
   public static final String URI = "uri";
   public static final String CLIENT_POOL_SIZE = "clients";
   public static final int CLIENT_POOL_SIZE_DEFAULT = 2;
-  public static final String CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS = "client.pool.cache.eviction-interval-ms";
-  public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
+  public static final String CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS =
+      "client.pool.cache.eviction-interval-ms";
+  public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT =
+      TimeUnit.MINUTES.toMillis(5);
 
   public static final String LOCK_IMPL = "lock-impl";
 
@@ -83,4 +87,9 @@ public class CatalogProperties {
   public static final String APP_ID = "app-id";
   public static final String USER = "user";
 
+  public static final String AUTH_DEFAULT_REFRESH_ENABLED = "auth.default-refresh-enabled";
+  public static final boolean AUTH_DEFAULT_REFRESH_ENABLED_DEFAULT = false;
+
+  public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
+  public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
 }

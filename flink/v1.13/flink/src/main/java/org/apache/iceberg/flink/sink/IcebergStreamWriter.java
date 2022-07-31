@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
@@ -83,7 +82,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   @Override
   public void endInput() throws IOException {
-    // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the remaining
+    // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the
+    // remaining
     // completed files to downstream before closing the writer so that we won't miss any of them.
     emit(writer.complete());
   }

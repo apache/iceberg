@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -29,7 +28,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * Writer for manifest files.
  *
- * @param <F> Java class of files written to the manifest, either {@link DataFile} or {@link DeleteFile}.
+ * @param <F> Java class of files written to the manifest, either {@link DataFile} or {@link
+ *     DeleteFile}.
  */
 public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAppender<F> {
   // stand-in for the current sequence number that will be assigned when the commit is successful
@@ -63,7 +63,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
 
-  protected abstract FileAppender<ManifestEntry<F>> newAppender(PartitionSpec spec, OutputFile outputFile);
+  protected abstract FileAppender<ManifestEntry<F>> newAppender(
+      PartitionSpec spec, OutputFile outputFile);
 
   protected ManifestContent content() {
     return ManifestContent.DATA;
@@ -85,7 +86,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         break;
     }
     stats.update(entry.file().partition());
-    if (entry.sequenceNumber() != null && (minSequenceNumber == null || entry.sequenceNumber() < minSequenceNumber)) {
+    if (entry.sequenceNumber() != null
+        && (minSequenceNumber == null || entry.sequenceNumber() < minSequenceNumber)) {
       this.minSequenceNumber = entry.sequenceNumber();
     }
     writer.add(prepare(entry));
@@ -93,8 +95,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   /**
    * Add an added entry for a file.
-   * <p>
-   * The entry's snapshot ID will be this manifest's snapshot ID.
+   *
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID.
    *
    * @param addedFile a data file
    */
@@ -105,9 +107,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   /**
    * Add an added entry for a file with a specific sequence number.
-   * <p>
-   * The entry's snapshot ID will be this manifest's snapshot ID.
-   * The entry's sequence number will be the provided sequence number.
+   *
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID. The entry's sequence number
+   * will be the provided sequence number.
    *
    * @param addedFile a data file
    * @param sequenceNumber sequence number for the data file
@@ -141,8 +143,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   /**
    * Add a delete entry for a file.
-   * <p>
-   * The entry's snapshot ID will be this manifest's snapshot ID.
+   *
+   * <p>The entry's snapshot ID will be this manifest's snapshot ID.
    *
    * @param deletedFile a file
    */
@@ -168,12 +170,27 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
-    // if the minSequenceNumber is null, then no manifests with a sequence number have been written, so the min
-    // sequence number is the one that will be assigned when this is committed. pass UNASSIGNED_SEQ to inherit it.
+    // if the minSequenceNumber is null, then no manifests with a sequence number have been written,
+    // so the min
+    // sequence number is the one that will be assigned when this is committed. pass UNASSIGNED_SEQ
+    // to inherit it.
     long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : UNASSIGNED_SEQ;
-    return new GenericManifestFile(file.location(), writer.length(), specId, content(),
-        UNASSIGNED_SEQ, minSeqNumber, snapshotId,
-        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(), null);
+    return new GenericManifestFile(
+        file.location(),
+        writer.length(),
+        specId,
+        content(),
+        UNASSIGNED_SEQ,
+        minSeqNumber,
+        snapshotId,
+        addedFiles,
+        addedRows,
+        existingFiles,
+        existingRows,
+        deletedFiles,
+        deletedRows,
+        stats.summaries(),
+        null);
   }
 
   @Override
@@ -196,7 +213,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
-    protected FileAppender<ManifestEntry<DataFile>> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)
@@ -229,7 +247,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
-    protected FileAppender<ManifestEntry<DeleteFile>> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)
@@ -267,7 +286,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     @Override
-    protected FileAppender<ManifestEntry<DataFile>> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)

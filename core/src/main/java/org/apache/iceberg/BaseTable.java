@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -28,12 +27,12 @@ import org.apache.iceberg.io.LocationProvider;
 
 /**
  * Base {@link Table} implementation.
- * <p>
- * This can be extended by providing a {@link TableOperations} to the constructor.
- * <p>
- * Serializing and deserializing a BaseTable object returns a read only implementation of the BaseTable using a
- * {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
- * deserialization.
+ *
+ * <p>This can be extended by providing a {@link TableOperations} to the constructor.
+ *
+ * <p>Serializing and deserializing a BaseTable object returns a read only implementation of the
+ * BaseTable using a {@link StaticTableOperations}. This way no Catalog related calls are needed
+ * when reading the table data after deserialization.
  */
 public class BaseTable implements Table, HasTableOperations, Serializable {
   private final TableOperations ops;
@@ -62,6 +61,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public TableScan newScan() {
     return new DataTableScan(ops, this);
+  }
+
+  @Override
+  public IncrementalAppendScan newIncrementalAppendScan() {
+    return new BaseIncrementalAppendScan(ops, this);
   }
 
   @Override

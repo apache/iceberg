@@ -16,8 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hive;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
@@ -44,17 +54,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 public class TestHiveCommitLocks extends HiveTableBaseTest {
   private static HiveTableOperations spyOps = null;
   private static HiveClientPool spyClientPool = null;
@@ -80,12 +79,14 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     // Set up the spy clients as static variables instead of before every test.
     // The spy clients are reused between methods and closed at the end of all tests in this class.
     spyClientPool = spy(new HiveClientPool(1, overriddenHiveConf));
-    when(spyClientPool.newClient()).thenAnswer(invocation -> {
-      // cannot spy on RetryingHiveMetastoreClient as it is a proxy
-      IMetaStoreClient client = spy(new HiveMetaStoreClient(hiveConf));
-      spyClientRef.set(client);
-      return spyClientRef.get();
-    });
+    when(spyClientPool.newClient())
+        .thenAnswer(
+            invocation -> {
+              // cannot spy on RetryingHiveMetastoreClient as it is a proxy
+              IMetaStoreClient client = spy(new HiveMetaStoreClient(hiveConf));
+              spyClientRef.set(client);
+              return spyClientRef.get();
+            });
 
     spyClientPool.run(IMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
 
@@ -106,9 +107,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     metadataV1 = ops.current();
 
-    table.updateSchema()
-        .addColumn("n", Types.IntegerType.get())
-        .commit();
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
     ops.refresh();
 
@@ -116,8 +115,15 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     Assert.assertEquals(2, ops.current().schema().columns().size());
 
-    spyOps = spy(new HiveTableOperations(overriddenHiveConf, spyCachedClientPool, ops.io(), catalog.name(),
-            dbName, tableName));
+    spyOps =
+        spy(
+            new HiveTableOperations(
+                overriddenHiveConf,
+                spyCachedClientPool,
+                ops.io(),
+                catalog.name(),
+                dbName,
+                tableName));
   }
 
   @AfterClass
@@ -161,7 +167,8 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   public void testLockFailureAtFirstTime() throws TException {
     doReturn(notAcquiredLockResponse).when(spyClient).lock(any());
 
-    AssertHelpers.assertThrows("Expected an exception",
+    AssertHelpers.assertThrows(
+        "Expected an exception",
         CommitFailedException.class,
         "Could not acquire the lock on",
         () -> spyOps.doCommit(metadataV2, metadataV1));
@@ -178,7 +185,8 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .when(spyClient)
         .checkLock(eq(dummyLockId));
 
-    AssertHelpers.assertThrows("Expected an exception",
+    AssertHelpers.assertThrows(
+        "Expected an exception",
         CommitFailedException.class,
         "Could not acquire the lock on",
         () -> spyOps.doCommit(metadataV2, metadataV1));
@@ -189,7 +197,8 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     doReturn(waitLockResponse).when(spyClient).lock(any());
     doReturn(waitLockResponse).when(spyClient).checkLock(eq(dummyLockId));
 
-    AssertHelpers.assertThrows("Expected an exception",
+    AssertHelpers.assertThrows(
+        "Expected an exception",
         CommitFailedException.class,
         "Timed out after",
         () -> spyOps.doCommit(metadataV2, metadataV1));
@@ -198,10 +207,13 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   @Test
   public void testPassThroughThriftExceptions() throws TException {
     doReturn(waitLockResponse).when(spyClient).lock(any());
-    doReturn(waitLockResponse).doThrow(new TException("Test Thrift Exception"))
-        .when(spyClient).checkLock(eq(dummyLockId));
+    doReturn(waitLockResponse)
+        .doThrow(new TException("Test Thrift Exception"))
+        .when(spyClient)
+        .checkLock(eq(dummyLockId));
 
-    AssertHelpers.assertThrows("Expected an exception",
+    AssertHelpers.assertThrows(
+        "Expected an exception",
         RuntimeException.class,
         "Metastore operation failed for",
         () -> spyOps.doCommit(metadataV2, metadataV1));
@@ -210,13 +222,18 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   @Test
   public void testPassThroughInterruptions() throws TException {
     doReturn(waitLockResponse).when(spyClient).lock(any());
-    doReturn(waitLockResponse).doAnswer(invocation -> {
-      Thread.currentThread().interrupt();
-      Thread.sleep(10);
-      return waitLockResponse;
-    }).when(spyClient).checkLock(eq(dummyLockId));
+    doReturn(waitLockResponse)
+        .doAnswer(
+            invocation -> {
+              Thread.currentThread().interrupt();
+              Thread.sleep(10);
+              return waitLockResponse;
+            })
+        .when(spyClient)
+        .checkLock(eq(dummyLockId));
 
-    AssertHelpers.assertThrows("Expected an exception",
+    AssertHelpers.assertThrows(
+        "Expected an exception",
         CommitFailedException.class,
         "Could not acquire the lock on",
         () -> spyOps.doCommit(metadataV2, metadataV1));
@@ -230,15 +247,19 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     // simulate several concurrent commit operations on the same table
     ExecutorService executor = Executors.newFixedThreadPool(numConcurrentCommits);
-    IntStream.range(0, numConcurrentCommits).forEach(i ->
-        executor.submit(() -> {
-          try {
-            spyOps.doCommit(metadataV2, metadataV1);
-          } catch (CommitFailedException e) {
-            // failures are expected here when checking the base version
-            // it's no problem, we're not testing the actual commit success here, only the HMS lock acquisition attempts
-          }
-        }));
+    IntStream.range(0, numConcurrentCommits)
+        .forEach(
+            i ->
+                executor.submit(
+                    () -> {
+                      try {
+                        spyOps.doCommit(metadataV2, metadataV1);
+                      } catch (CommitFailedException e) {
+                        // failures are expected here when checking the base version
+                        // it's no problem, we're not testing the actual commit success here, only
+                        // the HMS lock acquisition attempts
+                      }
+                    }));
     executor.shutdown();
     executor.awaitTermination(30, TimeUnit.SECONDS);
 

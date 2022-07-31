@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Iterator;
@@ -30,18 +29,16 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class SnapshotUtil {
-  private SnapshotUtil() {
-  }
+  private SnapshotUtil() {}
 
-  /**
-   * Returns whether ancestorSnapshotId is an ancestor of snapshotId.
-   */
+  /** Returns whether ancestorSnapshotId is an ancestor of snapshotId. */
   public static boolean isAncestorOf(Table table, long snapshotId, long ancestorSnapshotId) {
     for (Snapshot snapshot : ancestorsOf(snapshotId, table::snapshot)) {
       if (snapshot.snapshotId() == ancestorSnapshotId) {
@@ -53,9 +50,11 @@ public class SnapshotUtil {
   }
 
   /**
-   * Returns whether ancestorSnapshotId is an ancestor of snapshotId using the given lookup function.
+   * Returns whether ancestorSnapshotId is an ancestor of snapshotId using the given lookup
+   * function.
    */
-  public static boolean isAncestorOf(long snapshotId, long ancestorSnapshotId, Function<Long, Snapshot> lookup) {
+  public static boolean isAncestorOf(
+      long snapshotId, long ancestorSnapshotId, Function<Long, Snapshot> lookup) {
     for (Snapshot snapshot : ancestorsOf(snapshotId, lookup)) {
       if (snapshot.snapshotId() == ancestorSnapshotId) {
         return true;
@@ -64,15 +63,26 @@ public class SnapshotUtil {
     return false;
   }
 
-  /**
-   * Returns whether ancestorSnapshotId is an ancestor of the table's current state.
-   */
+  /** Returns whether ancestorSnapshotId is an ancestor of the table's current state. */
   public static boolean isAncestorOf(Table table, long ancestorSnapshotId) {
     return isAncestorOf(table, table.currentSnapshot().snapshotId(), ancestorSnapshotId);
   }
 
+  /** Returns whether some ancestor of snapshotId has parentId matches ancestorParentSnapshotId */
+  public static boolean isParentAncestorOf(
+      Table table, long snapshotId, long ancestorParentSnapshotId) {
+    for (Snapshot snapshot : ancestorsOf(snapshotId, table::snapshot)) {
+      if (snapshot.parentId() == ancestorParentSnapshotId) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   /**
-   * Returns an iterable that traverses the table's snapshots from the current to the last known ancestor.
+   * Returns an iterable that traverses the table's snapshots from the current to the last known
+   * ancestor.
    *
    * @param table a Table
    * @return an iterable from the table's current snapshot to its last known ancestor
@@ -83,9 +93,9 @@ public class SnapshotUtil {
 
   /**
    * Return the snapshot IDs for the ancestors of the current table state.
-   * <p>
-   * Ancestor IDs are ordered by commit time, descending. The first ID is the current snapshot, followed by its parent,
-   * and so on.
+   *
+   * <p>Ancestor IDs are ordered by commit time, descending. The first ID is the current snapshot,
+   * followed by its parent, and so on.
    *
    * @param table a {@link Table}
    * @return a set of snapshot IDs of the known ancestor snapshots, including the current ID
@@ -96,11 +106,32 @@ public class SnapshotUtil {
 
   /**
    * Traverses the history of the table's current snapshot and finds the oldest Snapshot.
+   *
    * @return null if there is no current snapshot in the table, else the oldest Snapshot.
    */
   public static Snapshot oldestAncestor(Table table) {
     Snapshot lastSnapshot = null;
     for (Snapshot snapshot : currentAncestors(table)) {
+      lastSnapshot = snapshot;
+    }
+
+    return lastSnapshot;
+  }
+
+  /**
+   * Traverses the history and finds the oldest ancestor of the specified snapshot.
+   *
+   * <p>Oldest ancestor is defined as the ancestor snapshot whose parent is null or has been
+   * expired. If the specified snapshot has no parent or parent has been expired, the specified
+   * snapshot itself is returned.
+   *
+   * @param snapshotId the ID of the snapshot to find the oldest ancestor
+   * @param lookup lookup function from snapshot ID to snapshot
+   * @return null if there is no current snapshot in the table, else the oldest Snapshot.
+   */
+  public static Snapshot oldestAncestorOf(long snapshotId, Function<Long, Snapshot> lookup) {
+    Snapshot lastSnapshot = null;
+    for (Snapshot snapshot : ancestorsOf(snapshotId, lookup)) {
       lastSnapshot = snapshot;
     }
 
@@ -114,11 +145,13 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history of the table's current snapshot and finds the first snapshot committed after the given time.
+   * Traverses the history of the table's current snapshot and finds the first snapshot committed
+   * after the given time.
    *
    * @param table a table
    * @param timestampMillis a timestamp in milliseconds
-   * @return the first snapshot after the given timestamp, or null if the current snapshot is older than the timestamp
+   * @return the first snapshot after the given timestamp, or null if the current snapshot is older
+   *     than the timestamp
    * @throws IllegalStateException if the first ancestor after the given time can't be determined
    */
   public static Snapshot oldestAncestorAfter(Table table, long timestampMillis) {
@@ -149,70 +182,76 @@ public class SnapshotUtil {
 
   /**
    * Returns list of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
-   * <p>
-   * This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
+   *
+   * <p>This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
    */
   public static List<Long> snapshotIdsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
-    List<Long> snapshotIds = Lists.newArrayList(ancestorIds(table.snapshot(toSnapshotId),
-        snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+    List<Long> snapshotIds =
+        Lists.newArrayList(
+            ancestorIds(
+                table.snapshot(toSnapshotId),
+                snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
     return snapshotIds;
   }
 
-  public static Iterable<Long> ancestorIdsBetween(long latestSnapshotId, Long oldestSnapshotId,
-                                                  Function<Long, Snapshot> lookup) {
+  public static Iterable<Long> ancestorIdsBetween(
+      long latestSnapshotId, Long oldestSnapshotId, Function<Long, Snapshot> lookup) {
     return toIds(ancestorsBetween(latestSnapshotId, oldestSnapshotId, lookup));
   }
 
-  public static Iterable<Snapshot> ancestorsBetween(long latestSnapshotId, Long oldestSnapshotId,
-                                                    Function<Long, Snapshot> lookup) {
+  public static Iterable<Snapshot> ancestorsBetween(
+      long latestSnapshotId, Long oldestSnapshotId, Function<Long, Snapshot> lookup) {
     if (oldestSnapshotId != null) {
       if (latestSnapshotId == oldestSnapshotId) {
         return ImmutableList.of();
       }
 
-      return ancestorsOf(latestSnapshotId,
+      return ancestorsOf(
+          latestSnapshotId,
           snapshotId -> !oldestSnapshotId.equals(snapshotId) ? lookup.apply(snapshotId) : null);
     } else {
       return ancestorsOf(latestSnapshotId, lookup);
     }
   }
 
-  private static Iterable<Snapshot> ancestorsOf(Snapshot snapshot, Function<Long, Snapshot> lookup) {
+  private static Iterable<Snapshot> ancestorsOf(
+      Snapshot snapshot, Function<Long, Snapshot> lookup) {
     if (snapshot != null) {
-      return () -> new Iterator<Snapshot>() {
-        private Snapshot next = snapshot;
-        private boolean consumed = false; // include the snapshot in its history
+      return () ->
+          new Iterator<Snapshot>() {
+            private Snapshot next = snapshot;
+            private boolean consumed = false; // include the snapshot in its history
 
-        @Override
-        public boolean hasNext() {
-          if (!consumed) {
-            return true;
-          }
+            @Override
+            public boolean hasNext() {
+              if (!consumed) {
+                return true;
+              }
 
-          Long parentId = next.parentId();
-          if (parentId == null) {
-            return false;
-          }
+              Long parentId = next.parentId();
+              if (parentId == null) {
+                return false;
+              }
 
-          this.next = lookup.apply(parentId);
-          if (next != null) {
-            this.consumed = false;
-            return true;
-          }
+              this.next = lookup.apply(parentId);
+              if (next != null) {
+                this.consumed = false;
+                return true;
+              }
 
-          return false;
-        }
+              return false;
+            }
 
-        @Override
-        public Snapshot next() {
-          if (hasNext()) {
-            this.consumed = true;
-            return next;
-          }
+            @Override
+            public Snapshot next() {
+              if (hasNext()) {
+                this.consumed = true;
+                return next;
+              }
 
-          throw new NoSuchElementException();
-        }
-      };
+              throw new NoSuchElementException();
+            }
+          };
 
     } else {
       return ImmutableList.of();
@@ -227,7 +266,8 @@ public class SnapshotUtil {
     return Iterables.transform(snapshots, Snapshot::snapshotId);
   }
 
-  public static List<DataFile> newFiles(Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup) {
+  public static List<DataFile> newFiles(
+      Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
     List<DataFile> newFiles = Lists.newArrayList();
     Snapshot lastSnapshot = null;
     for (Snapshot currentSnapshot : ancestorsOf(latestSnapshotId, lookup)) {
@@ -236,25 +276,30 @@ public class SnapshotUtil {
         return newFiles;
       }
 
-      Iterables.addAll(newFiles, currentSnapshot.addedFiles());
+      Iterables.addAll(newFiles, currentSnapshot.addedDataFiles(io));
     }
 
-    ValidationException.check(Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
+    ValidationException.check(
+        Objects.equals(lastSnapshot.parentId(), baseSnapshotId),
         "Cannot determine history between read snapshot %s and the last known ancestor %s",
-        baseSnapshotId, lastSnapshot.snapshotId());
+        baseSnapshotId,
+        lastSnapshot.snapshotId());
 
     return newFiles;
   }
 
   /**
-   * Traverses the history of the table's current snapshot and finds the snapshot with the given snapshot id as its
-   * parent.
+   * Traverses the history of the table's current snapshot and finds the snapshot with the given
+   * snapshot id as its parent.
+   *
    * @return the snapshot for which the given snapshot is the parent
    * @throws IllegalArgumentException when the given snapshotId is not found in the table
-   * @throws IllegalStateException when the given snapshotId is not an ancestor of the current table state
+   * @throws IllegalStateException when the given snapshotId is not an ancestor of the current table
+   *     state
    */
   public static Snapshot snapshotAfter(Table table, long snapshotId) {
-    Preconditions.checkArgument(table.snapshot(snapshotId) != null, "Cannot find parent snapshot: %s", snapshotId);
+    Preconditions.checkArgument(
+        table.snapshot(snapshotId) != null, "Cannot find parent snapshot: %s", snapshotId);
     for (Snapshot current : currentAncestors(table)) {
       if (current.parentId() == snapshotId) {
         return current;
@@ -262,7 +307,9 @@ public class SnapshotUtil {
     }
 
     throw new IllegalStateException(
-        String.format("Cannot find snapshot after %s: not an ancestor of table's current snapshot", snapshotId));
+        String.format(
+            "Cannot find snapshot after %s: not an ancestor of table's current snapshot",
+            snapshotId));
   }
 
   /**
@@ -271,8 +318,8 @@ public class SnapshotUtil {
    * @param table a {@link Table}
    * @param timestampMillis the timestamp in millis since the Unix epoch
    * @return the snapshot ID
-   * @throws IllegalArgumentException when no snapshot is found in the table
-   * older than the timestamp
+   * @throws IllegalArgumentException when no snapshot is found in the table older than the
+   *     timestamp
    */
   public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
     Long snapshotId = null;
@@ -282,8 +329,10 @@ public class SnapshotUtil {
       }
     }
 
-    Preconditions.checkArgument(snapshotId != null,
-        "Cannot find a snapshot older than %s", DateTimeUtil.formatTimestampMillis(timestampMillis));
+    Preconditions.checkArgument(
+        snapshotId != null,
+        "Cannot find a snapshot older than %s",
+        DateTimeUtil.formatTimestampMillis(timestampMillis));
     return snapshotId;
   }
 
@@ -302,8 +351,7 @@ public class SnapshotUtil {
     // schemaId could be null, if snapshot was created before Iceberg added schema id to snapshot
     if (schemaId != null) {
       Schema schema = table.schemas().get(schemaId);
-      Preconditions.checkState(schema != null,
-          "Cannot find schema with schema id %s", schemaId);
+      Preconditions.checkState(schema != null, "Cannot find schema with schema id %s", schemaId);
       return schema;
     }
 
@@ -312,9 +360,9 @@ public class SnapshotUtil {
   }
 
   /**
-   * Convenience method for returning the schema of the table for a snapshot,
-   * when we have a snapshot id or a timestamp. Only one of them should be specified
-   * (non-null), or an IllegalArgumentException is thrown.
+   * Convenience method for returning the schema of the table for a snapshot, when we have a
+   * snapshot id or a timestamp. Only one of them should be specified (non-null), or an
+   * IllegalArgumentException is thrown.
    *
    * @param table a {@link Table}
    * @param snapshotId the ID of the snapshot
@@ -323,7 +371,8 @@ public class SnapshotUtil {
    * @throws IllegalArgumentException if both snapshotId and timestampMillis are non-null
    */
   public static Schema schemaFor(Table table, Long snapshotId, Long timestampMillis) {
-    Preconditions.checkArgument(snapshotId == null || timestampMillis == null,
+    Preconditions.checkArgument(
+        snapshotId == null || timestampMillis == null,
         "Cannot use both snapshot id and timestamp to find a schema");
 
     if (snapshotId != null) {

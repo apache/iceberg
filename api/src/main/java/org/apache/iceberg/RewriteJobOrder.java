@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Locale;
@@ -25,17 +24,25 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * Enum of supported rewrite job order, it defines the order in which the file groups should be
  * written.
- * <p><ul>
- * <li> bytes-asc: rewrite the smallest job groups first.
- * <li> bytes-desc: rewrite the largest job groups first.
- * <li> files-asc: rewrite the job groups with the least files first.
- * <li> files-desc: rewrite the job groups with the most files first.
- * <li> none: rewrite job groups in the order they were planned (no specific ordering).
- * </ul><p>
+ *
+ * <p>
+ *
+ * <ul>
+ *   <li>bytes-asc: rewrite the smallest job groups first.
+ *   <li>bytes-desc: rewrite the largest job groups first.
+ *   <li>files-asc: rewrite the job groups with the least files first.
+ *   <li>files-desc: rewrite the job groups with the most files first.
+ *   <li>none: rewrite job groups in the order they were planned (no specific ordering).
+ * </ul>
+ *
+ * <p>
  */
 public enum RewriteJobOrder {
-  BYTES_ASC("bytes-asc"), BYTES_DESC("bytes-desc"),
-  FILES_ASC("files-asc"), FILES_DESC("files-desc"), NONE("none");
+  BYTES_ASC("bytes-asc"),
+  BYTES_DESC("bytes-desc"),
+  FILES_ASC("files-asc"),
+  FILES_DESC("files-desc"),
+  NONE("none");
 
   private final String orderName;
 
@@ -49,7 +56,8 @@ public enum RewriteJobOrder {
 
   public static RewriteJobOrder fromName(String orderName) {
     Preconditions.checkArgument(orderName != null, "Rewrite job order name should not be null");
-    // Replace the hyphen in order name with underscore to map to the enum value. For example: bytes-asc to BYTES_ASC
+    // Replace the hyphen in order name with underscore to map to the enum value. For example:
+    // bytes-asc to BYTES_ASC
     return RewriteJobOrder.valueOf(orderName.replaceFirst("-", "_").toUpperCase(Locale.ENGLISH));
   }
 }

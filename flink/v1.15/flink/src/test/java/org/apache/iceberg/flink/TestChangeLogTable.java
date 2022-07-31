@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.io.File;
@@ -49,8 +48,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 /**
- * In this test case, we mainly cover the impact of primary key selection, multiple operations within a single
- * transaction, and multiple operations between different txn on the correctness of the data.
+ * In this test case, we mainly cover the impact of primary key selection, multiple operations
+ * within a single transaction, and multiple operations between different txn on the correctness of
+ * the data.
  */
 @RunWith(Parameterized.class)
 public class TestChangeLogTable extends ChangeLogTableTestBase {
@@ -66,10 +66,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
 
   @Parameterized.Parameters(name = "PartitionedTable={0}")
   public static Iterable<Object[]> parameters() {
-    return ImmutableList.of(
-        new Object[] {true},
-        new Object[] {false}
-    );
+    return ImmutableList.of(new Object[] {true}, new Object[] {false});
   }
 
   public TestChangeLogTable(boolean partitioned) {
@@ -85,12 +82,14 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
 
   @Before
   public void before() {
-    sql("CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
+    sql(
+        "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
         CATALOG_NAME, warehouse);
     sql("USE CATALOG %s", CATALOG_NAME);
     sql("CREATE DATABASE %s", DATABASE_NAME);
     sql("USE %s", DATABASE_NAME);
-    // Set the table.exec.sink.upsert-materialize=NONE, so that downstream operators will receive the
+    // Set the table.exec.sink.upsert-materialize=NONE, so that downstream operators will receive
+    // the
     // records with the same order as the source operator, bypassing Flink's inferred shuffle.
     getTableEnv().getConfig().set("table.exec.sink.upsert-materialize", "NONE");
   }
@@ -106,137 +105,112 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
 
   @Test
   public void testSqlChangeLogOnIdKey() throws Exception {
-    List<List<Row>> inputRowsPerCheckpoint = ImmutableList.of(
+    List<List<Row>> inputRowsPerCheckpoint =
         ImmutableList.of(
-            insertRow(1, "aaa"),
-            deleteRow(1, "aaa"),
-            insertRow(1, "bbb"),
-            insertRow(2, "aaa"),
-            deleteRow(2, "aaa"),
-            insertRow(2, "bbb")
-        ),
-        ImmutableList.of(
-            updateBeforeRow(2, "bbb"),
-            updateAfterRow(2, "ccc"),
-            deleteRow(2, "ccc"),
-            insertRow(2, "ddd")
-        ),
-        ImmutableList.of(
-            deleteRow(1, "bbb"),
-            insertRow(1, "ccc"),
-            deleteRow(1, "ccc"),
-            insertRow(1, "ddd")
-        )
-    );
+            ImmutableList.of(
+                insertRow(1, "aaa"),
+                deleteRow(1, "aaa"),
+                insertRow(1, "bbb"),
+                insertRow(2, "aaa"),
+                deleteRow(2, "aaa"),
+                insertRow(2, "bbb")),
+            ImmutableList.of(
+                updateBeforeRow(2, "bbb"),
+                updateAfterRow(2, "ccc"),
+                deleteRow(2, "ccc"),
+                insertRow(2, "ddd")),
+            ImmutableList.of(
+                deleteRow(1, "bbb"),
+                insertRow(1, "ccc"),
+                deleteRow(1, "ccc"),
+                insertRow(1, "ddd")));
 
-    List<List<Row>> expectedRecordsPerCheckpoint = ImmutableList.of(
-        ImmutableList.of(insertRow(1, "bbb"), insertRow(2, "bbb")),
-        ImmutableList.of(insertRow(1, "bbb"), insertRow(2, "ddd")),
-        ImmutableList.of(insertRow(1, "ddd"), insertRow(2, "ddd"))
-    );
+    List<List<Row>> expectedRecordsPerCheckpoint =
+        ImmutableList.of(
+            ImmutableList.of(insertRow(1, "bbb"), insertRow(2, "bbb")),
+            ImmutableList.of(insertRow(1, "bbb"), insertRow(2, "ddd")),
+            ImmutableList.of(insertRow(1, "ddd"), insertRow(2, "ddd")));
 
-    testSqlChangeLog(TABLE_NAME, ImmutableList.of("id"), inputRowsPerCheckpoint,
-        expectedRecordsPerCheckpoint);
+    testSqlChangeLog(
+        TABLE_NAME, ImmutableList.of("id"), inputRowsPerCheckpoint, expectedRecordsPerCheckpoint);
   }
 
   @Test
   public void testChangeLogOnDataKey() throws Exception {
-    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+    List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
-            insertRow(1, "aaa"),
-            deleteRow(1, "aaa"),
-            insertRow(2, "bbb"),
-            insertRow(1, "bbb"),
-            insertRow(2, "aaa")
-        ),
-        ImmutableList.of(
-            updateBeforeRow(2, "aaa"),
-            updateAfterRow(1, "ccc"),
-            insertRow(1, "aaa")
-        ),
-        ImmutableList.of(
-            deleteRow(1, "bbb"),
-            insertRow(2, "aaa"),
-            insertRow(2, "ccc")
-        )
-    );
+            ImmutableList.of(
+                insertRow(1, "aaa"),
+                deleteRow(1, "aaa"),
+                insertRow(2, "bbb"),
+                insertRow(1, "bbb"),
+                insertRow(2, "aaa")),
+            ImmutableList.of(
+                updateBeforeRow(2, "aaa"), updateAfterRow(1, "ccc"), insertRow(1, "aaa")),
+            ImmutableList.of(deleteRow(1, "bbb"), insertRow(2, "aaa"), insertRow(2, "ccc")));
 
-    List<List<Row>> expectedRecords = ImmutableList.of(
-        ImmutableList.of(insertRow(1, "bbb"), insertRow(2, "aaa")),
-        ImmutableList.of(insertRow(1, "aaa"), insertRow(1, "bbb"), insertRow(1, "ccc")),
-        ImmutableList.of(insertRow(1, "aaa"), insertRow(1, "ccc"), insertRow(2, "aaa"), insertRow(2, "ccc"))
-    );
+    List<List<Row>> expectedRecords =
+        ImmutableList.of(
+            ImmutableList.of(insertRow(1, "bbb"), insertRow(2, "aaa")),
+            ImmutableList.of(insertRow(1, "aaa"), insertRow(1, "bbb"), insertRow(1, "ccc")),
+            ImmutableList.of(
+                insertRow(1, "aaa"),
+                insertRow(1, "ccc"),
+                insertRow(2, "aaa"),
+                insertRow(2, "ccc")));
 
     testSqlChangeLog(TABLE_NAME, ImmutableList.of("data"), elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
   public void testChangeLogOnIdDataKey() throws Exception {
-    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+    List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
-            insertRow(1, "aaa"),
-            deleteRow(1, "aaa"),
-            insertRow(2, "bbb"),
-            insertRow(1, "bbb"),
-            insertRow(2, "aaa")
-        ),
-        ImmutableList.of(
-            updateBeforeRow(2, "aaa"),
-            updateAfterRow(1, "ccc"),
-            insertRow(1, "aaa")
-        ),
-        ImmutableList.of(
-            deleteRow(1, "bbb"),
-            insertRow(2, "aaa")
-        )
-    );
+            ImmutableList.of(
+                insertRow(1, "aaa"),
+                deleteRow(1, "aaa"),
+                insertRow(2, "bbb"),
+                insertRow(1, "bbb"),
+                insertRow(2, "aaa")),
+            ImmutableList.of(
+                updateBeforeRow(2, "aaa"), updateAfterRow(1, "ccc"), insertRow(1, "aaa")),
+            ImmutableList.of(deleteRow(1, "bbb"), insertRow(2, "aaa")));
 
-    List<List<Row>> expectedRecords = ImmutableList.of(
-        ImmutableList.of(insertRow(1, "bbb"), insertRow(2, "aaa"), insertRow(2, "bbb")),
-        ImmutableList.of(insertRow(1, "aaa"), insertRow(1, "bbb"), insertRow(1, "ccc"), insertRow(2, "bbb")),
-        ImmutableList.of(insertRow(1, "aaa"), insertRow(1, "ccc"), insertRow(2, "aaa"), insertRow(2, "bbb"))
-    );
+    List<List<Row>> expectedRecords =
+        ImmutableList.of(
+            ImmutableList.of(insertRow(1, "bbb"), insertRow(2, "aaa"), insertRow(2, "bbb")),
+            ImmutableList.of(
+                insertRow(1, "aaa"), insertRow(1, "bbb"), insertRow(1, "ccc"), insertRow(2, "bbb")),
+            ImmutableList.of(
+                insertRow(1, "aaa"),
+                insertRow(1, "ccc"),
+                insertRow(2, "aaa"),
+                insertRow(2, "bbb")));
 
-    testSqlChangeLog(TABLE_NAME, ImmutableList.of("data", "id"), elementsPerCheckpoint, expectedRecords);
+    testSqlChangeLog(
+        TABLE_NAME, ImmutableList.of("data", "id"), elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
   public void testPureInsertOnIdKey() throws Exception {
-    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+    List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
-            insertRow(1, "aaa"),
-            insertRow(2, "bbb")
-        ),
-        ImmutableList.of(
-            insertRow(3, "ccc"),
-            insertRow(4, "ddd")
-        ),
-        ImmutableList.of(
-            insertRow(5, "eee"),
-            insertRow(6, "fff")
-        )
-    );
+            ImmutableList.of(insertRow(1, "aaa"), insertRow(2, "bbb")),
+            ImmutableList.of(insertRow(3, "ccc"), insertRow(4, "ddd")),
+            ImmutableList.of(insertRow(5, "eee"), insertRow(6, "fff")));
 
-    List<List<Row>> expectedRecords = ImmutableList.of(
+    List<List<Row>> expectedRecords =
         ImmutableList.of(
-            insertRow(1, "aaa"),
-            insertRow(2, "bbb")
-        ),
-        ImmutableList.of(
-            insertRow(1, "aaa"),
-            insertRow(2, "bbb"),
-            insertRow(3, "ccc"),
-            insertRow(4, "ddd")
-        ),
-        ImmutableList.of(
-            insertRow(1, "aaa"),
-            insertRow(2, "bbb"),
-            insertRow(3, "ccc"),
-            insertRow(4, "ddd"),
-            insertRow(5, "eee"),
-            insertRow(6, "fff")
-        )
-    );
+            ImmutableList.of(insertRow(1, "aaa"), insertRow(2, "bbb")),
+            ImmutableList.of(
+                insertRow(1, "aaa"), insertRow(2, "bbb"), insertRow(3, "ccc"), insertRow(4, "ddd")),
+            ImmutableList.of(
+                insertRow(1, "aaa"),
+                insertRow(2, "bbb"),
+                insertRow(3, "ccc"),
+                insertRow(4, "ddd"),
+                insertRow(5, "eee"),
+                insertRow(6, "fff")));
 
     testSqlChangeLog(TABLE_NAME, ImmutableList.of("data"), elementsPerCheckpoint, expectedRecords);
   }
@@ -247,13 +221,14 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
 
   private Table createTable(String tableName, List<String> key, boolean isPartitioned) {
     String partitionByCause = isPartitioned ? "PARTITIONED BY (data)" : "";
-    sql("CREATE TABLE %s(id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s",
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s",
         tableName, Joiner.on(',').join(key), partitionByCause);
 
     // Upgrade the iceberg table to format v2.
-    CatalogLoader loader = CatalogLoader.hadoop("my_catalog", CONF, ImmutableMap.of(
-        CatalogProperties.WAREHOUSE_LOCATION, warehouse
-    ));
+    CatalogLoader loader =
+        CatalogLoader.hadoop(
+            "my_catalog", CONF, ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse));
     Table table = loader.loadCatalog().loadTable(TableIdentifier.of(DATABASE_NAME, TABLE_NAME));
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
@@ -262,15 +237,20 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     return table;
   }
 
-  private void testSqlChangeLog(String tableName,
-                                List<String> key,
-                                List<List<Row>> inputRowsPerCheckpoint,
-                                List<List<Row>> expectedRecordsPerCheckpoint) throws Exception {
+  private void testSqlChangeLog(
+      String tableName,
+      List<String> key,
+      List<List<Row>> inputRowsPerCheckpoint,
+      List<List<Row>> expectedRecordsPerCheckpoint)
+      throws Exception {
     String dataId = BoundedTableFactory.registerDataSet(inputRowsPerCheckpoint);
-    sql("CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)" +
-        " WITH ('connector'='BoundedSource', 'data-id'='%s')", SOURCE_TABLE, dataId);
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)"
+            + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
+        SOURCE_TABLE, dataId);
 
-    Assert.assertEquals("Should have the expected rows",
+    Assert.assertEquals(
+        "Should have the expected rows",
         listJoin(inputRowsPerCheckpoint),
         sql("SELECT * FROM %s", SOURCE_TABLE));
 
@@ -280,17 +260,21 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     table.refresh();
     List<Snapshot> snapshots = findValidSnapshots(table);
     int expectedSnapshotNum = expectedRecordsPerCheckpoint.size();
-    Assert.assertEquals("Should have the expected snapshot number", expectedSnapshotNum, snapshots.size());
+    Assert.assertEquals(
+        "Should have the expected snapshot number", expectedSnapshotNum, snapshots.size());
 
     for (int i = 0; i < expectedSnapshotNum; i++) {
       long snapshotId = snapshots.get(i).snapshotId();
       List<Row> expectedRows = expectedRecordsPerCheckpoint.get(i);
-      Assert.assertEquals("Should have the expected records for the checkpoint#" + i,
-          expectedRowSet(table, expectedRows), actualRowSet(table, snapshotId));
+      Assert.assertEquals(
+          "Should have the expected records for the checkpoint#" + i,
+          expectedRowSet(table, expectedRows),
+          actualRowSet(table, snapshotId));
     }
 
     if (expectedSnapshotNum > 0) {
-      Assert.assertEquals("Should have the expected rows in the final table",
+      Assert.assertEquals(
+          "Should have the expected rows in the final table",
           Sets.newHashSet(expectedRecordsPerCheckpoint.get(expectedSnapshotNum - 1)),
           Sets.newHashSet(sql("SELECT * FROM %s", tableName)));
     }
@@ -299,7 +283,8 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   private List<Snapshot> findValidSnapshots(Table table) {
     List<Snapshot> validSnapshots = Lists.newArrayList();
     for (Snapshot snapshot : table.snapshots()) {
-      if (snapshot.allManifests().stream().anyMatch(m -> snapshot.snapshotId() == m.snapshotId())) {
+      if (snapshot.allManifests(table.io()).stream()
+          .anyMatch(m -> snapshot.snapshotId() == m.snapshotId())) {
         validSnapshots.add(snapshot);
       }
     }

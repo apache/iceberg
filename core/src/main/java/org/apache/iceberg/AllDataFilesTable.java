@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * A {@link Table} implementation that exposes a table's valid data files as rows.
- * <p>
- * A valid data file is one that is readable from any snapshot currently tracked by the table.
- * <p>
- * This table may return duplicate rows.
+ *
+ * <p>A valid data file is one that is readable from any snapshot currently tracked by the table.
+ *
+ * <p>This table may return duplicate rows.
  */
 public class AllDataFilesTable extends BaseFilesTable {
 
@@ -54,19 +53,20 @@ public class AllDataFilesTable extends BaseFilesTable {
       super(ops, table, schema, MetadataTableType.ALL_DATA_FILES);
     }
 
-    private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema,
-                                  TableScanContext context) {
+    private AllDataFilesTableScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       super(ops, table, schema, MetadataTableType.ALL_DATA_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new AllDataFilesTableScan(ops, table, schema, context);
     }
 
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
-      return reachableManifests(Snapshot::dataManifests);
+      return reachableManifests(snapshot -> snapshot.dataManifests(tableOps().io()));
     }
   }
 }

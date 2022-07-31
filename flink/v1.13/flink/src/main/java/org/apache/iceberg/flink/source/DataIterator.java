@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -44,8 +43,11 @@ public class DataIterator<T> implements CloseableIterator<T> {
   private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
 
-  public DataIterator(FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task,
-                      FileIO io, EncryptionManager encryption) {
+  public DataIterator(
+      FileScanTaskReader<T> fileScanTaskReader,
+      CombinedScanTask task,
+      FileIO io,
+      EncryptionManager encryption) {
     this.fileScanTaskReader = fileScanTaskReader;
 
     this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
@@ -65,10 +67,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
     return currentIterator.next();
   }
 
-  /**
-   * Updates the current iterator field to ensure that the current Iterator
-   * is not exhausted.
-   */
+  /** Updates the current iterator field to ensure that the current Iterator is not exhausted. */
   private void updateCurrentIterator() {
     try {
       while (!currentIterator.hasNext() && tasks.hasNext()) {

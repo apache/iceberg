@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,13 +34,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
-import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
-
 /**
  * {@link AppendFiles Append} implementation that adds a new manifest file for the write.
- * <p>
- * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
+ *
+ * <p>This implementation will attempt to commit 5 times before throwing {@link
+ * CommitFailedException}.
  */
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final String tableName;
@@ -57,8 +57,10 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     this.tableName = tableName;
     this.ops = ops;
     this.spec = ops.current().spec();
-    this.snapshotIdInheritanceEnabled = ops.current()
-        .propertyAsBoolean(SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+    this.snapshotIdInheritanceEnabled =
+        ops.current()
+            .propertyAsBoolean(
+                SNAPSHOT_ID_INHERITANCE_ENABLED, SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
   }
 
   @Override
@@ -79,8 +81,11 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
   @Override
   protected Map<String, String> summary() {
-    summaryBuilder.setPartitionSummaryLimit(ops.current().propertyAsInt(
-        TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, TableProperties.WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT));
+    summaryBuilder.setPartitionSummaryLimit(
+        ops.current()
+            .propertyAsInt(
+                TableProperties.WRITE_PARTITION_SUMMARY_LIMIT,
+                TableProperties.WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT));
     return summaryBuilder.build();
   }
 
@@ -94,13 +99,15 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
   @Override
   public FastAppend appendManifest(ManifestFile manifest) {
-    Preconditions.checkArgument(!manifest.hasExistingFiles(), "Cannot append manifest with existing files");
-    Preconditions.checkArgument(!manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
+    Preconditions.checkArgument(
+        !manifest.hasExistingFiles(), "Cannot append manifest with existing files");
+    Preconditions.checkArgument(
+        !manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
     Preconditions.checkArgument(
         manifest.snapshotId() == null || manifest.snapshotId() == -1,
         "Snapshot id must be assigned during commit");
-    Preconditions.checkArgument(manifest.sequenceNumber() == -1,
-        "Sequence number must be assigned during commit");
+    Preconditions.checkArgument(
+        manifest.sequenceNumber() == -1, "Sequence number must be assigned during commit");
 
     if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
       summaryBuilder.addedManifest(manifest);
@@ -119,7 +126,12 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     InputFile toCopy = ops.io().newInputFile(manifest.path());
     OutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
-        current.formatVersion(), toCopy, current.specsById(), newManifestPath, snapshotId(), summaryBuilder);
+        current.formatVersion(),
+        toCopy,
+        current.specsById(),
+        newManifestPath,
+        snapshotId(),
+        summaryBuilder);
   }
 
   @Override
@@ -135,13 +147,14 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
       throw new RuntimeIOException(e, "Failed to write manifest");
     }
 
-    Iterable<ManifestFile> appendManifestsWithMetadata = Iterables.transform(
-        Iterables.concat(appendManifests, rewrittenAppendManifests),
-        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
+    Iterable<ManifestFile> appendManifestsWithMetadata =
+        Iterables.transform(
+            Iterables.concat(appendManifests, rewrittenAppendManifests),
+            manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
     Iterables.addAll(newManifests, appendManifestsWithMetadata);
 
     if (base.currentSnapshot() != null) {
-      newManifests.addAll(base.currentSnapshot().allManifests());
+      newManifests.addAll(base.currentSnapshot().allManifests(ops.io()));
     }
 
     return newManifests;
@@ -153,11 +166,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     Snapshot snapshot = ops.current().snapshot(snapshotId);
     long sequenceNumber = snapshot.sequenceNumber();
     return new CreateSnapshotEvent(
-        tableName,
-        operation(),
-        snapshotId,
-        sequenceNumber,
-        snapshot.summary());
+        tableName, operation(), snapshotId, sequenceNumber, snapshot.summary());
   }
 
   @Override

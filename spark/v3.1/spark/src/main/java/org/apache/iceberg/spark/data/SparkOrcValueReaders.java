@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
@@ -44,8 +43,7 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkOrcValueReaders {
-  private SparkOrcValueReaders() {
-  }
+  private SparkOrcValueReaders() {}
 
   public static OrcValueReader<UTF8String> utf8String() {
     return StringReader.INSTANCE;
@@ -125,8 +123,7 @@ public class SparkOrcValueReaders {
       }
 
       return new ArrayBasedMapData(
-          new GenericArrayData(keys.toArray()),
-          new GenericArrayData(values.toArray()));
+          new GenericArrayData(keys.toArray()), new GenericArrayData(values.toArray()));
     }
 
     @Override
@@ -139,7 +136,8 @@ public class SparkOrcValueReaders {
   static class StructReader extends OrcValueReaders.StructReader<InternalRow> {
     private final int numFields;
 
-    protected StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+    protected StructReader(
+        List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       super(readers, struct, idToConstant);
       this.numFields = struct.fields().size();
     }
@@ -162,21 +160,20 @@ public class SparkOrcValueReaders {
   private static class StringReader implements OrcValueReader<UTF8String> {
     private static final StringReader INSTANCE = new StringReader();
 
-    private StringReader() {
-    }
+    private StringReader() {}
 
     @Override
     public UTF8String nonNullRead(ColumnVector vector, int row) {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
-      return UTF8String.fromBytes(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+      return UTF8String.fromBytes(
+          bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
     }
   }
 
   private static class TimestampTzReader implements OrcValueReader<Long> {
     private static final TimestampTzReader INSTANCE = new TimestampTzReader();
 
-    private TimestampTzReader() {
-    }
+    private TimestampTzReader() {}
 
     @Override
     public Long nonNullRead(ColumnVector vector, int row) {
@@ -198,12 +195,20 @@ public class SparkOrcValueReaders {
     public Decimal nonNullRead(ColumnVector vector, int row) {
       HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[row];
 
-      // The scale of decimal read from hive ORC file may be not equals to the expected scale. For data type
-      // decimal(10,3) and the value 10.100, the hive ORC writer will remove its trailing zero and store it
-      // as 101*10^(-1), its scale will adjust from 3 to 1. So here we could not assert that value.scale() == scale.
-      // we also need to convert the hive orc decimal to a decimal with expected precision and scale.
-      Preconditions.checkArgument(value.precision() <= precision,
-          "Cannot read value as decimal(%s,%s), too large: %s", precision, scale, value);
+      // The scale of decimal read from hive ORC file may be not equals to the expected scale. For
+      // data type
+      // decimal(10,3) and the value 10.100, the hive ORC writer will remove its trailing zero and
+      // store it
+      // as 101*10^(-1), its scale will adjust from 3 to 1. So here we could not assert that
+      // value.scale() == scale.
+      // we also need to convert the hive orc decimal to a decimal with expected precision and
+      // scale.
+      Preconditions.checkArgument(
+          value.precision() <= precision,
+          "Cannot read value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          value);
 
       return new Decimal().set(value.serialize64(scale), precision, scale);
     }
@@ -220,11 +225,15 @@ public class SparkOrcValueReaders {
 
     @Override
     public Decimal nonNullRead(ColumnVector vector, int row) {
-      BigDecimal value = ((DecimalColumnVector) vector).vector[row]
-          .getHiveDecimal().bigDecimalValue();
+      BigDecimal value =
+          ((DecimalColumnVector) vector).vector[row].getHiveDecimal().bigDecimalValue();
 
-      Preconditions.checkArgument(value.precision() <= precision,
-          "Cannot read value as decimal(%s,%s), too large: %s", precision, scale, value);
+      Preconditions.checkArgument(
+          value.precision() <= precision,
+          "Cannot read value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          value);
 
       return new Decimal().set(new scala.math.BigDecimal(value), precision, scale);
     }

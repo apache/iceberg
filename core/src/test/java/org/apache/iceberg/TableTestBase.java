@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,115 +46,131 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TableTestBase {
   // Schema passed to create tables
-  public static final Schema SCHEMA = new Schema(
-      required(3, "id", Types.IntegerType.get()),
-      required(4, "data", Types.StringType.get())
-  );
+  public static final Schema SCHEMA =
+      new Schema(
+          required(3, "id", Types.IntegerType.get()), required(4, "data", Types.StringType.get()));
 
   protected static final int BUCKETS_NUMBER = 16;
 
   // Partition spec used to create tables
-  protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .bucket("data", BUCKETS_NUMBER)
-      .build();
+  protected static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).bucket("data", BUCKETS_NUMBER).build();
 
-  static final DataFile FILE_A = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_A2 = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a-2.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DeleteFile FILE_A_DELETES = FileMetadata.deleteFileBuilder(SPEC)
-      .ofPositionDeletes()
-      .withPath("/path/to/data-a-deletes.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
+  static final DataFile FILE_A =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-a.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DataFile FILE_A2 =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-a-2.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DeleteFile FILE_A_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
   // Equality delete files.
-  static final DeleteFile FILE_A2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
-      .ofEqualityDeletes(1)
-      .withPath("/path/to/data-a2-deletes.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=0")
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_B = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-b.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=1") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DeleteFile FILE_B_DELETES = FileMetadata.deleteFileBuilder(SPEC)
-      .ofPositionDeletes()
-      .withPath("/path/to/data-b-deletes.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=1") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_C = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-c.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=2") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DeleteFile FILE_C2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
-      .ofEqualityDeletes(1)
-      .withPath("/path/to/data-c-deletes.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=2") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_D = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-d.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=3") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DeleteFile FILE_D2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
-      .ofEqualityDeletes(1)
-      .withPath("/path/to/data-d-deletes.parquet")
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=3") // easy way to set partition data for now
-      .withRecordCount(1)
-      .build();
-  static final DataFile FILE_WITH_STATS = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-with-stats.parquet")
-      .withMetrics(new Metrics(10L,
-          ImmutableMap.of(3, 100L, 4, 200L), // column sizes
-          ImmutableMap.of(3, 90L, 4, 180L), // value counts
-          ImmutableMap.of(3, 10L, 4, 20L), // null value counts
-          ImmutableMap.of(3, 0L, 4, 0L), // nan value counts
-          ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 1),
-             4, Conversions.toByteBuffer(Types.IntegerType.get(), 2)),  // lower bounds
-          ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 5),
-             4, Conversions.toByteBuffer(Types.IntegerType.get(), 10))  // upperbounds
-          ))
-      .withFileSizeInBytes(350)
-      .build();
+  static final DeleteFile FILE_A2_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1)
+          .withPath("/path/to/data-a2-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0")
+          .withRecordCount(1)
+          .build();
+  static final DataFile FILE_B =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-b.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=1") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DeleteFile FILE_B_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-b-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=1") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DataFile FILE_C =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-c.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=2") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DeleteFile FILE_C2_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1)
+          .withPath("/path/to/data-c-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=2") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DataFile FILE_D =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-d.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=3") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DeleteFile FILE_D2_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1)
+          .withPath("/path/to/data-d-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=3") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DataFile FILE_WITH_STATS =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-with-stats.parquet")
+          .withMetrics(
+              new Metrics(
+                  10L,
+                  ImmutableMap.of(3, 100L, 4, 200L), // column sizes
+                  ImmutableMap.of(3, 90L, 4, 180L), // value counts
+                  ImmutableMap.of(3, 10L, 4, 20L), // null value counts
+                  ImmutableMap.of(3, 0L, 4, 0L), // nan value counts
+                  ImmutableMap.of(
+                      3,
+                      Conversions.toByteBuffer(Types.IntegerType.get(), 1),
+                      4,
+                      Conversions.toByteBuffer(Types.IntegerType.get(), 2)), // lower bounds
+                  ImmutableMap.of(
+                      3,
+                      Conversions.toByteBuffer(Types.IntegerType.get(), 5),
+                      4,
+                      Conversions.toByteBuffer(Types.IntegerType.get(), 10)) // upperbounds
+                  ))
+          .withFileSizeInBytes(350)
+          .build();
 
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   protected File tableDir = null;
   protected File metadataDir = null;
   public TestTables.TestTable table = null;
 
   protected final int formatVersion;
+
   @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V1Assert;
+
   @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V2Assert;
 
@@ -182,12 +199,18 @@ public class TableTestBase {
   }
 
   List<File> listManifestFiles(File tableDirToList) {
-    return Lists.newArrayList(new File(tableDirToList, "metadata").listFiles((dir, name) ->
-        !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+    return Lists.newArrayList(
+        new File(tableDirToList, "metadata")
+            .listFiles(
+                (dir, name) ->
+                    !name.startsWith("snap")
+                        && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
   public static long countAllMetadataFiles(File tableDir) {
-    return Arrays.stream(new File(tableDir, "metadata").listFiles()).filter(f -> f.isFile()).count();
+    return Arrays.stream(new File(tableDir, "metadata").listFiles())
+        .filter(f -> f.isFile())
+        .count();
   }
 
   protected TestTables.TestTable create(Schema schema, PartitionSpec spec) {
@@ -215,7 +238,8 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -236,19 +260,22 @@ public class TableTestBase {
   }
 
   @SuppressWarnings("unchecked")
-  <F extends ContentFile<F>> ManifestFile writeManifest(Long snapshotId, String fileName, ManifestEntry<?>... entries)
-      throws IOException {
+  <F extends ContentFile<F>> ManifestFile writeManifest(
+      Long snapshotId, String fileName, ManifestEntry<?>... entries) throws IOException {
     File manifestFile = temp.newFile(fileName);
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<F> writer;
     if (entries[0].file() instanceof DataFile) {
-      writer = (ManifestWriter<F>) ManifestFiles.write(
-          formatVersion, table.spec(), outputFile, snapshotId);
+      writer =
+          (ManifestWriter<F>)
+              ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
     } else {
-      writer = (ManifestWriter<F>) ManifestFiles.writeDeleteManifest(
-          formatVersion, table.spec(), outputFile, snapshotId);
+      writer =
+          (ManifestWriter<F>)
+              ManifestFiles.writeDeleteManifest(
+                  formatVersion, table.spec(), outputFile, snapshotId);
     }
     try {
       for (ManifestEntry<?> entry : entries) {
@@ -263,10 +290,11 @@ public class TableTestBase {
 
   ManifestFile writeDeleteManifest(int newFormatVersion, Long snapshotId, DeleteFile... deleteFiles)
       throws IOException {
-    OutputFile manifestFile = org.apache.iceberg.Files
-        .localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter<DeleteFile> writer = ManifestFiles.writeDeleteManifest(
-        newFormatVersion, SPEC, manifestFile, snapshotId);
+    OutputFile manifestFile =
+        org.apache.iceberg.Files.localOutput(
+            FileFormat.AVRO.addExtension(temp.newFile().toString()));
+    ManifestWriter<DeleteFile> writer =
+        ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
@@ -282,7 +310,8 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -294,7 +323,8 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestEntry<DataFile> manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
+  ManifestEntry<DataFile> manifestEntry(
+      ManifestEntry.Status status, Long snapshotId, DataFile file) {
     GenericManifestEntry<DataFile> entry = new GenericManifestEntry<>(table.spec().partitionType());
     switch (status) {
       case ADDED:
@@ -317,20 +347,21 @@ public class TableTestBase {
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
-    Assert.assertEquals("Should not change delete manifests",
-        old != null ? Sets.newHashSet(old.deleteManifests()) : ImmutableSet.of(),
-        Sets.newHashSet(snap.deleteManifests()));
-    List<ManifestFile> oldManifests = old != null ? old.dataManifests() : ImmutableList.of();
+    Assert.assertEquals(
+        "Should not change delete manifests",
+        old != null ? Sets.newHashSet(old.deleteManifests(FILE_IO)) : ImmutableSet.of(),
+        Sets.newHashSet(snap.deleteManifests(FILE_IO)));
+    List<ManifestFile> oldManifests = old != null ? old.dataManifests(FILE_IO) : ImmutableList.of();
 
     // copy the manifests to a modifiable list and remove the existing manifests
-    List<ManifestFile> newManifests = Lists.newArrayList(snap.dataManifests());
+    List<ManifestFile> newManifests = Lists.newArrayList(snap.dataManifests(FILE_IO));
     for (ManifestFile oldManifest : oldManifests) {
-      Assert.assertTrue("New snapshot should contain old manifests",
-          newManifests.remove(oldManifest));
+      Assert.assertTrue(
+          "New snapshot should contain old manifests", newManifests.remove(oldManifest));
     }
 
-    Assert.assertEquals("Should create 1 new manifest and reuse old manifests",
-        1, newManifests.size());
+    Assert.assertEquals(
+        "Should create 1 new manifest and reuse old manifests", 1, newManifests.size());
     ManifestFile manifest = newManifests.get(0);
 
     long id = snap.snapshotId();
@@ -339,8 +370,10 @@ public class TableTestBase {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
-        V1Assert.assertEquals("Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
-        V2Assert.assertEquals("Sequence number should match expected", sequenceNumber, entry.sequenceNumber());
+        V1Assert.assertEquals(
+            "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+        V2Assert.assertEquals(
+            "Sequence number should match expected", sequenceNumber, entry.sequenceNumber());
       }
       Assert.assertEquals("Path should match expected", newPaths.next(), file.path().toString());
       Assert.assertEquals("File's snapshot ID should match", id, (long) entry.snapshotId());
@@ -385,62 +418,65 @@ public class TableTestBase {
     return paths;
   }
 
-  void validateManifest(ManifestFile manifest,
-                        Iterator<Long> ids,
-                        Iterator<DataFile> expectedFiles) {
+  void validateManifest(
+      ManifestFile manifest, Iterator<Long> ids, Iterator<DataFile> expectedFiles) {
     validateManifest(manifest, null, ids, expectedFiles, null);
   }
 
-  void validateManifest(ManifestFile manifest,
-                        Iterator<Long> seqs,
-                        Iterator<Long> ids,
-                        Iterator<DataFile> expectedFiles) {
+  void validateManifest(
+      ManifestFile manifest,
+      Iterator<Long> seqs,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles) {
     validateManifest(manifest, seqs, ids, expectedFiles, null);
   }
 
-  void validateManifest(ManifestFile manifest,
-                        Iterator<Long> seqs,
-                        Iterator<Long> ids,
-                        Iterator<DataFile> expectedFiles,
-                        Iterator<ManifestEntry.Status> statuses) {
+  void validateManifest(
+      ManifestFile manifest,
+      Iterator<Long> seqs,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles,
+      Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       if (seqs != null) {
-        V1Assert.assertEquals("Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
-        V2Assert.assertEquals("Sequence number should match expected", seqs.next(), entry.sequenceNumber());
+        V1Assert.assertEquals(
+            "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+        V2Assert.assertEquals(
+            "Sequence number should match expected", seqs.next(), entry.sequenceNumber());
       }
-      Assert.assertEquals("Path should match expected",
-          expected.path().toString(), file.path().toString());
-      Assert.assertEquals("Snapshot ID should match expected ID",
-          ids.next(), entry.snapshotId());
+      Assert.assertEquals(
+          "Path should match expected", expected.path().toString(), file.path().toString());
+      Assert.assertEquals("Snapshot ID should match expected ID", ids.next(), entry.snapshotId());
       if (statuses != null) {
-        Assert.assertEquals("Status should match expected",
-            statuses.next(), entry.status());
+        Assert.assertEquals("Status should match expected", statuses.next(), entry.status());
       }
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
   }
 
-  void validateDeleteManifest(ManifestFile manifest,
-                              Iterator<Long> seqs,
-                              Iterator<Long> ids,
-                              Iterator<DeleteFile> expectedFiles,
-                              Iterator<ManifestEntry.Status> statuses) {
-    for (ManifestEntry<DeleteFile> entry : ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+  void validateDeleteManifest(
+      ManifestFile manifest,
+      Iterator<Long> seqs,
+      Iterator<Long> ids,
+      Iterator<DeleteFile> expectedFiles,
+      Iterator<ManifestEntry.Status> statuses) {
+    for (ManifestEntry<DeleteFile> entry :
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
       if (seqs != null) {
-        V1Assert.assertEquals("Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
-        V2Assert.assertEquals("Sequence number should match expected", seqs.next(), entry.sequenceNumber());
+        V1Assert.assertEquals(
+            "Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+        V2Assert.assertEquals(
+            "Sequence number should match expected", seqs.next(), entry.sequenceNumber());
       }
-      Assert.assertEquals("Path should match expected",
-          expected.path().toString(), file.path().toString());
-      Assert.assertEquals("Snapshot ID should match expected ID",
-          ids.next(), entry.snapshotId());
-      Assert.assertEquals("Status should match expected",
-          statuses.next(), entry.status());
+      Assert.assertEquals(
+          "Path should match expected", expected.path().toString(), file.path().toString());
+      Assert.assertEquals("Snapshot ID should match expected ID", ids.next(), entry.snapshotId());
+      Assert.assertEquals("Status should match expected", statuses.next(), entry.status());
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
@@ -482,20 +518,19 @@ public class TableTestBase {
     return positionDelete.set(path, pos, row);
   }
 
-  static void validateManifestEntries(ManifestFile manifest,
-                                      Iterator<Long> ids,
-                                      Iterator<DataFile> expectedFiles,
-                                      Iterator<ManifestEntry.Status> expectedStatuses) {
+  static void validateManifestEntries(
+      ManifestFile manifest,
+      Iterator<Long> ids,
+      Iterator<DataFile> expectedFiles,
+      Iterator<ManifestEntry.Status> expectedStatuses) {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
-      Assert.assertEquals("Path should match expected",
-          expected.path().toString(), file.path().toString());
-      Assert.assertEquals("Snapshot ID should match expected ID",
-          ids.next(), entry.snapshotId());
-      Assert.assertEquals("Entry status should match expected ID",
-          expectedStatus, entry.status());
+      Assert.assertEquals(
+          "Path should match expected", expected.path().toString(), file.path().toString());
+      Assert.assertEquals("Snapshot ID should match expected ID", ids.next(), entry.snapshotId());
+      Assert.assertEquals("Entry status should match expected ID", expectedStatus, entry.status());
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
@@ -525,9 +560,7 @@ public class TableTestBase {
     return ManifestFiles.read(manifest, FILE_IO).iterator();
   }
 
-  /**
-   * Used for assertions that only apply if the table version is v2.
-   */
+  /** Used for assertions that only apply if the table version is v2. */
   protected static class Assertions {
     private final boolean enabled;
 

@@ -16,17 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public class IOUtil {
   // not meant to be instantiated
-  private IOUtil() {
-  }
+  private IOUtil() {}
+
+  private static final int WRITE_CHUNK_SIZE = 8192;
 
   /**
    * Reads into a buffer from a stream, making multiple read calls if necessary.
@@ -38,7 +40,8 @@ public class IOUtil {
    * @throws EOFException if the end of the stream is reached before reading length bytes
    * @throws IOException if there is an error while reading
    */
-  public static void readFully(InputStream stream, byte[] bytes, int offset, int length) throws IOException {
+  public static void readFully(InputStream stream, byte[] bytes, int offset, int length)
+      throws IOException {
     int bytesRead = readRemaining(stream, bytes, offset, length);
     if (bytesRead < length) {
       throw new EOFException(
@@ -46,9 +49,22 @@ public class IOUtil {
     }
   }
 
+  /** Writes a buffer into a stream, making multiple write calls if necessary. */
+  public static void writeFully(OutputStream outputStream, ByteBuffer buffer) throws IOException {
+    if (!buffer.hasRemaining()) {
+      return;
+    }
+    byte[] chunk = new byte[WRITE_CHUNK_SIZE];
+    while (buffer.hasRemaining()) {
+      int chunkSize = Math.min(chunk.length, buffer.remaining());
+      buffer.get(chunk, 0, chunkSize);
+      outputStream.write(chunk, 0, chunkSize);
+    }
+  }
+
   /**
-   * Reads into a buffer from a stream, making multiple read calls if necessary
-   * returning the number of bytes read until end of stream.
+   * Reads into a buffer from a stream, making multiple read calls if necessary returning the number
+   * of bytes read until end of stream.
    *
    * @param stream an InputStream to read from
    * @param bytes a buffer to write into
@@ -57,7 +73,8 @@ public class IOUtil {
    * @return the number of bytes read
    * @throws IOException if there is an error while reading
    */
-  public static int readRemaining(InputStream stream, byte[] bytes, int offset, int length) throws IOException {
+  public static int readRemaining(InputStream stream, byte[] bytes, int offset, int length)
+      throws IOException {
     int pos = offset;
     int remaining = length;
     while (remaining > 0) {

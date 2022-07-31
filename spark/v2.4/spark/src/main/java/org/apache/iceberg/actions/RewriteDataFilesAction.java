@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.List;
@@ -33,12 +32,11 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 
 /**
- * @deprecated since 0.12.0, keeping this in Spark 2.4 for backward compatibility.
- * This implementation is no longer maintained, the new implementation is available with Spark 3.x
+ * @deprecated since 0.12.0, keeping this in Spark 2.4 for backward compatibility. This
+ *     implementation is no longer maintained, the new implementation is available with Spark 3.x
  */
 @Deprecated
-public class RewriteDataFilesAction
-    extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
+public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
 
   private final JavaSparkContext sparkContext;
   private FileIO fileIO;
@@ -63,7 +61,8 @@ public class RewriteDataFilesAction
 
   @Override
   protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
-    JavaRDD<CombinedScanTask> taskRDD = sparkContext.parallelize(combinedScanTasks, combinedScanTasks.size());
+    JavaRDD<CombinedScanTask> taskRDD =
+        sparkContext.parallelize(combinedScanTasks, combinedScanTasks.size());
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table()));
     RowDataRewriter rowDataRewriter = new RowDataRewriter(tableBroadcast, spec(), caseSensitive());
     return rowDataRewriter.rewriteDataForTasks(taskRDD);

@@ -19,7 +19,7 @@ import random
 
 import pytest
 
-from iceberg.utils.bin_packing import PackingIterator
+from pyiceberg.utils.bin_packing import PackingIterator
 
 
 @pytest.mark.parametrize(
@@ -80,4 +80,4 @@ def test_bin_packing_lookback(splits, target_weight, lookback, largest_bin_first
     def weight_func(x):
         return x
 
-    assert [item for item in PackingIterator(splits, target_weight, lookback, weight_func, largest_bin_first)] == expected_lists
+    assert list(PackingIterator(splits, target_weight, lookback, weight_func, largest_bin_first)) == expected_lists

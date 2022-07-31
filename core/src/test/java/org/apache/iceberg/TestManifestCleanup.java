@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expressions;
@@ -29,7 +28,7 @@ import org.junit.runners.Parameterized;
 public class TestManifestCleanup extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestManifestCleanup(int formatVersion) {
@@ -38,88 +37,88 @@ public class TestManifestCleanup extends TableTestBase {
 
   @Test
   public void testDelete() {
-    Assert.assertEquals("Table should start with no manifests",
-        0, listManifestFiles().size());
+    Assert.assertEquals("Table should start with no manifests", 0, listManifestFiles().size());
 
-    table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .commit();
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Assert.assertEquals("Table should have one append manifest",
-        1, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals(
+        "Table should have one append manifest",
+        1,
+        table.currentSnapshot().allManifests(table.io()).size());
 
-    table.newDelete()
-        .deleteFromRowFilter(Expressions.alwaysTrue())
-        .commit();
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
 
-    Assert.assertEquals("Table should have one delete manifest",
-        1, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals(
+        "Table should have one delete manifest",
+        1,
+        table.currentSnapshot().allManifests(table.io()).size());
 
     table.newAppend().commit();
 
-    Assert.assertEquals("Table should have no manifests",
-        0, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals(
+        "Table should have no manifests",
+        0,
+        table.currentSnapshot().allManifests(table.io()).size());
   }
 
   @Test
   public void testPartialDelete() {
-    Assert.assertEquals("Table should start with no manifests",
-        0, listManifestFiles().size());
+    Assert.assertEquals("Table should start with no manifests", 0, listManifestFiles().size());
 
-    table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .commit();
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot s1 = table.currentSnapshot();
-    Assert.assertEquals("Table should have one append manifest",
-        1, s1.allManifests().size());
+    Assert.assertEquals(
+        "Table should have one append manifest", 1, s1.allManifests(table.io()).size());
 
-    table.newDelete()
-        .deleteFile(FILE_B)
-        .commit();
+    table.newDelete().deleteFile(FILE_B).commit();
 
     Snapshot s2 = table.currentSnapshot();
-    Assert.assertEquals("Table should have one mixed manifest",
-        1, s2.allManifests().size());
+    Assert.assertEquals(
+        "Table should have one mixed manifest", 1, s2.allManifests(table.io()).size());
 
     table.newAppend().commit();
 
     Snapshot s3 = table.currentSnapshot();
-    Assert.assertEquals("Table should have the same manifests",
-        s2.allManifests(), s3.allManifests());
+    Assert.assertEquals(
+        "Table should have the same manifests",
+        s2.allManifests(table.io()),
+        s3.allManifests(table.io()));
   }
 
   @Test
   public void testOverwrite() {
-    Assert.assertEquals("Table should start with no manifests",
-        0, listManifestFiles().size());
+    Assert.assertEquals("Table should start with no manifests", 0, listManifestFiles().size());
 
-    table.newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .commit();
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Assert.assertEquals("Table should have one append manifest",
-        1, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals(
+        "Table should have one append manifest",
+        1,
+        table.currentSnapshot().allManifests(table.io()).size());
 
-    table.newOverwrite()
+    table
+        .newOverwrite()
         .overwriteByRowFilter(Expressions.alwaysTrue())
         .addFile(FILE_C)
         .addFile(FILE_D)
         .commit();
 
-    Assert.assertEquals("Table should have one delete manifest and one append manifest",
-        2, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals(
+        "Table should have one delete manifest and one append manifest",
+        2,
+        table.currentSnapshot().allManifests(table.io()).size());
 
-    table.newOverwrite()
+    table
+        .newOverwrite()
         .overwriteByRowFilter(Expressions.alwaysTrue())
         .addFile(FILE_A)
         .addFile(FILE_B)
         .commit();
 
-    Assert.assertEquals("Table should have one delete manifest and one append manifest",
-        2, table.currentSnapshot().allManifests().size());
+    Assert.assertEquals(
+        "Table should have one delete manifest and one append manifest",
+        2,
+        table.currentSnapshot().allManifests(table.io()).size());
   }
 }

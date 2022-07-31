@@ -1,5 +1,5 @@
 versionOverrides:
-  org.apache.iceberg:iceberg-api:release-base-0.13.0: "0.13.0"
+  org.apache.iceberg:iceberg-api:apache-iceberg-0.14.0: "0.14.0"
 acceptedBreaks:
   release-base-0.13.0:
     org.apache.iceberg:iceberg-api:
@@ -27,6 +27,24 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method ThisT org.apache.iceberg.SnapshotUpdate<ThisT>::scanManifestsWith(java.util.concurrent.ExecutorService)"
       justification: "Accept all changes prior to introducing API compatibility checks"
+    - code: "java.method.addedToInterface"
+      new: "method boolean org.apache.iceberg.expressions.BoundTerm<T>::isEquivalentTo(org.apache.iceberg.expressions.BoundTerm<?>)"
+      justification: "new API method"
+    - code: "java.method.addedToInterface"
+      new: "method java.lang.Iterable<org.apache.iceberg.DataFile> org.apache.iceberg.Snapshot::addedDataFiles(org.apache.iceberg.io.FileIO)"
+      justification: "Allow adding a new method to the interface - old method is deprecated"
+    - code: "java.method.addedToInterface"
+      new: "method java.lang.Iterable<org.apache.iceberg.DataFile> org.apache.iceberg.Snapshot::removedDataFiles(org.apache.iceberg.io.FileIO)"
+      justification: "Allow adding a new method to the interface - old method is deprecated"
+    - code: "java.method.addedToInterface"
+      new: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.Snapshot::allManifests(org.apache.iceberg.io.FileIO)"
+      justification: "Allow adding a new method to the interface - old method is deprecated"
+    - code: "java.method.addedToInterface"
+      new: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.Snapshot::dataManifests(org.apache.iceberg.io.FileIO)"
+      justification: "Allow adding a new method to the interface - old method is deprecated"
+    - code: "java.method.addedToInterface"
+      new: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.Snapshot::deleteManifests(org.apache.iceberg.io.FileIO)"
+      justification: "Allow adding a new method to the interface - old method is deprecated"
     - code: "java.method.addedToInterface"
       new: "method long org.apache.iceberg.actions.ExpireSnapshots.Result::deletedEqualityDeleteFilesCount()"
       justification: "Interface is backward compatible, very unlikely anyone implements this Result bean interface"
@@ -91,3 +109,11 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method org.apache.iceberg.ReplacePartitions org.apache.iceberg.ReplacePartitions::validateNoConflictingDeletes()"
       justification: "Accept all changes prior to introducing API compatibility checks"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.events.IncrementalScanEvent::<init>(java.lang.String,\
+        \ long, long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.Schema)"
+      new: "method void org.apache.iceberg.events.IncrementalScanEvent::<init>(java.lang.String,\
+        \ long, long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.Schema,\
+        \ boolean)"
+      justification: "IncrementalScanEvent should only be constructed by Iceberg code.\
+        \ Hence the change of constructor params shouldn't affect users"

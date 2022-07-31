@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
@@ -31,24 +30,28 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 /**
- * A procedure that applies changes in a given snapshot and creates a new snapshot which will
- * be set as the current snapshot in a table.
- * <p>
- * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
+ * A procedure that applies changes in a given snapshot and creates a new snapshot which will be set
+ * as the current snapshot in a table.
+ *
+ * <p><em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected
+ * table.
  *
  * @see org.apache.iceberg.ManageSnapshots#cherrypick(long)
  */
 class CherrypickSnapshotProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.required("snapshot_id", DataTypes.LongType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.required("snapshot_id", DataTypes.LongType)
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("source_snapshot_id", DataTypes.LongType, false, Metadata.empty()),
-      new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("source_snapshot_id", DataTypes.LongType, false, Metadata.empty()),
+            new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
+          });
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<CherrypickSnapshotProcedure>() {
@@ -78,16 +81,16 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     long snapshotId = args.getLong(1);
 
-    return modifyIcebergTable(tableIdent, table -> {
-      table.manageSnapshots()
-          .cherrypick(snapshotId)
-          .commit();
+    return modifyIcebergTable(
+        tableIdent,
+        table -> {
+          table.manageSnapshots().cherrypick(snapshotId).commit();
 
-      Snapshot currentSnapshot = table.currentSnapshot();
+          Snapshot currentSnapshot = table.currentSnapshot();
 
-      InternalRow outputRow = newInternalRow(snapshotId, currentSnapshot.snapshotId());
-      return new InternalRow[]{outputRow};
-    });
+          InternalRow outputRow = newInternalRow(snapshotId, currentSnapshot.snapshotId());
+          return new InternalRow[] {outputRow};
+        });
   }
 
   @Override

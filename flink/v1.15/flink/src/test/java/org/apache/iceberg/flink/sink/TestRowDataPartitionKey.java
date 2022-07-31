@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
@@ -40,53 +39,54 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestRowDataPartitionKey {
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(0, "boolType", Types.BooleanType.get()),
-      Types.NestedField.required(1, "id", Types.IntegerType.get()),
-      Types.NestedField.required(2, "longType", Types.LongType.get()),
-      Types.NestedField.required(3, "dateType", Types.DateType.get()),
-      Types.NestedField.required(4, "timeType", Types.TimeType.get()),
-      Types.NestedField.required(5, "stringType", Types.StringType.get()),
-      Types.NestedField.required(6, "timestampWithoutZone", Types.TimestampType.withoutZone()),
-      Types.NestedField.required(7, "timestampWithZone", Types.TimestampType.withZone()),
-      Types.NestedField.required(8, "fixedType", Types.FixedType.ofLength(5)),
-      Types.NestedField.required(9, "uuidType", Types.UUIDType.get()),
-      Types.NestedField.required(10, "binaryType", Types.BinaryType.get()),
-      Types.NestedField.required(11, "decimalType1", Types.DecimalType.of(18, 3)),
-      Types.NestedField.required(12, "decimalType2", Types.DecimalType.of(10, 5)),
-      Types.NestedField.required(13, "decimalType3", Types.DecimalType.of(38, 19)),
-      Types.NestedField.required(14, "floatType", Types.FloatType.get()),
-      Types.NestedField.required(15, "doubleType", Types.DoubleType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(0, "boolType", Types.BooleanType.get()),
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "longType", Types.LongType.get()),
+          Types.NestedField.required(3, "dateType", Types.DateType.get()),
+          Types.NestedField.required(4, "timeType", Types.TimeType.get()),
+          Types.NestedField.required(5, "stringType", Types.StringType.get()),
+          Types.NestedField.required(6, "timestampWithoutZone", Types.TimestampType.withoutZone()),
+          Types.NestedField.required(7, "timestampWithZone", Types.TimestampType.withZone()),
+          Types.NestedField.required(8, "fixedType", Types.FixedType.ofLength(5)),
+          Types.NestedField.required(9, "uuidType", Types.UUIDType.get()),
+          Types.NestedField.required(10, "binaryType", Types.BinaryType.get()),
+          Types.NestedField.required(11, "decimalType1", Types.DecimalType.of(18, 3)),
+          Types.NestedField.required(12, "decimalType2", Types.DecimalType.of(10, 5)),
+          Types.NestedField.required(13, "decimalType3", Types.DecimalType.of(38, 19)),
+          Types.NestedField.required(14, "floatType", Types.FloatType.get()),
+          Types.NestedField.required(15, "doubleType", Types.DoubleType.get()));
 
-  private static final List<String> SUPPORTED_PRIMITIVES = SCHEMA.asStruct().fields().stream()
-      .map(Types.NestedField::name).collect(Collectors.toList());
+  private static final List<String> SUPPORTED_PRIMITIVES =
+      SCHEMA.asStruct().fields().stream().map(Types.NestedField::name).collect(Collectors.toList());
 
-  private static final Schema NESTED_SCHEMA = new Schema(
-      Types.NestedField.required(1, "structType", Types.StructType.of(
-          Types.NestedField.optional(2, "innerStringType", Types.StringType.get()),
-          Types.NestedField.optional(3, "innerIntegerType", Types.IntegerType.get())
-      ))
-  );
+  private static final Schema NESTED_SCHEMA =
+      new Schema(
+          Types.NestedField.required(
+              1,
+              "structType",
+              Types.StructType.of(
+                  Types.NestedField.optional(2, "innerStringType", Types.StringType.get()),
+                  Types.NestedField.optional(3, "innerIntegerType", Types.IntegerType.get()))));
 
   @Test
   public void testNullPartitionValue() {
-    Schema schema = new Schema(
-        Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-        Types.NestedField.optional(2, "data", Types.StringType.get())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .identity("data")
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("data").build();
 
-    List<RowData> rows = Lists.newArrayList(
-        GenericRowData.of(1, StringData.fromString("a")),
-        GenericRowData.of(2, StringData.fromString("b")),
-        GenericRowData.of(3, null)
-    );
+    List<RowData> rows =
+        Lists.newArrayList(
+            GenericRowData.of(1, StringData.fromString("a")),
+            GenericRowData.of(2, StringData.fromString("b")),
+            GenericRowData.of(3, null));
 
-    RowDataWrapper rowWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
+    RowDataWrapper rowWrapper =
+        new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
 
     for (RowData row : rows) {
       PartitionKey partitionKey = new PartitionKey(spec, schema);
@@ -100,16 +100,15 @@ public class TestRowDataPartitionKey {
 
   @Test
   public void testPartitionWithOneNestedField() {
-    RowDataWrapper rowWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(NESTED_SCHEMA), NESTED_SCHEMA.asStruct());
+    RowDataWrapper rowWrapper =
+        new RowDataWrapper(FlinkSchemaUtil.convert(NESTED_SCHEMA), NESTED_SCHEMA.asStruct());
     List<Record> records = RandomGenericData.generate(NESTED_SCHEMA, 10, 1991);
     List<RowData> rows = Lists.newArrayList(RandomRowData.convert(NESTED_SCHEMA, records));
 
-    PartitionSpec spec1 = PartitionSpec.builderFor(NESTED_SCHEMA)
-        .identity("structType.innerStringType")
-        .build();
-    PartitionSpec spec2 = PartitionSpec.builderFor(NESTED_SCHEMA)
-        .identity("structType.innerIntegerType")
-        .build();
+    PartitionSpec spec1 =
+        PartitionSpec.builderFor(NESTED_SCHEMA).identity("structType.innerStringType").build();
+    PartitionSpec spec2 =
+        PartitionSpec.builderFor(NESTED_SCHEMA).identity("structType.innerIntegerType").build();
 
     for (int i = 0; i < rows.size(); i++) {
       RowData row = rows.get(i);
@@ -131,18 +130,21 @@ public class TestRowDataPartitionKey {
 
   @Test
   public void testPartitionMultipleNestedField() {
-    RowDataWrapper rowWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(NESTED_SCHEMA), NESTED_SCHEMA.asStruct());
+    RowDataWrapper rowWrapper =
+        new RowDataWrapper(FlinkSchemaUtil.convert(NESTED_SCHEMA), NESTED_SCHEMA.asStruct());
     List<Record> records = RandomGenericData.generate(NESTED_SCHEMA, 10, 1992);
     List<RowData> rows = Lists.newArrayList(RandomRowData.convert(NESTED_SCHEMA, records));
 
-    PartitionSpec spec1 = PartitionSpec.builderFor(NESTED_SCHEMA)
-        .identity("structType.innerIntegerType")
-        .identity("structType.innerStringType")
-        .build();
-    PartitionSpec spec2 = PartitionSpec.builderFor(NESTED_SCHEMA)
-        .identity("structType.innerStringType")
-        .identity("structType.innerIntegerType")
-        .build();
+    PartitionSpec spec1 =
+        PartitionSpec.builderFor(NESTED_SCHEMA)
+            .identity("structType.innerIntegerType")
+            .identity("structType.innerStringType")
+            .build();
+    PartitionSpec spec2 =
+        PartitionSpec.builderFor(NESTED_SCHEMA)
+            .identity("structType.innerStringType")
+            .identity("structType.innerIntegerType")
+            .build();
 
     PartitionKey pk1 = new PartitionKey(spec1, NESTED_SCHEMA);
     PartitionKey pk2 = new PartitionKey(spec2, NESTED_SCHEMA);
@@ -188,14 +190,19 @@ public class TestRowDataPartitionKey {
         pk.partition(rowWrapper.wrap(row));
         expectedPK.partition(recordWrapper.wrap(record));
 
-        Assert.assertEquals("Partition with column " + column + " should have one field.", 1, pk.size());
+        Assert.assertEquals(
+            "Partition with column " + column + " should have one field.", 1, pk.size());
 
         if (column.equals("timeType")) {
-          Assert.assertEquals("Partition with column " + column + " should have the expected values",
-              expectedPK.get(0, Long.class) / 1000, pk.get(0, Long.class) / 1000);
+          Assert.assertEquals(
+              "Partition with column " + column + " should have the expected values",
+              expectedPK.get(0, Long.class) / 1000,
+              pk.get(0, Long.class) / 1000);
         } else {
-          Assert.assertEquals("Partition with column " + column + " should have the expected values",
-              expectedPK.get(0, javaClasses[0]), pk.get(0, javaClasses[0]));
+          Assert.assertEquals(
+              "Partition with column " + column + " should have the expected values",
+              expectedPK.get(0, javaClasses[0]),
+              pk.get(0, javaClasses[0]));
         }
       }
     }
@@ -225,15 +232,19 @@ public class TestRowDataPartitionKey {
         pk.partition(rowWrapper.wrap(rows.get(j)));
         expectedPK.partition(recordWrapper.wrap(records.get(j)));
 
-        Assert.assertEquals("Partition with nested column " + column + " should have one field.",
-            1, pk.size());
+        Assert.assertEquals(
+            "Partition with nested column " + column + " should have one field.", 1, pk.size());
 
         if (column.equals("nested.timeType")) {
-          Assert.assertEquals("Partition with nested column " + column + " should have the expected values.",
-              expectedPK.get(0, Long.class) / 1000, pk.get(0, Long.class) / 1000);
+          Assert.assertEquals(
+              "Partition with nested column " + column + " should have the expected values.",
+              expectedPK.get(0, Long.class) / 1000,
+              pk.get(0, Long.class) / 1000);
         } else {
-          Assert.assertEquals("Partition with nested column " + column + " should have the expected values.",
-              expectedPK.get(0, javaClasses[0]), pk.get(0, javaClasses[0]));
+          Assert.assertEquals(
+              "Partition with nested column " + column + " should have the expected values.",
+              expectedPK.get(0, javaClasses[0]),
+              pk.get(0, javaClasses[0]));
         }
       }
     }

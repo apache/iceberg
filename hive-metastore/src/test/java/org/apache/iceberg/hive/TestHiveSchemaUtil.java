@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hive;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,78 +36,106 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestHiveSchemaUtil {
-  private static final Schema SIMPLE_ICEBERG_SCHEMA = new Schema(
-      optional(0, "customer_id", Types.LongType.get(), "customer comment"),
-      optional(1, "first_name", Types.StringType.get(), "first name comment")
-  );
+  private static final Schema SIMPLE_ICEBERG_SCHEMA =
+      new Schema(
+          optional(0, "customer_id", Types.LongType.get(), "customer comment"),
+          optional(1, "first_name", Types.StringType.get(), "first name comment"));
 
-  private static final Schema COMPLEX_ICEBERG_SCHEMA = new Schema(
-      optional(0, "id", Types.LongType.get(), ""),
-      optional(1, "name", Types.StringType.get(), ""),
-      optional(2, "employee_info", Types.StructType.of(
-          optional(3, "employer", Types.StringType.get()),
-          optional(4, "id", Types.LongType.get()),
-          optional(5, "address", Types.StringType.get())
-      ), ""),
-      optional(6, "places_lived", Types.ListType.ofOptional(10, Types.StructType.of(
-          optional(7, "street", Types.StringType.get()),
-          optional(8, "city", Types.StringType.get()),
-          optional(9, "country", Types.StringType.get())
-      )), ""),
-      optional(11, "memorable_moments", Types.MapType.ofOptional(15, 16,
-          Types.StringType.get(),
-          Types.StructType.of(
-              optional(12, "year", Types.IntegerType.get()),
-              optional(13, "place", Types.StringType.get()),
-              optional(14, "details", Types.StringType.get())
-          )), ""),
-      optional(17, "current_address", Types.StructType.of(
-          optional(18, "street_address", Types.StructType.of(
-              optional(19, "street_number", Types.IntegerType.get()),
-              optional(20, "street_name", Types.StringType.get()),
-              optional(21, "street_type", Types.StringType.get())
-          )),
-          optional(22, "country", Types.StringType.get()),
-          optional(23, "postal_code", Types.StringType.get())
-      ), "")
-  );
+  private static final Schema COMPLEX_ICEBERG_SCHEMA =
+      new Schema(
+          optional(0, "id", Types.LongType.get(), ""),
+          optional(1, "name", Types.StringType.get(), ""),
+          optional(
+              2,
+              "employee_info",
+              Types.StructType.of(
+                  optional(3, "employer", Types.StringType.get()),
+                  optional(4, "id", Types.LongType.get()),
+                  optional(5, "address", Types.StringType.get())),
+              ""),
+          optional(
+              6,
+              "places_lived",
+              Types.ListType.ofOptional(
+                  10,
+                  Types.StructType.of(
+                      optional(7, "street", Types.StringType.get()),
+                      optional(8, "city", Types.StringType.get()),
+                      optional(9, "country", Types.StringType.get()))),
+              ""),
+          optional(
+              11,
+              "memorable_moments",
+              Types.MapType.ofOptional(
+                  15,
+                  16,
+                  Types.StringType.get(),
+                  Types.StructType.of(
+                      optional(12, "year", Types.IntegerType.get()),
+                      optional(13, "place", Types.StringType.get()),
+                      optional(14, "details", Types.StringType.get()))),
+              ""),
+          optional(
+              17,
+              "current_address",
+              Types.StructType.of(
+                  optional(
+                      18,
+                      "street_address",
+                      Types.StructType.of(
+                          optional(19, "street_number", Types.IntegerType.get()),
+                          optional(20, "street_name", Types.StringType.get()),
+                          optional(21, "street_type", Types.StringType.get()))),
+                  optional(22, "country", Types.StringType.get()),
+                  optional(23, "postal_code", Types.StringType.get())),
+              ""));
 
-  private static final List<FieldSchema> SIMPLE_HIVE_SCHEMA = ImmutableList.of(
-      new FieldSchema("customer_id", serdeConstants.BIGINT_TYPE_NAME, "customer comment"),
-      new FieldSchema("first_name", serdeConstants.STRING_TYPE_NAME, "first name comment")
-  );
+  private static final List<FieldSchema> SIMPLE_HIVE_SCHEMA =
+      ImmutableList.of(
+          new FieldSchema("customer_id", serdeConstants.BIGINT_TYPE_NAME, "customer comment"),
+          new FieldSchema("first_name", serdeConstants.STRING_TYPE_NAME, "first name comment"));
 
-  private static final List<FieldSchema> COMPLEX_HIVE_SCHEMA = ImmutableList.of(
-      new FieldSchema("id", "bigint", ""),
-      new FieldSchema("name", "string", ""),
-      new FieldSchema("employee_info", "struct<employer:string,id:bigint,address:string>", ""),
-      new FieldSchema("places_lived", "array<struct<street:string,city:string,country:string>>", ""),
-      new FieldSchema("memorable_moments", "map<string,struct<year:int,place:string,details:string>>", ""),
-      new FieldSchema("current_address", "struct<street_address:struct<street_number:int,street_name:string," +
-          "street_type:string>,country:string,postal_code:string>", "")
-  );
+  private static final List<FieldSchema> COMPLEX_HIVE_SCHEMA =
+      ImmutableList.of(
+          new FieldSchema("id", "bigint", ""),
+          new FieldSchema("name", "string", ""),
+          new FieldSchema("employee_info", "struct<employer:string,id:bigint,address:string>", ""),
+          new FieldSchema(
+              "places_lived", "array<struct<street:string,city:string,country:string>>", ""),
+          new FieldSchema(
+              "memorable_moments", "map<string,struct<year:int,place:string,details:string>>", ""),
+          new FieldSchema(
+              "current_address",
+              "struct<street_address:struct<street_number:int,street_name:string,"
+                  + "street_type:string>,country:string,postal_code:string>",
+              ""));
 
   @Test
   public void testSimpleSchemaConvertToIcebergSchema() {
-    Assert.assertEquals(SIMPLE_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(SIMPLE_HIVE_SCHEMA).asStruct());
+    Assert.assertEquals(
+        SIMPLE_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(SIMPLE_HIVE_SCHEMA).asStruct());
   }
 
   @Test
   public void testSimpleSchemaConvertToIcebergSchemaFromNameAndTypeLists() {
-    List<String> names = SIMPLE_HIVE_SCHEMA.stream().map(field -> field.getName()).collect(Collectors.toList());
-    List<TypeInfo> types = SIMPLE_HIVE_SCHEMA.stream()
-        .map(field -> TypeInfoUtils.getTypeInfoFromTypeString(field.getType()))
-        .collect(Collectors.toList());
-    List<String> comments = SIMPLE_HIVE_SCHEMA.stream().map(FieldSchema::getComment).collect(Collectors.toList());
-    Assert.assertEquals(SIMPLE_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(names, types, comments).asStruct());
+    List<String> names =
+        SIMPLE_HIVE_SCHEMA.stream().map(field -> field.getName()).collect(Collectors.toList());
+    List<TypeInfo> types =
+        SIMPLE_HIVE_SCHEMA.stream()
+            .map(field -> TypeInfoUtils.getTypeInfoFromTypeString(field.getType()))
+            .collect(Collectors.toList());
+    List<String> comments =
+        SIMPLE_HIVE_SCHEMA.stream().map(FieldSchema::getComment).collect(Collectors.toList());
+    Assert.assertEquals(
+        SIMPLE_ICEBERG_SCHEMA.asStruct(),
+        HiveSchemaUtil.convert(names, types, comments).asStruct());
   }
 
   @Test
   public void testComplexSchemaConvertToIcebergSchema() {
-    Assert.assertEquals(COMPLEX_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA).asStruct());
+    Assert.assertEquals(
+        COMPLEX_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA).asStruct());
   }
 
   @Test
@@ -118,11 +147,13 @@ public class TestHiveSchemaUtil {
   @Test
   public void testNotSupportedTypes() {
     for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
-      AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-          "Unsupported Hive type", () -> {
+      AssertHelpers.assertThrows(
+          "should throw exception",
+          IllegalArgumentException.class,
+          "Unsupported Hive type",
+          () -> {
             HiveSchemaUtil.convert(Lists.newArrayList(Arrays.asList(notSupportedField)));
-          }
-      );
+          });
     }
   }
 
@@ -142,30 +173,35 @@ public class TestHiveSchemaUtil {
     List<FieldSchema> fieldSchemas = getSupportedFieldSchemas();
     List<Types.NestedField> nestedFields = getSchemaWithSupportedTypes().columns();
     for (int i = 0; i < fieldSchemas.size(); ++i) {
-      checkConvert(TypeInfoUtils.getTypeInfoFromTypeString(fieldSchemas.get(i).getType()), nestedFields.get(i).type());
+      checkConvert(
+          TypeInfoUtils.getTypeInfoFromTypeString(fieldSchemas.get(i).getType()),
+          nestedFields.get(i).type());
     }
   }
 
   @Test
   public void testComplexTypeAndTypeInfoConvert() {
     for (int i = 0; i < COMPLEX_HIVE_SCHEMA.size(); ++i) {
-      checkConvert(TypeInfoUtils.getTypeInfoFromTypeString(COMPLEX_HIVE_SCHEMA.get(i).getType()),
+      checkConvert(
+          TypeInfoUtils.getTypeInfoFromTypeString(COMPLEX_HIVE_SCHEMA.get(i).getType()),
           COMPLEX_ICEBERG_SCHEMA.columns().get(i).type());
     }
   }
 
   @Test
   public void testConversionWithoutLastComment() {
-    Schema expected = new Schema(
-        optional(0, "customer_id", Types.LongType.get(), "customer comment"),
-        optional(1, "first_name", Types.StringType.get(), null)
-    );
+    Schema expected =
+        new Schema(
+            optional(0, "customer_id", Types.LongType.get(), "customer comment"),
+            optional(1, "first_name", Types.StringType.get(), null));
 
-    Schema schema = HiveSchemaUtil.convert(
-        Arrays.asList("customer_id", "first_name"),
-        Arrays.asList(TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.BIGINT_TYPE_NAME),
-          TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.STRING_TYPE_NAME)),
-        Arrays.asList("customer comment"));
+    Schema schema =
+        HiveSchemaUtil.convert(
+            Arrays.asList("customer_id", "first_name"),
+            Arrays.asList(
+                TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.BIGINT_TYPE_NAME),
+                TypeInfoUtils.getTypeInfoFromTypeString(serdeConstants.STRING_TYPE_NAME)),
+            Arrays.asList("customer comment"));
 
     Assert.assertEquals(expected.asStruct(), schema.asStruct());
   }
@@ -191,7 +227,8 @@ public class TestHiveSchemaUtil {
     fields.add(new FieldSchema("c_short", serdeConstants.SMALLINT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_char", serdeConstants.CHAR_TYPE_NAME + "(5)", ""));
     fields.add(new FieldSchema("c_varchar", serdeConstants.VARCHAR_TYPE_NAME + "(5)", ""));
-    fields.add(new FieldSchema("c_interval_date", serdeConstants.INTERVAL_YEAR_MONTH_TYPE_NAME, ""));
+    fields.add(
+        new FieldSchema("c_interval_date", serdeConstants.INTERVAL_YEAR_MONTH_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_interval_time", serdeConstants.INTERVAL_DAY_TIME_TYPE_NAME, ""));
     return fields;
   }
@@ -212,6 +249,7 @@ public class TestHiveSchemaUtil {
 
   /**
    * Check conversion for 1-on-1 mappings
+   *
    * @param typeInfo Hive type
    * @param type Iceberg type
    */
@@ -224,6 +262,7 @@ public class TestHiveSchemaUtil {
 
   /**
    * Compares the nested types without checking the ids.
+   *
    * @param expected The expected types to compare
    * @param actual The actual types to compare
    */
