@@ -32,6 +32,14 @@ class ValidationError(Exception):
     """Raises when there is an issue with the schema"""
 
 
+class NoSuchTableError(Exception):
+    """Raises when the table can't be found in the REST catalog"""
+
+
+class NoSuchNamespaceError(Exception):
+    """Raised when a referenced name-space is not found"""
+
+
 class RESTError(Exception):
     """Raises when there is an unknown response from the REST Catalog"""
 
@@ -62,11 +70,3 @@ class ForbiddenError(RESTError):
 
 class AuthorizationExpiredError(RESTError):
     """When the credentials are expired when performing an action on the REST catalog"""
-
-
-class NoSuchTableError(RESTError):
-    """Raises when the table can't be found in the REST catalog"""
-
-
-class NoSuchNamespaceError(RESTError):
-    """Raised when a referenced name-space is not found"""
