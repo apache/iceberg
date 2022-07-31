@@ -58,10 +58,10 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
   @Test
   public void testListFunctionsViaCatalog() throws NoSuchNamespaceException {
     Assertions.assertThat(asFunctionCatalog.listFunctions(EMPTY_NAMESPACE))
-        .anyMatch(func -> "iceberg_version".equalsIgnoreCase(func.name()));
+        .anyMatch(func -> "iceberg_version".equals(func.name()));
 
     Assertions.assertThat(asFunctionCatalog.listFunctions(SYSTEM_NAMESPACE))
-        .anyMatch(func -> "iceberg_version".equalsIgnoreCase(func.name()));
+        .anyMatch(func -> "iceberg_version".equals(func.name()));
 
     Assert.assertArrayEquals(
         "Listing functions in an existing namespace that's not system should not throw",
@@ -93,12 +93,12 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
         "Undefined function: default.iceberg_version",
         () -> asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")));
 
+    Identifier undefinedFunction = Identifier.of(SYSTEM_NAMESPACE, "undefined_function");
     AssertHelpers.assertThrows(
         "Cannot load a function that does not exist",
         NoSuchFunctionException.class,
         "Undefined function: system.undefined_function",
-        () ->
-            asFunctionCatalog.loadFunction(Identifier.of(SYSTEM_NAMESPACE, "undefined_function")));
+        () -> asFunctionCatalog.loadFunction(undefinedFunction));
 
     AssertHelpers.assertThrows(
         "Using an undefined function from SQL should fail analysis",
@@ -108,14 +108,8 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testIcebergVersionFunctionReturnsCorrectResult() {
+  public void testCallingFunctionInSQLEndToEnd() {
     String buildVersion = IcebergBuild.version();
-
-    // Check that value correctly loads from file, even in codegen etc
-    Assert.assertNotEquals(
-        "iceberg_version should not return undefined",
-        "undefined",
-        scalarSql("SELECT %s.system.iceberg_version()", catalogName));
 
     Assert.assertEquals(
         "Should be able to use the Iceberg version function from the fully qualified system namespace",

@@ -53,7 +53,8 @@ public class IcebergVersionFunction implements UnboundFunction {
     return "iceberg_version";
   }
 
-  // class must be at least package private to be resolvable
+  // Implementing class cannot be private, otherwise Spark is unable to access the static invoke
+  // function during code-gen and calling the function fails
   static class IcebergVersionFunctionImpl implements ScalarFunction<UTF8String> {
     private static final UTF8String VERSION = UTF8String.fromString(IcebergBuild.version());
 
