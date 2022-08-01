@@ -77,7 +77,7 @@ public class TestScanReport {
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
     Assertions.assertThat(scanReport.projection()).isEqualTo(projection);
-    Assertions.assertThat(scanReport.filter()).isEqualTo(filter);
+    Assertions.assertThat(scanReport.filter()).isEqualTo(filter.toString());
     Assertions.assertThat(scanReport.snapshotId()).isEqualTo(-1);
     Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
         .isEqualTo(Duration.ZERO);
@@ -112,7 +112,7 @@ public class TestScanReport {
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
     Assertions.assertThat(scanReport.projection()).isEqualTo(projection);
-    Assertions.assertThat(scanReport.filter()).isEqualTo(filter);
+    Assertions.assertThat(scanReport.filter()).isEqualTo(filter.toString());
     Assertions.assertThat(scanReport.snapshotId()).isEqualTo(23L);
     Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
         .isEqualTo(Duration.ofMinutes(10L));
