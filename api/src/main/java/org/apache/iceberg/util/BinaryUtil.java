@@ -51,6 +51,22 @@ public class BinaryUtil {
   }
 
   /**
+   * Truncates the input byte buffer to the given length.
+   *
+   * <p>This skips input validation, and avoids copying the backing bytes if possible for efficiency
+   * reasons. This function should only be used if the input doesn't need validation. Likely {@link
+   * #truncateBinary(ByteBuffer, int)} is preferred.
+   *
+   * @param width The non-negative length to truncate input to
+   * @param value The ByteBuffer to be truncated
+   */
+  public static ByteBuffer truncateBinaryUnsafe(int width, ByteBuffer value) {
+    ByteBuffer ret = value.duplicate();
+    ret.limit(Math.min(value.limit(), value.position() + width));
+    return ret;
+  }
+
+  /**
    * Returns a byte buffer whose length is lesser than or equal to truncateLength and is lower than
    * the given input
    */
