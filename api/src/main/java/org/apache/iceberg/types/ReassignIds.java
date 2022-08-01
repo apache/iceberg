@@ -95,7 +95,9 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     Types.StructType sourceStruct = sourceType.asStructType();
     Types.NestedField sourceField =
-        caseSensitive ? sourceStruct.field(field.name()) : sourceStruct.caseInsensitiveField(field.name());
+        caseSensitive
+            ? sourceStruct.field(field.name())
+            : sourceStruct.caseInsensitiveField(field.name());
     if (sourceField != null) {
       this.sourceType = sourceField.type();
       try {
