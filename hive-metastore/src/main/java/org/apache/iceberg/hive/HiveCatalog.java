@@ -490,9 +490,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     String warehouseLocation = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
     Preconditions.checkNotNull(
         warehouseLocation, "Warehouse location is not set: hive.metastore.warehouse.dir=null");
-    if (warehouseLocation.endsWith("/")) {
-      warehouseLocation = warehouseLocation.substring(0, warehouseLocation.length() - 1);
-    }
+    warehouseLocation = LocationUtil.stripTrailingSlash(warehouseLocation);
     return String.format("%s/%s.db", warehouseLocation, warehouseName);
   }
 
