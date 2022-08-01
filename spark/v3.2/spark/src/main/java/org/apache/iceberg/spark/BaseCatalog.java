@@ -34,7 +34,7 @@ import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
 abstract class BaseCatalog
-        implements StagingTableCatalog,
+    implements StagingTableCatalog,
         ProcedureCatalog,
         SupportsNamespaces,
         HasIcebergCatalog,
@@ -61,8 +61,8 @@ abstract class BaseCatalog
   public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
     if (namespace.length == 0 || isSystemNamespace(namespace)) {
       return SparkFunctions.list().stream()
-              .map(name -> Identifier.of(namespace, name))
-              .toArray(Identifier[]::new);
+          .map(name -> Identifier.of(namespace, name))
+          .toArray(Identifier[]::new);
     } else if (namespaceExists(namespace)) {
       return new Identifier[0];
     }

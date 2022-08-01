@@ -35,106 +35,106 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
-    private static final String[] EMPTY_NAMESPACE = new String[] {};
-    private static final String[] SYSTEM_NAMESPACE = new String[] {"system"};
-    private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
-    private static final String[] DB_NAMESPACE = new String[] {"db"};
-    private final FunctionCatalog asFunctionCatalog;
+  private static final String[] EMPTY_NAMESPACE = new String[] {};
+  private static final String[] SYSTEM_NAMESPACE = new String[] {"system"};
+  private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
+  private static final String[] DB_NAMESPACE = new String[] {"db"};
+  private final FunctionCatalog asFunctionCatalog;
 
-    public TestFunctionCatalog() {
-        this.asFunctionCatalog = castToFunctionCatalog(catalogName);
+  public TestFunctionCatalog() {
+    this.asFunctionCatalog = castToFunctionCatalog(catalogName);
+  }
+
+  @Before
+  public void createDefaultNamespace() {
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", catalogName + ".default");
+  }
+
+  @After
+  public void dropDefaultNamespace() {
+    sql("DROP NAMESPACE IF EXISTS %s", catalogName + ".default");
+  }
+
+  @Test
+  public void testListFunctionsViaCatalog() throws NoSuchNamespaceException {
+    Assertions.assertThat(asFunctionCatalog.listFunctions(EMPTY_NAMESPACE))
+        .anyMatch(func -> "iceberg_version".equals(func.name()));
+
+    Assertions.assertThat(asFunctionCatalog.listFunctions(SYSTEM_NAMESPACE))
+        .anyMatch(func -> "iceberg_version".equals(func.name()));
+
+    Assert.assertArrayEquals(
+        "Listing functions in an existing namespace that's not system should not throw",
+        new Identifier[0],
+        asFunctionCatalog.listFunctions(DEFAULT_NAMESPACE));
+
+    AssertHelpers.assertThrows(
+        "Listing functions in a namespace that does not exist should throw",
+        NoSuchNamespaceException.class,
+        "Namespace 'db' not found",
+        () -> asFunctionCatalog.listFunctions(DB_NAMESPACE));
+  }
+
+  @Test
+  public void testLoadFunctions() throws NoSuchFunctionException {
+    for (String[] namespace : ImmutableList.of(EMPTY_NAMESPACE, SYSTEM_NAMESPACE)) {
+      Identifier identifier = Identifier.of(namespace, "iceberg_version");
+      UnboundFunction func = asFunctionCatalog.loadFunction(identifier);
+
+      Assertions.assertThat(func)
+          .isNotNull()
+          .isInstanceOf(UnboundFunction.class)
+          .isExactlyInstanceOf(IcebergVersionFunction.class);
     }
 
-    @Before
-    public void createDefaultNamespace() {
-        sql("CREATE NAMESPACE IF NOT EXISTS %s", catalogName + ".default");
-    }
+    AssertHelpers.assertThrows(
+        "Cannot load a function if it's not used with the system namespace or the empty namespace",
+        NoSuchFunctionException.class,
+        "Undefined function: default.iceberg_version",
+        () -> asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")));
 
-    @After
-    public void dropDefaultNamespace() {
-        sql("DROP NAMESPACE IF EXISTS %s", catalogName + ".default");
-    }
+    Identifier undefinedFunction = Identifier.of(SYSTEM_NAMESPACE, "undefined_function");
+    AssertHelpers.assertThrows(
+        "Cannot load a function that does not exist",
+        NoSuchFunctionException.class,
+        "Undefined function: system.undefined_function",
+        () -> asFunctionCatalog.loadFunction(undefinedFunction));
 
-    @Test
-    public void testListFunctionsViaCatalog() throws NoSuchNamespaceException {
-        Assertions.assertThat(asFunctionCatalog.listFunctions(EMPTY_NAMESPACE))
-                .anyMatch(func -> "iceberg_version".equals(func.name()));
+    AssertHelpers.assertThrows(
+        "Using an undefined function from SQL should fail analysis",
+        AnalysisException.class,
+        "Undefined function",
+        () -> sql("SELECT undefined_function(1, 2)"));
+  }
 
-        Assertions.assertThat(asFunctionCatalog.listFunctions(SYSTEM_NAMESPACE))
-                .anyMatch(func -> "iceberg_version".equals(func.name()));
+  @Test
+  public void testCallingFunctionInSQLEndToEnd() {
+    String buildVersion = IcebergBuild.version();
 
-        Assert.assertArrayEquals(
-                "Listing functions in an existing namespace that's not system should not throw",
-                new Identifier[0],
-                asFunctionCatalog.listFunctions(DEFAULT_NAMESPACE));
+    Assert.assertEquals(
+        "Should be able to use the Iceberg version function from the fully qualified system namespace",
+        buildVersion,
+        scalarSql("SELECT %s.system.iceberg_version()", catalogName));
 
-        AssertHelpers.assertThrows(
-                "Listing functions in a namespace that does not exist should throw",
-                NoSuchNamespaceException.class,
-                "Namespace 'db' not found",
-                () -> asFunctionCatalog.listFunctions(DB_NAMESPACE));
-    }
+    Assert.assertEquals(
+        "Should be able to use the Iceberg version function when fully qualified without specifying a namespace",
+        buildVersion,
+        scalarSql("SELECT %s.iceberg_version()", catalogName));
 
-    @Test
-    public void testLoadFunctions() throws NoSuchFunctionException {
-        for (String[] namespace : ImmutableList.of(EMPTY_NAMESPACE, SYSTEM_NAMESPACE)) {
-            Identifier identifier = Identifier.of(namespace, "iceberg_version");
-            UnboundFunction func = asFunctionCatalog.loadFunction(identifier);
+    sql("USE %s", catalogName);
 
-            Assertions.assertThat(func)
-                    .isNotNull()
-                    .isInstanceOf(UnboundFunction.class)
-                    .isExactlyInstanceOf(IcebergVersionFunction.class);
-        }
+    Assert.assertEquals(
+        "Should be able to call iceberg_version from system namespace without fully qualified name when using Iceberg catalog",
+        buildVersion,
+        scalarSql("SELECT system.iceberg_version()"));
 
-        AssertHelpers.assertThrows(
-                "Cannot load a function if it's not used with the system namespace or the empty namespace",
-                NoSuchFunctionException.class,
-                "Undefined function: default.iceberg_version",
-                () -> asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")));
+    Assert.assertEquals(
+        "Should be able to call iceberg_version from empty namespace without fully qualified name when using Iceberg catalog",
+        buildVersion,
+        scalarSql("SELECT iceberg_version()"));
+  }
 
-        Identifier undefinedFunction = Identifier.of(SYSTEM_NAMESPACE, "undefined_function");
-        AssertHelpers.assertThrows(
-                "Cannot load a function that does not exist",
-                NoSuchFunctionException.class,
-                "Undefined function: system.undefined_function",
-                () -> asFunctionCatalog.loadFunction(undefinedFunction));
-
-        AssertHelpers.assertThrows(
-                "Using an undefined function from SQL should fail analysis",
-                AnalysisException.class,
-                "Undefined function",
-                () -> sql("SELECT undefined_function(1, 2)"));
-    }
-
-    @Test
-    public void testCallingFunctionInSQLEndToEnd() {
-        String buildVersion = IcebergBuild.version();
-
-        Assert.assertEquals(
-                "Should be able to use the Iceberg version function from the fully qualified system namespace",
-                buildVersion,
-                scalarSql("SELECT %s.system.iceberg_version()", catalogName));
-
-        Assert.assertEquals(
-                "Should be able to use the Iceberg version function when fully qualified without specifying a namespace",
-                buildVersion,
-                scalarSql("SELECT %s.iceberg_version()", catalogName));
-
-        sql("USE %s", catalogName);
-
-        Assert.assertEquals(
-                "Should be able to call iceberg_version from system namespace without fully qualified name when using Iceberg catalog",
-                buildVersion,
-                scalarSql("SELECT system.iceberg_version()"));
-
-        Assert.assertEquals(
-                "Should be able to call iceberg_version from empty namespace without fully qualified name when using Iceberg catalog",
-                buildVersion,
-                scalarSql("SELECT iceberg_version()"));
-    }
-
-    private FunctionCatalog castToFunctionCatalog(String name) {
-        return (FunctionCatalog) spark.sessionState().catalogManager().catalog(name);
-    }
+  private FunctionCatalog castToFunctionCatalog(String name) {
+    return (FunctionCatalog) spark.sessionState().catalogManager().catalog(name);
+  }
 }
