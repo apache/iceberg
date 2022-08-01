@@ -61,6 +61,7 @@ class SchemaUpdate implements UpdateSchema {
   private int lastColumnId;
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
+  private boolean caseSensitive;
 
   SchemaUpdate(TableOperations ops) {
     this(ops, ops.current());
@@ -367,12 +368,6 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema unionByNameWith(Schema newSchema) {
-    UnionByNameVisitor.visit(this, schema, newSchema);
-    return this;
-  }
-
-  @Override
-  public UpdateSchema unionByNameWith(Schema newSchema, boolean caseSensitive) {
     UnionByNameVisitor.visit(this, schema, newSchema, caseSensitive);
     return this;
   }
@@ -380,6 +375,12 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public UpdateSchema setIdentifierFields(Collection<String> names) {
     this.identifierFieldNames = Sets.newHashSet(names);
+    return this;
+  }
+
+  @Override
+  public UpdateSchema caseSensitive(boolean caseSensitivity) {
+    this.caseSensitive = caseSensitivity;
     return this;
   }
 

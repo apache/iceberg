@@ -573,6 +573,8 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     List<Types.NestedField> fields = table.schema().asStruct().fields();
+
+    // Additional columns should not be created
     Assert.assertEquals(2, fields.size());
   }
 }
