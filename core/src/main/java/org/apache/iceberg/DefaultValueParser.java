@@ -119,7 +119,7 @@ public class DefaultValueParser {
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
           String timestampTz = defaultValue.textValue();
           Preconditions.checkArgument(DateTimeUtil.isUTCTimestamptz(timestampTz),
-              "Cannot parse default as a %s value: %s, timezone must be UTC",
+              "Cannot parse default as a %s value: %s, offset must be +00:00",
               type, defaultValue);
           return DateTimeUtil.isoTimestamptzToMicros(timestampTz);
         } else {
@@ -294,8 +294,8 @@ public class DefaultValueParser {
         ByteBuffer byteBufferValue = (ByteBuffer) defaultValue;
         int expectedLength = ((Types.FixedType) type).length();
         Preconditions.checkArgument(byteBufferValue.remaining() == expectedLength,
-            "Invalid default %s value: %s, incorrect length: %s",
-            type, defaultValue, byteBufferValue.remaining());
+            "Invalid default %s value, incorrect length: %s",
+            type, byteBufferValue.remaining());
         generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(byteBufferValue)));
         break;
       case BINARY:

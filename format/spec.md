@@ -1162,7 +1162,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`long`**         | **`JSON long`**                           | `34`                                       | |
 | **`float`**        | **`JSON number`**                         | `1.0`                                      | |
 | **`double`**       | **`JSON number`**                         | `1.0`                                      | |
-| **`decimal(P,S)`** | **`JSON string`**                         | `"14.20"`, `"2E+20"`                       | Stores the decimal string as-is |
+| **`decimal(P,S)`** | **`JSON string`**                         | `"14.20"`, `"2E+20"`                       | Stores the string representation of the decimal value, specifically, for values with a positive scale, the number of digits to the right of the decimal point is used to indicate scale, for values with a negative scale, the scientific notation is used and the exponent must equal the negated scale |
 | **`date`**         | **`JSON string`**                         | `"2017-11-16"`                             | Stores ISO-8601 standard date |
 | **`time`**         | **`JSON string`**                         | `"22:31:08.123456"`                        | Stores ISO-8601 standard time with microsecond precision |
 | **`timestamp`**    | **`JSON string`**                         | `"2017-11-16T22:31:08.123456"`             | Stores ISO-8601 standard timestamp with microsecond precision; must not include a zone offset |
