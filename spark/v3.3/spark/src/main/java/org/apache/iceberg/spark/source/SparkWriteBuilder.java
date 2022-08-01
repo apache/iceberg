@@ -248,7 +248,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
           SparkSchemaUtil.convertWithFreshIds(table.schema(), dsSchema, caseSensitive);
 
       // update the table to get final id assignments and validate the changes
-      UpdateSchema update = table.updateSchema().caseSensitive(caseSensitive);
+      UpdateSchema update =
+          table.updateSchema().caseSensitive(caseSensitive).unionByNameWith(newSchema);
       Schema mergedSchema = update.apply();
 
       // reconvert the dsSchema without assignment to use the ids assigned by UpdateSchema

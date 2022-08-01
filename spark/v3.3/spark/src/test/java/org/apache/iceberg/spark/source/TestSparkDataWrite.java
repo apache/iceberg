@@ -42,6 +42,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
@@ -647,6 +648,39 @@ public class TestSparkDataWrite {
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", records.size(), actual.size());
     Assert.assertEquals("Result rows should match", records, actual);
+  }
+
+  @Test
+  public void testWriteWithCaseSensitiveOption() throws IOException {
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    Table table =
+        tables.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA, "true"),
+            location.toString());
+
+    List<SimpleRecord1> records = Lists.newArrayList(new SimpleRecord1(1, "a"));
+    Dataset<Row> dataFrame = spark.createDataFrame(records, SimpleRecord1.class);
+    // write should succeed
+    dataFrame
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.CASE_SENSITIVE, "false")
+        .option("merge-schema", "true")
+        .option("check-ordering", "false")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    table.refresh();
+    List<Types.NestedField> fields = table.schema().asStruct().fields();
+
+    // Additional columns should not be created
+    Assert.assertEquals(2, fields.size());
   }
 
   public enum IcebergOptionsType {

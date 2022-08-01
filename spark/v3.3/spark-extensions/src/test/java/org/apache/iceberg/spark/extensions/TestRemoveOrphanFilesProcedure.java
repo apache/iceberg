@@ -41,12 +41,9 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.SimpleRecord;
-import org.apache.iceberg.spark.source.SimpleRecord1;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -532,49 +529,5 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     // Drop table in afterEach has purge and fails due to invalid scheme "file1" used in this test
     // Dropping the table here
     sql("DROP TABLE %s", tableName);
-  }
-
-  @Test
-  public void testWriteWithCaseSensitiveOption()
-      throws NoSuchTableException, IOException, ParseException {
-    if (catalogName.equals("testhadoop")) {
-      sql(
-          "\n"
-              + "CREATE TABLE IF NOT EXISTS %s (\n"
-              + "id integer,\n"
-              + "data string)\n"
-              + "USING iceberg\n"
-              + "TBLPROPERTIES("
-              + "'write.spark.accept-any-schema'='true')",
-          tableName);
-    } else {
-      // give a fresh location to Hive tables as Spark will not clean up the table location
-      // correctly while dropping tables through spark_catalog
-      sql(
-          "CREATE TABLE IF NOT EXISTS %s (\n"
-              + "id integer,\n"
-              + "data string)\n"
-              + "USING iceberg\n"
-              + "LOCATION '%s'\n"
-              + "TBLPROPERTIES("
-              + "'write.spark.accept-any-schema'='true')",
-          tableName, temp.newFolder());
-    }
-    List<SimpleRecord1> records = Lists.newArrayList(new SimpleRecord1(1, "a"));
-
-    Dataset<Row> dataFrame = spark.createDataFrame(records, SimpleRecord1.class);
-    // write should succeed
-    dataFrame
-        .writeTo(tableName)
-        .option(SparkWriteOptions.CASE_SENSITIVE, "false")
-        .option("mergeSchema", "true")
-        .option("check-ordering", "false")
-        .append();
-
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    List<Types.NestedField> fields = table.schema().asStruct().fields();
-
-    // Additional columns should not be created
-    Assert.assertEquals(2, fields.size());
   }
 }
