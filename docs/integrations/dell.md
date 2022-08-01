@@ -39,7 +39,7 @@ When using Dell ECS with Iceberg, these configuration parameters are required:
 | ecs.s3.secret-access-key | S3 Secret Key                     |
 | warehouse                | The location of data and metadata |
 
-The warehouse should provide as the following format:
+The warehouse should use the following formats:
 
 | Example                    | Description                                                     |
 | -------------------------- | --------------------------------------------------------------- |
@@ -64,15 +64,15 @@ jars = ",".join([
     "com.emc.ecs:object-client-bundle:3.3.2"
 ])
 
-spark = SparkSession.builder \
-    .config("spark.jars.packages", jars) \
-    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
-    .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog") \
-    .config("spark.sql.catalog.my_catalog.warehouse", "ecs://bucket-a/namespace-a") \
-    .config("spark.sql.catalog.my_catalog.catalog-impl", "org.apache.iceberg.dell.ecs.EcsCatalog") \
-    .config("spark.sql.catalog.my_catalog.ecs.s3.endpoint", "http://10.x.x.x:9020") \
-    .config("spark.sql.catalog.my_catalog.ecs.s3.access-key-id", "<Your-ecs-s3-access-key>") \
-    .config("spark.sql.catalog.my_catalog.ecs.s3.secret-access-key", "<Your-ecs-s3-secret-access-key>") \
+spark = SparkSession.builder
+    .config("spark.jars.packages", jars)
+    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+    .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")
+    .config("spark.sql.catalog.my_catalog.warehouse", "ecs://bucket-a/namespace-a")
+    .config("spark.sql.catalog.my_catalog.catalog-impl", "org.apache.iceberg.dell.ecs.EcsCatalog")
+    .config("spark.sql.catalog.my_catalog.ecs.s3.endpoint", "http://10.x.x.x:9020")
+    .config("spark.sql.catalog.my_catalog.ecs.s3.access-key-id", "<Your-ecs-s3-access-key>")
+    .config("spark.sql.catalog.my_catalog.ecs.s3.secret-access-key", "<Your-ecs-s3-secret-access-key>")
     .getOrCreate()
 ```
 
@@ -96,15 +96,15 @@ from pyflink.table import StreamTableEnvironment
 work_space = "<your_work_space>"
 
 jars = {
-    "iceberg-flink-runtime-1.14-0.15.0.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/0.15.0/iceberg-flink-runtime-1.14-0.15.0.jar", 
-    "iceberg-dell.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-dell/0.15.0/iceberg-dell-0.15.0.jar", 
+    "iceberg-flink-runtime-1.14-0.15.0.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/0.15.0/iceberg-flink-runtime-1.14-0.15.0.jar",
+    "iceberg-dell.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-dell/0.15.0/iceberg-dell-0.15.0.jar",
     "object-client-bundle-3.3.2.jar" : "https://repo1.maven.org/maven2/com/emc/ecs/object-client-bundle/3.3.2/object-client-bundle-3.3.2.jar",
 }
 
 # Download libraries
 for jar, link in jars.items():
     with open(f"{work_space}/{jar}", "wb") as f:
-      f.write(requests.get(link).content)
+        f.write(requests.get(link).content)
 
 pipeline_jars = [f"file://{work_space}/{jar}" for jar in jars]
 
