@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -348,8 +349,10 @@ class S3OutputStream extends PositionOutputStream {
                             }
 
                             if (thrown != null) {
+                              // Exception observed here will be thrown as part of
+                              // CompletionException
+                              // when we will join completable futures.
                               LOG.error("Failed to upload part: {}", uploadRequest, thrown);
-                              abortUpload();
                             }
                           });
 
@@ -360,11 +363,19 @@ class S3OutputStream extends PositionOutputStream {
   private void completeMultiPartUpload() {
     Preconditions.checkState(closed, "Complete upload called on open stream: " + location);
 
-    List<CompletedPart> completedParts =
-        multiPartMap.values().stream()
-            .map(CompletableFuture::join)
-            .sorted(Comparator.comparing(CompletedPart::partNumber))
-            .collect(Collectors.toList());
+    List<CompletedPart> completedParts;
+    try {
+      completedParts =
+          multiPartMap.values().stream()
+              .map(CompletableFuture::join)
+              .sorted(Comparator.comparing(CompletedPart::partNumber))
+              .collect(Collectors.toList());
+    } catch (CompletionException ce) {
+      // cancel the remaining futures.
+      multiPartMap.values().forEach(c -> c.cancel(true));
+      abortUpload();
+      throw ce;
+    }
 
     CompleteMultipartUploadRequest request =
         CompleteMultipartUploadRequest.builder()
