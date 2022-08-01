@@ -289,7 +289,7 @@ public class TypeUtil {
   }
 
   public static Schema reassignOrRefreshIds(Schema schema, Schema idSourceSchema) {
-    AtomicInteger highest = new AtomicInteger(schema.highestFieldId());
+    AtomicInteger highest = new AtomicInteger(idSourceSchema.highestFieldId());
     Types.StructType struct =
         visit(schema, new ReassignIds(idSourceSchema, highest::incrementAndGet)).asStructType();
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
