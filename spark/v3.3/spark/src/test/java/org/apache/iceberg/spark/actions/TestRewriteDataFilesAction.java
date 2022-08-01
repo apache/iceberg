@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.NullOrder.NULLS_LAST;
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.current_date;
@@ -1318,6 +1320,19 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertEquals("Number of files order should be descending", actual, expected);
     Collections.reverse(expected);
     Assert.assertNotEquals("Number of files order should not be ascending", actual, expected);
+  }
+
+  @Test
+  public void testPartitioningSortWithManualSortOnSameColumn() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(4, SCALE, 4);
+    shouldHaveFiles(table, 24);
+    table.updateSpec().addField(bucket("c3", 16)).commit();
+
+    basicRewrite(table)
+        .sort(SortOrder.builderFor(SCHEMA).asc(Expressions.bucket("c3", 16), NULLS_LAST).build())
+        .execute();
+    basicRewrite(table).sort(SortOrder.builderFor(SCHEMA).asc("c3").build()).execute();
   }
 
   private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
