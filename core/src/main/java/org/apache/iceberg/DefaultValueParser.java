@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -43,8 +42,7 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.JsonUtil;
 
 public class DefaultValueParser {
-  private DefaultValueParser() {
-  }
+  private DefaultValueParser() {}
 
   private static final String KEYS = "keys";
   private static final String VALUES = "values";
@@ -56,89 +54,112 @@ public class DefaultValueParser {
 
     switch (type.typeId()) {
       case BOOLEAN:
-        Preconditions.checkArgument(defaultValue.isBoolean(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isBoolean(), "Cannot parse default as a %s value: %s", type, defaultValue);
         return defaultValue.booleanValue();
       case INTEGER:
-        Preconditions.checkArgument(defaultValue.isIntegralNumber() && defaultValue.canConvertToInt(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isIntegralNumber() && defaultValue.canConvertToInt(),
+            "Cannot parse default as a %s value: %s",
+            type,
+            defaultValue);
         return defaultValue.intValue();
       case LONG:
-        Preconditions.checkArgument(defaultValue.isIntegralNumber() && defaultValue.canConvertToLong(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isIntegralNumber() && defaultValue.canConvertToLong(),
+            "Cannot parse default as a %s value: %s",
+            type,
+            defaultValue);
         return defaultValue.longValue();
       case FLOAT:
-        Preconditions.checkArgument(defaultValue.isFloatingPointNumber(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isFloatingPointNumber(),
+            "Cannot parse default as a %s value: %s",
+            type,
+            defaultValue);
         return defaultValue.floatValue();
       case DOUBLE:
-        Preconditions.checkArgument(defaultValue.isFloatingPointNumber(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isFloatingPointNumber(),
+            "Cannot parse default as a %s value: %s",
+            type,
+            defaultValue);
         return defaultValue.doubleValue();
       case DECIMAL:
-        Preconditions.checkArgument(defaultValue.isTextual(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
         BigDecimal retDecimal;
         try {
           retDecimal = new BigDecimal(defaultValue.textValue());
         } catch (NumberFormatException e) {
-          throw new IllegalArgumentException(String.format(
-              "Cannot parse default as a %s value: %s",
-              type, defaultValue), e);
+          throw new IllegalArgumentException(
+              String.format("Cannot parse default as a %s value: %s", type, defaultValue), e);
         }
         Preconditions.checkArgument(
             retDecimal.scale() == ((Types.DecimalType) type).scale(),
-            "Cannot parse default as a %s value: %s, the scale doesn't match", type, defaultValue);
+            "Cannot parse default as a %s value: %s, the scale doesn't match",
+            type,
+            defaultValue);
         return retDecimal;
       case STRING:
-        Preconditions.checkArgument(defaultValue.isTextual(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
         return defaultValue.textValue();
       case UUID:
-        Preconditions.checkArgument(defaultValue.isTextual() && defaultValue.textValue().length() == 36,
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isTextual() && defaultValue.textValue().length() == 36,
+            "Cannot parse default as a %s value: %s",
+            type,
+            defaultValue);
         UUID uuid;
         try {
           uuid = UUID.fromString(defaultValue.textValue());
         } catch (IllegalArgumentException e) {
-          throw new IllegalArgumentException(String.format("Cannot parse default as a %s value: %s", type,
-              defaultValue), e);
+          throw new IllegalArgumentException(
+              String.format("Cannot parse default as a %s value: %s", type, defaultValue), e);
         }
         return uuid;
       case DATE:
-        Preconditions.checkArgument(defaultValue.isTextual(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
         return DateTimeUtil.isoDateToDays(defaultValue.textValue());
       case TIME:
-        Preconditions.checkArgument(defaultValue.isTextual(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
         return DateTimeUtil.isoTimeToMicros(defaultValue.textValue());
       case TIMESTAMP:
-        Preconditions.checkArgument(defaultValue.isTextual(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
           String timestampTz = defaultValue.textValue();
-          Preconditions.checkArgument(DateTimeUtil.isUTCTimestamptz(timestampTz),
+          Preconditions.checkArgument(
+              DateTimeUtil.isUTCTimestamptz(timestampTz),
               "Cannot parse default as a %s value: %s, offset must be +00:00",
-              type, defaultValue);
+              type,
+              defaultValue);
           return DateTimeUtil.isoTimestamptzToMicros(timestampTz);
         } else {
           return DateTimeUtil.isoTimestampToMicros(defaultValue.textValue());
         }
       case FIXED:
         Preconditions.checkArgument(
-            defaultValue.isTextual(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
         int defaultLength = defaultValue.textValue().length();
         int fixedLength = ((Types.FixedType) type).length();
-        Preconditions.checkArgument(defaultLength == fixedLength * 2,
-            "Cannot parse default %s value: %s, incorrect length: %s", type, defaultValue, defaultLength);
-        byte[] fixedBytes = BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
+        Preconditions.checkArgument(
+            defaultLength == fixedLength * 2,
+            "Cannot parse default %s value: %s, incorrect length: %s",
+            type,
+            defaultValue,
+            defaultLength);
+        byte[] fixedBytes =
+            BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
         return ByteBuffer.wrap(fixedBytes);
       case BINARY:
-        Preconditions.checkArgument(defaultValue.isTextual(),
-            "Cannot parse default as a %s value: %s", type, defaultValue);
-        byte[] binaryBytes = BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
+        byte[] binaryBytes =
+            BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
         return ByteBuffer.wrap(binaryBytes);
       case LIST:
         return listFromJson(type, defaultValue);
@@ -152,8 +173,8 @@ public class DefaultValueParser {
   }
 
   private static StructLike structFromJson(Type type, JsonNode defaultValue) {
-    Preconditions.checkArgument(defaultValue.isObject(),
-        "Cannot parse default as a %s value: %s", type, defaultValue);
+    Preconditions.checkArgument(
+        defaultValue.isObject(), "Cannot parse default as a %s value: %s", type, defaultValue);
     Types.StructType struct = type.asStructType();
     StructLike defaultRecord = GenericRecord.create(struct);
 
@@ -170,15 +191,18 @@ public class DefaultValueParser {
 
   private static Map<Object, Object> mapFromJson(Type type, JsonNode defaultValue) {
     Preconditions.checkArgument(
-        defaultValue.isObject() && defaultValue.has(KEYS) && defaultValue.has(VALUES) &&
-            defaultValue.get(KEYS).isArray() && defaultValue.get(VALUES).isArray(),
+        defaultValue.isObject()
+            && defaultValue.has(KEYS)
+            && defaultValue.has(VALUES)
+            && defaultValue.get(KEYS).isArray()
+            && defaultValue.get(VALUES).isArray(),
         "Cannot parse %s to a %s value",
-        defaultValue, type);
+        defaultValue,
+        type);
     JsonNode keys = defaultValue.get(KEYS);
     JsonNode values = defaultValue.get(VALUES);
     Preconditions.checkArgument(
-        keys.size() == values.size(),
-        "Cannot parse default as a %s value: %s", type, defaultValue);
+        keys.size() == values.size(), "Cannot parse default as a %s value: %s", type, defaultValue);
 
     ImmutableMap.Builder<Object, Object> mapBuilder = ImmutableMap.builder();
 
@@ -195,8 +219,8 @@ public class DefaultValueParser {
   }
 
   private static List<Object> listFromJson(Type type, JsonNode defaultValue) {
-    Preconditions.checkArgument(defaultValue.isArray(),
-        "Cannot parse default as a %s value: %s", type, defaultValue);
+    Preconditions.checkArgument(
+        defaultValue.isArray(), "Cannot parse default as a %s value: %s", type, defaultValue);
     Type elementType = type.asListType().elementType();
     return Lists.newArrayList(Iterables.transform(defaultValue, e -> fromJson(elementType, e)));
   }
@@ -230,6 +254,7 @@ public class DefaultValueParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:MethodLength")
   public static void toJson(Type type, Object defaultValue, JsonGenerator generator)
       throws IOException {
     if (defaultValue == null) {
@@ -249,15 +274,18 @@ public class DefaultValueParser {
         generator.writeNumber((Integer) defaultValue);
         break;
       case LONG:
-        Preconditions.checkArgument(defaultValue instanceof Long, "Invalid default %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof Long, "Invalid default %s value: %s", type, defaultValue);
         generator.writeNumber((Long) defaultValue);
         break;
       case FLOAT:
-        Preconditions.checkArgument(defaultValue instanceof Float, "Invalid default %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof Float, "Invalid default %s value: %s", type, defaultValue);
         generator.writeNumber((Float) defaultValue);
         break;
       case DOUBLE:
-        Preconditions.checkArgument(defaultValue instanceof Double, "Invalid default %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof Double, "Invalid default %s value: %s", type, defaultValue);
         generator.writeNumber((Double) defaultValue);
         break;
       case DATE:
@@ -281,11 +309,15 @@ public class DefaultValueParser {
         break;
       case STRING:
         Preconditions.checkArgument(
-            defaultValue instanceof CharSequence, "Invalid default %s value: %s", type, defaultValue);
+            defaultValue instanceof CharSequence,
+            "Invalid default %s value: %s",
+            type,
+            defaultValue);
         generator.writeString(((CharSequence) defaultValue).toString());
         break;
       case UUID:
-        Preconditions.checkArgument(defaultValue instanceof UUID, "Invalid default %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof UUID, "Invalid default %s value: %s", type, defaultValue);
         generator.writeString(defaultValue.toString());
         break;
       case FIXED:
@@ -293,21 +325,27 @@ public class DefaultValueParser {
             defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
         ByteBuffer byteBufferValue = (ByteBuffer) defaultValue;
         int expectedLength = ((Types.FixedType) type).length();
-        Preconditions.checkArgument(byteBufferValue.remaining() == expectedLength,
+        Preconditions.checkArgument(
+            byteBufferValue.remaining() == expectedLength,
             "Invalid default %s value, incorrect length: %s",
-            type, byteBufferValue.remaining());
-        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray(byteBufferValue)));
+            type,
+            byteBufferValue.remaining());
+        generator.writeString(
+            BaseEncoding.base16().encode(ByteBuffers.toByteArray(byteBufferValue)));
         break;
       case BINARY:
         Preconditions.checkArgument(
             defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
-        generator.writeString(BaseEncoding.base16().encode(ByteBuffers.toByteArray((ByteBuffer) defaultValue)));
+        generator.writeString(
+            BaseEncoding.base16().encode(ByteBuffers.toByteArray((ByteBuffer) defaultValue)));
         break;
       case DECIMAL:
         Preconditions.checkArgument(
-            defaultValue instanceof BigDecimal &&
-                ((BigDecimal) defaultValue).scale() == ((Types.DecimalType) type).scale(),
-            "Invalid default %s value: %s", type, defaultValue);
+            defaultValue instanceof BigDecimal
+                && ((BigDecimal) defaultValue).scale() == ((Types.DecimalType) type).scale(),
+            "Invalid default %s value: %s",
+            type,
+            defaultValue);
         BigDecimal decimalValue = (BigDecimal) defaultValue;
         if (decimalValue.scale() >= 0) {
           generator.writeString(decimalValue.toPlainString());
@@ -316,7 +354,8 @@ public class DefaultValueParser {
         }
         break;
       case LIST:
-        Preconditions.checkArgument(defaultValue instanceof List, "Invalid default %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof List, "Invalid default %s value: %s", type, defaultValue);
         List<Object> defaultList = (List<Object>) defaultValue;
         Type elementType = type.asListType().elementType();
         generator.writeStartArray();
@@ -326,7 +365,8 @@ public class DefaultValueParser {
         generator.writeEndArray();
         break;
       case MAP:
-        Preconditions.checkArgument(defaultValue instanceof Map, "Invalid default %s value: %s", type, defaultValue);
+        Preconditions.checkArgument(
+            defaultValue instanceof Map, "Invalid default %s value: %s", type, defaultValue);
         Map<Object, Object> defaultMap = (Map<Object, Object>) defaultValue;
         Type keyType = type.asMapType().keyType();
         Type valueType = type.asMapType().valueType();
