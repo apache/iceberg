@@ -96,12 +96,12 @@ public class DateTimeUtil {
 
   public static String microsToIsoTimestamptz(long micros) {
     LocalDateTime localDateTime = timestampFromMicros(micros);
-    DateTimeFormatter customNoOffsetTextISOFormatter = new DateTimeFormatterBuilder()
+    DateTimeFormatter zeroOffsetFormatter = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
         .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
         .appendOffset("+HH:MM:ss", "+00:00")
         .toFormatter();
-    return localDateTime.atOffset(ZoneOffset.UTC).format(customNoOffsetTextISOFormatter);
+    return localDateTime.atOffset(ZoneOffset.UTC).format(zeroOffsetFormatter);
   }
 
   public static String microsToIsoTimestamp(long micros) {
