@@ -1183,6 +1183,21 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   @Test
+  public void testExpireBulkDeleteWithThrowOnUnsupportedFileIO() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Set<String> bulkDeletedFiles = Sets.newHashSet();
+
+    AssertHelpers.assertThrows(
+        "Should complain about unsupported fileIO",
+        IllegalArgumentException.class,
+        "does not support bulk deletion",
+        () ->
+            SparkActions.get()
+                .expireSnapshots(table)
+                .bulkDeleteWith(files -> files.forEach(bulkDeletedFiles::add)));
+  }
+
+  @Test
   public void testUseLocalIterator() {
     table.newFastAppend().appendFile(FILE_A).commit();
 
