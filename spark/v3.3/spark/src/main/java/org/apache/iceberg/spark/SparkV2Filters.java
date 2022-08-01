@@ -105,44 +105,44 @@ public class SparkV2Filters {
           return Expressions.alwaysFalse();
 
         case IS_NULL:
-          return isNull(unquote(getAttrName(predicate.children()[0])));
+          return isNull(unquote(predicate.children()[0].toString()));
 
         case NOT_NULL:
-          return notNull(unquote(getAttrName(predicate.children()[0])));
+          return notNull(unquote(predicate.children()[0].toString()));
 
         case LT:
           if (predicate.children()[1] instanceof LiteralValue) {
-            return lessThan(unquote(getAttrName(predicate.children()[0])),
+            return lessThan(unquote(predicate.children()[0].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()));
           } else {
-            return greaterThan(unquote(getAttrName(predicate.children()[1])),
+            return greaterThan(unquote(predicate.children()[1].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value()));
           }
 
         case LT_EQ:
           if (predicate.children()[1] instanceof LiteralValue) {
-            return lessThanOrEqual(unquote(getAttrName(predicate.children()[0])),
+            return lessThanOrEqual(unquote(predicate.children()[0].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()));
           } else {
-            return greaterThanOrEqual(unquote(getAttrName(predicate.children()[1])),
+            return greaterThanOrEqual(unquote(predicate.children()[1].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value()));
           }
 
         case GT:
           if (predicate.children()[1] instanceof LiteralValue) {
-            return greaterThan(unquote(getAttrName(predicate.children()[0])),
+            return greaterThan(unquote(predicate.children()[0].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()));
           } else {
-            return lessThan(unquote(getAttrName(predicate.children()[1])),
+            return lessThan(unquote(predicate.children()[1].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value()));
           }
 
         case GT_EQ:
           if (predicate.children()[1] instanceof LiteralValue) {
-            return greaterThanOrEqual(unquote(getAttrName(predicate.children()[0])),
+            return greaterThanOrEqual(unquote(predicate.children()[0].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()));
           } else {
-            return lessThanOrEqual(unquote(getAttrName(predicate.children()[1])),
+            return lessThanOrEqual(unquote(predicate.children()[1].toString()),
                 convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value()));
           }
 
@@ -150,12 +150,13 @@ public class SparkV2Filters {
           Object value = null;
           String attributeName = "";
           if (predicate.children()[1] instanceof LiteralValue) {
-            attributeName = getAttrName(predicate.children()[0]);
+            attributeName = predicate.children()[0].toString();
             value = convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value());
           } else {
-            attributeName = getAttrName(predicate.children()[1]);
+            attributeName = predicate.children()[1].toString();
             value = convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[0]).value());
           }
+
           if (predicate.name().equals("=")) {
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(value,
@@ -175,7 +176,7 @@ public class SparkV2Filters {
           for (int i = 1; i < predicate.children().length; i++) {
             inValues[i - 1] = convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[i]).value());
           }
-          return in(unquote(getAttrName(predicate.children()[0])),
+          return in(unquote(predicate.children()[0].toString()),
               Stream.of(inValues)
                   .filter(Objects::nonNull)
                   .collect(Collectors.toList()));
@@ -191,9 +192,9 @@ public class SparkV2Filters {
             for (int i = 1; i < childFilter.children().length; i++) {
               notInValues[i - 1] = convertUTF8StringIfNecessary(((LiteralValue) childFilter.children()[i]).value());
             }
-            Expression notIn = notIn(unquote(getAttrName(childFilter.children()[0])),
+            Expression notIn = notIn(unquote(childFilter.children()[0].toString()),
                 Stream.of(notInValues).collect(Collectors.toList()));
-            return and(notNull(unquote(getAttrName(childFilter.children()[0]))), notIn);
+            return and(notNull(unquote(childFilter.children()[0].toString())), notIn);
           } else if (hasNoInFilter(childFilter)) {
             Expression child = convert(childFilter);
             if (child != null) {
@@ -218,12 +219,15 @@ public class SparkV2Filters {
           Expression right = convert(orPredicate.right());
           if (left != null && right != null) {
             return or(left, right);
+          } else if (left != null) {
+            return left;
+          } else {
+            return right;
           }
-          return null;
         }
 
         case STARTS_WITH: {
-          return startsWith(unquote(getAttrName(predicate.children()[0])),
+          return startsWith(unquote(predicate.children()[0].toString()),
               convertUTF8StringIfNecessary(((LiteralValue) predicate.children()[1]).value()).toString());
         }
       }
@@ -276,10 +280,6 @@ public class SparkV2Filters {
     return false;
   }
 
-  private static String getAttrName(org.apache.spark.sql.connector.expressions.Expression expr) {
-    return String.join(".", ((NamedReference) expr).fieldNames());
-  }
-
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static Predicate checkIfPredicateValid(Predicate predicate) {
     Expression.Operation op = FILTERS.get(predicate.name());
@@ -297,7 +297,8 @@ public class SparkV2Filters {
         case GT:
         case GT_EQ:
         case EQ:
-          if (!(((predicate.children()[1] instanceof LiteralValue &&
+          if (predicate.children().length != 2 ||
+              !(((predicate.children()[1] instanceof LiteralValue &&
                   predicate.children()[0] instanceof NamedReference)) ||
               ((predicate.children()[0] instanceof LiteralValue &&
                   predicate.children()[1] instanceof NamedReference)))) {
@@ -331,15 +332,17 @@ public class SparkV2Filters {
 
         case OR:
           Or orFilter = (Or) predicate;
-          if (checkIfPredicateValid(orFilter.left()) == null || checkIfPredicateValid(orFilter.right()) == null) {
+          if (checkIfPredicateValid(orFilter.left()) == null && checkIfPredicateValid(orFilter.right()) == null) {
             return null;
           } else {
             return predicate;
           }
 
         case STARTS_WITH: {
-          if (!((predicate.children()[1] instanceof LiteralValue &&
-              predicate.children()[0] instanceof NamedReference))) {
+          if (predicate.children().length != 2 ||
+              !((predicate.children()[1] instanceof LiteralValue &&
+              predicate.children()[0] instanceof NamedReference)) ||
+              !(((LiteralValue<?>) predicate.children()[1]).value() instanceof String)) {
             return null;
           }
           return predicate;

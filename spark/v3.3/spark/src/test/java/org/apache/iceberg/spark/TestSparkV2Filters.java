@@ -22,28 +22,27 @@ package org.apache.iceberg.spark;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.LiteralValue;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.filter.And;
 import org.apache.spark.sql.connector.expressions.filter.Not;
+import org.apache.spark.sql.connector.expressions.filter.Or;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.types.DateType$;
 import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.TimestampType$;
 import org.junit.Assert;
 import org.junit.Test;
-import scala.collection.JavaConverters;
 
 public class TestSparkV2Filters {
 
   @Test
-  public void testQuotedAttributes() {
+  public void testV2Filters() {
     Map<String, String> attrMap = Maps.newHashMap();
     attrMap.put("id", "id");
     attrMap.put("`i.d`", "i.d");
@@ -52,23 +51,20 @@ public class TestSparkV2Filters {
     attrMap.put("a.`aa```.c", "a.aa`.c");
 
     attrMap.forEach((quoted, unquoted) -> {
-      List<String> ref = new ArrayList();
-      ref.add(quoted);
-      FieldReference quotedAttr = new FieldReference(JavaConverters.asScalaBuffer(ref).toSeq());
-
-      org.apache.spark.sql.connector.expressions.Expression[] attr =
-          new org.apache.spark.sql.connector.expressions.Expression[]{quotedAttr};
+      NamedReference namedReference = FieldReference.apply(quoted);
+      org.apache.spark.sql.connector.expressions.Expression[] attrOnly =
+          new org.apache.spark.sql.connector.expressions.Expression[]{namedReference};
 
       LiteralValue value = new LiteralValue(1, IntegerType$.MODULE$);
       org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
-          new org.apache.spark.sql.connector.expressions.Expression[]{quotedAttr, value};
+          new org.apache.spark.sql.connector.expressions.Expression[]{namedReference, value};
 
-      Predicate isNull = new Predicate("IS_NULL", attr);
+      Predicate isNull = new Predicate("IS_NULL", attrOnly);
       Expression expectedIsNull = Expressions.isNull(unquoted);
       Expression actualIsNull = SparkV2Filters.convert(isNull);
       Assert.assertEquals("IsNull must match", expectedIsNull.toString(), actualIsNull.toString());
 
-      Predicate isNotNull = new Predicate("IS_NOT_NULL", attr);
+      Predicate isNotNull = new Predicate("IS_NOT_NULL", attrOnly);
       Expression expectedIsNotNull = Expressions.notNull(unquoted);
       Expression actualIsNotNull = SparkV2Filters.convert(isNotNull);
       Assert.assertEquals("IsNotNull must match", expectedIsNotNull.toString(), actualIsNotNull.toString());
@@ -107,6 +103,33 @@ public class TestSparkV2Filters {
       Expression expectedIn = Expressions.in(unquoted, 1);
       Expression actualIn = SparkV2Filters.convert(in);
       Assert.assertEquals("In must match", expectedIn.toString(), actualIn.toString());
+
+      Predicate and = new And(lt, eq);
+      Expression expectedAnd = Expressions.and(expectedLt, expectedEq);
+      Expression actualAnd = SparkV2Filters.convert(and);
+      Assert.assertEquals("And must match", expectedAnd.toString(), actualAnd.toString());
+
+      Predicate invalid = new Predicate("<", attrOnly);
+      Predicate andWithInvalidLeft = new And(invalid, eq);
+      Expression convertedAnd = SparkV2Filters.convert(andWithInvalidLeft);
+      Assert.assertEquals("And must match", convertedAnd, null);
+
+      Predicate or = new Or(lt, eq);
+      Expression expectedOr = Expressions.or(expectedLt, expectedEq);
+      Expression actualOr = SparkV2Filters.convert(or);
+      Assert.assertEquals("Or must match", expectedOr.toString(), actualOr.toString());
+
+      Predicate orWithInvalidLeft = new Or(invalid, eq);
+      Expression convertedOr = SparkV2Filters.convert(orWithInvalidLeft);
+      Assert.assertEquals("Or must match", convertedOr.toString(), SparkV2Filters.convert(eq).toString());
+
+      Predicate orWithBothInvalid = new Or(invalid, invalid);
+      Assert.assertEquals("Or must match", SparkV2Filters.convert(orWithBothInvalid), null);
+
+      Predicate not = new Not(lt);
+      Expression expectedNot = Expressions.not(expectedLt);
+      Expression actualNot = SparkV2Filters.convert(not);
+      Assert.assertEquals("Not must match", expectedNot.toString(), actualNot.toString());
     });
   }
 
@@ -115,12 +138,10 @@ public class TestSparkV2Filters {
     Instant instant = Instant.parse("2018-10-18T00:00:57.907Z");
     long epochMicros = ChronoUnit.MICROS.between(Instant.EPOCH, instant);
 
-    List<String> ref = new ArrayList();
-    ref.add("x");
-    FieldReference attr = new FieldReference(JavaConverters.asScalaBuffer(ref).toSeq());
+    NamedReference namedReference = FieldReference.apply("x");
     LiteralValue ts = new LiteralValue(epochMicros, TimestampType$.MODULE$);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
-        new org.apache.spark.sql.connector.expressions.Expression[]{attr, ts};
+        new org.apache.spark.sql.connector.expressions.Expression[]{namedReference, ts};
 
     Predicate predicate = new Predicate(">", attrAndValue);
     Expression tsExpression = SparkV2Filters.convert(predicate);
@@ -135,12 +156,10 @@ public class TestSparkV2Filters {
     LocalDate localDate = LocalDate.parse("2018-10-18");
     long epochDay = localDate.toEpochDay();
 
-    List<String> ref = new ArrayList();
-    ref.add("x");
-    FieldReference attr = new FieldReference(JavaConverters.asScalaBuffer(ref).toSeq());
+    NamedReference namedReference = FieldReference.apply("x");
     LiteralValue ts = new LiteralValue(epochDay, DateType$.MODULE$);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
-        new org.apache.spark.sql.connector.expressions.Expression[]{attr, ts};
+        new org.apache.spark.sql.connector.expressions.Expression[]{namedReference, ts};
 
     Predicate predicate = new Predicate(">", attrAndValue);
     Expression dateExpression = SparkV2Filters.convert(predicate);
@@ -152,20 +171,16 @@ public class TestSparkV2Filters {
 
   @Test
   public void testNestedInInsideNot() {
-    List<String> ref1 = new ArrayList();
-    ref1.add("col1");
-    FieldReference attr1 = new FieldReference(JavaConverters.asScalaBuffer(ref1).toSeq());
+    NamedReference namedReference1 = FieldReference.apply("col1");
     LiteralValue v1 = new LiteralValue(1, IntegerType$.MODULE$);
     LiteralValue v2 = new LiteralValue(2, IntegerType$.MODULE$);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue1 =
-        new org.apache.spark.sql.connector.expressions.Expression[]{attr1, v1};
+        new org.apache.spark.sql.connector.expressions.Expression[]{namedReference1, v1};
     Predicate equal = new Predicate("=", attrAndValue1);
 
-    List<String> ref2 = new ArrayList();
-    ref2.add("col2");
-    FieldReference attr2 = new FieldReference(JavaConverters.asScalaBuffer(ref2).toSeq());
+    NamedReference namedReference2 = FieldReference.apply("col2");
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue2 =
-        new org.apache.spark.sql.connector.expressions.Expression[]{attr2, v1, v2};
+        new org.apache.spark.sql.connector.expressions.Expression[]{namedReference2, v1, v2};
     Predicate in = new Predicate("IN", attrAndValue2);
 
     Not filter = new Not(new And(equal, in));
@@ -175,13 +190,11 @@ public class TestSparkV2Filters {
 
   @Test
   public void testNotIn() {
-    List<String> ref = new ArrayList();
-    ref.add("col");
-    FieldReference attr = new FieldReference(JavaConverters.asScalaBuffer(ref).toSeq());
+    NamedReference namedReference = FieldReference.apply("col");
     LiteralValue v1 = new LiteralValue(1, IntegerType$.MODULE$);
     LiteralValue v2 = new LiteralValue(2, IntegerType$.MODULE$);
     org.apache.spark.sql.connector.expressions.Expression[] attrAndValue =
-        new org.apache.spark.sql.connector.expressions.Expression[]{attr, v1, v2};
+        new org.apache.spark.sql.connector.expressions.Expression[]{namedReference, v1, v2};
 
     Predicate in = new Predicate("IN", attrAndValue);
     Not not = new Not(in);
