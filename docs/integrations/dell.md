@@ -24,51 +24,55 @@ url: dell
 
 ## Dell ECS Integration
 
-Iceberg can be used with Dell's Enterprise Object Storage (ECS) by using the ECS catalog since 0.14.0.
+Iceberg can be used with Dell's Enterprise Object Storage (ECS) by using the ECS catalog since 0.15.0.
 
-Dell ECS has many features that make Iceberg a highly compatible table format, such as append operations for file writers and content addressable storage (CAS) for table commits. See [Dell ECS](https://www.dell.com/en-us/dt/storage/ecs/index.htm) for more information on Dell ECS.
+See [Dell ECS](https://www.dell.com/en-us/dt/storage/ecs/index.htm) for more information on Dell ECS.
 
-### Connection parameters
+### Parameters
 
 When using Dell ECS with Iceberg, these configuration parameters are required:
 
-| Name                     | Description             |
-| ------------------------ | ----------------------- |
-| ecs.s3.endpoint          | ECS S3 service endpoint |
-| ecs.s3.access-key-id     | ECS Username            |
-| ecs.s3.secret-access-key | S3 Secret Key           |
+| Name                     | Description                       |
+| ------------------------ | --------------------------------- |
+| ecs.s3.endpoint          | ECS S3 service endpoint           |
+| ecs.s3.access-key-id     | ECS Username                      |
+| ecs.s3.secret-access-key | S3 Secret Key                     |
+| warehouse                | The location of data and metadata |
 
-An ECS catalog requires that you configure a warehouse location where all data and metadata will be created.
+The warehouse should provide as the following format:
 
 | Example                    | Description                                                     |
 | -------------------------- | --------------------------------------------------------------- |
 | ecs://bucket-a             | Use the whole bucket as the data                                |
+| ecs://bucket-a/            | Use the whole bucket as the data. The last `/` is ignored.      |
 | ecs://bucket-a/namespace-a | Use a prefix to access the data only in this specific namespace |
 
-When you provide the `warehouse`, the last `/` will be ignored. The `ecs://bucket-a` is same with `ecs://bucket-a/`.
-
-### Runtime dependencies
-
-The Iceberg `runtime` jar supports different versions of Spark and Flink. If the version was not matched in the example, please check the related document of Spark and Flink.
+The Iceberg `runtime` jar supports different versions of Spark and Flink. You should pick the correct version.
 
 Even though the [Dell ECS client](https://github.com/EMCECS/ecs-object-client-java) jar is backward compatible, Dell EMC still recommends using the latest version of the client.
 
 ### Spark
 
-For example, to use the Dell ECS catalog with Spark 3.2.1, you should create a Spark session like:
+To use the Dell ECS catalog with Spark 3.2.1, you should create a Spark session like:
 
 ```python
 from pyspark.sql import SparkSession
 
-spark = SparkSession.builder
-    .config("spark.jars.packages", "org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:0.14.0,com.emc.ecs:object-client-bundle:3.3.2")
-    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-    .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog")
-    .config("spark.sql.catalog.my_catalog.warehouse", "ecs://bucket-a/namespace-a")
-    .config("spark.sql.catalog.my_catalog.catalog-impl", "org.apache.iceberg.dell.ecs.EcsCatalog")
-    .config("spark.sql.catalog.my_catalog.ecs.s3.endpoint", "http://10.x.x.x:9020")
-    .config("spark.sql.catalog.my_catalog.ecs.s3.access-key-id", "<Your-ecs-s3-access-key>")
-    .config("spark.sql.catalog.my_catalog.ecs.s3.secret-access-key", "<Your-ecs-s3-secret-access-key>")
+jars = ",".join([
+    "org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:0.15.0",
+    "org.apache.iceberg:iceberg-dell:0.15.0",
+    "com.emc.ecs:object-client-bundle:3.3.2"
+])
+
+spark = SparkSession.builder \
+    .config("spark.jars.packages", jars) \
+    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
+    .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog") \
+    .config("spark.sql.catalog.my_catalog.warehouse", "ecs://bucket-a/namespace-a") \
+    .config("spark.sql.catalog.my_catalog.catalog-impl", "org.apache.iceberg.dell.ecs.EcsCatalog") \
+    .config("spark.sql.catalog.my_catalog.ecs.s3.endpoint", "http://10.x.x.x:9020") \
+    .config("spark.sql.catalog.my_catalog.ecs.s3.access-key-id", "<Your-ecs-s3-access-key>") \
+    .config("spark.sql.catalog.my_catalog.ecs.s3.secret-access-key", "<Your-ecs-s3-secret-access-key>") \
     .getOrCreate()
 ```
 
@@ -92,7 +96,8 @@ from pyflink.table import StreamTableEnvironment
 work_space = "<your_work_space>"
 
 jars = {
-    "iceberg-flink-runtime-1.14-0.14.0.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/0.14.0/iceberg-flink-runtime-1.14-0.14.0.jar", 
+    "iceberg-flink-runtime-1.14-0.15.0.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.14/0.15.0/iceberg-flink-runtime-1.14-0.15.0.jar", 
+    "iceberg-dell.jar" : "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-dell/0.15.0/iceberg-dell-0.15.0.jar", 
     "object-client-bundle-3.3.2.jar" : "https://repo1.maven.org/maven2/com/emc/ecs/object-client-bundle/3.3.2/object-client-bundle-3.3.2.jar",
 }
 
