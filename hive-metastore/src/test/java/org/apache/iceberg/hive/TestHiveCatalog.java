@@ -740,4 +740,18 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       hiveCatalog.dropTable(tableIdent);
     }
   }
+
+  @Test
+  public void testGetWarehouseLocationWithSlashInWarehouseDir() {
+    Configuration conf = new Configuration();
+    // With a trailing slash
+    conf.set("hive.metastore.warehouse.dir", "s3://bucket/");
+
+    HiveCatalog catalog = new HiveCatalog();
+    catalog.setConf(conf);
+
+    Database database = catalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
+
+    Assert.assertEquals("s3://bucket/database.db", database.getLocationUri());
+  }
 }
