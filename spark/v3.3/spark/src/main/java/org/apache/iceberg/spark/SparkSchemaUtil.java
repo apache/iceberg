@@ -206,7 +206,7 @@ public class SparkSchemaUtil {
    *
    * @param baseSchema a Schema on which conversion is based
    * @param sparkType a Spark StructType
-   * @param caseSensitive wen false, the case of schema fields is ignored
+   * @param caseSensitive when false, the case of schema fields is ignored
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
    */
