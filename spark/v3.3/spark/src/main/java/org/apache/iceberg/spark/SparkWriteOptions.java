@@ -77,4 +77,7 @@ public class SparkWriteOptions {
 
   // Isolation Level for DataFrame calls. Currently supported by overwritePartitions
   public static final String ISOLATION_LEVEL = "isolation-level";
+
+  // Checks if case of schema needs to be considered during
+  public static final String CASE_SENSITIVE = "case-sensitive";
 }

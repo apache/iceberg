@@ -199,6 +199,30 @@ public class SparkSchemaUtil {
   /**
    * Convert a Spark {@link StructType struct} to a {@link Schema} based on the given schema.
    *
+   * <p>This conversion does not assign new ids; it uses ids from the base schema.
+   *
+   * <p>Data types, field order, and nullability will match the spark type. This conversion may
+   * return a schema that is not compatible with base schema.
+   *
+   * @param baseSchema a Schema on which conversion is based
+   * @param sparkType a Spark StructType
+   * @param caseSensitive wen false, the case of schema fields is ignored
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   */
+  public static Schema convert(Schema baseSchema, StructType sparkType, boolean caseSensitive) {
+    // convert to a type with fresh ids
+    Types.StructType struct =
+        SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
+    // reassign ids to match the base schema
+    Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema, caseSensitive);
+    // fix types that can't be represented in Spark (UUID and Fixed)
+    return SparkFixupTypes.fixup(schema, baseSchema);
+  }
+
+  /**
+   * Convert a Spark {@link StructType struct} to a {@link Schema} based on the given schema.
+   *
    * <p>This conversion will assign new ids for fields that are not found in the base schema.
    *
    * <p>Data types, field order, and nullability will match the spark type. This conversion may
@@ -215,6 +239,32 @@ public class SparkSchemaUtil {
         SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
     // reassign ids to match the base schema
     Schema schema = TypeUtil.reassignOrRefreshIds(new Schema(struct.fields()), baseSchema);
+    // fix types that can't be represented in Spark (UUID and Fixed)
+    return SparkFixupTypes.fixup(schema, baseSchema);
+  }
+
+  /**
+   * Convert a Spark {@link StructType struct} to a {@link Schema} based on the given schema.
+   *
+   * <p>This conversion will assign new ids for fields that are not found in the base schema.
+   *
+   * <p>Data types, field order, and nullability will match the spark type. This conversion may
+   * return a schema that is not compatible with base schema.
+   *
+   * @param baseSchema a Schema on which conversion is based
+   * @param sparkType a Spark StructType
+   * @param caseSensitive when false, case of field names in schema is ignored
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   */
+  public static Schema convertWithFreshIds(
+      Schema baseSchema, StructType sparkType, boolean caseSensitive) {
+    // convert to a type with fresh ids
+    Types.StructType struct =
+        SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
+    // reassign ids to match the base schema
+    Schema schema =
+        TypeUtil.reassignOrRefreshIds(new Schema(struct.fields()), baseSchema, caseSensitive);
     // fix types that can't be represented in Spark (UUID and Fixed)
     return SparkFixupTypes.fixup(schema, baseSchema);
   }

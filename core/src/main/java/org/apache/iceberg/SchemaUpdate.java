@@ -372,6 +372,12 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
+  public UpdateSchema unionByNameWith(Schema newSchema, boolean caseSensitive) {
+    UnionByNameVisitor.visit(this, schema, newSchema, caseSensitive);
+    return this;
+  }
+
+  @Override
   public UpdateSchema setIdentifierFields(Collection<String> names) {
     this.identifierFieldNames = Sets.newHashSet(names);
     return this;

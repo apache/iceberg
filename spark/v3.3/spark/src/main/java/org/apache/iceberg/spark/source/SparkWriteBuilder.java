@@ -241,16 +241,18 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private static Schema validateOrMergeWriteSchema(
       Table table, StructType dsSchema, SparkWriteConf writeConf) {
     Schema writeSchema;
+    boolean caseSensitive = writeConf.caseSensitive();
     if (writeConf.mergeSchema()) {
       // convert the dataset schema and assign fresh ids for new fields
-      Schema newSchema = SparkSchemaUtil.convertWithFreshIds(table.schema(), dsSchema);
+      Schema newSchema =
+          SparkSchemaUtil.convertWithFreshIds(table.schema(), dsSchema, caseSensitive);
 
       // update the table to get final id assignments and validate the changes
-      UpdateSchema update = table.updateSchema().unionByNameWith(newSchema);
+      UpdateSchema update = table.updateSchema().unionByNameWith(newSchema, caseSensitive);
       Schema mergedSchema = update.apply();
 
       // reconvert the dsSchema without assignment to use the ids assigned by UpdateSchema
-      writeSchema = SparkSchemaUtil.convert(mergedSchema, dsSchema);
+      writeSchema = SparkSchemaUtil.convert(mergedSchema, dsSchema, caseSensitive);
 
       TypeUtil.validateWriteSchema(
           mergedSchema, writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
@@ -258,7 +260,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       // if the validation passed, update the table schema
       update.commit();
     } else {
-      writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
+      writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema, caseSensitive);
       TypeUtil.validateWriteSchema(
           table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     }

@@ -288,10 +288,38 @@ public class TypeUtil {
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
+  /**
+   * Reassigns ids in a schema from another schema.
+   *
+   * <p>Ids are determined by field names. If a field in the schema cannot be found in the source
+   * schema, this will throw IllegalArgumentException.
+   *
+   * <p>This will not alter a schema's structure, nullability, or types.
+   *
+   * @param schema the schema to have ids reassigned
+   * @param idSourceSchema the schema from which field ids will be used
+   * @return an structurally identical schema with field ids matching the source schema
+   * @throws IllegalArgumentException if a field cannot be found (by name) in the source schema
+   */
+  public static Schema reassignIds(Schema schema, Schema idSourceSchema, boolean caseSensitive) {
+    Types.StructType struct =
+        visit(schema, new ReassignIds(idSourceSchema, null, caseSensitive)).asStructType();
+    return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
+  }
+
   public static Schema reassignOrRefreshIds(Schema schema, Schema idSourceSchema) {
     AtomicInteger highest = new AtomicInteger(idSourceSchema.highestFieldId());
     Types.StructType struct =
         visit(schema, new ReassignIds(idSourceSchema, highest::incrementAndGet)).asStructType();
+    return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
+  }
+
+  public static Schema reassignOrRefreshIds(
+      Schema schema, Schema idSourceSchema, boolean caseSensitive) {
+    AtomicInteger highest = new AtomicInteger(idSourceSchema.highestFieldId());
+    Types.StructType struct =
+        visit(schema, new ReassignIds(idSourceSchema, highest::incrementAndGet, caseSensitive))
+            .asStructType();
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
