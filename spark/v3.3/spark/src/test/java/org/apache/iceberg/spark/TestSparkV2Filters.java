@@ -121,10 +121,7 @@ public class TestSparkV2Filters {
 
       Predicate orWithInvalidLeft = new Or(invalid, eq);
       Expression convertedOr = SparkV2Filters.convert(orWithInvalidLeft);
-      Assert.assertEquals("Or must match", convertedOr.toString(), SparkV2Filters.convert(eq).toString());
-
-      Predicate orWithBothInvalid = new Or(invalid, invalid);
-      Assert.assertEquals("Or must match", SparkV2Filters.convert(orWithBothInvalid), null);
+      Assert.assertEquals("Or must match", convertedOr, null);
 
       Predicate not = new Not(lt);
       Expression expectedNot = Expressions.not(expectedLt);

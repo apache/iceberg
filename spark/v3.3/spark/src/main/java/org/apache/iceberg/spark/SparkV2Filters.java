@@ -219,11 +219,8 @@ public class SparkV2Filters {
           Expression right = convert(orPredicate.right());
           if (left != null && right != null) {
             return or(left, right);
-          } else if (left != null) {
-            return left;
-          } else {
-            return right;
           }
+          return null;
         }
 
         case STARTS_WITH: {
@@ -332,7 +329,7 @@ public class SparkV2Filters {
 
         case OR:
           Or orFilter = (Or) predicate;
-          if (checkIfPredicateValid(orFilter.left()) == null && checkIfPredicateValid(orFilter.right()) == null) {
+          if (checkIfPredicateValid(orFilter.left()) == null || checkIfPredicateValid(orFilter.right()) == null) {
             return null;
           } else {
             return predicate;
