@@ -412,14 +412,10 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   }
 
   /**
-   * Determines if the case of schema needs to be considered when updating schema
+   * Determines if the case of schema needs to be considered when comparing column names
    *
-   * @param caseSensitive when false, the case of fields in schema is ignored
+   * @param caseSensitive when false case is not considered in column name comparisons.
    * @return this for method chaining
-   * @throws IllegalStateException If it encounters errors during provided schema traversal
-   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
-   *     change introduces a type incompatibility or if it conflicts with other additions, renames,
-   *     or updates.
    */
   default UpdateSchema caseSensitive(boolean caseSensitive) {
     throw new UnsupportedOperationException();

@@ -428,7 +428,8 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
-    Schema newSchema = applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive);
+    Schema newSchema =
+        applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive);
 
     return newSchema;
   }
@@ -497,7 +498,8 @@ class SchemaUpdate implements UpdateSchema {
     Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
 
     for (String name : identifierFieldNames) {
-      Types.NestedField field = caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
+      Types.NestedField field =
+          caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
       if (field != null) {
         Preconditions.checkArgument(
             !deletes.contains(field.fieldId()),

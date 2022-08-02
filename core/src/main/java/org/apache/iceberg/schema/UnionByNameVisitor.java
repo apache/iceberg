@@ -99,8 +99,10 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
               if (isMissing) {
                 addColumn(partnerId, field);
               } else {
-                Types.NestedField nestedField = caseSensitive ? partnerStruct.field(field.name()) :
-                        partnerStruct.caseInsensitiveField(field.name());
+                Types.NestedField nestedField =
+                    caseSensitive
+                        ? partnerStruct.field(field.name())
+                        : partnerStruct.caseInsensitiveField(field.name());
                 updateColumn(field, nestedField);
               }
             });
@@ -208,7 +210,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
         struct = partnerSchema.findField(partnerFieldId).type().asStructType();
       }
 
-      Types.NestedField field = caseSensitive ? struct.field(name) : struct.caseInsensitiveField(name);
+      Types.NestedField field =
+          caseSensitive ? struct.field(name) : struct.caseInsensitiveField(name);
       if (field != null) {
         return field.fieldId();
       }

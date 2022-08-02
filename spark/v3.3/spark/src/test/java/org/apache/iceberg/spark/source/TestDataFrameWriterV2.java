@@ -18,15 +18,21 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -183,5 +189,30 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         ImmutableList.of(
             row(1L, "a", null), row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
         sql("select * from %s order by id", tableName));
+  }
+
+  @Test
+  public void testWriteWithCaseSensitiveOption() throws NoSuchTableException, ParseException {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> ds =
+        jsonToDF(
+            "ID bigint, DaTa string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
+    // write should succeed
+    ds.writeTo(tableName)
+        .option(SparkWriteOptions.CASE_SENSITIVE, "false")
+        .option("merge-schema", "true")
+        .option("check-ordering", "false")
+        .append();
+
+    List<Types.NestedField> fields =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().asStruct().fields();
+
+    // Additional columns should not be created
+    Assert.assertEquals(2, fields.size());
   }
 }
