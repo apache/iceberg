@@ -120,13 +120,13 @@ def _(obj: ExpressionB, visitor: BooleanExpressionVisitor) -> List:
     [
         (
             base.And(ExpressionA(), ExpressionB()),
-            "And(ExpressionA(), ExpressionB())",
+            "And(left=ExpressionA(), right=ExpressionB())",
         ),
         (
             base.Or(ExpressionA(), ExpressionB()),
-            "Or(ExpressionA(), ExpressionB())",
+            "Or(left=ExpressionA(), right=ExpressionB())",
         ),
-        (base.Not(ExpressionA()), "Not(ExpressionA())"),
+        (base.Not(ExpressionA()), "Not(child=ExpressionA())"),
     ],
 )
 def test_reprs(op, rep):
@@ -208,9 +208,9 @@ def test_notnan_bind_nonfloat():
 @pytest.mark.parametrize(
     "op, string",
     [
-        (base.And(ExpressionA(), ExpressionB()), "And(testexpra, testexprb)"),
-        (base.Or(ExpressionA(), ExpressionB()), "Or(testexpra, testexprb)"),
-        (base.Not(ExpressionA()), "Not(testexpra)"),
+        (base.And(ExpressionA(), ExpressionB()), "And(left=ExpressionA(), right=ExpressionB())"),
+        (base.Or(ExpressionA(), ExpressionB()), "Or(left=ExpressionA(), right=ExpressionB())"),
+        (base.Not(ExpressionA()), "Not(child=ExpressionA())"),
     ],
 )
 def test_strs(op, string):

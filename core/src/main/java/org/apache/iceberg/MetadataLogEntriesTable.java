@@ -24,27 +24,27 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 
-public class MetadataLogsTable extends BaseMetadataTable {
+public class MetadataLogEntriesTable extends BaseMetadataTable {
 
-  private static final Schema METADATA_LOGS_SCHEMA =
+  private static final Schema METADATA_LOG_ENTRIES_SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "timestamp_millis", Types.LongType.get()),
+          Types.NestedField.required(1, "timestamp", Types.TimestampType.withZone()),
           Types.NestedField.required(2, "file", Types.StringType.get()),
           Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get()),
           Types.NestedField.optional(4, "latest_schema_id", Types.IntegerType.get()),
           Types.NestedField.optional(5, "latest_sequence_number", Types.LongType.get()));
 
-  MetadataLogsTable(TableOperations ops, Table table) {
-    this(ops, table, table.name() + ".metadata_logs");
+  MetadataLogEntriesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".metadata_log_entries");
   }
 
-  MetadataLogsTable(TableOperations ops, Table table, String name) {
+  MetadataLogEntriesTable(TableOperations ops, Table table, String name) {
     super(ops, table, name);
   }
 
   @Override
   MetadataTableType metadataTableType() {
-    return MetadataTableType.METADATA_LOGS;
+    return MetadataTableType.METADATA_LOG_ENTRIES;
   }
 
   @Override
@@ -54,7 +54,7 @@ public class MetadataLogsTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    return METADATA_LOGS_SCHEMA;
+    return METADATA_LOG_ENTRIES_SCHEMA;
   }
 
   private DataTask task(TableScan scan) {
@@ -69,7 +69,8 @@ public class MetadataLogsTable extends BaseMetadataTable {
         schema(),
         scan.schema(),
         metadataLogEntries,
-        metadataLogEntry -> MetadataLogsTable.metadataLogToRow(metadataLogEntry, table()));
+        metadataLogEntry ->
+            MetadataLogEntriesTable.metadataLogEntryToRow(metadataLogEntry, table()));
   }
 
   private class MetadataLogScan extends StaticTableScan {
@@ -77,18 +78,18 @@ public class MetadataLogsTable extends BaseMetadataTable {
       super(
           ops,
           table,
-          METADATA_LOGS_SCHEMA,
-          MetadataTableType.METADATA_LOGS,
-          MetadataLogsTable.this::task);
+          METADATA_LOG_ENTRIES_SCHEMA,
+          MetadataTableType.METADATA_LOG_ENTRIES,
+          MetadataLogEntriesTable.this::task);
     }
 
     MetadataLogScan(TableOperations ops, Table table, TableScanContext context) {
       super(
           ops,
           table,
-          METADATA_LOGS_SCHEMA,
-          MetadataTableType.METADATA_LOGS,
-          MetadataLogsTable.this::task,
+          METADATA_LOG_ENTRIES_SCHEMA,
+          MetadataTableType.METADATA_LOG_ENTRIES,
+          MetadataLogEntriesTable.this::task,
           context);
     }
 
@@ -100,11 +101,11 @@ public class MetadataLogsTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
-      return CloseableIterable.withNoopClose(MetadataLogsTable.this.task(this));
+      return CloseableIterable.withNoopClose(MetadataLogEntriesTable.this.task(this));
     }
   }
 
-  private static StaticDataTask.Row metadataLogToRow(
+  private static StaticDataTask.Row metadataLogEntryToRow(
       TableMetadata.MetadataLogEntry metadataLogEntry, Table table) {
     Long latestSnapshotId = null;
     Snapshot latestSnapshot = null;
@@ -116,7 +117,7 @@ public class MetadataLogsTable extends BaseMetadataTable {
     }
 
     return StaticDataTask.Row.of(
-        metadataLogEntry.timestampMillis(),
+        metadataLogEntry.timestampMillis() * 1000,
         metadataLogEntry.file(),
         // latest snapshot in this file corresponding to the log entry
         latestSnapshotId,

@@ -338,7 +338,7 @@ public class TestS3FileIOIntegration {
   public void testPrefixList() {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
-    String listPrefix = String.format("s3://%s/%s", bucketName, "prefix-list-test");
+    String listPrefix = String.format("s3://%s/%s/%s", bucketName, prefix, "prefix-list-test");
 
     scaleSizes.parallelStream().forEach(scale -> {
       String scalePrefix = String.format("%s/%s/", listPrefix, scale);
@@ -355,7 +355,7 @@ public class TestS3FileIOIntegration {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoDeleteBatchSize(100);
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
-    String deletePrefix = String.format("s3://%s/%s", bucketName, "prefix-delete-test");
+    String deletePrefix = String.format("s3://%s/%s/%s", bucketName, prefix, "prefix-delete-test");
 
     List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
     scaleSizes.parallelStream().forEach(scale -> {

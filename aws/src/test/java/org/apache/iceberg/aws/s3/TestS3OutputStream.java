@@ -24,7 +24,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -55,6 +54,7 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,7 +136,7 @@ public class TestS3OutputStream {
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
 
-    verify(s3mock, atLeastOnce()).abortMultipartUpload((AbortMultipartUploadRequest) any());
+    verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
@@ -156,7 +156,7 @@ public class TestS3OutputStream {
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
 
-    verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
+    verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
@@ -180,6 +180,24 @@ public class TestS3OutputStream {
   public void testWriteWithChecksumEnabled() {
     properties.setS3ChecksumEnabled(true);
     writeTest();
+  }
+
+  @Test
+  public void testCloseFailureShouldPersistOnFutureClose() throws IOException {
+    IllegalStateException mockException =
+        new IllegalStateException("mock failure to completeUploads on close");
+    Mockito.doThrow(mockException)
+        .when(s3mock)
+        .putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics());
+
+    Assertions.assertThatThrownBy(stream::close)
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
+
+    Assertions.assertThatThrownBy(stream::close)
+        .isInstanceOf(IOException.class)
+        .hasCause(mockException);
   }
 
   private void writeTest() {

@@ -44,8 +44,8 @@ class Catalog(ABC):
     or tuple of strings.
 
     Attributes:
-        name(str): Name of the catalog
-        properties(Properties): Catalog properties
+        name (str): Name of the catalog
+        properties (Properties): Catalog properties
     """
 
     def __init__(self, name: str, properties: Properties):
@@ -73,18 +73,18 @@ class Catalog(ABC):
         """Create a table
 
         Args:
-            identifier: Table identifier.
-            schema: Table's schema.
-            location: Location for the table. Optional Argument.
-            partition_spec: PartitionSpec for the table.
-            sort_order: SortOrder for the table.
-            properties: Table properties that can be a string based dictionary. Optional Argument.
+            identifier (str | Identifier): Table identifier.
+            schema (Schema): Table's schema.
+            location (str): Location for the table. Optional Argument.
+            partition_spec (PartitionSpec): PartitionSpec for the table.
+            sort_order (SortOrder): SortOrder for the table.
+            properties (Properties | None): Table properties that can be a string based dictionary. Optional Argument.
 
         Returns:
             Table: the created table instance
 
         Raises:
-            AlreadyExistsError: If a table with the name already exists
+            TableAlreadyExistsError: If a table with the name already exists
         """
 
     @abstractmethod
@@ -95,7 +95,7 @@ class Catalog(ABC):
         Note: This method doesn't scan data stored in the table.
 
         Args:
-            identifier: Table identifier.
+            identifier (str | Identifier): Table identifier.
 
         Returns:
             Table: the table instance with its metadata
@@ -109,7 +109,7 @@ class Catalog(ABC):
         """Drop a table.
 
         Args:
-            identifier: Table identifier.
+            identifier (str | Identifier): Table identifier.
 
         Raises:
             NoSuchTableError: If a table with the name does not exist
@@ -120,7 +120,7 @@ class Catalog(ABC):
         """Drop a table and purge all data and metadata files.
 
         Args:
-            identifier: Table identifier.
+            identifier (str | Identifier): Table identifier.
 
         Raises:
             NoSuchTableError: If a table with the name does not exist
@@ -131,8 +131,8 @@ class Catalog(ABC):
         """Rename a fully classified table name
 
         Args:
-            from_identifier: Existing table identifier.
-            to_identifier: New table identifier.
+            from_identifier (str | Identifier): Existing table identifier.
+            to_identifier (str | Identifier): New table identifier.
 
         Returns:
             Table: the updated table instance with its metadata
@@ -146,11 +146,11 @@ class Catalog(ABC):
         """Create a namespace in the catalog.
 
         Args:
-            namespace: Namespace identifier
-            properties: A string dictionary of properties for the given namespace
+            namespace (str | Identifier): Namespace identifier
+            properties (Properties | None): A string dictionary of properties for the given namespace
 
         Raises:
-            AlreadyExistsError: If a namespace with the given name already exists
+            NamespaceAlreadyExistsError: If a namespace with the given name already exists
         """
 
     @abstractmethod
@@ -158,7 +158,7 @@ class Catalog(ABC):
         """Drop a namespace.
 
         Args:
-            namespace: Namespace identifier
+            namespace (str | Identifier): Namespace identifier
 
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist
@@ -172,7 +172,7 @@ class Catalog(ABC):
         If namespace not provided, will list all tables in the catalog.
 
         Args:
-            namespace: Namespace identifier to search.
+            namespace (str | Identifier | None): Namespace identifier to search.
 
         Returns:
             List[Identifier]: list of table identifiers.
@@ -187,6 +187,9 @@ class Catalog(ABC):
 
         Returns:
             List[Identifier]: a List of namespace identifiers
+
+        Raises:
+            NoSuchNamespaceError: If a namespace with the given name does not exist
         """
 
     @abstractmethod
@@ -194,7 +197,7 @@ class Catalog(ABC):
         """Get properties for a namespace.
 
         Args:
-            namespace: Namespace identifier
+            namespace (str | Identifier): Namespace identifier
 
         Returns:
             Properties: Properties for the given namespace
@@ -210,9 +213,9 @@ class Catalog(ABC):
         """Removes provided property keys and updates properties for a namespace.
 
         Args:
-            namespace: Namespace identifier
-            removals: Set of property keys that need to be removed. Optional Argument.
-            updates: Properties to be updated for the given namespace. Optional Argument.
+            namespace (str | Identifier): Namespace identifier
+            removals (Set[str]): Set of property keys that need to be removed. Optional Argument.
+            updates (Properties | None): Properties to be updated for the given namespace. Optional Argument.
 
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist
@@ -226,7 +229,7 @@ class Catalog(ABC):
         If the identifier is a string, it is split into a tuple on '.'. If it is a tuple, it is used as-is.
 
         Args:
-            identifier: an identifier, either a string or tuple of strings
+            identifier (str | Identifier: an identifier, either a string or tuple of strings
 
         Returns:
             Identifier: a tuple of strings
@@ -238,7 +241,7 @@ class Catalog(ABC):
         """Extracts table name from a table identifier
 
         Args:
-            identifier: a table identifier
+            identifier (str | Identifier: a table identifier
 
         Returns:
             str: Table name
@@ -250,7 +253,7 @@ class Catalog(ABC):
         """Extracts table namespace from a table identifier
 
         Args:
-            identifier: a table identifier
+            identifier (str | Identifier: a table identifier
 
         Returns:
             Identifier: Namespace identifier

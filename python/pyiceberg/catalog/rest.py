@@ -33,11 +33,11 @@ from pyiceberg import __version__
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
 from pyiceberg.exceptions import (
-    AlreadyExistsError,
     AuthorizationExpiredError,
     BadCredentialsError,
     BadRequestError,
     ForbiddenError,
+    NamespaceAlreadyExistsError,
     NoSuchNamespaceError,
     NoSuchTableError,
     RESTError,
@@ -152,15 +152,14 @@ class RestCatalog(Catalog):
     token: str
     config: Properties
 
-    host: str
+    uri: str
 
     def __init__(
         self,
         name: str,
         properties: Properties,
-        host: str,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
+        uri: str,
+        credentials: Optional[str] = None,
         token: Optional[str] = None,
     ):
         """Rest Catalog
@@ -170,18 +169,15 @@ class RestCatalog(Catalog):
         Args:
             name: Name to identify the catalog
             properties: Properties that are passed along to the configuration
-            host: The base-url of the REST Catalog endpoint
-            client_id: The id to identify the client
-            client_secret: The secret for the client
+            uri: The base-url of the REST Catalog endpoint
+            credentials: The credentials for authentication against the client
             token: The bearer token
         """
-        self.host = host
-        if client_id and client_secret:
-            self.token = self._fetch_access_token(client_id, client_secret)
+        self.uri = uri
+        if credentials:
+            self.token = self._fetch_access_token(credentials)
         elif token:
             self.token = token
-        else:
-            raise ValueError("Either set the client_id and client_secret, or provide a valid token")
         self.config = self._fetch_config(properties)
         super().__init__(name, properties)
 
@@ -200,23 +196,26 @@ class RestCatalog(Catalog):
 
     @property
     def headers(self) -> Properties:
-        return {
-            AUTHORIZATION_HEADER: f"{BEARER_PREFIX} {self.token}",
+        headers = {
             "Content-type": "application/json",
             "X-Client-Version": __version__,
         }
+        if self.token:
+            headers[AUTHORIZATION_HEADER] = f"{BEARER_PREFIX} {self.token}"
+        return headers
 
     def url(self, endpoint: str, prefixed: bool = True, **kwargs) -> str:
         """Constructs the endpoint
 
         Args:
+            endpoint: Resource identifier that points to the REST catalog
             prefixed: If the prefix return by the config needs to be appended
 
         Returns:
             The base url of the rest catalog
         """
 
-        url = self.host
+        url = self.uri
         url = url + "v1/" if url.endswith("/") else url + "/v1/"
 
         if prefixed:
@@ -225,7 +224,8 @@ class RestCatalog(Catalog):
 
         return url + endpoint.format(**kwargs)
 
-    def _fetch_access_token(self, client_id: str, client_secret: str) -> str:
+    def _fetch_access_token(self, credentials: str) -> str:
+        client_id, client_secret = credentials.split(":")
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default
@@ -386,7 +386,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: AlreadyExistsError})
+            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: NamespaceAlreadyExistsError})
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))

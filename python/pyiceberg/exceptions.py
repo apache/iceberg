@@ -24,12 +24,20 @@ class NamespaceNotEmptyError(Exception):
     """Raised when a name-space being dropped is not empty"""
 
 
-class AlreadyExistsError(Exception):
-    """Raised when a table or name-space being created already exists in the catalog"""
+class NamespaceAlreadyExistsError(Exception):
+    """Raised when a name-space being created already exists in the catalog"""
 
 
 class ValidationError(Exception):
     """Raises when there is an issue with the schema"""
+
+
+class NoSuchTableError(Exception):
+    """Raises when the table can't be found in the REST catalog"""
+
+
+class NoSuchNamespaceError(Exception):
+    """Raised when a referenced name-space is not found"""
 
 
 class RESTError(Exception):
@@ -62,11 +70,3 @@ class ForbiddenError(RESTError):
 
 class AuthorizationExpiredError(RESTError):
     """When the credentials are expired when performing an action on the REST catalog"""
-
-
-class NoSuchTableError(RESTError):
-    """Raises when the table can't be found in the REST catalog"""
-
-
-class NoSuchNamespaceError(RESTError):
-    """Raised when a referenced name-space is not found"""
