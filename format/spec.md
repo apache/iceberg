@@ -1162,15 +1162,15 @@ This serialization scheme is for storing single values as individual binary valu
 | **`long`**         | **`JSON long`**                           | `34`                                       | |
 | **`float`**        | **`JSON number`**                         | `1.0`                                      | |
 | **`double`**       | **`JSON number`**                         | `1.0`                                      | |
-| **`decimal(P,S)`** | **`JSON number`**                         | `14.20`                                    | Stores the decimal as a number with S places after the decimal |
+| **`decimal(P,S)`** | **`JSON string`**                         | `"14.20"`, `"2E+20"`                       | Stores the string representation of the decimal value, specifically, for values with a positive scale, the number of digits to the right of the decimal point is used to indicate scale, for values with a negative scale, the scientific notation is used and the exponent must equal the negated scale |
 | **`date`**         | **`JSON string`**                         | `"2017-11-16"`                             | Stores ISO-8601 standard date |
 | **`time`**         | **`JSON string`**                         | `"22:31:08.123456"`                        | Stores ISO-8601 standard time with microsecond precision |
 | **`timestamp`**    | **`JSON string`**                         | `"2017-11-16T22:31:08.123456"`             | Stores ISO-8601 standard timestamp with microsecond precision; must not include a zone offset |
-| **`timestamptz`**  | **`JSON string`**                         | `"2017-11-16T22:31:08.123456-07:00"`       | Stores ISO-8601 standard timestamp with microsecond precision; must include a zone offset |
+| **`timestamptz`**  | **`JSON string`**                         | `"2017-11-16T22:31:08.123456+00:00"`       | Stores ISO-8601 standard timestamp with microsecond precision; must include a zone offset and it must be '+00:00' |
 | **`string`**       | **`JSON string`**                         | `"iceberg"`                                | |
 | **`uuid`**         | **`JSON string`**                         | `"f79c3e09-677c-4bbd-a479-3f349cb785e7"`   | Stores the lowercase uuid string |
-| **`fixed(L)`**     | **`JSON string`**                         | `"0x00010203"`                             | Stored as a hexadecimal string, prefixed by `0x` |
-| **`binary`**       | **`JSON string`**                         | `"0x00010203"`                             | Stored as a hexadecimal string, prefixed by `0x` |
+| **`fixed(L)`**     | **`JSON string`**                         | `"000102ff"`                               | Stored as a hexadecimal string |
+| **`binary`**       | **`JSON string`**                         | `"000102ff"`                               | Stored as a hexadecimal string |
 | **`struct`**       | **`JSON object by field ID`**             | `{"1": 1, "2": "bar"}`                     | Stores struct fields using the field ID as the JSON field name; field values are stored using this JSON single-value format |
 | **`list`**         | **`JSON array of values`**                | `[1, 2, 3]`                                | Stores a JSON array of values that are serialized using this JSON single-value format |
 | **`map`**          | **`JSON object of key and value arrays`** | `{ "keys": ["a", "b"], "values": [1, 2] }` | Stores arrays of keys and values; individual keys and values are serialized using this JSON single-value format |
