@@ -368,7 +368,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema unionByNameWith(Schema newSchema) {
-    UnionByNameVisitor.visit(this, schema, newSchema);
+    UnionByNameVisitor.visit(this, schema, newSchema, caseSensitive);
     return this;
   }
 
