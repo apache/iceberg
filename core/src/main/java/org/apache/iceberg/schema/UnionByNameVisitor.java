@@ -70,7 +70,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
    *
    * @param api an UpdateSchema for adding changes
    * @param existingSchema an existing schema
-   * @param caseSensitive when tfalse, the case of schema's fields are ignored
+   * @param caseSensitive when false, the case of schema's fields are ignored
    * @param newSchema a new schema to compare with the existing
    */
   public static void visit(

@@ -61,7 +61,7 @@ class SchemaUpdate implements UpdateSchema {
   private int lastColumnId;
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
-  private boolean caseSensitive;
+  private boolean caseSensitive = true;
 
   SchemaUpdate(TableOperations ops) {
     this(ops, ops.current());
@@ -368,7 +368,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema unionByNameWith(Schema newSchema) {
-    UnionByNameVisitor.visit(this, schema, newSchema, caseSensitive);
+    UnionByNameVisitor.visit(this, schema, newSchema);
     return this;
   }
 
