@@ -96,8 +96,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
   private static final String HIVE_LOCK_HEARTBEAT_INTERVAL_MS =
       "iceberg.hive.lock-heartbeat-interval-ms";
-  private static final String HIVE_LOCK_HEARTBEAT_TIMEOUT_MS =
-      "iceberg.hive.lock-heartbeat-timeout-ms";
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES =
       "iceberg.hive.metadata-refresh-max-retries";
   private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS =
