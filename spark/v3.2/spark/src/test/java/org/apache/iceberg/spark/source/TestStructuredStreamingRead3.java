@@ -156,43 +156,48 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_1() throws Exception {
+  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_1()
+      throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    Assert.assertEquals(6,
-        microBatchCount(ImmutableMap.of(SparkReadOptions.MAX_FILES_PER_MICRO_BATCH, "1")));
+    Assert.assertEquals(
+        6, microBatchCount(ImmutableMap.of(SparkReadOptions.MAX_FILES_PER_MICRO_BATCH, "1")));
   }
 
   @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_2() throws Exception {
+  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfFiles_2()
+      throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    Assert.assertEquals(3,
-        microBatchCount(ImmutableMap.of(SparkReadOptions.MAX_FILES_PER_MICRO_BATCH, "2")));
+    Assert.assertEquals(
+        3, microBatchCount(ImmutableMap.of(SparkReadOptions.MAX_FILES_PER_MICRO_BATCH, "2")));
   }
 
   @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_1() throws Exception {
+  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_1()
+      throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     // only 1 micro-batch will be formed and we will read data partially
-    Assert.assertEquals(1,
-        microBatchCount(ImmutableMap.of(SparkReadOptions.MAX_ROWS_PER_MICRO_BATCH, "1")));
+    Assert.assertEquals(
+        1, microBatchCount(ImmutableMap.of(SparkReadOptions.MAX_ROWS_PER_MICRO_BATCH, "1")));
 
     StreamingQuery query = startStream(SparkReadOptions.MAX_ROWS_PER_MICRO_BATCH, "1");
 
     // check answer correctness only 1 record read the micro-batch will be stuck
     List<SimpleRecord> actual = rowsAvailable(query);
-    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(
-        Lists.newArrayList(TEST_DATA_MULTIPLE_SNAPSHOTS.get(0).get(0)));
+    Assertions.assertThat(actual)
+        .containsExactlyInAnyOrderElementsOf(
+            Lists.newArrayList(TEST_DATA_MULTIPLE_SNAPSHOTS.get(0).get(0)));
   }
 
   @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_4() throws Exception {
+  public void testReadStreamOnIcebergTableWithMultipleSnapshots_WithNumberOfRows_4()
+      throws Exception {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
-    Assert.assertEquals(2,
-        microBatchCount(ImmutableMap.of(SparkReadOptions.MAX_ROWS_PER_MICRO_BATCH, "4")));
+    Assert.assertEquals(
+        2, microBatchCount(ImmutableMap.of(SparkReadOptions.MAX_ROWS_PER_MICRO_BATCH, "4")));
   }
 
   @Test
@@ -523,7 +528,8 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
    * appends each list as a Snapshot on the iceberg table at the given location. accepts a list of
    * lists - each list representing data per snapshot.
    */
-  private void appendDataAsMultipleSnapshots(List<List<SimpleRecord>> data) throws InterruptedException {
+  private void appendDataAsMultipleSnapshots(List<List<SimpleRecord>> data)
+      throws InterruptedException {
     for (List<SimpleRecord> l : data) {
       appendData(l);
     }
@@ -560,18 +566,15 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   }
 
   private int microBatchCount(Map<String, String> options) throws TimeoutException {
-    Dataset<Row> ds = spark.readStream()
-        .options(options)
-        .format("iceberg")
-        .load(tableName);
+    Dataset<Row> ds = spark.readStream().options(options).format("iceberg").load(tableName);
 
     ds.writeStream()
         .options(options)
         .foreachBatch(
-            (VoidFunction2<Dataset<Row>, Long>) (dataset, batchId) -> {
-              microBatches.getAndIncrement();
-            }
-        )
+            (VoidFunction2<Dataset<Row>, Long>)
+                (dataset, batchId) -> {
+                  microBatches.getAndIncrement();
+                })
         .start()
         .processAllAvailable();
 
@@ -584,7 +587,8 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   }
 
   private StreamingQuery startStream(String key, String value) throws TimeoutException {
-    return startStream(ImmutableMap.of(key, value, SparkReadOptions.MAX_FILES_PER_MICRO_BATCH, "1"));
+    return startStream(
+        ImmutableMap.of(key, value, SparkReadOptions.MAX_FILES_PER_MICRO_BATCH, "1"));
   }
 
   private List<SimpleRecord> rowsAvailable(StreamingQuery query) {

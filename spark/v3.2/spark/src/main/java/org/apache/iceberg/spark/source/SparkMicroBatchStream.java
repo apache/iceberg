@@ -217,7 +217,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
         currentOffset = batchStartOffset;
       } else {
         Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, currentOffset.snapshotId());
-        // it may happen that we need to read this snapshot partially in case it's equal to endOffset.
+        // it may happen that we need to read this snapshot partially in case it's equal to
+        // endOffset.
         if (currentOffset.snapshotId() != endOffset.snapshotId()) {
           currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
         } else {
@@ -237,10 +238,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
         endFileIndex = addedFilesCount(currentSnapshot);
       }
 
-      MicroBatch latestMicroBatch = MicroBatches.from(currentSnapshot, table.io())
-          .caseSensitive(caseSensitive)
-          .specsById(table.specs())
-          .generate(currentOffset.position(), endFileIndex, Long.MAX_VALUE, currentOffset.shouldScanAllFiles());
+      MicroBatch latestMicroBatch =
+          MicroBatches.from(currentSnapshot, table.io())
+              .caseSensitive(caseSensitive)
+              .specsById(table.specs())
+              .generate(
+                  currentOffset.position(),
+                  endFileIndex,
+                  Long.MAX_VALUE,
+                  currentOffset.shouldScanAllFiles());
 
       fileScanTasks.addAll(latestMicroBatch.tasks());
     } while (currentOffset.snapshotId() != endOffset.snapshotId());
@@ -309,7 +315,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
   public Offset latestOffset(Offset startOffset, ReadLimit limit) {
     // calculate end offset get snapshotId from the startOffset
     Preconditions.checkArgument(
-        startOffset instanceof StreamingOffset, "Invalid start offset: %s is not a StreamingOffset", startOffset);
+        startOffset instanceof StreamingOffset,
+        "Invalid start offset: %s is not a StreamingOffset",
+        startOffset);
 
     table.refresh();
     if (table.currentSnapshot() == null) {
@@ -334,31 +342,35 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     boolean isOk = true;
     int curFilesAdded = 0;
-    int curRecordCount  = 0;
+    int curRecordCount = 0;
     int curPos = 0;
 
     // Note : we produce nextOffset with pos as non-inclusive
     while (isOk) {
       // generate manifest index for the curSnapshot
-      List<Pair<ManifestFile, Integer>> indexedManifests = MicroBatchesUtil.skippedManifestIndexesFromSnapshot(
-          curSnapshot, startPosOfSnapOffset, scanAllFiles);
+      List<Pair<ManifestFile, Integer>> indexedManifests =
+          MicroBatchesUtil.skippedManifestIndexesFromSnapshot(
+              curSnapshot, startPosOfSnapOffset, scanAllFiles);
       // this is under assumption we will be able to add at-least 1 file in the new offset
       for (int idx = 0; idx < indexedManifests.size() && isOk; idx++) {
         // be rest assured curPos >= startFileIndex
         curPos = indexedManifests.get(idx).second();
-        try (CloseableIterable<FileScanTask> taskIterable = MicroBatchesUtil.openManifestFile(table.io(),
-            table.specs(),
-            caseSensitive,
-            curSnapshot,
-            indexedManifests.get(idx).first(),
-            scanAllFiles);
+        try (CloseableIterable<FileScanTask> taskIterable =
+                MicroBatchesUtil.openManifestFile(
+                    table.io(),
+                    table.specs(),
+                    caseSensitive,
+                    curSnapshot,
+                    indexedManifests.get(idx).first(),
+                    scanAllFiles);
             CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (curPos >= startPosOfSnapOffset) {
-              // TODO : use readLimit provided in function param, the readLimits are derived from these 2 properties.
-              if ((curFilesAdded + 1) > maxFilesPerMicroBatch ||
-                  (curRecordCount + task.file().recordCount()) > maxRecordsPerMicroBatch) {
+              // TODO : use readLimit provided in function param, the readLimits are derived from
+              // these 2 properties.
+              if ((curFilesAdded + 1) > maxFilesPerMicroBatch
+                  || (curRecordCount + task.file().recordCount()) > maxRecordsPerMicroBatch) {
                 isOk = false;
                 break;
               }
@@ -373,7 +385,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
         }
       }
       // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (curSnapshot.snapshotId() ==  table.currentSnapshot().snapshotId()) {
+      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
         break;
       }
 
@@ -386,14 +398,16 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       }
     }
 
-    StreamingOffset latestStreamingOffset = new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
+    StreamingOffset latestStreamingOffset =
+        new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
 
     // if no new data arrived, then return null.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
   }
 
   private long addedFilesCount(Snapshot snapshot) {
-    long addedFilesCount = PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
+    long addedFilesCount =
+        PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
     // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
     // iterate through addedFiles iterator to find addedFilesCount.
     return addedFilesCount == -1 ? Iterables.size(snapshot.addedFiles()) : addedFilesCount;
@@ -401,7 +415,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
   @Override
   public ReadLimit getDefaultReadLimit() {
-    if (maxFilesPerMicroBatch != Integer.MAX_VALUE && maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
+    if (maxFilesPerMicroBatch != Integer.MAX_VALUE
+        && maxRecordsPerMicroBatch != Integer.MAX_VALUE) {
       ReadLimit[] readLimits = new ReadLimit[2];
       readLimits[0] = ReadLimit.maxFiles(maxFilesPerMicroBatch);
       readLimits[1] = ReadLimit.maxRows(maxFilesPerMicroBatch);

@@ -110,15 +110,21 @@ public class MicroBatches {
       return this;
     }
 
-    public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+    public MicroBatch generate(
+        long startFileIndex, long endFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+      Preconditions.checkArgument(endFileIndex >= 0, "endFileIndex is unexpectedly smaller than 0");
       Preconditions.checkArgument(
           startFileIndex >= 0, "startFileIndex is unexpectedly smaller than 0");
       Preconditions.checkArgument(
           targetSizeInBytes > 0, "targetSizeInBytes should be larger than 0");
 
       return generateMicroBatch(
-          MicroBatchesUtil.skippedManifestIndexesFromSnapshot(snapshot, startFileIndex, scanAllFiles),
-          startFileIndex, endFileIndex, targetSizeInBytes, scanAllFiles);
+          MicroBatchesUtil.skippedManifestIndexesFromSnapshot(
+              snapshot, startFileIndex, scanAllFiles),
+          startFileIndex,
+          endFileIndex,
+          targetSizeInBytes,
+          scanAllFiles);
     }
 
     /**
@@ -128,18 +134,22 @@ public class MicroBatches {
      * @param indexedManifests A list of indexed manifests to generate MicroBatch
      * @param startFileIndex A startFileIndex used to skip processed files.
      * @param endFileIndex An endFileIndex used to find files to include, it not inclusive.
-     * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes must be smaller than
-     *                         this size.
-     * @param scanAllFiles Used to check whether all the data files should be processed, or only added files.
+     * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes
+     *     must be smaller than this size.
+     * @param scanAllFiles Used to check whether all the data files should be processed, or only
+     *     added files.
      * @return A MicroBatch.
      */
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private MicroBatch generateMicroBatch(
         List<Pair<ManifestFile, Integer>> indexedManifests,
-        long startFileIndex, long endFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+        long startFileIndex,
+        long endFileIndex,
+        long targetSizeInBytes,
+        boolean scanAllFiles) {
       if (indexedManifests.isEmpty()) {
-        return new MicroBatch(snapshot.snapshotId(), startFileIndex, endFileIndex, 0L,
-            Collections.emptyList(), true);
+        return new MicroBatch(
+            snapshot.snapshotId(), startFileIndex, endFileIndex, 0L, Collections.emptyList(), true);
       }
 
       long currentSizeInBytes = 0L;
@@ -150,14 +160,21 @@ public class MicroBatches {
       for (int idx = 0; idx < indexedManifests.size(); idx++) {
         currentFileIndex = indexedManifests.get(idx).second();
 
-        try (CloseableIterable<FileScanTask> taskIterable = MicroBatchesUtil.openManifestFile(io, specsById,
-            caseSensitive, snapshot, indexedManifests.get(idx).first(), scanAllFiles);
+        try (CloseableIterable<FileScanTask> taskIterable =
+                MicroBatchesUtil.openManifestFile(
+                    io,
+                    specsById,
+                    caseSensitive,
+                    snapshot,
+                    indexedManifests.get(idx).first(),
+                    scanAllFiles);
             CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             // want to read [startFileIndex ... endFileIndex)
             if (currentFileIndex >= startFileIndex && currentFileIndex < endFileIndex) {
-              // Make sure there's at least one task in each MicroBatch to void job to be stuck, always add task
+              // Make sure there's at least one task in each MicroBatch to void job to be stuck,
+              // always add task
               // firstly.
               tasks.add(task);
               currentSizeInBytes += task.length();
@@ -192,6 +209,7 @@ public class MicroBatches {
         }
       }
 
+      // [startFileIndex ....currentFileIndex)
       return new MicroBatch(
           snapshot.snapshotId(),
           startFileIndex,
@@ -199,27 +217,6 @@ public class MicroBatches {
           currentSizeInBytes,
           tasks,
           isLastIndex);
-      // [startFileIndex ....currentFileIndex)
-      return new MicroBatch(snapshot.snapshotId(), startFileIndex, currentFileIndex, currentSizeInBytes,
-          tasks, isLastIndex);
-    }
-
-    private CloseableIterable<FileScanTask> open(ManifestFile manifestFile, boolean scanAllFiles) {
-      ManifestGroup manifestGroup =
-          new ManifestGroup(io, ImmutableList.of(manifestFile))
-              .specsById(specsById)
-              .caseSensitive(caseSensitive);
-      if (!scanAllFiles) {
-        manifestGroup =
-            manifestGroup
-                .filterManifestEntries(
-                    entry ->
-                        entry.snapshotId() == snapshot.snapshotId()
-                            && entry.status() == ManifestEntry.Status.ADDED)
-                .ignoreDeleted();
-      }
-
-      return manifestGroup.planFiles();
     }
   }
 }

@@ -218,14 +218,16 @@ public class SparkReadConf {
   }
 
   public Integer maxFilesPerMicroBatch() {
-    return confParser.intConf()
+    return confParser
+        .intConf()
         .option(SparkReadOptions.MAX_FILES_PER_MICRO_BATCH)
         .defaultValue(Integer.MAX_VALUE)
         .parse();
   }
 
   public Integer maxRecordsPerMicroBatch() {
-    return confParser.intConf()
+    return confParser
+        .intConf()
         .option(SparkReadOptions.MAX_ROWS_PER_MICRO_BATCH)
         .defaultValue(Integer.MAX_VALUE)
         .parse();

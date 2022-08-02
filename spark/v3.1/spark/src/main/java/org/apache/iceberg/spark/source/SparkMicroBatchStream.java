@@ -206,11 +206,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       }
 
       Snapshot currentSnapshot = table.snapshot(currentOffset.snapshotId());
-      MicroBatch latestMicroBatch = MicroBatches.from(currentSnapshot, table.io())
-          .caseSensitive(caseSensitive)
-          .specsById(table.specs())
-          .generate(currentOffset.position(), Iterables.size(currentSnapshot.addedFiles()), Long.MAX_VALUE,
-              currentOffset.shouldScanAllFiles());
+      MicroBatch latestMicroBatch =
+          MicroBatches.from(currentSnapshot, table.io())
+              .caseSensitive(caseSensitive)
+              .specsById(table.specs())
+              .generate(
+                  currentOffset.position(),
+                  Iterables.size(currentSnapshot.addedFiles()),
+                  Long.MAX_VALUE,
+                  currentOffset.shouldScanAllFiles());
 
       fileScanTasks.addAll(latestMicroBatch.tasks());
     } while (currentOffset.snapshotId() != endOffset.snapshotId());
