@@ -35,7 +35,8 @@ public class TestPartitionSpecParser extends TableTestBase {
             + "    \"name\" : \"data_bucket\",\n"
             + "    \"transform\" : \"bucket[16]\",\n"
             + "    \"source-id\" : 2,\n"
-            + "    \"field-id\" : 1000\n"
+            + "    \"field-id\" : 1000,\n"
+            + "    \"schema-id\" : 0\n"
             + "  } ]\n"
             + "}";
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
@@ -52,12 +53,14 @@ public class TestPartitionSpecParser extends TableTestBase {
             + "    \"name\" : \"id_bucket\",\n"
             + "    \"transform\" : \"bucket[8]\",\n"
             + "    \"source-id\" : 1,\n"
-            + "    \"field-id\" : 1000\n"
+            + "    \"field-id\" : 1000,\n"
+            + "    \"schema-id\" : 0\n"
             + "  }, {\n"
             + "    \"name\" : \"data_bucket\",\n"
             + "    \"transform\" : \"bucket[16]\",\n"
             + "    \"source-id\" : 2,\n"
-            + "    \"field-id\" : 1001\n"
+            + "    \"field-id\" : 1001,\n"
+            + "    \"schema-id\" : 0\n"
             + "  } ]\n"
             + "}";
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));

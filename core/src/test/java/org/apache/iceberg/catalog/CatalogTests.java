@@ -84,6 +84,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   // This is the actual schema for the table, with column IDs reassigned
   private static final Schema REPLACE_SCHEMA =
       new Schema(
+          1,
           required(2, "id", Types.IntegerType.get(), "unique ID"),
           required(3, "data", Types.StringType.get()));
 

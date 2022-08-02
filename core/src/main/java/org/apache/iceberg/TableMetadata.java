@@ -573,7 +573,8 @@ public class TableMetadata implements Serializable {
         int partitionFieldId =
             transformToFieldId.computeIfAbsent(
                 Pair.of(field.sourceId(), field.transform().toString()), k -> nextID.get());
-        specBuilder.add(field.sourceId(), partitionFieldId, field.name(), field.transform());
+        specBuilder.addFrom(
+            field.sourceId(), partitionFieldId, field.name(), field.transform(), field.schemaId());
       }
 
     } else {
@@ -592,21 +593,35 @@ public class TableMetadata implements Serializable {
             newFields.remove(Pair.of(field.sourceId(), field.transform().toString()));
         if (newField != null) {
           // copy the new field with the existing field ID
-          specBuilder.add(
-              newField.sourceId(), field.fieldId(), newField.name(), newField.transform());
+          specBuilder.addFrom(
+              newField.sourceId(),
+              field.fieldId(),
+              newField.name(),
+              newField.transform(),
+              newField.schemaId());
         } else {
           // Rename old void transforms that would otherwise conflict
           String voidName =
               newFieldNames.contains(field.name())
                   ? field.name() + "_" + field.fieldId()
                   : field.name();
-          specBuilder.add(field.sourceId(), field.fieldId(), voidName, Transforms.alwaysNull());
+          specBuilder.addFrom(
+              field.sourceId(),
+              field.fieldId(),
+              voidName,
+              Transforms.alwaysNull(),
+              field.schemaId());
         }
       }
 
       // add any remaining new fields at the end and assign new partition field IDs
       for (PartitionField newField : newFields.values()) {
-        specBuilder.add(newField.sourceId(), nextID.get(), newField.name(), newField.transform());
+        specBuilder.addFrom(
+            newField.sourceId(),
+            nextID.get(),
+            newField.name(),
+            newField.transform(),
+            newField.schemaId());
       }
     }
 
@@ -670,7 +685,7 @@ public class TableMetadata implements Serializable {
 
     // add all the fields to the builder. IDs should not change.
     for (PartitionField field : partitionSpec.fields()) {
-      specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
+      specBuilder.addExisting(field);
     }
 
     // build without validation because the schema may have changed in a way that makes this spec
@@ -704,7 +719,8 @@ public class TableMetadata implements Serializable {
           field.transform().toString(),
           schema.findField(sourceName).fieldId(),
           field.fieldId(),
-          field.name());
+          field.name(),
+          field.schemaId());
     }
 
     return specBuilder.build().bind(schema);

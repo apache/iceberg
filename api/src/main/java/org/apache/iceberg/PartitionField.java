@@ -28,12 +28,14 @@ public class PartitionField implements Serializable {
   private final int fieldId;
   private final String name;
   private final Transform<?, ?> transform;
+  private final int schemaId;
 
-  PartitionField(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
+  PartitionField(int sourceId, int fieldId, String name, Transform<?, ?> transform, int schemaId) {
     this.sourceId = sourceId;
     this.fieldId = fieldId;
     this.name = name;
     this.transform = transform;
+    this.schemaId = schemaId;
   }
 
   /** Returns the field id of the source field in the {@link PartitionSpec spec's} table schema. */
@@ -56,9 +58,14 @@ public class PartitionField implements Serializable {
     return transform;
   }
 
+  /** Returns the schema id of the table schema from which the source field is obtained from. */
+  public int schemaId() {
+    return schemaId;
+  }
+
   @Override
   public String toString() {
-    return fieldId + ": " + name + ": " + transform + "(" + sourceId + ")";
+    return fieldId + ": " + name + ": " + transform + "(" + sourceId + ": " + schemaId + ")";
   }
 
   @Override
@@ -73,11 +80,12 @@ public class PartitionField implements Serializable {
     return sourceId == that.sourceId
         && fieldId == that.fieldId
         && name.equals(that.name)
-        && transform.equals(that.transform);
+        && transform.equals(that.transform)
+        && schemaId == (that.schemaId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(sourceId, fieldId, name, transform);
+    return Objects.hashCode(sourceId, fieldId, name, transform, schemaId);
   }
 }

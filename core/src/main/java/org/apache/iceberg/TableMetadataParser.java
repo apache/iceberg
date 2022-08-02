@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.JsonUtil;
 
 public class TableMetadataParser {
@@ -368,6 +369,9 @@ public class TableMetadataParser {
       schemas = ImmutableList.of(schema);
     }
 
+    Map<Integer, Schema> schemaMap = Maps.newHashMap();
+    schemas.forEach(schemaEntry -> schemaMap.put(schemaEntry.schemaId(), schemaEntry));
+
     JsonNode specArray = node.get(PARTITION_SPECS);
     List<PartitionSpec> specs;
     int defaultSpecId;
@@ -380,7 +384,7 @@ public class TableMetadataParser {
       // parse the spec array
       ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
       for (JsonNode spec : specArray) {
-        builder.add(PartitionSpecParser.fromJson(schema, spec));
+        builder.add(PartitionSpecParser.fromJson(schemaMap, spec, schema));
       }
       specs = builder.build();
 

@@ -25,6 +25,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
+import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
@@ -40,6 +41,7 @@ public class PartitionSpecParser {
   private static final String FIELD_ID = "field-id";
   private static final String TRANSFORM = "transform";
   private static final String NAME = "name";
+  private static final String SCHEMA_ID = "schema-id";
 
   public static void toJson(PartitionSpec spec, JsonGenerator generator) throws IOException {
     toJson(spec.toUnbound(), generator);
@@ -85,6 +87,11 @@ public class PartitionSpecParser {
     return fromJson(json).bind(schema);
   }
 
+  public static PartitionSpec fromJson(
+      Map<Integer, Schema> schemaMap, JsonNode json, Schema schema) {
+    return fromJson(json).bind(schema);
+  }
+
   public static UnboundPartitionSpec fromJson(JsonNode json) {
     Preconditions.checkArgument(json.isObject(), "Cannot parse spec from non-object: %s", json);
     int specId = JsonUtil.getInt(SPEC_ID, json);
@@ -120,6 +127,7 @@ public class PartitionSpecParser {
       generator.writeStringField(TRANSFORM, field.transformAsString());
       generator.writeNumberField(SOURCE_ID, field.sourceId());
       generator.writeNumberField(FIELD_ID, field.partitionId());
+      generator.writeNumberField(SCHEMA_ID, field.schemaId());
       generator.writeEndObject();
     }
     generator.writeEndArray();
@@ -169,11 +177,12 @@ public class PartitionSpecParser {
 
       // partition field ids are missing in old PartitionSpec, they always auto-increment from
       // PARTITION_DATA_ID_START
+      int schemaId = element.has(SCHEMA_ID) ? JsonUtil.getInt(SCHEMA_ID, element) : -1;
       if (element.has(FIELD_ID)) {
-        builder.addField(transform, sourceId, JsonUtil.getInt(FIELD_ID, element), name);
+        builder.addField(transform, sourceId, JsonUtil.getInt(FIELD_ID, element), name, schemaId);
         fieldIdCount++;
       } else {
-        builder.addField(transform, sourceId, name);
+        builder.addField(transform, sourceId, name, schemaId);
       }
     }
 

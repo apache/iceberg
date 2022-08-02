@@ -19,14 +19,19 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 
 public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
@@ -435,5 +440,21 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
     Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
     return (SparkTable) catalog.loadTable(identifier);
+  }
+
+  @Test
+  public void testDropColumnAfterDropPartition() {
+    Assume.assumeTrue(catalogName.equals(SparkCatalogConfig.HADOOP.catalogName()));
+    sql(
+        "CREATE TABLE %s (id bigint, data string, category string) USING iceberg PARTITIONED BY (category) TBLPROPERTIES('format-version' = '2')",
+        tableName);
+    sql("ALTER TABLE %s DROP PARTITION FIELD category", tableName);
+    sql("ALTER TABLE %s DROP COLUMN category", tableName);
+    Set<String> fieldNames =
+        validationCatalog.loadTable(tableIdent).schema().asStruct().fields().stream()
+            .map(Types.NestedField::name)
+            .collect(Collectors.toSet());
+    Assert.assertEquals("Should only have two columns", fieldNames.size(), 2);
+    Assert.assertFalse(fieldNames.contains("category"));
   }
 }

@@ -136,7 +136,11 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       }
     }
     return new PartitionField(
-        sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
+        sourceTransform.first(),
+        assignFieldId(),
+        name,
+        sourceTransform.second(),
+        schema.schemaId());
   }
 
   @Override
@@ -205,7 +209,11 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
           PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
       newField =
           new PartitionField(
-              newField.sourceId(), newField.fieldId(), partitionName, newField.transform());
+              newField.sourceId(),
+              newField.fieldId(),
+              partitionName,
+              newField.transform(),
+              schema.schemaId());
     }
 
     checkForRedundantAddedPartitions(newField);
@@ -299,9 +307,10 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       if (!deletes.contains(field.fieldId())) {
         String newName = renames.get(field.name());
         if (newName != null) {
-          builder.add(field.sourceId(), field.fieldId(), newName, field.transform());
+          builder.addFrom(
+              field.sourceId(), field.fieldId(), newName, field.transform(), field.schemaId());
         } else {
-          builder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
+          builder.addExisting(field);
         }
       } else if (formatVersion < 2) {
         // field IDs were not required for v1 and were assigned sequentially in each partition spec
@@ -311,15 +320,25 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         // must be replaced with a null transform. null values are always allowed in partition data.
         String newName = renames.get(field.name());
         if (newName != null) {
-          builder.add(field.sourceId(), field.fieldId(), newName, Transforms.alwaysNull());
+          builder.addFrom(
+              field.sourceId(),
+              field.fieldId(),
+              newName,
+              Transforms.alwaysNull(),
+              field.schemaId());
         } else {
-          builder.add(field.sourceId(), field.fieldId(), field.name(), Transforms.alwaysNull());
+          builder.addFrom(
+              field.sourceId(),
+              field.fieldId(),
+              field.name(),
+              Transforms.alwaysNull(),
+              field.schemaId());
         }
       }
     }
 
     for (PartitionField newField : adds) {
-      builder.add(newField.sourceId(), newField.fieldId(), newField.name(), newField.transform());
+      builder.addExisting(newField);
     }
 
     return builder.build();

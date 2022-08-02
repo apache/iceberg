@@ -53,11 +53,7 @@ public class UnboundPartitionSpec {
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema).withSpecId(specId);
 
     for (UnboundPartitionField field : fields) {
-      if (field.partitionId != null) {
-        builder.add(field.sourceId, field.partitionId, field.name, field.transform);
-      } else {
-        builder.add(field.sourceId, field.name, field.transform);
-      }
+      builder.addExisting(field);
     }
 
     return builder;
@@ -80,13 +76,15 @@ public class UnboundPartitionSpec {
       return this;
     }
 
-    Builder addField(String transformAsString, int sourceId, int partitionId, String name) {
-      fields.add(new UnboundPartitionField(transformAsString, sourceId, partitionId, name));
+    Builder addField(
+        String transformAsString, int sourceId, int partitionId, String name, int schemaId) {
+      fields.add(
+          new UnboundPartitionField(transformAsString, sourceId, partitionId, name, schemaId));
       return this;
     }
 
-    Builder addField(String transformAsString, int sourceId, String name) {
-      fields.add(new UnboundPartitionField(transformAsString, sourceId, null, name));
+    Builder addField(String transformAsString, int sourceId, String name, int schemaId) {
+      fields.add(new UnboundPartitionField(transformAsString, sourceId, null, name, schemaId));
       return this;
     }
 
@@ -100,6 +98,7 @@ public class UnboundPartitionSpec {
     private final int sourceId;
     private final Integer partitionId;
     private final String name;
+    private final int schemaId;
 
     public Transform<?, ?> transform() {
       return transform;
@@ -121,12 +120,17 @@ public class UnboundPartitionSpec {
       return name;
     }
 
+    public int schemaId() {
+      return schemaId;
+    }
+
     private UnboundPartitionField(
-        String transformAsString, int sourceId, Integer partitionId, String name) {
+        String transformAsString, int sourceId, Integer partitionId, String name, int schemaId) {
       this.transform = Transforms.fromString(transformAsString);
       this.sourceId = sourceId;
       this.partitionId = partitionId;
       this.name = name;
+      this.schemaId = schemaId;
     }
   }
 }

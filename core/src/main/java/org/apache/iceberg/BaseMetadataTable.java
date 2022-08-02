@@ -65,7 +65,7 @@ public abstract class BaseMetadataTable implements Table, HasTableOperations, Se
     PartitionSpec.Builder identitySpecBuilder =
         PartitionSpec.builderFor(metadataTableSchema).checkConflicts(false);
     for (PartitionField field : spec.fields()) {
-      identitySpecBuilder.add(field.fieldId(), field.name(), Transforms.identity());
+      identitySpecBuilder.addExistingWithNewTransform(field, Transforms.identity());
     }
     return identitySpecBuilder.build();
   }
