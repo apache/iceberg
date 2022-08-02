@@ -23,8 +23,8 @@ from requests_mock import Mocker
 from pyiceberg.catalog.base import PropertiesUpdateSummary, Table
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.exceptions import (
-    AlreadyExistsError,
     BadCredentialsError,
+    NamespaceAlreadyExistsError,
     NoSuchNamespaceError,
     NoSuchTableError,
     TableAlreadyExistsError,
@@ -161,7 +161,7 @@ def test_create_namespace_409(rest_mock: Mocker):
         },
         status_code=409,
     )
-    with pytest.raises(AlreadyExistsError) as e:
+    with pytest.raises(NamespaceAlreadyExistsError) as e:
         RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_namespace(namespace)
     assert "Namespace already exists" in str(e.value)
 
