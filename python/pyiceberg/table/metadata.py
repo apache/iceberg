@@ -85,6 +85,12 @@ class TableMetadataCommonFields(IcebergBaseModel):
     def current_schema(self) -> Schema:
         return next(schema for schema in self.schemas if schema.schema_id == self.current_schema_id)
 
+    def current_sort_order(self) -> SortOrder:
+        return next(sort_order for sort_order in self.sort_orders if sort_order.order_id == self.default_sort_order_id)
+
+    def current_partition_spec(self) -> PartitionSpec:
+        return next(spec for spec in self.partition_specs if spec.spec_id == self.default_spec_id)
+
     @root_validator(pre=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]):
         if data.get("current-snapshot-id") == -1:
