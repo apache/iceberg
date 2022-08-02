@@ -1,0 +1,121 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.metrics;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.metrics.ScanReport.TimerResult;
+import org.assertj.core.api.Assertions;
+import org.junit.Test;
+
+public class TestTimerResultParser {
+
+  @Test
+  public void nullTimer() {
+    TimerResult timer = TimerResultParser.fromJson((JsonNode) null);
+    Assertions.assertThat(timer).isEqualTo(TimerResultParser.NOOP_TIMER);
+
+    Assertions.assertThatThrownBy(() -> TimerResultParser.toJson(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid timer: null");
+  }
+
+  @Test
+  public void missingFields() {
+    Assertions.assertThatThrownBy(() -> TimerResultParser.fromJson("{}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string name");
+
+    Assertions.assertThatThrownBy(() -> TimerResultParser.fromJson("{\"name\":\"timerExample\"}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing long count");
+
+    Assertions.assertThatThrownBy(
+            () -> TimerResultParser.fromJson("{\"name\":\"timerExample\",\"count\":44}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string time-unit");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                TimerResultParser.fromJson(
+                    "{\"name\":\"timerExample\",\"count\":44,\"time-unit\":\"HOURS\"}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing long total-duration-nanos");
+  }
+
+  @Test
+  public void extraFields() {
+    Assertions.assertThat(
+            TimerResultParser.fromJson(
+                "{\"name\":\"timerExample\",\"count\":44,\"time-unit\":\"SECONDS\",\"total-duration-nanos\":82800000000000,\"extra\": \"value\"}"))
+        .isEqualTo(new TimerResult("timerExample", TimeUnit.SECONDS, Duration.ofHours(23), 44));
+  }
+
+  @Test
+  public void unsupportedDuration() {
+    Assertions.assertThatThrownBy(
+            () ->
+                TimerResultParser.fromJson(
+                    "{\"name\":\"timerExample\",\"count\":44,\"time-unit\":\"HOURS\",\"total-duration-nanos\":\"xx\"}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse total-duration-nanos to a long value: \"xx\"");
+  }
+
+  @Test
+  public void unsupportedTimeUnit() {
+    Assertions.assertThatThrownBy(
+            () ->
+                TimerResultParser.fromJson(
+                    "{\"name\":\"timerExample\",\"count\":44,\"time-unit\":\"UNKNOWN\",\"total-duration-nanos\":82800000000000}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("No enum constant java.util.concurrent.TimeUnit.UNKNOWN");
+  }
+
+  @Test
+  public void invalidCount() {
+    Assertions.assertThatThrownBy(
+            () ->
+                TimerResultParser.fromJson(
+                    "{\"name\":\"timerExample\",\"count\":\"illegal\",\"time-unit\":\"HOURS\",\"total-duration-nanos\":82800000000000}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse count to a long value: \"illegal\"");
+  }
+
+  @Test
+  public void invalidName() {
+    Assertions.assertThatThrownBy(
+            () ->
+                TimerResultParser.fromJson(
+                    "{\"name\":23,\"count\":44,\"time-unit\":\"HOURS\",\"total-duration-nanos\":82800000000000}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse name to a string value: 23");
+  }
+
+  @Test
+  public void roundTripSerde() {
+    TimerResult timer = new TimerResult("timerExample", TimeUnit.HOURS, Duration.ofHours(23), 44);
+    Assertions.assertThat(TimerResultParser.fromJson(TimerResultParser.toJson(timer)))
+        .isEqualTo(timer);
+
+    Assertions.assertThat(
+            TimerResultParser.fromJson(TimerResultParser.toJson(TimerResultParser.NOOP_TIMER)))
+        .isEqualTo(TimerResultParser.NOOP_TIMER);
+  }
+}
