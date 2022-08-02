@@ -18,6 +18,7 @@ from json import JSONDecodeError
 from typing import (
     Dict,
     List,
+    Literal,
     Optional,
     Set,
     Tuple,
@@ -40,6 +41,7 @@ from pyiceberg.exceptions import (
     ForbiddenError,
     NoSuchNamespaceError,
     NoSuchTableError,
+    OAuthError,
     RESTError,
     ServerError,
     ServiceUnavailableError,
@@ -148,6 +150,14 @@ class ErrorResponse(IcebergBaseModel):
     error: ErrorResponseMessage = Field()
 
 
+class OAuthErrorResponse(IcebergBaseModel):
+    error: Literal[
+        "invalid_request", "invalid_client", "invalid_grant", "unauthorized_client", "unsupported_grant_type", "invalid_scope"
+    ]
+    error_description: Optional[str]
+    error_uri: Optional[str]
+
+
 class RestCatalog(Catalog):
     token: str
     config: Properties
@@ -233,7 +243,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {401: BadCredentialsError})
+            self._handle_non_200_response(exc, {400: OAuthError, 401: BadCredentialsError})
 
         return TokenResponse(**response.json()).access_token
 
@@ -255,39 +265,46 @@ class RestCatalog(Catalog):
         return {"namespace": identifier[:-1], "name": identifier[-1]}
 
     def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]):
-        try:
-            response = ErrorResponse(**exc.response.json())
-        except JSONDecodeError:
-            # In the case we don't have a proper response
-            response = ErrorResponse(
-                error=ErrorResponseMessage(
-                    message=f"Could not decode json payload: {exc.response.text}",
-                    type="RESTError",
-                    code=exc.response.status_code,
-                )
-            )
-
+        exception: Type[Exception]
         code = exc.response.status_code
         if code in error_handler:
-            raise error_handler[code](response.error.message) from exc
+            exception = error_handler[code]
         elif code == 400:
-            raise BadRequestError(response.error.message) from exc
+            exception = BadRequestError
         elif code == 401:
-            raise UnauthorizedError(response.error.message) from exc
+            exception = UnauthorizedError
         elif code == 403:
-            raise ForbiddenError(response.error.message) from exc
+            exception = ForbiddenError
         elif code == 422:
-            raise RESTError(response.error.message) from exc
+            exception = RESTError
         elif code == 419:
-            raise AuthorizationExpiredError(response.error.message)
+            exception = AuthorizationExpiredError
         elif code == 501:
-            raise NotImplementedError(response.error.message)
+            exception = NotImplementedError
         elif code == 503:
-            raise ServiceUnavailableError(response.error.message) from exc
+            exception = ServiceUnavailableError
         elif 500 <= code < 600:
-            raise ServerError(response.error.message) from exc
+            exception = ServerError
         else:
-            raise RESTError(response.error.message) from exc
+            exception = RESTError
+
+        try:
+            if exception == OAuthError:
+                # The OAuthErrorResponse has a different format
+                error = OAuthErrorResponse(**exc.response.json())
+                response = str(error.error)
+                if description := error.error_description:
+                    response += f": {description}"
+                if uri := error.error_uri:
+                    response += f" ({uri})"
+            else:
+                error = ErrorResponse(**exc.response.json()).error
+                response = f"{error.type}: {error.message}"
+        except JSONDecodeError:
+            # In the case we don't have a proper response
+            response = f"RESTError: Could not decode json payload: {exc.response.text}"
+
+        raise exception(response) from exc
 
     def create_table(
         self,

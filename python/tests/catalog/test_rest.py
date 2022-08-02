@@ -27,6 +27,7 @@ from pyiceberg.exceptions import (
     BadCredentialsError,
     NoSuchNamespaceError,
     NoSuchTableError,
+    OAuthError,
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
@@ -74,6 +75,18 @@ def test_token_200(rest_mock: Mocker):
         status_code=200,
     )
     assert RestCatalog("rest", {}, TEST_URI, TEST_CREDENTIALS).token == TEST_TOKEN
+
+
+def test_token_400(rest_mock: Mocker):
+    rest_mock.post(
+        f"{TEST_URI}v1/oauth/tokens",
+        json={"error": "invalid_client", "error_description": "Credentials for key invalid_key do not match"},
+        status_code=400,
+    )
+
+    with pytest.raises(OAuthError) as e:
+        RestCatalog("rest", {}, TEST_URI, credentials=TEST_CREDENTIALS)
+    assert str(e.value) == "invalid_client: Credentials for key invalid_key do not match"
 
 
 def test_token_401(rest_mock: Mocker):

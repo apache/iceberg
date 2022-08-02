@@ -70,3 +70,7 @@ class ForbiddenError(RESTError):
 
 class AuthorizationExpiredError(RESTError):
     """When the credentials are expired when performing an action on the REST catalog"""
+
+
+class OAuthError(RESTError):
+    """Raises when there is an error with the OAuth call"""
