@@ -227,6 +227,20 @@ SELECT * FROM prod.db.table.history
 **This shows a commit that was rolled back.** The example has two snapshots with the same parent, and one is *not* an ancestor of the current table state.
 {{< /hint >}}
 
+### Metadata Log Entries
+
+To show table metadata log entries:
+
+```sql
+SELECT * from prod.db.table.metadata_log_entries
+```
+
+| timestamp | file | latest_snapshot_id | latest_schema_id | latest_sequence_number |
+| -- | -- | -- | -- | -- |
+| 2022-07-28 10:43:52.93 | s3://.../table/metadata/00000-9441e604-b3c2-498a-a45a-6320e8ab9006.metadata.json | null | null | null |
+| 2022-07-28 10:43:57.487 | s3://.../table/metadata/00001-f30823df-b745-4a0a-b293-7532e0c99986.metadata.json | 170260833677645300 | 0 | 1 |
+| 2022-07-28 10:43:58.25 | s3://.../table/metadata/00002-2cc2837a-02dc-4687-acc1-b4d86ea486f4.metadata.json | 958906493976709774 | 0 | 2 |
+
 ### Snapshots
 
 To show the valid snapshots for a table:

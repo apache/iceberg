@@ -43,6 +43,7 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -381,7 +382,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testMetadataLogs() throws Exception {
+  public void testMetadataLogEntries() throws Exception {
     // Create table and insert data
     sql(
         "CREATE TABLE %s (id bigint, data string) "
@@ -408,24 +409,24 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
         Lists.newArrayList(tableMetadata.previousFiles());
 
     // Check metadataLog table
-    List<Object[]> metadataLogs = sql("SELECT * FROM %s.metadata_logs", tableName);
+    List<Object[]> metadataLogs = sql("SELECT * FROM %s.metadata_log_entries", tableName);
     assertEquals(
-        "MetadataLogsTable result should match the metadataLog entries",
+        "MetadataLogEntriesTable result should match the metadataLog entries",
         ImmutableList.of(
             row(
-                metadataLogEntries.get(0).timestampMillis(),
+                DateTimeUtils.toJavaTimestamp(metadataLogEntries.get(0).timestampMillis() * 1000),
                 metadataLogEntries.get(0).file(),
                 null,
                 null,
                 null),
             row(
-                metadataLogEntries.get(1).timestampMillis(),
+                DateTimeUtils.toJavaTimestamp(metadataLogEntries.get(1).timestampMillis() * 1000),
                 metadataLogEntries.get(1).file(),
                 parentSnapshot.snapshotId(),
                 parentSnapshot.schemaId(),
                 parentSnapshot.sequenceNumber()),
             row(
-                currentSnapshot.timestampMillis(),
+                DateTimeUtils.toJavaTimestamp(currentSnapshot.timestampMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 currentSnapshot.snapshotId(),
                 currentSnapshot.schemaId(),
@@ -435,14 +436,16 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     // test filtering
     List<Object[]> metadataLogWithFilters =
         sql(
-            "SELECT * FROM %s.metadata_logs WHERE latest_snapshot_id = %s",
+            "SELECT * FROM %s.metadata_log_entries WHERE latest_snapshot_id = %s",
             tableName, currentSnapshotId);
-    Assert.assertEquals("metadataLog table should return 1 row", 1, metadataLogWithFilters.size());
+    Assert.assertEquals(
+        "metadataLogEntries table should return 1 row", 1, metadataLogWithFilters.size());
     assertEquals(
         "Result should match the latest snapshot entry",
         ImmutableList.of(
             row(
-                tableMetadata.currentSnapshot().timestampMillis(),
+                DateTimeUtils.toJavaTimestamp(
+                    tableMetadata.currentSnapshot().timestampMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 tableMetadata.currentSnapshot().snapshotId(),
                 tableMetadata.currentSnapshot().schemaId(),
@@ -455,9 +458,10 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
             .map(TableMetadata.MetadataLogEntry::file)
             .collect(Collectors.toList());
     metadataFiles.add(tableMetadata.metadataFileLocation());
-    List<Object[]> metadataLogWithProjection = sql("SELECT file FROM %s.metadata_logs", tableName);
+    List<Object[]> metadataLogWithProjection =
+        sql("SELECT file FROM %s.metadata_log_entries", tableName);
     Assert.assertEquals(
-        "metadataLog table should return 3 rows", 3, metadataLogWithProjection.size());
+        "metadataLogEntries table should return 3 rows", 3, metadataLogWithProjection.size());
     assertEquals(
         "metadataLog entry should be of same file",
         metadataFiles.stream().map(this::row).collect(Collectors.toList()),
