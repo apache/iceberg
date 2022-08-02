@@ -95,6 +95,8 @@ hive_types = {
     MapType: None,
 }
 
+OWNER = "owner"
+
 
 class _HiveClient:
     """Helper class to nicely open and close the transport"""
@@ -230,7 +232,7 @@ class HiveCatalog(Catalog):
         tbl = HiveTable(
             dbName=database_name,
             tableName=table_name,
-            owner=getpass.getuser(),
+            owner=properties[OWNER] if properties and OWNER in properties else getpass.getuser(),
             createTime=current_time_millis // 1000,
             lastAccessTime=current_time_millis // 1000,
             sd=_construct_hive_storage_descriptor(schema, location),
@@ -301,12 +303,12 @@ class HiveCatalog(Catalog):
             Table: the updated table instance with its metadata
 
         Raises:
-            ValueError: If the from table identifier is invalid
-            NoSuchTableError: If a table with the name does not exist
-            NoSuchNamespaceError: If the destination namespace doesn't exists
+            ValueError: When the from table identifier is invalid
+            NoSuchTableError: When a table with the name does not exist
+            NoSuchNamespaceError: When the destination namespace doesn't exists
         """
-        from_database_name, from_table_name = self.identifier_to_database_and_table(from_identifier)
-        to_database_name, to_table_name = self.identifier_to_database_and_table(to_identifier, NoSuchNamespaceError)
+        from_database_name, from_table_name = self.identifier_to_database_and_table(from_identifier, NoSuchTableError)
+        to_database_name, to_table_name = self.identifier_to_database_and_table(to_identifier)
         try:
             with self._client as open_client:
                 tbl = open_client.get_table(dbname=from_database_name, tbl_name=from_table_name)

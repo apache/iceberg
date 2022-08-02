@@ -140,7 +140,6 @@ def test_check_number_of_namespaces(table_schema_simple: Schema):
 
 
 @patch("time.time", MagicMock(return_value=12345000))
-@patch("getpass.getuser", MagicMock(return_value="javaberg"))
 def test_create_table(table_schema_simple: Schema, hive_table: HiveTable):
     catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
 
@@ -148,7 +147,7 @@ def test_create_table(table_schema_simple: Schema, hive_table: HiveTable):
     catalog._client.__enter__().create_table.return_value = hive_table
     catalog._client.__enter__().get_table.return_value = hive_table
 
-    catalog.create_table(("default", "table"), schema=table_schema_simple)
+    catalog.create_table(("default", "table"), schema=table_schema_simple, properties={"owner": "javaberg"})
 
     catalog._client.__enter__().create_table.assert_called_with(
         HiveTable(
