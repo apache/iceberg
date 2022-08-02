@@ -34,7 +34,7 @@ from hive_metastore.ttypes import Table as HiveTable
 from pyiceberg.catalog.base import PropertiesUpdateSummary
 from pyiceberg.catalog.hive import HiveCatalog
 from pyiceberg.exceptions import (
-    AlreadyExistsError,
+    NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
     NoSuchNamespaceError,
     NoSuchTableError,
@@ -365,7 +365,7 @@ def test_create_database_already_exists():
     catalog._client = MagicMock()
     catalog._client.__enter__().create_database.side_effect = AlreadyExistsException(message="Database default already exists")
 
-    with pytest.raises(AlreadyExistsError) as exc_info:
+    with pytest.raises(NamespaceAlreadyExistsError) as exc_info:
         catalog.create_namespace("default")
 
     assert "Database default already exists" in str(exc_info.value)

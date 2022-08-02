@@ -46,10 +46,11 @@ from thrift.transport import TSocket, TTransport
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
 from pyiceberg.exceptions import (
-    AlreadyExistsError,
+    NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
     NoSuchNamespaceError,
     NoSuchTableError,
+    TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
@@ -244,7 +245,7 @@ class HiveCatalog(Catalog):
                 open_client.create_table(tbl)
                 hive_table = open_client.get_table(dbname=database_name, tbl_name=table_name)
         except AlreadyExistsException as e:
-            raise AlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
+            raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
         return self._convert_hive_into_iceberg(hive_table)
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
@@ -339,7 +340,7 @@ class HiveCatalog(Catalog):
             with self._client as open_client:
                 open_client.create_database(_annotate_namespace(hive_database, properties or {}))
         except AlreadyExistsException as e:
-            raise AlreadyExistsError(f"Database {database_name} already exists") from e
+            raise NamespaceAlreadyExistsError(f"Database {database_name} already exists") from e
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         """Drop a namespace.
