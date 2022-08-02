@@ -16,6 +16,7 @@
 # under the License.
 ---
 files: ^python/
+exclude: ^python/vendor/
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

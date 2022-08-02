@@ -91,7 +91,7 @@ class Catalog(ABC):
     def load_table(self, identifier: str | Identifier) -> Table:
         """Loads the table's metadata and returns the table instance.
 
-        You can also use this method to check for table existence using 'try catalog.table() except TableNotFoundError'
+        You can also use this method to check for table existence using 'try catalog.table() except NoSuchTableError'
         Note: This method doesn't scan data stored in the table.
 
         Args:
@@ -166,7 +166,7 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_tables(self, namespace: str | Identifier | None = None) -> list[Identifier]:
+    def list_tables(self, namespace: str | Identifier) -> list[Identifier]:
         """List tables under the given namespace in the catalog.
 
         If namespace not provided, will list all tables in the catalog.

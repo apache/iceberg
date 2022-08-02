@@ -213,3 +213,23 @@ Home page: https://avro.apache.org/
 License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
+
+This product includes code from Apache Thrift.
+
+* Uses the fb303.thrift file that's part of Hive's thrift service in vendor/fb303/
+
+Copyright: 2006-2022 The Apache Software Foundation.
+Home page: https://thrift.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Apache Hive.
+
+* Uses hive_metastore.thrift to generate the Hive Metastore client in vendor/hive_metastore/
+
+Copyright: 2008-2022 The Apache Software Foundation.
+Home page: https://hive.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
