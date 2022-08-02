@@ -160,8 +160,8 @@ def _annotate_namespace(database: HiveDatabase, properties: Properties) -> HiveD
     for key, value in properties.items():
         if key == "comment":
             database.description = value
-        elif key == "comment":
-            database.description = value
+        elif key == "location":
+            database.locationUri = value
         else:
             params[key] = value
     database.parameters = params
