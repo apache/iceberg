@@ -24,8 +24,8 @@ class NamespaceNotEmptyError(Exception):
     """Raised when a name-space being dropped is not empty"""
 
 
-class AlreadyExistsError(Exception):
-    """Raised when a table or name-space being created already exists in the catalog"""
+class NamespaceAlreadyExistsError(Exception):
+    """Raised when a name-space being created already exists in the catalog"""
 
 
 class ValidationError(Exception):

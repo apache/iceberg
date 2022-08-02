@@ -28,10 +28,11 @@ import pytest
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
 from pyiceberg.exceptions import (
-    AlreadyExistsError,
+    NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
     NoSuchNamespaceError,
     NoSuchTableError,
+    TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
 from pyiceberg.table.base import Table
@@ -66,7 +67,7 @@ class InMemoryCatalog(Catalog):
         namespace = Catalog.namespace_from(identifier)
 
         if identifier in self.__tables:
-            raise AlreadyExistsError(f"Table already exists: {identifier}")
+            raise TableAlreadyExistsError(f"Table already exists: {identifier}")
         else:
             if namespace not in self.__namespaces:
                 self.__namespaces[namespace] = {}
@@ -110,7 +111,7 @@ class InMemoryCatalog(Catalog):
     def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
         namespace = Catalog.identifier_to_tuple(namespace)
         if namespace in self.__namespaces:
-            raise AlreadyExistsError(f"Namespace already exists: {namespace}")
+            raise NamespaceAlreadyExistsError(f"Namespace already exists: {namespace}")
         else:
             self.__namespaces[namespace] = properties if properties else {}
 
@@ -244,7 +245,7 @@ def test_create_table_raises_error_when_table_already_exists(catalog: InMemoryCa
     # Given
     given_catalog_has_a_table(catalog)
     # When
-    with pytest.raises(AlreadyExistsError, match=TABLE_ALREADY_EXISTS_ERROR):
+    with pytest.raises(TableAlreadyExistsError, match=TABLE_ALREADY_EXISTS_ERROR):
         catalog.create_table(
             identifier=TEST_TABLE_IDENTIFIER,
             schema=TEST_TABLE_SCHEMA,
@@ -326,7 +327,7 @@ def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCa
     # Given
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
     # When
-    with pytest.raises(AlreadyExistsError, match=NAMESPACE_ALREADY_EXISTS_ERROR):
+    with pytest.raises(NamespaceAlreadyExistsError, match=NAMESPACE_ALREADY_EXISTS_ERROR):
         catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
 
 

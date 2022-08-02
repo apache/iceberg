@@ -33,11 +33,11 @@ from pyiceberg import __version__
 from pyiceberg.catalog import Identifier, Properties
 from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
 from pyiceberg.exceptions import (
-    AlreadyExistsError,
     AuthorizationExpiredError,
     BadCredentialsError,
     BadRequestError,
     ForbiddenError,
+    NamespaceAlreadyExistsError,
     NoSuchNamespaceError,
     NoSuchTableError,
     RESTError,
@@ -386,7 +386,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: AlreadyExistsError})
+            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: NamespaceAlreadyExistsError})
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
