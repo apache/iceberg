@@ -60,8 +60,8 @@ public class MetadataTableUtils {
         return new HistoryTable(ops, baseTable, metadataTableName);
       case SNAPSHOTS:
         return new SnapshotsTable(ops, baseTable, metadataTableName);
-      case METADATA_LOGS:
-        return new MetadataLogsTable(ops, baseTable, metadataTableName);
+      case METADATA_LOG_ENTRIES:
+        return new MetadataLogEntriesTable(ops, baseTable, metadataTableName);
       case MANIFESTS:
         return new ManifestsTable(ops, baseTable, metadataTableName);
       case PARTITIONS:
