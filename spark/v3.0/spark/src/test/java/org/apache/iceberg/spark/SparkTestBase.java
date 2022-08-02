@@ -249,7 +249,8 @@ public abstract class SparkTestBase {
     Assert.assertEquals("Expected metric value not match", expectedMetrics, currentMetrics);
   }
 
-  protected static void createNamespace(SupportsNamespaces supportsNamespaces, Namespace namespace) {
+  protected static void createNamespace(
+      SupportsNamespaces supportsNamespaces, Namespace namespace) {
     if (!supportsNamespaces.namespaceExists(namespace)) {
       supportsNamespaces.createNamespace(namespace);
     }

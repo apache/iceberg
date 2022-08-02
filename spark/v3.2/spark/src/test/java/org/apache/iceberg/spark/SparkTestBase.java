@@ -252,7 +252,8 @@ public abstract class SparkTestBase {
     return spark.read().schema(schema).json(jsonDF);
   }
 
-  protected static void createNamespace(SupportsNamespaces supportsNamespaces, Namespace namespace) {
+  protected static void createNamespace(
+      SupportsNamespaces supportsNamespaces, Namespace namespace) {
     if (!supportsNamespaces.namespaceExists(namespace)) {
       supportsNamespaces.createNamespace(namespace);
     }
