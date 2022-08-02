@@ -16,18 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
 
 /**
  * API for rolling table data back to the state at an older table {@link Snapshot snapshot}.
- * <p>
- * This API does not allow conflicting calls to {@link #toSnapshotId(long)} and
- * {@link #toSnapshotAtTime(long)}.
- * <p>
- * When committing, these changes will be applied to the current table metadata. Commit conflicts
+ *
+ * <p>This API does not allow conflicting calls to {@link #toSnapshotId(long)} and {@link
+ * #toSnapshotAtTime(long)}.
+ *
+ * <p>When committing, these changes will be applied to the current table metadata. Commit conflicts
  * will not be resolved and will result in a {@link CommitFailedException}.
  */
 public interface Rollback extends PendingUpdate<Snapshot> {

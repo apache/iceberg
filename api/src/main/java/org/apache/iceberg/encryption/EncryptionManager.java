@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.io.Serializable;
@@ -26,25 +25,25 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
  * Module for encrypting and decrypting table data files.
- * <p>
- * This must be serializable because an instance may be instantiated in one place and sent across
+ *
+ * <p>This must be serializable because an instance may be instantiated in one place and sent across
  * the wire in some Iceberg integrations, notably Spark.
  */
 public interface EncryptionManager extends Serializable {
 
   /**
    * Given an {@link EncryptedInputFile#encryptedInputFile()} representing the raw encrypted bytes
-   * from the underlying file system, and given metadata about how the file was encrypted via
-   * {@link EncryptedInputFile#keyMetadata()}, return an {@link InputFile} that returns decrypted
-   * input streams.
+   * from the underlying file system, and given metadata about how the file was encrypted via {@link
+   * EncryptedInputFile#keyMetadata()}, return an {@link InputFile} that returns decrypted input
+   * streams.
    */
   InputFile decrypt(EncryptedInputFile encrypted);
 
   /**
-   * Variant of {@link #decrypt(EncryptedInputFile)} that provides a sequence of files that all
-   * need to be decrypted in a single context.
-   * <p>
-   * By default this calls the single-file decryption method for each element in the iterator.
+   * Variant of {@link #decrypt(EncryptedInputFile)} that provides a sequence of files that all need
+   * to be decrypted in a single context.
+   *
+   * <p>By default this calls the single-file decryption method for each element in the iterator.
    * Implementations can override this for a variety of optimizations. For example, an
    * implementation can perform lookahead on the input iterator and fetch encryption keys in batch.
    */
@@ -63,8 +62,8 @@ public interface EncryptionManager extends Serializable {
   /**
    * Variant of {@link #encrypt(OutputFile)} that provides a sequence of files that all need to be
    * encrypted in a single context.
-   * <p>
-   * By default this calls the single-file encryption method for each element in the iterator.
+   *
+   * <p>By default this calls the single-file encryption method for each element in the iterator.
    * Implementations can override this for a variety of optimizations. For example, an
    * implementation can perform lookahead on the input iterator and fetch encryption keys in batch.
    */

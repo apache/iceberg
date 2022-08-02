@@ -18,18 +18,17 @@
 import base64
 import struct
 from abc import ABC, abstractmethod
-from decimal import Decimal
 from functools import singledispatch
 from typing import (
     Any,
+    Callable,
     Generic,
     Literal,
     Optional,
     TypeVar,
 )
-from uuid import UUID
 
-import mmh3  # type: ignore
+import mmh3
 from pydantic import Field, PositiveInt, PrivateAttr
 
 from pyiceberg.types import (
@@ -49,10 +48,19 @@ from pyiceberg.types import (
 from pyiceberg.utils import datetime
 from pyiceberg.utils.decimal import decimal_to_bytes, truncate_decimal
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
 
 S = TypeVar("S")
 T = TypeVar("T")
+
+IDENTITY = "identity"
+VOID = "void"
+BUCKET = "bucket"
+TRUNCATE = "truncate"
+
+BUCKET_PARSER = ParseNumberFromBrackets(BUCKET)
+TRUNCATE_PARSER = ParseNumberFromBrackets(TRUNCATE)
 
 
 class Transform(IcebergBaseModel, ABC, Generic[S, T]):
@@ -64,11 +72,32 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
 
     __root__: str = Field()
 
-    def __call__(self, value: Optional[S]) -> Optional[T]:
-        return self.apply(value)
+    @classmethod
+    def __get_validators__(cls):
+        # one or more validators may be yielded which will be called in the
+        # order to validate the input, each validator will receive as an input
+        # the value returned from the previous validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v: Any):
+        # When Pydantic is unable to determine the subtype
+        # In this case we'll help pydantic a bit by parsing the transform type ourselves
+        if isinstance(v, str):
+            if v == IDENTITY:
+                return IdentityTransform()
+            elif v == VOID:
+                return VoidTransform()
+            elif v.startswith(BUCKET):
+                return BucketTransform(num_buckets=BUCKET_PARSER.match(v))
+            elif v.startswith(TRUNCATE):
+                return TruncateTransform(width=TRUNCATE_PARSER.match(v))
+            else:
+                return UnknownTransform(transform=v)
+        return v
 
     @abstractmethod
-    def apply(self, value: Optional[S]) -> Optional[T]:
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
         ...
 
     @abstractmethod
@@ -86,7 +115,7 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     def satisfies_order_of(self, other) -> bool:
         return self == other
 
-    def to_human_string(self, value: Optional[S]) -> str:
+    def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
         return str(value) if value is not None else "null"
 
     @property
@@ -96,25 +125,27 @@ class Transform(IcebergBaseModel, ABC, Generic[S, T]):
     def __str__(self) -> str:
         return self.__root__
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Transform):
+            return self.__root__ == other.__root__
+        return False
 
-class BaseBucketTransform(Transform[S, int]):
+
+class BucketTransform(Transform[S, int]):
     """Base Transform class to transform a value into a bucket partition value
 
     Transforms are parameterized by a number of buckets. Bucket partition transforms use a 32-bit
     hash of the source value to produce a positive value by mod the bucket number.
 
     Args:
-      source_type (Type): An Iceberg Type of IntegerType, LongType, DecimalType, DateType, TimeType,
-      TimestampType, TimestamptzType, StringType, BinaryType, FixedType, UUIDType.
       num_buckets (int): The number of buckets.
     """
 
     _source_type: IcebergType = PrivateAttr()
     _num_buckets: PositiveInt = PrivateAttr()
 
-    def __init__(self, source_type: IcebergType, num_buckets: int, **data: Any):
+    def __init__(self, num_buckets: int, **data: Any):
         super().__init__(__root__=f"bucket[{num_buckets}]", **data)
-        self._source_type = source_type
         self._num_buckets = num_buckets
 
     @property
@@ -130,99 +161,58 @@ class BaseBucketTransform(Transform[S, int]):
     def result_type(self, source: IcebergType) -> IcebergType:
         return IntegerType()
 
-    @abstractmethod
     def can_transform(self, source: IcebergType) -> bool:
-        pass
+        return type(source) in {
+            IntegerType,
+            DateType,
+            LongType,
+            TimeType,
+            TimestampType,
+            TimestamptzType,
+            DecimalType,
+            StringType,
+            FixedType,
+            BinaryType,
+            UUIDType,
+        }
+
+    def transform(self, source: IcebergType, bucket: bool = True) -> Callable[[Optional[Any]], Optional[int]]:
+        source_type = type(source)
+        if source_type in {IntegerType, LongType, DateType, TimeType, TimestampType, TimestamptzType}:
+
+            def hash_func(v):
+                return mmh3.hash(struct.pack("<q", v))
+
+        elif source_type == DecimalType:
+
+            def hash_func(v):
+                return mmh3.hash(decimal_to_bytes(v))
+
+        elif source_type in {StringType, FixedType, BinaryType}:
+
+            def hash_func(v):
+                return mmh3.hash(v)
+
+        elif source_type == UUIDType:
+
+            def hash_func(v):
+                return mmh3.hash(
+                    struct.pack(
+                        ">QQ",
+                        (v.int >> 64) & 0xFFFFFFFFFFFFFFFF,
+                        v.int & 0xFFFFFFFFFFFFFFFF,
+                    )
+                )
+
+        else:
+            raise ValueError(f"Unknown type {source}")
+
+        if bucket:
+            return lambda v: (hash_func(v) & IntegerType.max) % self._num_buckets if v else None
+        return hash_func
 
     def __repr__(self) -> str:
-        return f"transforms.bucket(source_type={repr(self._source_type)}, num_buckets={self._num_buckets})"
-
-
-class BucketNumberTransform(BaseBucketTransform):
-    """Transforms a value of IntegerType, LongType, DateType, TimeType, TimestampType, or TimestamptzType
-    into a bucket partition value
-
-    Example:
-        >>> transform = BucketNumberTransform(LongType(), 100)
-        >>> transform.apply(81068000000)
-        59
-    """
-
-    def can_transform(self, source: IcebergType) -> bool:
-        return type(source) in {IntegerType, DateType, LongType, TimeType, TimestampType, TimestamptzType}
-
-    def hash(self, value) -> int:
-        return mmh3.hash(struct.pack("<q", value))
-
-
-class BucketDecimalTransform(BaseBucketTransform):
-    """Transforms a value of DecimalType into a bucket partition value.
-
-    Example:
-        >>> transform = BucketDecimalTransform(DecimalType(9, 2), 100)
-        >>> transform.apply(Decimal("14.20"))
-        59
-    """
-
-    def can_transform(self, source: IcebergType) -> bool:
-        return isinstance(source, DecimalType)
-
-    def hash(self, value: Decimal) -> int:
-        return mmh3.hash(decimal_to_bytes(value))
-
-
-class BucketStringTransform(BaseBucketTransform):
-    """Transforms a value of StringType into a bucket partition value.
-
-    Example:
-        >>> transform = BucketStringTransform(StringType(), 100)
-        >>> transform.apply("iceberg")
-        89
-    """
-
-    def can_transform(self, source: IcebergType) -> bool:
-        return isinstance(source, StringType)
-
-    def hash(self, value: str) -> int:
-        return mmh3.hash(value)
-
-
-class BucketBytesTransform(BaseBucketTransform):
-    """Transforms a value of FixedType or BinaryType into a bucket partition value.
-
-    Example:
-        >>> transform = BucketBytesTransform(BinaryType(), 100)
-        >>> transform.apply(b"\\x00\\x01\\x02\\x03")
-        41
-    """
-
-    def can_transform(self, source: IcebergType) -> bool:
-        return type(source) in {FixedType, BinaryType}
-
-    def hash(self, value: bytes) -> int:
-        return mmh3.hash(value)
-
-
-class BucketUUIDTransform(BaseBucketTransform):
-    """Transforms a value of UUIDType into a bucket partition value.
-
-    Example:
-        >>> transform = BucketUUIDTransform(UUIDType(), 100)
-        >>> transform.apply(UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"))
-        40
-    """
-
-    def can_transform(self, source: IcebergType) -> bool:
-        return isinstance(source, UUIDType)
-
-    def hash(self, value: UUID) -> int:
-        return mmh3.hash(
-            struct.pack(
-                ">QQ",
-                (value.int >> 64) & 0xFFFFFFFFFFFFFFFF,
-                value.int & 0xFFFFFFFFFFFFFFFF,
-            )
-        )
+        return f"BucketTransform(num_buckets={self._num_buckets})"
 
 
 def _base64encode(buffer: bytes) -> str:
@@ -234,20 +224,16 @@ class IdentityTransform(Transform[S, S]):
     """Transforms a value into itself.
 
     Example:
-        >>> transform = IdentityTransform(StringType())
-        >>> transform.apply('hello-world')
+        >>> transform = IdentityTransform()
+        >>> transform.transform(StringType())('hello-world')
         'hello-world'
     """
 
     __root__: Literal["identity"] = Field(default="identity")
     _source_type: IcebergType = PrivateAttr()
 
-    def __init__(self, source_type: IcebergType, **data: Any):
-        super().__init__(**data)
-        self._source_type = source_type
-
-    def apply(self, value: Optional[S]) -> Optional[S]:
-        return value
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
+        return lambda v: v
 
     def can_transform(self, source: IcebergType) -> bool:
         return source.is_primitive
@@ -263,20 +249,19 @@ class IdentityTransform(Transform[S, S]):
         """ordering by value is the same as long as the other preserves order"""
         return other.preserves_order
 
-    def to_human_string(self, value: Optional[S]) -> str:
-        return _human_string(value, self._source_type) if value is not None else "null"
+    def to_human_string(self, source_type: IcebergType, value: Optional[S]) -> str:
+        return _human_string(value, source_type) if value is not None else "null"
 
     def __str__(self) -> str:
         return "identity"
 
     def __repr__(self) -> str:
-        return f"transforms.identity(source_type={repr(self._source_type)})"
+        return "IdentityTransform()"
 
 
 class TruncateTransform(Transform[S, S]):
     """A transform for truncating a value to a specified width.
     Args:
-      source_type (Type): An Iceberg Type of IntegerType, LongType, StringType, BinaryType or DecimalType
       width (int): The truncate width, should be positive
     Raises:
       ValueError: If a type is provided that is incompatible with a Truncate transform
@@ -286,16 +271,12 @@ class TruncateTransform(Transform[S, S]):
     _source_type: IcebergType = PrivateAttr()
     _width: PositiveInt = PrivateAttr()
 
-    def __init__(self, source_type: IcebergType, width: int, **data: Any):
+    def __init__(self, width: int, **data: Any):
         super().__init__(__root__=f"truncate[{width}]", **data)
-        self._source_type = source_type
         self._width = width
 
-    def apply(self, value: Optional[S]) -> Optional[S]:
-        return _truncate_value(value, self._width) if value is not None else None
-
     def can_transform(self, source: IcebergType) -> bool:
-        return self._source_type == source
+        return type(source) in {IntegerType, LongType, StringType, BinaryType, DecimalType}
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
@@ -312,6 +293,28 @@ class TruncateTransform(Transform[S, S]):
     def width(self) -> int:
         return self._width
 
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[S]]:
+        source_type = type(source)
+        if source_type in {IntegerType, LongType}:
+
+            def truncate_func(v):
+                return v - v % self._width
+
+        elif source_type in {StringType, BinaryType}:
+
+            def truncate_func(v):
+                return v[0 : min(self._width, len(v))]
+
+        elif source_type == DecimalType:
+
+            def truncate_func(v):
+                return truncate_decimal(v, self._width)
+
+        else:
+            raise ValueError(f"Cannot truncate for type: {source}")
+
+        return lambda v: truncate_func(v) if v else None
+
     def satisfies_order_of(self, other: Transform) -> bool:
         if self == other:
             return True
@@ -324,7 +327,7 @@ class TruncateTransform(Transform[S, S]):
 
         return False
 
-    def to_human_string(self, value: Optional[S]) -> str:
+    def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
         if value is None:
             return "null"
         elif isinstance(value, bytes):
@@ -333,7 +336,7 @@ class TruncateTransform(Transform[S, S]):
             return str(value)
 
     def __repr__(self) -> str:
-        return f"transforms.truncate(source_type={repr(self._source_type)}, width={self._width})"
+        return f"TruncateTransform(width={self._width})"
 
 
 @singledispatch
@@ -376,35 +379,6 @@ def _(_type: IcebergType, value: int) -> str:
     return datetime.to_human_timestamptz(value)
 
 
-@singledispatch
-def _truncate_value(value: Any, _width: int) -> S:
-    raise ValueError(f"Cannot truncate value: {value}")
-
-
-@_truncate_value.register(int)
-def _(value: int, _width: int) -> int:
-    """Truncate a given int value into a given width if feasible."""
-    return value - value % _width
-
-
-@_truncate_value.register(str)
-def _(value: str, _width: int) -> str:
-    """Truncate a given string to a given width."""
-    return value[0 : min(_width, len(value))]
-
-
-@_truncate_value.register(bytes)
-def _(value: bytes, _width: int) -> bytes:
-    """Truncate a given binary bytes into a given width."""
-    return value[0 : min(_width, len(value))]
-
-
-@_truncate_value.register(Decimal)
-def _(value: Decimal, _width: int) -> Decimal:
-    """Truncate a given decimal value into a given width."""
-    return truncate_decimal(value, _width)
-
-
 class UnknownTransform(Transform):
     """A transform that represents when an unknown transform is provided
     Args:
@@ -418,22 +392,21 @@ class UnknownTransform(Transform):
     _source_type: IcebergType = PrivateAttr()
     _transform: str = PrivateAttr()
 
-    def __init__(self, source_type: IcebergType, transform: str, **data: Any):
+    def __init__(self, transform: str, **data: Any):
         super().__init__(**data)
-        self._source_type = source_type
         self._transform = transform
 
-    def apply(self, value: Optional[S]):
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
         raise AttributeError(f"Cannot apply unsupported transform: {self}")
 
     def can_transform(self, source: IcebergType) -> bool:
-        return self._source_type == source
+        return False
 
     def result_type(self, source: IcebergType) -> IcebergType:
         return StringType()
 
     def __repr__(self) -> str:
-        return f"transforms.UnknownTransform(source_type={repr(self._source_type)}, transform={repr(self._transform)})"
+        return f"UnknownTransform(transform={repr(self._transform)})"
 
 
 class VoidTransform(Transform, Singleton):
@@ -441,8 +414,8 @@ class VoidTransform(Transform, Singleton):
 
     __root__ = "void"
 
-    def apply(self, value: Optional[S]) -> None:
-        return None
+    def transform(self, source: IcebergType) -> Callable[[Optional[S]], Optional[T]]:
+        return lambda v: None
 
     def can_transform(self, _: IcebergType) -> bool:
         return True
@@ -450,37 +423,8 @@ class VoidTransform(Transform, Singleton):
     def result_type(self, source: IcebergType) -> IcebergType:
         return source
 
-    def to_human_string(self, value: Optional[S]) -> str:
+    def to_human_string(self, _: IcebergType, value: Optional[S]) -> str:
         return "null"
 
     def __repr__(self) -> str:
-        return "transforms.always_null()"
-
-
-def bucket(source_type: IcebergType, num_buckets: int) -> BaseBucketTransform:
-    if type(source_type) in {IntegerType, LongType, DateType, TimeType, TimestampType, TimestamptzType}:
-        return BucketNumberTransform(source_type, num_buckets)
-    elif isinstance(source_type, DecimalType):
-        return BucketDecimalTransform(source_type, num_buckets)
-    elif isinstance(source_type, StringType):
-        return BucketStringTransform(source_type, num_buckets)
-    elif isinstance(source_type, BinaryType):
-        return BucketBytesTransform(source_type, num_buckets)
-    elif isinstance(source_type, FixedType):
-        return BucketBytesTransform(source_type, num_buckets)
-    elif isinstance(source_type, UUIDType):
-        return BucketUUIDTransform(source_type, num_buckets)
-    else:
-        raise ValueError(f"Cannot bucket by type: {source_type}")
-
-
-def identity(source_type: IcebergType) -> IdentityTransform:
-    return IdentityTransform(source_type)
-
-
-def truncate(source_type: IcebergType, width: int) -> TruncateTransform:
-    return TruncateTransform(source_type, width)
-
-
-def always_null() -> VoidTransform:
-    return VoidTransform()
+        return "VoidTransform()"

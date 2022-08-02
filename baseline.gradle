@@ -42,22 +42,14 @@ subprojects {
   apply plugin: 'com.palantir.baseline-release-compatibility'
   apply plugin: 'com.diffplug.spotless'
 
-  // Can't use the built-in Baseline spotless format because it's opinionated about the import
-  // order of having static imports after non-static imports, and this cannot be overridden.
-
-  // So we apply Spotless manually to get a similar effect to baseline-format, but change the
-  // import order.
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
-      // don't run spotlessCheck during gradle check task
-      enforceCheck = false
       java {
         target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java'
+        // we use an older version of google-java-format that is compatible with JDK 8
+        googleJavaFormat("1.7")
         removeUnusedImports()
-        importOrder '', 'static '
-        trimTrailingWhitespace()
-        indentWithSpaces 2
-        endWithNewline()
+        licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
     }
   }

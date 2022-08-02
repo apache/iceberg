@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
@@ -69,8 +68,12 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
   // lazy variables
   private StructType readSchema;
 
-  SparkScan(SparkSession spark, Table table, SparkReadConf readConf,
-            Schema expectedSchema, List<Expression> filters) {
+  SparkScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
     super(spark, table, readConf, expectedSchema);
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
@@ -106,14 +109,16 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-    return new SparkMicroBatchStream(sparkContext(), table, readConf, expectedSchema, checkpointLocation);
+    return new SparkMicroBatchStream(
+        sparkContext(), table, readConf, expectedSchema, checkpointLocation);
   }
 
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
-      Preconditions.checkArgument(readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
-              SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+      Preconditions.checkArgument(
+          readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
+          SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
     return readSchema;
@@ -130,14 +135,14 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
       return new Stats(0L, 0L);
     }
 
-    // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
+    // estimate stats using snapshot summary only for partitioned tables (metadata tables are
+    // unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
       LOG.debug("using table metadata to estimate table statistics");
-      long totalRecords = PropertyUtil.propertyAsLong(snapshot.summary(),
-          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
-      return new Stats(
-          SparkSchemaUtil.estimateSize(readSchema(), totalRecords),
-          totalRecords);
+      long totalRecords =
+          PropertyUtil.propertyAsLong(
+              snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
     }
 
     long numRows = 0L;
@@ -156,7 +161,8 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
 
   @Override
   public String description() {
-    String filters = filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
+    String filters =
+        filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
     return String.format("%s [filters=%s]", table, filters);
   }
 
@@ -197,7 +203,8 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
     }
   }
 
-  private static class BatchReader extends BatchDataReader implements PartitionReader<ColumnarBatch> {
+  private static class BatchReader extends BatchDataReader
+      implements PartitionReader<ColumnarBatch> {
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
     }
@@ -212,8 +219,12 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
     private transient Schema expectedSchema = null;
     private transient String[] preferredLocations = null;
 
-    ReadTask(CombinedScanTask task, Broadcast<Table> tableBroadcast, String expectedSchemaString,
-             boolean caseSensitive, boolean localityPreferred) {
+    ReadTask(
+        CombinedScanTask task,
+        Broadcast<Table> tableBroadcast,
+        String expectedSchemaString,
+        boolean caseSensitive,
+        boolean localityPreferred) {
       this.task = task;
       this.tableBroadcast = tableBroadcast;
       this.expectedSchemaString = expectedSchemaString;

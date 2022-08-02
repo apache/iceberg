@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -25,15 +24,15 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
  * An interface used to create output files using {@link PositionOutputStream} instances.
- * <p>
- * This class is based on Parquet's InputFile.
+ *
+ * <p>This class is based on Parquet's InputFile.
  */
 public interface OutputFile {
 
   /**
    * Create a new file and return a {@link PositionOutputStream} to it.
-   * <p>
-   * If the file already exists, this will throw an exception.
+   *
+   * <p>If the file already exists, this will throw an exception.
    *
    * @return an output stream that can report its position
    * @throws AlreadyExistsException If the path already exists
@@ -43,12 +42,13 @@ public interface OutputFile {
 
   /**
    * Create a new file and return a {@link PositionOutputStream} to it.
-   * <p>
-   * If the file already exists, this will not throw an exception and will replace the file.
+   *
+   * <p>If the file already exists, this will not throw an exception and will replace the file.
    *
    * @return an output stream that can report its position
    * @throws RuntimeIOException If the implementation throws an {@link IOException}
-   * @throws SecurityException If staging directory creation fails due to missing JVM level permission
+   * @throws SecurityException If staging directory creation fails due to missing JVM level
+   *     permission
    */
   PositionOutputStream createOrOverwrite();
 

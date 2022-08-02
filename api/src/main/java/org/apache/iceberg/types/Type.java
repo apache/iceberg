@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.io.ObjectStreamException;
@@ -132,5 +131,4 @@ public interface Type extends Serializable {
 
     public abstract Types.NestedField field(int id);
   }
-
 }

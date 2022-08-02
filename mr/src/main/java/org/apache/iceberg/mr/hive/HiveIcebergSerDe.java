@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
 
 import java.util.Arrays;
@@ -59,26 +58,34 @@ public class HiveIcebergSerDe extends AbstractSerDe {
   private Container<Record> row = new Container<>();
 
   @Override
-  public void initialize(@Nullable Configuration configuration, Properties serDeProperties) throws SerDeException {
+  public void initialize(@Nullable Configuration configuration, Properties serDeProperties)
+      throws SerDeException {
     // HiveIcebergSerDe.initialize is called multiple places in Hive code:
-    // - When we are trying to create a table - HiveDDL data is stored at the serDeProperties, but no Iceberg table
+    // - When we are trying to create a table - HiveDDL data is stored at the serDeProperties, but
+    // no Iceberg table
     // is created yet.
-    // - When we are compiling the Hive query on HiveServer2 side - We only have table information (location/name),
-    // and we have to read the schema using the table data. This is called multiple times so there is room for
+    // - When we are compiling the Hive query on HiveServer2 side - We only have table information
+    // (location/name),
+    // and we have to read the schema using the table data. This is called multiple times so there
+    // is room for
     // optimizing here.
-    // - When we are executing the Hive query in the execution engine - We do not want to load the table data on every
-    // executor, but serDeProperties are populated by HiveIcebergStorageHandler.configureInputJobProperties() and
+    // - When we are executing the Hive query in the execution engine - We do not want to load the
+    // table data on every
+    // executor, but serDeProperties are populated by
+    // HiveIcebergStorageHandler.configureInputJobProperties() and
     // the resulting properties are serialized and distributed to the executors
 
     if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
-      this.tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
+      this.tableSchema =
+          SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
       try {
         // always prefer the original table schema if there is one
         this.tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
         LOG.info("Using schema from existing table {}", SchemaParser.toJson(tableSchema));
       } catch (Exception e) {
-        boolean autoConversion = configuration.getBoolean(InputFormatConfig.SCHEMA_AUTO_CONVERSION, false);
+        boolean autoConversion =
+            configuration.getBoolean(InputFormatConfig.SCHEMA_AUTO_CONVERSION, false);
         // If we can not load the table try the provided hive schema
         this.tableSchema = hiveSchemaOrThrow(serDeProperties, e, autoConversion);
       }
@@ -91,11 +98,16 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     } else {
       configuration.setBoolean(InputFormatConfig.CASE_SENSITIVE, false);
       String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(configuration);
-      // When same table is joined multiple times, it is possible some selected columns are duplicated,
-      // in this case wrong recordStructField position leads wrong value or ArrayIndexOutOfBoundException
-      String[] distinctSelectedColumns = Arrays.stream(selectedColumns).distinct().toArray(String[]::new);
-      projectedSchema = distinctSelectedColumns.length > 0 ?
-              tableSchema.caseInsensitiveSelect(distinctSelectedColumns) : tableSchema;
+      // When same table is joined multiple times, it is possible some selected columns are
+      // duplicated,
+      // in this case wrong recordStructField position leads wrong value or
+      // ArrayIndexOutOfBoundException
+      String[] distinctSelectedColumns =
+          Arrays.stream(selectedColumns).distinct().toArray(String[]::new);
+      projectedSchema =
+          distinctSelectedColumns.length > 0
+              ? tableSchema.caseInsensitiveSelect(distinctSelectedColumns)
+              : tableSchema;
       // the input split mapper handles does not belong to this table
       // it is necessary to ensure projectedSchema equals to tableSchema,
       // or we cannot find selectOperator's column from inspector
@@ -120,11 +132,12 @@ public class HiveIcebergSerDe extends AbstractSerDe {
   public Writable serialize(Object o, ObjectInspector objectInspector) {
     Deserializer deserializer = deserializers.get(objectInspector);
     if (deserializer == null) {
-      deserializer = new Deserializer.Builder()
-          .schema(tableSchema)
-          .sourceInspector((StructObjectInspector) objectInspector)
-          .writerInspector((StructObjectInspector) inspector)
-          .build();
+      deserializer =
+          new Deserializer.Builder()
+              .schema(tableSchema)
+              .sourceInspector((StructObjectInspector) objectInspector)
+              .writerInspector((StructObjectInspector) inspector)
+              .build();
       deserializers.put(objectInspector, deserializer);
     }
 
@@ -148,27 +161,34 @@ public class HiveIcebergSerDe extends AbstractSerDe {
   }
 
   /**
-   * Gets the hive schema from the serDeProperties, and throws an exception if it is not provided. In the later case
-   * it adds the previousException as a root cause.
+   * Gets the hive schema from the serDeProperties, and throws an exception if it is not provided.
+   * In the later case it adds the previousException as a root cause.
+   *
    * @param serDeProperties The source of the hive schema
    * @param previousException If we had an exception previously
-   * @param autoConversion When <code>true</code>, convert unsupported types to more permissive ones, like tinyint to
-   *                       int
+   * @param autoConversion When <code>true</code>, convert unsupported types to more permissive
+   *     ones, like tinyint to int
    * @return The hive schema parsed from the serDeProperties
    * @throws SerDeException If there is no schema information in the serDeProperties
    */
-  private static Schema hiveSchemaOrThrow(Properties serDeProperties, Exception previousException,
-                                          boolean autoConversion)
+  private static Schema hiveSchemaOrThrow(
+      Properties serDeProperties, Exception previousException, boolean autoConversion)
       throws SerDeException {
     // Read the configuration parameters
     String columnNames = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS);
     String columnTypes = serDeProperties.getProperty(serdeConstants.LIST_COLUMN_TYPES);
     // No constant for column comments and column comments delimiter.
     String columnComments = serDeProperties.getProperty(LIST_COLUMN_COMMENT);
-    String columnNameDelimiter = serDeProperties.containsKey(serdeConstants.COLUMN_NAME_DELIMITER) ?
-        serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
-    if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
-        !columnNames.isEmpty() && !columnTypes.isEmpty() && !columnNameDelimiter.isEmpty()) {
+    String columnNameDelimiter =
+        serDeProperties.containsKey(serdeConstants.COLUMN_NAME_DELIMITER)
+            ? serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER)
+            : String.valueOf(SerDeUtils.COMMA);
+    if (columnNames != null
+        && columnTypes != null
+        && columnNameDelimiter != null
+        && !columnNames.isEmpty()
+        && !columnTypes.isEmpty()
+        && !columnNameDelimiter.isEmpty()) {
       // Parse the configuration parameters
       List<String> names = Lists.newArrayList();
       Collections.addAll(names, columnNames.split(columnNameDelimiter));
@@ -176,12 +196,17 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       if (columnComments != null) {
         Collections.addAll(comments, columnComments.split(Character.toString(Character.MIN_VALUE)));
       }
-      Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes),
-              comments, autoConversion);
+      Schema hiveSchema =
+          HiveSchemaUtil.convert(
+              names,
+              TypeInfoUtils.getTypeInfosFromTypeString(columnTypes),
+              comments,
+              autoConversion);
       LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
       return hiveSchema;
     } else {
-      throw new SerDeException("Please provide an existing table or a valid schema", previousException);
+      throw new SerDeException(
+          "Please provide an existing table or a valid schema", previousException);
     }
   }
 }

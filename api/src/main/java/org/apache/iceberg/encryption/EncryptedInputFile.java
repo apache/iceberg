@@ -16,23 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import org.apache.iceberg.io.InputFile;
 
 /**
  * Thin wrapper around an {@link InputFile} instance that is encrypted.
- * <p>
- * The {@link EncryptionManager} takes instances of these and uses the attached
- * {@link #keyMetadata()} to find an encryption key and decrypt the enclosed
- * {@link #encryptedInputFile()}.
+ *
+ * <p>The {@link EncryptionManager} takes instances of these and uses the attached {@link
+ * #keyMetadata()} to find an encryption key and decrypt the enclosed {@link #encryptedInputFile()}.
  */
 public interface EncryptedInputFile {
 
-  /**
-   * The {@link InputFile} that is reading raw encrypted bytes from the underlying file system.
-   */
+  /** The {@link InputFile} that is reading raw encrypted bytes from the underlying file system. */
   InputFile encryptedInputFile();
 
   /**

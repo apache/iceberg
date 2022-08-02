@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.sql;
 
 import java.util.List;
@@ -54,18 +53,18 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
     df.coalesce(1).writeTo(tableName).append();
 
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
-    AssertHelpers.assertThrows("Should not be able to delete from a table at a specific snapshot",
-        IllegalArgumentException.class, "Cannot delete from table at a specific snapshot",
+    AssertHelpers.assertThrows(
+        "Should not be able to delete from a table at a specific snapshot",
+        IllegalArgumentException.class,
+        "Cannot delete from table at a specific snapshot",
         () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId));
   }
 
@@ -74,7 +73,8 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -85,6 +85,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Delete should not produce a new snapshot", 1, Iterables.size(table.snapshots()));
+    Assert.assertEquals(
+        "Delete should not produce a new snapshot", 1, Iterables.size(table.snapshots()));
   }
 }

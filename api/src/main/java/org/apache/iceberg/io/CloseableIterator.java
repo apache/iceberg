@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
@@ -57,7 +56,8 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
     };
   }
 
-  static <I, O> CloseableIterator<O> transform(CloseableIterator<I> iterator, Function<I, O> transform) {
+  static <I, O> CloseableIterator<O> transform(
+      CloseableIterator<I> iterator, Function<I, O> transform) {
     Preconditions.checkNotNull(transform, "Cannot apply a null transform");
 
     return new CloseableIterator<O>() {

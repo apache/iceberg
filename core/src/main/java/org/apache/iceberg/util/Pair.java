@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import com.github.benmanes.caffeine.cache.CacheLoader;
@@ -35,28 +34,31 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
     return new Pair<>(first, second);
   }
 
-  private static final LoadingCache<Pair<Class<?>, Class<?>>, Schema> SCHEMA_CACHE = Caffeine
-      .newBuilder()
-      .build(new CacheLoader<Pair<Class<?>, Class<?>>, Schema>() {
-        @Override
-        @SuppressWarnings("deprecation")
-        public Schema load(Pair<Class<?>, Class<?>> key) {
-          Schema xSchema = ReflectData.get().getSchema(key.first);
-          Schema ySchema = ReflectData.get().getSchema(key.second);
-          return Schema.createRecord("pair", null, null, false, Lists.newArrayList(
-              new Schema.Field("x", xSchema, null, (Object) null),
-              new Schema.Field("y", ySchema, null, (Object) null)
-          ));
-        }
-      });
+  private static final LoadingCache<Pair<Class<?>, Class<?>>, Schema> SCHEMA_CACHE =
+      Caffeine.newBuilder()
+          .build(
+              new CacheLoader<Pair<Class<?>, Class<?>>, Schema>() {
+                @Override
+                @SuppressWarnings("deprecation")
+                public Schema load(Pair<Class<?>, Class<?>> key) {
+                  Schema xSchema = ReflectData.get().getSchema(key.first);
+                  Schema ySchema = ReflectData.get().getSchema(key.second);
+                  return Schema.createRecord(
+                      "pair",
+                      null,
+                      null,
+                      false,
+                      Lists.newArrayList(
+                          new Schema.Field("x", xSchema, null, (Object) null),
+                          new Schema.Field("y", ySchema, null, (Object) null)));
+                }
+              });
 
   private Schema schema = null;
   private X first;
   private Y second;
 
-  /**
-   * Constructor used by Avro
-   */
+  /** Constructor used by Avro */
   private Pair(Schema schema) {
     this.schema = schema;
   }

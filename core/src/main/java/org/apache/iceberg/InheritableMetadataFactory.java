@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -25,17 +24,18 @@ class InheritableMetadataFactory {
 
   private static final InheritableMetadata EMPTY = new EmptyInheritableMetadata();
 
-  private InheritableMetadataFactory() {
-  }
+  private InheritableMetadataFactory() {}
 
   static InheritableMetadata empty() {
     return EMPTY;
   }
 
   static InheritableMetadata fromManifest(ManifestFile manifest) {
-    Preconditions.checkArgument(manifest.snapshotId() != null,
+    Preconditions.checkArgument(
+        manifest.snapshotId() != null,
         "Cannot read from ManifestFile with null (unassigned) snapshot ID");
-    return new BaseInheritableMetadata(manifest.partitionSpecId(), manifest.snapshotId(), manifest.sequenceNumber());
+    return new BaseInheritableMetadata(
+        manifest.partitionSpecId(), manifest.snapshotId(), manifest.sequenceNumber());
   }
 
   static InheritableMetadata forCopy(long snapshotId) {
@@ -85,13 +85,13 @@ class InheritableMetadataFactory {
 
   static class EmptyInheritableMetadata implements InheritableMetadata {
 
-    private EmptyInheritableMetadata() {
-    }
+    private EmptyInheritableMetadata() {}
 
     @Override
     public <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry) {
       if (manifestEntry.snapshotId() == null) {
-        throw new IllegalArgumentException("Entries must have explicit snapshot ids if inherited metadata is empty");
+        throw new IllegalArgumentException(
+            "Entries must have explicit snapshot ids if inherited metadata is empty");
       }
       return manifestEntry;
     }

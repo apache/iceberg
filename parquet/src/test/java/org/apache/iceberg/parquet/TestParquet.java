@@ -16,8 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
+
+import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
+import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,18 +54,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.Files.localInput;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
-import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
-import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestParquet {
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testRowGroupSizeConfigurable() throws IOException {
@@ -68,7 +66,8 @@ public class TestParquet {
     // as default PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT is 100.
     File parquetFile = generateFile(null, 101, 4 * Integer.BYTES, null, null).first();
 
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       Assert.assertEquals(2, reader.getRowGroups().size());
     }
   }
@@ -79,18 +78,18 @@ public class TestParquet {
     // and PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT configs.
     // We should just need to write 5 integers (20 bytes)
     // to create two row groups with row group size configured at 16 bytes.
-    File parquetFile = generateFile(ParquetAvroWriter::buildWriter, 5, 4 * Integer.BYTES, 1, 2).first();
+    File parquetFile =
+        generateFile(ParquetAvroWriter::buildWriter, 5, 4 * Integer.BYTES, 1, 2).first();
 
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       Assert.assertEquals(2, reader.getRowGroups().size());
     }
   }
 
   @Test
   public void testNumberOfBytesWritten() throws IOException {
-    Schema schema = new Schema(
-        optional(1, "intCol", IntegerType.get())
-    );
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
 
     // this value was specifically derived to reproduce iss1980
     // record count grow factor is 10000 (hardcoded)
@@ -108,8 +107,13 @@ public class TestParquet {
       records.add(record);
     }
 
-    long actualSize = write(file, schema, Collections.emptyMap(), ParquetAvroWriter::buildWriter,
-        records.toArray(new GenericData.Record[]{}));
+    long actualSize =
+        write(
+            file,
+            schema,
+            Collections.emptyMap(),
+            ParquetAvroWriter::buildWriter,
+            records.toArray(new GenericData.Record[] {}));
 
     long expectedSize = ParquetIO.file(localInput(file)).getLength();
     Assert.assertEquals(expectedSize, actualSize);
@@ -117,21 +121,22 @@ public class TestParquet {
 
   @Test
   public void testTwoLevelList() throws IOException {
-    Schema schema = new Schema(
-        optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
-        optional(2, "topbytes", Types.BinaryType.get())
-    );
+    Schema schema =
+        new Schema(
+            optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
+            optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
     File testFile = temp.newFile();
     Assert.assertTrue(testFile.delete());
 
-    ParquetWriter<GenericRecord> writer = AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
-        .withDataModel(GenericData.get())
-        .withSchema(avroSchema)
-        .config("parquet.avro.add-list-element-records", "true")
-        .config("parquet.avro.write-old-list-structure", "true")
-        .build();
+    ParquetWriter<GenericRecord> writer =
+        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchema)
+            .config("parquet.avro.add-list-element-records", "true")
+            .config("parquet.avro.write-old-list-structure", "true")
+            .build();
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
     List<ByteBuffer> expectedByteList = Lists.newArrayList();
@@ -145,32 +150,34 @@ public class TestParquet {
     writer.write(expectedRecord);
     writer.close();
 
-    GenericData.Record recordRead = Iterables.getOnlyElement(Parquet.read(Files.localInput(testFile))
-        .project(schema)
-        .callInit()
-        .build());
+    GenericData.Record recordRead =
+        Iterables.getOnlyElement(
+            Parquet.read(Files.localInput(testFile)).project(schema).callInit().build());
 
     Assert.assertEquals(expectedByteList, recordRead.get("arraybytes"));
     Assert.assertEquals(expectedBinary, recordRead.get("topbytes"));
   }
 
   private Pair<File, Long> generateFile(
-      Function<MessageType, ParquetValueWriter<?>> createWriterFunc, int desiredRecordCount,
-      Integer rowGroupSizeBytes, Integer minCheckRecordCount, Integer maxCheckRecordCount)
+      Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+      int desiredRecordCount,
+      Integer rowGroupSizeBytes,
+      Integer minCheckRecordCount,
+      Integer maxCheckRecordCount)
       throws IOException {
-    Schema schema = new Schema(
-        optional(1, "intCol", IntegerType.get())
-    );
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
 
     ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
     if (rowGroupSizeBytes != null) {
       propsBuilder.put(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(rowGroupSizeBytes));
     }
     if (minCheckRecordCount != null) {
-      propsBuilder.put(PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT, Integer.toString(minCheckRecordCount));
+      propsBuilder.put(
+          PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT, Integer.toString(minCheckRecordCount));
     }
     if (maxCheckRecordCount != null) {
-      propsBuilder.put(PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT, Integer.toString(maxCheckRecordCount));
+      propsBuilder.put(
+          PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT, Integer.toString(maxCheckRecordCount));
     }
 
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(desiredRecordCount);
@@ -182,11 +189,13 @@ public class TestParquet {
     }
 
     File file = createTempFile(temp);
-    long size = write(file,
-        schema,
-        propsBuilder.build(),
-        createWriterFunc,
-        records.toArray(new GenericData.Record[]{}));
+    long size =
+        write(
+            file,
+            schema,
+            propsBuilder.build(),
+            createWriterFunc,
+            records.toArray(new GenericData.Record[] {}));
     return Pair.of(file, size);
   }
 }

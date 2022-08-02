@@ -16,18 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
-import org.apache.iceberg.actions.DeleteOrphanFiles;
-import org.apache.iceberg.actions.DeleteReachableFiles;
-import org.apache.iceberg.actions.ExpireSnapshots;
-import org.apache.iceberg.actions.MigrateTable;
-import org.apache.iceberg.actions.RewriteDataFiles;
-import org.apache.iceberg.actions.RewriteManifests;
-import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
@@ -35,9 +27,9 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
 /**
  * An implementation of {@link ActionsProvider} for Spark.
- * <p>
- * This class is the primary API for interacting with actions in Spark that users should use
- * to instantiate particular actions.
+ *
+ * <p>This class is the primary API for interacting with actions in Spark that users should use to
+ * instantiate particular actions.
  */
 public class SparkActions implements ActionsProvider {
 
@@ -56,49 +48,47 @@ public class SparkActions implements ActionsProvider {
   }
 
   @Override
-  public SnapshotTable snapshotTable(String tableIdent) {
+  public SnapshotTableSparkAction snapshotTable(String tableIdent) {
     String ctx = "snapshot source";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
-    return new BaseSnapshotTableSparkAction(spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
+    CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
+    return new SnapshotTableSparkAction(
+        spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
   @Override
-  public MigrateTable migrateTable(String tableIdent) {
+  public MigrateTableSparkAction migrateTable(String tableIdent) {
     String ctx = "migrate target";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
-    CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
-    return new BaseMigrateTableSparkAction(spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
+    CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, tableIdent, defaultCatalog);
+    return new MigrateTableSparkAction(
+        spark, catalogAndIdent.catalog(), catalogAndIdent.identifier());
   }
 
   @Override
-  @Deprecated
-  public RewriteDataFiles rewriteDataFiles(Table table) {
-    return new BaseRewriteDataFilesSparkAction(spark, table);
+  public RewriteDataFilesSparkAction rewriteDataFiles(Table table) {
+    return new RewriteDataFilesSparkAction(spark, table);
   }
 
   @Override
-  public RewriteDataFiles rewriteDataFiles(Table table, String fullIdentifier) {
-    return new BaseRewriteDataFilesSparkAction(spark, table, fullIdentifier);
+  public DeleteOrphanFilesSparkAction deleteOrphanFiles(Table table) {
+    return new DeleteOrphanFilesSparkAction(spark, table);
   }
 
   @Override
-  public DeleteOrphanFiles deleteOrphanFiles(Table table) {
-    return new BaseDeleteOrphanFilesSparkAction(spark, table);
+  public RewriteManifestsSparkAction rewriteManifests(Table table) {
+    return new RewriteManifestsSparkAction(spark, table);
   }
 
   @Override
-  public RewriteManifests rewriteManifests(Table table) {
-    return new BaseRewriteManifestsSparkAction(spark, table);
+  public ExpireSnapshotsSparkAction expireSnapshots(Table table) {
+    return new ExpireSnapshotsSparkAction(spark, table);
   }
 
   @Override
-  public ExpireSnapshots expireSnapshots(Table table) {
-    return new BaseExpireSnapshotsSparkAction(spark, table);
-  }
-
-  @Override
-  public DeleteReachableFiles deleteReachableFiles(String metadataLocation) {
-    return new BaseDeleteReachableFilesSparkAction(spark, metadataLocation);
+  public DeleteReachableFilesSparkAction deleteReachableFiles(String metadataLocation) {
+    return new DeleteReachableFilesSparkAction(spark, metadataLocation);
   }
 }

@@ -14,17 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from functools import cached_property
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+)
 
-from pyiceberg.schema import Schema
+from pydantic import Field
+
 from pyiceberg.transforms import Transform
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 _PARTITION_DATA_ID_START: int = 1000
 
 
-@dataclass(frozen=True)
-class PartitionField:
+class PartitionField(IcebergBaseModel):
     """
     PartitionField is a single element with name and unique id,
     It represents how one partition value is derived from the source column via transformation
@@ -36,17 +43,34 @@ class PartitionField:
         name(str): The name of this partition field
     """
 
-    source_id: int
-    field_id: int
-    transform: Transform
-    name: str
+    source_id: int = Field(alias="source-id")
+    field_id: int = Field(alias="field-id")
+    transform: Transform = Field()
+    name: str = Field()
+
+    def __init__(
+        self,
+        source_id: Optional[int] = None,
+        field_id: Optional[int] = None,
+        transform: Optional[Transform] = None,
+        name: Optional[str] = None,
+        **data: Any,
+    ):
+        if source_id is not None:
+            data["source-id"] = source_id
+        if field_id is not None:
+            data["field-id"] = field_id
+        if transform is not None:
+            data["transform"] = transform
+        if name is not None:
+            data["name"] = name
+        super().__init__(**data)
 
     def __str__(self):
         return f"{self.field_id}: {self.name}: {self.transform}({self.source_id})"
 
 
-@dataclass(eq=False, frozen=True)
-class PartitionSpec:
+class PartitionSpec(IcebergBaseModel):
     """
     PartitionSpec captures the transformation from table data to partition values
 
@@ -54,27 +78,24 @@ class PartitionSpec:
         schema(Schema): the schema of data table
         spec_id(int): any change to PartitionSpec will produce a new specId
         fields(List[PartitionField): list of partition fields to produce partition values
-        last_assigned_field_id(int): auto-increment partition field id starting from PARTITION_DATA_ID_START
     """
 
-    schema: Schema
-    spec_id: int
-    fields: Tuple[PartitionField, ...]
-    last_assigned_field_id: int
-    source_id_to_fields_map: Dict[int, List[PartitionField]] = field(init=False, repr=False)
+    spec_id: int = Field(alias="spec-id")
+    fields: Tuple[PartitionField, ...] = Field(default_factory=tuple)
 
-    def __post_init__(self):
-        source_id_to_fields_map = {}
-        for partition_field in self.fields:
-            source_column = self.schema.find_column_name(partition_field.source_id)
-            if not source_column:
-                raise ValueError(f"Cannot find source column: {partition_field.source_id}")
-            existing = source_id_to_fields_map.get(partition_field.source_id, [])
-            existing.append(partition_field)
-            source_id_to_fields_map[partition_field.source_id] = existing
-        object.__setattr__(self, "source_id_to_fields_map", source_id_to_fields_map)
+    def __init__(
+        self,
+        spec_id: Optional[int] = None,
+        fields: Optional[Tuple[PartitionField, ...]] = None,
+        **data: Any,
+    ):
+        if spec_id is not None:
+            data["spec-id"] = spec_id
+        if fields is not None:
+            data["fields"] = fields
+        super().__init__(**data)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         """
         Produce a boolean to return True if two objects are considered equal
 
@@ -101,6 +122,21 @@ class PartitionSpec:
     def is_unpartitioned(self) -> bool:
         return not self.fields
 
+    @property
+    def last_assigned_field_id(self) -> int:
+        if self.fields:
+            return max(pf.field_id for pf in self.fields)
+        return _PARTITION_DATA_ID_START
+
+    @cached_property
+    def source_id_to_fields_map(self) -> Dict[int, List[PartitionField]]:
+        source_id_to_fields_map: Dict[int, List[PartitionField]] = {}
+        for partition_field in self.fields:
+            existing = source_id_to_fields_map.get(partition_field.source_id, [])
+            existing.append(partition_field)
+            source_id_to_fields_map[partition_field.source_id] = existing
+        return source_id_to_fields_map
+
     def fields_by_source_id(self, field_id: int) -> List[PartitionField]:
         return self.source_id_to_fields_map[field_id]
 
@@ -118,3 +154,6 @@ class PartitionSpec:
             and this_field.name == that_field.name
             for this_field, that_field in zip(self.fields, other.fields)
         )
+
+
+UNPARTITIONED_PARTITION_SPEC = PartitionSpec(spec_id=0)

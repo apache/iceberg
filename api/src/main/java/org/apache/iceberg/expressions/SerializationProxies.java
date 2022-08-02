@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.io.ObjectStreamException;
@@ -25,18 +24,15 @@ import java.nio.ByteBuffer;
 
 /**
  * Stand-in classes for expression classes in Java Serialization.
- * <p>
- * These are used so that expression classes are immutable and can use final fields.
+ *
+ * <p>These are used so that expression classes are immutable and can use final fields.
  */
 class SerializationProxies {
   static class ConstantExpressionProxy implements Serializable {
     private Boolean trueOrFalse = null;
 
-    /**
-     * Constructor for Java serialization.
-     */
-    ConstantExpressionProxy() {
-    }
+    /** Constructor for Java serialization. */
+    ConstantExpressionProxy() {}
 
     ConstantExpressionProxy(boolean trueOrFalse) {
       this.trueOrFalse = trueOrFalse;
@@ -52,11 +48,8 @@ class SerializationProxies {
   }
 
   static class BinaryLiteralProxy extends FixedLiteralProxy {
-    /**
-     * Constructor for Java serialization.
-     */
-    BinaryLiteralProxy() {
-    }
+    /** Constructor for Java serialization. */
+    BinaryLiteralProxy() {}
 
     BinaryLiteralProxy(ByteBuffer buffer) {
       super(buffer);
@@ -68,17 +61,12 @@ class SerializationProxies {
     }
   }
 
-  /**
-   * Replacement for FixedLiteral in Java Serialization.
-   */
+  /** Replacement for FixedLiteral in Java Serialization. */
   static class FixedLiteralProxy implements Serializable {
     private byte[] bytes;
 
-    /**
-     * Constructor for Java serialization.
-     */
-    FixedLiteralProxy() {
-    }
+    /** Constructor for Java serialization. */
+    FixedLiteralProxy() {}
 
     FixedLiteralProxy(ByteBuffer buffer) {
       this.bytes = new byte[buffer.remaining()];

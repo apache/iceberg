@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
@@ -44,8 +43,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueReaders {
 
-  private SparkValueReaders() {
-  }
+  private SparkValueReaders() {}
 
   static ValueReader<UTF8String> strings() {
     return StringReader.INSTANCE;
@@ -67,8 +65,8 @@ public class SparkValueReaders {
     return new ArrayReader(elementReader);
   }
 
-  static ValueReader<ArrayBasedMapData> arrayMap(ValueReader<?> keyReader,
-                                                 ValueReader<?> valueReader) {
+  static ValueReader<ArrayBasedMapData> arrayMap(
+      ValueReader<?> keyReader, ValueReader<?> valueReader) {
     return new ArrayMapReader(keyReader, valueReader);
   }
 
@@ -76,16 +74,15 @@ public class SparkValueReaders {
     return new MapReader(keyReader, valueReader);
   }
 
-  static ValueReader<InternalRow> struct(List<ValueReader<?>> readers, Types.StructType struct,
-                                         Map<Integer, ?> idToConstant) {
+  static ValueReader<InternalRow> struct(
+      List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
     return new StructReader(readers, struct, idToConstant);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
     private static final StringReader INSTANCE = new StringReader();
 
-    private StringReader() {
-    }
+    private StringReader() {}
 
     @Override
     public UTF8String read(Decoder decoder, Object reuse) throws IOException {
@@ -97,10 +94,10 @@ public class SparkValueReaders {
 
       Utf8 string = decoder.readString(utf8);
       return UTF8String.fromBytes(string.getBytes(), 0, string.getByteLength());
-//      int length = decoder.readInt();
-//      byte[] bytes = new byte[length];
-//      decoder.readFixed(bytes, 0, length);
-//      return UTF8String.fromBytes(bytes);
+      //      int length = decoder.readInt();
+      //      byte[] bytes = new byte[length];
+      //      decoder.readFixed(bytes, 0, length);
+      //      return UTF8String.fromBytes(bytes);
     }
   }
 
@@ -122,16 +119,17 @@ public class SparkValueReaders {
   }
 
   private static class UUIDReader implements ValueReader<UTF8String> {
-    private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
-      ByteBuffer buffer = ByteBuffer.allocate(16);
-      buffer.order(ByteOrder.BIG_ENDIAN);
-      return buffer;
-    });
+    private static final ThreadLocal<ByteBuffer> BUFFER =
+        ThreadLocal.withInitial(
+            () -> {
+              ByteBuffer buffer = ByteBuffer.allocate(16);
+              buffer.order(ByteOrder.BIG_ENDIAN);
+              return buffer;
+            });
 
     private static final UUIDReader INSTANCE = new UUIDReader();
 
-    private UUIDReader() {
-    }
+    private UUIDReader() {}
 
     @Override
     @SuppressWarnings("ByteBufferBackingArray")
@@ -258,14 +256,16 @@ public class SparkValueReaders {
   static class StructReader extends ValueReaders.StructReader<InternalRow> {
     private final int numFields;
 
-    protected StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+    protected StructReader(
+        List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       super(readers, struct, idToConstant);
       this.numFields = readers.size();
     }
 
     @Override
     protected InternalRow reuseOrCreate(Object reuse) {
-      if (reuse instanceof GenericInternalRow && ((GenericInternalRow) reuse).numFields() == numFields) {
+      if (reuse instanceof GenericInternalRow
+          && ((GenericInternalRow) reuse).numFields() == numFields) {
         return (InternalRow) reuse;
       }
       return new GenericInternalRow(numFields);

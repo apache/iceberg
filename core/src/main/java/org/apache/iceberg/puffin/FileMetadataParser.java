@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -33,8 +32,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public final class FileMetadataParser {
 
-  private FileMetadataParser() {
-  }
+  private FileMetadataParser() {}
 
   private static final String BLOBS = "blobs";
   private static final String PROPERTIES = "properties";
@@ -98,8 +96,10 @@ public final class FileMetadataParser {
 
     ImmutableList.Builder<BlobMetadata> blobs = ImmutableList.builder();
     JsonNode blobsJson = json.get(BLOBS);
-    Preconditions.checkArgument(blobsJson != null && blobsJson.isArray(),
-        "Cannot parse blobs from non-array: %s", blobsJson);
+    Preconditions.checkArgument(
+        blobsJson != null && blobsJson.isArray(),
+        "Cannot parse blobs from non-array: %s",
+        blobsJson);
     for (JsonNode blobJson : blobsJson) {
       blobs.add(blobMetadataFromJson(blobJson));
     }
@@ -110,9 +110,7 @@ public final class FileMetadataParser {
       properties = JsonUtil.getStringMap(PROPERTIES, json);
     }
 
-    return new FileMetadata(
-        blobs.build(),
-        properties);
+    return new FileMetadata(blobs.build(), properties);
   }
 
   static void toJson(BlobMetadata blobMetadata, JsonGenerator generator) throws IOException {
@@ -160,15 +158,7 @@ public final class FileMetadataParser {
       properties = JsonUtil.getStringMap(PROPERTIES, json);
     }
 
-
     return new BlobMetadata(
-        type,
-        fields,
-        snapshotId,
-        sequenceNumber,
-        offset,
-        length,
-        compressionCodec,
-        properties);
+        type, fields, snapshotId, sequenceNumber, offset, length, compressionCodec, properties);
   }
 }

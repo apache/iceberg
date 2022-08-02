@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
@@ -46,8 +45,15 @@ public class StreamingWriter extends Writer implements StreamWriter {
   private final String queryId;
   private final OutputMode mode;
 
-  StreamingWriter(SparkSession spark, Table table, SparkWriteConf writeConf, String queryId,
-                  OutputMode mode, String applicationId, Schema writeSchema, StructType dsSchema) {
+  StreamingWriter(
+      SparkSession spark,
+      Table table,
+      SparkWriteConf writeConf,
+      String queryId,
+      OutputMode mode,
+      String applicationId,
+      Schema writeSchema,
+      StructType dsSchema) {
     super(spark, table, writeConf, false, applicationId, writeSchema, dsSchema);
     this.queryId = queryId;
     this.mode = mode;
@@ -84,7 +90,8 @@ public class StreamingWriter extends Writer implements StreamWriter {
     }
   }
 
-  private <T> void commit(SnapshotUpdate<T> snapshotUpdate, long epochId, int numFiles, String description) {
+  private <T> void commit(
+      SnapshotUpdate<T> snapshotUpdate, long epochId, int numFiles, String description) {
     snapshotUpdate.set(QUERY_ID_PROPERTY, queryId);
     snapshotUpdate.set(EPOCH_ID_PROPERTY, Long.toString(epochId));
     commitOperation(snapshotUpdate, numFiles, description);

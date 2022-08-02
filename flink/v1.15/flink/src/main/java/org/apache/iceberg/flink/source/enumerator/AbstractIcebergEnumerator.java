@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
@@ -38,9 +37,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * TODO: publish enumerator monitor metrics like number of pending metrics after FLINK-21000 is resolved
+ * TODO: publish enumerator monitor metrics like number of pending metrics after FLINK-21000 is
+ * resolved
  */
-abstract class AbstractIcebergEnumerator implements SplitEnumerator<IcebergSourceSplit, IcebergEnumeratorState> {
+abstract class AbstractIcebergEnumerator
+    implements SplitEnumerator<IcebergSourceSplit, IcebergEnumeratorState> {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractIcebergEnumerator.class);
 
   private final SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext;
@@ -49,8 +50,7 @@ abstract class AbstractIcebergEnumerator implements SplitEnumerator<IcebergSourc
   private final AtomicReference<CompletableFuture<Void>> availableFuture;
 
   AbstractIcebergEnumerator(
-      SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext,
-      SplitAssigner assigner) {
+      SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext, SplitAssigner assigner) {
     this.enumeratorContext = enumeratorContext;
     this.assigner = assigner;
     this.readersAwaitingSplit = new LinkedHashMap<>();
@@ -70,29 +70,32 @@ abstract class AbstractIcebergEnumerator implements SplitEnumerator<IcebergSourc
   @Override
   public void handleSplitRequest(int subtaskId, @Nullable String requesterHostname) {
     // Iceberg source uses custom split request event to piggyback finished split ids.
-    throw new UnsupportedOperationException(String.format("Received invalid default split request event " +
-        "from subtask %d as Iceberg source uses custom split request event", subtaskId));
+    throw new UnsupportedOperationException(
+        String.format(
+            "Received invalid default split request event "
+                + "from subtask %d as Iceberg source uses custom split request event",
+            subtaskId));
   }
 
   @Override
   public void handleSourceEvent(int subtaskId, SourceEvent sourceEvent) {
     if (sourceEvent instanceof SplitRequestEvent) {
-      SplitRequestEvent splitRequestEvent =
-          (SplitRequestEvent) sourceEvent;
+      SplitRequestEvent splitRequestEvent = (SplitRequestEvent) sourceEvent;
       LOG.info("Received request split event from subtask {}", subtaskId);
       assigner.onCompletedSplits(splitRequestEvent.finishedSplitIds());
       readersAwaitingSplit.put(subtaskId, splitRequestEvent.requesterHostname());
       assignSplits();
     } else {
-      throw new IllegalArgumentException(String.format("Received unknown event from subtask %d: %s",
-          subtaskId, sourceEvent.getClass().getCanonicalName()));
+      throw new IllegalArgumentException(
+          String.format(
+              "Received unknown event from subtask %d: %s",
+              subtaskId, sourceEvent.getClass().getCanonicalName()));
     }
   }
 
   @Override
   public void addSplitsBack(List<IcebergSourceSplit> splits, int subtaskId) {
-    LOG.info("Add {} splits back to the pool for failed subtask {}",
-        splits.size(), subtaskId);
+    LOG.info("Add {} splits back to the pool for failed subtask {}", splits.size(), subtaskId);
     assigner.onUnassignedSplits(splits);
     assignSplits();
   }
@@ -140,10 +143,7 @@ abstract class AbstractIcebergEnumerator implements SplitEnumerator<IcebergSourc
     }
   }
 
-  /**
-   * return true if enumerator should wait for splits
-   * like in the continuous enumerator case
-   */
+  /** return true if enumerator should wait for splits like in the continuous enumerator case */
   protected abstract boolean shouldWaitForMoreSplits();
 
   private synchronized void getAvailableFutureIfNeeded() {
@@ -151,18 +151,22 @@ abstract class AbstractIcebergEnumerator implements SplitEnumerator<IcebergSourc
       return;
     }
 
-    CompletableFuture<Void> future = assigner.isAvailable()
-        .thenAccept(ignore ->
-            // Must run assignSplits in coordinator thread
-            // because the future may be completed from other threads.
-            // E.g., in event time alignment assigner,
-            // watermark advancement from another source may
-            // cause the available future to be completed
-            enumeratorContext.runInCoordinatorThread(() -> {
-              LOG.debug("Executing callback of assignSplits");
-              availableFuture.set(null);
-              assignSplits();
-            }));
+    CompletableFuture<Void> future =
+        assigner
+            .isAvailable()
+            .thenAccept(
+                ignore ->
+                    // Must run assignSplits in coordinator thread
+                    // because the future may be completed from other threads.
+                    // E.g., in event time alignment assigner,
+                    // watermark advancement from another source may
+                    // cause the available future to be completed
+                    enumeratorContext.runInCoordinatorThread(
+                        () -> {
+                          LOG.debug("Executing callback of assignSplits");
+                          availableFuture.set(null);
+                          assignSplits();
+                        }));
     availableFuture.set(future);
     LOG.debug("Registered callback for future available splits");
   }

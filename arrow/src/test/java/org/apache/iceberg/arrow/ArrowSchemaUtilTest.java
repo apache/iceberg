@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow;
 
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -37,7 +36,6 @@ import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.junit.Assert;
 import org.junit.Test;
-
 
 public class ArrowSchemaUtilTest {
 
@@ -60,23 +58,27 @@ public class ArrowSchemaUtilTest {
 
   @Test
   public void convertPrimitive() {
-    Schema iceberg = new Schema(
-        Types.NestedField.optional(0, INTEGER_FIELD, IntegerType.get()),
-        Types.NestedField.optional(1, BOOLEAN_FIELD, BooleanType.get()),
-        Types.NestedField.required(2, DOUBLE_FIELD, DoubleType.get()),
-        Types.NestedField.required(3, STRING_FIELD, StringType.get()),
-        Types.NestedField.optional(4, DATE_FIELD, DateType.get()),
-        Types.NestedField.optional(5, TIMESTAMP_FIELD, TimestampType.withZone()),
-        Types.NestedField.optional(6, LONG_FIELD, LongType.get()),
-        Types.NestedField.optional(7, FLOAT_FIELD, FloatType.get()),
-        Types.NestedField.optional(8, TIME_FIELD, TimeType.get()),
-        Types.NestedField.optional(9, BINARY_FIELD, Types.BinaryType.get()),
-        Types.NestedField.optional(10, DECIMAL_FIELD, Types.DecimalType.of(1, 1)),
-        Types.NestedField.optional(12, LIST_FIELD, Types.ListType.ofOptional(13, Types.IntegerType.get())),
-        Types.NestedField.required(14, MAP_FIELD, Types.MapType.ofOptional(15, 16,
-            StringType.get(), IntegerType.get())),
-        Types.NestedField.optional(17, FIXED_WIDTH_BINARY_FIELD, Types.FixedType.ofLength(10)),
-        Types.NestedField.optional(18, UUID_FIELD, Types.UUIDType.get()));
+    Schema iceberg =
+        new Schema(
+            Types.NestedField.optional(0, INTEGER_FIELD, IntegerType.get()),
+            Types.NestedField.optional(1, BOOLEAN_FIELD, BooleanType.get()),
+            Types.NestedField.required(2, DOUBLE_FIELD, DoubleType.get()),
+            Types.NestedField.required(3, STRING_FIELD, StringType.get()),
+            Types.NestedField.optional(4, DATE_FIELD, DateType.get()),
+            Types.NestedField.optional(5, TIMESTAMP_FIELD, TimestampType.withZone()),
+            Types.NestedField.optional(6, LONG_FIELD, LongType.get()),
+            Types.NestedField.optional(7, FLOAT_FIELD, FloatType.get()),
+            Types.NestedField.optional(8, TIME_FIELD, TimeType.get()),
+            Types.NestedField.optional(9, BINARY_FIELD, Types.BinaryType.get()),
+            Types.NestedField.optional(10, DECIMAL_FIELD, Types.DecimalType.of(1, 1)),
+            Types.NestedField.optional(
+                12, LIST_FIELD, Types.ListType.ofOptional(13, Types.IntegerType.get())),
+            Types.NestedField.required(
+                14,
+                MAP_FIELD,
+                Types.MapType.ofOptional(15, 16, StringType.get(), IntegerType.get())),
+            Types.NestedField.optional(17, FIXED_WIDTH_BINARY_FIELD, Types.FixedType.ofLength(10)),
+            Types.NestedField.optional(18, UUID_FIELD, Types.UUIDType.get()));
 
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
 
@@ -85,16 +87,15 @@ public class ArrowSchemaUtilTest {
 
   @Test
   public void convertComplex() {
-    Schema iceberg = new Schema(
-        Types.NestedField.optional(0, "m", MapType.ofOptional(
-            1, 2, StringType.get(),
-            LongType.get())
-        ),
-        Types.NestedField.required(3, "m2", MapType.ofOptional(
-            4, 5, StringType.get(),
-            ListType.ofOptional(6, TimestampType.withoutZone()))
-        )
-    );
+    Schema iceberg =
+        new Schema(
+            Types.NestedField.optional(
+                0, "m", MapType.ofOptional(1, 2, StringType.get(), LongType.get())),
+            Types.NestedField.required(
+                3,
+                "m2",
+                MapType.ofOptional(
+                    4, 5, StringType.get(), ListType.ofOptional(6, TimestampType.withoutZone()))));
     org.apache.arrow.vector.types.pojo.Schema arrow = ArrowSchemaUtil.convert(iceberg);
     Assert.assertEquals(iceberg.columns().size(), arrow.getFields().size());
   }

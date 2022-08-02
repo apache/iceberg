@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 public enum NullOrder {
-  NULLS_FIRST, NULLS_LAST;
+  NULLS_FIRST,
+  NULLS_LAST;
 
   @Override
   public String toString() {

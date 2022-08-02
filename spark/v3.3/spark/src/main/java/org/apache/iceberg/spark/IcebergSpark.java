@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import org.apache.iceberg.transforms.Transform;
@@ -27,22 +26,31 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 
 public class IcebergSpark {
-  private IcebergSpark() {
-  }
+  private IcebergSpark() {}
 
-  public static void registerBucketUDF(SparkSession session, String funcName, DataType sourceType, int numBuckets) {
+  public static void registerBucketUDF(
+      SparkSession session, String funcName, DataType sourceType, int numBuckets) {
     SparkTypeToType typeConverter = new SparkTypeToType();
     Type sourceIcebergType = typeConverter.atomic(sourceType);
     Transform<Object, Integer> bucket = Transforms.bucket(sourceIcebergType, numBuckets);
-    session.udf().register(funcName,
-        value -> bucket.apply(SparkValueConverter.convert(sourceIcebergType, value)), DataTypes.IntegerType);
+    session
+        .udf()
+        .register(
+            funcName,
+            value -> bucket.apply(SparkValueConverter.convert(sourceIcebergType, value)),
+            DataTypes.IntegerType);
   }
 
-  public static void registerTruncateUDF(SparkSession session, String funcName, DataType sourceType, int width) {
+  public static void registerTruncateUDF(
+      SparkSession session, String funcName, DataType sourceType, int width) {
     SparkTypeToType typeConverter = new SparkTypeToType();
     Type sourceIcebergType = typeConverter.atomic(sourceType);
     Transform<Object, Object> truncate = Transforms.truncate(sourceIcebergType, width);
-    session.udf().register(funcName,
-        value -> truncate.apply(SparkValueConverter.convert(sourceIcebergType, value)), sourceType);
+    session
+        .udf()
+        .register(
+            funcName,
+            value -> truncate.apply(SparkValueConverter.convert(sourceIcebergType, value)),
+            sourceType);
   }
 }

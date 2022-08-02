@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.types.Comparators;
 
-/**
- * Enum of supported file formats.
- */
+/** Enum of supported file formats. */
 public enum FileFormat {
   ORC("orc", true),
   PARQUET("parquet", true),
@@ -58,7 +55,9 @@ public enum FileFormat {
   public static FileFormat fromFileName(CharSequence filename) {
     for (FileFormat format : FileFormat.values()) {
       int extStart = filename.length() - format.ext.length();
-      if (Comparators.charSequences().compare(format.ext, filename.subSequence(extStart, filename.length())) == 0) {
+      if (Comparators.charSequences()
+              .compare(format.ext, filename.subSequence(extStart, filename.length()))
+          == 0) {
         return format;
       }
     }

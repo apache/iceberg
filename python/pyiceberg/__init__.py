@@ -14,3 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from importlib import metadata
+
+__version__ = metadata.version(__package__)

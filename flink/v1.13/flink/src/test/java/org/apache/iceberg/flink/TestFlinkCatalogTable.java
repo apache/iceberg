@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.util.Arrays;
@@ -89,26 +88,27 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("CREATE TABLE tl(id BIGINT, strV STRING)");
 
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, "tl"));
-    Schema iSchema = new Schema(
-        Types.NestedField.optional(1, "id", Types.LongType.get()),
-        Types.NestedField.optional(2, "strV", Types.StringType.get())
-    );
-    Assert.assertEquals("Should load the expected iceberg schema", iSchema.toString(), table.schema().toString());
+    Schema iSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "strV", Types.StringType.get()));
+    Assert.assertEquals(
+        "Should load the expected iceberg schema", iSchema.toString(), table.schema().toString());
   }
 
   @Test
   public void testRenameTable() {
     Assume.assumeFalse("HadoopCatalog does not support rename table", isHadoopCatalog);
 
-    final Schema tableSchema = new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
+    final Schema tableSchema =
+        new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
     validationCatalog.createTable(TableIdentifier.of(icebergNamespace, "tl"), tableSchema);
     sql("ALTER TABLE tl RENAME TO tl2");
     AssertHelpers.assertThrows(
         "Should fail if trying to get a nonexistent table",
         ValidationException.class,
         "Table `tl` was not found.",
-        () -> getTableEnv().from("tl")
-    );
+        () -> getTableEnv().from("tl"));
     Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
     Assert.assertEquals(tableSchema.asStruct(), actualSchema.asStruct());
   }
@@ -124,7 +124,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl");
-    Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    Assert.assertEquals(
+        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
@@ -133,33 +134,41 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("CREATE TABLE tl(id BIGINT, data STRING, key STRING PRIMARY KEY NOT ENFORCED)");
 
     Table table = table("tl");
-    Assert.assertEquals("Should have the expected row key.",
+    Assert.assertEquals(
+        "Should have the expected row key.",
         Sets.newHashSet(table.schema().findField("key").fieldId()),
         table.schema().identifierFieldIds());
 
     CatalogTable catalogTable = catalogTable("tl");
     Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
-    Assert.assertTrue("Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
-    Assert.assertEquals("Should have the expected columns",
-        ImmutableList.of("key"), uniqueConstraintOptional.get().getColumns());
+    Assert.assertTrue(
+        "Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
+    Assert.assertEquals(
+        "Should have the expected columns",
+        ImmutableList.of("key"),
+        uniqueConstraintOptional.get().getColumns());
   }
 
   @Test
   public void testCreateTableWithMultiColumnsInPrimaryKey() throws Exception {
-    sql("CREATE TABLE tl(id BIGINT, data STRING, CONSTRAINT pk_constraint PRIMARY KEY(data, id) NOT ENFORCED)");
+    sql(
+        "CREATE TABLE tl(id BIGINT, data STRING, CONSTRAINT pk_constraint PRIMARY KEY(data, id) NOT ENFORCED)");
 
     Table table = table("tl");
-    Assert.assertEquals("Should have the expected RowKey",
+    Assert.assertEquals(
+        "Should have the expected RowKey",
         Sets.newHashSet(
-            table.schema().findField("id").fieldId(),
-            table.schema().findField("data").fieldId()),
+            table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()),
         table.schema().identifierFieldIds());
 
     CatalogTable catalogTable = catalogTable("tl");
     Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
-    Assert.assertTrue("Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
-    Assert.assertEquals("Should have the expected columns",
-        ImmutableSet.of("data", "id"), ImmutableSet.copyOf(uniqueConstraintOptional.get().getColumns()));
+    Assert.assertTrue(
+        "Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
+    Assert.assertEquals(
+        "Should have the expected columns",
+        ImmutableSet.of("data", "id"),
+        ImmutableSet.copyOf(uniqueConstraintOptional.get().getColumns()));
   }
 
   @Test
@@ -170,7 +179,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
 
     sql("DROP TABLE tl");
-    AssertHelpers.assertThrows("Table 'tl' should be dropped",
+    AssertHelpers.assertThrows(
+        "Table 'tl' should be dropped",
         NoSuchTableException.class,
         "Table does not exist: " + getFullQualifiedTableName("tl"),
         () -> table("tl"));
@@ -179,14 +189,12 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
 
     final Map<String, String> expectedProperties = ImmutableMap.of("key", "value");
-    table("tl").updateProperties()
-        .set("key", "value")
-        .commit();
+    table("tl").updateProperties().set("key", "value").commit();
     Assert.assertEquals(expectedProperties, table("tl").properties());
 
     sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
-    Assert.assertEquals("Should still be the old table.",
-        expectedProperties, table("tl").properties());
+    Assert.assertEquals(
+        "Should still be the old table.", expectedProperties, table("tl").properties());
   }
 
   @Test
@@ -201,13 +209,15 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl2");
-    Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    Assert.assertEquals(
+        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
   @Test
   public void testCreateTableLocation() {
-    Assume.assumeFalse("HadoopCatalog does not support creating table with location", isHadoopCatalog);
+    Assume.assumeFalse(
+        "HadoopCatalog does not support creating table with location", isHadoopCatalog);
 
     sql("CREATE TABLE tl(id BIGINT) WITH ('location'='file:///tmp/location')");
 
@@ -226,15 +236,20 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Table table = table("tl");
     Assert.assertEquals(
         new Schema(
-            Types.NestedField.optional(1, "id", Types.LongType.get()),
-            Types.NestedField.optional(2, "dt", Types.StringType.get())).asStruct(),
+                Types.NestedField.optional(1, "id", Types.LongType.get()),
+                Types.NestedField.optional(2, "dt", Types.StringType.get()))
+            .asStruct(),
         table.schema().asStruct());
-    Assert.assertEquals(PartitionSpec.builderFor(table.schema()).identity("dt").build(), table.spec());
+    Assert.assertEquals(
+        PartitionSpec.builderFor(table.schema()).identity("dt").build(), table.spec());
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).field("dt", DataTypes.STRING()).build(),
+        TableSchema.builder()
+            .field("id", DataTypes.BIGINT())
+            .field("dt", DataTypes.STRING())
+            .build(),
         catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
     Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
@@ -245,8 +260,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
 
     Table table = table("tl");
-    Assert.assertEquals("should create table using format v2",
-        2, ((BaseTable) table).operations().current().formatVersion());
+    Assert.assertEquals(
+        "should create table using format v2",
+        2,
+        ((BaseTable) table).operations().current().formatVersion());
   }
 
   @Test
@@ -255,12 +272,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
     Table table = table("tl");
     TableOperations ops = ((BaseTable) table).operations();
-    Assert.assertEquals("should create table using format v1",
-        1, ops.refresh().formatVersion());
+    Assert.assertEquals("should create table using format v1", 1, ops.refresh().formatVersion());
 
     sql("ALTER TABLE tl SET('format-version'='2')");
-    Assert.assertEquals("should update table to use format v2",
-        2, ops.refresh().formatVersion());
+    Assert.assertEquals("should update table to use format v2", 2, ops.refresh().formatVersion());
   }
 
   @Test
@@ -269,10 +284,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
     Table table = table("tl");
     TableOperations ops = ((BaseTable) table).operations();
-    Assert.assertEquals("should create table using format v2",
-        2, ops.refresh().formatVersion());
+    Assert.assertEquals("should create table using format v2", 2, ops.refresh().formatVersion());
 
-    AssertHelpers.assertThrowsRootCause("should fail to downgrade to v1",
+    AssertHelpers.assertThrowsRootCause(
+        "should fail to downgrade to v1",
         IllegalArgumentException.class,
         "Cannot downgrade v2 table to v1",
         () -> sql("ALTER TABLE tl SET('format-version'='1')"));
@@ -282,13 +297,13 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   public void testLoadTransformPartitionTable() throws TableNotExistException {
     Schema schema = new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
     validationCatalog.createTable(
-        TableIdentifier.of(icebergNamespace, "tl"), schema,
+        TableIdentifier.of(icebergNamespace, "tl"),
+        schema,
         PartitionSpec.builderFor(schema).bucket("id", 100).build());
 
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(
-        TableSchema.builder().field("id", DataTypes.BIGINT()).build(),
-        catalogTable.getSchema());
+        TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
     Assert.assertEquals(Collections.emptyList(), catalogTable.getPartitionKeys());
   }
@@ -312,8 +327,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     // remove property
     CatalogTable catalogTable = catalogTable("tl");
     properties.remove("oldK");
-    getTableEnv().getCatalog(getTableEnv().getCurrentCatalog()).get().alterTable(
-        new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
+    getTableEnv()
+        .getCatalog(getTableEnv().getCurrentCatalog())
+        .get()
+        .alterTable(new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
     Assert.assertEquals(properties, table("tl").properties());
   }
 
@@ -332,43 +349,40 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
     Table table = table("tl");
 
-    DataFile fileA = DataFiles.builder(table.spec())
-        .withPath("/path/to/data-a.parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("c1=0") // easy way to set partition data for now
-        .withRecordCount(1)
-        .build();
-    DataFile fileB = DataFiles.builder(table.spec())
-        .withPath("/path/to/data-b.parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("c1=1") // easy way to set partition data for now
-        .withRecordCount(1)
-        .build();
-    DataFile replacementFile = DataFiles.builder(table.spec())
-        .withPath("/path/to/data-a-replacement.parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("c1=0") // easy way to set partition data for now
-        .withRecordCount(1)
-        .build();
+    DataFile fileA =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("c1=0") // easy way to set partition data for now
+            .withRecordCount(1)
+            .build();
+    DataFile fileB =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-b.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("c1=1") // easy way to set partition data for now
+            .withRecordCount(1)
+            .build();
+    DataFile replacementFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-a-replacement.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("c1=0") // easy way to set partition data for now
+            .withRecordCount(1)
+            .build();
 
-    table.newAppend()
-        .appendFile(fileA)
-        .commit();
+    table.newAppend().appendFile(fileA).commit();
     long snapshotId = table.currentSnapshot().snapshotId();
 
     // stage an overwrite that replaces FILE_A
-    table.newReplacePartitions()
-        .addFile(replacementFile)
-        .stageOnly()
-        .commit();
+    table.newReplacePartitions().addFile(replacementFile).stageOnly().commit();
 
     Snapshot staged = Iterables.getLast(table.snapshots());
-    Assert.assertEquals("Should find the staged overwrite snapshot", DataOperations.OVERWRITE, staged.operation());
+    Assert.assertEquals(
+        "Should find the staged overwrite snapshot", DataOperations.OVERWRITE, staged.operation());
 
     // add another append so that the original commit can't be fast-forwarded
-    table.newAppend()
-        .appendFile(fileB)
-        .commit();
+    table.newAppend().appendFile(fileB).commit();
 
     // test cherry pick
     sql("ALTER TABLE tl SET('cherry-pick-snapshot-id'='%s')", staged.snapshotId());
@@ -381,10 +395,13 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
     tbl.refresh();
-    Set<CharSequence> expectedFilePaths = Arrays.stream(expectedFiles).map(DataFile::path).collect(Collectors.toSet());
-    Set<CharSequence> actualFilePaths = StreamSupport.stream(tbl.newScan().planFiles().spliterator(), false)
-        .map(FileScanTask::file).map(ContentFile::path)
-        .collect(Collectors.toSet());
+    Set<CharSequence> expectedFilePaths =
+        Arrays.stream(expectedFiles).map(DataFile::path).collect(Collectors.toSet());
+    Set<CharSequence> actualFilePaths =
+        StreamSupport.stream(tbl.newScan().planFiles().spliterator(), false)
+            .map(FileScanTask::file)
+            .map(ContentFile::path)
+            .collect(Collectors.toSet());
     Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
@@ -393,7 +410,10 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   private CatalogTable catalogTable(String name) throws TableNotExistException {
-    return (CatalogTable) getTableEnv().getCatalog(getTableEnv().getCurrentCatalog()).get()
-        .getTable(new ObjectPath(DATABASE, name));
+    return (CatalogTable)
+        getTableEnv()
+            .getCatalog(getTableEnv().getCurrentCatalog())
+            .get()
+            .getTable(new ObjectPath(DATABASE, name));
   }
 }

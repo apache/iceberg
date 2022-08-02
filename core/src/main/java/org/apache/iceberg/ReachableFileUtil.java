@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -35,8 +34,7 @@ public class ReachableFileUtil {
   private static final Logger LOG = LoggerFactory.getLogger(ReachableFileUtil.class);
   private static final String METADATA_FOLDER_NAME = "metadata";
 
-  private ReachableFileUtil() {
-  }
+  private ReachableFileUtil() {}
 
   /**
    * Returns the location of the version hint file
@@ -54,9 +52,9 @@ public class ReachableFileUtil {
   /**
    * Returns locations of JSON metadata files in a table.
    *
-   * @param table     Table to get JSON metadata files from
-   * @param recursive When true, recursively retrieves all the reachable JSON metadata files.
-   *                  When false, gets the all the JSON metadata files only from the current metadata.
+   * @param table Table to get JSON metadata files from
+   * @param recursive When true, recursively retrieves all the reachable JSON metadata files. When
+   *     false, gets the all the JSON metadata files only from the current metadata.
    * @return locations of JSON metadata files
    */
   public static Set<String> metadataFileLocations(Table table, boolean recursive) {
@@ -68,8 +66,8 @@ public class ReachableFileUtil {
     return metadataFileLocations;
   }
 
-  private static void metadataFileLocations(TableMetadata metadata, Set<String> metadataFileLocations,
-                                            FileIO io, boolean recursive) {
+  private static void metadataFileLocations(
+      TableMetadata metadata, Set<String> metadataFileLocations, FileIO io, boolean recursive) {
     List<MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
     if (metadataLogEntries.size() > 0) {
       for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
@@ -84,7 +82,8 @@ public class ReachableFileUtil {
     }
   }
 
-  private static TableMetadata findFirstExistentPreviousMetadata(List<MetadataLogEntry> metadataLogEntries, FileIO io) {
+  private static TableMetadata findFirstExistentPreviousMetadata(
+      List<MetadataLogEntry> metadataLogEntries, FileIO io) {
     TableMetadata metadata = null;
     for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
       try {

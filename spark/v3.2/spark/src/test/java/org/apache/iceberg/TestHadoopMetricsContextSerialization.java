@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import org.junit.Test;
 
 public class TestHadoopMetricsContextSerialization {
 
-  @Test(expected = Test.None.class)
+  @Test
   public void testHadoopMetricsContextKryoSerialization() throws IOException {
     MetricsContext metricsContext = new HadoopMetricsContext("s3");
 
@@ -41,8 +40,9 @@ public class TestHadoopMetricsContextSerialization {
         .increment();
   }
 
-  @Test(expected = Test.None.class)
-  public void testHadoopMetricsContextJavaSerialization() throws IOException, ClassNotFoundException {
+  @Test
+  public void testHadoopMetricsContextJavaSerialization()
+      throws IOException, ClassNotFoundException {
     MetricsContext metricsContext = new HadoopMetricsContext("s3");
 
     metricsContext.initialize(Maps.newHashMap());

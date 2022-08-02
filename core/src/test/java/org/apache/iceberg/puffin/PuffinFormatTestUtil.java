@@ -16,14 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import org.apache.iceberg.relocated.com.google.common.io.Resources;
 
 public final class PuffinFormatTestUtil {
-  private PuffinFormatTestUtil() {
-  }
+  private PuffinFormatTestUtil() {}
 
   // footer size for v1/empty-puffin-uncompressed.bin
   public static final long EMPTY_PUFFIN_UNCOMPRESSED_FOOTER_SIZE = 28;

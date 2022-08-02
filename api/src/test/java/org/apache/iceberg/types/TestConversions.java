@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.math.BigDecimal;
@@ -46,70 +45,76 @@ public class TestConversions {
   @Test
   public void testByteBufferConversions() {
     // booleans are stored as 0x00 for 'false' and a non-zero byte for 'true'
-    assertConversion(false, BooleanType.get(), new byte[]{0x00});
-    assertConversion(true, BooleanType.get(), new byte[]{0x01});
-    Assert.assertArrayEquals(new byte[]{0x00}, Literal.of(false).toByteBuffer().array());
-    Assert.assertArrayEquals(new byte[]{0x01}, Literal.of(true).toByteBuffer().array());
+    assertConversion(false, BooleanType.get(), new byte[] {0x00});
+    assertConversion(true, BooleanType.get(), new byte[] {0x01});
+    Assert.assertArrayEquals(new byte[] {0x00}, Literal.of(false).toByteBuffer().array());
+    Assert.assertArrayEquals(new byte[] {0x01}, Literal.of(true).toByteBuffer().array());
 
     // integers are stored as 4 bytes in little-endian order
     // 84202 is 0...01|01001000|11101010 in binary
     // 11101010 -> -22, 01001000 -> 72, 00000001 -> 1, 00000000 -> 0
-    assertConversion(84202, IntegerType.get(), new byte[]{-22, 72, 1, 0});
-    Assert.assertArrayEquals(new byte[]{-22, 72, 1, 0}, Literal.of(84202).toByteBuffer().array());
+    assertConversion(84202, IntegerType.get(), new byte[] {-22, 72, 1, 0});
+    Assert.assertArrayEquals(new byte[] {-22, 72, 1, 0}, Literal.of(84202).toByteBuffer().array());
 
     // longs are stored as 8 bytes in little-endian order
     // 200L is 0...0|11001000 in binary
     // 11001000 -> -56, 00000000 -> 0, ... , 00000000 -> 0
-    assertConversion(200L, LongType.get(), new byte[]{-56, 0, 0, 0, 0, 0, 0, 0});
-    Assert.assertArrayEquals(new byte[]{-56, 0, 0, 0, 0, 0, 0, 0}, Literal.of(200L).toByteBuffer().array());
+    assertConversion(200L, LongType.get(), new byte[] {-56, 0, 0, 0, 0, 0, 0, 0});
+    Assert.assertArrayEquals(
+        new byte[] {-56, 0, 0, 0, 0, 0, 0, 0}, Literal.of(200L).toByteBuffer().array());
 
     // floats are stored as 4 bytes in little-endian order
     // floating point numbers are represented as sign * 2ˆexponent * mantissa
     // -4.5F is -1 * 2ˆ2 * 1.125 and encoded as 11000000|10010000|0...0 in binary
     // 00000000 -> 0, 00000000 -> 0, 10010000 -> -112, 11000000 -> -64,
-    assertConversion(-4.5F, FloatType.get(), new byte[]{0, 0, -112, -64});
-    Assert.assertArrayEquals(new byte[]{0, 0, -112, -64}, Literal.of(-4.5F).toByteBuffer().array());
+    assertConversion(-4.5F, FloatType.get(), new byte[] {0, 0, -112, -64});
+    Assert.assertArrayEquals(
+        new byte[] {0, 0, -112, -64}, Literal.of(-4.5F).toByteBuffer().array());
 
     // doubles are stored as 8 bytes in little-endian order
     // floating point numbers are represented as sign * 2ˆexponent * mantissa
     // 6.0 is 1 * 2ˆ4 * 1.5 and encoded as 01000000|00011000|0...0
     // 00000000 -> 0, ... , 00011000 -> 24, 01000000 -> 64
-    assertConversion(6.0, DoubleType.get(), new byte[]{0, 0, 0, 0, 0, 0, 24, 64});
-    Assert.assertArrayEquals(new byte[]{0, 0, 0, 0, 0, 0, 24, 64}, Literal.of(6.0).toByteBuffer().array());
+    assertConversion(6.0, DoubleType.get(), new byte[] {0, 0, 0, 0, 0, 0, 24, 64});
+    Assert.assertArrayEquals(
+        new byte[] {0, 0, 0, 0, 0, 0, 24, 64}, Literal.of(6.0).toByteBuffer().array());
 
     // dates are stored as days from 1970-01-01 in a 4-byte little-endian int
     // 1000 is 0...0|00000011|11101000 in binary
     // 11101000 -> -24, 00000011 -> 3, ... , 00000000 -> 0
-    assertConversion(1000, DateType.get(), new byte[]{-24, 3, 0, 0});
-    Assert.assertArrayEquals(new byte[]{-24, 3, 0, 0}, Literal.of(1000).to(DateType.get()).toByteBuffer().array());
+    assertConversion(1000, DateType.get(), new byte[] {-24, 3, 0, 0});
+    Assert.assertArrayEquals(
+        new byte[] {-24, 3, 0, 0}, Literal.of(1000).to(DateType.get()).toByteBuffer().array());
 
     // time is stored as microseconds from midnight in an 8-byte little-endian long
     // 10000L is 0...0|00100111|00010000 in binary
     // 00010000 -> 16, 00100111 -> 39, ... , 00000000 -> 0
-    assertConversion(10000L, TimeType.get(), new byte[]{16, 39, 0, 0, 0, 0, 0, 0});
+    assertConversion(10000L, TimeType.get(), new byte[] {16, 39, 0, 0, 0, 0, 0, 0});
     Assert.assertArrayEquals(
-        new byte[]{16, 39, 0, 0, 0, 0, 0, 0},
+        new byte[] {16, 39, 0, 0, 0, 0, 0, 0},
         Literal.of(10000L).to(TimeType.get()).toByteBuffer().array());
 
-    // timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an 8-byte little-endian long
+    // timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an 8-byte
+    // little-endian long
     // 400000L is 0...110|00011010|10000000 in binary
     // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
-    assertConversion(400000L, TimestampType.withoutZone(), new byte[]{-128, 26, 6, 0, 0, 0, 0, 0});
-    assertConversion(400000L, TimestampType.withZone(), new byte[]{-128, 26, 6, 0, 0, 0, 0, 0});
+    assertConversion(400000L, TimestampType.withoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    assertConversion(400000L, TimestampType.withZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     Assert.assertArrayEquals(
-        new byte[]{-128, 26, 6, 0, 0, 0, 0, 0},
+        new byte[] {-128, 26, 6, 0, 0, 0, 0, 0},
         Literal.of(400000L).to(TimestampType.withoutZone()).toByteBuffer().array());
     Assert.assertArrayEquals(
-        new byte[]{-128, 26, 6, 0, 0, 0, 0, 0},
+        new byte[] {-128, 26, 6, 0, 0, 0, 0, 0},
         Literal.of(400000L).to(TimestampType.withZone()).toByteBuffer().array());
 
     // strings are stored as UTF-8 bytes (without length)
     // 'A' -> 65, 'B' -> 66, 'C' -> 67
-    assertConversion(CharBuffer.wrap("ABC"), StringType.get(), new byte[]{65, 66, 67});
-    Assert.assertArrayEquals(new byte[]{65, 66, 67}, Literal.of("ABC").toByteBuffer().array());
+    assertConversion(CharBuffer.wrap("ABC"), StringType.get(), new byte[] {65, 66, 67});
+    Assert.assertArrayEquals(new byte[] {65, 66, 67}, Literal.of("ABC").toByteBuffer().array());
 
     // uuids are stored as 16-byte big-endian values
-    // f79c3e09-677c-4bbd-a479-3f349cb785e7 is encoded as F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7
+    // f79c3e09-677c-4bbd-a479-3f349cb785e7 is encoded as F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7
+    // 85 E7
     // 0xF7 -> 11110111 -> -9, 0x9C -> 10011100 -> -100, 0x3E -> 00111110 -> 62,
     // 0x09 -> 00001001 -> 9, 0x67 -> 01100111 -> 103, 0x7C -> 01111100 -> 124,
     // 0x4B -> 01001011 -> 75, 0xBD -> 10111101 -> -67, 0xA4 -> 10100100 -> -92,
@@ -119,9 +124,9 @@ public class TestConversions {
     assertConversion(
         UUID.fromString("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
         UUIDType.get(),
-        new byte[]{-9, -100, 62, 9, 103, 124, 75, -67, -92, 121, 63, 52, -100, -73, -123, -25});
+        new byte[] {-9, -100, 62, 9, 103, 124, 75, -67, -92, 121, 63, 52, -100, -73, -123, -25});
     Assert.assertArrayEquals(
-        new byte[]{-9, -100, 62, 9, 103, 124, 75, -67, -92, 121, 63, 52, -100, -73, -123, -25},
+        new byte[] {-9, -100, 62, 9, 103, 124, 75, -67, -92, 121, 63, 52, -100, -73, -123, -25},
         Literal.of(UUID.fromString("f79c3e09-677c-4bbd-a479-3f349cb785e7")).toByteBuffer().array());
 
     // fixed values are stored directly
@@ -129,65 +134,47 @@ public class TestConversions {
     assertConversion(
         ByteBuffer.wrap("ab".getBytes(StandardCharsets.UTF_8)),
         FixedType.ofLength(2),
-        new byte[]{97, 98});
+        new byte[] {97, 98});
     Assert.assertArrayEquals(
-        new byte[]{97, 98},
+        new byte[] {97, 98},
         Literal.of("ab".getBytes(StandardCharsets.UTF_8)).toByteBuffer().array());
 
     // binary values are stored directly
     // 'Z' -> 90
     assertConversion(
-        ByteBuffer.wrap("Z".getBytes(StandardCharsets.UTF_8)),
-        BinaryType.get(),
-        new byte[]{90});
+        ByteBuffer.wrap("Z".getBytes(StandardCharsets.UTF_8)), BinaryType.get(), new byte[] {90});
     Assert.assertArrayEquals(
-        new byte[]{90},
+        new byte[] {90},
         Literal.of(ByteBuffer.wrap("Z".getBytes(StandardCharsets.UTF_8))).toByteBuffer().array());
 
     // decimals are stored as unscaled values in the form of two's-complement big-endian binary,
     // using the minimum number of bytes for the values
     // 345 is 0...1|01011001 in binary
     // 00000001 -> 1, 01011001 -> 89
-    assertConversion(
-        new BigDecimal("3.45"),
-        DecimalType.of(3, 2),
-        new byte[]{1, 89});
+    assertConversion(new BigDecimal("3.45"), DecimalType.of(3, 2), new byte[] {1, 89});
     Assert.assertArrayEquals(
-        new byte[]{1, 89},
-        Literal.of(new BigDecimal("3.45")).toByteBuffer().array());
+        new byte[] {1, 89}, Literal.of(new BigDecimal("3.45")).toByteBuffer().array());
 
     // decimal on 3-bytes to test that we use the minimum number of bytes and not a power of 2
     // 1234567 is 00010010|11010110|10000111 in binary
     // 00010010 -> 18, 11010110 -> -42, 10000111 -> -121
-    assertConversion(
-        new BigDecimal("123.4567"),
-        DecimalType.of(7, 4),
-        new byte[]{18, -42, -121});
+    assertConversion(new BigDecimal("123.4567"), DecimalType.of(7, 4), new byte[] {18, -42, -121});
     Assert.assertArrayEquals(
-        new byte[]{18, -42, -121},
-        Literal.of(new BigDecimal("123.4567")).toByteBuffer().array());
+        new byte[] {18, -42, -121}, Literal.of(new BigDecimal("123.4567")).toByteBuffer().array());
 
     // negative decimal to test two's complement
     // -1234567 is 11101101|00101001|01111001 in binary
     // 11101101 -> -19, 00101001 -> 41, 01111001 -> 121
-    assertConversion(
-        new BigDecimal("-123.4567"),
-        DecimalType.of(7, 4),
-        new byte[]{-19, 41, 121});
+    assertConversion(new BigDecimal("-123.4567"), DecimalType.of(7, 4), new byte[] {-19, 41, 121});
     Assert.assertArrayEquals(
-        new byte[]{-19, 41, 121},
-        Literal.of(new BigDecimal("-123.4567")).toByteBuffer().array());
+        new byte[] {-19, 41, 121}, Literal.of(new BigDecimal("-123.4567")).toByteBuffer().array());
 
     // test empty byte in decimal
     // 11 is 00001011 in binary
     // 00001011 -> 11
-    assertConversion(
-        new BigDecimal("0.011"),
-        DecimalType.of(10, 3),
-        new byte[]{11});
+    assertConversion(new BigDecimal("0.011"), DecimalType.of(10, 3), new byte[] {11});
     Assert.assertArrayEquals(
-        new byte[]{11},
-        Literal.of(new BigDecimal("0.011")).toByteBuffer().array());
+        new byte[] {11}, Literal.of(new BigDecimal("0.011")).toByteBuffer().array());
   }
 
   private <T> void assertConversion(T value, Type type, byte[] expectedBinary) {

@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.util.List;
@@ -45,30 +46,28 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestReachableFileUtil {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "c1", Types.IntegerType.get()),
-      optional(2, "c2", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "c1", Types.IntegerType.get()), optional(2, "c2", Types.StringType.get()));
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
 
-  private static final DataFile FILE_A = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(10)
-      .withRecordCount(1)
-      .build();
-  private static final DataFile FILE_B = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-b.parquet")
-      .withFileSizeInBytes(10)
-      .withRecordCount(1)
-      .build();
+  private static final DataFile FILE_A =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-a.parquet")
+          .withFileSizeInBytes(10)
+          .withRecordCount(1)
+          .build();
+  private static final DataFile FILE_B =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-b.parquet")
+          .withFileSizeInBytes(10)
+          .withRecordCount(1)
+          .build();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private Table table;
 
@@ -81,13 +80,9 @@ public class TestReachableFileUtil {
 
   @Test
   public void testManifestListLocations() {
-    table.newAppend()
-        .appendFile(FILE_A)
-        .commit();
+    table.newAppend().appendFile(FILE_A).commit();
 
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
+    table.newAppend().appendFile(FILE_B).commit();
 
     List<String> manifestListPaths = ReachableFileUtil.manifestListLocations(table);
     Assert.assertEquals(manifestListPaths.size(), 2);
@@ -95,17 +90,11 @@ public class TestReachableFileUtil {
 
   @Test
   public void testMetadataFileLocations() {
-    table.updateProperties()
-        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1")
-        .commit();
+    table.updateProperties().set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1").commit();
 
-    table.newAppend()
-        .appendFile(FILE_A)
-        .commit();
+    table.newAppend().appendFile(FILE_A).commit();
 
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
+    table.newAppend().appendFile(FILE_B).commit();
 
     Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
     Assert.assertEquals(metadataFileLocations.size(), 4);
@@ -116,19 +105,13 @@ public class TestReachableFileUtil {
 
   @Test
   public void testMetadataFileLocationsWithMissingFiles() {
-    table.updateProperties()
-        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1")
-        .commit();
+    table.updateProperties().set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1").commit();
 
-    table.newAppend()
-        .appendFile(FILE_A)
-        .commit();
+    table.newAppend().appendFile(FILE_A).commit();
 
     TableOperations operations = ((HasTableOperations) table).operations();
     String location = operations.current().metadataFileLocation();
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
+    table.newAppend().appendFile(FILE_B).commit();
 
     // delete v3.metadata.json making v2.metadata.json and v1.metadata.json inaccessible
     table.io().deleteFile(location);

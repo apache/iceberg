@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -30,8 +29,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotRefParser {
 
-  private SnapshotRefParser() {
-  }
+  private SnapshotRefParser() {}
 
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String TYPE = "type";
@@ -63,16 +61,21 @@ public class SnapshotRefParser {
     generator.writeStartObject();
     generator.writeNumberField(SNAPSHOT_ID, ref.snapshotId());
     generator.writeStringField(TYPE, ref.type().name().toLowerCase(Locale.ENGLISH));
-    JsonUtil.writeIntegerFieldIf(ref.minSnapshotsToKeep() != null, MIN_SNAPSHOTS_TO_KEEP, ref.minSnapshotsToKeep(),
+    JsonUtil.writeIntegerFieldIf(
+        ref.minSnapshotsToKeep() != null,
+        MIN_SNAPSHOTS_TO_KEEP,
+        ref.minSnapshotsToKeep(),
         generator);
-    JsonUtil.writeLongFieldIf(ref.maxSnapshotAgeMs() != null, MAX_SNAPSHOT_AGE_MS, ref.maxSnapshotAgeMs(), generator);
-    JsonUtil.writeLongFieldIf(ref.maxRefAgeMs() != null, MAX_REF_AGE_MS, ref.maxRefAgeMs(), generator);
+    JsonUtil.writeLongFieldIf(
+        ref.maxSnapshotAgeMs() != null, MAX_SNAPSHOT_AGE_MS, ref.maxSnapshotAgeMs(), generator);
+    JsonUtil.writeLongFieldIf(
+        ref.maxRefAgeMs() != null, MAX_REF_AGE_MS, ref.maxRefAgeMs(), generator);
     generator.writeEndObject();
   }
 
   public static SnapshotRef fromJson(String json) {
-    Preconditions.checkArgument(json != null && !json.isEmpty(), "Cannot parse snapshot ref from invalid JSON: %s",
-        json);
+    Preconditions.checkArgument(
+        json != null && !json.isEmpty(), "Cannot parse snapshot ref from invalid JSON: %s", json);
     try {
       return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
@@ -81,9 +84,11 @@ public class SnapshotRefParser {
   }
 
   public static SnapshotRef fromJson(JsonNode node) {
-    Preconditions.checkArgument(node.isObject(), "Cannot parse snapshot reference from a non-object: %s", node);
+    Preconditions.checkArgument(
+        node.isObject(), "Cannot parse snapshot reference from a non-object: %s", node);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
-    SnapshotRefType type = SnapshotRefType.valueOf(JsonUtil.getString(TYPE, node).toUpperCase(Locale.ENGLISH));
+    SnapshotRefType type =
+        SnapshotRefType.valueOf(JsonUtil.getString(TYPE, node).toUpperCase(Locale.ENGLISH));
     Integer minSnapshotsToKeep = JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, node);
     Long maxSnapshotAgeMs = JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, node);
     Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);

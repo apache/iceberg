@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
+
+import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,31 +62,31 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
-import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestSparkParquetReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    Assume.assumeTrue("Parquet Avro cannot write non-string map keys", null == TypeUtil.find(schema,
-        type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
+    Assume.assumeTrue(
+        "Parquet Avro cannot write non-string map keys",
+        null
+            == TypeUtil.find(
+                schema,
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
 
     List<GenericData.Record> expected = RandomData.generateList(schema, 100, 0L);
 
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<GenericData.Record> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(schema)
-        .named("test")
-        .build()) {
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {
       writer.addAll(expected);
     }
 
-    try (CloseableIterable<InternalRow> reader = Parquet.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(type -> SparkParquetReaders.buildReader(schema, type))
-        .build()) {
+    try (CloseableIterable<InternalRow> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(schema, type))
+            .build()) {
       Iterator<InternalRow> rows = reader.iterator();
       for (int i = 0; i < expected.size(); i += 1) {
         Assert.assertTrue("Should have expected number of rows", rows.hasNext());
@@ -129,7 +131,8 @@ public class TestSparkParquetReader extends AvroDataTest {
 
   @Test
   public void testInt96TimestampProducedBySparkIsReadCorrectly() throws IOException {
-    String outputFilePath = String.format("%s/%s", temp.getRoot().getAbsolutePath(), "parquet_int96.parquet");
+    String outputFilePath =
+        String.format("%s/%s", temp.getRoot().getAbsolutePath(), "parquet_int96.parquet");
     HadoopOutputFile outputFile =
         HadoopOutputFile.fromPath(
             new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());
@@ -137,7 +140,7 @@ public class TestSparkParquetReader extends AvroDataTest {
     StructType sparkSchema =
         new StructType(
             new StructField[] {
-                new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
+              new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
             });
     List<InternalRow> rows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
 
@@ -164,14 +167,14 @@ public class TestSparkParquetReader extends AvroDataTest {
 
     Assert.assertEquals(rows.size(), tableRecords.size());
 
-    for (int i = 0;  i < tableRecords.size(); i++) {
+    for (int i = 0; i < tableRecords.size(); i++) {
       GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), tableRecords.get(i), rows.get(i));
     }
   }
 
   /**
-   * Native Spark ParquetWriter.Builder implementation so that we can write timestamps using Spark's native
-   * ParquetWriteSupport.
+   * Native Spark ParquetWriter.Builder implementation so that we can write timestamps using Spark's
+   * native ParquetWriteSupport.
    */
   private static class NativeSparkWriterBuilder
       extends ParquetWriter.Builder<InternalRow, NativeSparkWriterBuilder> {

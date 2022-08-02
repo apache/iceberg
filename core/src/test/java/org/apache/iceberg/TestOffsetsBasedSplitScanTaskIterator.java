@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
+import org.apache.iceberg.BaseFileScanTask.SplitScanTask;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,21 +28,42 @@ public class TestOffsetsBasedSplitScanTaskIterator {
   @Test
   public void testSplits() {
     // case when the last row group has more than one byte
-    verify(asList(4L, 10L, 15L, 18L, 30L, 45L), 48L, asList(
-        asList(4L, 6L), asList(10L, 5L), asList(15L, 3L),
-        asList(18L, 12L), asList(30L, 15L), asList(45L, 3L)));
+    verify(
+        asList(4L, 10L, 15L, 18L, 30L, 45L),
+        48L,
+        asList(
+            asList(4L, 6L),
+            asList(10L, 5L),
+            asList(15L, 3L),
+            asList(18L, 12L),
+            asList(30L, 15L),
+            asList(45L, 3L)));
 
     // case when the last row group has one byte
-    verify(asList(4L, 10L, 15L, 18L, 30L, 47L), 48L, asList(
-        asList(4L, 6L), asList(10L, 5L), asList(15L, 3L),
-        asList(18L, 12L), asList(30L, 17L), asList(47L, 1L)));
+    verify(
+        asList(4L, 10L, 15L, 18L, 30L, 47L),
+        48L,
+        asList(
+            asList(4L, 6L),
+            asList(10L, 5L),
+            asList(15L, 3L),
+            asList(18L, 12L),
+            asList(30L, 17L),
+            asList(47L, 1L)));
   }
 
-  private static void verify(List<Long> offsetRanges, long fileLen, List<List<Long>> offsetLenPairs) {
-    List<FileScanTask> tasks = Lists.newArrayList(
-        new BaseFileScanTask.OffsetsAwareTargetSplitSizeScanTaskIterator(
-            offsetRanges, new MockFileScanTask(fileLen)));
+  private static void verify(
+      List<Long> offsetRanges, long fileLen, List<List<Long>> offsetLenPairs) {
+    FileScanTask mockFileScanTask = new MockFileScanTask(fileLen);
+    SplitScanTaskIterator<FileScanTask> splitTaskIterator =
+        new OffsetsAwareSplitScanTaskIterator<>(
+            mockFileScanTask,
+            mockFileScanTask.length(),
+            offsetRanges,
+            TestOffsetsBasedSplitScanTaskIterator::createSplitTask);
+    List<FileScanTask> tasks = Lists.newArrayList(splitTaskIterator);
     Assert.assertEquals("Number of tasks don't match", offsetLenPairs.size(), tasks.size());
+
     for (int i = 0; i < tasks.size(); i++) {
       FileScanTask task = tasks.get(i);
       List<Long> split = offsetLenPairs.get(i);
@@ -55,5 +76,9 @@ public class TestOffsetsBasedSplitScanTaskIterator {
 
   private static <T> List<T> asList(T... items) {
     return Lists.newArrayList(items);
+  }
+
+  private static FileScanTask createSplitTask(FileScanTask parentTask, long offset, long length) {
+    return new SplitScanTask(offset, length, parentTask);
   }
 }

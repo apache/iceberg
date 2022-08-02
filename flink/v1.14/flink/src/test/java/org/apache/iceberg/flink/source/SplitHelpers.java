@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.File;
@@ -43,18 +42,18 @@ public class SplitHelpers {
 
   private static final AtomicLong splitLengthIncrement = new AtomicLong();
 
-  private SplitHelpers() {
-  }
+  private SplitHelpers() {}
 
   /**
    * This create a list of IcebergSourceSplit from real files
    * <li>Create a new Hadoop table under the {@code temporaryFolder}
    * <li>write {@code fileCount} number of files to the new Iceberg table
-   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit} limit
+   * <li>Discover the splits from the table and partition the splits by the {@code filePerSplit}
+   *     limit
    * <li>Delete the Hadoop table
    *
-   * Since the table and data files are deleted before this method return,
-   * caller shouldn't attempt to read the data files.
+   *     <p>Since the table and data files are deleted before this method return, caller shouldn't
+   *     attempt to read the data files.
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
       TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
@@ -65,24 +64,28 @@ public class SplitHelpers {
     final HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
     try {
       final Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
-      final GenericAppenderHelper dataAppender = new GenericAppenderHelper(
-          table, FileFormat.PARQUET, temporaryFolder);
+      final GenericAppenderHelper dataAppender =
+          new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
       for (int i = 0; i < fileCount; ++i) {
         List<Record> records = RandomGenericData.generate(TestFixtures.SCHEMA, 2, i);
         dataAppender.appendToTable(records);
       }
 
       final ScanContext scanContext = ScanContext.builder().build();
-      final List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(
-          table, scanContext, ThreadPools.getWorkerPool());
+      final List<IcebergSourceSplit> splits =
+          FlinkSplitPlanner.planIcebergSourceSplits(
+              table, scanContext, ThreadPools.getWorkerPool());
       return splits.stream()
-          .flatMap(split -> {
-            List<List<FileScanTask>> filesList = Lists.partition(
-                Lists.newArrayList(split.task().files()), filesPerSplit);
-            return filesList.stream()
-                .map(files ->  new BaseCombinedScanTask(files))
-                .map(combinedScanTask -> IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));
-          })
+          .flatMap(
+              split -> {
+                List<List<FileScanTask>> filesList =
+                    Lists.partition(Lists.newArrayList(split.task().files()), filesPerSplit);
+                return filesList.stream()
+                    .map(files -> new BaseCombinedScanTask(files))
+                    .map(
+                        combinedScanTask ->
+                            IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));
+              })
           .collect(Collectors.toList());
     } finally {
       catalog.dropTable(TestFixtures.TABLE_IDENTIFIER);

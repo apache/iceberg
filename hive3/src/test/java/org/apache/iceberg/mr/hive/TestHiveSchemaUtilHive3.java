@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.util.List;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -26,8 +27,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.hive.TestHiveSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestHiveSchemaUtilHive3 extends TestHiveSchemaUtil {
 

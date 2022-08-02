@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.util.Locale;
@@ -29,15 +28,14 @@ import org.apache.iceberg.types.Type;
 
 /**
  * Factory methods for transforms.
- * <p>
- * Most users should create transforms using a
- * {@link PartitionSpec#builderFor(Schema)} partition spec builder}.
+ *
+ * <p>Most users should create transforms using a {@link PartitionSpec#builderFor(Schema)} partition
+ * spec builder}.
  *
  * @see PartitionSpec#builderFor(Schema) The partition spec builder.
  */
 public class Transforms {
-  private Transforms() {
-  }
+  private Transforms() {}
 
   private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)\\]");
 
@@ -100,8 +98,7 @@ public class Transforms {
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.YEAR;
       default:
-        throw new IllegalArgumentException(
-            "Cannot partition type " + type + " by year");
+        throw new IllegalArgumentException("Cannot partition type " + type + " by year");
     }
   }
 
@@ -120,8 +117,7 @@ public class Transforms {
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.MONTH;
       default:
-        throw new IllegalArgumentException(
-            "Cannot partition type " + type + " by month");
+        throw new IllegalArgumentException("Cannot partition type " + type + " by month");
     }
   }
 
@@ -140,8 +136,7 @@ public class Transforms {
       case TIMESTAMP:
         return (Transform<T, Integer>) Timestamps.DAY;
       default:
-        throw new IllegalArgumentException(
-            "Cannot partition type " + type + " by day");
+        throw new IllegalArgumentException("Cannot partition type " + type + " by day");
     }
   }
 
@@ -154,8 +149,8 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> hour(Type type) {
-    Preconditions.checkArgument(type.typeId() == Type.TypeID.TIMESTAMP,
-        "Cannot partition type %s by hour", type);
+    Preconditions.checkArgument(
+        type.typeId() == Type.TypeID.TIMESTAMP, "Cannot partition type %s by hour", type);
     return (Transform<T, Integer>) Timestamps.HOUR;
   }
 

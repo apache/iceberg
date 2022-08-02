@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.Files.localOutput;
+import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
+import static org.apache.spark.sql.functions.callUDF;
+import static org.apache.spark.sql.functions.column;
 
 import java.io.File;
 import java.io.IOException;
@@ -79,41 +83,31 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.Files.localOutput;
-import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp;
-import static org.apache.spark.sql.functions.callUDF;
-import static org.apache.spark.sql.functions.column;
-
 @RunWith(Parameterized.class)
 public class TestFilteredScan {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.LongType.get()),
-      Types.NestedField.optional(2, "ts", Types.TimestampType.withZone()),
-      Types.NestedField.optional(3, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "ts", Types.TimestampType.withZone()),
+          Types.NestedField.optional(3, "data", Types.StringType.get()));
 
-  private static final PartitionSpec BUCKET_BY_ID = PartitionSpec.builderFor(SCHEMA)
-      .bucket("id", 4)
-      .build();
+  private static final PartitionSpec BUCKET_BY_ID =
+      PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build();
 
-  private static final PartitionSpec PARTITION_BY_DAY = PartitionSpec.builderFor(SCHEMA)
-      .day("ts")
-      .build();
+  private static final PartitionSpec PARTITION_BY_DAY =
+      PartitionSpec.builderFor(SCHEMA).day("ts").build();
 
-  private static final PartitionSpec PARTITION_BY_HOUR = PartitionSpec.builderFor(SCHEMA)
-      .hour("ts")
-      .build();
+  private static final PartitionSpec PARTITION_BY_HOUR =
+      PartitionSpec.builderFor(SCHEMA).hour("ts").build();
 
-  private static final PartitionSpec PARTITION_BY_DATA = PartitionSpec.builderFor(SCHEMA)
-      .identity("data")
-      .build();
+  private static final PartitionSpec PARTITION_BY_DATA =
+      PartitionSpec.builderFor(SCHEMA).identity("data").build();
 
-  private static final PartitionSpec PARTITION_BY_ID = PartitionSpec.builderFor(SCHEMA)
-      .identity("id")
-      .build();
+  private static final PartitionSpec PARTITION_BY_ID =
+      PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
   private static SparkSession spark = null;
 
@@ -126,14 +120,20 @@ public class TestFilteredScan {
     spark.udf().register("bucket4", (UDF1<Long, Integer>) bucket4::apply, IntegerType$.MODULE$);
 
     Transform<Long, Integer> day = Transforms.day(Types.TimestampType.withZone());
-    spark.udf().register("ts_day",
-        (UDF1<Timestamp, Integer>) timestamp -> day.apply((Long) fromJavaTimestamp(timestamp)),
-        IntegerType$.MODULE$);
+    spark
+        .udf()
+        .register(
+            "ts_day",
+            (UDF1<Timestamp, Integer>) timestamp -> day.apply((Long) fromJavaTimestamp(timestamp)),
+            IntegerType$.MODULE$);
 
     Transform<Long, Integer> hour = Transforms.hour(Types.TimestampType.withZone());
-    spark.udf().register("ts_hour",
-        (UDF1<Timestamp, Integer>) timestamp -> hour.apply((Long) fromJavaTimestamp(timestamp)),
-        IntegerType$.MODULE$);
+    spark
+        .udf()
+        .register(
+            "ts_hour",
+            (UDF1<Timestamp, Integer>) timestamp -> hour.apply((Long) fromJavaTimestamp(timestamp)),
+            IntegerType$.MODULE$);
 
     spark.udf().register("data_ident", (UDF1<String, String>) data -> data, StringType$.MODULE$);
     spark.udf().register("id_ident", (UDF1<Long, Long>) id -> id, LongType$.MODULE$);
@@ -146,8 +146,7 @@ public class TestFilteredScan {
     currentSpark.stop();
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final String format;
   private final boolean vectorized;
@@ -155,11 +154,11 @@ public class TestFilteredScan {
   @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "parquet", false },
-        { "parquet", true },
-        { "avro", false },
-        { "orc", false },
-        { "orc", true }
+      {"parquet", false},
+      {"parquet", true},
+      {"avro", false},
+      {"orc", false},
+      {"orc", true}
     };
   }
 
@@ -188,26 +187,27 @@ public class TestFilteredScan {
 
     this.records = testRecords(tableSchema);
 
-    try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema).newAppender(
-        localOutput(testFile), fileFormat)) {
+    try (FileAppender<Record> writer =
+        new GenericAppenderFactory(tableSchema).newAppender(localOutput(testFile), fileFormat)) {
       writer.addAll(records);
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withRecordCount(records.size())
-        .withFileSizeInBytes(testFile.length())
-        .withPath(testFile.toString())
-        .build();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withRecordCount(records.size())
+            .withFileSizeInBytes(testFile.length())
+            .withPath(testFile.toString())
+            .build();
 
     table.newAppend().appendFile(file).commit();
   }
 
   @Test
   public void testUnpartitionedIDFilters() {
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of(
-        "path", unpartitioned.toString())
-    );
-    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     for (int i = 0; i < 10; i += 1) {
       pushFilters(builder, EqualTo.apply("id", i));
@@ -217,16 +217,15 @@ public class TestFilteredScan {
       Assert.assertEquals("Should only create one task for a small file", 1, partitions.length);
 
       // validate row filtering
-      assertEqualsSafe(SCHEMA.asStruct(), expected(i),
-          read(unpartitioned.toString(), vectorized, "id = " + i));
+      assertEqualsSafe(
+          SCHEMA.asStruct(), expected(i), read(unpartitioned.toString(), vectorized, "id = " + i));
     }
   }
 
   @Test
   public void testUnpartitionedCaseInsensitiveIDFilters() {
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of(
-        "path", unpartitioned.toString())
-    );
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
 
     // set spark.sql.caseSensitive to false
     String caseSensitivityBeforeTest = TestFilteredScan.spark.conf().get("spark.sql.caseSensitive");
@@ -235,17 +234,22 @@ public class TestFilteredScan {
     try {
 
       for (int i = 0; i < 10; i += 1) {
-        SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options)
-            .caseSensitive(false);
+        SparkScanBuilder builder =
+            new SparkScanBuilder(spark, TABLES.load(options.get("path")), options)
+                .caseSensitive(false);
 
-        pushFilters(builder, EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
+        pushFilters(
+            builder,
+            EqualTo.apply("ID", i)); // note lower(ID) == lower(id), so there must be a match
         Batch scan = builder.build().toBatch();
 
         InputPartition[] tasks = scan.planInputPartitions();
         Assert.assertEquals("Should only create one task for a small file", 1, tasks.length);
 
         // validate row filtering
-        assertEqualsSafe(SCHEMA.asStruct(), expected(i),
+        assertEqualsSafe(
+            SCHEMA.asStruct(),
+            expected(i),
             read(unpartitioned.toString(), vectorized, "id = " + i));
       }
     } finally {
@@ -256,11 +260,11 @@ public class TestFilteredScan {
 
   @Test
   public void testUnpartitionedTimestampFilter() {
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of(
-        "path", unpartitioned.toString())
-    );
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
 
-    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
     Batch scan = builder.build().toBatch();
@@ -268,21 +272,29 @@ public class TestFilteredScan {
     InputPartition[] tasks = scan.planInputPartitions();
     Assert.assertEquals("Should only create one task for a small file", 1, tasks.length);
 
-    assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
-        read(unpartitioned.toString(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+    assertEqualsSafe(
+        SCHEMA.asStruct(),
+        expected(5, 6, 7, 8, 9),
+        read(
+            unpartitioned.toString(),
+            vectorized,
+            "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
   }
 
   @Test
   public void testBucketPartitionedIDFilters() {
     Table table = buildPartitionedTable("bucketed_by_id", BUCKET_BY_ID, "bucket4", "id");
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
-    Batch unfiltered = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
-    Assert.assertEquals("Unfiltered table should created 4 read tasks",
-        4, unfiltered.planInputPartitions().length);
+    Batch unfiltered =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
+    Assert.assertEquals(
+        "Unfiltered table should created 4 read tasks", 4, unfiltered.planInputPartitions().length);
 
     for (int i = 0; i < 10; i += 1) {
-      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      SparkScanBuilder builder =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
       pushFilters(builder, EqualTo.apply("id", i));
       Batch scan = builder.build().toBatch();
@@ -293,7 +305,8 @@ public class TestFilteredScan {
       Assert.assertEquals("Should create one task for a single bucket", 1, tasks.length);
 
       // validate row filtering
-      assertEqualsSafe(SCHEMA.asStruct(), expected(i), read(table.location(), vectorized, "id = " + i));
+      assertEqualsSafe(
+          SCHEMA.asStruct(), expected(i), read(table.location(), vectorized, "id = " + i));
     }
   }
 
@@ -301,14 +314,17 @@ public class TestFilteredScan {
   @Test
   public void testDayPartitionedTimestampFilters() {
     Table table = buildPartitionedTable("partitioned_by_day", PARTITION_BY_DAY, "ts_day", "ts");
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
-    Batch unfiltered = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    Batch unfiltered =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
 
-    Assert.assertEquals("Unfiltered table should created 2 read tasks",
-        2, unfiltered.planInputPartitions().length);
+    Assert.assertEquals(
+        "Unfiltered table should created 2 read tasks", 2, unfiltered.planInputPartitions().length);
 
     {
-      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      SparkScanBuilder builder =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
       pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
       Batch scan = builder.build().toBatch();
@@ -316,24 +332,35 @@ public class TestFilteredScan {
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.length);
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
-          read(table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+      assertEqualsSafe(
+          SCHEMA.asStruct(),
+          expected(5, 6, 7, 8, 9),
+          read(
+              table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
-      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      SparkScanBuilder builder =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(builder, And.apply(
-          GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
-          LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
+      pushFilters(
+          builder,
+          And.apply(
+              GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
+              LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-22", 1, tasks.length);
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(1, 2), read(table.location(), vectorized,
-          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
-              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
+      assertEqualsSafe(
+          SCHEMA.asStruct(),
+          expected(1, 2),
+          read(
+              table.location(),
+              vectorized,
+              "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and "
+                  + "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
   }
 
@@ -342,14 +369,17 @@ public class TestFilteredScan {
   public void testHourPartitionedTimestampFilters() {
     Table table = buildPartitionedTable("partitioned_by_hour", PARTITION_BY_HOUR, "ts_hour", "ts");
 
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
-    Batch unfiltered = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    Batch unfiltered =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options).build().toBatch();
 
-    Assert.assertEquals("Unfiltered table should created 9 read tasks",
-        9, unfiltered.planInputPartitions().length);
+    Assert.assertEquals(
+        "Unfiltered table should created 9 read tasks", 9, unfiltered.planInputPartitions().length);
 
     {
-      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      SparkScanBuilder builder =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
       pushFilters(builder, LessThan.apply("ts", "2017-12-22T00:00:00+00:00"));
       Batch scan = builder.build().toBatch();
@@ -357,24 +387,35 @@ public class TestFilteredScan {
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22", 4, tasks.length);
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(8, 9, 7, 6, 5),
-          read(table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+      assertEqualsSafe(
+          SCHEMA.asStruct(),
+          expected(8, 9, 7, 6, 5),
+          read(
+              table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
-      SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+      SparkScanBuilder builder =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
-      pushFilters(builder, And.apply(
-          GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
-          LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
+      pushFilters(
+          builder,
+          And.apply(
+              GreaterThan.apply("ts", "2017-12-22T06:00:00+00:00"),
+              LessThan.apply("ts", "2017-12-22T08:00:00+00:00")));
       Batch scan = builder.build().toBatch();
 
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create 2 tasks for 2017-12-22: 6, 7", 2, tasks.length);
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(2, 1), read(table.location(), vectorized,
-          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
-              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
+      assertEqualsSafe(
+          SCHEMA.asStruct(),
+          expected(2, 1),
+          read(
+              table.location(),
+              vectorized,
+              "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and "
+                  + "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
   }
 
@@ -388,10 +429,15 @@ public class TestFilteredScan {
         expected.add(projectFlat(actualProjection, rec));
       }
 
-      assertEqualsSafe(actualProjection.asStruct(), expected, read(
-          unpartitioned.toString(), vectorized,
-          "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)",
-          "id", "data"));
+      assertEqualsSafe(
+          actualProjection.asStruct(),
+          expected,
+          read(
+              unpartitioned.toString(),
+              vectorized,
+              "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)",
+              "id",
+              "data"));
     }
 
     {
@@ -403,20 +449,27 @@ public class TestFilteredScan {
         expected.add(projectFlat(actualProjection, rec));
       }
 
-      assertEqualsSafe(actualProjection.asStruct(), expected, read(
-          unpartitioned.toString(), vectorized,
-          "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
-              "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
-          "id"));
+      assertEqualsSafe(
+          actualProjection.asStruct(),
+          expected,
+          read(
+              unpartitioned.toString(),
+              vectorized,
+              "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and "
+                  + "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
+              "id"));
     }
   }
 
   @Test
   public void testPartitionedByDataStartsWithFilter() {
-    Table table = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    Table table =
+        buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
-    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, new StringStartsWith("data", "junc"));
     Batch scan = builder.build().toBatch();
@@ -426,10 +479,13 @@ public class TestFilteredScan {
 
   @Test
   public void testPartitionedByDataNotStartsWithFilter() {
-    Table table = buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    Table table =
+        buildPartitionedTable("partitioned_by_data", PARTITION_BY_DATA, "data_ident", "data");
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
-    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
     Batch scan = builder.build().toBatch();
@@ -441,11 +497,11 @@ public class TestFilteredScan {
   public void testPartitionedByIdStartsWith() {
     Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
 
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of(
-        "path", table.location())
-    );
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
-    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, new StringStartsWith("data", "junc"));
     Batch scan = builder.build().toBatch();
@@ -457,11 +513,11 @@ public class TestFilteredScan {
   public void testPartitionedByIdNotStartsWith() {
     Table table = buildPartitionedTable("partitioned_by_id", PARTITION_BY_ID, "id_ident", "id");
 
-    CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(ImmutableMap.of(
-        "path", table.location())
-    );
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
 
-    SparkScanBuilder builder = new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     pushFilters(builder, new Not(new StringStartsWith("data", "junc")));
     Batch scan = builder.build().toBatch();
@@ -471,15 +527,15 @@ public class TestFilteredScan {
 
   @Test
   public void testUnpartitionedStartsWith() {
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(unpartitioned.toString());
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(unpartitioned.toString());
 
-    List<String> matchedData = df.select("data")
-        .where("data LIKE 'jun%'")
-        .as(Encoders.STRING())
-        .collectAsList();
+    List<String> matchedData =
+        df.select("data").where("data LIKE 'jun%'").as(Encoders.STRING()).collectAsList();
 
     Assert.assertEquals(1, matchedData.size());
     Assert.assertEquals("junction", matchedData.get(0));
@@ -487,20 +543,21 @@ public class TestFilteredScan {
 
   @Test
   public void testUnpartitionedNotStartsWith() {
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(unpartitioned.toString());
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(unpartitioned.toString());
 
-    List<String> matchedData = df.select("data")
-        .where("data NOT LIKE 'jun%'")
-        .as(Encoders.STRING())
-        .collectAsList();
+    List<String> matchedData =
+        df.select("data").where("data NOT LIKE 'jun%'").as(Encoders.STRING()).collectAsList();
 
-    List<String> expected = testRecords(SCHEMA).stream()
-        .map(r -> r.getField("data").toString())
-        .filter(d -> !d.startsWith("jun"))
-        .collect(Collectors.toList());
+    List<String> expected =
+        testRecords(SCHEMA).stream()
+            .map(r -> r.getField("data").toString())
+            .filter(d -> !d.startsWith("jun"))
+            .collect(Collectors.toList());
 
     Assert.assertEquals(9, matchedData.size());
     Assert.assertEquals(Sets.newHashSet(expected), Sets.newHashSet(matchedData));
@@ -516,8 +573,8 @@ public class TestFilteredScan {
     return result;
   }
 
-  public static void assertEqualsUnsafe(Types.StructType struct,
-                                        List<Record> expected, List<UnsafeRow> actual) {
+  public static void assertEqualsUnsafe(
+      Types.StructType struct, List<Record> expected, List<UnsafeRow> actual) {
     // TODO: match records by ID
     int numRecords = Math.min(expected.size(), actual.size());
     for (int i = 0; i < numRecords; i += 1) {
@@ -526,8 +583,8 @@ public class TestFilteredScan {
     Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
   }
 
-  public static void assertEqualsSafe(Types.StructType struct,
-                                      List<Record> expected, List<Row> actual) {
+  public static void assertEqualsSafe(
+      Types.StructType struct, List<Record> expected, List<Row> actual) {
     // TODO: match records by ID
     int numRecords = Math.min(expected.size(), actual.size());
     for (int i = 0; i < numRecords; i += 1) {
@@ -550,7 +607,8 @@ public class TestFilteredScan {
     filterable.pushFilters(filters);
   }
 
-  private Table buildPartitionedTable(String desc, PartitionSpec spec, String udf, String partitionColumn) {
+  private Table buildPartitionedTable(
+      String desc, PartitionSpec spec, String udf, String partitionColumn) {
     File location = new File(parent, desc);
     Table table = TABLES.create(SCHEMA, spec, location.toString());
 
@@ -559,10 +617,12 @@ public class TestFilteredScan {
     table.updateProperties().set("read.split.target-size", "2048").commit();
 
     // copy the unpartitioned table into the partitioned table to produce the partitioned data
-    Dataset<Row> allRows = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(unpartitioned.toString());
+    Dataset<Row> allRows =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(unpartitioned.toString());
 
     allRows
         .coalesce(1) // ensure only 1 file per partition is written
@@ -590,19 +650,23 @@ public class TestFilteredScan {
         record(schema, 6L, parse("2017-12-21T21:55:30.589712+00:00"), "element"),
         record(schema, 7L, parse("2017-12-21T17:31:14.532797+00:00"), "limited"),
         record(schema, 8L, parse("2017-12-21T15:21:51.237521+00:00"), "global"),
-        record(schema, 9L, parse("2017-12-21T15:02:15.230570+00:00"), "goldfish")
-    );
+        record(schema, 9L, parse("2017-12-21T15:02:15.230570+00:00"), "goldfish"));
   }
 
   private static List<Row> read(String table, boolean vectorized, String expr) {
     return read(table, vectorized, expr, "*");
   }
 
-  private static List<Row> read(String table, boolean vectorized, String expr, String select0, String... selectN) {
-    Dataset<Row> dataset = spark.read().format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(table).filter(expr)
-        .select(select0, selectN);
+  private static List<Row> read(
+      String table, boolean vectorized, String expr, String select0, String... selectN) {
+    Dataset<Row> dataset =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(table)
+            .filter(expr)
+            .select(select0, selectN);
     return dataset.collectAsList();
   }
 

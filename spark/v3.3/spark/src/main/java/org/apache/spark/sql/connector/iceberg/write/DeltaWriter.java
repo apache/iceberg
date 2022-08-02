@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.write;
 
 import java.io.IOException;
 import org.apache.spark.sql.connector.write.DataWriter;
 
-/**
- * A data writer responsible for writing a delta of rows.
- */
+/** A data writer responsible for writing a delta of rows. */
 public interface DeltaWriter<T> extends DataWriter<T> {
   /**
    * Passes information for a row that must be deleted.

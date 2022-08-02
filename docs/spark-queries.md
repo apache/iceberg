@@ -93,7 +93,36 @@ The above list is in order of priority. For example: a matching catalog will tak
 
 ### Time travel
 
-To select a specific table snapshot or the snapshot at some time, Iceberg supports two Spark read options:
+#### SQL
+
+Spark 3.3 and later supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses
+
+```sql 
+-- time travel to October 26, 1986 at 01:21:00
+SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00';
+
+-- time travel to snapshot with id 10963874102873L
+SELECT * FROM prod.db.table VERSION AS OF 10963874102873;
+```
+
+In addition, `FOR SYSTEM_TIME AS OF` and `FOR SYSTEM_VERSION AS OF` clauses are also supported:
+
+```
+SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF '1986-10-26 01:21:00';
+SELECT * FROM prod.db.table FOR SYSTEM_VERSION AS OF 10963874102873;
+```
+
+Timestamps may also be supplied as a Unix timestamp, in seconds:
+
+```
+-- timestamp in seconds
+SELECT * FROM prod.db.table TIMESTAMP AS OF 499162860;
+SELECT * FROM prod.db.table FOR SYSTEM_TIME AS OF 499162860;
+```
+
+#### DataFrame
+
+To select a specific table snapshot or the snapshot at some time in the DataFrame API, Iceberg supports two Spark read options:
 
 * `snapshot-id` selects a specific table snapshot
 * `as-of-timestamp` selects the current snapshot at a timestamp, in milliseconds
@@ -115,12 +144,10 @@ spark.read
 ```
 
 {{< hint info >}}
-Spark does not currently support using `option` with `table` in DataFrameReader commands. All options will be silently 
-ignored. Do not use `table` when attempting to time-travel or use other options. Options will be supported with `table`
-in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
+Spark 3.0 and earlier versions do not support using `option` with `table` in DataFrameReader commands. All options will be silently 
+ignored. Do not use `table` when attempting to time-travel or use other options. See [SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 {{< /hint >}}
 
-Time travel is not yet supported by Spark's SQL syntax.
 
 ### Incremental read
 
@@ -199,6 +226,20 @@ SELECT * FROM prod.db.table.history
 {{< hint info >}}
 **This shows a commit that was rolled back.** The example has two snapshots with the same parent, and one is *not* an ancestor of the current table state.
 {{< /hint >}}
+
+### Metadata Log Entries
+
+To show table metadata log entries:
+
+```sql
+SELECT * from prod.db.table.metadata_log_entries
+```
+
+| timestamp | file | latest_snapshot_id | latest_schema_id | latest_sequence_number |
+| -- | -- | -- | -- | -- |
+| 2022-07-28 10:43:52.93 | s3://.../table/metadata/00000-9441e604-b3c2-498a-a45a-6320e8ab9006.metadata.json | null | null | null |
+| 2022-07-28 10:43:57.487 | s3://.../table/metadata/00001-f30823df-b745-4a0a-b293-7532e0c99986.metadata.json | 170260833677645300 | 0 | 1 |
+| 2022-07-28 10:43:58.25 | s3://.../table/metadata/00002-2cc2837a-02dc-4687-acc1-b4d86ea486f4.metadata.json | 958906493976709774 | 0 | 2 |
 
 ### Snapshots
 

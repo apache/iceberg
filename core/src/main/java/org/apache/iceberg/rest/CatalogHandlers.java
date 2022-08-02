@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
+
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -60,24 +64,19 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Tasks;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-
 public class CatalogHandlers {
   private static final Schema EMPTY_SCHEMA = new Schema();
 
-  private CatalogHandlers() {
-  }
+  private CatalogHandlers() {}
 
   /**
    * Exception used to avoid retrying commits when assertions fail.
-   * <p>
-   * When a REST assertion fails, it will throw CommitFailedException to send back to the client. But the assertion
-   * checks happen in the block that is retried if {@link TableOperations#commit(TableMetadata, TableMetadata)} throws
-   * CommitFailedException. This is used to avoid retries for assertion failures, which are unwrapped and rethrown
-   * outside of the commit loop.
+   *
+   * <p>When a REST assertion fails, it will throw CommitFailedException to send back to the client.
+   * But the assertion checks happen in the block that is retried if {@link
+   * TableOperations#commit(TableMetadata, TableMetadata)} throws CommitFailedException. This is
+   * used to avoid retries for assertion failures, which are unwrapped and rethrown outside of the
+   * commit loop.
    */
   private static class ValidationFailureException extends RuntimeException {
     private final CommitFailedException wrapped;
@@ -92,7 +91,8 @@ public class CatalogHandlers {
     }
   }
 
-  public static ListNamespacesResponse listNamespaces(SupportsNamespaces catalog, Namespace parent) {
+  public static ListNamespacesResponse listNamespaces(
+      SupportsNamespaces catalog, Namespace parent) {
     List<Namespace> results;
     if (parent.isEmpty()) {
       results = catalog.listNamespaces();
@@ -103,7 +103,8 @@ public class CatalogHandlers {
     return ListNamespacesResponse.builder().addAll(results).build();
   }
 
-  public static CreateNamespaceResponse createNamespace(SupportsNamespaces catalog, CreateNamespaceRequest request) {
+  public static CreateNamespaceResponse createNamespace(
+      SupportsNamespaces catalog, CreateNamespaceRequest request) {
     Namespace namespace = request.namespace();
     catalog.createNamespace(namespace, request.properties());
     return CreateNamespaceResponse.builder()
@@ -112,7 +113,8 @@ public class CatalogHandlers {
         .build();
   }
 
-  public static GetNamespaceResponse loadNamespace(SupportsNamespaces catalog, Namespace namespace) {
+  public static GetNamespaceResponse loadNamespace(
+      SupportsNamespaces catalog, Namespace namespace) {
     Map<String, String> properties = catalog.loadNamespaceMetadata(namespace);
     return GetNamespaceResponse.builder()
         .withNamespace(namespace)
@@ -147,10 +149,10 @@ public class CatalogHandlers {
     }
 
     return UpdateNamespacePropertiesResponse.builder()
-            .addMissing(missing)
-            .addUpdated(updates.keySet())
-            .addRemoved(Sets.difference(removals, missing))
-            .build();
+        .addMissing(missing)
+        .addUpdated(updates.keySet())
+        .addRemoved(Sets.difference(removals, missing))
+        .build();
   }
 
   public static ListTablesResponse listTables(Catalog catalog, Namespace namespace) {
@@ -158,7 +160,8 @@ public class CatalogHandlers {
     return ListTablesResponse.builder().addAll(idents).build();
   }
 
-  public static LoadTableResponse stageTableCreate(Catalog catalog, Namespace namespace, CreateTableRequest request) {
+  public static LoadTableResponse stageTableCreate(
+      Catalog catalog, Namespace namespace, CreateTableRequest request) {
     request.validate();
 
     TableIdentifier ident = TableIdentifier.of(namespace, request.name());
@@ -174,37 +177,41 @@ public class CatalogHandlers {
     if (request.location() != null) {
       location = request.location();
     } else {
-      location = catalog.buildTable(ident, request.schema())
-          .withPartitionSpec(request.spec())
-          .withSortOrder(request.writeOrder())
-          .withProperties(properties)
-          .createTransaction()
-          .table()
-          .location();
+      location =
+          catalog
+              .buildTable(ident, request.schema())
+              .withPartitionSpec(request.spec())
+              .withSortOrder(request.writeOrder())
+              .withProperties(properties)
+              .createTransaction()
+              .table()
+              .location();
     }
 
-    TableMetadata metadata = TableMetadata.newTableMetadata(
-        request.schema(),
-        request.spec() != null ? request.spec() : PartitionSpec.unpartitioned(),
-        request.writeOrder() != null ? request.writeOrder() : SortOrder.unsorted(),
-        location,
-        properties);
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            request.schema(),
+            request.spec() != null ? request.spec() : PartitionSpec.unpartitioned(),
+            request.writeOrder() != null ? request.writeOrder() : SortOrder.unsorted(),
+            location,
+            properties);
 
-    return LoadTableResponse.builder()
-        .withTableMetadata(metadata)
-        .build();
+    return LoadTableResponse.builder().withTableMetadata(metadata).build();
   }
 
-  public static LoadTableResponse createTable(Catalog catalog, Namespace namespace, CreateTableRequest request) {
+  public static LoadTableResponse createTable(
+      Catalog catalog, Namespace namespace, CreateTableRequest request) {
     request.validate();
 
     TableIdentifier ident = TableIdentifier.of(namespace, request.name());
-    Table table = catalog.buildTable(ident, request.schema())
-        .withLocation(request.location())
-        .withPartitionSpec(request.spec())
-        .withSortOrder(request.writeOrder())
-        .withProperties(request.properties())
-        .create();
+    Table table =
+        catalog
+            .buildTable(ident, request.schema())
+            .withLocation(request.location())
+            .withPartitionSpec(request.spec())
+            .withSortOrder(request.writeOrder())
+            .withProperties(request.properties())
+            .create();
 
     if (table instanceof BaseTable) {
       return LoadTableResponse.builder()
@@ -237,16 +244,19 @@ public class CatalogHandlers {
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
   }
 
-  public static LoadTableResponse updateTable(Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
+  public static LoadTableResponse updateTable(
+      Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
     TableMetadata finalMetadata;
     if (isCreate(request)) {
       // this is a hacky way to get TableOperations for an uncommitted table
-      Transaction transaction = catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
+      Transaction transaction =
+          catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
       if (transaction instanceof BaseTransaction) {
         BaseTransaction baseTransaction = (BaseTransaction) transaction;
-        finalMetadata = create(baseTransaction.underlyingOps(), baseTransaction.startMetadata(), request);
+        finalMetadata = create(baseTransaction.underlyingOps(), request);
       } else {
-        throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTransaction");
+        throw new IllegalStateException(
+            "Cannot wrap catalog that does not produce BaseTransaction");
       }
 
     } else {
@@ -259,9 +269,7 @@ public class CatalogHandlers {
       }
     }
 
-    return LoadTableResponse.builder()
-        .withTableMetadata(finalMetadata)
-        .build();
+    return LoadTableResponse.builder().withTableMetadata(finalMetadata).build();
   }
 
   public static void renameTable(Catalog catalog, RenameTableRequest request) {
@@ -269,25 +277,31 @@ public class CatalogHandlers {
   }
 
   private static boolean isCreate(UpdateTableRequest request) {
-    boolean isCreate = request.requirements().stream()
-        .anyMatch(UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
+    boolean isCreate =
+        request.requirements().stream()
+            .anyMatch(
+                UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
 
     if (isCreate) {
-      List<UpdateTableRequest.UpdateRequirement> invalidRequirements = request.requirements().stream()
-          .filter(req -> !(req instanceof UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist))
-          .collect(Collectors.toList());
-      Preconditions.checkArgument(invalidRequirements.isEmpty(),
-          "Invalid create requirements: %s", invalidRequirements);
+      List<UpdateTableRequest.UpdateRequirement> invalidRequirements =
+          request.requirements().stream()
+              .filter(
+                  req ->
+                      !(req
+                          instanceof UpdateTableRequest.UpdateRequirement.AssertTableDoesNotExist))
+              .collect(Collectors.toList());
+      Preconditions.checkArgument(
+          invalidRequirements.isEmpty(), "Invalid create requirements: %s", invalidRequirements);
     }
 
     return isCreate;
   }
 
-  private static TableMetadata create(TableOperations ops, TableMetadata start, UpdateTableRequest request) {
+  private static TableMetadata create(TableOperations ops, UpdateTableRequest request) {
     // the only valid requirement is that the table will be created
     request.requirements().forEach(requirement -> requirement.validate(ops.current()));
 
-    TableMetadata.Builder builder = TableMetadata.buildFrom(start);
+    TableMetadata.Builder builder = TableMetadata.buildFromEmpty();
     request.updates().forEach(update -> update.applyTo(builder));
 
     // create transactions do not retry. if the table exists, retrying is not a solution
@@ -302,34 +316,37 @@ public class CatalogHandlers {
       Tasks.foreach(ops)
           .retry(COMMIT_NUM_RETRIES_DEFAULT)
           .exponentialBackoff(
-              COMMIT_MIN_RETRY_WAIT_MS_DEFAULT, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
-              COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT, 2.0 /* exponential */)
+              COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+              COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+              COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
+              2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .run(taskOps -> {
-            TableMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
-            isRetry.set(true);
+          .run(
+              taskOps -> {
+                TableMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
+                isRetry.set(true);
 
-            // validate requirements
-            try {
-              request.requirements().forEach(requirement -> requirement.validate(base));
-            } catch (CommitFailedException e) {
-              // wrap and rethrow outside of tasks to avoid unnecessary retry
-              throw new ValidationFailureException(e);
-            }
+                // validate requirements
+                try {
+                  request.requirements().forEach(requirement -> requirement.validate(base));
+                } catch (CommitFailedException e) {
+                  // wrap and rethrow outside of tasks to avoid unnecessary retry
+                  throw new ValidationFailureException(e);
+                }
 
-            // apply changes
-            TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
-            request.updates().forEach(update -> update.applyTo(metadataBuilder));
+                // apply changes
+                TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
+                request.updates().forEach(update -> update.applyTo(metadataBuilder));
 
-            TableMetadata updated = metadataBuilder.build();
-            if (updated.changes().isEmpty()) {
-              // do not commit if the metadata has not changed
-              return;
-            }
+                TableMetadata updated = metadataBuilder.build();
+                if (updated.changes().isEmpty()) {
+                  // do not commit if the metadata has not changed
+                  return;
+                }
 
-            // commit
-            taskOps.commit(base, updated);
-          });
+                // commit
+                taskOps.commit(base, updated);
+              });
 
     } catch (ValidationFailureException e) {
       throw e.wrapped();

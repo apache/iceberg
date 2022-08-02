@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
 package org.apache.iceberg.util;
 
 import java.nio.ByteBuffer;
@@ -78,7 +76,8 @@ public class ZOrderByteUtilsBenchmark {
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
 
     for (int i = 0; i < fourColumnInput.length; i++) {
-      byte[] interleavedBytes = ZOrderByteUtils.interleaveBits(fourColumnInput[i], outputSize,  outputBuffer);
+      byte[] interleavedBytes =
+          ZOrderByteUtils.interleaveBits(fourColumnInput[i], outputSize, outputBuffer);
       blackhole.consume(interleavedBytes);
     }
   }
@@ -90,7 +89,8 @@ public class ZOrderByteUtilsBenchmark {
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
 
     for (int i = 0; i < fourColumnInput.length; i++) {
-      byte[] interleavedBytes = ZOrderByteUtils.interleaveBits(threeColumnInput[i], outputSize,  outputBuffer);
+      byte[] interleavedBytes =
+          ZOrderByteUtils.interleaveBits(threeColumnInput[i], outputSize, outputBuffer);
       blackhole.consume(interleavedBytes);
     }
   }
@@ -102,7 +102,8 @@ public class ZOrderByteUtilsBenchmark {
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
 
     for (int i = 0; i < fourColumnInput.length; i++) {
-      byte[] interleavedBytes = ZOrderByteUtils.interleaveBits(twoColumnInput[i], outputSize,  outputBuffer);
+      byte[] interleavedBytes =
+          ZOrderByteUtils.interleaveBits(twoColumnInput[i], outputSize, outputBuffer);
       blackhole.consume(interleavedBytes);
     }
   }
@@ -114,7 +115,8 @@ public class ZOrderByteUtilsBenchmark {
     ByteBuffer outputBuffer = ByteBuffer.allocate(outputSize);
 
     for (int i = 0; i < fourColumnInput.length; i++) {
-      byte[] interleavedBytes = ZOrderByteUtils.interleaveBits(fourColumnInput[i], outputSize,  outputBuffer);
+      byte[] interleavedBytes =
+          ZOrderByteUtils.interleaveBits(fourColumnInput[i], outputSize, outputBuffer);
       blackhole.consume(interleavedBytes);
     }
   }

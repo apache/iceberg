@@ -16,18 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
-
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.ResidualEvaluator;
-import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
 import static org.apache.iceberg.expressions.Expressions.equal;
@@ -39,11 +28,21 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Types;
+import org.junit.Assert;
+import org.junit.Test;
+
 public class TestTruncatesResiduals {
 
   /**
-   * Test helper method to compute residual for a given partitionValue against a predicate
-   * and assert the resulting residual expression is same as the expectedOp
+   * Test helper method to compute residual for a given partitionValue against a predicate and
+   * assert the resulting residual expression is same as the expectedOp
    *
    * @param spec the partition spec
    * @param predicate predicate to calculate the residual against
@@ -51,8 +50,11 @@ public class TestTruncatesResiduals {
    * @param expectedOp expected operation to assert against
    * @param <T> Type parameter of partitionValue
    */
-  public <T> void assertResidualValue(PartitionSpec spec, UnboundPredicate<?> predicate,
-                                  T partitionValue, Expression.Operation expectedOp) {
+  public <T> void assertResidualValue(
+      PartitionSpec spec,
+      UnboundPredicate<?> predicate,
+      T partitionValue,
+      Expression.Operation expectedOp) {
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, predicate, true);
     Expression residual = resEval.residualFor(TestHelpers.Row.of(partitionValue));
 
@@ -60,16 +62,16 @@ public class TestTruncatesResiduals {
   }
 
   /**
-   * Test helper method to compute residual for a given partitionValue against a predicate
-   * and assert that the resulting expression is same as the original predicate
+   * Test helper method to compute residual for a given partitionValue against a predicate and
+   * assert that the resulting expression is same as the original predicate
    *
    * @param spec the partition spec
    * @param predicate predicate to calculate the residual against
    * @param partitionValue value of the partition to check the residual for
    * @param <T> Type parameter of partitionValue
    */
-  public <T> void assertResidualPredicate(PartitionSpec spec,
-                                      UnboundPredicate<?> predicate, T partitionValue) {
+  public <T> void assertResidualPredicate(
+      PartitionSpec spec, UnboundPredicate<?> predicate, T partitionValue) {
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, predicate, true);
     Expression residual = resEval.residualFor(TestHelpers.Row.of(partitionValue));
 

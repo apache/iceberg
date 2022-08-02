@@ -28,8 +28,8 @@ First we're going to release a release candidate (RC) and publish it to the publ
 Make sure that you're on the version that you want to release.
 
 ```bash
-export RC=rc1
-export VERSION=0.0.1${RC}
+export RC=rc0
+export VERSION=0.0.1.${RC}
 export VERSION_WITHOUT_RC=${VERSION/rc?/}
 export VERSION_BRANCH=${VERSION_WITHOUT_RC//./-}
 

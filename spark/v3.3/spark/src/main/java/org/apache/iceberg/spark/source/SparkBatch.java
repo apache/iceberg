@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
@@ -24,7 +23,6 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.source.SparkScan.ReadTask;
@@ -60,7 +58,8 @@ abstract class SparkBatch implements Batch {
   @Override
   public InputPartition[] planInputPartitions() {
     // broadcast the table metadata as input partitions will be sent to executors
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
+    Broadcast<Table> tableBroadcast =
+        sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
     InputPartition[] readTasks = new InputPartition[tasks().size()];
@@ -68,9 +67,15 @@ abstract class SparkBatch implements Batch {
     Tasks.range(readTasks.length)
         .stopOnFailure()
         .executeWith(localityEnabled ? ThreadPools.getWorkerPool() : null)
-        .run(index -> readTasks[index] = new ReadTask(
-            tasks().get(index), tableBroadcast, expectedSchemaString,
-            caseSensitive, localityEnabled));
+        .run(
+            index ->
+                readTasks[index] =
+                    new ReadTask(
+                        tasks().get(index),
+                        tableBroadcast,
+                        expectedSchemaString,
+                        caseSensitive,
+                        localityEnabled));
 
     return readTasks;
   }
@@ -97,25 +102,32 @@ abstract class SparkBatch implements Batch {
   }
 
   private boolean parquetOnly() {
-    return tasks().stream().allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.PARQUET));
+    return tasks().stream()
+        .allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.PARQUET));
   }
 
   private boolean parquetBatchReadsEnabled() {
-    return readConf.parquetVectorizationEnabled() && // vectorization enabled
-        expectedSchema.columns().size() > 0 && // at least one column is projected
-        expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType()); // only primitives
+    return readConf.parquetVectorizationEnabled()
+        && // vectorization enabled
+        expectedSchema.columns().size() > 0
+        && // at least one column is projected
+        expectedSchema.columns().stream()
+            .allMatch(c -> c.type().isPrimitiveType()); // only primitives
   }
 
   private boolean orcOnly() {
-    return tasks().stream().allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.ORC));
+    return tasks().stream()
+        .allMatch(task -> !task.isDataTask() && onlyFileFormat(task, FileFormat.ORC));
   }
 
   private boolean orcBatchReadsEnabled() {
-    return readConf.orcVectorizationEnabled() && // vectorization enabled
+    return readConf.orcVectorizationEnabled()
+        && // vectorization enabled
         tasks().stream().noneMatch(TableScanUtil::hasDeletes); // no delete files
   }
 
   private boolean onlyFileFormat(CombinedScanTask task, FileFormat fileFormat) {
-    return task.files().stream().allMatch(fileScanTask -> fileScanTask.file().format().equals(fileFormat));
+    return task.files().stream()
+        .allMatch(fileScanTask -> fileScanTask.file().format().equals(fileFormat));
   }
 }

@@ -29,13 +29,16 @@ from pydantic import Field, root_validator
 
 from pyiceberg.exceptions import ValidationError
 from pyiceberg.schema import Schema
+from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.refs import MAIN_BRANCH, SnapshotRef, SnapshotRefType
+from pyiceberg.table.snapshots import Snapshot
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, UNSORTED_SORT_ORDER_ID, SortOrder
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
-_INITIAL_SEQUENCE_NUMBER = 0
+INITIAL_SEQUENCE_NUMBER = 0
 INITIAL_SPEC_ID = 0
 DEFAULT_SCHEMA_ID = 0
-DEFAULT_SORT_ORDER_UNSORTED = 0
+DEFAULT_LAST_PARTITION_ID = 1000
 
 
 def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
@@ -53,8 +56,9 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default-spec-id is present in partition-specs"""
     default_spec_id = values["default_spec_id"]
 
-    for spec in values["partition_specs"]:
-        if spec["spec-id"] == default_spec_id:
+    partition_specs: List[PartitionSpec] = values["partition_specs"]
+    for spec in partition_specs:
+        if spec.spec_id == default_spec_id:
             return values
 
     raise ValidationError(f"default-spec-id {default_spec_id} can't be found")
@@ -62,20 +66,24 @@ def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
 
 def check_sort_orders(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default_sort_order_id is present in sort-orders"""
-    default_sort_order_id = values["default_sort_order_id"]
+    default_sort_order_id: int = values["default_sort_order_id"]
 
-    if default_sort_order_id != DEFAULT_SORT_ORDER_UNSORTED:
-        for sort in values["sort_orders"]:
-            if sort["order-id"] == default_sort_order_id:
+    if default_sort_order_id != UNSORTED_SORT_ORDER_ID:
+        sort_orders: List[SortOrder] = values["sort_orders"]
+        for sort_order in sort_orders:
+            if sort_order.order_id == default_sort_order_id:
                 return values
 
-        raise ValidationError(f"default-sort-order-id {default_sort_order_id} can't be found")
+        raise ValidationError(f"default-sort-order-id {default_sort_order_id} can't be found in {sort_orders}")
     return values
 
 
 class TableMetadataCommonFields(IcebergBaseModel):
     """Metadata for an Iceberg table as specified in the Apache Iceberg
     spec (https://iceberg.apache.org/spec/#iceberg-table-spec)"""
+
+    def current_schema(self) -> Schema:
+        return next(schema for schema in self.schemas if schema.schema_id == self.current_schema_id)
 
     @root_validator(pre=True)
     def cleanup_snapshot_id(cls, data: Dict[str, Any]):
@@ -96,7 +104,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     """The table’s base location. This is used by writers to determine where
     to store data files, manifest files, and table metadata files."""
 
-    table_uuid: Optional[UUID] = Field(alias="table-uuid")
+    table_uuid: Optional[UUID] = Field(alias="table-uuid", default_factory=uuid4)
     """A UUID that identifies the table, generated when the table is created.
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
@@ -117,7 +125,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     current_schema_id: int = Field(alias="current-schema-id", default=DEFAULT_SCHEMA_ID)
     """ID of the table’s current schema."""
 
-    partition_specs: list = Field(alias="partition-specs", default_factory=list)
+    partition_specs: List[PartitionSpec] = Field(alias="partition-specs", default_factory=list)
     """A list of partition specs, stored as full partition spec objects."""
 
     default_spec_id: int = Field(alias="default-spec-id", default=INITIAL_SPEC_ID)
@@ -137,7 +145,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     current_snapshot_id: Optional[int] = Field(alias="current-snapshot-id")
     """ID of the current table snapshot."""
 
-    snapshots: list = Field(default_factory=list)
+    snapshots: List[Snapshot] = Field(default_factory=list)
     """A list of valid snapshots. Valid snapshots are snapshots for which
     all data files exist in the file system. A data file must not be
     deleted from the file system until the last snapshot in which it was
@@ -159,10 +167,10 @@ class TableMetadataCommonFields(IcebergBaseModel):
     remove oldest metadata log entries and keep a fixed-size log of the most
     recent entries after a commit."""
 
-    sort_orders: List[Dict[str, Any]] = Field(alias="sort-orders", default_factory=list)
+    sort_orders: List[SortOrder] = Field(alias="sort-orders", default_factory=list)
     """A list of sort orders, stored as full sort order objects."""
 
-    default_sort_order_id: int = Field(alias="default-sort-order-id", default=DEFAULT_SORT_ORDER_UNSORTED)
+    default_sort_order_id: int = Field(alias="default-sort-order-id", default=UNSORTED_SORT_ORDER_ID)
     """Default sort order id of the table. Note that this could be used by
     writers, but is not used when reading because reads use the specs stored
      in manifest files."""
@@ -203,12 +211,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the defaults applied
         """
-        if "schema-id" not in data["schema"]:
+        if data.get("schema") and "schema-id" not in data["schema"]:
             data["schema"]["schema-id"] = DEFAULT_SCHEMA_ID
-        if "last-partition-id" not in data:
+        if data.get("partition-spec") and "last-partition-id" not in data:
             data["last-partition-id"] = max(spec["field-id"] for spec in data["partition-spec"])
-        if "table-uuid" not in data:
-            data["table-uuid"] = uuid4()
         return data
 
     @root_validator(skip_on_failure=True)
@@ -229,7 +235,7 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
             schema = data["schema_"]
             data["schemas"] = [schema]
         else:
-            check_schemas(data["schemas"])
+            check_schemas(data)
         return data
 
     @root_validator(skip_on_failure=True)
@@ -246,12 +252,11 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the partition_specs set, if not provided
         """
-        # This is going to be much nicer as soon as partition-spec is also migrated to pydantic
         if not data.get("partition_specs"):
             fields = data["partition_spec"]
-            data["partition_specs"] = [{"spec-id": INITIAL_SPEC_ID, "fields": fields}]
+            data["partition_specs"] = [PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=fields)]
         else:
-            check_partition_specs(data["partition_specs"])
+            check_partition_specs(data)
         return data
 
     @root_validator(skip_on_failure=True)
@@ -267,12 +272,10 @@ class TableMetadataV1(TableMetadataCommonFields, IcebergBaseModel):
         Returns:
             The TableMetadata with the sort_orders set, if not provided
         """
-        # This is going to be much nicer as soon as sort-order is an actual pydantic object
-        # Probably we'll just create a UNSORTED_ORDER constant then
         if not data.get("sort_orders"):
-            data["sort_orders"] = [{"order_id": 0, "fields": []}]
+            data["sort_orders"] = [UNSORTED_SORT_ORDER]
         else:
-            check_sort_orders(data["sort_orders"])
+            check_sort_orders(data)
         return data
 
     def to_v2(self) -> "TableMetadataV2":
@@ -330,7 +333,7 @@ class TableMetadataV2(TableMetadataCommonFields, IcebergBaseModel):
     Implementations must throw an exception if a table’s UUID does not match
     the expected UUID after refreshing metadata."""
 
-    last_sequence_number: int = Field(alias="last-sequence-number", default=_INITIAL_SEQUENCE_NUMBER)
+    last_sequence_number: int = Field(alias="last-sequence-number", default=INITIAL_SEQUENCE_NUMBER)
     """The table’s highest assigned sequence number, a monotonically
     increasing long that tracks the order of snapshots in a table."""
 

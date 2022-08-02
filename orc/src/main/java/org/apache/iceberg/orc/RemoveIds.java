@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.List;
@@ -26,7 +25,8 @@ import org.apache.orc.TypeDescription;
 class RemoveIds extends OrcSchemaVisitor<TypeDescription> {
 
   @Override
-  public TypeDescription record(TypeDescription record, List<String> names, List<TypeDescription> fields) {
+  public TypeDescription record(
+      TypeDescription record, List<String> names, List<TypeDescription> fields) {
     Preconditions.checkArgument(names.size() == fields.size(), "All fields must have names.");
     TypeDescription struct = TypeDescription.createStruct();
 

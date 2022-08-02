@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.actions.RewriteManifestsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -35,23 +35,28 @@ import org.apache.spark.sql.types.StructType;
 
 /**
  * A procedure that rewrites manifests in a table.
- * <p>
- * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
+ *
+ * <p><em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected
+ * table.
  *
  * @see SparkActions#rewriteManifests(Table) ()
  */
 class RewriteManifestsProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("use_caching", DataTypes.BooleanType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("use_caching", DataTypes.BooleanType)
+      };
 
   // counts are not nullable since the action result is never null
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("rewritten_manifests_count", DataTypes.IntegerType, false, Metadata.empty()),
-      new StructField("added_manifests_count", DataTypes.IntegerType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField(
+                "rewritten_manifests_count", DataTypes.IntegerType, false, Metadata.empty()),
+            new StructField("added_manifests_count", DataTypes.IntegerType, false, Metadata.empty())
+          });
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<RewriteManifestsProcedure>() {
@@ -81,24 +86,26 @@ class RewriteManifestsProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
 
-    return modifyIcebergTable(tableIdent, table -> {
-      RewriteManifests action = actions().rewriteManifests(table);
+    return modifyIcebergTable(
+        tableIdent,
+        table -> {
+          RewriteManifestsSparkAction action = actions().rewriteManifests(table);
 
-      if (useCaching != null) {
-        action.option("use-caching", useCaching.toString());
-      }
+          if (useCaching != null) {
+            action.option(RewriteManifestsSparkAction.USE_CACHING, useCaching.toString());
+          }
 
-      RewriteManifests.Result result = action.execute();
+          RewriteManifests.Result result = action.execute();
 
-      return toOutputRows(result);
-    });
+          return toOutputRows(result);
+        });
   }
 
   private InternalRow[] toOutputRows(RewriteManifests.Result result) {
     int rewrittenManifestsCount = Iterables.size(result.rewrittenManifests());
     int addedManifestsCount = Iterables.size(result.addedManifests());
     InternalRow row = newInternalRow(rewrittenManifestsCount, addedManifestsCount);
-    return new InternalRow[]{row};
+    return new InternalRow[] {row};
   }
 
   @Override

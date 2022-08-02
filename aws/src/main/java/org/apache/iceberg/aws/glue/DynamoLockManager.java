@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.glue;
 
 import org.apache.iceberg.aws.dynamodb.DynamoDbLockManager;
@@ -25,9 +24,9 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
 /**
- * @deprecated this class is kept only for backwards compatibility.
- * For GlueCatalog, Glue has supported optimistic locking and lock manager is no longer needed.
- * For HadoopCatalog and HadoopTables, please use {@link org.apache.iceberg.aws.dynamodb.DynamoDbLockManager} instead.
+ * @deprecated this class is kept only for backwards compatibility. For GlueCatalog, Glue has
+ *     supported optimistic locking and lock manager is no longer needed. For HadoopCatalog and
+ *     HadoopTables, please use {@link org.apache.iceberg.aws.dynamodb.DynamoDbLockManager} instead.
  */
 @Deprecated
 class DynamoLockManager extends DynamoDbLockManager {
@@ -44,8 +43,10 @@ class DynamoLockManager extends DynamoDbLockManager {
   }
 
   private void logDeprecationWarning() {
-    LOG.warn("{} is deprecated. For GlueCatalog, Glue has supported optimistic locking and " +
-            "lock manager is no longer needed. For HadoopCatalog and HadoopTables, please use {} instead.",
-        DynamoLockManager.class.getName(), DynamoDbLockManager.class.getName());
+    LOG.warn(
+        "{} is deprecated. For GlueCatalog, Glue has supported optimistic locking and "
+            + "lock manager is no longer needed. For HadoopCatalog and HadoopTables, please use {} instead.",
+        DynamoLockManager.class.getName(),
+        DynamoDbLockManager.class.getName());
   }
 }

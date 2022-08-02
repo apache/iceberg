@@ -16,28 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
+import org.apache.iceberg.spark.functions.SparkFunctions;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
-abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, SupportsNamespaces, HasIcebergCatalog {
+abstract class BaseCatalog
+    implements StagingTableCatalog,
+        ProcedureCatalog,
+        SupportsNamespaces,
+        HasIcebergCatalog,
+        FunctionCatalog {
 
   @Override
   public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
     String[] namespace = ident.namespace();
     String name = ident.name();
 
-    // namespace resolution is case insensitive until we have a way to configure case sensitivity in catalogs
-    if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
+    // namespace resolution is case insensitive until we have a way to configure case sensitivity in
+    // catalogs
+    if (isSystemNamespace(namespace)) {
       ProcedureBuilder builder = SparkProcedures.newBuilder(name);
       if (builder != null) {
         return builder.withTableCatalog(this).build();
@@ -45,5 +55,41 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
     }
 
     throw new NoSuchProcedureException(ident);
+  }
+
+  @Override
+  public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
+    if (namespace.length == 0 || isSystemNamespace(namespace)) {
+      return SparkFunctions.list().stream()
+          .map(name -> Identifier.of(namespace, name))
+          .toArray(Identifier[]::new);
+    } else if (namespaceExists(namespace)) {
+      return new Identifier[0];
+    }
+
+    throw new NoSuchNamespaceException(namespace);
+  }
+
+  @Override
+  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
+    String[] namespace = ident.namespace();
+    String name = ident.name();
+
+    // Allow for empty namespace, as Spark's storage partitioned joins look up
+    // the corresponding functions to generate transforms for partitioning
+    // with an empty namespace, such as `bucket`.
+    // Otherwise, use `system` namespace.
+    if (namespace.length == 0 || isSystemNamespace(namespace)) {
+      UnboundFunction func = SparkFunctions.load(name);
+      if (func != null) {
+        return func;
+      }
+    }
+
+    throw new NoSuchFunctionException(ident);
+  }
+
+  private static boolean isSystemNamespace(String[] namespace) {
+    return namespace.length == 1 && namespace[0].equalsIgnoreCase("system");
   }
 }

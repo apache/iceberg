@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
+
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 import java.util.Map;
 import java.util.Random;
@@ -32,13 +33,12 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.BeforeClass;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-
 public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
 
   private static final Random RANDOM = ThreadLocalRandom.current();
 
-  public SparkExtensionsTestBase(String catalogName, String implementation, Map<String, String> config) {
+  public SparkExtensionsTestBase(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -48,20 +48,24 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
     metastore.start();
     SparkTestBase.hiveConf = metastore.hiveConf();
 
-    SparkTestBase.spark = SparkSession.builder()
-        .master("local[2]")
-        .config("spark.testing", "true")
-        .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-        .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
-        .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-        .config("spark.sql.shuffle.partitions", "4")
-        .config("spark.sql.hive.metastorePartitionPruningFallbackOnException", "true")
-        .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
-        .config(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), String.valueOf(RANDOM.nextBoolean()))
-        .enableHiveSupport()
-        .getOrCreate();
+    SparkTestBase.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.testing", "true")
+            .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
+            .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
+            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .config("spark.sql.shuffle.partitions", "4")
+            .config("spark.sql.hive.metastorePartitionPruningFallbackOnException", "true")
+            .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
+            .config(
+                SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), String.valueOf(RANDOM.nextBoolean()))
+            .enableHiveSupport()
+            .getOrCreate();
 
-    SparkTestBase.catalog = (HiveCatalog)
-        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
+    SparkTestBase.catalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 }

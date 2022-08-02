@@ -24,6 +24,7 @@ from typing import (
     Dict,
     Generic,
     List,
+    Literal,
     Optional,
     Tuple,
     TypeVar,
@@ -54,6 +55,7 @@ class Schema(IcebergBaseModel):
         >>> from pyiceberg import types
     """
 
+    type: Literal["struct"] = "struct"
     fields: Tuple[NestedField, ...] = Field(default_factory=tuple)
     schema_id: int = Field(alias="schema-id")
     identifier_field_ids: List[int] = Field(alias="identifier-field-ids", default_factory=list)
@@ -146,7 +148,11 @@ class Schema(IcebergBaseModel):
             field_id = self._name_to_id.get(name_or_id)
         else:
             field_id = self._lazy_name_to_id_lower.get(name_or_id.lower())
-        return self._lazy_id_to_field.get(field_id)  # type: ignore
+
+        if not field_id:
+            raise ValueError(f"Could not find field with name or id {name_or_id}, case_sensitive={case_sensitive}")
+
+        return self._lazy_id_to_field.get(field_id)
 
     def find_type(self, name_or_id: Union[str, int], case_sensitive: bool = True) -> IcebergType:
         """Find a field type using a field name or field ID
@@ -565,10 +571,6 @@ class _BuildPositionAccessors(SchemaVisitor[Dict[Position, Accessor]]):
         >>> result == expected
         True
     """
-
-    @staticmethod
-    def _wrap_leaves(result: Dict[Position, Accessor], position: Position = 0) -> Dict[Position, Accessor]:
-        return {field_id: Accessor(position, inner=inner) for field_id, inner in result.items()}
 
     def schema(self, schema: Schema, struct_result: Dict[Position, Accessor]) -> Dict[Position, Accessor]:
         return struct_result

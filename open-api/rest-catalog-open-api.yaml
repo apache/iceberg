@@ -179,7 +179,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces:
+  /v1/{prefix}/namespaces:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
 
     get:
       tags:
@@ -268,8 +270,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}:
+  /v1/{prefix}/namespaces/{namespace}:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     get:
@@ -333,8 +336,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/properties:
+  /v1/{prefix}/namespaces/{namespace}/properties:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     post:
@@ -394,8 +398,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/tables:
+  /v1/{prefix}/namespaces/{namespace}/tables:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
 
     get:
@@ -486,8 +491,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/namespaces/{namespace}/tables/{table}:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}:
     parameters:
+      - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
 
@@ -702,7 +708,9 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/tables/rename:
+  /v1/{prefix}/tables/rename:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
 
     post:
       tags:
@@ -781,6 +789,14 @@ components:
           value: "accounting"
         multipart_namespace:
           value: "accounting%1Ftax"
+
+    prefix:
+      name: prefix
+      in: path
+      schema:
+        type: string
+      required: true
+      description: An optional prefix in the path
 
     table:
       name: table
@@ -1089,13 +1105,15 @@ components:
       properties:
         snapshot-id:
           type: integer
+        parent-snapshot-id:
+          type: integer
+        sequence-number:
+          type: integer
         timestamp-ms:
           type: integer
         manifest-list:
           type: string
           description: Location of the snapshot's manifest list file
-        schema-id:
-          type: integer
         summary:
           type: object
           required:
@@ -1106,6 +1124,8 @@ components:
               enum: ["append", "replace", "overwrite", "delete"]
             additionalProperties:
               type: string
+        schema-id:
+          type: integer
 
     SnapshotReference:
       type: object
@@ -1415,19 +1435,19 @@ components:
         Assertions from the client that must be valid for the commit to succeed. Assertions are identified by `type` -
 
         - `assert-create` - the table must not already exist; used for create transactions
-        
+
         - `assert-table-uuid` - the table UUID must match the requirement's `uuid`
 
         - `assert-ref-snapshot-id` - the table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
-        
+
         - `assert-last-assigned-field-id` - the table's last assigned column id must match the requirement's `last-assigned-field-id`
-        
+
         - `assert-current-schema-id` - the table's current schema id must match the requirement's `current-schema-id`
-        
+
         - `assert-last-assigned-partition-id` - the table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-        
+
         - `assert-default-spec-id` - the table's default spec id must match the requirement's `default-spec-id`
-        
+
         - `assert-default-sort-order-id` - the table's default sort order id must match the requirement's `default-sort-order-id`
       type: object
       required:
@@ -1906,7 +1926,7 @@ components:
               - removed
             properties:
               updated:
-                description: List of property keys that were added or udpated
+                description: List of property keys that were added or updated
                 type: array
                 uniqueItems: true
                 items:

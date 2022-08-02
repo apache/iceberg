@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -42,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -404,7 +406,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         NestedField.required(4, "data", Types.StringType.get())
     );
 
-    org.apache.iceberg.Table table = glueCatalog.buildTable(tableIdent, schema)
+    Table table = glueCatalog.buildTable(tableIdent, schema)
         .withProperty("key2", "table-key2")
         .withProperty("key3", "table-key3")
         .withProperty("key5", "table-key5")
@@ -432,5 +434,34 @@ public class TestGlueCatalogTable extends GlueTestBase {
             " properties.",
         "table-key5",
         table.properties().get("key5"));
+  }
+
+  @Test
+  public void testRegisterTable() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    Table table = glueCatalog.loadTable(identifier);
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThat(glueCatalog.dropTable(identifier, false)).isTrue();
+    Assertions.assertThat(glueCatalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableAlreadyExists() {
+    String namespace = createNamespace();
+    String tableName = getRandomName();
+    createTable(namespace, tableName);
+    TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
+    Table table = glueCatalog.loadTable(identifier);
+    String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
+    Assertions.assertThatThrownBy(() -> glueCatalog.registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class);
+    Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
+    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
   }
 }

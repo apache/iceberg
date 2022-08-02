@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.io.Serializable;
@@ -26,8 +25,8 @@ import org.apache.iceberg.types.Type;
 
 /**
  * A transform function used for partitioning.
- * <p>
- * Implementations of this interface can be used to transform values, check or types, and project
+ *
+ * <p>Implementations of this interface can be used to transform values, check or types, and project
  * {@link BoundPredicate predicates} to predicates on partition values.
  *
  * @param <S> Java class of source values
@@ -60,8 +59,9 @@ public interface Transform<S, T> extends Serializable {
 
   /**
    * Whether the transform preserves the order of values (is monotonic).
-   * <p>
-   * A transform preserves order for values when for any given a and b, if a &lt; b then apply(a) &lt;= apply(b).
+   *
+   * <p>A transform preserves order for values when for any given a and b, if a &lt; b then apply(a)
+   * &lt;= apply(b).
    *
    * @return true if the transform preserves the order of values
    */
@@ -70,10 +70,11 @@ public interface Transform<S, T> extends Serializable {
   }
 
   /**
-   * Whether ordering by this transform's result satisfies the ordering of another transform's result.
-   * <p>
-   * For example, sorting by day(ts) will produce an ordering that is also by month(ts) or year(ts). However, sorting
-   * by day(ts) will not satisfy the order of hour(ts) or identity(ts).
+   * Whether ordering by this transform's result satisfies the ordering of another transform's
+   * result.
+   *
+   * <p>For example, sorting by day(ts) will produce an ordering that is also by month(ts) or
+   * year(ts). However, sorting by day(ts) will not satisfy the order of hour(ts) or identity(ts).
    *
    * @return true if ordering by this transform is equivalent to ordering by the other transform
    */
@@ -82,10 +83,11 @@ public interface Transform<S, T> extends Serializable {
   }
 
   /**
-   * Transforms a {@link BoundPredicate predicate} to an inclusive predicate on the partition
-   * values produced by {@link #apply(Object)}.
-   * <p>
-   * This inclusive transform guarantees that if pred(v) is true, then projected(apply(v)) is true.
+   * Transforms a {@link BoundPredicate predicate} to an inclusive predicate on the partition values
+   * produced by {@link #apply(Object)}.
+   *
+   * <p>This inclusive transform guarantees that if pred(v) is true, then projected(apply(v)) is
+   * true.
    *
    * @param name the field name for partition values
    * @param predicate a predicate for source values
@@ -96,8 +98,9 @@ public interface Transform<S, T> extends Serializable {
   /**
    * Transforms a {@link BoundPredicate predicate} to a strict predicate on the partition values
    * produced by {@link #apply(Object)}.
-   * <p>
-   * This strict transform guarantees that if strict(apply(v)) is true, then pred(v) is also true.
+   *
+   * <p>This strict transform guarantees that if strict(apply(v)) is true, then pred(v) is also
+   * true.
    *
    * @param name the field name for partition values
    * @param predicate a predicate for source values
@@ -116,8 +119,8 @@ public interface Transform<S, T> extends Serializable {
 
   /**
    * Returns a human-readable String representation of a transformed value.
-   * <p>
-   * null values will return "null"
+   *
+   * <p>null values will return "null"
    *
    * @param value a transformed value
    * @return a human-readable String representation of the value
@@ -127,8 +130,8 @@ public interface Transform<S, T> extends Serializable {
   }
 
   /**
-   * Return the unique transform name to check if similar transforms for the same source field
-   * are added multiple times in partition spec builder.
+   * Return the unique transform name to check if similar transforms for the same source field are
+   * added multiple times in partition spec builder.
    *
    * @return a name used for dedup
    */

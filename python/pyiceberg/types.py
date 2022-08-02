@@ -31,6 +31,7 @@ Notes:
 """
 import re
 from typing import (
+    Any,
     ClassVar,
     Dict,
     Literal,
@@ -41,10 +42,12 @@ from typing import (
 from pydantic import Field, PrivateAttr
 
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+from pyiceberg.utils.parsing import ParseNumberFromBrackets
 from pyiceberg.utils.singleton import Singleton
 
 DECIMAL_REGEX = re.compile(r"decimal\((\d+),\s*(\d+)\)")
-FIXED_REGEX = re.compile(r"fixed\[(\d+)\]")
+FIXED = "fixed"
+FIXED_PARSER = ParseNumberFromBrackets(FIXED)
 
 
 class IcebergType(IcebergBaseModel, Singleton):
@@ -65,7 +68,7 @@ class IcebergType(IcebergBaseModel, Singleton):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v: Any) -> "IcebergType":
         # When Pydantic is unable to determine the subtype
         # In this case we'll help pydantic a bit by parsing the
         # primitive type ourselves, or pointing it at the correct
@@ -123,11 +126,7 @@ class FixedType(PrimitiveType):
 
     @staticmethod
     def parse(str_repr: str) -> "FixedType":
-        matches = FIXED_REGEX.search(str_repr)
-        if matches:
-            length = int(matches.group(1))
-            return FixedType(length)
-        raise ValueError(f"Could not parse {str_repr} into a FixedType")
+        return FixedType(length=FIXED_PARSER.match(str_repr))
 
     def __init__(self, length: int):
         super().__init__(__root__=f"fixed[{length}]")

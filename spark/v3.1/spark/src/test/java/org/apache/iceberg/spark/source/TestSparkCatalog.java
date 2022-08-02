@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.spark.SparkSessionCatalog;
@@ -26,7 +25,8 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 
-public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces> extends SparkSessionCatalog<T> {
+public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces>
+    extends SparkSessionCatalog<T> {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {

@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -62,43 +64,42 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestSparkDataFile {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-  private static final Schema SCHEMA = new Schema(
-      required(100, "id", Types.LongType.get()),
-      optional(101, "data", Types.StringType.get()),
-      required(102, "b", Types.BooleanType.get()),
-      optional(103, "i", Types.IntegerType.get()),
-      required(104, "l", Types.LongType.get()),
-      optional(105, "f", Types.FloatType.get()),
-      required(106, "d", Types.DoubleType.get()),
-      optional(107, "date", Types.DateType.get()),
-      required(108, "ts", Types.TimestampType.withZone()),
-      required(110, "s", Types.StringType.get()),
-      optional(113, "bytes", Types.BinaryType.get()),
-      required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
-      required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-      required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // maximum precision
-  );
-  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .identity("b")
-      .bucket("i", 2)
-      .identity("l")
-      .identity("f")
-      .identity("d")
-      .identity("date")
-      .hour("ts")
-      .identity("ts")
-      .truncate("s", 2)
-      .identity("bytes")
-      .bucket("dec_9_0", 2)
-      .bucket("dec_11_2", 2)
-      .bucket("dec_38_10", 2)
-      .build();
+  private static final Schema SCHEMA =
+      new Schema(
+          required(100, "id", Types.LongType.get()),
+          optional(101, "data", Types.StringType.get()),
+          required(102, "b", Types.BooleanType.get()),
+          optional(103, "i", Types.IntegerType.get()),
+          required(104, "l", Types.LongType.get()),
+          optional(105, "f", Types.FloatType.get()),
+          required(106, "d", Types.DoubleType.get()),
+          optional(107, "date", Types.DateType.get()),
+          required(108, "ts", Types.TimestampType.withZone()),
+          required(110, "s", Types.StringType.get()),
+          optional(113, "bytes", Types.BinaryType.get()),
+          required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
+          required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
+          required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // maximum precision
+          );
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA)
+          .identity("b")
+          .bucket("i", 2)
+          .identity("l")
+          .identity("f")
+          .identity("d")
+          .identity("date")
+          .hour("ts")
+          .identity("ts")
+          .truncate("s", 2)
+          .identity("bytes")
+          .bucket("dec_9_0", 2)
+          .bucket("dec_11_2", 2)
+          .bucket("dec_38_10", 2)
+          .build();
 
   private static SparkSession spark;
   private static JavaSparkContext sparkContext = null;
@@ -117,8 +118,7 @@ public class TestSparkDataFile {
     currentSpark.stop();
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
   private String tableLocation = null;
 
   @Before
@@ -129,7 +129,8 @@ public class TestSparkDataFile {
 
   @Test
   public void testValueConversion() throws IOException {
-    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+    Table table =
+        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
     checkSparkDataFile(table);
   }
 
@@ -150,7 +151,9 @@ public class TestSparkDataFile {
   private void checkSparkDataFile(Table table) throws IOException {
     Iterable<InternalRow> rows = RandomData.generateSpark(table.schema(), 200, 0);
     JavaRDD<InternalRow> rdd = sparkContext.parallelize(Lists.newArrayList(rows));
-    Dataset<Row> df = spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(table.schema()), false);
+    Dataset<Row> df =
+        spark.internalCreateDataFrame(
+            JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(table.schema()), false);
 
     df.write().format("iceberg").mode("append").save(tableLocation);
 
@@ -170,16 +173,15 @@ public class TestSparkDataFile {
     Dataset<Row> dataFileDF = spark.read().format("iceberg").load(tableLocation + "#files");
 
     // reorder columns to test arbitrary projections
-    List<Column> columns = Arrays.stream(dataFileDF.columns())
-        .map(ColumnName::new)
-        .collect(Collectors.toList());
+    List<Column> columns =
+        Arrays.stream(dataFileDF.columns()).map(ColumnName::new).collect(Collectors.toList());
     Collections.shuffle(columns);
 
-    List<Row> sparkDataFiles = dataFileDF
-        .select(Iterables.toArray(columns, Column.class))
-        .collectAsList();
+    List<Row> sparkDataFiles =
+        dataFileDF.select(Iterables.toArray(columns, Column.class)).collectAsList();
 
-    Assert.assertEquals("The number of files should match", dataFiles.size(), sparkDataFiles.size());
+    Assert.assertEquals(
+        "The number of files should match", dataFiles.size(), sparkDataFiles.size());
 
     Types.StructType dataFileType = DataFile.getType(table.spec().partitionType());
     StructType sparkDataFileType = sparkDataFiles.get(0).schema();
@@ -195,9 +197,14 @@ public class TestSparkDataFile {
     Assert.assertEquals("Format must match", expected.format(), actual.format());
     Assert.assertEquals("Record count must match", expected.recordCount(), actual.recordCount());
     Assert.assertEquals("Size must match", expected.fileSizeInBytes(), actual.fileSizeInBytes());
-    Assert.assertEquals("Record value counts must match", expected.valueCounts(), actual.valueCounts());
-    Assert.assertEquals("Record null value counts must match", expected.nullValueCounts(), actual.nullValueCounts());
-    Assert.assertEquals("Record nan value counts must match", expected.nanValueCounts(), actual.nanValueCounts());
+    Assert.assertEquals(
+        "Record value counts must match", expected.valueCounts(), actual.valueCounts());
+    Assert.assertEquals(
+        "Record null value counts must match",
+        expected.nullValueCounts(),
+        actual.nullValueCounts());
+    Assert.assertEquals(
+        "Record nan value counts must match", expected.nanValueCounts(), actual.nanValueCounts());
     Assert.assertEquals("Lower bounds must match", expected.lowerBounds(), actual.lowerBounds());
     Assert.assertEquals("Upper bounds must match", expected.upperBounds(), actual.upperBounds());
     Assert.assertEquals("Key metadata must match", expected.keyMetadata(), actual.keyMetadata());
@@ -210,7 +217,8 @@ public class TestSparkDataFile {
   private void checkStructLike(StructLike expected, StructLike actual) {
     Assert.assertEquals("Struct size should match", expected.size(), actual.size());
     for (int i = 0; i < expected.size(); i++) {
-      Assert.assertEquals("Struct values must match", expected.get(i, Object.class), actual.get(i, Object.class));
+      Assert.assertEquals(
+          "Struct values must match", expected.get(i, Object.class), actual.get(i, Object.class));
     }
   }
 }

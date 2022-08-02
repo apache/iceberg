@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
@@ -26,10 +25,12 @@ import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
 
 /**
- * Batcher converts iterator of T into iterator of batched {@code RecordsWithSplitIds<RecordAndPosition<T>>},
- * as FLIP-27's {@link SplitReader#fetch()} returns batched records.
+ * Batcher converts iterator of T into iterator of batched {@code
+ * RecordsWithSplitIds<RecordAndPosition<T>>}, as FLIP-27's {@link SplitReader#fetch()} returns
+ * batched records.
  */
 @FunctionalInterface
 public interface DataIteratorBatcher<T> extends Serializable {
-  CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> batch(String splitId, DataIterator<T> inputIterator);
+  CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> batch(
+      String splitId, DataIterator<T> inputIterator);
 }

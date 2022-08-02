@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -37,7 +36,7 @@ import org.junit.runners.Parameterized;
 public class TestManifestReaderStats extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestManifestReaderStats(int formatVersion) {
@@ -52,16 +51,18 @@ public class TestManifestReaderStats extends TableTestBase {
   private static final Map<Integer, ByteBuffer> UPPER_BOUNDS =
       ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 4));
 
-  private static final Metrics METRICS = new Metrics(3L, null,
-      VALUE_COUNT, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS);
+  private static final Metrics METRICS =
+      new Metrics(
+          3L, null, VALUE_COUNT, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS);
   private static final String FILE_PATH = "/path/to/data-a.parquet";
-  private static final DataFile FILE = DataFiles.builder(SPEC)
-      .withPath(FILE_PATH)
-      .withFileSizeInBytes(10)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(3)
-      .withMetrics(METRICS)
-      .build();
+  private static final DataFile FILE =
+      DataFiles.builder(SPEC)
+          .withPath(FILE_PATH)
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(3)
+          .withMetrics(METRICS)
+          .build();
 
   @Test
   public void testReadIncludesFullStats() throws IOException {
@@ -76,8 +77,8 @@ public class TestManifestReaderStats extends TableTestBase {
   @Test
   public void testReadEntriesWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .filterRows(Expressions.equal("id", 3))) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO).filterRows(Expressions.equal("id", 3))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       assertFullStats(entry.file());
@@ -87,8 +88,8 @@ public class TestManifestReaderStats extends TableTestBase {
   @Test
   public void testReadIteratorWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .filterRows(Expressions.equal("id", 3))) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO).filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertFullStats(entry);
     }
@@ -97,9 +98,10 @@ public class TestManifestReaderStats extends TableTestBase {
   @Test
   public void testReadEntriesWithFilterAndSelectIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableList.of("file_path"))
-        .filterRows(Expressions.equal("id", 3))) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO)
+            .select(ImmutableList.of("file_path"))
+            .filterRows(Expressions.equal("id", 3))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       assertFullStats(entry.file());
@@ -109,9 +111,10 @@ public class TestManifestReaderStats extends TableTestBase {
   @Test
   public void testReadIteratorWithFilterAndSelectDropsStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableList.of("file_path"))
-        .filterRows(Expressions.equal("id", 3))) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO)
+            .select(ImmutableList.of("file_path"))
+            .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertStatsDropped(entry);
     }
@@ -120,9 +123,10 @@ public class TestManifestReaderStats extends TableTestBase {
   @Test
   public void testReadIteratorWithFilterAndSelectRecordCountDropsStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableList.of("file_path", "record_count"))
-        .filterRows(Expressions.equal("id", 3))) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO)
+            .select(ImmutableList.of("file_path", "record_count"))
+            .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertStatsDropped(entry);
     }
@@ -131,9 +135,10 @@ public class TestManifestReaderStats extends TableTestBase {
   @Test
   public void testReadIteratorWithFilterAndSelectStatsIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableList.of("file_path", "value_counts"))
-        .filterRows(Expressions.equal("id", 3))) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO)
+            .select(ImmutableList.of("file_path", "value_counts"))
+            .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertFullStats(entry);
 
@@ -145,8 +150,8 @@ public class TestManifestReaderStats extends TableTestBase {
   @Test
   public void testReadEntriesWithSelectNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableList.of("file_path"))) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO).select(ImmutableList.of("file_path"))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       DataFile dataFile = entry.file();
@@ -168,8 +173,9 @@ public class TestManifestReaderStats extends TableTestBase {
   @Test
   public void testReadEntriesWithSelectCertainStatNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableList.of("file_path", "value_counts"))) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO)
+            .select(ImmutableList.of("file_path", "value_counts"))) {
       DataFile dataFile = reader.iterator().next();
 
       // selected fields are populated
@@ -199,7 +205,8 @@ public class TestManifestReaderStats extends TableTestBase {
   }
 
   private void assertStatsDropped(DataFile dataFile) {
-    Assert.assertEquals(3, dataFile.recordCount()); // record count is not considered as droppable stats
+    Assert.assertEquals(
+        3, dataFile.recordCount()); // record count is not considered as droppable stats
     Assert.assertNull(dataFile.columnSizes());
     Assert.assertNull(dataFile.valueCounts());
     Assert.assertNull(dataFile.nullValueCounts());
@@ -217,5 +224,4 @@ public class TestManifestReaderStats extends TableTestBase {
         NullPointerException.class,
         dataFile::recordCount);
   }
-
 }
