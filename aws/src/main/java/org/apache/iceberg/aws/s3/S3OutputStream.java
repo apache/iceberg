@@ -261,9 +261,10 @@ class S3OutputStream extends PositionOutputStream {
   public void close() throws IOException {
 
     // A failed s3 close removes state that is required for a successful close.
+    // Any future close on this stream should fail.
     if (closeFailureException != null) {
       throw new IOException(
-          "Attempted to close a S3 stream that failed to close earlier", closeFailureException);
+          "Attempted to close an S3 output stream that failed to close earlier", closeFailureException);
     }
 
     if (closed) {
