@@ -18,14 +18,7 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.ManifestEntriesTable.ManifestReadTask;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types.StructType;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete
@@ -34,7 +27,7 @@ import org.apache.iceberg.types.Types.StructType;
  * <p>WARNING: this table exposes internal details, like files that have been deleted. For a table
  * of the live data files, use {@link DataFilesTable}.
  */
-public class AllEntriesTable extends BaseMetadataTable {
+public class AllEntriesTable extends BaseEntriesTable {
 
   AllEntriesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".all_entries");
@@ -47,19 +40,6 @@ public class AllEntriesTable extends BaseMetadataTable {
   @Override
   public TableScan newScan() {
     return new Scan(operations(), table(), schema());
-  }
-
-  @Override
-  public Schema schema() {
-    StructType partitionType = Partitioning.partitionType(table());
-    Schema schema = ManifestEntry.getSchema(partitionType);
-    if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition
-      // field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
-    } else {
-      return schema;
-    }
   }
 
   @Override
@@ -87,17 +67,7 @@ public class AllEntriesTable extends BaseMetadataTable {
     protected CloseableIterable<FileScanTask> doPlanFiles() {
       CloseableIterable<ManifestFile> manifests =
           reachableManifests(snapshot -> snapshot.allManifests(tableOps().io()));
-
-      String schemaString = SchemaParser.toJson(schema());
-      String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
-      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
-
-      return CloseableIterable.transform(
-          manifests,
-          manifest ->
-              new ManifestReadTask(
-                  table(), manifest, schema(), schemaString, specString, residuals));
+      return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
     }
   }
 }
