@@ -78,6 +78,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
       writer.close();
       writer = null;
     }
+    taskWriterFactory.close();
   }
 
   @Override

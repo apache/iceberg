@@ -303,6 +303,9 @@ class FlinkOrcWriters {
 
     @Override
     protected Object get(RowData struct, int index) {
+      if (index >= struct.getArity()) {
+        return null;
+      }
       return fieldGetters.get(index).getFieldOrNull(struct);
     }
   }

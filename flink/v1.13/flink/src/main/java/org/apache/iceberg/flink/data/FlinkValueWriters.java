@@ -236,7 +236,7 @@ public class FlinkValueWriters {
     @Override
     public void write(RowData row, Encoder encoder) throws IOException {
       for (int i = 0; i < writers.length; i += 1) {
-        if (row.isNullAt(i)) {
+        if (i >= row.getArity() || row.isNullAt(i)) {
           writers[i].write(null, encoder);
         } else {
           write(row, i, writers[i], encoder);
@@ -247,7 +247,11 @@ public class FlinkValueWriters {
     @SuppressWarnings("unchecked")
     private <T> void write(RowData row, int pos, ValueWriter<T> writer, Encoder encoder)
         throws IOException {
-      writer.write((T) getters[pos].getFieldOrNull(row), encoder);
+      T value = null;
+      if (pos < row.getArity()) {
+        value = (T) getters[pos].getFieldOrNull(row);
+      }
+      writer.write(value, encoder);
     }
   }
 }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.io.IOException;
 import java.io.Serializable;
 import org.apache.iceberg.io.TaskWriter;
 
@@ -42,4 +43,11 @@ public interface TaskWriterFactory<T> extends Serializable {
    * @return a newly created task writer.
    */
   TaskWriter<T> create();
+
+  /**
+   * close the factory
+   *
+   * @throws IOException close may be throw IOException
+   */
+  void close() throws IOException;
 }

@@ -434,7 +434,7 @@ public class FlinkSink {
       }
 
       IcebergStreamWriter<RowData> streamWriter =
-          createStreamWriter(table, flinkWriteConf, flinkRowType, equalityFieldIds);
+          createStreamWriter(table, flinkWriteConf, flinkRowType, equalityFieldIds, tableLoader);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream =
@@ -546,6 +546,15 @@ public class FlinkSink {
       FlinkWriteConf flinkWriteConf,
       RowType flinkRowType,
       List<Integer> equalityFieldIds) {
+    return createStreamWriter(table, flinkWriteConf, flinkRowType, equalityFieldIds, null);
+  }
+
+  static IcebergStreamWriter<RowData> createStreamWriter(
+      Table table,
+      FlinkWriteConf flinkWriteConf,
+      RowType flinkRowType,
+      List<Integer> equalityFieldIds,
+      TableLoader tableLoader) {
     Preconditions.checkArgument(table != null, "Iceberg table shouldn't be null");
 
     Table serializableTable = SerializableTable.copyOf(table);
@@ -556,7 +565,8 @@ public class FlinkSink {
             flinkWriteConf.targetDataFileSize(),
             flinkWriteConf.dataFileFormat(),
             equalityFieldIds,
-            flinkWriteConf.upsertMode());
+            flinkWriteConf.upsertMode(),
+            tableLoader);
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
 }
