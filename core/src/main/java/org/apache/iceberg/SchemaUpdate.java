@@ -470,9 +470,11 @@ class SchemaUpdate implements UpdateSchema {
           updates.keySet().stream()
               .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
               .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
-      Map<String, String> updatedProperties =
-          MetricsConfig.updateProperties(newMetadata.properties(), deletedColumns, renamedColumns);
-      newMetadata = newMetadata.replaceProperties(updatedProperties);
+      if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
+        Map<String, String> updatedProperties =
+            RewriteProperties.rewrite(newMetadata.properties(), deletedColumns, renamedColumns);
+        newMetadata = newMetadata.replaceProperties(updatedProperties);
+      }
     }
 
     return newMetadata;
