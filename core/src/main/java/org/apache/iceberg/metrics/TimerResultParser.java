@@ -69,7 +69,7 @@ class TimerResultParser {
     long count = JsonUtil.getLong(COUNT, json);
     TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, json).toUpperCase(Locale.ROOT));
     long duration = JsonUtil.getLong(TOTAL_DURATION, json);
-    return new TimerResult(unit, toDuration(duration, unit), count);
+    return TimerResult.of(unit, toDuration(duration, unit), count);
   }
 
   /**
@@ -98,7 +98,7 @@ class TimerResultParser {
     long count = JsonUtil.getLong(COUNT, timer);
     TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, timer).toUpperCase(Locale.ROOT));
     long duration = JsonUtil.getLong(TOTAL_DURATION, timer);
-    return new TimerResult(unit, toDuration(duration, unit), count);
+    return TimerResult.of(unit, toDuration(duration, unit), count);
   }
 
   @VisibleForTesting
