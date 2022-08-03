@@ -25,6 +25,9 @@ import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.metrics.Timer;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -37,6 +40,7 @@ import org.slf4j.LoggerFactory;
 abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedScanTask>
     implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
+  private ScanReport.ScanMetrics scanMetrics;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
     this(ops, table, schema, new TableScanContext());
@@ -68,6 +72,14 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   }
 
   protected abstract CloseableIterable<FileScanTask> doPlanFiles();
+
+  protected ScanReport.ScanMetrics scanMetrics() {
+    if (scanMetrics == null) {
+      this.scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
+    }
+
+    return scanMetrics;
+  }
 
   @Override
   public Table table() {
@@ -121,9 +133,22 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
           ExpressionUtil.toSanitizedString(filter()));
 
       Listeners.notifyAll(new ScanEvent(table().name(), snapshot.snapshotId(), filter(), schema()));
+      Timer.Timed scanDuration = scanMetrics().totalPlanningDuration().start();
 
-      return doPlanFiles();
-
+      return CloseableIterable.whenComplete(
+          doPlanFiles(),
+          () -> {
+            scanDuration.stop();
+            ScanReport scanReport =
+                ScanReport.builder()
+                    .withFilter(ExpressionUtil.sanitize(filter()))
+                    .withProjection(schema())
+                    .withTableName(table().name())
+                    .withSnapshotId(snapshot.snapshotId())
+                    .fromScanMetrics(scanMetrics())
+                    .build();
+            context().scanReporter().reportScan(scanReport);
+          });
     } else {
       LOG.info("Scanning empty table {}", table());
       return CloseableIterable.empty();

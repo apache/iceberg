@@ -135,13 +135,16 @@ public interface MetricsContext extends Serializable {
 
       @Override
       public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-        return new Counter<T>() {
-          @Override
-          public void increment() {}
+        if (Integer.class.equals(type)) {
+          return (Counter<T>) IntCounter.NOOP;
+        }
 
-          @Override
-          public void increment(T amount) {}
-        };
+        if (Long.class.equals(type)) {
+          return (Counter<T>) LongCounter.NOOP;
+        }
+
+        throw new IllegalArgumentException(
+            String.format("Counter for type %s is not supported", type.getName()));
       }
     };
   }

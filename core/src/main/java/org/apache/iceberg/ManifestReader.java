@@ -37,6 +37,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -92,6 +93,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private Schema fileProjection = null;
   private Collection<String> columns = null;
   private boolean caseSensitive = true;
+  private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.NOOP;
 
   // lazily initialized
   private Evaluator lazyEvaluator = null;
@@ -183,6 +185,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   public ManifestReader<F> caseSensitive(boolean isCaseSensitive) {
     this.caseSensitive = isCaseSensitive;
+    return this;
+  }
+
+  ManifestReader<F> scanMetrics(ScanReport.ScanMetrics newScanMetrics) {
+    this.scanMetrics = newScanMetrics;
     return this;
   }
 

@@ -27,6 +27,25 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * {@link Integer} to count events.
  */
 class IntCounter implements MetricsContext.Counter<Integer> {
+  static final IntCounter NOOP =
+      new IntCounter("NOOP", MetricsContext.Unit.UNDEFINED) {
+        @Override
+        public void increment() {}
+
+        @Override
+        public void increment(Integer amount) {}
+
+        @Override
+        public Optional<Integer> count() {
+          return Optional.of(value());
+        }
+
+        @Override
+        public Integer value() {
+          return 0;
+        }
+      };
+
   private final AtomicInteger counter;
   private final String name;
   private final MetricsContext.Unit unit;

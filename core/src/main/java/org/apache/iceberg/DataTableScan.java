@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -104,19 +105,24 @@ public class DataTableScan extends BaseTableScan {
     Snapshot snapshot = snapshot();
 
     FileIO io = table().io();
+    List<ManifestFile> dataManifests = snapshot.dataManifests(io);
+    List<ManifestFile> deleteManifests = snapshot.deleteManifests(io);
+    scanMetrics().totalDataManifests().increment(dataManifests.size());
+    scanMetrics().totalDeleteManifests().increment(deleteManifests.size());
     ManifestGroup manifestGroup =
-        new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
+        new ManifestGroup(io, dataManifests, deleteManifests)
             .caseSensitive(isCaseSensitive())
             .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
             .filterData(filter())
             .specsById(table().specs())
+            .scanMetrics(scanMetrics())
             .ignoreDeleted();
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (snapshot.dataManifests(io).size() > 1
+    if (dataManifests.size() > 1
         && (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }

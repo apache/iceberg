@@ -40,6 +40,7 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -363,6 +364,7 @@ class DeleteFileIndex {
     private PartitionSet partitionSet = null;
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
+    private ScanReport.ScanMetrics scanMetrics = ScanReport.ScanMetrics.NOOP;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -401,6 +403,11 @@ class DeleteFileIndex {
 
     Builder planWith(ExecutorService newExecutorService) {
       this.executorService = newExecutorService;
+      return this;
+    }
+
+    Builder scanMetrics(ScanReport.ScanMetrics newScanMetrics) {
+      this.scanMetrics = newScanMetrics;
       return this;
     }
 
