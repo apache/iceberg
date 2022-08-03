@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
 
-/**
- * Represents a boolean expression tree.
- */
+/** Represents a boolean expression tree. */
 public interface Expression extends Serializable {
   enum Operation {
     TRUE,
@@ -43,11 +40,10 @@ public interface Expression extends Serializable {
     NOT,
     AND,
     OR,
-    STARTS_WITH;
+    STARTS_WITH,
+    NOT_STARTS_WITH;
 
-    /**
-     * Returns the operation used when this is negated.
-     */
+    /** Returns the operation used when this is negated. */
     public Operation negate() {
       switch (this) {
         case IS_NULL:
@@ -74,14 +70,16 @@ public interface Expression extends Serializable {
           return Operation.NOT_IN;
         case NOT_IN:
           return Operation.IN;
+        case STARTS_WITH:
+          return Operation.NOT_STARTS_WITH;
+        case NOT_STARTS_WITH:
+          return Operation.STARTS_WITH;
         default:
           throw new IllegalArgumentException("No negation for operation: " + this);
       }
     }
 
-    /**
-     * Returns the equivalent operation when the left and right operands are exchanged.
-     */
+    /** Returns the equivalent operation when the left and right operands are exchanged. */
     // Allow flipLR as a name because it's a public API
     @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
     public Operation flipLR() {
@@ -108,15 +106,28 @@ public interface Expression extends Serializable {
     }
   }
 
-  /**
-   * Returns the operation for an expression node.
-   */
+  /** Returns the operation for an expression node. */
   Operation op();
 
-  /**
-   * Returns the negation of this expression, equivalent to not(this).
-   */
+  /** Returns the negation of this expression, equivalent to not(this). */
   default Expression negate() {
     throw new UnsupportedOperationException(String.format("%s cannot be negated", this));
+  }
+
+  /**
+   * Returns whether this expression will accept the same values as another.
+   *
+   * <p>If this returns true, the expressions are guaranteed to return the same evaluation for the
+   * same input. However, if this returns false the expressions may return the same evaluation for
+   * the same input. That is, expressions may be equivalent even if this returns false.
+   *
+   * <p>For best results, rewrite not and bind expressions before calling this method.
+   *
+   * @param other another expression
+   * @return true if the expressions are equivalent
+   */
+  default boolean isEquivalentTo(Expression other) {
+    // only bound predicates can be equivalent
+    return false;
   }
 }

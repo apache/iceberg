@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.util.List;
@@ -30,8 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
 /**
- * A rolling position delete writer that splits incoming deletes into multiple files within one spec/partition
- * based on the target file size.
+ * A rolling position delete writer that splits incoming deletes into multiple files within one
+ * spec/partition based on the target file size.
  */
 public class RollingPositionDeleteWriter<T>
     extends RollingFileWriter<PositionDelete<T>, PositionDeleteWriter<T>, DeleteWriteResult> {
@@ -40,9 +39,13 @@ public class RollingPositionDeleteWriter<T>
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
-  public RollingPositionDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                                     FileIO io, long targetFileSizeInBytes,
-                                     PartitionSpec spec, StructLike partition) {
+  public RollingPositionDeleteWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes,
+      PartitionSpec spec,
+      StructLike partition) {
     super(fileFactory, io, targetFileSizeInBytes, spec, partition);
     this.writerFactory = writerFactory;
     this.deleteFiles = Lists.newArrayList();

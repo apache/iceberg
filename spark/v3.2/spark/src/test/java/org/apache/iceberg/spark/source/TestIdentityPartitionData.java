@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
@@ -55,11 +54,11 @@ public class TestIdentityPartitionData extends SparkTestBase {
   @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "parquet", false },
-        { "parquet", true },
-        { "avro", false },
-        { "orc", false },
-        { "orc", true },
+      {"parquet", false},
+      {"parquet", true},
+      {"avro", false},
+      {"orc", false},
+      {"orc", true},
     };
   }
 
@@ -71,36 +70,37 @@ public class TestIdentityPartitionData extends SparkTestBase {
     this.vectorized = vectorized;
   }
 
-  private static final Schema LOG_SCHEMA = new Schema(
-      Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-      Types.NestedField.optional(2, "date", Types.StringType.get()),
-      Types.NestedField.optional(3, "level", Types.StringType.get()),
-      Types.NestedField.optional(4, "message", Types.StringType.get())
-  );
+  private static final Schema LOG_SCHEMA =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "date", Types.StringType.get()),
+          Types.NestedField.optional(3, "level", Types.StringType.get()),
+          Types.NestedField.optional(4, "message", Types.StringType.get()));
 
-  private static final List<LogMessage> LOGS = ImmutableList.of(
-      LogMessage.debug("2020-02-02", "debug event 1"),
-      LogMessage.info("2020-02-02", "info event 1"),
-      LogMessage.debug("2020-02-02", "debug event 2"),
-      LogMessage.info("2020-02-03", "info event 2"),
-      LogMessage.debug("2020-02-03", "debug event 3"),
-      LogMessage.info("2020-02-03", "info event 3"),
-      LogMessage.error("2020-02-03", "error event 1"),
-      LogMessage.debug("2020-02-04", "debug event 4"),
-      LogMessage.warn("2020-02-04", "warn event 1"),
-      LogMessage.debug("2020-02-04", "debug event 5")
-  );
+  private static final List<LogMessage> LOGS =
+      ImmutableList.of(
+          LogMessage.debug("2020-02-02", "debug event 1"),
+          LogMessage.info("2020-02-02", "info event 1"),
+          LogMessage.debug("2020-02-02", "debug event 2"),
+          LogMessage.info("2020-02-03", "info event 2"),
+          LogMessage.debug("2020-02-03", "debug event 3"),
+          LogMessage.info("2020-02-03", "info event 3"),
+          LogMessage.error("2020-02-03", "error event 1"),
+          LogMessage.debug("2020-02-04", "debug event 4"),
+          LogMessage.warn("2020-02-04", "warn event 1"),
+          LogMessage.debug("2020-02-04", "debug event 5"));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  private PartitionSpec spec = PartitionSpec.builderFor(LOG_SCHEMA).identity("date").identity("level").build();
+  private PartitionSpec spec =
+      PartitionSpec.builderFor(LOG_SCHEMA).identity("date").identity("level").build();
   private Table table = null;
   private Dataset<Row> logs = null;
 
   /**
-   * Use the Hive Based table to make Identity Partition Columns with no duplication of the data in the underlying
-   * parquet files. This makes sure that if the identity mapping fails, the test will also fail.
+   * Use the Hive Based table to make Identity Partition Columns with no duplication of the data in
+   * the underlying parquet files. This makes sure that if the identity mapping fails, the test will
+   * also fail.
    */
   private void setupParquet() throws Exception {
     File location = temp.newFolder("logs");
@@ -109,15 +109,25 @@ public class TestIdentityPartitionData extends SparkTestBase {
     Assert.assertTrue("Temp folder should exist", location.exists());
 
     Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
-    this.logs = spark.createDataFrame(LOGS, LogMessage.class).select("id", "date", "level", "message");
+    this.logs =
+        spark.createDataFrame(LOGS, LogMessage.class).select("id", "date", "level", "message");
     spark.sql(String.format("DROP TABLE IF EXISTS %s", hiveTable));
-    logs.orderBy("date", "level", "id").write().partitionBy("date", "level").format("parquet")
-        .option("path", hiveLocation.toString()).saveAsTable(hiveTable);
+    logs.orderBy("date", "level", "id")
+        .write()
+        .partitionBy("date", "level")
+        .format("parquet")
+        .option("path", hiveLocation.toString())
+        .saveAsTable(hiveTable);
 
-    this.table = TABLES.create(SparkSchemaUtil.schemaForTable(spark, hiveTable),
-        SparkSchemaUtil.specForTable(spark, hiveTable), properties, location.toString());
+    this.table =
+        TABLES.create(
+            SparkSchemaUtil.schemaForTable(spark, hiveTable),
+            SparkSchemaUtil.specForTable(spark, hiveTable),
+            properties,
+            location.toString());
 
-    SparkTableUtil.importSparkTable(spark, new TableIdentifier(hiveTable), table, location.toString());
+    SparkTableUtil.importSparkTable(
+        spark, new TableIdentifier(hiveTable), table, location.toString());
   }
 
   @Before
@@ -130,56 +140,70 @@ public class TestIdentityPartitionData extends SparkTestBase {
 
       Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
       this.table = TABLES.create(LOG_SCHEMA, spec, properties, location.toString());
-      this.logs = spark.createDataFrame(LOGS, LogMessage.class).select("id", "date", "level", "message");
+      this.logs =
+          spark.createDataFrame(LOGS, LogMessage.class).select("id", "date", "level", "message");
 
-      logs.orderBy("date", "level", "id").write().format("iceberg").mode("append").save(location.toString());
+      logs.orderBy("date", "level", "id")
+          .write()
+          .format("iceberg")
+          .mode("append")
+          .save(location.toString());
     }
   }
 
   @Test
   public void testFullProjection() {
     List<Row> expected = logs.orderBy("id").collectAsList();
-    List<Row> actual = spark.read().format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(table.location()).orderBy("id")
-        .select("id", "date", "level", "message")
-        .collectAsList();
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(table.location())
+            .orderBy("id")
+            .select("id", "date", "level", "message")
+            .collectAsList();
     Assert.assertEquals("Rows should match", expected, actual);
   }
 
   @Test
   public void testProjections() {
-    String[][] cases = new String[][] {
-        // individual fields
-        new String[] { "date" },
-        new String[] { "level" },
-        new String[] { "message" },
-        // field pairs
-        new String[] { "date", "message" },
-        new String[] { "level", "message" },
-        new String[] { "date", "level" },
-        // out-of-order pairs
-        new String[] { "message", "date" },
-        new String[] { "message", "level" },
-        new String[] { "level", "date" },
-        // full projection, different orderings
-        new String[] { "date", "level", "message" },
-        new String[] { "level", "date", "message" },
-        new String[] { "date", "message", "level" },
-        new String[] { "level", "message", "date" },
-        new String[] { "message", "date", "level" },
-        new String[] { "message", "level", "date" }
-    };
+    String[][] cases =
+        new String[][] {
+          // individual fields
+          new String[] {"date"},
+          new String[] {"level"},
+          new String[] {"message"},
+          // field pairs
+          new String[] {"date", "message"},
+          new String[] {"level", "message"},
+          new String[] {"date", "level"},
+          // out-of-order pairs
+          new String[] {"message", "date"},
+          new String[] {"message", "level"},
+          new String[] {"level", "date"},
+          // full projection, different orderings
+          new String[] {"date", "level", "message"},
+          new String[] {"level", "date", "message"},
+          new String[] {"date", "message", "level"},
+          new String[] {"level", "message", "date"},
+          new String[] {"message", "date", "level"},
+          new String[] {"message", "level", "date"}
+        };
 
     for (String[] ordering : cases) {
       List<Row> expected = logs.select("id", ordering).orderBy("id").collectAsList();
-      List<Row> actual = spark.read()
-          .format("iceberg")
-          .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-          .load(table.location())
-          .select("id", ordering).orderBy("id")
-          .collectAsList();
-      Assert.assertEquals("Rows should match for ordering: " + Arrays.toString(ordering), expected, actual);
+      List<Row> actual =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+              .load(table.location())
+              .select("id", ordering)
+              .orderBy("id")
+              .collectAsList();
+      Assert.assertEquals(
+          "Rows should match for ordering: " + Arrays.toString(ordering), expected, actual);
     }
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -25,9 +24,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
-/**
- * Represents a table.
- */
+/** Represents a table. */
 public interface Table {
 
   /**
@@ -39,19 +36,39 @@ public interface Table {
     return toString();
   }
 
-  /**
-   * Refresh the current table metadata.
-   */
+  /** Refresh the current table metadata. */
   void refresh();
 
   /**
    * Create a new {@link TableScan scan} for this table.
-   * <p>
-   * Once a table scan is created, it can be refined to project columns and filter data.
+   *
+   * <p>Once a table scan is created, it can be refined to project columns and filter data.
    *
    * @return a table scan for this table
    */
   TableScan newScan();
+
+  /**
+   * Create a new {@link IncrementalAppendScan scan} for this table.
+   *
+   * <p>Once a scan is created, it can be refined to project columns and filter data.
+   *
+   * @return an incremental scan for appends only snapshots
+   */
+  default IncrementalAppendScan newIncrementalAppendScan() {
+    throw new UnsupportedOperationException("Incremental append scan is not supported");
+  }
+
+  /**
+   * Create a new {@link IncrementalChangelogScan} for this table.
+   *
+   * <p>Once a scan is created, it can be refined to project columns and filter data.
+   *
+   * @return an incremental changelog scan
+   */
+  default IncrementalChangelogScan newIncrementalChangelogScan() {
+    throw new UnsupportedOperationException("Incremental changelog scan is not supported");
+  }
 
   /**
    * Return the {@link Schema schema} for this table.
@@ -146,7 +163,8 @@ public interface Table {
   UpdateSchema updateSchema();
 
   /**
-   * Create a new {@link UpdatePartitionSpec} to alter the partition spec of this table and commit the change.
+   * Create a new {@link UpdatePartitionSpec} to alter the partition spec of this table and commit
+   * the change.
    *
    * @return a new {@link UpdatePartitionSpec}
    */
@@ -182,13 +200,13 @@ public interface Table {
 
   /**
    * Create a new {@link AppendFiles append API} to add files to this table and commit.
-   * <p>
-   * Using this method signals to the underlying implementation that the append should not perform
-   * extra work in order to commit quickly. Fast appends are not recommended for normal writes
-   * because the fast commit may cause split planning to slow down over time.
-   * <p>
-   * Implementations may not support fast appends, in which case this will return the same appender
-   * as {@link #newAppend()}.
+   *
+   * <p>Using this method signals to the underlying implementation that the append should not
+   * perform extra work in order to commit quickly. Fast appends are not recommended for normal
+   * writes because the fast commit may cause split planning to slow down over time.
+   *
+   * <p>Implementations may not support fast appends, in which case this will return the same
+   * appender as {@link #newAppend()}.
    *
    * @return a new {@link AppendFiles}
    */
@@ -204,8 +222,8 @@ public interface Table {
   RewriteFiles newRewrite();
 
   /**
-   * Create a new {@link RewriteManifests rewrite manifests API} to replace manifests for this
-   * table and commit.
+   * Create a new {@link RewriteManifests rewrite manifests API} to replace manifests for this table
+   * and commit.
    *
    * @return a new {@link RewriteManifests}
    */
@@ -219,7 +237,8 @@ public interface Table {
   OverwriteFiles newOverwrite();
 
   /**
-   * Create a new {@link RowDelta row-level delta API} to remove or replace rows in existing data files.
+   * Create a new {@link RowDelta row-level delta API} to remove or replace rows in existing data
+   * files.
    *
    * @return a new {@link RowDelta}
    */
@@ -228,9 +247,10 @@ public interface Table {
   /**
    * Not recommended: Create a new {@link ReplacePartitions replace partitions API} to dynamically
    * overwrite partitions in the table with new data.
-   * <p>
-   * This is provided to implement SQL compatible with Hive table operations but is not recommended.
-   * Instead, use the {@link OverwriteFiles overwrite API} to explicitly overwrite data.
+   *
+   * <p>This is provided to implement SQL compatible with Hive table operations but is not
+   * recommended. Instead, use the {@link OverwriteFiles overwrite API} to explicitly overwrite
+   * data.
    *
    * @return a new {@link ReplacePartitions}
    */
@@ -260,7 +280,9 @@ public interface Table {
   Rollback rollback();
 
   /**
-   * Create a new {@link ManageSnapshots manage snapshots API} to manage snapshots in this table and commit.
+   * Create a new {@link ManageSnapshots manage snapshots API} to manage snapshots in this table and
+   * commit.
+   *
    * @return a new {@link ManageSnapshots}
    */
   ManageSnapshots manageSnapshots();
@@ -272,18 +294,15 @@ public interface Table {
    */
   Transaction newTransaction();
 
-  /**
-   * Returns a {@link FileIO} to read and write table data and metadata files.
-   */
+  /** Returns a {@link FileIO} to read and write table data and metadata files. */
   FileIO io();
 
   /**
-   * Returns an {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt data files.
+   * Returns an {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt data
+   * files.
    */
   EncryptionManager encryption();
 
-  /**
-   * Returns a {@link LocationProvider} to provide locations for new data files.
-   */
+  /** Returns a {@link LocationProvider} to provide locations for new data files. */
   LocationProvider locationProvider();
 }

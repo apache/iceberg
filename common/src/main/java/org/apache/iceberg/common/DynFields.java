@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.common;
-
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -31,17 +29,15 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Throwables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
-
 public class DynFields {
 
-  private DynFields() {
-  }
+  private DynFields() {}
 
   /**
    * Convenience wrapper class around {@link java.lang.reflect.Field}.
    *
-   * Allows callers to invoke the wrapped method with all Exceptions wrapped by
-   * RuntimeException, or with a single Exception catch block.
+   * <p>Allows callers to invoke the wrapped method with all Exceptions wrapped by RuntimeException,
+   * or with a single Exception catch block.
    */
   public static class UnboundField<T> {
     private final Field field;
@@ -87,13 +83,13 @@ public class DynFields {
      * @throws IllegalArgumentException if the receiver's class is incompatible
      */
     public BoundField<T> bind(Object target) {
-      Preconditions.checkState(!isStatic() || this == AlwaysNull.INSTANCE,
-          "Cannot bind static field %s", name);
+      Preconditions.checkState(
+          !isStatic() || this == AlwaysNull.INSTANCE, "Cannot bind static field %s", name);
       Preconditions.checkArgument(
           field.getDeclaringClass().isAssignableFrom(target.getClass()),
           "Cannot bind field %s to instance of %s",
-              name,
-              target.getClass());
+          name,
+          target.getClass());
 
       return new BoundField<>(this, target);
     }
@@ -109,16 +105,12 @@ public class DynFields {
       return new StaticField<>(this);
     }
 
-    /**
-     * Returns whether the field is a static field.
-     */
+    /** Returns whether the field is a static field. */
     public boolean isStatic() {
       return Modifier.isStatic(field.getModifiers());
     }
 
-    /**
-     * Returns whether the field is always null.
-     */
+    /** Returns whether the field is always null. */
     public boolean isAlwaysNull() {
       return this == AlwaysNull.INSTANCE;
     }
@@ -137,8 +129,7 @@ public class DynFields {
     }
 
     @Override
-    public void set(Object target, Void value) {
-    }
+    public void set(Object target, Void value) {}
 
     @Override
     public String toString() {
@@ -172,7 +163,6 @@ public class DynFields {
     }
   }
 
-
   public static class BoundField<T> {
     private final UnboundField<T> field;
     private final Object target;
@@ -201,10 +191,12 @@ public class DynFields {
     private final Set<String> candidates = Sets.newHashSet();
     private boolean defaultAlwaysNull = false;
 
+    private Builder() {}
+
     /**
      * Set the {@link ClassLoader} used to lookup classes by name.
-     * <p>
-     * If not set, the current thread's ClassLoader is used.
+     *
+     * <p>If not set, the current thread's ClassLoader is used.
      *
      * @param newLoader a ClassLoader
      * @return this Builder for method chaining
@@ -215,8 +207,7 @@ public class DynFields {
     }
 
     /**
-     * Instructs this builder to return AlwaysNull if no implementation is
-     * found.
+     * Instructs this builder to return AlwaysNull if no implementation is found.
      *
      * @return this Builder for method chaining
      */
@@ -266,8 +257,7 @@ public class DynFields {
       }
 
       try {
-        this.field = new UnboundField<>(
-            targetClass.getField(fieldName), fieldName);
+        this.field = new UnboundField<>(targetClass.getField(fieldName), fieldName);
       } catch (NoSuchFieldException e) {
         // not the right implementation
         candidates.add(targetClass.getName() + "." + fieldName);
@@ -327,8 +317,8 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a UnboundField or throws a
-     * NoSuchFieldException if there is none.
+     * Returns the first valid implementation as a UnboundField or throws a NoSuchFieldException if
+     * there is none.
      *
      * @param <T> Java class stored in the field
      * @return a {@link UnboundField} with a valid implementation
@@ -341,14 +331,14 @@ public class DynFields {
       } else if (defaultAlwaysNull) {
         return (UnboundField<T>) AlwaysNull.INSTANCE;
       } else {
-        throw new NoSuchFieldException("Cannot find field from candidates: " +
-            Joiner.on(", ").join(candidates));
+        throw new NoSuchFieldException(
+            "Cannot find field from candidates: " + Joiner.on(", ").join(candidates));
       }
     }
 
     /**
-     * Returns the first valid implementation as a BoundMethod or throws a
-     * NoSuchMethodException if there is none.
+     * Returns the first valid implementation as a BoundMethod or throws a NoSuchMethodException if
+     * there is none.
      *
      * @param target an Object on which to get and set the field
      * @param <T> Java class stored in the field
@@ -362,8 +352,8 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a UnboundField or throws a
-     * NoSuchFieldException if there is none.
+     * Returns the first valid implementation as a UnboundField or throws a NoSuchFieldException if
+     * there is none.
      *
      * @param <T> Java class stored in the field
      * @return a {@link UnboundField} with a valid implementation
@@ -376,14 +366,14 @@ public class DynFields {
       } else if (defaultAlwaysNull) {
         return (UnboundField<T>) AlwaysNull.INSTANCE;
       } else {
-        throw new RuntimeException("Cannot find field from candidates: " +
-            Joiner.on(", ").join(candidates));
+        throw new RuntimeException(
+            "Cannot find field from candidates: " + Joiner.on(", ").join(candidates));
       }
     }
 
     /**
-     * Returns the first valid implementation as a BoundMethod or throws a
-     * RuntimeException if there is none.
+     * Returns the first valid implementation as a BoundMethod or throws a RuntimeException if there
+     * is none.
      *
      * @param target an Object on which to get and set the field
      * @param <T> Java class stored in the field
@@ -397,8 +387,8 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a StaticField or throws a
-     * NoSuchFieldException if there is none.
+     * Returns the first valid implementation as a StaticField or throws a NoSuchFieldException if
+     * there is none.
      *
      * @param <T> Java class stored in the field
      * @return a {@link StaticField} with a valid implementation
@@ -410,8 +400,8 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a StaticField or throws a
-     * RuntimeException if there is none.
+     * Returns the first valid implementation as a StaticField or throws a RuntimeException if there
+     * is none.
      *
      * @param <T> Java class stored in the field
      * @return a {@link StaticField} with a valid implementation
@@ -421,7 +411,6 @@ public class DynFields {
     public <T> StaticField<T> buildStatic() {
       return this.<T>build().asStatic();
     }
-
   }
 
   private static class MakeFieldAccessible implements PrivilegedAction<Void> {

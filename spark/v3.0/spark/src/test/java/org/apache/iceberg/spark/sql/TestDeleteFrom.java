@@ -16,16 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.sql;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.Spark3VersionUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -42,67 +47,88 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testDeleteFromUnpartitionedTable() {
-    // This test fails in Spark 3.1. `canDeleteWhere` was added to `SupportsDelete` in Spark 3.1,
-    // but logic to rewrite the query if `canDeleteWhere` returns false was left to be implemented
-    // later.
-    Assume.assumeTrue(Spark3VersionUtil.isSpark30());
-    // set the shuffle partitions to 1 to force the write to use a single task and produce 1 file
-    String originalParallelism = spark.conf().get("spark.sql.shuffle.partitions");
-    spark.conf().set("spark.sql.shuffle.partitions", "1");
-    try {
-      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
-      sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+  public void testDeleteFromUnpartitionedTable() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
-      assertEquals("Should have expected rows",
-          ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
-          sql("SELECT * FROM %s ORDER BY id", tableName));
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.coalesce(1).writeTo(tableName).append();
 
-      AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-          IllegalArgumentException.class, "Failed to cleanly delete data files",
-          () -> sql("DELETE FROM %s WHERE id < 2", tableName));
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
 
-      sql("DELETE FROM %s WHERE id < 4", tableName);
+    AssertHelpers.assertThrows(
+        "Should not delete when not all rows of a file match the filter",
+        ValidationException.class,
+        "Cannot delete file where some, but not all, rows match filter",
+        () -> sql("DELETE FROM %s WHERE id < 2", tableName));
 
-      Assert.assertEquals("Should have no rows after successful delete",
-          0L, scalarSql("SELECT count(1) FROM %s", tableName));
+    sql("DELETE FROM %s WHERE id < 4", tableName);
 
-    } finally {
-      spark.conf().set("spark.sql.shuffle.partitions", originalParallelism);
-    }
+    Assert.assertEquals(
+        "Should have no rows after successful delete",
+        0L,
+        scalarSql("SELECT count(1) FROM %s", tableName));
   }
 
   @Test
-  public void testDeleteFromPartitionedTable() {
-    // This test fails in Spark 3.1. `canDeleteWhere` was added to `SupportsDelete` in Spark 3.1,
-    // but logic to rewrite the query if `canDeleteWhere` returns false was left to be implemented
-    // later.
-    Assume.assumeTrue(Spark3VersionUtil.isSpark30());
-    // set the shuffle partitions to 1 to force the write to use a single task and produce 1 file per partition
-    String originalParallelism = spark.conf().get("spark.sql.shuffle.partitions");
-    spark.conf().set("spark.sql.shuffle.partitions", "1");
-    try {
-      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg " +
-          "PARTITIONED BY (truncate(id, 2))", tableName);
-      sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+  public void testDeleteFromTableAtSnapshot() throws NoSuchTableException {
+    Assume.assumeFalse(
+        "Spark session catalog does not support extended table names",
+        "spark_catalog".equals(catalogName));
 
-      assertEquals("Should have 3 rows in 2 partitions",
-          ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
-          sql("SELECT * FROM %s ORDER BY id", tableName));
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
-      AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-          IllegalArgumentException.class, "Failed to cleanly delete data files",
-          () -> sql("DELETE FROM %s WHERE id > 2", tableName));
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.coalesce(1).writeTo(tableName).append();
 
-      sql("DELETE FROM %s WHERE id < 2", tableName);
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    String prefix = "snapshot_id_";
+    AssertHelpers.assertThrows(
+        "Should not be able to delete from a table at a specific snapshot",
+        IllegalArgumentException.class,
+        "Cannot delete from table at a specific snapshot",
+        () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId));
+  }
 
-      assertEquals("Should have two rows in the second partition",
-          ImmutableList.of(row(2L, "b"), row(3L, "c")),
-          sql("SELECT * FROM %s ORDER BY id", tableName));
+  @Test
+  public void testDeleteFromPartitionedTable() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(id, 2))",
+        tableName);
 
-    } finally {
-      spark.conf().set("spark.sql.shuffle.partitions", originalParallelism);
-    }
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.coalesce(1).writeTo(tableName).append();
+
+    assertEquals(
+        "Should have 3 rows in 2 partitions",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    AssertHelpers.assertThrows(
+        "Should not delete when not all rows of a file match the filter",
+        ValidationException.class,
+        "Cannot delete file where some, but not all, rows match filter",
+        () -> sql("DELETE FROM %s WHERE id > 2", tableName));
+
+    sql("DELETE FROM %s WHERE id < 2", tableName);
+
+    assertEquals(
+        "Should have two rows in the second partition",
+        ImmutableList.of(row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -110,7 +136,8 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -121,6 +148,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Delete should not produce a new snapshot", 1, Iterables.size(table.snapshots()));
+    Assert.assertEquals(
+        "Delete should not produce a new snapshot", 1, Iterables.size(table.snapshots()));
   }
 }

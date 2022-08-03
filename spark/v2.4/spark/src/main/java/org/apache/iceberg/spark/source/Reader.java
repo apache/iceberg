@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
@@ -76,8 +75,12 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPushDownFilters,
-    SupportsPushDownRequiredColumns, SupportsReportStatistics {
+class Reader
+    implements DataSourceReader,
+        SupportsScanColumnarBatch,
+        SupportsPushDownFilters,
+        SupportsPushDownRequiredColumns,
+        SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
   private static final Filter[] NO_FILTERS = new Filter[0];
@@ -122,8 +125,11 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         LOG.warn("Failed to get Hadoop Filesystem", ioe);
       }
       String scheme = fsscheme; // Makes an effectively final version of scheme
-      this.localityPreferred = options.get("locality").map(Boolean::parseBoolean)
-          .orElseGet(() -> LOCALITY_WHITELIST_FS.contains(scheme));
+      this.localityPreferred =
+          options
+              .get("locality")
+              .map(Boolean::parseBoolean)
+              .orElseGet(() -> LOCALITY_WHITELIST_FS.contains(scheme));
     } else {
       this.localityPreferred = false;
     }
@@ -138,15 +144,16 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
     }
 
-    if ((snapshotId != null || asOfTimestamp != null) &&
-        (startSnapshotId != null || endSnapshotId != null)) {
+    if ((snapshotId != null || asOfTimestamp != null)
+        && (startSnapshotId != null || endSnapshotId != null)) {
       throw new IllegalArgumentException(
-          "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either snapshot-id or " +
-          "as-of-timestamp is specified");
+          "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either snapshot-id or "
+              + "as-of-timestamp is specified");
     }
 
     if (startSnapshotId == null && endSnapshotId != null) {
-      throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
+      throw new IllegalArgumentException(
+          "Cannot only specify option end-snapshot-id to do incremental scan");
     }
   }
 
@@ -181,12 +188,14 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       scan = scan.option(TableProperties.SPLIT_SIZE, splitSize.toString());
     }
 
-    Integer splitLookback = options.get(SparkReadOptions.LOOKBACK).map(Integer::parseInt).orElse(null);
+    Integer splitLookback =
+        options.get(SparkReadOptions.LOOKBACK).map(Integer::parseInt).orElse(null);
     if (splitLookback != null) {
       scan = scan.option(TableProperties.SPLIT_LOOKBACK, splitLookback.toString());
     }
 
-    Long splitOpenFileCost = options.get(SparkReadOptions.FILE_OPEN_COST).map(Long::parseLong).orElse(null);
+    Long splitOpenFileCost =
+        options.get(SparkReadOptions.FILE_OPEN_COST).map(Long::parseLong).orElse(null);
     if (splitOpenFileCost != null) {
       scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost.toString());
     }
@@ -201,9 +210,11 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private Schema lazySchema() {
     if (schema == null) {
       if (requestedSchema != null) {
-        // the projection should include all columns that will be returned, including those only used in filters
-        this.schema = SparkSchemaUtil.prune(
-            baseScan.schema(), requestedSchema, filterExpression(), baseScan.isCaseSensitive());
+        // the projection should include all columns that will be returned, including those only
+        // used in filters
+        this.schema =
+            SparkSchemaUtil.prune(
+                baseScan.schema(), requestedSchema, filterExpression(), baseScan.isCaseSensitive());
       } else {
         this.schema = baseScan.schema();
       }
@@ -220,8 +231,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private StructType lazyType() {
     if (type == null) {
-      Preconditions.checkArgument(readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(lazySchema()),
-              SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+      Preconditions.checkArgument(
+          readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(lazySchema()),
+          SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.type = SparkSchemaUtil.convert(lazySchema());
     }
     return type;
@@ -241,8 +253,10 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Preconditions.checkState(batchSize > 0, "Invalid batch size");
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
-    ValidationException.check(tasks().stream().noneMatch(TableScanUtil::hasDeletes),
-        "Cannot scan table %s: cannot apply required delete files", table);
+    ValidationException.check(
+        tasks().stream().noneMatch(TableScanUtil::hasDeletes),
+        "Cannot scan table %s: cannot apply required delete files",
+        table);
 
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
@@ -254,17 +268,22 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Tasks.range(readTasks.length)
         .stopOnFailure()
         .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
-        .run(index -> readTasks[index] = new ReadTask<>(
-            scanTasks.get(index), tableBroadcast, expectedSchemaString, caseSensitive,
-            localityPreferred, new BatchReaderFactory(batchSize)));
+        .run(
+            index ->
+                readTasks[index] =
+                    new ReadTask<>(
+                        scanTasks.get(index),
+                        tableBroadcast,
+                        expectedSchemaString,
+                        caseSensitive,
+                        localityPreferred,
+                        new BatchReaderFactory(batchSize)));
     LOG.info("Batching input partitions with {} tasks.", readTasks.length);
 
     return Arrays.asList(readTasks);
   }
 
-  /**
-   * This is called in the Spark Driver when data is to be materialized into {@link InternalRow}
-   */
+  /** This is called in the Spark Driver when data is to be materialized into {@link InternalRow} */
   @Override
   public List<InputPartition<InternalRow>> planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
@@ -279,9 +298,16 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Tasks.range(readTasks.length)
         .stopOnFailure()
         .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
-        .run(index -> readTasks[index] = new ReadTask<>(
-            scanTasks.get(index), tableBroadcast, expectedSchemaString, caseSensitive,
-            localityPreferred, InternalRowReaderFactory.INSTANCE));
+        .run(
+            index ->
+                readTasks[index] =
+                    new ReadTask<>(
+                        scanTasks.get(index),
+                        tableBroadcast,
+                        expectedSchemaString,
+                        caseSensitive,
+                        localityPreferred,
+                        InternalRowReaderFactory.INSTANCE));
 
     return Arrays.asList(readTasks);
   }
@@ -334,10 +360,14 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       return new Stats(0L, 0L);
     }
 
-    // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
+    // estimate stats using snapshot summary only for partitioned tables (metadata tables are
+    // unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpression() == Expressions.alwaysTrue()) {
-      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
-          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      long totalRecords =
+          PropertyUtil.propertyAsLong(
+              table.currentSnapshot().summary(),
+              SnapshotSummary.TOTAL_RECORDS_PROP,
+              Long.MAX_VALUE);
       return new Stats(SparkSchemaUtil.estimateSize(lazyType(), totalRecords), totalRecords);
     }
 
@@ -345,7 +375,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        numRows += file.file().recordCount();
+        // TODO: if possible, take deletes also into consideration.
+        double fractionOfFileScanned = ((double) file.length()) / file.file().fileSizeInBytes();
+        numRows += (fractionOfFileScanned * file.file().recordCount());
       }
     }
 
@@ -358,28 +390,38 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     if (readUsingBatch == null) {
       boolean allParquetFileScanTasks =
           tasks().stream()
-              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                  .stream()
-                  .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                      FileFormat.PARQUET)));
+              .allMatch(
+                  combinedScanTask ->
+                      !combinedScanTask.isDataTask()
+                          && combinedScanTask.files().stream()
+                              .allMatch(
+                                  fileScanTask ->
+                                      fileScanTask.file().format().equals(FileFormat.PARQUET)));
 
       boolean allOrcFileScanTasks =
           tasks().stream()
-              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                  .stream()
-                  .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                      FileFormat.ORC)));
+              .allMatch(
+                  combinedScanTask ->
+                      !combinedScanTask.isDataTask()
+                          && combinedScanTask.files().stream()
+                              .allMatch(
+                                  fileScanTask ->
+                                      fileScanTask.file().format().equals(FileFormat.ORC)));
 
       boolean atLeastOneColumn = lazySchema().columns().size() > 0;
 
-      boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
+      boolean onlyPrimitives =
+          lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
 
       boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
       boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
 
-      this.readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
-          (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+      this.readUsingBatch =
+          batchReadsEnabled
+              && hasNoDeleteFiles
+              && (allOrcFileScanTasks
+                  || (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
 
       if (readUsingBatch) {
         this.batchSize = batchSize(allParquetFileScanTasks, allOrcFileScanTasks);
@@ -408,8 +450,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     }
   }
 
-  private static void mergeIcebergHadoopConfs(
-      Configuration baseConf, Map<String, String> options) {
+  private static void mergeIcebergHadoopConfs(Configuration baseConf, Map<String, String> options) {
     options.keySet().stream()
         .filter(key -> key.startsWith("hadoop."))
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
@@ -453,8 +494,13 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     private transient Schema expectedSchema = null;
     private transient String[] preferredLocations = null;
 
-    private ReadTask(CombinedScanTask task, Broadcast<Table> tableBroadcast, String expectedSchemaString,
-                     boolean caseSensitive, boolean localityPreferred, ReaderFactory<T> readerFactory) {
+    private ReadTask(
+        CombinedScanTask task,
+        Broadcast<Table> tableBroadcast,
+        String expectedSchemaString,
+        boolean caseSensitive,
+        boolean localityPreferred,
+        ReaderFactory<T> readerFactory) {
       this.task = task;
       this.tableBroadcast = tableBroadcast;
       this.expectedSchemaString = expectedSchemaString;
@@ -494,18 +540,18 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   }
 
   private interface ReaderFactory<T> extends Serializable {
-    InputPartitionReader<T> create(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive);
+    InputPartitionReader<T> create(
+        CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive);
   }
 
   private static class InternalRowReaderFactory implements ReaderFactory<InternalRow> {
     private static final InternalRowReaderFactory INSTANCE = new InternalRowReaderFactory();
 
-    private InternalRowReaderFactory() {
-    }
+    private InternalRowReaderFactory() {}
 
     @Override
-    public InputPartitionReader<InternalRow> create(CombinedScanTask task, Table table,
-                                                    Schema expectedSchema, boolean caseSensitive) {
+    public InputPartitionReader<InternalRow> create(
+        CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
       return new RowReader(task, table, expectedSchema, caseSensitive);
     }
   }
@@ -518,20 +564,27 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     }
 
     @Override
-    public InputPartitionReader<ColumnarBatch> create(CombinedScanTask task, Table table,
-                                                      Schema expectedSchema, boolean caseSensitive) {
+    public InputPartitionReader<ColumnarBatch> create(
+        CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
       return new BatchReader(task, table, expectedSchema, caseSensitive, batchSize);
     }
   }
 
-  private static class RowReader extends RowDataReader implements InputPartitionReader<InternalRow> {
+  private static class RowReader extends RowDataReader
+      implements InputPartitionReader<InternalRow> {
     RowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
       super(task, table, expectedSchema, caseSensitive);
     }
   }
 
-  private static class BatchReader extends BatchDataReader implements InputPartitionReader<ColumnarBatch> {
-    BatchReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
+  private static class BatchReader extends BatchDataReader
+      implements InputPartitionReader<ColumnarBatch> {
+    BatchReader(
+        CombinedScanTask task,
+        Table table,
+        Schema expectedSchema,
+        boolean caseSensitive,
+        int size) {
       super(task, table, expectedSchema, caseSensitive, size);
     }
   }

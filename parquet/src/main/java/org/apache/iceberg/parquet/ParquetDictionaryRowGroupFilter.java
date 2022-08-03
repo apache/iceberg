@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
@@ -70,8 +69,8 @@ public class ParquetDictionaryRowGroupFilter {
    * @param dictionaries a dictionary page read store
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup,
-                            DictionaryPageReadStore dictionaries) {
+  public boolean shouldRead(
+      MessageType fileSchema, BlockMetaData rowGroup, DictionaryPageReadStore dictionaries) {
     return new EvalVisitor().eval(fileSchema, rowGroup, dictionaries);
   }
 
@@ -86,8 +85,10 @@ public class ParquetDictionaryRowGroupFilter {
     private Map<Integer, ColumnDescriptor> cols = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
 
-    private boolean eval(MessageType fileSchema, BlockMetaData rowGroup,
-                         DictionaryPageReadStore dictionaryReadStore) {
+    private boolean eval(
+        MessageType fileSchema,
+        BlockMetaData rowGroup,
+        DictionaryPageReadStore dictionaryReadStore) {
       this.dictionaries = dictionaryReadStore;
       this.dictCache = Maps.newHashMap();
       this.isFallback = Maps.newHashMap();
@@ -181,7 +182,8 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     private <T> Comparator<T> comparatorForNaNPredicate(BoundReference<T> ref) {
-      // Construct the same comparator as in ComparableLiteral.comparator, ignoring null value order as dictionary
+      // Construct the same comparator as in ComparableLiteral.comparator, ignoring null value order
+      // as dictionary
       // cannot contain null values.
       // No need to check type: incompatible types will be handled during expression binding.
       return Comparators.forType(ref.type().asPrimitiveType());
@@ -354,8 +356,11 @@ public class ParquetDictionaryRowGroupFilter {
         return ROWS_MIGHT_MATCH;
       }
 
-      // ROWS_CANNOT_MATCH if no values in the dictionary that are not also in the set (the difference is empty)
-      return Sets.difference(dictionary, literalSet).isEmpty() ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+      // ROWS_CANNOT_MATCH if no values in the dictionary that are not also in the set (the
+      // difference is empty)
+      return Sets.difference(dictionary, literalSet).isEmpty()
+          ? ROWS_CANNOT_MATCH
+          : ROWS_MIGHT_MATCH;
     }
 
     @Override
@@ -370,6 +375,25 @@ public class ParquetDictionaryRowGroupFilter {
       Set<T> dictionary = dict(id, lit.comparator());
       for (T item : dictionary) {
         if (item.toString().startsWith(lit.value().toString())) {
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, lit.comparator());
+      for (T item : dictionary) {
+        if (!item.toString().startsWith(lit.value().toString())) {
           return ROWS_MIGHT_MATCH;
         }
       }
@@ -406,21 +430,28 @@ public class ParquetDictionaryRowGroupFilter {
 
       for (int i = 0; i <= dict.getMaxId(); i++) {
         switch (col.getPrimitiveType().getPrimitiveTypeName()) {
-          case FIXED_LEN_BYTE_ARRAY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
+          case FIXED_LEN_BYTE_ARRAY:
+            dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
             break;
-          case BINARY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
+          case BINARY:
+            dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
             break;
-          case INT32: dictSet.add((T) conversion.apply(dict.decodeToInt(i)));
+          case INT32:
+            dictSet.add((T) conversion.apply(dict.decodeToInt(i)));
             break;
-          case INT64: dictSet.add((T) conversion.apply(dict.decodeToLong(i)));
+          case INT64:
+            dictSet.add((T) conversion.apply(dict.decodeToLong(i)));
             break;
-          case FLOAT: dictSet.add((T) conversion.apply(dict.decodeToFloat(i)));
+          case FLOAT:
+            dictSet.add((T) conversion.apply(dict.decodeToFloat(i)));
             break;
-          case DOUBLE: dictSet.add((T) conversion.apply(dict.decodeToDouble(i)));
+          case DOUBLE:
+            dictSet.add((T) conversion.apply(dict.decodeToDouble(i)));
             break;
           default:
             throw new IllegalArgumentException(
-                "Cannot decode dictionary of type: " + col.getPrimitiveType().getPrimitiveTypeName());
+                "Cannot decode dictionary of type: "
+                    + col.getPrimitiveType().getPrimitiveTypeName());
         }
       }
 
@@ -433,5 +464,4 @@ public class ParquetDictionaryRowGroupFilter {
   private static boolean mayContainNull(ColumnChunkMetaData meta) {
     return meta.getStatistics() == null || meta.getStatistics().getNumNulls() != 0;
   }
-
 }

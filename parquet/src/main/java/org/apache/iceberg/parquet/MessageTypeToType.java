@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
 import java.util.Map;
@@ -36,13 +38,10 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type.Repetition;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 /**
  * A visitor that converts a {@link MessageType} to a {@link Type} in Iceberg.
- * <p>
- * Fields we could not determine IDs for will be pruned.
+ *
+ * <p>Fields we could not determine IDs for will be pruned.
  */
 class MessageTypeToType extends ParquetTypeVisitor<Type> {
   private static final Joiner DOT = Joiner.on(".");
@@ -74,7 +73,8 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
       Preconditions.checkArgument(
           !field.isRepetition(Repetition.REPEATED),
-          "Fields cannot have repetition REPEATED: %s", field);
+          "Fields cannot have repetition REPEATED: %s",
+          field);
 
       Integer fieldId = getId(field);
       Type fieldType = fieldTypes.get(i);
@@ -96,12 +96,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type list(GroupType array, Type elementType) {
-    GroupType repeated = array.getType(0).asGroupType();
-    org.apache.parquet.schema.Type element = repeated.getType(0);
-
-    Preconditions.checkArgument(
-        !element.isRepetition(Repetition.REPEATED),
-        "Elements cannot have repetition REPEATED: %s", element);
+    org.apache.parquet.schema.Type element = ParquetSchemaUtil.determineListElementType(array);
 
     Integer elementFieldId = getId(element);
 
@@ -127,12 +122,14 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     Preconditions.checkArgument(
         !value.isRepetition(Repetition.REPEATED),
-        "Values cannot have repetition REPEATED: %s", value);
+        "Values cannot have repetition REPEATED: %s",
+        value);
 
     Integer keyFieldId = getId(key);
     Integer valueFieldId = getId(value);
 
-    // keep the map if its key and values have ids and were not pruned (i.e. their types are not null)
+    // keep the map if its key and values have ids and were not pruned (i.e. their types are not
+    // null)
     if (keyFieldId != null && valueFieldId != null && keyType != null && valueType != null) {
       addAlias(key.getName(), keyFieldId);
       addAlias(value.getName(), valueFieldId);
@@ -179,11 +176,11 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
         return Types.BinaryType.get();
     }
 
-    throw new UnsupportedOperationException(
-        "Cannot convert unknown primitive type: " + primitive);
+    throw new UnsupportedOperationException("Cannot convert unknown primitive type: " + primitive);
   }
 
-  private static class ParquetLogicalTypeVisitor implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Type> {
+  private static class ParquetLogicalTypeVisitor
+      implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Type> {
     private static final ParquetLogicalTypeVisitor INSTANCE = new ParquetLogicalTypeVisitor();
 
     private static ParquetLogicalTypeVisitor get() {
@@ -216,13 +213,16 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     }
 
     @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
-      return Optional.of(timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
+    public Optional<Type> visit(
+        LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
+      return Optional.of(
+          timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
     }
 
     @Override
     public Optional<Type> visit(LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
-      Preconditions.checkArgument(intType.isSigned() || intType.getBitWidth() < 64,
+      Preconditions.checkArgument(
+          intType.isSigned() || intType.getBitWidth() < 64,
           "Cannot use uint64: not a supported Java type");
       if (intType.getBitWidth() < 32) {
         return Optional.of(Types.IntegerType.get());

@@ -16,11 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
@@ -29,35 +27,36 @@ import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
- * Resolver to resolve {@link Decoder} to a {@link ResolvingDecoder}. This class uses a {@link ThreadLocal} for caching
- * {@link ResolvingDecoder}.
+ * Resolver to resolve {@link Decoder} to a {@link ResolvingDecoder}. This class uses a {@link
+ * ThreadLocal} for caching {@link ResolvingDecoder}.
  */
 public class DecoderResolver {
 
   private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
-  private DecoderResolver() {
-  }
+  private DecoderResolver() {}
 
   public static <T> T resolveAndRead(
-      Decoder decoder, Schema readSchema, Schema fileSchema, ValueReader<T> reader, T reuse) throws IOException {
+      Decoder decoder, Schema readSchema, Schema fileSchema, ValueReader<T> reader, T reuse)
+      throws IOException {
     ResolvingDecoder resolver = DecoderResolver.resolve(decoder, readSchema, fileSchema);
     T value = reader.read(resolver, reuse);
     resolver.drain();
     return value;
   }
 
-  private static ResolvingDecoder resolve(Decoder decoder, Schema readSchema, Schema fileSchema) throws IOException {
+  private static ResolvingDecoder resolve(Decoder decoder, Schema readSchema, Schema fileSchema)
+      throws IOException {
     Map<Schema, Map<Schema, ResolvingDecoder>> cache = DECODER_CACHES.get();
-    Map<Schema, ResolvingDecoder> fileSchemaToResolver = cache
-        .computeIfAbsent(readSchema, k -> new HashMap<>());
+    Map<Schema, ResolvingDecoder> fileSchemaToResolver =
+        cache.computeIfAbsent(readSchema, k -> Maps.newHashMap());
 
-    ResolvingDecoder resolver = fileSchemaToResolver.computeIfAbsent(
-        fileSchema,
-        schema -> newResolver(readSchema, schema));
+    ResolvingDecoder resolver =
+        fileSchemaToResolver.computeIfAbsent(fileSchema, schema -> newResolver(readSchema, schema));
 
     resolver.configure(decoder);
 

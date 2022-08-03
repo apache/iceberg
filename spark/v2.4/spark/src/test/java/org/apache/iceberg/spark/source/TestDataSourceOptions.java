@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.IOException;
 import java.math.RoundingMode;
@@ -54,19 +55,15 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestDataSourceOptions {
 
   private static final Configuration CONF = new Configuration();
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static SparkSession spark = null;
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
   public static void startSpark() {
@@ -90,23 +87,23 @@ public class TestDataSourceOptions {
     options.put(TableProperties.DEFAULT_FILE_FORMAT, "avro");
     Table table = tables.create(SCHEMA, spec, options, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
         .mode(SaveMode.Append)
         .save(tableLocation);
 
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      tasks.forEach(task -> {
-        FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
-        Assert.assertEquals(FileFormat.PARQUET, fileFormat);
-      });
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.PARQUET, fileFormat);
+          });
     }
   }
 
@@ -120,22 +117,18 @@ public class TestDataSourceOptions {
     options.put(TableProperties.DEFAULT_FILE_FORMAT, "avro");
     Table table = tables.create(SCHEMA, spec, options, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    df.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    df.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      tasks.forEach(task -> {
-        FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
-        Assert.assertEquals(FileFormat.AVRO, fileFormat);
-      });
+      tasks.forEach(
+          task -> {
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            Assert.assertEquals(FileFormat.AVRO, fileFormat);
+          });
     }
   }
 
@@ -155,24 +148,25 @@ public class TestDataSourceOptions {
       // to verify that 'hadoop.' data source options are propagated correctly
       sparkHadoopConf.set("fs.default.name", "hdfs://localhost:9000");
 
-      List<SimpleRecord> expectedRecords = Lists.newArrayList(
-          new SimpleRecord(1, "a"),
-          new SimpleRecord(2, "b")
-      );
+      List<SimpleRecord> expectedRecords =
+          Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
       Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-      originalDf.select("id", "data").write()
+      originalDf
+          .select("id", "data")
+          .write()
           .format("iceberg")
           .mode("append")
           .option("hadoop.fs.default.name", "file:///")
           .save(tableLocation);
 
-      Dataset<Row> resultDf = spark.read()
-          .format("iceberg")
-          .option("hadoop.fs.default.name", "file:///")
-          .load(tableLocation);
-      List<SimpleRecord> resultRecords = resultDf.orderBy("id")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
+      Dataset<Row> resultDf =
+          spark
+              .read()
+              .format("iceberg")
+              .option("hadoop.fs.default.name", "file:///")
+              .load(tableLocation);
+      List<SimpleRecord> resultRecords =
+          resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
       Assert.assertEquals("Records should match", expectedRecords, resultRecords);
     } finally {
@@ -188,14 +182,16 @@ public class TestDataSourceOptions {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.SPLIT_SIZE, String.valueOf(128L * 1024 * 1024)); // 128Mb
+    options.put(
+        TableProperties.DEFAULT_FILE_FORMAT,
+        String.valueOf(FileFormat.AVRO)); // Arbitrarily splittable
     Table icebergTable = tables.create(SCHEMA, spec, options, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data")
+    originalDf
+        .select("id", "data")
         .repartition(1)
         .write()
         .format("iceberg")
@@ -208,10 +204,12 @@ public class TestDataSourceOptions {
     long fileSize = files.get(0).fileSizeInBytes();
     long splitSize = LongMath.divide(fileSize, 2, RoundingMode.CEILING);
 
-    Dataset<Row> resultDf = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(splitSize))
-        .load(tableLocation);
+    Dataset<Row> resultDf =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(splitSize))
+            .load(tableLocation);
 
     Assert.assertEquals("Spark partitions should match", 2, resultDf.javaRDD().getNumPartitions());
   }
@@ -225,18 +223,16 @@ public class TestDataSourceOptions {
     Map<String, String> options = Maps.newHashMap();
     Table table = tables.create(SCHEMA, spec, options, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c"),
-        new SimpleRecord(4, "d")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
     for (SimpleRecord record : expectedRecords) {
-      Dataset<Row> originalDf = spark.createDataFrame(Lists.newArrayList(record), SimpleRecord.class);
-      originalDf.select("id", "data").write()
-          .format("iceberg")
-          .mode("append")
-          .save(tableLocation);
+      Dataset<Row> originalDf =
+          spark.createDataFrame(Lists.newArrayList(record), SimpleRecord.class);
+      originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
     }
     List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
 
@@ -246,11 +242,13 @@ public class TestDataSourceOptions {
         IllegalArgumentException.class,
         "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan",
         () -> {
-          spark.read()
+          spark
+              .read()
               .format("iceberg")
               .option("snapshot-id", snapshotIds.get(3).toString())
               .option("start-snapshot-id", snapshotIds.get(3).toString())
-              .load(tableLocation).explain();
+              .load(tableLocation)
+              .explain();
         });
 
     // end-snapshot-id and as-of-timestamp are both configured.
@@ -259,12 +257,15 @@ public class TestDataSourceOptions {
         IllegalArgumentException.class,
         "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan",
         () -> {
-          spark.read()
+          spark
+              .read()
               .format("iceberg")
-              .option(SparkReadOptions.AS_OF_TIMESTAMP,
+              .option(
+                  SparkReadOptions.AS_OF_TIMESTAMP,
                   Long.toString(table.snapshot(snapshotIds.get(3)).timestampMillis()))
               .option("end-snapshot-id", snapshotIds.get(2).toString())
-              .load(tableLocation).explain();
+              .load(tableLocation)
+              .explain();
         });
 
     // only end-snapshot-id is configured.
@@ -273,31 +274,37 @@ public class TestDataSourceOptions {
         IllegalArgumentException.class,
         "Cannot only specify option end-snapshot-id to do incremental scan",
         () -> {
-          spark.read()
+          spark
+              .read()
               .format("iceberg")
               .option("end-snapshot-id", snapshotIds.get(2).toString())
-              .load(tableLocation).explain();
+              .load(tableLocation)
+              .explain();
         });
 
     // test (1st snapshot, current snapshot] incremental scan.
-    List<SimpleRecord> result = spark.read()
-        .format("iceberg")
-        .option("start-snapshot-id", snapshotIds.get(3).toString())
-        .load(tableLocation)
-        .orderBy("id")
-        .as(Encoders.bean(SimpleRecord.class))
-        .collectAsList();
+    List<SimpleRecord> result =
+        spark
+            .read()
+            .format("iceberg")
+            .option("start-snapshot-id", snapshotIds.get(3).toString())
+            .load(tableLocation)
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
     Assert.assertEquals("Records should match", expectedRecords.subList(1, 4), result);
 
     // test (2nd snapshot, 3rd snapshot] incremental scan.
-    List<SimpleRecord> result1 = spark.read()
-        .format("iceberg")
-        .option("start-snapshot-id", snapshotIds.get(2).toString())
-        .option("end-snapshot-id", snapshotIds.get(1).toString())
-        .load(tableLocation)
-        .orderBy("id")
-        .as(Encoders.bean(SimpleRecord.class))
-        .collectAsList();
+    List<SimpleRecord> result1 =
+        spark
+            .read()
+            .format("iceberg")
+            .option("start-snapshot-id", snapshotIds.get(2).toString())
+            .option("end-snapshot-id", snapshotIds.get(1).toString())
+            .load(tableLocation)
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
     Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result1);
   }
 
@@ -310,41 +317,34 @@ public class TestDataSourceOptions {
     Map<String, String> options = Maps.newHashMap();
     Table table = tables.create(SCHEMA, spec, options, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
     // produce 1st manifest
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
     // produce 2nd manifest
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
 
     Assert.assertEquals("Must be 2 manifests", 2, manifests.size());
 
     // set the target metadata split size so each manifest ends up in a separate split
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(manifests.get(0).length()))
         .commit();
 
-    Dataset<Row> entriesDf = spark.read()
-        .format("iceberg")
-        .load(tableLocation + "#entries");
+    Dataset<Row> entriesDf = spark.read().format("iceberg").load(tableLocation + "#entries");
     Assert.assertEquals("Num partitions must match", 2, entriesDf.javaRDD().getNumPartitions());
 
     // override the table property using options
-    entriesDf = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
-        .load(tableLocation + "#entries");
+    entriesDf =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SPLIT_SIZE, String.valueOf(128 * 1024 * 1024))
+            .load(tableLocation + "#entries");
     Assert.assertEquals("Num partitions must match", 1, entriesDf.javaRDD().getNumPartitions());
   }
 
@@ -357,24 +357,26 @@ public class TestDataSourceOptions {
     Map<String, String> options = Maps.newHashMap();
     tables.create(SCHEMA, spec, options, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data").write()
-        .format("iceberg")
-        .mode("append")
-        .save(tableLocation);
+    originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // 32MB split size
 
-    int expectedSplits = ((int) tables.load(tableLocation + "#entries")
-        .currentSnapshot().allManifests().get(0).length() + splitSize - 1) / splitSize;
+    int expectedSplits =
+        ((int)
+                    tables
+                        .load(tableLocation + "#entries")
+                        .currentSnapshot()
+                        .allManifests()
+                        .get(0)
+                        .length()
+                + splitSize
+                - 1)
+            / splitSize;
 
-    Dataset<Row> metadataDf = spark.read()
-        .format("iceberg")
-        .load(tableLocation + "#entries");
+    Dataset<Row> metadataDf = spark.read().format("iceberg").load(tableLocation + "#entries");
 
     int partitionNum = metadataDf.javaRDD().getNumPartitions();
     Assert.assertEquals("Spark partitions should match", expectedSplits, partitionNum);
@@ -386,17 +388,17 @@ public class TestDataSourceOptions {
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-            new SimpleRecord(1, "a"),
-            new SimpleRecord(2, "b")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(2, "b"));
     Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    originalDf.select("id", "data").write()
-            .format("iceberg")
-            .mode("append")
-            .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX + ".extra-key", "someValue")
-            .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX + ".another-key", "anotherValue")
-            .save(tableLocation);
+    originalDf
+        .select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX + ".extra-key", "someValue")
+        .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX + ".another-key", "anotherValue")
+        .save(tableLocation);
 
     Table table = tables.load(tableLocation);
 

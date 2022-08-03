@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.sql;
 
 import java.util.List;
@@ -50,54 +49,79 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
   public void testDeleteFromUnpartitionedTable() throws NoSuchTableException {
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
     df.coalesce(1).writeTo(tableName).append();
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-        AnalysisException.class, "Cannot delete from",
+    AssertHelpers.assertThrows(
+        "Should not delete when not all rows of a file match the filter",
+        AnalysisException.class,
+        "Cannot delete from",
         () -> sql("DELETE FROM %s WHERE id < 2", tableName));
 
     sql("DELETE FROM %s WHERE id < 4", tableName);
 
-    assertEquals("Should have no rows after successful delete",
+    assertEquals(
+        "Should have no rows after successful delete",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
-  public void testDeleteFromPartitionedTable() throws NoSuchTableException {
-    sql("CREATE TABLE %s (id bigint, data string) " +
-        "USING iceberg " +
-        "PARTITIONED BY (truncate(id, 2))", tableName);
+  public void testDeleteFromTableAtSnapshot() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
     df.coalesce(1).writeTo(tableName).append();
 
-    assertEquals("Should have 3 rows in 2 partitions",
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    String prefix = "snapshot_id_";
+    AssertHelpers.assertThrows(
+        "Should not be able to delete from a table at a specific snapshot",
+        IllegalArgumentException.class,
+        "Cannot delete from table at a specific snapshot",
+        () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId));
+  }
+
+  @Test
+  public void testDeleteFromPartitionedTable() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(id, 2))",
+        tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    df.coalesce(1).writeTo(tableName).append();
+
+    assertEquals(
+        "Should have 3 rows in 2 partitions",
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-        AnalysisException.class, "Cannot delete from table",
+    AssertHelpers.assertThrows(
+        "Should not delete when not all rows of a file match the filter",
+        AnalysisException.class,
+        "Cannot delete from table",
         () -> sql("DELETE FROM %s WHERE id > 2", tableName));
 
     sql("DELETE FROM %s WHERE id < 2", tableName);
 
-    assertEquals("Should have two rows in the second partition",
+    assertEquals(
+        "Should have two rows in the second partition",
         ImmutableList.of(row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -107,7 +131,8 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -118,7 +143,8 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Delete should not produce a new snapshot", 1, Iterables.size(table.snapshots()));
+    Assert.assertEquals(
+        "Delete should not produce a new snapshot", 1, Iterables.size(table.snapshots()));
   }
 
   @Test
@@ -126,7 +152,8 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
@@ -135,7 +162,8 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
     sql("TRUNCATE TABLE %s", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }

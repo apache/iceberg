@@ -16,14 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -31,30 +34,23 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestTableSerialization {
 
   private static final HadoopTables TABLES = new HadoopTables();
 
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()),
-      optional(4, "double", Types.DoubleType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "data", Types.StringType.get()),
+          required(3, "date", Types.StringType.get()),
+          optional(4, "double", Types.DoubleType.get()));
 
-  private static final PartitionSpec SPEC = PartitionSpec
-      .builderFor(SCHEMA)
-      .identity("date")
-      .build();
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("date").build();
 
-  private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA)
-      .asc("id")
-      .build();
+  private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
   private Table table;
 
   @Before
@@ -69,20 +65,21 @@ public class TestTableSerialization {
 
   @Test
   public void testSerializableTableKryoSerialization() throws IOException {
-    Table serializableTable = SerializableTable.copyOf(table);
-    TestHelpers.assertSerializedAndLoadedMetadata(table, KryoHelpers.roundTripSerialize(serializableTable));
+    Table serializableTable = SerializableTableWithSize.copyOf(table);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        table, KryoHelpers.roundTripSerialize(serializableTable));
   }
 
   @Test
   public void testSerializableMetadataTableKryoSerialization() throws IOException {
     for (MetadataTableType type : MetadataTableType.values()) {
       TableOperations ops = ((HasTableOperations) table).operations();
-      Table metadataTable = MetadataTableUtils.createMetadataTableInstance(ops, table.name(), "meta", type);
-      Table serializableMetadataTable = SerializableTable.copyOf(metadataTable);
+      Table metadataTable =
+          MetadataTableUtils.createMetadataTableInstance(ops, table.name(), "meta", type);
+      Table serializableMetadataTable = SerializableTableWithSize.copyOf(metadataTable);
 
       TestHelpers.assertSerializedAndLoadedMetadata(
-          metadataTable,
-          KryoHelpers.roundTripSerialize(serializableMetadataTable));
+          metadataTable, KryoHelpers.roundTripSerialize(serializableMetadataTable));
     }
   }
 
@@ -90,13 +87,12 @@ public class TestTableSerialization {
   public void testSerializableTransactionTableKryoSerialization() throws IOException {
     Transaction txn = table.newTransaction();
 
-    txn.updateProperties()
-        .set("k1", "v1")
-        .commit();
+    txn.updateProperties().set("k1", "v1").commit();
 
     Table txnTable = txn.table();
-    Table serializableTxnTable = SerializableTable.copyOf(txnTable);
+    Table serializableTxnTable = SerializableTableWithSize.copyOf(txnTable);
 
-    TestHelpers.assertSerializedMetadata(txnTable, KryoHelpers.roundTripSerialize(serializableTxnTable));
+    TestHelpers.assertSerializedMetadata(
+        txnTable, KryoHelpers.roundTripSerialize(serializableTxnTable));
   }
 }

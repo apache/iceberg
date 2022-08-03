@@ -16,23 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.parquet;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.DataTestHelpers;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.apache.parquet.avro.AvroParquetWriter;
+import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.Assert;
+import org.junit.Test;
 
 public class TestGenericData extends DataTest {
   @Override
@@ -42,23 +55,90 @@ public class TestGenericData extends DataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> appender = Parquet.write(Files.localOutput(testFile))
-        .schema(schema)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> appender =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build()) {
       appender.addAll(expected);
     }
 
     List<Record> rows;
-    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
       rows = Lists.newArrayList(reader);
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
       DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+    }
+
+    // test reuseContainers
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .reuseContainers()
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      CloseableIterator it = reader.iterator();
+      int idx = 0;
+      while (it.hasNext()) {
+        GenericRecord actualRecord = (GenericRecord) it.next();
+        DataTestHelpers.assertEquals(schema.asStruct(), expected.get(idx), actualRecord);
+        idx++;
+      }
+    }
+  }
+
+  @Test
+  public void testTwoLevelList() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
+            optional(2, "topbytes", Types.BinaryType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    File testFile = temp.newFile();
+    Assert.assertTrue(testFile.delete());
+
+    ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
+        AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchema)
+            .config("parquet.avro.add-list-element-records", "true")
+            .config("parquet.avro.write-old-list-structure", "true")
+            .build();
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
+    List<ByteBuffer> expectedByteList = new ArrayList();
+    byte[] expectedByte = {0x00, 0x01};
+    ByteBuffer expectedBinary = ByteBuffer.wrap(expectedByte);
+    expectedByteList.add(expectedBinary);
+    recordBuilder.set("arraybytes", expectedByteList);
+    recordBuilder.set("topbytes", expectedBinary);
+    GenericData.Record expectedRecord = recordBuilder.build();
+
+    writer.write(expectedRecord);
+    writer.close();
+
+    // test reuseContainers
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .reuseContainers()
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      CloseableIterator it = reader.iterator();
+      Assert.assertTrue("Should have at least one row", it.hasNext());
+      while (it.hasNext()) {
+        GenericRecord actualRecord = (GenericRecord) it.next();
+        Assert.assertEquals(actualRecord.get(0, ArrayList.class).get(0), expectedBinary);
+        Assert.assertEquals(actualRecord.get(1, ByteBuffer.class), expectedBinary);
+        Assert.assertFalse("Should not have more than one row", it.hasNext());
+      }
     }
   }
 }

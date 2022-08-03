@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -27,25 +26,37 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
 
-  private final PartitioningWriter<T, DataWriteResult> dataWriter;
+  private final PartitioningWriter<T, DataWriteResult> insertWriter;
+  private final PartitioningWriter<T, DataWriteResult> updateWriter;
   private final PartitioningWriter<PositionDelete<T>, DeleteWriteResult> deleteWriter;
   private final PositionDelete<T> positionDelete;
 
   private boolean closed;
 
-  public BasePositionDeltaWriter(PartitioningWriter<T, DataWriteResult> dataWriter,
-                                 PartitioningWriter<PositionDelete<T>, DeleteWriteResult> deleteWriter) {
-    Preconditions.checkArgument(dataWriter != null, "Data writer cannot be null");
+  public BasePositionDeltaWriter(
+      PartitioningWriter<T, DataWriteResult> insertWriter,
+      PartitioningWriter<T, DataWriteResult> updateWriter,
+      PartitioningWriter<PositionDelete<T>, DeleteWriteResult> deleteWriter) {
+    Preconditions.checkArgument(insertWriter != null, "Insert writer cannot be null");
+    Preconditions.checkArgument(updateWriter != null, "Update writer cannot be null");
+    Preconditions.checkArgument(
+        insertWriter != updateWriter, "Update and insert writers must be different");
     Preconditions.checkArgument(deleteWriter != null, "Delete writer cannot be null");
 
-    this.dataWriter = dataWriter;
+    this.insertWriter = insertWriter;
+    this.updateWriter = updateWriter;
     this.deleteWriter = deleteWriter;
     this.positionDelete = PositionDelete.create();
   }
 
   @Override
   public void insert(T row, PartitionSpec spec, StructLike partition) {
-    dataWriter.write(row, spec, partition);
+    insertWriter.write(row, spec, partition);
+  }
+
+  @Override
+  public void update(T row, PartitionSpec spec, StructLike partition) {
+    updateWriter.write(row, spec, partition);
   }
 
   @Override
@@ -58,11 +69,13 @@ public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
   public WriteResult result() {
     Preconditions.checkState(closed, "Cannot get result from unclosed writer");
 
-    DataWriteResult dataWriteResult = dataWriter.result();
+    DataWriteResult insertWriteResult = insertWriter.result();
+    DataWriteResult updateWriteResult = updateWriter.result();
     DeleteWriteResult deleteWriteResult = deleteWriter.result();
 
     return WriteResult.builder()
-        .addDataFiles(dataWriteResult.dataFiles())
+        .addDataFiles(insertWriteResult.dataFiles())
+        .addDataFiles(updateWriteResult.dataFiles())
         .addDeleteFiles(deleteWriteResult.deleteFiles())
         .addReferencedDataFiles(deleteWriteResult.referencedDataFiles())
         .build();
@@ -71,7 +84,8 @@ public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
   @Override
   public void close() throws IOException {
     if (!closed) {
-      dataWriter.close();
+      insertWriter.close();
+      updateWriter.close();
       deleteWriter.close();
 
       this.closed = true;

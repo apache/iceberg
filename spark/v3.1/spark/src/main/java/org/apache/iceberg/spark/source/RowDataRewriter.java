@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
@@ -55,23 +54,25 @@ public class RowDataRewriter implements Serializable {
   private final FileFormat format;
   private final boolean caseSensitive;
 
-  public RowDataRewriter(Broadcast<Table> tableBroadcast, PartitionSpec spec, boolean caseSensitive) {
+  public RowDataRewriter(
+      Broadcast<Table> tableBroadcast, PartitionSpec spec, boolean caseSensitive) {
     this.tableBroadcast = tableBroadcast;
     this.spec = spec;
     this.caseSensitive = caseSensitive;
 
     Table table = tableBroadcast.value();
-    String formatString = table.properties().getOrDefault(
-        TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    String formatString =
+        table
+            .properties()
+            .getOrDefault(
+                TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 
   public List<DataFile> rewriteDataForTasks(JavaRDD<CombinedScanTask> taskRDD) {
     JavaRDD<List<DataFile>> dataFilesRDD = taskRDD.map(this::rewriteDataForTask);
 
-    return dataFilesRDD.collect().stream()
-        .flatMap(Collection::stream)
-        .collect(Collectors.toList());
+    return dataFilesRDD.collect().stream().flatMap(Collection::stream).collect(Collectors.toList());
   }
 
   private List<DataFile> rewriteDataForTask(CombinedScanTask task) throws Exception {
@@ -86,28 +87,44 @@ public class RowDataRewriter implements Serializable {
     RowDataReader dataReader = new RowDataReader(task, table, schema, caseSensitive);
 
     StructType structType = SparkSchemaUtil.convert(schema);
-    SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(table, schema, structType)
-        .spec(spec)
-        .build();
-    OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
-        .defaultSpec(spec)
-        .format(format)
-        .build();
+    SparkAppenderFactory appenderFactory =
+        SparkAppenderFactory.builderFor(table, schema, structType).spec(spec).build();
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, partitionId, taskId)
+            .defaultSpec(spec)
+            .format(format)
+            .build();
 
     TaskWriter<InternalRow> writer;
     if (spec.isUnpartitioned()) {
-      writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, table.io(),
-          Long.MAX_VALUE);
-    } else if (PropertyUtil.propertyAsBoolean(properties,
+      writer =
+          new UnpartitionedWriter<>(
+              spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE);
+    } else if (PropertyUtil.propertyAsBoolean(
+        properties,
         TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
         TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)) {
-      writer = new SparkPartitionedFanoutWriter(
-          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
-          structType);
+      writer =
+          new SparkPartitionedFanoutWriter(
+              spec,
+              format,
+              appenderFactory,
+              fileFactory,
+              table.io(),
+              Long.MAX_VALUE,
+              schema,
+              structType);
     } else {
-      writer = new SparkPartitionedWriter(
-          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
-          structType);
+      writer =
+          new SparkPartitionedWriter(
+              spec,
+              format,
+              appenderFactory,
+              fileFactory,
+              table.io(),
+              Long.MAX_VALUE,
+              schema,
+              structType);
     }
 
     try {
@@ -127,14 +144,24 @@ public class RowDataRewriter implements Serializable {
         LOG.error("Aborting task", originalThrowable);
         context.markTaskFailed(originalThrowable);
 
-        LOG.error("Aborting commit for partition {} (task {}, attempt {}, stage {}.{})",
-            partitionId, taskId, context.attemptNumber(), context.stageId(), context.stageAttemptNumber());
+        LOG.error(
+            "Aborting commit for partition {} (task {}, attempt {}, stage {}.{})",
+            partitionId,
+            taskId,
+            context.attemptNumber(),
+            context.stageId(),
+            context.stageAttemptNumber());
         if (dataReader != null) {
           dataReader.close();
         }
         writer.abort();
-        LOG.error("Aborted commit for partition {} (task {}, attempt {}, stage {}.{})",
-            partitionId, taskId, context.taskAttemptId(), context.stageId(), context.stageAttemptNumber());
+        LOG.error(
+            "Aborted commit for partition {} (task {}, attempt {}, stage {}.{})",
+            partitionId,
+            taskId,
+            context.taskAttemptId(),
+            context.stageId(),
+            context.stageAttemptNumber());
 
       } catch (Throwable inner) {
         if (originalThrowable != inner) {

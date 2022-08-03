@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.Map;
@@ -27,7 +26,6 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
@@ -40,23 +38,26 @@ public class FileRewriteCoordinator {
 
   private final Map<Pair<String, String>, Set<DataFile>> resultMap = Maps.newConcurrentMap();
 
-  private FileRewriteCoordinator() {
-  }
+  private FileRewriteCoordinator() {}
 
   public static FileRewriteCoordinator get() {
     return INSTANCE;
   }
 
   /**
-   * Called to persist the output of a rewrite action for a specific group. Since the write is done via a
-   * Spark Datasource, we have to propagate the result through this side-effect call.
+   * Called to persist the output of a rewrite action for a specific group. Since the write is done
+   * via a Spark Datasource, we have to propagate the result through this side-effect call.
+   *
    * @param table table where the rewrite is occurring
    * @param fileSetID the id used to identify the source set of files being rewritten
    * @param newDataFiles the new files which have been written
    */
   public void stageRewrite(Table table, String fileSetID, Set<DataFile> newDataFiles) {
-    Preconditions.checkArgument(newDataFiles != null && newDataFiles.size() > 0, "Cannot stage null or empty file set");
-    LOG.debug("Staging the output for {} - fileset {} with {} files", table.name(), fileSetID, newDataFiles.size());
+    LOG.debug(
+        "Staging the output for {} - fileset {} with {} files",
+        table.name(),
+        fileSetID,
+        newDataFiles.size());
     Pair<String, String> id = toID(table, fileSetID);
     resultMap.put(id, newDataFiles);
   }
@@ -64,9 +65,8 @@ public class FileRewriteCoordinator {
   public Set<DataFile> fetchNewDataFiles(Table table, String fileSetID) {
     Pair<String, String> id = toID(table, fileSetID);
     Set<DataFile> result = resultMap.get(id);
-    ValidationException.check(result != null,
-        "No results for rewrite of file set %s in table %s",
-        fileSetID, table);
+    ValidationException.check(
+        result != null, "No results for rewrite of file set %s in table %s", fileSetID, table);
 
     return result;
   }

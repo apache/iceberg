@@ -22,8 +22,8 @@ if (jdkVersion != '8') {
 }
 
 def sparkProjects = [
-    project(':iceberg-spark:iceberg-spark2'),
-    project(':iceberg-spark:iceberg-spark-runtime')
+    project(':iceberg-spark:iceberg-spark-2.4'),
+    project(':iceberg-spark:iceberg-spark-runtime-2.4')
 ]
 
 configure(sparkProjects) {
@@ -32,12 +32,14 @@ configure(sparkProjects) {
       resolutionStrategy {
         force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
         force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
+        force 'com.fasterxml.jackson.core:jackson-core:2.11.4'
+        force 'com.fasterxml.jackson.core:jackson-databind:2.11.4'
       }
     }
   }
 }
 
-project(':iceberg-spark:iceberg-spark2') {
+project(':iceberg-spark:iceberg-spark-2.4') {
   configurations.all {
     resolutionStrategy {
       // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
@@ -58,7 +60,6 @@ project(':iceberg-spark:iceberg-spark2') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
-    implementation project(':iceberg-hive-metastore')
     implementation "com.github.ben-manes.caffeine:caffeine"
 
     compileOnly "com.google.errorprone:error_prone_annotations"
@@ -85,6 +86,7 @@ project(':iceberg-spark:iceberg-spark2') {
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
@@ -105,7 +107,7 @@ project(':iceberg-spark:iceberg-spark2') {
 }
 
 // the runtime jar is a self-contained artifact for testing in a notebook
-project(':iceberg-spark:iceberg-spark-runtime') {
+project(':iceberg-spark:iceberg-spark-runtime-2.4') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -125,8 +127,14 @@ project(':iceberg-spark:iceberg-spark-runtime') {
   }
 
   dependencies {
-    implementation project(':iceberg-spark:iceberg-spark2')
+    implementation project(':iceberg-spark:iceberg-spark-2.4')
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
+    implementation project(':iceberg-hive-metastore')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss.mock;
 
 import com.aliyun.oss.OSSErrorCode;
@@ -35,6 +34,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
 import org.apache.directory.api.util.Hex;
@@ -58,7 +58,8 @@ public class AliyunOSSMockLocalStore {
 
   private final ObjectMapper objectMapper = new ObjectMapper();
 
-  public AliyunOSSMockLocalStore(@Value("${" + AliyunOSSMockApp.PROP_ROOT_DIR + ":}") String rootDir) {
+  public AliyunOSSMockLocalStore(
+      @Value("${" + AliyunOSSMockApp.PROP_ROOT_DIR + ":}") String rootDir) {
     Preconditions.checkNotNull(rootDir, "Root directory cannot be null");
     this.root = new File(rootDir);
 
@@ -88,10 +89,11 @@ public class AliyunOSSMockLocalStore {
     while ((numBytes = is.read(bytes)) != -1) {
       md.update(bytes, 0, numBytes);
     }
-    return new String(Hex.encodeHex(md.digest()));
+    return new String(Hex.encodeHex(md.digest())).toUpperCase(Locale.ROOT);
   }
 
-  private static void inputStreamToFile(InputStream inputStream, File targetFile) throws IOException {
+  private static void inputStreamToFile(InputStream inputStream, File targetFile)
+      throws IOException {
     try (OutputStream outputStream = new FileOutputStream(targetFile)) {
       ByteStreams.copy(inputStream, outputStream);
     }
@@ -103,8 +105,9 @@ public class AliyunOSSMockLocalStore {
   }
 
   Bucket getBucket(String bucketName) {
-    List<Bucket> buckets = findBucketsByFilter(file ->
-        Files.isDirectory(file) && file.getFileName().endsWith(bucketName));
+    List<Bucket> buckets =
+        findBucketsByFilter(
+            file -> Files.isDirectory(file) && file.getFileName().endsWith(bucketName));
 
     return buckets.size() > 0 ? buckets.get(0) : null;
   }
@@ -115,8 +118,8 @@ public class AliyunOSSMockLocalStore {
 
     File dir = new File(root, bucket.getName());
     if (Files.walk(dir.toPath()).anyMatch(p -> p.toFile().isFile())) {
-      throw new AliyunOSSMockLocalController.OssException(409, OSSErrorCode.BUCKET_NOT_EMPTY,
-          "The bucket you tried to delete is not empty. ");
+      throw new AliyunOSSMockLocalController.OssException(
+          409, OSSErrorCode.BUCKET_NOT_EMPTY, "The bucket you tried to delete is not empty. ");
     }
 
     FileUtils.deleteDirectory(dir);
@@ -128,7 +131,8 @@ public class AliyunOSSMockLocalStore {
       InputStream dataStream,
       String contentType,
       String contentEncoding,
-      Map<String, String> userMetaData) throws IOException {
+      Map<String, String> userMetaData)
+      throws IOException {
     File bucketDir = new File(root, bucketName);
     assert bucketDir.exists() || bucketDir.mkdirs();
 
@@ -144,12 +148,14 @@ public class AliyunOSSMockLocalStore {
     ObjectMetadata metadata = new ObjectMetadata();
     metadata.setContentLength(dataFile.length());
     metadata.setContentMD5(md5sum(dataFile.getAbsolutePath()));
-    metadata.setContentType(contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE);
+    metadata.setContentType(
+        contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE);
     metadata.setContentEncoding(contentEncoding);
     metadata.setDataFile(dataFile.getAbsolutePath());
     metadata.setMetaFile(metaFile.getAbsolutePath());
 
-    BasicFileAttributes attributes = Files.readAttributes(dataFile.toPath(), BasicFileAttributes.class);
+    BasicFileAttributes attributes =
+        Files.readAttributes(dataFile.toPath(), BasicFileAttributes.class);
     metadata.setLastModificationDate(attributes.lastModifiedTime().toMillis());
 
     metadata.setUserMetaData(userMetaData);

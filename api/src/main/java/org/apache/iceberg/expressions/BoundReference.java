@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.Accessor;
@@ -51,6 +50,19 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
   @Override
   public Type type() {
     return field.type();
+  }
+
+  @Override
+  public boolean isEquivalentTo(BoundTerm<?> other) {
+    if (other instanceof BoundReference) {
+      Types.NestedField otherField = ((BoundReference<?>) other).field();
+      // equivalence only depends on the field ID, type, and optional. name and accessor are ignored
+      return field.fieldId() == otherField.fieldId()
+          && field.type().equals(otherField.type())
+          && field.isOptional() == otherField.isOptional();
+    }
+
+    return other.isEquivalentTo(this);
   }
 
   public int fieldId() {

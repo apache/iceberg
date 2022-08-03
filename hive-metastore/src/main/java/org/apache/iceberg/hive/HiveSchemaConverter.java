@@ -16,10 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hive;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
@@ -30,14 +28,15 @@ import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Package private class for converting Hive schema to Iceberg schema. Should be used only by the HiveSchemaUtil.
- * Use {@link HiveSchemaUtil} for conversion purposes.
+ * Package private class for converting Hive schema to Iceberg schema. Should be used only by the
+ * HiveSchemaUtil. Use {@link HiveSchemaUtil} for conversion purposes.
  */
 class HiveSchemaConverter {
   private static final Logger LOG = LoggerFactory.getLogger(HiveSchemaConverter.class);
@@ -50,7 +49,8 @@ class HiveSchemaConverter {
     this.id = 0;
   }
 
-  static Schema convert(List<String> names, List<TypeInfo> typeInfos, List<String> comments, boolean autoConvert) {
+  static Schema convert(
+      List<String> names, List<TypeInfo> typeInfos, List<String> comments, boolean autoConvert) {
     HiveSchemaConverter converter = new HiveSchemaConverter(autoConvert);
     return new Schema(converter.convertInternal(names, typeInfos, comments));
   }
@@ -60,11 +60,16 @@ class HiveSchemaConverter {
     return converter.convertType(typeInfo);
   }
 
-  List<Types.NestedField> convertInternal(List<String> names, List<TypeInfo> typeInfos, List<String> comments) {
-    List<Types.NestedField> result = new ArrayList<>(names.size());
+  List<Types.NestedField> convertInternal(
+      List<String> names, List<TypeInfo> typeInfos, List<String> comments) {
+    List<Types.NestedField> result = Lists.newArrayListWithExpectedSize(names.size());
     for (int i = 0; i < names.size(); ++i) {
-      result.add(Types.NestedField.optional(id++, names.get(i), convertType(typeInfos.get(i)),
-          (comments.isEmpty() || i >= comments.size()) ? null : comments.get(i)));
+      result.add(
+          Types.NestedField.optional(
+              id++,
+              names.get(i),
+              convertType(typeInfos.get(i)),
+              (comments.isEmpty() || i >= comments.size()) ? null : comments.get(i)));
     }
 
     return result;
@@ -82,7 +87,9 @@ class HiveSchemaConverter {
             return Types.BooleanType.get();
           case BYTE:
           case SHORT:
-            Preconditions.checkArgument(autoConvert, "Unsupported Hive type: %s, use integer instead",
+            Preconditions.checkArgument(
+                autoConvert,
+                "Unsupported Hive type: %s, use integer instead",
                 ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory());
 
             LOG.debug("Using auto conversion from SHORT/BYTE to INTEGER");
@@ -95,7 +102,9 @@ class HiveSchemaConverter {
             return Types.BinaryType.get();
           case CHAR:
           case VARCHAR:
-            Preconditions.checkArgument(autoConvert, "Unsupported Hive type: %s, use string instead",
+            Preconditions.checkArgument(
+                autoConvert,
+                "Unsupported Hive type: %s, use string instead",
                 ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory());
 
             LOG.debug("Using auto conversion from CHAR/VARCHAR to STRING");
@@ -113,18 +122,22 @@ class HiveSchemaConverter {
           case INTERVAL_DAY_TIME:
           default:
             // special case for Timestamp with Local TZ which is only available in Hive3
-            if ("TIMESTAMPLOCALTZ".equalsIgnoreCase(((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory().name())) {
+            if ("TIMESTAMPLOCALTZ"
+                .equalsIgnoreCase(((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory().name())) {
               return Types.TimestampType.withZone();
             }
-            throw new IllegalArgumentException("Unsupported Hive type (" +
-                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
-                ") for Iceberg tables.");
+            throw new IllegalArgumentException(
+                "Unsupported Hive type ("
+                    + ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()
+                    + ") for Iceberg tables.");
         }
       case STRUCT:
         StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;
         List<Types.NestedField> fields =
-            convertInternal(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos(),
-                    Collections.emptyList());
+            convertInternal(
+                structTypeInfo.getAllStructFieldNames(),
+                structTypeInfo.getAllStructFieldTypeInfos(),
+                Collections.emptyList());
         return Types.StructType.of(fields);
       case MAP:
         MapTypeInfo mapTypeInfo = (MapTypeInfo) typeInfo;

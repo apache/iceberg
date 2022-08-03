@@ -18,7 +18,7 @@
 import itertools
 import logging
 from multiprocessing import cpu_count
-from multiprocessing.dummy import Pool
+from multiprocessing import Pool
 
 from iceberg.api.expressions import (InclusiveManifestEvaluator,
                                      ResidualEvaluator)

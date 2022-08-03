@@ -16,25 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
 
 /**
  * Table history entry.
- * <p>
- * An entry contains a change to the table state. At the given timestamp, the current snapshot was
- * set to the given snapshot ID.
+ *
+ * <p>An entry contains a change to the table state. At the given timestamp, the current snapshot
+ * was set to the given snapshot ID.
  */
 public interface HistoryEntry extends Serializable {
-  /**
-   * Returns the timestamp in milliseconds of the change.
-   */
+  /** Returns the timestamp in milliseconds of the change. */
   long timestampMillis();
 
-  /**
-   * Returns ID of the new current snapshot.
-   */
+  /** Returns ID of the new current snapshot. */
   long snapshotId();
 }

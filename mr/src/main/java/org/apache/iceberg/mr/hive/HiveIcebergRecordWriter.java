@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
@@ -39,11 +38,13 @@ import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
-    implements FileSinkOperator.RecordWriter, org.apache.hadoop.mapred.RecordWriter<NullWritable, Container<Record>> {
+    implements FileSinkOperator.RecordWriter,
+        org.apache.hadoop.mapred.RecordWriter<NullWritable, Container<Record>> {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergRecordWriter.class);
 
   // The current key is reused at every write to avoid unnecessary object creation
@@ -52,7 +53,8 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
 
   // <TaskAttemptId, <TABLE_NAME, HiveIcebergRecordWriter>> map to store the active writers
   // Stored in concurrent map, since some executor engines can share containers
-  private static final Map<TaskAttemptID, Map<String, HiveIcebergRecordWriter>> writers = Maps.newConcurrentMap();
+  private static final Map<TaskAttemptID, Map<String, HiveIcebergRecordWriter>> writers =
+      Maps.newConcurrentMap();
 
   static Map<String, HiveIcebergRecordWriter> removeWriters(TaskAttemptID taskAttemptID) {
     return writers.remove(taskAttemptID);
@@ -62,9 +64,16 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
     return writers.get(taskAttemptID);
   }
 
-  HiveIcebergRecordWriter(Schema schema, PartitionSpec spec, FileFormat format,
-      FileAppenderFactory<Record> appenderFactory, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-      TaskAttemptID taskAttemptID, String tableName) {
+  HiveIcebergRecordWriter(
+      Schema schema,
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<Record> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize,
+      TaskAttemptID taskAttemptID,
+      String tableName) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.io = io;
     this.currentKey = new PartitionKey(spec, schema);
@@ -95,13 +104,17 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
     // If abort then remove the unnecessary files
     if (abort) {
       Tasks.foreach(dataFiles)
+          .executeWith(ThreadPools.getWorkerPool())
           .retry(3)
           .suppressFailureWhenFinished()
-          .onFailure((file, exception) -> LOG.debug("Failed on to remove file {} on abort", file, exception))
+          .onFailure(
+              (file, exception) ->
+                  LOG.debug("Failed on to remove file {} on abort", file, exception))
           .run(dataFile -> io.deleteFile(dataFile.path().toString()));
     }
 
-    LOG.info("IcebergRecordWriter is closed with abort={}. Created {} files", abort, dataFiles.length);
+    LOG.info(
+        "IcebergRecordWriter is closed with abort={}. Created {} files", abort, dataFiles.length);
   }
 
   @Override

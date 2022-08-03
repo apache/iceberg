@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.read;
 
 import java.util.Set;
@@ -32,5 +31,23 @@ public interface SupportsFileFilter extends Scan {
    *
    * @param locations file locations
    */
-  void filterFiles(Set<String> locations);
+  SupportsFileFilter.FileFilterMetric filterFiles(Set<String> locations);
+
+  class FileFilterMetric {
+    private int candidateFiles;
+    private int matchingFiles;
+
+    public FileFilterMetric(int candidateFiles, int matchingFiles) {
+      this.candidateFiles = candidateFiles;
+      this.matchingFiles = matchingFiles;
+    }
+
+    public int candidateFiles() {
+      return candidateFiles;
+    }
+
+    public int matchingFiles() {
+      return matchingFiles;
+    }
+  }
 }

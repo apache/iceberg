@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.util.List;
@@ -33,6 +32,7 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -44,8 +44,7 @@ public abstract class FlinkTestBase extends TestBaseUtils {
   public static MiniClusterWithClientResource miniClusterResource =
       MiniClusterResource.createWithClassloaderCheckDisabled();
 
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   private static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
@@ -58,12 +57,14 @@ public abstract class FlinkTestBase extends TestBaseUtils {
     FlinkTestBase.metastore = new TestHiveMetastore();
     metastore.start();
     FlinkTestBase.hiveConf = metastore.hiveConf();
-    FlinkTestBase.catalog = (HiveCatalog)
-        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
+    FlinkTestBase.catalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 
   @AfterClass
-  public static void stopMetastore() {
+  public static void stopMetastore() throws Exception {
     metastore.stop();
     FlinkTestBase.catalog = null;
   }
@@ -72,14 +73,13 @@ public abstract class FlinkTestBase extends TestBaseUtils {
     if (tEnv == null) {
       synchronized (this) {
         if (tEnv == null) {
-          EnvironmentSettings settings = EnvironmentSettings
-              .newInstance()
-              .useBlinkPlanner()
-              .inBatchMode()
-              .build();
+          EnvironmentSettings settings =
+              EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build();
 
           TableEnvironment env = TableEnvironment.create(settings);
-          env.getConfig().getConfiguration().set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+          env.getConfig()
+              .getConfiguration()
+              .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
           tEnv = env;
         }
       }
@@ -102,5 +102,16 @@ public abstract class FlinkTestBase extends TestBaseUtils {
     } catch (Exception e) {
       throw new RuntimeException("Failed to collect table result", e);
     }
+  }
+
+  protected void assertSameElements(Iterable<Row> expected, Iterable<Row> actual) {
+    Assertions.assertThat(actual).isNotNull().containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  protected void assertSameElements(String message, Iterable<Row> expected, Iterable<Row> actual) {
+    Assertions.assertThat(actual)
+        .isNotNull()
+        .as(message)
+        .containsExactlyInAnyOrderElementsOf(expected);
   }
 }

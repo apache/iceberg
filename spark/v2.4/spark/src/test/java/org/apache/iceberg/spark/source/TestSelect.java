@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.Serializable;
@@ -48,15 +49,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestSelect {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get()),
-      optional(3, "doubleVal", Types.DoubleType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()),
+          optional(2, "data", Types.StringType.get()),
+          optional(3, "doubleVal", Types.DoubleType.get()));
 
   private static SparkSession spark;
 
@@ -66,17 +65,17 @@ public class TestSelect {
   private Table table;
 
   static {
-    Listeners.register(event -> {
-      scanEventCount += 1;
-      lastScanEvent = event;
-    }, ScanEvent.class);
+    Listeners.register(
+        event -> {
+          scanEventCount += 1;
+          lastScanEvent = event;
+        },
+        ScanEvent.class);
   }
 
   @BeforeClass
   public static void startSpark() {
-    spark = SparkSession.builder()
-        .master("local[2]")
-        .getOrCreate();
+    spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
   @AfterClass
@@ -86,8 +85,7 @@ public class TestSelect {
     currentSpark.stop();
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private String tableLocation = null;
 
@@ -98,24 +96,21 @@ public class TestSelect {
 
     table = TABLES.create(SCHEMA, tableLocation);
 
-    List<Record> rows = Lists.newArrayList(
-        new Record(1, "a", 1.0),
-        new Record(2, "b", 2.0),
-        new Record(3, "c", Double.NaN)
-    );
+    List<Record> rows =
+        Lists.newArrayList(
+            new Record(1, "a", 1.0), new Record(2, "b", 2.0), new Record(3, "c", Double.NaN));
 
     Dataset<Row> df = spark.createDataFrame(rows, Record.class);
 
-    df.select("id", "data", "doubleVal").write()
+    df.select("id", "data", "doubleVal")
+        .write()
         .format("iceberg")
         .mode("append")
         .save(tableLocation);
 
     table.refresh();
 
-    Dataset<Row> results = spark.read()
-        .format("iceberg")
-        .load(tableLocation);
+    Dataset<Row> results = spark.read().format("iceberg").load(tableLocation);
     results.createOrReplaceTempView("table");
 
     scanEventCount = 0;
@@ -124,10 +119,13 @@ public class TestSelect {
 
   @Test
   public void testSelect() {
-    List<Record> expected = ImmutableList.of(
-        new Record(1, "a", 1.0), new Record(2, "b", 2.0), new Record(3, "c", Double.NaN));
+    List<Record> expected =
+        ImmutableList.of(
+            new Record(1, "a", 1.0), new Record(2, "b", 2.0), new Record(3, "c", Double.NaN));
 
-    Assert.assertEquals("Should return all expected rows", expected,
+    Assert.assertEquals(
+        "Should return all expected rows",
+        expected,
         sql("select * from table", Encoders.bean(Record.class)));
   }
 
@@ -135,7 +133,9 @@ public class TestSelect {
   public void testSelectRewrite() {
     List<Record> expected = ImmutableList.of(new Record(3, "c", Double.NaN));
 
-    Assert.assertEquals("Should return all expected rows", expected,
+    Assert.assertEquals(
+        "Should return all expected rows",
+        expected,
         sql("SELECT * FROM table where doubleVal = double('NaN')", Encoders.bean(Record.class)));
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
 
@@ -144,13 +144,15 @@ public class TestSelect {
     Expression left = ((And) filter).left();
     Expression right = ((And) filter).right();
 
-    Assert.assertEquals("Left expression should be NOT_NULL",
-        Expression.Operation.NOT_NULL, left.op());
-    Assert.assertTrue("Left expression should contain column name 'doubleVal'",
+    Assert.assertEquals(
+        "Left expression should be NOT_NULL", Expression.Operation.NOT_NULL, left.op());
+    Assert.assertTrue(
+        "Left expression should contain column name 'doubleVal'",
         left.toString().contains("doubleVal"));
-    Assert.assertEquals("Right expression should be IS_NAN",
-        Expression.Operation.IS_NAN, right.op());
-    Assert.assertTrue("Right expression should contain column name 'doubleVal'",
+    Assert.assertEquals(
+        "Right expression should be IS_NAN", Expression.Operation.IS_NAN, right.op());
+    Assert.assertTrue(
+        "Right expression should contain column name 'doubleVal'",
         right.toString().contains("doubleVal"));
   }
 
@@ -158,11 +160,14 @@ public class TestSelect {
   public void testProjection() {
     List<Integer> expected = ImmutableList.of(1, 2, 3);
 
-    Assert.assertEquals("Should return all expected rows", expected, sql("SELECT id FROM table", Encoders.INT()));
+    Assert.assertEquals(
+        "Should return all expected rows", expected, sql("SELECT id FROM table", Encoders.INT()));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
-    Assert.assertEquals("Should project only the id column",
+    Assert.assertEquals(
+        "Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
+    Assert.assertEquals(
+        "Should project only the id column",
         table.schema().select("id").asStruct(),
         lastScanEvent.projection().asStruct());
   }
@@ -171,11 +176,14 @@ public class TestSelect {
   public void testExpressionPushdown() {
     List<String> expected = ImmutableList.of("b");
 
-    Assert.assertEquals("Should return all expected rows", expected,
+    Assert.assertEquals(
+        "Should return all expected rows",
+        expected,
         sql("SELECT data FROM table WHERE id = 2", Encoders.STRING()));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should project only id and data columns",
+    Assert.assertEquals(
+        "Should project only id and data columns",
         table.schema().select("id", "data").asStruct(),
         lastScanEvent.projection().asStruct());
   }
@@ -189,8 +197,7 @@ public class TestSelect {
     private String data;
     private Double doubleVal;
 
-    public Record() {
-    }
+    public Record() {}
 
     Record(Integer id, String data, Double doubleVal) {
       this.id = id;
@@ -232,8 +239,9 @@ public class TestSelect {
       }
 
       Record record = (Record) o;
-      return Objects.equal(id, record.id) && Objects.equal(data, record.data) &&
-          Objects.equal(doubleVal, record.doubleVal);
+      return Objects.equal(id, record.id)
+          && Objects.equal(data, record.data)
+          && Objects.equal(doubleVal, record.doubleVal);
     }
 
     @Override

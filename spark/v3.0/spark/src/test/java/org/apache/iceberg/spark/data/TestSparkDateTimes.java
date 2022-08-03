@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
 
 import java.time.ZoneId;
@@ -48,7 +47,6 @@ public class TestSparkDateTimes {
   public void checkSparkDate(String dateString) {
     Literal<Integer> date = Literal.of(dateString).to(Types.DateType.get());
     String sparkDate = DateTimeUtils.toJavaDate(date.value()).toString();
-    System.err.println(dateString + ": " + date.value());
     Assert.assertEquals("Should be the same date (" + date.value() + ")", dateString, sparkDate);
   }
 
@@ -70,8 +68,7 @@ public class TestSparkDateTimes {
     ZoneId zoneId = DateTimeUtils.getZoneId("UTC");
     TimestampFormatter formatter = TimestampFormatter.getFractionFormatter(zoneId);
     String sparkTimestamp = DateTimeUtils.timestampToString(formatter, ts.value());
-    System.err.println(timestampString + ": " + ts.value());
-    Assert.assertEquals("Should be the same timestamp (" + ts.value() + ")",
-        sparkRepr, sparkTimestamp);
+    Assert.assertEquals(
+        "Should be the same timestamp (" + ts.value() + ")", sparkRepr, sparkTimestamp);
   }
 }

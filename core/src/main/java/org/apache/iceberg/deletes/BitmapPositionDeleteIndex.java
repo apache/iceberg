@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.deletes;
 
 import org.roaringbitmap.longlong.Roaring64Bitmap;
@@ -39,7 +38,12 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   }
 
   @Override
-  public boolean deleted(long position) {
+  public boolean isDeleted(long position) {
     return roaring64Bitmap.contains(position);
+  }
+
+  @Override
+  public boolean isEmpty() {
+    return roaring64Bitmap.isEmpty();
   }
 }

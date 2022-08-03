@@ -16,11 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
+
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -33,14 +37,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.execution.ui.SQLExecutionUIData;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import scala.collection.JavaConverters;
 
 public abstract class SparkTestBase {
 
@@ -57,15 +62,18 @@ public abstract class SparkTestBase {
     metastore.start();
     SparkTestBase.hiveConf = metastore.hiveConf();
 
-    SparkTestBase.spark = SparkSession.builder()
-        .master("local[2]")
-        .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-        .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-        .enableHiveSupport()
-        .getOrCreate();
+    SparkTestBase.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
+            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .enableHiveSupport()
+            .getOrCreate();
 
-    SparkTestBase.catalog = (HiveCatalog)
-        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
+    SparkTestBase.catalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
     try {
       catalog.createNamespace(Namespace.of("default"));
@@ -75,7 +83,7 @@ public abstract class SparkTestBase {
   }
 
   @AfterClass
-  public static void stopMetastoreAndSpark() {
+  public static void stopMetastoreAndSpark() throws Exception {
     SparkTestBase.catalog = null;
     metastore.stop();
     SparkTestBase.metastore = null;
@@ -106,22 +114,23 @@ public abstract class SparkTestBase {
 
   private Object[] toJava(Row row) {
     return IntStream.range(0, row.size())
-        .mapToObj(pos -> {
-          if (row.isNullAt(pos)) {
-            return null;
-          }
+        .mapToObj(
+            pos -> {
+              if (row.isNullAt(pos)) {
+                return null;
+              }
 
-          Object value = row.get(pos);
-          if (value instanceof Row) {
-            return toJava((Row) value);
-          } else if (value instanceof scala.collection.Seq) {
-            return row.getList(pos);
-          } else if (value instanceof scala.collection.Map) {
-            return row.getJavaMap(pos);
-          } else {
-            return value;
-          }
-        })
+              Object value = row.get(pos);
+              if (value instanceof Row) {
+                return toJava((Row) value);
+              } else if (value instanceof scala.collection.Seq) {
+                return row.getList(pos);
+              } else if (value instanceof scala.collection.Map) {
+                return row.getJavaMap(pos);
+              } else {
+                return value;
+              }
+            })
         .toArray(Object[]::new);
   }
 
@@ -137,8 +146,10 @@ public abstract class SparkTestBase {
     return values;
   }
 
-  protected void assertEquals(String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
-    Assert.assertEquals(context + ": number of results should match", expectedRows.size(), actualRows.size());
+  protected void assertEquals(
+      String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
+    Assert.assertEquals(
+        context + ": number of results should match", expectedRows.size(), actualRows.size());
     for (int row = 0; row < expectedRows.size(); row += 1) {
       Object[] expected = expectedRows.get(row);
       Object[] actual = actualRows.get(row);
@@ -172,31 +183,74 @@ public abstract class SparkTestBase {
     SQLConf sqlConf = SQLConf.get();
 
     Map<String, String> currentConfValues = Maps.newHashMap();
-    conf.keySet().forEach(confKey -> {
-      if (sqlConf.contains(confKey)) {
-        String currentConfValue = sqlConf.getConfString(confKey);
-        currentConfValues.put(confKey, currentConfValue);
-      }
-    });
+    conf.keySet()
+        .forEach(
+            confKey -> {
+              if (sqlConf.contains(confKey)) {
+                String currentConfValue = sqlConf.getConfString(confKey);
+                currentConfValues.put(confKey, currentConfValue);
+              }
+            });
 
-    conf.forEach((confKey, confValue) -> {
-      if (SQLConf.staticConfKeys().contains(confKey)) {
-        throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
-      }
-      sqlConf.setConfString(confKey, confValue);
-    });
+    conf.forEach(
+        (confKey, confValue) -> {
+          if (SQLConf.staticConfKeys().contains(confKey)) {
+            throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
+          }
+          sqlConf.setConfString(confKey, confValue);
+        });
 
     try {
       action.invoke();
     } finally {
-      conf.forEach((confKey, confValue) -> {
-        if (currentConfValues.containsKey(confKey)) {
-          sqlConf.setConfString(confKey, currentConfValues.get(confKey));
-        } else {
-          sqlConf.unsetConf(confKey);
-        }
-      });
+      conf.forEach(
+          (confKey, confValue) -> {
+            if (currentConfValues.containsKey(confKey)) {
+              sqlConf.setConfString(confKey, currentConfValues.get(confKey));
+            } else {
+              sqlConf.unsetConf(confKey);
+            }
+          });
     }
+  }
+
+  private Map<Long, SQLExecutionUIData> currentExecutionUIDataMap() throws TimeoutException {
+    spark.sparkContext().listenerBus().waitUntilEmpty(10000);
+    return JavaConverters.seqAsJavaList(spark.sharedState().statusStore().executionsList()).stream()
+        .collect(Collectors.toMap(data -> data.executionId(), data -> data));
+  }
+
+  protected void checkMetrics(Callable sparkCallable, Map<String, String> expectedMetrics)
+      throws Exception {
+    Set<Long> originalExecutionIds = currentExecutionUIDataMap().keySet();
+    sparkCallable.call();
+    Map<Long, SQLExecutionUIData> currentExecutions = currentExecutionUIDataMap();
+    Set<Long> currentExecutionIds = currentExecutions.keySet();
+    currentExecutionIds.removeAll(originalExecutionIds);
+    Assert.assertEquals(currentExecutionIds.size(), 1);
+    SQLExecutionUIData currentExecution =
+        currentExecutions.get(currentExecutionIds.stream().findFirst().get());
+
+    Map<Long, String> metricsIds = Maps.newHashMap();
+    JavaConverters.seqAsJavaList(currentExecution.metrics()).stream()
+        .forEach(
+            metricsDeclaration -> {
+              if (expectedMetrics.containsKey(metricsDeclaration.name())) {
+                metricsIds.put(metricsDeclaration.accumulatorId(), metricsDeclaration.name());
+              }
+            });
+    Assert.assertEquals(
+        "Expected metric name not match",
+        expectedMetrics.keySet(),
+        Sets.newHashSet(metricsIds.values()));
+
+    Map<Object, String> currentMetrics =
+        JavaConverters.mapAsJavaMap(
+                spark.sharedState().statusStore().executionMetrics(currentExecution.executionId()))
+            .entrySet().stream()
+            .filter(x -> metricsIds.containsKey(x.getKey()))
+            .collect(Collectors.toMap(x -> metricsIds.get(x.getKey()), x -> x.getValue()));
+    Assert.assertEquals("Expected metric value not match", expectedMetrics, currentMetrics);
   }
 
   @FunctionalInterface

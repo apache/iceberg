@@ -696,6 +696,12 @@ class MapType(NestedType):
     def value_id(self):
         return self.value_field.field_id
 
+    def as_map_type(self):
+        return self
+
+    def is_map_type(self):
+        return True
+
     def is_value_optional(self):
         return self.value_field.is_optional
 
@@ -723,4 +729,4 @@ class MapType(NestedType):
         return MapType.__class__, self.key_field, self.value_field
 
     def _lazy_field_list(self):
-        return tuple(self.key_field, self.value_field)
+        return (self.key_field, self.value_field)

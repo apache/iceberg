@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.ByteArrayInputStream;
@@ -25,8 +24,8 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -71,32 +70,32 @@ public class TestMetricsSerialization {
   }
 
   private static Metrics generateMetrics() {
-    Map<Integer, Long> longMap1 = new HashMap<>();
+    Map<Integer, Long> longMap1 = Maps.newHashMap();
     longMap1.put(1, 2L);
     longMap1.put(3, 4L);
 
-    Map<Integer, Long> longMap2 = new HashMap<>();
+    Map<Integer, Long> longMap2 = Maps.newHashMap();
     longMap2.put(5, 6L);
 
-    Map<Integer, Long> longMap3 = new HashMap<>();
+    Map<Integer, Long> longMap3 = Maps.newHashMap();
     longMap3.put(7, 8L);
 
-    Map<Integer, ByteBuffer> byteMap1 = new HashMap<>();
+    Map<Integer, ByteBuffer> byteMap1 = Maps.newHashMap();
     byteMap1.put(1, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     byteMap1.put(2, ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
 
-    Map<Integer, ByteBuffer> byteMap2 = new HashMap<>();
+    Map<Integer, ByteBuffer> byteMap2 = Maps.newHashMap();
     byteMap1.put(3, ByteBuffer.wrap(new byte[] {1, 2}));
 
     return new Metrics(0L, longMap1, longMap2, longMap3, null, byteMap1, byteMap2);
   }
 
   private static Metrics generateMetricsWithNulls() {
-    Map<Integer, Long> longMap = new HashMap<>();
+    Map<Integer, Long> longMap = Maps.newHashMap();
     longMap.put(null, 1L);
     longMap.put(2, null);
 
-    Map<Integer, ByteBuffer> byteMap = new HashMap<>();
+    Map<Integer, ByteBuffer> byteMap = Maps.newHashMap();
     byteMap.put(null, ByteBuffer.wrap(new byte[] {1, 2, 3}));
     byteMap.put(4, null);
 
@@ -113,7 +112,8 @@ public class TestMetricsSerialization {
     assertEquals(expected.upperBounds(), actual.upperBounds());
   }
 
-  private static void assertEquals(Map<Integer, ByteBuffer> expected, Map<Integer, ByteBuffer> actual) {
+  private static void assertEquals(
+      Map<Integer, ByteBuffer> expected, Map<Integer, ByteBuffer> actual) {
     if (expected == null) {
       Assert.assertNull(actual);
     } else {

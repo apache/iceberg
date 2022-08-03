@@ -60,6 +60,7 @@ class BaseTransaction(Transaction):
     def table(self):
         return self.transaction_table
 
+    # NOTE: function name has typo in the word `comitted`. Kept for backwards compatability in legacy python API.
     def check_last_operation_commited(self, operation):
         if self.last_base == self.current:
             raise RuntimeError("Cannot create new %s: last operation has not committed" % operation)

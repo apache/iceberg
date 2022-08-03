@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
+
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
 import java.io.File;
 import java.io.IOException;
@@ -53,21 +56,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
-
 @RunWith(Parameterized.class)
 public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @Parameterized.Parameters(name = "FileFormat={0}, Partitioned={1}")
   public static Object[] parameters() {
     return new Object[][] {
-        new Object[]{FileFormat.AVRO, false},
-        new Object[]{FileFormat.AVRO, true},
-        new Object[]{FileFormat.PARQUET, false},
-        new Object[]{FileFormat.PARQUET, true},
-        new Object[]{FileFormat.ORC, false},
-        new Object[]{FileFormat.ORC, true}
+      new Object[] {FileFormat.AVRO, false},
+      new Object[] {FileFormat.AVRO, true},
+      new Object[] {FileFormat.PARQUET, false},
+      new Object[] {FileFormat.PARQUET, true},
+      new Object[] {FileFormat.ORC, false},
+      new Object[] {FileFormat.ORC, true}
     };
   }
 
@@ -85,13 +84,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     super(TABLE_FORMAT_VERSION);
     this.fileFormat = fileFormat;
     this.partitioned = partitioned;
-    this.dataRows = ImmutableList.of(
-        toRow(1, "aaa"),
-        toRow(2, "aaa"),
-        toRow(3, "aaa"),
-        toRow(4, "aaa"),
-        toRow(5, "aaa")
-    );
+    this.dataRows =
+        ImmutableList.of(
+            toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"), toRow(5, "aaa"));
   }
 
   protected abstract StructLikeSet toSet(Iterable<T> records);
@@ -100,6 +95,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     return fileFormat;
   }
 
+  @Override
   @Before
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();
@@ -124,9 +120,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
 
-    table.newRowDelta()
-        .addRows(dataFile)
-        .commit();
+    table.newRowDelta().addRows(dataFile).commit();
 
     Assert.assertEquals("Records should match", toSet(dataRows), actualRowSet("*"));
   }
@@ -135,45 +129,33 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   public void testEqualityDeleteWriter() throws IOException {
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
-    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
+    FileWriterFactory<T> writerFactory =
+        newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
 
     // write a data file
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
 
     // commit the written data file
-    table.newRowDelta()
-        .addRows(dataFile)
-        .commit();
+    table.newRowDelta().addRows(dataFile).commit();
 
     // write an equality delete file
-    List<T> deletes = ImmutableList.of(
-        toRow(1, "aaa"),
-        toRow(3, "bbb"),
-        toRow(5, "ccc")
-    );
+    List<T> deletes = ImmutableList.of(toRow(1, "aaa"), toRow(3, "bbb"), toRow(5, "ccc"));
     DeleteFile deleteFile = writeEqualityDeletes(writerFactory, deletes, table.spec(), partition);
 
     // verify the written delete file
     GenericRecord deleteRecord = GenericRecord.create(equalityDeleteRowSchema);
-    List<Record> expectedDeletes = ImmutableList.of(
-        deleteRecord.copy("id", 1),
-        deleteRecord.copy("id", 3),
-        deleteRecord.copy("id", 5)
-    );
+    List<Record> expectedDeletes =
+        ImmutableList.of(
+            deleteRecord.copy("id", 1), deleteRecord.copy("id", 3), deleteRecord.copy("id", 5));
     InputFile inputDeleteFile = table.io().newInputFile(deleteFile.path().toString());
     List<Record> actualDeletes = readFile(equalityDeleteRowSchema, inputDeleteFile);
     Assert.assertEquals("Delete records must match", expectedDeletes, actualDeletes);
 
     // commit the written delete file
-    table.newRowDelta()
-        .addDeletes(deleteFile)
-        .commit();
+    table.newRowDelta().addDeletes(deleteFile).commit();
 
     // verify the delete file is applied correctly
-    List<T> expectedRows = ImmutableList.of(
-        toRow(2, "aaa"),
-        toRow(4, "aaa")
-    );
+    List<T> expectedRows = ImmutableList.of(toRow(2, "aaa"), toRow(4, "aaa"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 
@@ -183,59 +165,49 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
-    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
+    FileWriterFactory<T> writerFactory =
+        newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
 
     // write an unpartitioned data file
     DataFile firstDataFile = writeData(writerFactory, dataRows, table.spec(), partition);
-    Assert.assertEquals("First data file must be unpartitioned", 0, firstDataFile.partition().size());
+    Assert.assertEquals(
+        "First data file must be unpartitioned", 0, firstDataFile.partition().size());
 
-    List<T> deletes = ImmutableList.of(
-        toRow(1, "aaa"),
-        toRow(2, "aaa"),
-        toRow(3, "aaa"),
-        toRow(4, "aaa")
-    );
+    List<T> deletes =
+        ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"));
 
     // write an unpartitioned delete file
-    DeleteFile firstDeleteFile = writeEqualityDeletes(writerFactory, deletes, table.spec(), partition);
-    Assert.assertEquals("First delete file must be unpartitioned", 0, firstDeleteFile.partition().size());
+    DeleteFile firstDeleteFile =
+        writeEqualityDeletes(writerFactory, deletes, table.spec(), partition);
+    Assert.assertEquals(
+        "First delete file must be unpartitioned", 0, firstDeleteFile.partition().size());
 
     // commit the first data and delete files
-    table.newAppend()
-        .appendFile(firstDataFile)
-        .commit();
-    table.newRowDelta()
-        .addDeletes(firstDeleteFile)
-        .commit();
+    table.newAppend().appendFile(firstDataFile).commit();
+    table.newRowDelta().addDeletes(firstDeleteFile).commit();
 
     // evolve the spec
-    table.updateSpec()
-        .addField("data")
-        .commit();
+    table.updateSpec().addField("data").commit();
 
     partition = partitionKey(table.spec(), PARTITION_VALUE);
 
     // write a partitioned data file
     DataFile secondDataFile = writeData(writerFactory, dataRows, table.spec(), partition);
-    Assert.assertEquals("Second data file must be partitioned", 1, secondDataFile.partition().size());
+    Assert.assertEquals(
+        "Second data file must be partitioned", 1, secondDataFile.partition().size());
 
     // write a partitioned delete file
-    DeleteFile secondDeleteFile = writeEqualityDeletes(writerFactory, deletes, table.spec(), partition);
-    Assert.assertEquals("Second delete file must be artitioned", 1, secondDeleteFile.partition().size());
+    DeleteFile secondDeleteFile =
+        writeEqualityDeletes(writerFactory, deletes, table.spec(), partition);
+    Assert.assertEquals(
+        "Second delete file must be artitioned", 1, secondDeleteFile.partition().size());
 
     // commit the second data and delete files
-    table.newAppend()
-        .appendFile(secondDataFile)
-        .commit();
-    table.newRowDelta()
-        .addDeletes(secondDeleteFile)
-        .commit();
+    table.newAppend().appendFile(secondDataFile).commit();
+    table.newRowDelta().addDeletes(secondDeleteFile).commit();
 
     // verify both delete files are applied correctly
-    List<T> expectedRows = ImmutableList.of(
-        toRow(5, "aaa"),
-        toRow(5, "aaa")
-    );
+    List<T> expectedRows = ImmutableList.of(toRow(5, "aaa"), toRow(5, "aaa"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 
@@ -247,28 +219,31 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
 
     // write a position delete file
-    List<PositionDelete<T>> deletes = ImmutableList.of(
-        positionDelete(dataFile.path(), 0L, null),
-        positionDelete(dataFile.path(), 2L, null),
-        positionDelete(dataFile.path(), 4L, null)
-    );
-    Pair<DeleteFile, CharSequenceSet> result = writePositionDeletes(writerFactory, deletes, table.spec(), partition);
+    List<PositionDelete<T>> deletes =
+        ImmutableList.of(
+            positionDelete(dataFile.path(), 0L, null),
+            positionDelete(dataFile.path(), 2L, null),
+            positionDelete(dataFile.path(), 4L, null));
+    Pair<DeleteFile, CharSequenceSet> result =
+        writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
     CharSequenceSet referencedDataFiles = result.second();
 
     // verify the written delete file
     GenericRecord deleteRecord = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
-    List<Record> expectedDeletes = ImmutableList.of(
-        deleteRecord.copy(DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 0L),
-        deleteRecord.copy(DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 2L),
-        deleteRecord.copy(DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 4L)
-    );
+    List<Record> expectedDeletes =
+        ImmutableList.of(
+            deleteRecord.copy(DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 0L),
+            deleteRecord.copy(DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 2L),
+            deleteRecord.copy(
+                DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 4L));
     InputFile inputDeleteFile = table.io().newInputFile(deleteFile.path().toString());
     List<Record> actualDeletes = readFile(DeleteSchemaUtil.pathPosSchema(), inputDeleteFile);
     Assert.assertEquals("Delete records must match", expectedDeletes, actualDeletes);
 
     // commit the data and delete files
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addRows(dataFile)
         .addDeletes(deleteFile)
         .validateDataFilesExist(referencedDataFiles)
@@ -276,10 +251,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
         .commit();
 
     // verify the delete file is applied correctly
-    List<T> expectedRows = ImmutableList.of(
-        toRow(2, "aaa"),
-        toRow(4, "aaa")
-    );
+    List<T> expectedRows = ImmutableList.of(toRow(2, "aaa"), toRow(4, "aaa"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 
@@ -291,29 +263,33 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
 
     // write a position delete file and persist the deleted row
-    List<PositionDelete<T>> deletes = ImmutableList.of(
-        positionDelete(dataFile.path(), 0, dataRows.get(0))
-    );
-    Pair<DeleteFile, CharSequenceSet> result = writePositionDeletes(writerFactory, deletes, table.spec(), partition);
+    List<PositionDelete<T>> deletes =
+        ImmutableList.of(positionDelete(dataFile.path(), 0, dataRows.get(0)));
+    Pair<DeleteFile, CharSequenceSet> result =
+        writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
     CharSequenceSet referencedDataFiles = result.second();
 
-     // verify the written delete file
+    // verify the written delete file
     GenericRecord deletedRow = GenericRecord.create(table.schema());
     Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(table.schema());
     GenericRecord deleteRecord = GenericRecord.create(positionDeleteSchema);
-    Map<String, Object> deleteRecordColumns = ImmutableMap.of(
-        DELETE_FILE_PATH.name(), dataFile.path(),
-        DELETE_FILE_POS.name(), 0L,
-        DELETE_FILE_ROW_FIELD_NAME, deletedRow.copy("id", 1, "data", "aaa")
-    );
+    Map<String, Object> deleteRecordColumns =
+        ImmutableMap.of(
+            DELETE_FILE_PATH.name(),
+            dataFile.path(),
+            DELETE_FILE_POS.name(),
+            0L,
+            DELETE_FILE_ROW_FIELD_NAME,
+            deletedRow.copy("id", 1, "data", "aaa"));
     List<Record> expectedDeletes = ImmutableList.of(deleteRecord.copy(deleteRecordColumns));
     InputFile inputDeleteFile = table.io().newInputFile(deleteFile.path().toString());
     List<Record> actualDeletes = readFile(positionDeleteSchema, inputDeleteFile);
     Assert.assertEquals("Delete records must match", expectedDeletes, actualDeletes);
 
     // commit the data and delete files
-    table.newRowDelta()
+    table
+        .newRowDelta()
         .addRows(dataFile)
         .addDeletes(deleteFile)
         .validateDataFilesExist(referencedDataFiles)
@@ -321,35 +297,37 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
         .commit();
 
     // verify the delete file is applied correctly
-    List<T> expectedRows = ImmutableList.of(
-        toRow(2, "aaa"),
-        toRow(3, "aaa"),
-        toRow(4, "aaa"),
-        toRow(5, "aaa")
-    );
+    List<T> expectedRows =
+        ImmutableList.of(toRow(2, "aaa"), toRow(3, "aaa"), toRow(4, "aaa"), toRow(5, "aaa"));
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
   }
 
-  private DataFile writeData(FileWriterFactory<T> writerFactory, List<T> rows,
-                             PartitionSpec spec, StructLike partitionKey) throws IOException {
+  private DataFile writeData(
+      FileWriterFactory<T> writerFactory, List<T> rows, PartitionSpec spec, StructLike partitionKey)
+      throws IOException {
 
     EncryptedOutputFile file = newOutputFile(spec, partitionKey);
     DataWriter<T> writer = writerFactory.newDataWriter(file, spec, partitionKey);
 
     try (DataWriter<T> closeableWriter = writer) {
       for (T row : rows) {
-        closeableWriter.add(row);
+        closeableWriter.write(row);
       }
     }
 
     return writer.toDataFile();
   }
 
-  private DeleteFile writeEqualityDeletes(FileWriterFactory<T> writerFactory, List<T> deletes,
-                                          PartitionSpec spec, StructLike partitionKey) throws IOException {
+  private DeleteFile writeEqualityDeletes(
+      FileWriterFactory<T> writerFactory,
+      List<T> deletes,
+      PartitionSpec spec,
+      StructLike partitionKey)
+      throws IOException {
 
     EncryptedOutputFile file = newOutputFile(spec, partitionKey);
-    EqualityDeleteWriter<T> writer = writerFactory.newEqualityDeleteWriter(file, spec, partitionKey);
+    EqualityDeleteWriter<T> writer =
+        writerFactory.newEqualityDeleteWriter(file, spec, partitionKey);
 
     try (EqualityDeleteWriter<T> closableWriter = writer) {
       closableWriter.deleteAll(deletes);
@@ -358,13 +336,16 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     return writer.toDeleteFile();
   }
 
-  private Pair<DeleteFile, CharSequenceSet> writePositionDeletes(FileWriterFactory<T> writerFactory,
-                                                                 List<PositionDelete<T>> deletes,
-                                                                 PartitionSpec spec,
-                                                                 StructLike partitionKey) throws IOException {
+  private Pair<DeleteFile, CharSequenceSet> writePositionDeletes(
+      FileWriterFactory<T> writerFactory,
+      List<PositionDelete<T>> deletes,
+      PartitionSpec spec,
+      StructLike partitionKey)
+      throws IOException {
 
     EncryptedOutputFile file = newOutputFile(spec, partitionKey);
-    PositionDeleteWriter<T> writer = writerFactory.newPositionDeleteWriter(file, spec, partitionKey);
+    PositionDeleteWriter<T> writer =
+        writerFactory.newPositionDeleteWriter(file, spec, partitionKey);
 
     try (PositionDeleteWriter<T> closableWriter = writer) {
       for (PositionDelete<T> delete : deletes) {
@@ -378,28 +359,29 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   private List<Record> readFile(Schema schema, InputFile inputFile) throws IOException {
     switch (fileFormat) {
       case PARQUET:
-        try (CloseableIterable<Record> records = Parquet.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-            .build()) {
+        try (CloseableIterable<Record> records =
+            Parquet.read(inputFile)
+                .project(schema)
+                .createReaderFunc(
+                    fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+                .build()) {
 
           return ImmutableList.copyOf(records);
         }
 
       case AVRO:
-        try (CloseableIterable<Record> records = Avro.read(inputFile)
-            .project(schema)
-            .createReaderFunc(DataReader::create)
-            .build()) {
+        try (CloseableIterable<Record> records =
+            Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build()) {
 
           return ImmutableList.copyOf(records);
         }
 
       case ORC:
-        try (CloseableIterable<Record> records = ORC.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
-            .build()) {
+        try (CloseableIterable<Record> records =
+            ORC.read(inputFile)
+                .project(schema)
+                .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+                .build()) {
 
           return ImmutableList.copyOf(records);
         }

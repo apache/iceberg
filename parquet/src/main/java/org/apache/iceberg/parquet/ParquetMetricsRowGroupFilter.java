@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
@@ -132,7 +131,7 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean isNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no null values, the expression cannot match
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -153,7 +152,7 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean notNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has no non-null values, the expression cannot match
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
@@ -203,7 +202,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -233,7 +232,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -263,7 +262,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -293,7 +292,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
@@ -323,7 +322,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
@@ -373,7 +372,7 @@ public class ParquetMetricsRowGroupFilter {
 
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       // When filtering nested types notNull() is implicit filter passed even though complex
       // filters aren't pushed down in Parquet. Leave all nested column type filters to be
@@ -406,14 +405,22 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         T lower = min(colStats, id);
-        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
-        if (literals.isEmpty()) {  // if all values are less than lower bound, rows cannot match.
+        literals =
+            literals.stream()
+                .filter(v -> ref.comparator().compare(lower, v) <= 0)
+                .collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
 
         T upper = max(colStats, id);
-        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
-        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
+        literals =
+            literals.stream()
+                .filter(v -> ref.comparator().compare(upper, v) >= 0)
+                .collect(Collectors.toList());
+        if (literals
+            .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot
+          // match.
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -456,7 +463,9 @@ public class ParquetMetricsRowGroupFilter {
         Binary lower = colStats.genericGetMin();
         // truncate lower bound so that its length in bytes is not greater than the length of prefix
         int lowerLength = Math.min(prefixAsBytes.remaining(), lower.length());
-        int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), lowerLength), prefixAsBytes);
+        int lowerCmp =
+            comparator.compare(
+                BinaryUtil.truncateBinary(lower.toByteBuffer(), lowerLength), prefixAsBytes);
         if (lowerCmp > 0) {
           return ROWS_CANNOT_MATCH;
         }
@@ -464,9 +473,75 @@ public class ParquetMetricsRowGroupFilter {
         Binary upper = colStats.genericGetMax();
         // truncate upper bound so that its length in bytes is not greater than the length of prefix
         int upperLength = Math.min(prefixAsBytes.remaining(), upper.length());
-        int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper.toByteBuffer(), upperLength), prefixAsBytes);
+        int upperCmp =
+            comparator.compare(
+                BinaryUtil.truncateBinary(upper.toByteBuffer(), upperLength), prefixAsBytes);
         if (upperCmp < 0) {
           return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+      Long valueCount = valueCounts.get(id);
+
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (mayContainNull(colStats)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        Binary lower = colStats.genericGetMin();
+        Binary upper = colStats.genericGetMax();
+
+        // notStartsWith will match unless all values must start with the prefix. this happens when
+        // the lower and upper
+        // bounds both start with the prefix.
+        if (lower != null && upper != null) {
+          ByteBuffer prefix = lit.toByteBuffer();
+          Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+          // if lower is shorter than the prefix, it can't start with the prefix
+          if (lower.length() < prefix.remaining()) {
+            return ROWS_MIGHT_MATCH;
+          }
+
+          // truncate lower bound to the prefix and check for equality
+          int cmp =
+              comparator.compare(
+                  BinaryUtil.truncateBinary(lower.toByteBuffer(), prefix.remaining()), prefix);
+          if (cmp == 0) {
+            // the lower bound starts with the prefix; check the upper bound
+            // if upper is shorter than the prefix, it can't start with the prefix
+            if (upper.length() < prefix.remaining()) {
+              return ROWS_MIGHT_MATCH;
+            }
+
+            // truncate upper bound so that its length in bytes is not greater than the length of
+            // prefix
+            cmp =
+                comparator.compare(
+                    BinaryUtil.truncateBinary(upper.toByteBuffer(), prefix.remaining()), prefix);
+            if (cmp == 0) {
+              // both bounds match the prefix, so all rows must match the prefix and none do not
+              // match
+              return ROWS_CANNOT_MATCH;
+            }
+          }
         }
       }
 
@@ -485,37 +560,27 @@ public class ParquetMetricsRowGroupFilter {
   }
 
   /**
-   * Checks against older versions of Parquet statistics which may have a null count but undefined min and max
-   * statistics. Returns true if nonNull values exist in the row group but no further statistics are available.
-   * <p>
-   * We can't use {@code  statistics.hasNonNullValue()} because it is inaccurate with older files and will return
-   * false if min and max are not set.
-   * <p>
-   * This is specifically for 1.5.0-CDH Parquet builds and later which contain the different unusual hasNonNull
-   * behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits the reading of these statistics
-   * from versions of Parquet earlier than 1.8.0.
+   * Checks against older versions of Parquet statistics which may have a null count but undefined
+   * min and max statistics. Returns true if nonNull values exist in the row group but no further
+   * statistics are available.
+   *
+   * <p>We can't use {@code statistics.hasNonNullValue()} because it is inaccurate with older files
+   * and will return false if min and max are not set.
+   *
+   * <p>This is specifically for 1.5.0-CDH Parquet builds and later which contain the different
+   * unusual hasNonNull behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits
+   * the reading of these statistics from versions of Parquet earlier than 1.8.0.
    *
    * @param statistics Statistics to check
    * @param valueCount Number of values in the row group
    * @return true if nonNull values exist and no other stats can be used
    */
   static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
-    return statistics.getNumNulls() < valueCount &&
-        (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
+    return statistics.getNumNulls() < valueCount
+        && (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
   }
 
-  private static Function<Object, Object> converterFor(PrimitiveType parquetType, Type icebergType) {
-    Function<Object, Object> fromParquet = ParquetConversions.converterFromParquet(parquetType);
-    if (icebergType != null) {
-      if (icebergType.typeId() == Type.TypeID.LONG &&
-          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
-        return value -> ((Integer) fromParquet.apply(value)).longValue();
-      } else if (icebergType.typeId() == Type.TypeID.DOUBLE &&
-          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
-        return value -> ((Float) fromParquet.apply(value)).doubleValue();
-      }
-    }
-
-    return fromParquet;
+  private static boolean mayContainNull(Statistics statistics) {
+    return !statistics.isNumNullsSet() || statistics.getNumNulls() > 0;
   }
 }

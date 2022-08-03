@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.util.Objects;
@@ -31,19 +30,20 @@ public class UnknownTransform<S, T> implements Transform<S, T> {
   private final String transform;
 
   UnknownTransform(Type sourceType, String transform) {
-    this.sourceType
-        = sourceType;
+    this.sourceType = sourceType;
     this.transform = transform;
   }
 
   @Override
   public T apply(S value) {
-    throw new UnsupportedOperationException(String.format("Cannot apply unsupported transform: %s", transform));
+    throw new UnsupportedOperationException(
+        String.format("Cannot apply unsupported transform: %s", transform));
   }
 
   @Override
   public boolean canTransform(Type type) {
-    // assume the transform function can be applied for this type because unknown transform is only used when parsing
+    // assume the transform function can be applied for this type because unknown transform is only
+    // used when parsing
     // a transform in an existing table. a different Iceberg version must have already validated it.
     return this.sourceType.equals(type);
   }

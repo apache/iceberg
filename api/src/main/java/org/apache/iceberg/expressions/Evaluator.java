@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
@@ -29,10 +28,10 @@ import org.apache.iceberg.util.NaNUtil;
 
 /**
  * Evaluates an {@link Expression} for data described by a {@link StructType}.
- * <p>
- * Data rows must implement {@link StructLike} and are passed to {@link #eval(StructLike)}.
- * <p>
- * This class is thread-safe.
+ *
+ * <p>Data rows must implement {@link StructLike} and are passed to {@link #eval(StructLike)}.
+ *
+ * <p>This class is thread-safe.
  */
 public class Evaluator implements Serializable {
   private final Expression expr;
@@ -149,7 +148,13 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean startsWith(Bound<T> valueExpr, Literal<T> lit) {
-      return ((String) valueExpr.eval(struct)).startsWith((String) lit.value());
+      T evalRes = valueExpr.eval(struct);
+      return evalRes != null && ((String) evalRes).startsWith((String) lit.value());
+    }
+
+    @Override
+    public <T> Boolean notStartsWith(Bound<T> valueExpr, Literal<T> lit) {
+      return !startsWith(valueExpr, lit);
     }
   }
 }

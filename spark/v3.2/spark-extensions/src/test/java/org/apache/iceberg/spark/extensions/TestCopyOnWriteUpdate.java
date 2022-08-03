@@ -16,19 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Ignore;
 
-@Ignore
 public class TestCopyOnWriteUpdate extends TestUpdate {
 
-  public TestCopyOnWriteUpdate(String catalogName, String implementation, Map<String, String> config,
-                               String fileFormat, boolean vectorized, String distributionMode) {
+  public TestCopyOnWriteUpdate(
+      String catalogName,
+      String implementation,
+      Map<String, String> config,
+      String fileFormat,
+      boolean vectorized,
+      String distributionMode) {
     super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 

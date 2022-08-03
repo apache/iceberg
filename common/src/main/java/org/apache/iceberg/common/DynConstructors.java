@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.common;
 
 import java.lang.reflect.Constructor;
@@ -24,19 +23,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Throwables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-
-/**
- * Copied from parquet-common
- */
+/** Copied from parquet-common */
 public class DynConstructors {
 
-  private DynConstructors() {
-  }
+  private DynConstructors() {}
 
   public static class Ctor<C> extends DynMethods.UnboundMethod {
     private final Constructor<C> ctor;
@@ -80,16 +75,16 @@ public class DynConstructors {
     @Override
     @SuppressWarnings("unchecked")
     public <R> R invoke(Object target, Object... args) {
-      Preconditions.checkArgument(target == null,
-          "Invalid call to constructor: target must be null");
+      Preconditions.checkArgument(
+          target == null, "Invalid call to constructor: target must be null");
       return (R) newInstance(args);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <R> R invokeChecked(Object target, Object... args) throws Exception {
-      Preconditions.checkArgument(target == null,
-          "Invalid call to constructor: target must be null");
+      Preconditions.checkArgument(
+          target == null, "Invalid call to constructor: target must be null");
       return (R) newInstanceChecked(args);
     }
 
@@ -105,8 +100,7 @@ public class DynConstructors {
 
     @Override
     public String toString() {
-      return getClass().getSimpleName() +
-          "(constructor=" + ctor + ", class=" + constructed + ")";
+      return getClass().getSimpleName() + "(constructor=" + ctor + ", class=" + constructed + ")";
     }
   }
 
@@ -122,7 +116,7 @@ public class DynConstructors {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private Ctor ctor = null;
-    private Map<String, Throwable> problems = new HashMap<String, Throwable>();
+    private Map<String, Throwable> problems = Maps.newHashMap();
 
     public Builder(Class<?> baseClass) {
       this.baseClass = baseClass;
@@ -134,8 +128,8 @@ public class DynConstructors {
 
     /**
      * Set the {@link ClassLoader} used to lookup classes by name.
-     * <p>
-     * If not set, the current thread's ClassLoader is used.
+     *
+     * <p>If not set, the current thread's ClassLoader is used.
      *
      * @param newLoader a ClassLoader
      * @return this Builder for method chaining
@@ -223,8 +217,7 @@ public class DynConstructors {
       if (ctor != null) {
         return ctor;
       }
-      throw new NoSuchMethodException("Cannot find constructor for " +
-          baseClass + "\n" + formatProblems(problems));
+      throw buildCheckedException(baseClass, problems);
     }
 
     @SuppressWarnings("unchecked")
@@ -232,8 +225,7 @@ public class DynConstructors {
       if (ctor != null) {
         return ctor;
       }
-      throw new RuntimeException("Cannot find constructor for " +
-          baseClass + "\n" + formatProblems(problems));
+      throw buildRuntimeException(baseClass, problems);
     }
   }
 
@@ -251,6 +243,24 @@ public class DynConstructors {
     }
   }
 
+  private static NoSuchMethodException buildCheckedException(
+      Class<?> baseClass, Map<String, Throwable> problems) {
+    NoSuchMethodException exc =
+        new NoSuchMethodException(
+            "Cannot find constructor for " + baseClass + "\n" + formatProblems(problems));
+    problems.values().forEach(exc::addSuppressed);
+    return exc;
+  }
+
+  private static RuntimeException buildRuntimeException(
+      Class<?> baseClass, Map<String, Throwable> problems) {
+    RuntimeException exc =
+        new RuntimeException(
+            "Cannot find constructor for " + baseClass + "\n" + formatProblems(problems));
+    problems.values().forEach(exc::addSuppressed);
+    return exc;
+  }
+
   private static String formatProblems(Map<String, Throwable> problems) {
     StringBuilder sb = new StringBuilder();
     boolean first = true;
@@ -260,9 +270,13 @@ public class DynConstructors {
       } else {
         sb.append("\n");
       }
-      sb.append("\tMissing ").append(problem.getKey()).append(" [")
-          .append(problem.getValue().getClass().getName()).append(": ")
-          .append(problem.getValue().getMessage()).append("]");
+      sb.append("\tMissing ")
+          .append(problem.getKey())
+          .append(" [")
+          .append(problem.getValue().getClass().getName())
+          .append(": ")
+          .append(problem.getValue().getMessage())
+          .append("]");
     }
     return sb.toString();
   }

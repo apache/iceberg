@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.concurrent.ExecutorService;
@@ -25,30 +24,31 @@ import org.apache.iceberg.io.FileIO;
 
 /**
  * An action that deletes all files referenced by a table metadata file.
- * <p>
- * This action will irreversibly delete all reachable files such as data files, manifests,
- * manifest lists and should be used to clean up the underlying storage once a table is dropped
- * and no longer needed.
- * <p>
- * Implementations may use a query engine to distribute parts of work.
+ *
+ * <p>This action will irreversibly delete all reachable files such as data files, manifests,
+ * manifest lists and should be used to clean up the underlying storage once a table is dropped and
+ * no longer needed.
+ *
+ * <p>Implementations may use a query engine to distribute parts of work.
  */
-public interface DeleteReachableFiles extends Action<DeleteReachableFiles, DeleteReachableFiles.Result> {
+public interface DeleteReachableFiles
+    extends Action<DeleteReachableFiles, DeleteReachableFiles.Result> {
 
   /**
    * Passes an alternative delete implementation that will be used for files.
    *
-   * @param deleteFunc a function that will be called to delete files.
-   *                   The function accepts path to file as an argument.
+   * @param deleteFunc a function that will be called to delete files. The function accepts path to
+   *     file as an argument.
    * @return this for method chaining
    */
   DeleteReachableFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
    * Passes an alternative executor service that will be used for files removal.
-   * <p>
-   * If this method is not called, files will be deleted in the current thread.
    *
-   *  @param executorService the service to use
+   * <p>If this method is not called, files will be deleted in the current thread.
+   *
+   * @param executorService the service to use
    * @return this for method chaining
    */
   DeleteReachableFiles executeDeleteWith(ExecutorService executorService);
@@ -61,29 +61,19 @@ public interface DeleteReachableFiles extends Action<DeleteReachableFiles, Delet
    */
   DeleteReachableFiles io(FileIO io);
 
-  /**
-   * The action result that contains a summary of the execution.
-   */
+  /** The action result that contains a summary of the execution. */
   interface Result {
 
-    /**
-     * Returns the number of deleted data files.
-     */
+    /** Returns the number of deleted data files. */
     long deletedDataFilesCount();
 
-    /**
-     * Returns the number of deleted manifests.
-     */
+    /** Returns the number of deleted manifests. */
     long deletedManifestsCount();
 
-    /**
-     * Returns the number of deleted manifest lists.
-     */
+    /** Returns the number of deleted manifest lists. */
     long deletedManifestListsCount();
 
-    /**
-     * Returns the number of deleted metadata json, version hint files.
-     */
+    /** Returns the number of deleted metadata json, version hint files. */
     long deletedOtherFilesCount();
   }
 }

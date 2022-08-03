@@ -16,12 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-/**
- * Content type stored in a manifest file, either DATA or DELETES.
- */
+/** Content type stored in a manifest file, either DATA or DELETES. */
 public enum ManifestContent {
   DATA(0),
   DELETES(1);
@@ -34,5 +31,15 @@ public enum ManifestContent {
 
   public int id() {
     return id;
+  }
+
+  public static ManifestContent fromId(int id) {
+    switch (id) {
+      case 0:
+        return DATA;
+      case 1:
+        return DELETES;
+    }
+    throw new IllegalArgumentException("Unknown manifest content: " + id);
   }
 }

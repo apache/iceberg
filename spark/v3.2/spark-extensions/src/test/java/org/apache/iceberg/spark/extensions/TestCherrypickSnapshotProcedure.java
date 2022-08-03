@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
+
+import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 
 import java.util.List;
 import java.util.Map;
@@ -34,11 +35,10 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
 import org.junit.Test;
 
-import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
-
 public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
 
-  public TestCherrypickSnapshotProcedure(String catalogName, String implementation, Map<String, String> config) {
+  public TestCherrypickSnapshotProcedure(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -56,26 +56,30 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should not see rows from staged snapshot",
+    assertEquals(
+        "Should not see rows from staged snapshot",
         ImmutableList.of(),
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
-    List<Object[]> output = sql(
-        "CALL %s.system.cherrypick_snapshot('%s', %dL)",
-        catalogName, tableIdent, wapSnapshot.snapshotId());
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.cherrypick_snapshot('%s', %dL)",
+            catalogName, tableIdent, wapSnapshot.snapshotId());
 
     table.refresh();
 
     Snapshot currentSnapshot = table.currentSnapshot();
 
-    assertEquals("Procedure output must match",
+    assertEquals(
+        "Procedure output must match",
         ImmutableList.of(row(wapSnapshot.snapshotId(), currentSnapshot.snapshotId())),
         output);
 
-    assertEquals("Cherrypick must be successful",
+    assertEquals(
+        "Cherrypick must be successful",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", tableName));
   }
@@ -89,26 +93,30 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should not see rows from staged snapshot",
+    assertEquals(
+        "Should not see rows from staged snapshot",
         ImmutableList.of(),
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
-    List<Object[]> output = sql(
-        "CALL %s.system.cherrypick_snapshot(snapshot_id => %dL, table => '%s')",
-        catalogName, wapSnapshot.snapshotId(), tableIdent);
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.cherrypick_snapshot(snapshot_id => %dL, table => '%s')",
+            catalogName, wapSnapshot.snapshotId(), tableIdent);
 
     table.refresh();
 
     Snapshot currentSnapshot = table.currentSnapshot();
 
-    assertEquals("Procedure output must match",
+    assertEquals(
+        "Procedure output must match",
         ImmutableList.of(row(wapSnapshot.snapshotId(), currentSnapshot.snapshotId())),
         output);
 
-    assertEquals("Cherrypick must be successful",
+    assertEquals(
+        "Cherrypick must be successful",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", tableName));
   }
@@ -129,17 +137,20 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should not see rows from staged snapshot",
+    assertEquals(
+        "Should not see rows from staged snapshot",
         ImmutableList.of(),
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
-    sql("CALL %s.system.cherrypick_snapshot('%s', %dL)",
+    sql(
+        "CALL %s.system.cherrypick_snapshot('%s', %dL)",
         catalogName, tableIdent, wapSnapshot.snapshotId());
 
-    assertEquals("Cherrypick snapshot should be visible",
+    assertEquals(
+        "Cherrypick snapshot should be visible",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM tmp"));
 
@@ -150,31 +161,43 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
   public void testCherrypickInvalidSnapshot() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    AssertHelpers.assertThrows("Should reject invalid snapshot id",
-        ValidationException.class, "Cannot cherry pick unknown snapshot id",
+    AssertHelpers.assertThrows(
+        "Should reject invalid snapshot id",
+        ValidationException.class,
+        "Cannot cherry-pick unknown snapshot ID",
         () -> sql("CALL %s.system.cherrypick_snapshot('%s', -1L)", catalogName, tableIdent));
   }
 
   @Test
   public void testInvalidCherrypickSnapshotCases() {
-    AssertHelpers.assertThrows("Should not allow mixed args",
-        AnalysisException.class, "Named and positional arguments cannot be mixed",
+    AssertHelpers.assertThrows(
+        "Should not allow mixed args",
+        AnalysisException.class,
+        "Named and positional arguments cannot be mixed",
         () -> sql("CALL %s.system.cherrypick_snapshot('n', table => 't', 1L)", catalogName));
 
-    AssertHelpers.assertThrows("Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class, "not found",
+    AssertHelpers.assertThrows(
+        "Should not resolve procedures in arbitrary namespaces",
+        NoSuchProcedureException.class,
+        "not found",
         () -> sql("CALL %s.custom.cherrypick_snapshot('n', 't', 1L)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.cherrypick_snapshot('t')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
-        IllegalArgumentException.class, "Cannot handle an empty identifier",
+    AssertHelpers.assertThrows(
+        "Should reject calls with empty table identifier",
+        IllegalArgumentException.class,
+        "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.cherrypick_snapshot('', 1L)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type for snapshot_id: cannot cast",
+    AssertHelpers.assertThrows(
+        "Should reject calls with invalid arg types",
+        AnalysisException.class,
+        "Wrong arg type for snapshot_id: cannot cast",
         () -> sql("CALL %s.system.cherrypick_snapshot('t', 2.2)", catalogName));
   }
 }

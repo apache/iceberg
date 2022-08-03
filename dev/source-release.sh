@@ -30,7 +30,7 @@ usage () {
     echo "  -v      Version number of release"
     echo "  -r      Release candidate number"
     echo "  -k      Specify signing key. Defaults to \"GPG default key\""
-    echo "  -g      Specify Git remote name. Defaults to \"origin\""
+    echo "  -g      Specify Git remote name. Defaults to \"apache\""
     echo "  -d      Turn on DEBUG output"
     exit 1
 }
@@ -38,7 +38,7 @@ usage () {
 # Default repository remote name
 remote="apache"
 
-while getopts "v:r:k:r:d" opt; do
+while getopts "v:r:k:g:d" opt; do
   case "${opt}" in
     v)
       version="${OPTARG}"
@@ -68,6 +68,11 @@ if [ -z "$version" ] || [ -z "$rc" ]; then
   usage
 fi
 
+if ! git ls-remote --exit-code "$remote" >/dev/null 2>&1 ; then
+  echo "The target remote git repository, ${remote}, is not configured in git. Please pass a valid value for the remote git repository to target via the -g switch"
+  usage
+fi
+
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 projectdir="$(dirname "$scriptdir")"
 tmpdir=$projectdir/tmp
@@ -82,11 +87,7 @@ tagrc="${tag}-rc${rc}"
 
 echo "Preparing source for $tagrc"
 
-echo "Adding version.txt and tagging release..."
-echo $version > $projectdir/version.txt
-git add $projectdir/version.txt
-git commit -m "Add version.txt for release $version" $projectdir/version.txt
-
+echo "Creating release candidate tag: $tagrc..."
 set_version_hash=`git rev-list HEAD 2> /dev/null | head -n 1 `
 git tag -am "Apache Iceberg $version" $tagrc $set_version_hash
 
@@ -100,16 +101,25 @@ if [ -z "$release_hash" ]; then
   exit
 fi
 
+echo "Generating version.txt and iceberg-build.properties..."
+echo $version > $projectdir/version.txt
+./gradlew generateGitProperties
+cp $projectdir/build/iceberg-build.properties $projectdir/iceberg-build.properties
+
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
 echo "Creating tarball ${tarball} using commit $release_hash"
 tarball=$tag.tar.gz
-git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$tarball
+git archive $release_hash --worktree-attributes --prefix $tag/ --add-file $projectdir/version.txt --add-file $projectdir/iceberg-build.properties -o $projectdir/$tarball
+
+# remove the uncommitted build files so they don't affect the current working copy
+rm $projectdir/version.txt
+rm $projectdir/iceberg-build.properties
 
 echo "Signing the tarball..."
-[[ -z "$keyid" ]] && keyopt="-u $keyid"
-gpg --detach-sig $keyopt --armor --output ${projectdir}/${tarball}.asc ${projectdir}/$tarball
-shasum -a 512 ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
+[[ -n "$keyid" ]] && keyopt="-u $keyid"
+gpg $keyopt --armor --output ${projectdir}/${tarball}.asc --detach-sig ${projectdir}/$tarball
+shasum -a 512 $tarball > ${projectdir}/${tarball}.sha512
 
 
 echo "Checking out Iceberg RC subversion repo..."
@@ -159,7 +169,7 @@ echo ""
 echo "Commit SHA1: $release_hash"
 echo ""
 echo "We have generated a release announcement email for you here:"
-echo "$projectdir/release_announcement_email.txt"
+echo "$projectdir/release-announcement-email.txt"
 echo ""
 echo "Please note that you must update the Nexus repository URL"
 echo "contained in the mail before sending it out."

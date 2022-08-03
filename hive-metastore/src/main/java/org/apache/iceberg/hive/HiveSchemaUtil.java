@@ -16,10 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hive;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -27,17 +25,17 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-
 public final class HiveSchemaUtil {
 
-  private HiveSchemaUtil() {
-  }
+  private HiveSchemaUtil() {}
 
   /**
    * Converts the Iceberg schema to a Hive schema (list of FieldSchema objects).
+   *
    * @param schema The original Iceberg schema to convert
    * @return The Hive column list generated from the Iceberg schema
    */
@@ -48,8 +46,9 @@ public final class HiveSchemaUtil {
   }
 
   /**
-   * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema. If some of the types are not convertible
-   * then exception is thrown.
+   * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema. If some of the types
+   * are not convertible then exception is thrown.
+   *
    * @param fieldSchemas The list of the columns
    * @return An equivalent Iceberg Schema
    */
@@ -59,16 +58,17 @@ public final class HiveSchemaUtil {
 
   /**
    * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema.
+   *
    * @param fieldSchemas The list of the columns
-   * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
-   *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
-   *                    thrown.
+   * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and
+   *     VARCHAR and CHAR is converted to STRING. Otherwise if these types are used in the Hive
+   *     schema then exception is thrown.
    * @return An equivalent Iceberg Schema
    */
   public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert) {
-    List<String> names = new ArrayList<>(fieldSchemas.size());
-    List<TypeInfo> typeInfos = new ArrayList<>(fieldSchemas.size());
-    List<String> comments = new ArrayList<>(fieldSchemas.size());
+    List<String> names = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
+    List<TypeInfo> typeInfos = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
+    List<String> comments = Lists.newArrayListWithExpectedSize(fieldSchemas.size());
 
     for (FieldSchema col : fieldSchemas) {
       names.add(col.getName());
@@ -80,6 +80,7 @@ public final class HiveSchemaUtil {
 
   /**
    * Converts the Hive partition columns to Iceberg identity partition specification.
+   *
    * @param schema The Iceberg schema
    * @param fieldSchemas The partition column specification
    * @return The Iceberg partition specification
@@ -91,8 +92,9 @@ public final class HiveSchemaUtil {
   }
 
   /**
-   * Converts the Hive list of column names and column types to an Iceberg schema. If some of the types are not
-   * convertible then exception is thrown.
+   * Converts the Hive list of column names and column types to an Iceberg schema. If some of the
+   * types are not convertible then exception is thrown.
+   *
    * @param names The list of the Hive column names
    * @param types The list of the Hive column types
    * @param comments The list of the Hive column comments
@@ -104,20 +106,23 @@ public final class HiveSchemaUtil {
 
   /**
    * Converts the Hive list of column names and column types to an Iceberg schema.
+   *
    * @param names The list of the Hive column names
    * @param types The list of the Hive column types
    * @param comments The list of the Hive column comments, can be null
-   * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
-   *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
-   *                    thrown.
+   * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and
+   *     VARCHAR and CHAR is converted to STRING. Otherwise if these types are used in the Hive
+   *     schema then exception is thrown.
    * @return The Iceberg schema
    */
-  public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments, boolean autoConvert) {
+  public static Schema convert(
+      List<String> names, List<TypeInfo> types, List<String> comments, boolean autoConvert) {
     return HiveSchemaConverter.convert(names, types, comments, autoConvert);
   }
 
   /**
    * Converts an Iceberg type to a Hive TypeInfo object.
+   *
    * @param type The Iceberg type
    * @return The Hive type
    */
@@ -127,6 +132,7 @@ public final class HiveSchemaUtil {
 
   /**
    * Converts a Hive typeInfo object to an Iceberg type.
+   *
    * @param typeInfo The Hive type
    * @return The Iceberg type
    */
@@ -166,16 +172,18 @@ public final class HiveSchemaUtil {
         return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
       case STRUCT:
         final Types.StructType structType = type.asStructType();
-        final String nameToType = structType.fields().stream()
-            .map(f -> String.format("%s:%s", f.name(), convert(f.type())))
-            .collect(Collectors.joining(","));
+        final String nameToType =
+            structType.fields().stream()
+                .map(f -> String.format("%s:%s", f.name(), convert(f.type())))
+                .collect(Collectors.joining(","));
         return String.format("struct<%s>", nameToType);
       case LIST:
         final Types.ListType listType = type.asListType();
         return String.format("array<%s>", convert(listType.elementType()));
       case MAP:
         final Types.MapType mapType = type.asMapType();
-        return String.format("map<%s,%s>", convert(mapType.keyType()), convert(mapType.valueType()));
+        return String.format(
+            "map<%s,%s>", convert(mapType.keyType()), convert(mapType.valueType()));
       default:
         throw new UnsupportedOperationException(type + " is not supported");
     }

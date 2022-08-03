@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
@@ -28,7 +27,9 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
@@ -41,23 +42,29 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final Schema schema;
   private final Schema deleteSchema;
   private final RowDataWrapper wrapper;
+  private final RowDataWrapper keyWrapper;
+  private final RowDataProjection keyProjection;
   private final boolean upsert;
 
-  BaseDeltaTaskWriter(PartitionSpec spec,
-                      FileFormat format,
-                      FileAppenderFactory<RowData> appenderFactory,
-                      OutputFileFactory fileFactory,
-                      FileIO io,
-                      long targetFileSize,
-                      Schema schema,
-                      RowType flinkSchema,
-                      List<Integer> equalityFieldIds,
-                      boolean upsert) {
+  BaseDeltaTaskWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<RowData> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize,
+      Schema schema,
+      RowType flinkSchema,
+      List<Integer> equalityFieldIds,
+      boolean upsert) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
     this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     this.upsert = upsert;
+    this.keyWrapper =
+        new RowDataWrapper(FlinkSchemaUtil.convert(deleteSchema), deleteSchema.asStruct());
+    this.keyProjection = RowDataProjection.create(schema, deleteSchema);
   }
 
   abstract RowDataDeltaWriter route(RowData row);
@@ -74,14 +81,15 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       case INSERT:
       case UPDATE_AFTER:
         if (upsert) {
-          writer.delete(row);
+          writer.deleteKey(keyProjection.wrap(row));
         }
         writer.write(row);
         break;
 
       case UPDATE_BEFORE:
         if (upsert) {
-          break;  // UPDATE_BEFORE is not necessary for UPDATE, we do nothing to prevent delete one row twice
+          break; // UPDATE_BEFORE is not necessary for UPSERT, we do nothing to prevent delete one
+          // row twice
         }
         writer.delete(row);
         break;
@@ -102,6 +110,11 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     @Override
     protected StructLike asStructLike(RowData data) {
       return wrapper.wrap(data);
+    }
+
+    @Override
+    protected StructLike asStructLikeKey(RowData data) {
+      return keyWrapper.wrap(data);
     }
   }
 }

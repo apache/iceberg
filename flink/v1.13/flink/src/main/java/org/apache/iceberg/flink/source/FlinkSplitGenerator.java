@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -27,27 +26,38 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 
 class FlinkSplitGenerator {
-  private FlinkSplitGenerator() {
-  }
+  private FlinkSplitGenerator() {}
 
   static FlinkInputSplit[] createInputSplits(Table table, ScanContext context) {
     List<CombinedScanTask> tasks = tasks(table, context);
     FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
-    for (int i = 0; i < tasks.size(); i++) {
-      splits[i] = new FlinkInputSplit(i, tasks.get(i));
-    }
+    boolean exposeLocality = context.exposeLocality();
+
+    Tasks.range(tasks.size())
+        .stopOnFailure()
+        .executeWith(exposeLocality ? ThreadPools.getWorkerPool() : null)
+        .run(
+            index -> {
+              CombinedScanTask task = tasks.get(index);
+              String[] hostnames = null;
+              if (exposeLocality) {
+                hostnames = Util.blockLocations(table.io(), task);
+              }
+              splits[index] = new FlinkInputSplit(index, task, hostnames);
+            });
     return splits;
   }
 
   private static List<CombinedScanTask> tasks(Table table, ScanContext context) {
-    TableScan scan = table
-        .newScan()
-        .caseSensitive(context.caseSensitive())
-        .project(context.project());
+    TableScan scan =
+        table.newScan().caseSensitive(context.caseSensitive()).project(context.project());
 
     if (context.snapshotId() != null) {
       scan = scan.useSnapshot(context.snapshotId());
@@ -74,7 +84,8 @@ class FlinkSplitGenerator {
     }
 
     if (context.splitOpenFileCost() != null) {
-      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
+      scan =
+          scan.option(TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
     }
 
     if (context.filters() != null) {

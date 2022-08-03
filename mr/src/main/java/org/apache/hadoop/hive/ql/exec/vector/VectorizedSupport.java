@@ -16,26 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.hadoop.hive.ql.exec.vector;
 
-import java.util.HashMap;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-/**
- * Copied here from Hive for compatibility
- */
+/** Copied here from Hive for compatibility */
 @SuppressWarnings("VisibilityModifier")
 public class VectorizedSupport {
   public enum Support {
     DECIMAL_64;
 
     final String lowerCaseName;
+
     Support() {
       this.lowerCaseName = name().toLowerCase();
     }
 
-    public static final Map<String, Support> nameToSupportMap = new HashMap<>();
+    public static final Map<String, Support> nameToSupportMap = Maps.newHashMap();
+
     static {
       for (Support support : values()) {
         nameToSupportMap.put(support.lowerCaseName, support);

@@ -16,49 +16,42 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.util.List;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
- * A data writer capable of writing to multiple specs and partitions that keeps data writers for each
- * seen spec/partition pair open until this writer is closed.
+ * A data writer capable of writing to multiple specs and partitions that keeps data writers for
+ * each seen spec/partition pair open until this writer is closed.
  */
 public class FanoutDataWriter<T> extends FanoutWriter<T, DataWriteResult> {
 
   private final FileWriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
   private final FileIO io;
-  private final FileFormat fileFormat;
   private final long targetFileSizeInBytes;
   private final List<DataFile> dataFiles;
 
-  public FanoutDataWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                          FileIO io, FileFormat fileFormat, long targetFileSizeInBytes) {
+  public FanoutDataWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
-    this.fileFormat = fileFormat;
     this.targetFileSizeInBytes = targetFileSizeInBytes;
     this.dataFiles = Lists.newArrayList();
   }
 
   @Override
   protected FileWriter<T, DataWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
-    // TODO: support ORC rolling writers
-    if (fileFormat == FileFormat.ORC) {
-      EncryptedOutputFile outputFile = newOutputFile(fileFactory, spec, partition);
-      return writerFactory.newDataWriter(outputFile, spec, partition);
-    } else {
-      return new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
-    }
+    return new RollingDataWriter<>(
+        writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
   }
 
   @Override

@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.Map;
 
-/**
- * An action that creates an independent snapshot of an existing table.
- */
+/** An action that creates an independent snapshot of an existing table. */
 public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Result> {
   /**
    * Sets the table identifier for the newly created Iceberg table.
@@ -42,8 +39,8 @@ public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Resul
   SnapshotTable tableLocation(String location);
 
   /**
-   * Sets table properties in the newly created Iceberg table. Any properties with
-   * the same key name will be overwritten.
+   * Sets table properties in the newly created Iceberg table. Any properties with the same key name
+   * will be overwritten.
    *
    * @param properties a map of properties to be included
    * @return this for method chaining
@@ -51,22 +48,18 @@ public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Resul
   SnapshotTable tableProperties(Map<String, String> properties);
 
   /**
-   * Sets a table property in the newly created Iceberg table. Any properties
-   * with the same key name will be overwritten.
+   * Sets a table property in the newly created Iceberg table. Any properties with the same key name
+   * will be overwritten.
    *
-   * @param key   the key of the property to add
+   * @param key the key of the property to add
    * @param value the value of the property to add
    * @return this for method chaining
    */
   SnapshotTable tableProperty(String key, String value);
 
-  /**
-   * The action result that contains a summary of the execution.
-   */
+  /** The action result that contains a summary of the execution. */
   interface Result {
-    /**
-     * Returns the number of imported data files.
-     */
+    /** Returns the number of imported data files. */
     long importedDataFilesCount();
   }
 }

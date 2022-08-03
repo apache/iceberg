@@ -16,18 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.util.PartitionSet;
 
-public class BaseReplacePartitions
-    extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
+public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartitions>
+    implements ReplacePartitions {
+
+  private final PartitionSet replacedPartitions;
+  private Long startingSnapshotId;
+  private boolean validateConflictingData = false;
+  private boolean validateConflictingDeletes = false;
+
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
+    replacedPartitions = PartitionSet.create(ops.current().specsById());
   }
 
   @Override
@@ -43,6 +50,7 @@ public class BaseReplacePartitions
   @Override
   public ReplacePartitions addFile(DataFile file) {
     dropPartition(file.specId(), file.partition());
+    replacedPartitions.add(file.specId(), file.partition());
     add(file);
     return this;
   }
@@ -51,6 +59,45 @@ public class BaseReplacePartitions
   public ReplacePartitions validateAppendOnly() {
     failAnyDelete();
     return this;
+  }
+
+  @Override
+  public ReplacePartitions validateFromSnapshot(long newStartingSnapshotId) {
+    this.startingSnapshotId = newStartingSnapshotId;
+    return this;
+  }
+
+  @Override
+  public ReplacePartitions validateNoConflictingDeletes() {
+    this.validateConflictingDeletes = true;
+    return this;
+  }
+
+  @Override
+  public ReplacePartitions validateNoConflictingData() {
+    this.validateConflictingData = true;
+    return this;
+  }
+
+  @Override
+  public void validate(TableMetadata currentMetadata) {
+    if (validateConflictingData) {
+      if (dataSpec().isUnpartitioned()) {
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+      } else {
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+      }
+    }
+
+    if (validateConflictingDeletes) {
+      if (dataSpec().isUnpartitioned()) {
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue());
+      } else {
+        validateDeletedDataFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+        validateNoNewDeleteFiles(currentMetadata, startingSnapshotId, replacedPartitions);
+      }
+    }
   }
 
   @Override

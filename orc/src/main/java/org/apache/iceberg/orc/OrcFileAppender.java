@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -42,30 +42,46 @@ import org.apache.orc.StripeInformation;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/**
- * Create a file appender for ORC.
- */
+/** Create a file appender for ORC. */
 class OrcFileAppender<D> implements FileAppender<D> {
+  private static final Logger LOG = LoggerFactory.getLogger(OrcFileAppender.class);
+
   private final int batchSize;
   private final OutputFile file;
   private final Writer writer;
   private final VectorizedRowBatch batch;
+  private final int avgRowByteSize;
   private final OrcRowWriter<D> valueWriter;
   private boolean isClosed = false;
   private final Configuration conf;
   private final MetricsConfig metricsConfig;
 
-  OrcFileAppender(Schema schema, OutputFile file,
-                  BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc,
-                  Configuration conf, Map<String, byte[]> metadata,
-                  int batchSize, MetricsConfig metricsConfig) {
+  OrcFileAppender(
+      Schema schema,
+      OutputFile file,
+      BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc,
+      Configuration conf,
+      Map<String, byte[]> metadata,
+      int batchSize,
+      MetricsConfig metricsConfig) {
     this.conf = conf;
     this.file = file;
     this.batchSize = batchSize;
     this.metricsConfig = metricsConfig;
 
     TypeDescription orcSchema = ORCSchemaUtil.convert(schema);
+
+    this.avgRowByteSize =
+        OrcSchemaVisitor.visitSchema(orcSchema, new EstimateOrcAvgWidthVisitor()).stream()
+            .reduce(Integer::sum)
+            .orElse(0);
+    if (avgRowByteSize == 0) {
+      LOG.warn("The average length of the rows appears to be zero.");
+    }
+
     this.batch = orcSchema.createRowBatch(this.batchSize);
 
     OrcFile.WriterOptions options = OrcFile.writerOptions(conf).useUTCTimestamp(true);
@@ -74,6 +90,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     }
     options.setSchema(orcSchema);
     this.writer = newOrcWriter(file, options, metadata);
+
     this.valueWriter = newOrcRowWriter(schema, orcSchema, createWriterFunc);
   }
 
@@ -86,22 +103,45 @@ class OrcFileAppender<D> implements FileAppender<D> {
         batch.reset();
       }
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Problem writing to ORC file %s", file.location());
+      throw new UncheckedIOException(
+          String.format("Problem writing to ORC file %s", file.location()), ioe);
     }
   }
 
   @Override
   public Metrics metrics() {
-    Preconditions.checkState(isClosed,
-        "Cannot return metrics while appending to an open file.");
+    Preconditions.checkState(isClosed, "Cannot return metrics while appending to an open file.");
     return OrcMetrics.fromWriter(writer, valueWriter.metrics(), metricsConfig);
   }
 
   @Override
   public long length() {
-    Preconditions.checkState(isClosed,
-        "Cannot return length while appending to an open file.");
-    return file.toInputFile().getLength();
+    if (isClosed) {
+      return file.toInputFile().getLength();
+    }
+
+    long estimateMemory = writer.estimateMemory();
+
+    long dataLength = 0;
+    try {
+      List<StripeInformation> stripes = writer.getStripes();
+      if (!stripes.isEmpty()) {
+        StripeInformation stripeInformation = stripes.get(stripes.size() - 1);
+        dataLength =
+            stripeInformation != null
+                ? stripeInformation.getOffset() + stripeInformation.getLength()
+                : 0;
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(
+          String.format(
+              "Can't get Stripe's length from the file writer with path: %s.", file.location()),
+          e);
+    }
+
+    // This value is estimated, not actual.
+    return (long)
+        Math.ceil(dataLength + (estimateMemory + (long) batch.size * avgRowByteSize) * 0.2);
   }
 
   @Override
@@ -130,8 +170,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
     }
   }
 
-  private static Writer newOrcWriter(OutputFile file,
-                                     OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
+  private static Writer newOrcWriter(
+      OutputFile file, OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
     final Path locPath = new Path(file.location());
     final Writer writer;
 
@@ -147,10 +187,10 @@ class OrcFileAppender<D> implements FileAppender<D> {
   }
 
   @SuppressWarnings("unchecked")
-  private static <D> OrcRowWriter<D> newOrcRowWriter(Schema schema,
-                                                     TypeDescription orcSchema,
-                                                     BiFunction<Schema, TypeDescription, OrcRowWriter<?>>
-                                                         createWriterFunc) {
+  private static <D> OrcRowWriter<D> newOrcRowWriter(
+      Schema schema,
+      TypeDescription orcSchema,
+      BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc) {
     return (OrcRowWriter<D>) createWriterFunc.apply(schema, orcSchema);
   }
 }

@@ -56,6 +56,7 @@ public class TestS3MultipartUpload {
     prefix = UUID.randomUUID().toString();
     properties = new AwsProperties();
     properties.setS3FileIoMultiPartSize(AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN);
+    properties.setS3ChecksumEnabled(true);
     io = new S3FileIO(() -> s3, properties);
   }
 

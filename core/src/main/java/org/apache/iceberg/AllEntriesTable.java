@@ -16,28 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-import java.io.IOException;
-import java.util.List;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.ManifestEntriesTable.ManifestReadTask;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.ParallelIterable;
-import org.apache.iceberg.util.ThreadPools;
 
 /**
- * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
- * <p>
- * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
- * use {@link DataFilesTable}.
+ * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete
+ * and data files.
+ *
+ * <p>WARNING: this table exposes internal details, like files that have been deleted. For a table
+ * of the live data files, use {@link DataFilesTable}.
  */
 public class AllEntriesTable extends BaseMetadataTable {
 
@@ -59,7 +54,8 @@ public class AllEntriesTable extends BaseMetadataTable {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = ManifestEntry.getSchema(partitionType);
     if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
+      // avoid returning an empty struct, which is not always supported. instead, drop the partition
+      // field (id 102)
       return TypeUtil.selectNot(schema, Sets.newHashSet(102));
     } else {
       return schema;
@@ -74,46 +70,34 @@ public class AllEntriesTable extends BaseMetadataTable {
   private static class Scan extends BaseAllMetadataTableScan {
 
     Scan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema);
+      super(ops, table, schema, MetadataTableType.ALL_ENTRIES);
     }
 
     private Scan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, context);
+      super(ops, table, schema, MetadataTableType.ALL_ENTRIES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
-                                       TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new Scan(ops, table, schema, context);
     }
 
     @Override
-    protected String tableType() {
-      return MetadataTableType.ALL_ENTRIES.name();
-    }
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
+      CloseableIterable<ManifestFile> manifests =
+          reachableManifests(snapshot -> snapshot.allManifests(tableOps().io()));
 
-    @Override
-    protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = allManifestFiles(ops.current().snapshots());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      return CloseableIterable.transform(manifests, manifest -> new ManifestEntriesTable.ManifestReadTask(
-          ops.io(), manifest, schema(), schemaString, specString, residuals, ops.current().specsById()));
-    }
-  }
-
-  private static CloseableIterable<ManifestFile> allManifestFiles(List<Snapshot> snapshots) {
-    try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-        Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.allManifests().iterator()),
-        ThreadPools.getWorkerPool())) {
-      return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close parallel iterable");
+      return CloseableIterable.transform(
+          manifests,
+          manifest ->
+              new ManifestReadTask(
+                  table(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 }

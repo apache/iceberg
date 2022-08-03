@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws;
 
 import java.util.Map;
@@ -32,7 +31,8 @@ public class TestAwsProperties {
   public void testS3FileIoSseCustom_mustHaveCustomKey() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_SSE_TYPE, AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM);
-    AssertHelpers.assertThrows("must have key for SSE-C",
+    AssertHelpers.assertThrows(
+        "must have key for SSE-C",
         NullPointerException.class,
         "Cannot initialize SSE-C S3FileIO with null encryption key",
         () -> new AwsProperties(map));
@@ -43,7 +43,8 @@ public class TestAwsProperties {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_SSE_TYPE, AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM);
     map.put(AwsProperties.S3FILEIO_SSE_KEY, "something");
-    AssertHelpers.assertThrows("must have md5 for SSE-C",
+    AssertHelpers.assertThrows(
+        "must have md5 for SSE-C",
         NullPointerException.class,
         "Cannot initialize SSE-C S3FileIO with null encryption key MD5",
         () -> new AwsProperties(map));
@@ -61,7 +62,8 @@ public class TestAwsProperties {
   public void testS3FileIoAcl_unknownType() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_ACL, "bad-input");
-    AssertHelpers.assertThrows("should not accept bad input",
+    AssertHelpers.assertThrows(
+        "should not accept bad input",
         IllegalArgumentException.class,
         "Cannot support S3 CannedACL bad-input",
         () -> new AwsProperties(map));
@@ -71,7 +73,8 @@ public class TestAwsProperties {
   public void testS3MultipartSizeTooSmall() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_MULTIPART_SIZE, "1");
-    AssertHelpers.assertThrows("should not accept small part size",
+    AssertHelpers.assertThrows(
+        "should not accept small part size",
         IllegalArgumentException.class,
         "Minimum multipart upload object size must be larger than 5 MB",
         () -> new AwsProperties(map));
@@ -81,7 +84,8 @@ public class TestAwsProperties {
   public void testS3MultipartSizeTooLarge() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_MULTIPART_SIZE, "5368709120"); // 5GB
-    AssertHelpers.assertThrows("should not accept too big part size",
+    AssertHelpers.assertThrows(
+        "should not accept too big part size",
         IllegalArgumentException.class,
         "Input malformed or exceeded maximum multipart upload size 5GB",
         () -> new AwsProperties(map));
@@ -91,10 +95,32 @@ public class TestAwsProperties {
   public void testS3MultipartThresholdFactorLessThanOne() {
     Map<String, String> map = Maps.newHashMap();
     map.put(AwsProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR, "0.9");
-    AssertHelpers.assertThrows("should not accept factor less than 1",
+    AssertHelpers.assertThrows(
+        "should not accept factor less than 1",
         IllegalArgumentException.class,
         "Multipart threshold factor must be >= to 1.0",
         () -> new AwsProperties(map));
   }
 
+  @Test
+  public void testS3FileIoDeleteBatchSizeTooLarge() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(AwsProperties.S3FILEIO_DELETE_BATCH_SIZE, "2000");
+    AssertHelpers.assertThrows(
+        "should not accept batch size greater than 1000",
+        IllegalArgumentException.class,
+        "Deletion batch size must be between 1 and 1000",
+        () -> new AwsProperties(map));
+  }
+
+  @Test
+  public void testS3FileIoDeleteBatchSizeTooSmall() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(AwsProperties.S3FILEIO_DELETE_BATCH_SIZE, "0");
+    AssertHelpers.assertThrows(
+        "should not accept batch size less than 1",
+        IllegalArgumentException.class,
+        "Deletion batch size must be between 1 and 1000",
+        () -> new AwsProperties(map));
+  }
 }

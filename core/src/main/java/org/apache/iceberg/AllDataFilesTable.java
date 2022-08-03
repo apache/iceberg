@@ -16,31 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-import java.io.IOException;
-import java.util.List;
-import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.ParallelIterable;
-import org.apache.iceberg.util.ThreadPools;
 
 /**
  * A {@link Table} implementation that exposes a table's valid data files as rows.
- * <p>
- * A valid data file is one that is readable from any snapshot currently tracked by the table.
- * <p>
- * This table may return duplicate rows.
+ *
+ * <p>A valid data file is one that is readable from any snapshot currently tracked by the table.
+ *
+ * <p>This table may return duplicate rows.
  */
-public class AllDataFilesTable extends BaseMetadataTable {
+public class AllDataFilesTable extends BaseFilesTable {
 
   AllDataFilesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".all_data_files");
@@ -56,78 +43,30 @@ public class AllDataFilesTable extends BaseMetadataTable {
   }
 
   @Override
-  public Schema schema() {
-    StructType partitionType = Partitioning.partitionType(table());
-    Schema schema = new Schema(DataFile.getType(partitionType).fields());
-    if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
-    } else {
-      return schema;
-    }
-  }
-
-  @Override
   MetadataTableType metadataTableType() {
     return MetadataTableType.ALL_DATA_FILES;
   }
 
-  public static class AllDataFilesTableScan extends BaseAllMetadataTableScan {
-    private final Schema fileSchema;
+  public static class AllDataFilesTableScan extends BaseAllFilesTableScan {
 
-    AllDataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema);
-      this.fileSchema = fileSchema;
+    AllDataFilesTableScan(TableOperations ops, Table table, Schema schema) {
+      super(ops, table, schema, MetadataTableType.ALL_DATA_FILES);
     }
 
-    private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
-                                  TableScanContext context) {
-      super(ops, table, schema, context);
-      this.fileSchema = fileSchema;
+    private AllDataFilesTableScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      super(ops, table, schema, MetadataTableType.ALL_DATA_FILES, context);
     }
 
     @Override
-    protected String tableType() {
-      return MetadataTableType.ALL_DATA_FILES.name();
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      return new AllDataFilesTableScan(ops, table, schema, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllDataFilesTableScan(ops, table, schema, fileSchema, context);
-    }
-
-    @Override
-    public TableScan useSnapshot(long scanSnapshotId) {
-      throw new UnsupportedOperationException("Cannot select snapshot: all_data_files is for all snapshots");
-    }
-
-    @Override
-    public TableScan asOfTime(long timestampMillis) {
-      throw new UnsupportedOperationException("Cannot select snapshot: all_data_files is for all snapshots");
-    }
-
-    @Override
-    protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = allDataManifestFiles(ops.current().snapshots());
-      String schemaString = SchemaParser.toJson(schema());
-      String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
-      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
-
-      return CloseableIterable.transform(manifests, manifest ->
-          new DataFilesTable.ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals));
-    }
-  }
-
-  private static CloseableIterable<ManifestFile> allDataManifestFiles(List<Snapshot> snapshots) {
-    try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-        Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
-        ThreadPools.getWorkerPool())) {
-      return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close parallel iterable");
+    protected CloseableIterable<ManifestFile> manifests() {
+      return reachableManifests(snapshot -> snapshot.dataManifests(tableOps().io()));
     }
   }
 }

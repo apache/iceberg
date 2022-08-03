@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.PartitionSpec.unpartitioned;
+import static org.apache.iceberg.TableMetadata.newTableMetadata;
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -39,11 +43,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.PartitionSpec.unpartitioned;
-import static org.apache.iceberg.TableMetadata.newTableMetadata;
-import static org.apache.iceberg.TableMetadataParser.getFileExtension;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 @RunWith(Parameterized.class)
 public class TableMetadataParserTest {
 
@@ -51,7 +50,7 @@ public class TableMetadataParserTest {
 
   @Parameterized.Parameters(name = "codecName = {0}")
   public static Object[] parameters() {
-    return new Object[] { "none", "gzip" };
+    return new Object[] {"none", "gzip"};
   }
 
   private final String codecName;
@@ -72,7 +71,8 @@ public class TableMetadataParserTest {
     TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
     TableMetadataParser.write(metadata, outputFile);
     Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
-    TableMetadata actualMetadata = TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
+    TableMetadata actualMetadata =
+        TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
     verifyMetadata(metadata, actualMetadata);
   }
 

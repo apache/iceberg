@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.jdbc;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -29,7 +28,7 @@ public class TestJdbcUtil {
 
   @Test
   public void testFilterAndRemovePrefix() {
-    Map<String, String> input = new HashMap<>();
+    Map<String, String> input = Maps.newHashMap();
     input.put("warehouse", "/tmp/warehouse");
     input.put("user", "foo");
     input.put("jdbc.user", "bar");

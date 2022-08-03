@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.DistributionMode;
@@ -24,6 +23,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -38,6 +38,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.expressions.SortOrder;
+import org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
@@ -68,8 +69,9 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private boolean overwriteByFilter = false;
   private Expression overwriteExpr = null;
   private boolean overwriteFiles = false;
-  private SparkMergeScan mergeScan = null;
-  private IsolationLevel isolationLevel = null;
+  private SparkCopyOnWriteScan copyOnWriteScan = null;
+  private Command copyOnWriteCommand = null;
+  private IsolationLevel copyOnWriteIsolationLevel = null;
 
   SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
     this.spark = spark;
@@ -83,23 +85,29 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     this.useTableDistributionAndOrdering = writeConf.useTableDistributionAndOrdering();
   }
 
-  public WriteBuilder overwriteFiles(Scan scan, IsolationLevel writeIsolationLevel) {
-    Preconditions.checkArgument(scan instanceof SparkMergeScan, "%s is not SparkMergeScan", scan);
+  public WriteBuilder overwriteFiles(Scan scan, Command command, IsolationLevel isolationLevel) {
+    Preconditions.checkArgument(
+        scan instanceof SparkCopyOnWriteScan, "%s is not SparkCopyOnWriteScan", scan);
     Preconditions.checkState(!overwriteByFilter, "Cannot overwrite individual files and by filter");
-    Preconditions.checkState(!overwriteDynamic, "Cannot overwrite individual files and dynamically");
-    Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite individual files and rewrite");
+    Preconditions.checkState(
+        !overwriteDynamic, "Cannot overwrite individual files and dynamically");
+    Preconditions.checkState(
+        rewrittenFileSetId == null, "Cannot overwrite individual files and rewrite");
 
     this.overwriteFiles = true;
-    this.mergeScan = (SparkMergeScan) scan;
-    this.isolationLevel = writeIsolationLevel;
+    this.copyOnWriteScan = (SparkCopyOnWriteScan) scan;
+    this.copyOnWriteCommand = command;
+    this.copyOnWriteIsolationLevel = isolationLevel;
     return this;
   }
 
   @Override
   public WriteBuilder overwriteDynamicPartitions() {
-    Preconditions.checkState(!overwriteByFilter, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
+    Preconditions.checkState(
+        !overwriteByFilter, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
     Preconditions.checkState(!overwriteFiles, "Cannot overwrite individual files and dynamically");
-    Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite dynamically and rewrite");
+    Preconditions.checkState(
+        rewrittenFileSetId == null, "Cannot overwrite dynamically and rewrite");
 
     this.overwriteDynamic = true;
     return this;
@@ -107,7 +115,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   @Override
   public WriteBuilder overwrite(Filter[] filters) {
-    Preconditions.checkState(!overwriteFiles, "Cannot overwrite individual files and using filters");
+    Preconditions.checkState(
+        !overwriteFiles, "Cannot overwrite individual files and using filters");
     Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite and rewrite");
 
     this.overwriteExpr = SparkFilters.convert(filters);
@@ -115,7 +124,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       // use the write option to override truncating the table. use dynamic overwrite instead.
       this.overwriteDynamic = true;
     } else {
-      Preconditions.checkState(!overwriteDynamic, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
+      Preconditions.checkState(
+          !overwriteDynamic, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
       this.overwriteByFilter = true;
     }
     return this;
@@ -124,11 +134,11 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public Write build() {
     // Validate
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+    Preconditions.checkArgument(
+        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
-    Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Get application id
@@ -142,7 +152,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         distribution = buildRequiredDistribution();
         ordering = buildRequiredOrdering(distribution);
       } else {
-        LOG.warn("Skipping distribution/ordering: extensions are disabled and spec contains unsupported transforms");
+        LOG.warn(
+            "Skipping distribution/ordering: extensions are disabled and spec contains unsupported transforms");
         distribution = Distributions.unspecified();
         ordering = NO_ORDERING;
       }
@@ -152,7 +163,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       ordering = NO_ORDERING;
     }
 
-    return new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, distribution, ordering) {
+    return new SparkWrite(
+        spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, distribution, ordering) {
 
       @Override
       public BatchWrite toBatch() {
@@ -163,7 +175,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
         } else if (overwriteDynamic) {
           return asDynamicOverwrite();
         } else if (overwriteFiles) {
-          return asCopyOnWriteMergeWrite(mergeScan, isolationLevel);
+          return asCopyOnWriteOperation(copyOnWriteScan, copyOnWriteIsolationLevel);
         } else {
           return asBatchAppend();
         }
@@ -171,12 +183,14 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
       @Override
       public StreamingWrite toStreaming() {
-        Preconditions.checkState(!overwriteDynamic,
-            "Unsupported streaming operation: dynamic partition overwrite");
-        Preconditions.checkState(!overwriteByFilter || overwriteExpr == Expressions.alwaysTrue(),
-            "Unsupported streaming operation: overwrite by filter: %s", overwriteExpr);
-        Preconditions.checkState(rewrittenFileSetId == null,
-            "Unsupported streaming operation: rewrite");
+        Preconditions.checkState(
+            !overwriteDynamic, "Unsupported streaming operation: dynamic partition overwrite");
+        Preconditions.checkState(
+            !overwriteByFilter || overwriteExpr == Expressions.alwaysTrue(),
+            "Unsupported streaming operation: overwrite by filter: %s",
+            overwriteExpr);
+        Preconditions.checkState(
+            rewrittenFileSetId == null, "Unsupported streaming operation: rewrite");
 
         if (overwriteByFilter) {
           return asStreamingOverwrite();
@@ -189,16 +203,32 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   private Distribution buildRequiredDistribution() {
     if (overwriteFiles) {
-      throw new UnsupportedOperationException("Copy-on-write operations are temporarily not supported");
+      DistributionMode distributionMode = copyOnWriteDistributionMode();
+      return SparkDistributionAndOrderingUtil.buildCopyOnWriteDistribution(
+          table, copyOnWriteCommand, distributionMode);
     } else {
       DistributionMode distributionMode = writeConf.distributionMode();
       return SparkDistributionAndOrderingUtil.buildRequiredDistribution(table, distributionMode);
     }
   }
 
+  private DistributionMode copyOnWriteDistributionMode() {
+    switch (copyOnWriteCommand) {
+      case DELETE:
+        return writeConf.deleteDistributionMode();
+      case UPDATE:
+        return writeConf.updateDistributionMode();
+      case MERGE:
+        return writeConf.copyOnWriteMergeDistributionMode();
+      default:
+        throw new IllegalArgumentException("Unexpected command: " + copyOnWriteCommand);
+    }
+  }
+
   private SortOrder[] buildRequiredOrdering(Distribution requiredDistribution) {
     if (overwriteFiles) {
-      throw new UnsupportedOperationException("Copy-on-write operations are temporarily not supported");
+      return SparkDistributionAndOrderingUtil.buildCopyOnWriteOrdering(
+          table, copyOnWriteCommand, requiredDistribution);
     } else {
       return SparkDistributionAndOrderingUtil.buildRequiredOrdering(table, requiredDistribution);
     }
@@ -206,5 +236,33 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   private boolean allIdentityTransforms(PartitionSpec spec) {
     return spec.fields().stream().allMatch(field -> field.transform().isIdentity());
+  }
+
+  private static Schema validateOrMergeWriteSchema(
+      Table table, StructType dsSchema, SparkWriteConf writeConf) {
+    Schema writeSchema;
+    if (writeConf.mergeSchema()) {
+      // convert the dataset schema and assign fresh ids for new fields
+      Schema newSchema = SparkSchemaUtil.convertWithFreshIds(table.schema(), dsSchema);
+
+      // update the table to get final id assignments and validate the changes
+      UpdateSchema update = table.updateSchema().unionByNameWith(newSchema);
+      Schema mergedSchema = update.apply();
+
+      // reconvert the dsSchema without assignment to use the ids assigned by UpdateSchema
+      writeSchema = SparkSchemaUtil.convert(mergedSchema, dsSchema);
+
+      TypeUtil.validateWriteSchema(
+          mergedSchema, writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+
+      // if the validation passed, update the table schema
+      update.commit();
+    } else {
+      writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
+      TypeUtil.validateWriteSchema(
+          table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    }
+
+    return writeSchema;
   }
 }

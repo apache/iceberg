@@ -16,14 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
@@ -32,11 +39,13 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -52,30 +61,30 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 @RunWith(Parameterized.class)
 public class TestSparkDataWrite {
   private static final Configuration CONF = new Configuration();
   private final FileFormat format;
   private static SparkSession spark = null;
-  private static final Schema SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Parameterized.Parameters(name = "format = {0}")
   public static Object[] parameters() {
-    return new Object[] { "parquet", "avro", "orc" };
+    return new Object[] {"parquet", "avro", "orc"};
   }
 
   @BeforeClass
   public static void startSpark() {
     TestSparkDataWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
+  }
+
+  @Parameterized.AfterParam
+  public static void clearSourceCache() {
+    ManualSource.clearTables();
   }
 
   @AfterClass
@@ -98,15 +107,14 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
     // TODO: incoming columns must be ordered according to the table's schema
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
@@ -114,11 +122,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
     for (ManifestFile manifest : table.currentSnapshot().allManifests()) {
@@ -149,30 +156,31 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c"),
-        new SimpleRecord(4, "a"),
-        new SimpleRecord(5, "b"),
-        new SimpleRecord(6, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "a"),
+            new SimpleRecord(5, "b"),
+            new SimpleRecord(6, "c"));
 
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
 
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
         .save(location.toString());
 
-    df.withColumn("id", df.col("id").plus(3)).select("id", "data").write()
+    df.withColumn("id", df.col("id").plus(3))
+        .select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
@@ -180,11 +188,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -198,23 +205,24 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     List<SimpleRecord> expected = records;
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
 
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
         .save(location.toString());
 
     Dataset<Row> empty = spark.createDataFrame(ImmutableList.of(), SimpleRecord.class);
-    empty.select("id", "data").write()
+    empty
+        .select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
@@ -223,11 +231,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -241,30 +248,31 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "a"),
-        new SimpleRecord(3, "c"),
-        new SimpleRecord(4, "b"),
-        new SimpleRecord(6, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "a"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "b"),
+            new SimpleRecord(6, "c"));
 
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
 
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
         .save(location.toString());
 
     // overwrite with 2*id to replace record 2, append 4 and 6
-    df.withColumn("id", df.col("id").multiply(2)).select("id", "data").write()
+    df.withColumn("id", df.col("id").multiply(2))
+        .select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
@@ -273,11 +281,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -291,22 +298,22 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
         .save(location.toString());
 
     // overwrite with the same data; should not produce two copies
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Overwrite)
@@ -314,11 +321,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -332,7 +338,8 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, "4") // ~4 bytes; low enough to trigger
         .commit();
 
@@ -343,7 +350,8 @@ public class TestSparkDataWrite {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
@@ -351,11 +359,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
 
@@ -365,11 +372,10 @@ public class TestSparkDataWrite {
         files.add(file);
       }
     }
-    // TODO: ORC file now not support target file size
-    if (!format.equals(FileFormat.ORC)) {
-      Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
-      Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
-    }
+
+    Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
+    Assert.assertTrue(
+        "All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
   }
 
   @Test
@@ -400,15 +406,14 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, null),
-        new SimpleRecord(2, null),
-        new SimpleRecord(3, null)
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, null), new SimpleRecord(2, null), new SimpleRecord(3, null));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id").write() // select only id column
+    df.select("id")
+        .write() // select only id column
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
@@ -416,11 +421,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -436,22 +440,23 @@ public class TestSparkDataWrite {
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Schema schema = new Schema(
-        optional(1, "c1", Types.IntegerType.get()),
-        optional(2, "c2", Types.StringType.get()),
-        optional(3, "c3", Types.StringType.get())
-    );
+    Schema schema =
+        new Schema(
+            optional(1, "c1", Types.IntegerType.get()),
+            optional(2, "c2", Types.StringType.get()),
+            optional(3, "c3", Types.StringType.get()));
     Table table = tables.create(schema, spec, location.toString());
 
-    List<ThreeColumnRecord> expected = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "hello"),
-        new ThreeColumnRecord(2, null, "world"),
-        new ThreeColumnRecord(3, null, null)
-    );
+    List<ThreeColumnRecord> expected =
+        Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "hello"),
+            new ThreeColumnRecord(2, null, "world"),
+            new ThreeColumnRecord(3, null, null));
 
     Dataset<Row> df = spark.createDataFrame(expected, ThreeColumnRecord.class);
 
-    df.select("c1", "c3").write()
+    df.select("c1", "c3")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
@@ -459,11 +464,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<ThreeColumnRecord> actual = result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+    List<ThreeColumnRecord> actual =
+        result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -477,44 +481,39 @@ public class TestSparkDataWrite {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> records = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
 
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
         .save(location.toString());
 
-    Dataset<Row> query = spark.read()
-        .format("iceberg")
-        .load(location.toString())
-        .where("id = 1");
+    Dataset<Row> query = spark.read().format("iceberg").load(location.toString()).where("id = 1");
     query.createOrReplaceTempView("tmp");
 
-    List<SimpleRecord> actual1 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    List<SimpleRecord> expected1 = Lists.newArrayList(
-        new SimpleRecord(1, "a")
-    );
+    List<SimpleRecord> actual1 =
+        spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expected1 = Lists.newArrayList(new SimpleRecord(1, "a"));
     Assert.assertEquals("Number of rows should match", expected1.size(), actual1.size());
     Assert.assertEquals("Result rows should match", expected1, actual1);
 
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
         .save(location.toString());
 
-    List<SimpleRecord> actual2 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    List<SimpleRecord> expected2 = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(1, "a")
-    );
+    List<SimpleRecord> actual2 =
+        spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expected2 =
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(1, "a"));
     Assert.assertEquals("Number of rows should match", expected2.size(), actual2.size());
     Assert.assertEquals("Result rows should match", expected2, actual2);
   }
@@ -540,7 +539,9 @@ public class TestSparkDataWrite {
 
     switch (option) {
       case NONE:
-        df.select("id", "data").sort("data").write()
+        df.select("id", "data")
+            .sort("data")
+            .write()
             .format("iceberg")
             .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
             .mode(SaveMode.Append)
@@ -549,7 +550,8 @@ public class TestSparkDataWrite {
         break;
       case TABLE:
         table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
-        df.select("id", "data").write()
+        df.select("id", "data")
+            .write()
             .format("iceberg")
             .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
             .mode(SaveMode.Append)
@@ -557,7 +559,8 @@ public class TestSparkDataWrite {
             .save(location.toString());
         break;
       case JOB:
-        df.select("id", "data").write()
+        df.select("id", "data")
+            .write()
             .format("iceberg")
             .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
             .mode(SaveMode.Append)
@@ -571,11 +574,10 @@ public class TestSparkDataWrite {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
 
@@ -585,11 +587,65 @@ public class TestSparkDataWrite {
         files.add(file);
       }
     }
-    // TODO: ORC file now not support target file size
-    if (!format.equals(FileFormat.ORC)) {
-      Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
-      Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
-    }
+
+    Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
+    Assert.assertTrue(
+        "All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
+  }
+
+  @Test
+  public void testCommitUnknownException() throws IOException {
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "commitunknown");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    AppendFiles append = table.newFastAppend();
+    AppendFiles spyAppend = spy(append);
+    doAnswer(
+            invocation -> {
+              append.commit();
+              throw new CommitStateUnknownException(new RuntimeException("Datacenter on Fire"));
+            })
+        .when(spyAppend)
+        .commit();
+
+    Table spyTable = spy(table);
+    when(spyTable.newAppend()).thenReturn(spyAppend);
+
+    String manualTableName = "unknown_exception";
+    ManualSource.setTable(manualTableName, spyTable);
+
+    // Although an exception is thrown here, write and commit have succeeded
+    AssertHelpers.assertThrowsWithCause(
+        "Should throw a Commit State Unknown Exception",
+        SparkException.class,
+        "Writing job aborted",
+        CommitStateUnknownException.class,
+        "Datacenter on Fire",
+        () ->
+            df.select("id", "data")
+                .sort("data")
+                .write()
+                .format("org.apache.iceberg.spark.source.ManualSource")
+                .option(ManualSource.TABLE_NAME, manualTableName)
+                .mode(SaveMode.Append)
+                .save(location.toString()));
+
+    // Since write and commit succeeded, the rows should be readable
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", records.size(), actual.size());
+    Assert.assertEquals("Result rows should match", records, actual);
   }
 
   public enum IcebergOptionsType {

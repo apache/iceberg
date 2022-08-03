@@ -45,6 +45,11 @@ project(':iceberg-hive-runtime') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     implementation project(':iceberg-aws')
+    implementation(project(':iceberg-aliyun')) {
+      exclude group: 'edu.umd.cs.findbugs', module: 'findbugs'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'commons-logging', module: 'commons-logging'
+    }
   }
 
   shadowJar {

@@ -16,26 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
- * Lazily evaluates the schema to see if any field ids are set.
- * Returns true when a first field is found which has field id set
+ * Lazily evaluates the schema to see if any field ids are set. Returns true when a first field is
+ * found which has field id set
  */
 class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   @Override
   public Boolean record(Schema record, List<String> names, Iterable<Boolean> fields) {
-    for (Boolean field : fields) {
-      if (field) {
-        return true;
-      }
-    }
-    return false;
+    return Iterables.any(fields, Boolean.TRUE::equals);
   }
 
   @Override
@@ -46,9 +41,9 @@ class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
 
   @Override
   public Boolean map(Schema map, Supplier<Boolean> value) {
-    return AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP) ||
-        AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP) ||
-        value.get();
+    return AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.KEY_ID_PROP)
+        || AvroSchemaUtil.hasProperty(map, AvroSchemaUtil.VALUE_ID_PROP)
+        || value.get();
   }
 
   @Override
@@ -58,12 +53,7 @@ class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
 
   @Override
   public Boolean union(Schema union, Iterable<Boolean> options) {
-    for (Boolean option : options) {
-      if (option) {
-        return true;
-      }
-    }
-    return false;
+    return Iterables.any(options, Boolean.TRUE::equals);
   }
 
   @Override

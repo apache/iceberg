@@ -16,50 +16,52 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
+
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.projectnessie.api.params.CommitLogParams;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.jaxrs.ext.NessieUri;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
-import org.projectnessie.model.ContentsKey;
+import org.projectnessie.model.ContentKey;
 import org.projectnessie.model.IcebergTable;
-import org.projectnessie.model.ImmutableOperations;
-import org.projectnessie.model.ImmutablePut;
-
-import static org.apache.iceberg.TableMetadataParser.getFileExtension;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
+import org.projectnessie.model.ImmutableTableReference;
+import org.projectnessie.model.LogResponse.LogEntry;
+import org.projectnessie.model.Operation;
+import org.projectnessie.model.Tag;
 
 public class TestNessieTable extends BaseTestIceberg {
 
@@ -68,12 +70,15 @@ public class TestNessieTable extends BaseTestIceberg {
   private static final String DB_NAME = "db";
   private static final String TABLE_NAME = "tbl";
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
-  private static final ContentsKey KEY = ContentsKey.of(DB_NAME, TABLE_NAME);
-  private static final Schema schema = new Schema(Types.StructType.of(
-      required(1, "id", Types.LongType.get())).fields());
-  private static final Schema altered = new Schema(Types.StructType.of(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.LongType.get())).fields());
+  private static final ContentKey KEY = ContentKey.of(DB_NAME, TABLE_NAME);
+  private static final Schema schema =
+      new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+  private static final Schema altered =
+      new Schema(
+          Types.StructType.of(
+                  required(1, "id", Types.LongType.get()),
+                  optional(2, "data", Types.LongType.get()))
+              .fields());
 
   private Path tableLocation;
 
@@ -81,39 +86,117 @@ public class TestNessieTable extends BaseTestIceberg {
     super(BRANCH);
   }
 
+  @Override
   @BeforeEach
-  public void beforeEach() throws IOException {
-    super.beforeEach();
+  public void beforeEach(@NessieUri URI uri) throws IOException {
+    super.beforeEach(uri);
     this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
   }
 
+  @Override
   @AfterEach
   public void afterEach() throws Exception {
     // drop the table data
     if (tableLocation != null) {
       tableLocation.getFileSystem(hadoopConfig).delete(tableLocation, true);
-      catalog.refresh();
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
     super.afterEach();
   }
 
-  private org.projectnessie.model.IcebergTable getTable(ContentsKey key) throws NessieNotFoundException {
-    return client.getContentsApi()
-        .getContents(key, BRANCH, null)
-        .unwrap(IcebergTable.class).get();
+  private IcebergTable getTable(ContentKey key) throws NessieNotFoundException {
+    return getTable(BRANCH, key);
+  }
+
+  private IcebergTable getTable(String ref, ContentKey key) throws NessieNotFoundException {
+    return api.getContent().key(key).refName(ref).get().get(key).unwrap(IcebergTable.class).get();
+  }
+
+  /** Verify that Nessie always returns the globally-current global-content w/ only DMLs. */
+  @Test
+  public void verifyStateMovesForDML() throws Exception {
+    //  1. initialize table
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+    icebergTable.updateSchema().addColumn("initial_column", Types.LongType.get()).commit();
+
+    //  2. create 2nd branch
+    String testCaseBranch = "verify-global-moving";
+    api.createReference()
+        .sourceRefName(BRANCH)
+        .reference(Branch.of(testCaseBranch, catalog.currentHash()))
+        .create();
+    try (NessieCatalog ignore = initCatalog(testCaseBranch)) {
+
+      IcebergTable contentInitialMain = getTable(BRANCH, KEY);
+      IcebergTable contentInitialBranch = getTable(testCaseBranch, KEY);
+      Table tableInitialMain = catalog.loadTable(TABLE_IDENTIFIER);
+
+      // verify table-metadata-location + snapshot-id
+      Assertions.assertThat(contentInitialMain)
+          .as("global-contents + snapshot-id equal on both branches in Nessie")
+          .isEqualTo(contentInitialBranch);
+      Assertions.assertThat(tableInitialMain.currentSnapshot()).isNull();
+
+      //  3. modify table in "main" branch (add some data)
+
+      DataFile file1 = makeDataFile(icebergTable, addRecordsToFile(icebergTable, "file1"));
+      icebergTable.newAppend().appendFile(file1).commit();
+
+      IcebergTable contentsAfter1Main = getTable(KEY);
+      IcebergTable contentsAfter1Branch = getTable(testCaseBranch, KEY);
+      Table tableAfter1Main = catalog.loadTable(TABLE_IDENTIFIER);
+
+      //  --> assert getValue() against both branches returns the updated metadata-location
+      // verify table-metadata-location
+      Assertions.assertThat(contentInitialMain.getMetadataLocation())
+          .describedAs("metadata-location must change on %s", BRANCH)
+          .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
+      Assertions.assertThat(contentInitialBranch.getMetadataLocation())
+          .describedAs("metadata-location must not change on %s", testCaseBranch)
+          .isEqualTo(contentsAfter1Branch.getMetadataLocation());
+      Assertions.assertThat(contentsAfter1Main)
+          .extracting(IcebergTable::getSchemaId)
+          .describedAs("on-reference-state must not be equal on both branches")
+          .isEqualTo(contentsAfter1Branch.getSchemaId());
+      // verify manifests
+      Assertions.assertThat(tableAfter1Main.currentSnapshot().allManifests(tableAfter1Main.io()))
+          .describedAs("verify number of manifests on 'main'")
+          .hasSize(1);
+
+      //  4. modify table in "main" branch (add some data) again
+
+      DataFile file2 = makeDataFile(icebergTable, addRecordsToFile(icebergTable, "file2"));
+      icebergTable.newAppend().appendFile(file2).commit();
+
+      IcebergTable contentsAfter2Main = getTable(KEY);
+      IcebergTable contentsAfter2Branch = getTable(testCaseBranch, KEY);
+      Table tableAfter2Main = catalog.loadTable(TABLE_IDENTIFIER);
+
+      //  --> assert getValue() against both branches returns the updated metadata-location
+      // verify table-metadata-location
+      Assertions.assertThat(contentsAfter2Main.getMetadataLocation())
+          .describedAs("metadata-location must change on %s", BRANCH)
+          .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
+      Assertions.assertThat(contentsAfter2Branch.getMetadataLocation())
+          .describedAs("on-reference-state must not change on %s", testCaseBranch)
+          .isEqualTo(contentsAfter1Branch.getMetadataLocation());
+      // verify manifests
+      Assertions.assertThat(tableAfter2Main.currentSnapshot().allManifests(tableAfter2Main.io()))
+          .describedAs("verify number of manifests on 'main'")
+          .hasSize(2);
+    }
   }
 
   @Test
-  public void testCreate() throws NessieNotFoundException, IOException {
+  public void testCreate() throws IOException {
     // Table should be created in iceberg
     // Table should be renamed in iceberg
     String tableName = TABLE_IDENTIFIER.name();
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     // add a column
     icebergTable.updateSchema().addColumn("mother", Types.LongType.get()).commit();
-    IcebergTable table = getTable(KEY);
+    getTable(KEY); // sanity, check table exists
     // check parameters are in expected state
     String expected = (temp.toUri() + DB_NAME + "/" + tableName).replace("///", "/");
     Assertions.assertThat(getTableLocation(tableName)).isEqualTo(expected);
@@ -128,9 +211,8 @@ public class TestNessieTable extends BaseTestIceberg {
   @Test
   public void testRename() throws NessieNotFoundException {
     String renamedTableName = "rename_table_name";
-    TableIdentifier renameTableIdentifier = TableIdentifier.of(
-        TABLE_IDENTIFIER.namespace(),
-        renamedTableName);
+    TableIdentifier renameTableIdentifier =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), renamedTableName);
 
     Table original = catalog.loadTable(TABLE_IDENTIFIER);
 
@@ -150,16 +232,105 @@ public class TestNessieTable extends BaseTestIceberg {
     verifyCommitMetadata();
   }
 
+  @Test
+  public void testRenameWithTableReference() throws NessieNotFoundException {
+    String renamedTableName = "rename_table_name";
+    TableIdentifier renameTableIdentifier =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), renamedTableName);
+
+    ImmutableTableReference fromTableReference =
+        ImmutableTableReference.builder()
+            .reference(catalog.currentRefName())
+            .name(TABLE_IDENTIFIER.name())
+            .build();
+    ImmutableTableReference toTableReference =
+        ImmutableTableReference.builder()
+            .reference(catalog.currentRefName())
+            .name(renameTableIdentifier.name())
+            .build();
+    TableIdentifier fromIdentifier =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), fromTableReference.toString());
+    TableIdentifier toIdentifier =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), toTableReference.toString());
+
+    Table original = catalog.loadTable(fromIdentifier);
+
+    catalog.renameTable(fromIdentifier, toIdentifier);
+    Assertions.assertThat(catalog.tableExists(fromIdentifier)).isFalse();
+    Assertions.assertThat(catalog.tableExists(toIdentifier)).isTrue();
+
+    Table renamed = catalog.loadTable(toIdentifier);
+
+    Assertions.assertThat(original.schema().asStruct()).isEqualTo(renamed.schema().asStruct());
+    Assertions.assertThat(original.spec()).isEqualTo(renamed.spec());
+    Assertions.assertThat(original.location()).isEqualTo(renamed.location());
+    Assertions.assertThat(original.currentSnapshot()).isEqualTo(renamed.currentSnapshot());
+
+    Assertions.assertThat(catalog.dropTable(toIdentifier)).isTrue();
+
+    verifyCommitMetadata();
+  }
+
+  @Test
+  public void testRenameWithTableReferenceInvalidCase() throws NessieNotFoundException {
+    String renamedTableName = "rename_table_name";
+    TableIdentifier renameTableIdentifier =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), renamedTableName);
+
+    ImmutableTableReference fromTableReference =
+        ImmutableTableReference.builder()
+            .reference("Something")
+            .name(TABLE_IDENTIFIER.name())
+            .build();
+    ImmutableTableReference toTableReference =
+        ImmutableTableReference.builder()
+            .reference(catalog.currentRefName())
+            .name(renameTableIdentifier.name())
+            .build();
+    TableIdentifier fromIdentifier =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), fromTableReference.toString());
+    TableIdentifier toIdentifier =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), toTableReference.toString());
+
+    Assertions.assertThatThrownBy(() -> catalog.renameTable(fromIdentifier, toIdentifier))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("from: Something and to: iceberg-table-test reference name must be same");
+
+    fromTableReference =
+        ImmutableTableReference.builder()
+            .reference(catalog.currentRefName())
+            .name(TABLE_IDENTIFIER.name())
+            .build();
+    toTableReference =
+        ImmutableTableReference.builder()
+            .reference("Something")
+            .name(renameTableIdentifier.name())
+            .build();
+    TableIdentifier fromIdentifierNew =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), fromTableReference.toString());
+    TableIdentifier toIdentifierNew =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), toTableReference.toString());
+
+    Assertions.assertThatThrownBy(() -> catalog.renameTable(fromIdentifierNew, toIdentifierNew))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("from: iceberg-table-test and to: Something reference name must be same");
+  }
+
   private void verifyCommitMetadata() throws NessieNotFoundException {
     // check that the author is properly set
-    List<CommitMeta> log = tree.getCommitLog(BRANCH, CommitLogParams.empty()).getOperations();
-    Assertions.assertThat(log).isNotNull().isNotEmpty();
-    log.forEach(commit -> {
-      Assertions.assertThat(commit.getAuthor()).isNotNull().isNotEmpty();
-      Assertions.assertThat(commit.getAuthor()).isEqualTo(System.getProperty("user.name"));
-      Assertions.assertThat(commit.getProperties().get(NessieUtil.APPLICATION_TYPE)).isEqualTo("iceberg");
-      Assertions.assertThat(commit.getMessage()).startsWith("iceberg");
-    });
+    List<LogEntry> log = api.getCommitLog().refName(BRANCH).get().getLogEntries();
+    Assertions.assertThat(log)
+        .isNotNull()
+        .isNotEmpty()
+        .allSatisfy(
+            logEntry -> {
+              CommitMeta commit = logEntry.getCommitMeta();
+              Assertions.assertThat(commit.getAuthor()).isNotNull().isNotEmpty();
+              Assertions.assertThat(commit.getAuthor()).isEqualTo(System.getProperty("user.name"));
+              Assertions.assertThat(commit.getProperties().get(NessieUtil.APPLICATION_TYPE))
+                  .isEqualTo("iceberg");
+              Assertions.assertThat(commit.getMessage()).startsWith("Iceberg");
+            });
   }
 
   @Test
@@ -171,16 +342,27 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
+  public void testDropWithTableReference() throws NessieNotFoundException {
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder()
+            .reference(catalog.currentRefName())
+            .name(TABLE_IDENTIFIER.name())
+            .build();
+    TableIdentifier identifier =
+        TableIdentifier.of(TABLE_IDENTIFIER.namespace(), tableReference.toString());
+    Assertions.assertThat(catalog.tableExists(identifier)).isTrue();
+    Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
+    Assertions.assertThat(catalog.tableExists(identifier)).isFalse();
+    verifyCommitMetadata();
+  }
+
+  @Test
   public void testDropWithoutPurgeLeavesTableData() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
     String fileLocation = addRecordsToFile(table, "file");
 
-    DataFile file = DataFiles.builder(table.spec())
-        .withRecordCount(3)
-        .withPath(fileLocation)
-        .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
-        .build();
+    DataFile file = makeDataFile(table, fileLocation);
 
     table.newAppend().appendFile(file).commit();
 
@@ -198,27 +380,11 @@ public class TestNessieTable extends BaseTestIceberg {
   public void testDropTable() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
-    GenericRecordBuilder recordBuilder =
-        new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
-    List<GenericData.Record> records = new ArrayList<>();
-    records.add(recordBuilder.set("id", 1L).build());
-    records.add(recordBuilder.set("id", 2L).build());
-    records.add(recordBuilder.set("id", 3L).build());
-
     String location1 = addRecordsToFile(table, "file1");
     String location2 = addRecordsToFile(table, "file2");
 
-    DataFile file1 = DataFiles.builder(table.spec())
-        .withRecordCount(3)
-        .withPath(location1)
-        .withFileSizeInBytes(Files.localInput(location2).getLength())
-        .build();
-
-    DataFile file2 = DataFiles.builder(table.spec())
-        .withRecordCount(3)
-        .withPath(location2)
-        .withFileSizeInBytes(Files.localInput(location1).getLength())
-        .build();
+    DataFile file1 = makeDataFile(table, location1);
+    DataFile file2 = makeDataFile(table, location2);
 
     // add both data files
     table.newAppend().appendFile(file1).appendFile(file2).commit();
@@ -229,7 +395,7 @@ public class TestNessieTable extends BaseTestIceberg {
     String manifestListLocation =
         table.currentSnapshot().manifestListLocation().replace("file:", "");
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
 
     Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER)).isTrue();
     Assertions.assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isFalse();
@@ -240,14 +406,99 @@ public class TestNessieTable extends BaseTestIceberg {
     for (ManifestFile manifest : manifests) {
       Assertions.assertThat(new File(manifest.path().replace("file:", ""))).exists();
     }
-    Assertions.assertThat(new File(
-        ((HasTableOperations) table).operations()
-            .current()
-            .metadataFileLocation()
-            .replace("file:", "")))
-        .exists();
+    TableOperations ops = ((HasTableOperations) table).operations();
+    String metadataLocation = ((NessieTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThat(new File(metadataLocation.replace("file:", ""))).exists();
 
     verifyCommitMetadata();
+  }
+
+  private void validateRegister(TableIdentifier identifier, String metadataVersionFiles) {
+    Assertions.assertThat(catalog.registerTable(identifier, "file:" + metadataVersionFiles))
+        .isNotNull();
+    Table newTable = catalog.loadTable(identifier);
+    Assertions.assertThat(newTable).isNotNull();
+    TableOperations ops = ((HasTableOperations) newTable).operations();
+    String metadataLocation = ((NessieTableOperations) ops).currentMetadataLocation();
+    Assertions.assertThat("file:" + metadataVersionFiles).isEqualTo(metadataLocation);
+    Assertions.assertThat(catalog.dropTable(identifier, false)).isTrue();
+  }
+
+  @Test
+  public void testRegisterTableWithGivenBranch() {
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    validateRegister(identifier, metadataVersionFiles.get(0));
+  }
+
+  @Test
+  public void testRegisterTableFailureScenarios()
+      throws NessieConflictException, NessieNotFoundException {
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
+    // Case 1: Branch does not exist
+    ImmutableTableReference defaultTableReference =
+        ImmutableTableReference.builder().reference("default").name(TABLE_NAME).build();
+    TableIdentifier defaultIdentifier =
+        TableIdentifier.of(DB_NAME, defaultTableReference.toString());
+    Assertions.assertThatThrownBy(
+            () -> catalog.registerTable(defaultIdentifier, "file:" + metadataVersionFiles.get(0)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Nessie ref 'default' does not exist");
+    // Case 2: Table Already Exists
+    Assertions.assertThatThrownBy(
+            () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: db.tbl");
+    // Case 3: Registering using a tag
+    ImmutableTableReference branchTableReference =
+        ImmutableTableReference.builder().reference(BRANCH).name(TABLE_NAME).build();
+    TableIdentifier branchIdentifier = TableIdentifier.of(DB_NAME, branchTableReference.toString());
+    Assertions.assertThat(catalog.dropTable(branchIdentifier, false)).isTrue();
+    String hash = api.getReference().refName(BRANCH).get().getHash();
+    api.createReference().sourceRefName(BRANCH).reference(Tag.of("tag_1", hash)).create();
+    ImmutableTableReference tagTableReference =
+        ImmutableTableReference.builder().reference("tag_1").name(TABLE_NAME).build();
+    TableIdentifier tagIdentifier = TableIdentifier.of(DB_NAME, tagTableReference.toString());
+    Assertions.assertThatThrownBy(
+            () -> catalog.registerTable(tagIdentifier, "file:" + metadataVersionFiles.get(0)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("You can only mutate tables when using a branch without a hash or timestamp.");
+    // Case 4: non-null metadata path with null metadata location
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog.registerTable(
+                    TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0) + "invalidName"))
+        .isInstanceOf(NotFoundException.class);
+    // Case 5: null identifier
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog.registerTable(null, "file:" + metadataVersionFiles.get(0) + "invalidName"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid identifier: null");
+  }
+
+  @Test
+  public void testRegisterTableWithDefaultBranch() {
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
+    Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
+    validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
+  }
+
+  @Test
+  public void testRegisterTableMoreThanOneBranch() {
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    Assertions.assertThat(1).isEqualTo(metadataVersionFiles.size());
+    ImmutableTableReference tableReference =
+        ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
+    validateRegister(identifier, metadataVersionFiles.get(0));
+    Assertions.assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
+    validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));
   }
 
   @Test
@@ -267,30 +518,31 @@ public class TestNessieTable extends BaseTestIceberg {
   @Test
   public void testFailure() throws NessieNotFoundException, NessieConflictException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
-    Branch branch = (Branch) client.getTreeApi().getReferenceByName(BRANCH);
+    Branch branch = (Branch) api.getReference().refName(BRANCH).get();
 
-    IcebergTable table = client.getContentsApi().getContents(KEY, BRANCH, null).unwrap(IcebergTable.class).get();
+    IcebergTable table = getTable(BRANCH, KEY);
 
-    client.getTreeApi().commitMultipleOperations(branch.getName(), branch.getHash(),
-        ImmutableOperations.builder().addOperations(
-            ImmutablePut.builder().key(KEY).contents(IcebergTable.of("dummytable.metadata.json"))
-                .build()).commitMeta(CommitMeta.fromMessage("")).build());
+    IcebergTable value = IcebergTable.of("dummytable.metadata.json", 42, 42, 42, 42, "cid");
+    api.commitMultipleOperations()
+        .branch(branch)
+        .operation(Operation.Put.of(KEY, value))
+        .commitMeta(CommitMeta.fromMessage(""))
+        .commit();
 
-    Assertions.assertThatThrownBy(() -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit())
+    Assertions.assertThatThrownBy(
+            () -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(
-            "Commit failed: Reference hash is out of date. Update the reference iceberg-table-test and try again");
+            "Cannot commit: Reference hash is out of date. Update the reference 'iceberg-table-test' and try again");
   }
 
   @Test
   public void testListTables() {
     List<TableIdentifier> tableIdents = catalog.listTables(TABLE_IDENTIFIER.namespace());
-    List<TableIdentifier> expectedIdents = tableIdents.stream()
-        .filter(t -> t.namespace()
-            .level(0)
-            .equals(DB_NAME) &&
-            t.name().equals(TABLE_NAME))
-        .collect(Collectors.toList());
+    List<TableIdentifier> expectedIdents =
+        tableIdents.stream()
+            .filter(t -> t.namespace().level(0).equals(DB_NAME) && t.name().equals(TABLE_NAME))
+            .collect(Collectors.toList());
 
     Assertions.assertThat(expectedIdents).hasSize(1);
     Assertions.assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
@@ -313,8 +565,10 @@ public class TestNessieTable extends BaseTestIceberg {
     return Paths.get(getTableBasePath(tableName), "metadata").toString();
   }
 
+  @SuppressWarnings(
+      "RegexpSinglelineJava") // respecting this rule requires a lot more lines of code
   private List<String> metadataFiles(String tableName) {
-    return Arrays.stream(new File(metadataLocation(tableName)).listFiles())
+    return Arrays.stream(Objects.requireNonNull(new File(metadataLocation(tableName)).listFiles()))
         .map(File::getAbsolutePath)
         .collect(Collectors.toList());
   }
@@ -328,8 +582,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   private List<String> filterByExtension(String tableName, String extension) {
-    return metadataFiles(tableName)
-        .stream()
+    return metadataFiles(tableName).stream()
         .filter(f -> f.endsWith(extension))
         .collect(Collectors.toList());
   }
@@ -337,21 +590,11 @@ public class TestNessieTable extends BaseTestIceberg {
   private static String addRecordsToFile(Table table, String filename) throws IOException {
     GenericRecordBuilder recordBuilder =
         new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
-    List<GenericData.Record> records = new ArrayList<>();
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(3);
     records.add(recordBuilder.set("id", 1L).build());
     records.add(recordBuilder.set("id", 2L).build());
     records.add(recordBuilder.set("id", 3L).build());
 
-    String fileLocation = table.location().replace("file:", "") +
-        String.format("/data/%s.avro", filename);
-    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
-        .schema(schema)
-        .named("test")
-        .build()) {
-      for (GenericData.Record rec : records) {
-        writer.add(rec);
-      }
-    }
-    return fileLocation;
+    return writeRecordsToFile(table, schema, filename, records);
   }
 }

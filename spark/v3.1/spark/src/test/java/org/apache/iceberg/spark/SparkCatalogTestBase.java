@@ -16,94 +16,46 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Map;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.SupportsNamespaces;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public abstract class SparkCatalogTestBase extends SparkTestBase {
-  private static File warehouse = null;
-
-  @BeforeClass
-  public static void createWarehouse() throws IOException {
-    SparkCatalogTestBase.warehouse = File.createTempFile("warehouse", null);
-    Assert.assertTrue(warehouse.delete());
-  }
-
-  @AfterClass
-  public static void dropWarehouse() {
-    if (warehouse != null && warehouse.exists()) {
-      warehouse.delete();
-    }
-  }
-
+public abstract class SparkCatalogTestBase extends SparkTestBaseWithCatalog {
+  // these parameters are broken out to avoid changes that need to modify lots of test suites
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "testhive", SparkCatalog.class.getName(),
-          ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default"
-         ) },
-        { "testhadoop", SparkCatalog.class.getName(),
-          ImmutableMap.of(
-            "type", "hadoop"
-        ) },
-        { "spark_catalog", SparkSessionCatalog.class.getName(),
-          ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default",
-            "parquet-enabled", "true",
-            "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
-        ) }
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties()
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties()
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties()
+      }
     };
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  protected final String catalogName;
-  protected final Catalog validationCatalog;
-  protected final SupportsNamespaces validationNamespaceCatalog;
-  protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
-  protected final String tableName;
-
-  public SparkCatalogTestBase(String catalogName, String implementation, Map<String, String> config) {
-    this.catalogName = catalogName;
-    this.validationCatalog = catalogName.equals("testhadoop") ?
-        new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse) :
-        catalog;
-    this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
-
-    spark.conf().set("spark.sql.catalog." + catalogName, implementation);
-    config.forEach((key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
-
-    if (config.get("type").equalsIgnoreCase("hadoop")) {
-      spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
-    }
-
-    this.tableName = (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
-
-    sql("CREATE NAMESPACE IF NOT EXISTS default");
+  public SparkCatalogTestBase(SparkCatalogConfig config) {
+    super(config);
   }
 
-  protected String tableName(String name) {
-    return (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default." + name;
+  public SparkCatalogTestBase(
+      String catalogName, String implementation, Map<String, String> config) {
+    super(catalogName, implementation, config);
   }
 }

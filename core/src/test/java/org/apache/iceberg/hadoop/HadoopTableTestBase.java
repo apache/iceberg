@@ -16,20 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
+
+import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableMetadataParser.getFileExtension;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -44,64 +52,68 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.Files.localInput;
-import static org.apache.iceberg.TableMetadataParser.getFileExtension;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class HadoopTableTestBase {
   // Schema passed to create tables
-  static final Schema SCHEMA = new Schema(
-      required(3, "id", Types.IntegerType.get(), "unique ID"),
-      required(4, "data", Types.StringType.get())
-  );
+  static final Schema SCHEMA =
+      new Schema(
+          required(3, "id", Types.IntegerType.get(), "unique ID"),
+          required(4, "data", Types.StringType.get()));
 
   // This is the actual schema for the table, with column IDs reassigned
-  static final Schema TABLE_SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get(), "unique ID"),
-      required(2, "data", Types.StringType.get())
-  );
+  static final Schema TABLE_SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "data", Types.StringType.get()));
 
-  static final Schema UPDATED_SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get(), "unique ID"),
-      required(2, "data", Types.StringType.get()),
-      optional(3, "n", Types.IntegerType.get())
-  );
+  static final Schema UPDATED_SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get(), "unique ID"),
+          required(2, "data", Types.StringType.get()),
+          optional(3, "n", Types.IntegerType.get()));
 
   // Partition spec used to create tables
-  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .bucket("data", 16)
-      .build();
+  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
 
   static final HadoopTables TABLES = new HadoopTables(new Configuration());
 
-  static final DataFile FILE_A = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-      .withRecordCount(2) // needs at least one record or else metrics will filter it out
-      .build();
-  static final DataFile FILE_B = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-b.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=1") // easy way to set partition data for now
-      .withRecordCount(2) // needs at least one record or else metrics will filter it out
-      .build();
-  static final DataFile FILE_C = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=2") // easy way to set partition data for now
-      .withRecordCount(2) // needs at least one record or else metrics will filter it out
-      .build();
-  static final DataFile FILE_D = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(0)
-      .withPartitionPath("data_bucket=3") // easy way to set partition data for now
-      .withRecordCount(2) // needs at least one record or else metrics will filter it out
-      .build();
+  static final DataFile FILE_A =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-a.parquet")
+          .withFileSizeInBytes(0)
+          .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+          .withRecordCount(2) // needs at least one record or else metrics will filter it out
+          .build();
+  static final DataFile FILE_B =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-b.parquet")
+          .withFileSizeInBytes(0)
+          .withPartitionPath("data_bucket=1") // easy way to set partition data for now
+          .withRecordCount(2) // needs at least one record or else metrics will filter it out
+          .build();
+  static final DeleteFile FILE_B_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-b-deletes.parquet")
+          .withFileSizeInBytes(0)
+          .withPartitionPath("data_bucket=1")
+          .withRecordCount(1)
+          .build();
+  static final DataFile FILE_C =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-a.parquet")
+          .withFileSizeInBytes(0)
+          .withPartitionPath("data_bucket=2") // easy way to set partition data for now
+          .withRecordCount(2) // needs at least one record or else metrics will filter it out
+          .build();
+  static final DataFile FILE_D =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-a.parquet")
+          .withFileSizeInBytes(0)
+          .withPartitionPath("data_bucket=3") // easy way to set partition data for now
+          .withRecordCount(2) // needs at least one record or else metrics will filter it out
+          .build();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   File tableDir = null;
   String tableLocation = null;
@@ -121,22 +133,26 @@ public class HadoopTableTestBase {
   }
 
   List<File> listManifestFiles() {
-    return Lists.newArrayList(metadataDir.listFiles((dir, name) ->
-        !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+    return Lists.newArrayList(
+        metadataDir.listFiles(
+            (dir, name) ->
+                !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
   List<File> listMetadataJsonFiles() {
-    return Lists.newArrayList(metadataDir.listFiles((dir, name) ->
-        name.endsWith(".metadata.json") || name.endsWith(".metadata.json.gz")));
+    return Lists.newArrayList(
+        metadataDir.listFiles(
+            (dir, name) -> name.endsWith(".metadata.json") || name.endsWith(".metadata.json.gz")));
   }
 
   File version(int versionNumber) {
-    return new File(metadataDir, "v" + versionNumber + getFileExtension(TableMetadataParser.Codec.NONE));
+    return new File(
+        metadataDir, "v" + versionNumber + getFileExtension(TableMetadataParser.Codec.NONE));
   }
 
   TableMetadata readMetadataVersion(int version) {
-    return TableMetadataParser.read(new TestTables.TestTableOperations("table", tableDir).io(),
-        localInput(version(version)));
+    return TableMetadataParser.read(
+        new TestTables.TestTableOperations("table", tableDir).io(), localInput(version(version)));
   }
 
   int readVersionHint() throws IOException {
@@ -157,7 +173,8 @@ public class HadoopTableTestBase {
     List<File> metadataJsonFiles = listMetadataJsonFiles();
     for (File file : metadataJsonFiles) {
       try (FileInputStream input = new FileInputStream(file)) {
-        try (GZIPOutputStream gzOutput = new GZIPOutputStream(new FileOutputStream(file.getAbsolutePath() + ".gz"))) {
+        try (GZIPOutputStream gzOutput =
+            new GZIPOutputStream(new FileOutputStream(file.getAbsolutePath() + ".gz"))) {
           int bb;
           while ((bb = input.read()) != -1) {
             gzOutput.write(bb);
@@ -170,10 +187,18 @@ public class HadoopTableTestBase {
   }
 
   protected HadoopCatalog hadoopCatalog() throws IOException {
+    return hadoopCatalog(Collections.emptyMap());
+  }
+
+  protected HadoopCatalog hadoopCatalog(Map<String, String> catalogProperties) throws IOException {
     HadoopCatalog hadoopCatalog = new HadoopCatalog();
     hadoopCatalog.setConf(new Configuration());
-    hadoopCatalog.initialize("hadoop",
-            ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath()));
+    hadoopCatalog.initialize(
+        "hadoop",
+        ImmutableMap.<String, String>builder()
+            .putAll(catalogProperties)
+            .put(CatalogProperties.WAREHOUSE_LOCATION, temp.newFolder().getAbsolutePath())
+            .build());
     return hadoopCatalog;
   }
 }

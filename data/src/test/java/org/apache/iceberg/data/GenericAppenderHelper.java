@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -34,19 +34,26 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
 
-/**
- * Helper for appending {@link DataFile} to a table or appending {@link Record}s to a table.
- */
+/** Helper for appending {@link DataFile} to a table or appending {@link Record}s to a table. */
 public class GenericAppenderHelper {
+
+  private static final String ORC_CONFIG_PREFIX = "^orc.*";
 
   private final Table table;
   private final FileFormat fileFormat;
   private final TemporaryFolder tmp;
+  private final Configuration conf;
 
-  public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp) {
+  public GenericAppenderHelper(
+      Table table, FileFormat fileFormat, TemporaryFolder tmp, Configuration conf) {
     this.table = table;
     this.fileFormat = fileFormat;
     this.tmp = tmp;
+    this.conf = conf;
+  }
+
+  public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp) {
+    this(table, fileFormat, tmp, null);
   }
 
   public void appendToTable(DataFile... dataFiles) {
@@ -73,14 +80,25 @@ public class GenericAppenderHelper {
     Preconditions.checkNotNull(table, "table not set");
     File file = tmp.newFile();
     Assert.assertTrue(file.delete());
-    return appendToLocalFile(table, file, fileFormat, partition, records);
+    return appendToLocalFile(table, file, fileFormat, partition, records, conf);
   }
 
   private static DataFile appendToLocalFile(
-      Table table, File file, FileFormat format, StructLike partition, List<Record> records)
+      Table table,
+      File file,
+      FileFormat format,
+      StructLike partition,
+      List<Record> records,
+      Configuration conf)
       throws IOException {
-    FileAppender<Record> appender = new GenericAppenderFactory(table.schema()).newAppender(
-        Files.localOutput(file), format);
+    GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema());
+
+    // Push down ORC related settings to appender if there are any
+    if (FileFormat.ORC.equals(format) && conf != null) {
+      appenderFactory.setAll(conf.getValByRegex(ORC_CONFIG_PREFIX));
+    }
+
+    FileAppender<Record> appender = appenderFactory.newAppender(Files.localOutput(file), format);
     try (FileAppender<Record> fileAppender = appender) {
       fileAppender.addAll(records);
     }
@@ -92,6 +110,7 @@ public class GenericAppenderHelper {
         .withMetrics(appender.metrics())
         .withFormat(format)
         .withPartition(partition)
+        .withSplitOffsets(appender.splitOffsets())
         .build();
   }
 }

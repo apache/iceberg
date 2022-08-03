@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
+
+import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
 import java.util.Iterator;
 import java.util.List;
@@ -32,7 +33,6 @@ import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.actions.Action;
-import org.apache.iceberg.actions.ManifestFileBean;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -49,8 +49,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-
-import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
 abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
@@ -116,11 +114,20 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
 
-    Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
-        .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
-        .dropDuplicates("path")
-        .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
-        .as(Encoders.bean(ManifestFileBean.class));
+    Dataset<ManifestFileBean> allManifests =
+        loadMetadataTable(table, ALL_MANIFESTS)
+            .selectExpr(
+                "path",
+                "length",
+                "partition_spec_id as partitionSpecId",
+                "added_snapshot_id as addedSnapshotId")
+            .dropDuplicates("path")
+            .repartition(
+                spark
+                    .sessionState()
+                    .conf()
+                    .numShufflePartitions()) // avoid adaptive execution combining tasks
+            .as(Encoders.bean(ManifestFileBean.class));
 
     return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
   }

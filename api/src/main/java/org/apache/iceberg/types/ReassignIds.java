@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.util.List;
@@ -27,10 +26,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final Schema sourceSchema;
+  private final TypeUtil.NextID assignId;
   private Type sourceType;
 
-  ReassignIds(Schema sourceSchema) {
+  ReassignIds(Schema sourceSchema, TypeUtil.NextID nextID) {
     this.sourceSchema = sourceSchema;
+    this.assignId = nextID;
   }
 
   @Override
@@ -41,6 +42,19 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     } finally {
       this.sourceType = null;
     }
+  }
+
+  private int id(Types.StructType sourceStruct, String name) {
+    Types.NestedField sourceField = sourceStruct.field(name);
+    if (sourceField != null) {
+      return sourceField.fieldId();
+    }
+
+    if (assignId != null) {
+      return assignId.get();
+    }
+
+    throw new IllegalArgumentException("Field " + name + " not found in source schema");
   }
 
   @Override
@@ -56,11 +70,11 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(length);
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
-      int sourceFieldId = sourceStruct.field(field.name()).fieldId();
+      int fieldId = id(sourceStruct, field.name());
       if (field.isRequired()) {
-        newFields.add(Types.NestedField.required(sourceFieldId, field.name(), types.get(i), field.doc()));
+        newFields.add(Types.NestedField.required(fieldId, field.name(), types.get(i), field.doc()));
       } else {
-        newFields.add(Types.NestedField.optional(sourceFieldId, field.name(), types.get(i), field.doc()));
+        newFields.add(Types.NestedField.optional(fieldId, field.name(), types.get(i), field.doc()));
       }
     }
 
@@ -73,15 +87,20 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     Types.StructType sourceStruct = sourceType.asStructType();
     Types.NestedField sourceField = sourceStruct.field(field.name());
-    if (sourceField == null) {
-      throw new IllegalArgumentException("Field " + field.name() + " not found in source schema");
-    }
+    if (sourceField != null) {
+      this.sourceType = sourceField.type();
+      try {
+        return future.get();
+      } finally {
+        sourceType = sourceStruct;
+      }
 
-    this.sourceType = sourceField.type();
-    try {
-      return future.get();
-    } finally {
-      sourceType = sourceStruct;
+    } else if (assignId != null) {
+      // there is no corresponding field in the id source schema, assign fresh IDs for the type
+      return TypeUtil.assignFreshIds(field.type(), assignId);
+
+    } else {
+      throw new IllegalArgumentException("Field " + field.name() + " not found in source schema");
     }
   }
 

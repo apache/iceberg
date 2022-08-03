@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.parquet;
 
 import java.util.List;
@@ -34,32 +33,30 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
   private static final GenericParquetReaders INSTANCE = new GenericParquetReaders();
 
-  private GenericParquetReaders() {
-  }
+  private GenericParquetReaders() {}
 
-  public static ParquetValueReader<Record> buildReader(Schema expectedSchema, MessageType fileSchema) {
+  public static ParquetValueReader<Record> buildReader(
+      Schema expectedSchema, MessageType fileSchema) {
     return INSTANCE.createReader(expectedSchema, fileSchema);
   }
 
-  public static ParquetValueReader<Record> buildReader(Schema expectedSchema, MessageType fileSchema,
-                                                       Map<Integer, ?> idToConstant) {
+  public static ParquetValueReader<Record> buildReader(
+      Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     return INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
   @Override
-  protected ParquetValueReader<Record> createStructReader(List<Type> types, List<ParquetValueReader<?>> fieldReaders,
-                                                          StructType structType) {
+  protected ParquetValueReader<Record> createStructReader(
+      List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
     return new RecordReader(types, fieldReaders, structType);
   }
 
   private static class RecordReader extends StructReader<Record, Record> {
-    private final StructType structType;
+    private final GenericRecord template;
 
-    RecordReader(List<Type> types,
-                 List<ParquetValueReader<?>> readers,
-                 StructType struct) {
+    RecordReader(List<Type> types, List<ParquetValueReader<?>> readers, StructType struct) {
       super(types, readers);
-      this.structType = struct;
+      this.template = struct != null ? GenericRecord.create(struct) : null;
     }
 
     @Override
@@ -67,7 +64,10 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
       if (reuse != null) {
         return reuse;
       } else {
-        return GenericRecord.create(structType);
+        // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since
+        // NAME_MAP_CACHE access
+        // is eliminated. Using copy here to gain performance.
+        return template.copy();
       }
     }
 

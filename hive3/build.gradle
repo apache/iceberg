@@ -49,6 +49,7 @@ project(':iceberg-hive3') {
     compileOnly project(':iceberg-hive3-orc-bundle')
     compileOnly project(':iceberg-mr')
     compileOnly project(':iceberg-data')
+    compileOnly project(':iceberg-orc')
 
     compileOnly("org.apache.hadoop:hadoop-client:${hadoopVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -76,9 +77,18 @@ project(':iceberg-hive3') {
 
     compileOnly("org.apache.hive:hive-metastore:${hiveVersion}") {
       exclude group: 'org.apache.orc'
+      exclude group: 'org.apache.parquet'
     }
     compileOnly("org.apache.hive:hive-serde:${hiveVersion}") {
       exclude group: 'org.apache.orc'
+      exclude group: 'org.apache.parquet'
+    }
+
+    compileOnly("org.apache.parquet:parquet-avro") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
     }
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')

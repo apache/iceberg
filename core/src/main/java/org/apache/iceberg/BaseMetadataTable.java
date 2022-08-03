@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -29,13 +28,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * Base class for metadata tables.
- * <p>
- * Serializing and deserializing a metadata table object returns a read only implementation of the metadata table
- * using a {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
- * deserialization.
+ *
+ * <p>Serializing and deserializing a metadata table object returns a read only implementation of
+ * the metadata table using a {@link StaticTableOperations}. This way no Catalog related calls are
+ * needed when reading the table data after deserialization.
  */
-abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
-  protected static final String PARTITION_FIELD_PREFIX = "partition.";
+public abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final TableOperations ops;
@@ -49,21 +47,23 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   /**
-   * This method transforms the table's partition spec to a spec that is used to rewrite the user-provided filter
-   * expression against the given metadata table.
-   * <p>
-   * The resulting partition spec maps $partitionPrefix.X fields to partition X using an identity partition transform.
-   * When this spec is used to project an expression for the given metadata table, the projection will remove
-   * predicates for non-partition fields (not in the spec) and will remove the "$partitionPrefix." prefix from fields.
+   * This method transforms the table's partition spec to a spec that is used to rewrite the
+   * user-provided filter expression against the given metadata table.
    *
-   * @param metadataTableSchena schema of the metadata table
+   * <p>The resulting partition spec maps partition.X fields to partition X using an identity
+   * partition transform. When this spec is used to project an expression for the given metadata
+   * table, the projection will remove predicates for non-partition fields (not in the spec) and
+   * will remove the "partition." prefix from fields.
+   *
+   * @param metadataTableSchema schema of the metadata table
    * @param spec spec on which the metadata table schema is based
-   * @param partitionPrefix prefix to remove from each field in the partition spec
-   * @return a spec used to rewrite the metadata table filters to partition filters using an inclusive projection
+   * @return a spec used to rewrite the metadata table filters to partition filters using an
+   *     inclusive projection
    */
-  static PartitionSpec transformSpec(Schema metadataTableSchena, PartitionSpec spec, String partitionPrefix) {
-    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(metadataTableSchena);
-    spec.fields().forEach(pf -> identitySpecBuilder.identity(partitionPrefix + pf.name(), pf.name()));
+  static PartitionSpec transformSpec(Schema metadataTableSchema, PartitionSpec spec) {
+    PartitionSpec.Builder identitySpecBuilder =
+        PartitionSpec.builderFor(metadataTableSchema).checkConflicts(false);
+    spec.fields().forEach(pf -> identitySpecBuilder.add(pf.fieldId(), pf.name(), "identity"));
     return identitySpecBuilder.build();
   }
 

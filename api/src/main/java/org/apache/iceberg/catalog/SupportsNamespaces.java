@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import java.util.List;
@@ -29,13 +28,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * Catalog methods for working with namespaces.
- * <p>
- * If an object such as a table, view, or function exists, its parent namespaces must also exist
- * and must be returned by the discovery methods {@link #listNamespaces()} and
- * {@link #listNamespaces(Namespace namespace)}.
- * <p>
- * Catalog implementations are not required to maintain the existence of namespaces independent of
- * objects in a namespace. For example, a function catalog that loads functions using reflection
+ *
+ * <p>If an object such as a table, view, or function exists, its parent namespaces must also exist
+ * and must be returned by the discovery methods {@link #listNamespaces()} and {@link
+ * #listNamespaces(Namespace namespace)}.
+ *
+ * <p>Catalog implementations are not required to maintain the existence of namespaces independent
+ * of objects in a namespace. For example, a function catalog that loads functions using reflection
  * and uses Java packages as namespaces is not required to support the methods to create, alter, or
  * drop a namespace. Implementations are allowed to discover the existence of objects or namespaces
  * without throwing {@link NoSuchNamespaceException} when no namespace is found.
@@ -64,10 +63,10 @@ public interface SupportsNamespaces {
 
   /**
    * List top-level namespaces from the catalog.
-   * <p>
-   * If an object such as a table, view, or function exists, its parent namespaces must also exist
-   * and must be returned by this discovery method. For example, if table a.b.t exists, this method
-   * must return ["a"] in the result array.
+   *
+   * <p>If an object such as a table, view, or function exists, its parent namespaces must also
+   * exist and must be returned by this discovery method. For example, if table a.b.t exists, this
+   * method must return ["a"] in the result array.
    *
    * @return an List of namespace {@link Namespace} names
    */
@@ -77,9 +76,9 @@ public interface SupportsNamespaces {
 
   /**
    * List namespaces from the namespace.
-   * <p>
-   * For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method
-   * must return Namepace.of("a","b") {@link Namespace}.
+   *
+   * <p>For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method must return
+   * Namepace.of("a","b") {@link Namespace}.
    *
    * @return a List of namespace {@link Namespace} names
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
@@ -100,33 +99,35 @@ public interface SupportsNamespaces {
    *
    * @param namespace a namespace. {@link Namespace}
    * @return true if the namespace was dropped, false otherwise.
-   * @throws NamespaceNotEmptyException If the namespace does not empty
+   * @throws NamespaceNotEmptyException If the namespace is not empty
    */
   boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException;
 
   /**
    * Set a collection of properties on a namespace in the catalog.
-   * <p>
-   * Properties that are not in the given map are not modified or removed by this method.
+   *
+   * <p>Properties that are not in the given map are not modified or removed by this method.
    *
    * @param namespace a namespace. {@link Namespace}
    * @param properties a collection of metadata to apply to the namespace
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */
-  boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException;
+  boolean setProperties(Namespace namespace, Map<String, String> properties)
+      throws NoSuchNamespaceException;
 
   /**
    * Remove a set of property keys from a namespace in the catalog.
-   * <p>
-   * Properties that are not in the given set are not modified or removed by this method.
+   *
+   * <p>Properties that are not in the given set are not modified or removed by this method.
    *
    * @param namespace a namespace. {@link Namespace}
    * @param properties a collection of metadata to apply to the namespace
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */
-  boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException;
+  boolean removeProperties(Namespace namespace, Set<String> properties)
+      throws NoSuchNamespaceException;
 
   /**
    * Checks whether the Namespace exists.

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -39,11 +38,10 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-/**
- * A sort order that defines how data and delete files should be ordered in a table.
- */
+/** A sort order that defines how data and delete files should be ordered in a table. */
 public class SortOrder implements Serializable {
-  private static final SortOrder UNSORTED_ORDER = new SortOrder(new Schema(), 0, Collections.emptyList());
+  private static final SortOrder UNSORTED_ORDER =
+      new SortOrder(new Schema(), 0, Collections.emptyList());
 
   private final Schema schema;
   private final int orderId;
@@ -57,37 +55,27 @@ public class SortOrder implements Serializable {
     this.fields = fields.toArray(new SortField[0]);
   }
 
-  /**
-   * Returns the {@link Schema} for this sort order
-   */
+  /** Returns the {@link Schema} for this sort order */
   public Schema schema() {
     return schema;
   }
 
-  /**
-   * Returns the ID of this sort order
-   */
+  /** Returns the ID of this sort order */
   public int orderId() {
     return orderId;
   }
 
-  /**
-   * Returns the list of {@link SortField sort fields} for this sort order
-   */
+  /** Returns the list of {@link SortField sort fields} for this sort order */
   public List<SortField> fields() {
     return lazyFieldList();
   }
 
-  /**
-   * Returns true if the sort order is sorted
-   */
+  /** Returns true if the sort order is sorted */
   public boolean isSorted() {
     return fields.length >= 1;
   }
 
-  /**
-   * Returns true if the sort order is unsorted
-   */
+  /** Returns true if the sort order is unsorted */
   public boolean isUnsorted() {
     return fields.length < 1;
   }
@@ -133,6 +121,17 @@ public class SortOrder implements Serializable {
       }
     }
     return fieldList;
+  }
+
+  public UnboundSortOrder toUnbound() {
+    UnboundSortOrder.Builder builder = UnboundSortOrder.builder().withOrderId(orderId);
+
+    for (SortField field : fields) {
+      builder.addSortField(
+          field.transform().toString(), field.sourceId(), field.direction(), field.nullOrder());
+    }
+
+    return builder.build();
   }
 
   @Override
@@ -188,8 +187,8 @@ public class SortOrder implements Serializable {
 
   /**
    * A builder used to create valid {@link SortOrder sort orders}.
-   * <p>
-   * Call {@link #builderFor(Schema)} to create a new builder.
+   *
+   * <p>Call {@link #builderFor(Schema)} to create a new builder.
    */
   public static class Builder implements SortOrderBuilder<Builder> {
     private final Schema schema;
@@ -233,7 +232,6 @@ public class SortOrder implements Serializable {
       return addSortField(term, direction, nullOrder);
     }
 
-
     public Builder withOrderId(int newOrderId) {
       this.orderId = newOrderId;
       return this;
@@ -244,9 +242,10 @@ public class SortOrder implements Serializable {
       return this;
     }
 
-    Builder addSortField(Term term, SortDirection direction, NullOrder nullOrder) {
+    private Builder addSortField(Term term, SortDirection direction, NullOrder nullOrder) {
       Preconditions.checkArgument(term instanceof UnboundTerm, "Term must be unbound");
-      // ValidationException is thrown by bind if binding fails so we assume that boundTerm is correct
+      // ValidationException is thrown by bind if binding fails so we assume that boundTerm is
+      // correct
       BoundTerm<?> boundTerm = ((UnboundTerm<?>) term).bind(schema.asStruct(), caseSensitive);
       int sourceId = boundTerm.ref().fieldId();
       SortField sortField = new SortField(toTransform(boundTerm), sourceId, direction, nullOrder);
@@ -254,16 +253,28 @@ public class SortOrder implements Serializable {
       return this;
     }
 
-    Builder addSortField(String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
+    Builder addSortField(
+        String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
       Types.NestedField column = schema.findField(sourceId);
-      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
+      ValidationException.check(column != null, "Cannot find source column: %s", sourceId);
       Transform<?, ?> transform = Transforms.fromString(column.type(), transformAsString);
+      return addSortField(transform, sourceId, direction, nullOrder);
+    }
+
+    Builder addSortField(
+        Transform<?, ?> transform, int sourceId, SortDirection direction, NullOrder nullOrder) {
       SortField sortField = new SortField(transform, sourceId, direction, nullOrder);
       fields.add(sortField);
       return this;
     }
 
     public SortOrder build() {
+      SortOrder sortOrder = buildUnchecked();
+      checkCompatibility(sortOrder, schema);
+      return sortOrder;
+    }
+
+    SortOrder buildUnchecked() {
       if (fields.isEmpty()) {
         if (orderId != null && orderId != 0) {
           throw new IllegalArgumentException("Unsorted order ID must be 0");
@@ -277,9 +288,7 @@ public class SortOrder implements Serializable {
 
       // default ID to 1 as 0 is reserved for unsorted order
       int actualOrderId = orderId != null ? orderId : 1;
-      SortOrder sortOrder = new SortOrder(schema, actualOrderId, fields);
-      checkCompatibility(sortOrder, schema);
-      return sortOrder;
+      return new SortOrder(schema, actualOrderId, fields);
     }
 
     private Transform<?, ?> toTransform(BoundTerm<?> term) {
@@ -288,7 +297,8 @@ public class SortOrder implements Serializable {
       } else if (term instanceof BoundTransform) {
         return ((BoundTransform<?, ?>) term).transform();
       } else {
-        throw new ValidationException("Invalid term: %s, expected either a bound reference or transform", term);
+        throw new ValidationException(
+            "Invalid term: %s, expected either a bound reference or transform", term);
       }
     }
   }
@@ -297,15 +307,16 @@ public class SortOrder implements Serializable {
     for (SortField field : sortOrder.fields) {
       Type sourceType = schema.findType(field.sourceId());
       ValidationException.check(
-          sourceType != null,
-          "Cannot find source column for sort field: %s", field);
+          sourceType != null, "Cannot find source column for sort field: %s", field);
       ValidationException.check(
           sourceType.isPrimitiveType(),
-          "Cannot sort by non-primitive source field: %s", sourceType);
+          "Cannot sort by non-primitive source field: %s",
+          sourceType);
       ValidationException.check(
           field.transform().canTransform(sourceType),
           "Invalid source type %s for transform: %s",
-          sourceType, field.transform());
+          sourceType,
+          field.transform());
     }
   }
 }

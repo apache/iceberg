@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.util.Collection;
@@ -30,34 +29,39 @@ import org.junit.Test;
 public class TestExpressionSerialization {
   @Test
   public void testExpressions() throws Exception {
-    Schema schema = new Schema(
-        Types.NestedField.optional(34, "a", Types.IntegerType.get()),
-        Types.NestedField.required(35, "s", Types.StringType.get())
-    );
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(34, "a", Types.IntegerType.get()),
+            Types.NestedField.required(35, "s", Types.StringType.get()));
 
-    Expression[] expressions = new Expression[] {
-        Expressions.alwaysFalse(),
-        Expressions.alwaysTrue(),
-        Expressions.lessThan("x", 5),
-        Expressions.lessThanOrEqual("y", -3),
-        Expressions.greaterThan("z", 0),
-        Expressions.greaterThanOrEqual("t", 129),
-        Expressions.equal("col", "data"),
-        Expressions.in("col", "a", "b"),
-        Expressions.notIn("col", 1, 2, 3),
-        Expressions.notEqual("col", "abc"),
-        Expressions.notNull("maybeNull"),
-        Expressions.isNull("maybeNull2"),
-        Expressions.isNaN("maybeNaN"),
-        Expressions.notNaN("maybeNaN2"),
-        Expressions.not(Expressions.greaterThan("a", 10)),
-        Expressions.and(Expressions.greaterThanOrEqual("a", 0), Expressions.lessThan("a", 3)),
-        Expressions.or(Expressions.lessThan("a", 0), Expressions.greaterThan("a", 10)),
-        Expressions.equal("a", 5).bind(schema.asStruct()),
-        Expressions.in("a", 5, 6, 7).bind(schema.asStruct()),
-        Expressions.notIn("s", "abc", "xyz").bind(schema.asStruct()),
-        Expressions.isNull("a").bind(schema.asStruct()),
-    };
+    Expression[] expressions =
+        new Expression[] {
+          Expressions.alwaysFalse(),
+          Expressions.alwaysTrue(),
+          Expressions.lessThan("x", 5),
+          Expressions.lessThanOrEqual("y", -3),
+          Expressions.greaterThan("z", 0),
+          Expressions.greaterThanOrEqual("t", 129),
+          Expressions.equal("col", "data"),
+          Expressions.in("col", "a", "b"),
+          Expressions.notIn("col", 1, 2, 3),
+          Expressions.notEqual("col", "abc"),
+          Expressions.notNull("maybeNull"),
+          Expressions.isNull("maybeNull2"),
+          Expressions.isNaN("maybeNaN"),
+          Expressions.notNaN("maybeNaN2"),
+          Expressions.startsWith("col", "abc"),
+          Expressions.notStartsWith("col", "abc"),
+          Expressions.not(Expressions.greaterThan("a", 10)),
+          Expressions.and(Expressions.greaterThanOrEqual("a", 0), Expressions.lessThan("a", 3)),
+          Expressions.or(Expressions.lessThan("a", 0), Expressions.greaterThan("a", 10)),
+          Expressions.equal("a", 5).bind(schema.asStruct()),
+          Expressions.in("a", 5, 6, 7).bind(schema.asStruct()),
+          Expressions.notIn("s", "abc", "xyz").bind(schema.asStruct()),
+          Expressions.isNull("a").bind(schema.asStruct()),
+          Expressions.startsWith("s", "abc").bind(schema.asStruct()),
+          Expressions.notStartsWith("s", "xyz").bind(schema.asStruct())
+        };
 
     for (Expression expression : expressions) {
       Expression copy = TestHelpers.roundTripSerialize(expression);
@@ -91,11 +95,11 @@ public class TestExpressionSerialization {
       case NOT:
         return equals(((Not) left).child(), ((Not) right).child());
       case AND:
-        return equals(((And) left).left(), ((And) right).left()) &&
-            equals(((And) left).right(), ((And) right).right());
+        return equals(((And) left).left(), ((And) right).left())
+            && equals(((And) left).right(), ((And) right).right());
       case OR:
-        return equals(((Or) left).left(), ((Or) right).left()) &&
-            equals(((Or) left).right(), ((Or) right).right());
+        return equals(((Or) left).left(), ((Or) right).left())
+            && equals(((Or) left).right(), ((Or) right).right());
       default:
         return false;
     }
@@ -107,16 +111,16 @@ public class TestExpressionSerialization {
     } else if (left instanceof UnboundTransform && right instanceof UnboundTransform) {
       UnboundTransform<?, ?> unboundLeft = (UnboundTransform<?, ?>) left;
       UnboundTransform<?, ?> unboundRight = (UnboundTransform<?, ?>) right;
-      if (equals(unboundLeft.ref(), unboundRight.ref()) &&
-          unboundLeft.transform().toString().equals(unboundRight.transform().toString())) {
+      if (equals(unboundLeft.ref(), unboundRight.ref())
+          && unboundLeft.transform().toString().equals(unboundRight.transform().toString())) {
         return true;
       }
 
     } else if (left instanceof BoundTransform && right instanceof BoundTransform) {
       BoundTransform<?, ?> boundLeft = (BoundTransform<?, ?>) left;
       BoundTransform<?, ?> boundRight = (BoundTransform<?, ?>) right;
-      if (equals(boundLeft.ref(), boundRight.ref()) &&
-          boundLeft.transform().toString().equals(boundRight.transform().toString())) {
+      if (equals(boundLeft.ref(), boundRight.ref())
+          && boundLeft.transform().toString().equals(boundRight.transform().toString())) {
         return true;
       }
     }
@@ -134,8 +138,10 @@ public class TestExpressionSerialization {
       return false;
     }
 
-    if (left.op() == Operation.IS_NULL || left.op() == Operation.NOT_NULL ||
-        left.op() == Operation.IS_NAN || left.op() == Operation.NOT_NAN) {
+    if (left.op() == Operation.IS_NULL
+        || left.op() == Operation.NOT_NULL
+        || left.op() == Operation.IS_NAN
+        || left.op() == Operation.NOT_NAN) {
       return true;
     }
 
@@ -149,15 +155,21 @@ public class TestExpressionSerialization {
       if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
         return equals(lpred.literals(), rpred.literals());
       }
-      return lpred.literal().comparator()
-          .compare(lpred.literal().value(), rpred.literal().value()) == 0;
+      return lpred.literal().comparator().compare(lpred.literal().value(), rpred.literal().value())
+          == 0;
 
     } else if (left instanceof BoundPredicate) {
       BoundPredicate lpred = (BoundPredicate) left;
       BoundPredicate rpred = (BoundPredicate) right;
       if (lpred.isLiteralPredicate() && rpred.isLiteralPredicate()) {
-        return lpred.asLiteralPredicate().literal().comparator()
-            .compare(lpred.asLiteralPredicate().literal().value(), rpred.asLiteralPredicate().literal().value()) == 0;
+        return lpred
+                .asLiteralPredicate()
+                .literal()
+                .comparator()
+                .compare(
+                    lpred.asLiteralPredicate().literal().value(),
+                    rpred.asLiteralPredicate().literal().value())
+            == 0;
       } else if (lpred.isSetPredicate() && rpred.isSetPredicate()) {
         return equals(lpred.asSetPredicate().literalSet(), rpred.asSetPredicate().literalSet());
       } else {
@@ -165,8 +177,8 @@ public class TestExpressionSerialization {
       }
 
     } else {
-      throw new UnsupportedOperationException(String.format(
-          "Predicate equality check for %s is not supported", left.getClass()));
+      throw new UnsupportedOperationException(
+          String.format("Predicate equality check for %s is not supported", left.getClass()));
     }
   }
 
@@ -195,8 +207,7 @@ public class TestExpressionSerialization {
       BoundReference lref = (BoundReference) left;
       BoundReference rref = (BoundReference) right;
 
-      return lref.fieldId() == rref.fieldId() &&
-          lref.type().equals(rref.type());
+      return lref.fieldId() == rref.fieldId() && lref.type().equals(rref.type());
     }
 
     return false;

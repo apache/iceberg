@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.examples;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,11 +44,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 /**
- * This class tests the snapshot functionality available with Iceberg.
- * This includes things like time-travel, rollback and retrieving metadata.
+ * This class tests the snapshot functionality available with Iceberg. This includes things like
+ * time-travel, rollback and retrieving metadata.
  */
 public class SnapshotFunctionalityTest {
 
@@ -59,10 +58,10 @@ public class SnapshotFunctionalityTest {
 
   @Before
   public void before() throws IOException {
-    Schema schema = new Schema(
-        optional(1, "id", Types.IntegerType.get()),
-        optional(2, "data", Types.StringType.get())
-    );
+    Schema schema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "data", Types.StringType.get()));
 
     spark = SparkSession.builder().master("local[2]").getOrCreate();
 
@@ -72,16 +71,15 @@ public class SnapshotFunctionalityTest {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     table = tables.create(schema, spec, tableLocation.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
     for (int i = 0; i < 5; i++) {
-      df.select("id", "data").write()
+      df.select("id", "data")
+          .write()
           .format("iceberg")
           .mode("append")
           .save(tableLocation.toString());
@@ -96,9 +94,7 @@ public class SnapshotFunctionalityTest {
     table.rollback().toSnapshotId(oldId).commit();
     table.refresh();
 
-    Dataset<Row> results = spark.read()
-        .format("iceberg")
-        .load(tableLocation.toString());
+    Dataset<Row> results = spark.read().format("iceberg").load(tableLocation.toString());
 
     results.createOrReplaceTempView("table");
     spark.sql("select * from table").show();
@@ -115,9 +111,7 @@ public class SnapshotFunctionalityTest {
     List<Snapshot> snapshots = IteratorUtils.toList(iterator);
   }
 
-  /**
-   * Expires anything older than a given timestamp, NOT including that timestamp.
-   */
+  /** Expires anything older than a given timestamp, NOT including that timestamp. */
   @Test
   public void retireAllSnapshotsOlderThanTimestamp() {
     long secondLatestTimestamp = table.history().get(2).timestampMillis();

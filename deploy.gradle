@@ -24,105 +24,111 @@ if (project.hasProperty('release') && jdkVersion != '8') {
 subprojects {
   apply plugin: 'maven-publish'
   apply plugin: 'signing'
+  afterEvaluate {
 
-  task sourceJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
-    group 'build'
-  }
-
-  task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
-    group 'build'
-  }
-
-  task testJar(type: Jar) {
-    archiveClassifier = 'tests'
-    from sourceSets.test.output
-  }
-
-  artifacts {
-    archives sourceJar
-    archives javadocJar
-    archives testJar
-    testArtifacts testJar
-  }
-
-  // add LICENSE and NOTICE
-  [jar, sourceJar, javadocJar, testJar].each { task ->
-    task.from(rootDir) {
-      include 'LICENSE'
-      include 'NOTICE'
+    task sourceJar(type: Jar, dependsOn: classes) {
+      classifier = 'sources'
+      from sourceSets.main.allSource
+      group 'build'
     }
-  }
 
-  publishing {
-    publications {
-      apache(MavenPublication) {
-        if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
-          from components.java
-        } else {
-          project.shadow.component(it)
-        }
+    task javadocJar(type: Jar, dependsOn: javadoc) {
+      classifier = 'javadoc'
+      from javadoc.destinationDir
+      group 'build'
+    }
 
-        artifact sourceJar
-        artifact javadocJar
-        artifact testJar
+    task testJar(type: Jar) {
+      archiveClassifier = 'tests'
+      from sourceSets.test.output
+    }
 
-        versionMapping {
-          allVariants {
-            fromResolutionResult()
+    artifacts {
+      archives sourceJar
+      archives javadocJar
+      archives testJar
+      testArtifacts testJar
+    }
+
+    // add LICENSE and NOTICE
+    [jar, sourceJar, javadocJar, testJar].each { task ->
+      task.dependsOn rootProject.tasks.buildInfo
+      task.from("${rootDir}/build") {
+        include 'iceberg-build.properties'
+      }
+      task.from(rootDir) {
+        include 'LICENSE'
+        include 'NOTICE'
+      }
+    }
+
+    publishing {
+      publications {
+        apache(MavenPublication) {
+          if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
+            from components.java
+          } else {
+            project.shadow.component(it)
           }
-        }
 
-        groupId = 'org.apache.iceberg'
-        pom {
-          name = 'Apache Iceberg'
-          description = 'A table format for huge analytic datasets'
-          url = 'https://iceberg.apache.org'
-          licenses {
-            license {
-              name = 'The Apache Software License, Version 2.0'
-              url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+          artifact sourceJar
+          artifact javadocJar
+          artifact testJar
+
+          versionMapping {
+            allVariants {
+              fromResolutionResult()
             }
           }
-          mailingLists {
-            mailingList {
-              name = 'Dev Mailing List'
-              post = 'dev@iceberg.apache.org'
-              subscribe = 'dev-subscribe@iceberg.apache.org'
-              unsubscribe = 'dev-unsubscribe@iceberg.apache.org'
+
+          groupId = 'org.apache.iceberg'
+          pom {
+            name = 'Apache Iceberg'
+            description = 'A table format for huge analytic datasets'
+            url = 'https://iceberg.apache.org'
+            licenses {
+              license {
+                name = 'The Apache Software License, Version 2.0'
+                url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+              }
+            }
+            mailingLists {
+              mailingList {
+                name = 'Dev Mailing List'
+                post = 'dev@iceberg.apache.org'
+                subscribe = 'dev-subscribe@iceberg.apache.org'
+                unsubscribe = 'dev-unsubscribe@iceberg.apache.org'
+              }
+            }
+            issueManagement {
+              system = 'GitHub'
+              url = 'https://github.com/apache/iceberg/issues'
             }
           }
-          issueManagement {
-            system = 'GitHub'
-            url = 'https://github.com/apache/iceberg/issues'
+        }
+      }
+
+      repositories {
+        maven {
+          credentials {
+            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
+            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
           }
+          // upload to the releases repository using ./gradlew -Prelease publish
+          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
+          def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
+          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
+          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
+          url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
         }
       }
     }
 
-    repositories {
-      maven {
-        credentials {
-          username project.hasProperty('mavenUser') ? "$mavenUser" : ""
-          password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
-        }
-        // upload to the releases repository using ./gradlew -Prelease publish
-        def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
-        def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
-        def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
-        def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
-        url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
+    if (project.hasProperty('release')) {
+      signing {
+        useGpgCmd()
+        sign publishing.publications.apache
       }
-    }
-  }
-
-  if (project.hasProperty('release')) {
-    signing {
-      useGpgCmd()
-      sign publishing.publications.apache
     }
   }
 }

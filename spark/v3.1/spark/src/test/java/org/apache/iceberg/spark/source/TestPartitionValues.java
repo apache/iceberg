@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.DataFiles;
@@ -57,46 +58,43 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @RunWith(Parameterized.class)
 public class TestPartitionValues {
   @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "parquet", false },
-        { "parquet", true },
-        { "avro", false },
-        { "orc", false },
-        { "orc", true }
+      {"parquet", false},
+      {"parquet", true},
+      {"avro", false},
+      {"orc", false},
+      {"orc", true}
     };
   }
 
-  private static final Schema SUPPORTED_PRIMITIVES = new Schema(
-      required(100, "id", Types.LongType.get()),
-      required(101, "data", Types.StringType.get()),
-      required(102, "b", Types.BooleanType.get()),
-      required(103, "i", Types.IntegerType.get()),
-      required(104, "l", Types.LongType.get()),
-      required(105, "f", Types.FloatType.get()),
-      required(106, "d", Types.DoubleType.get()),
-      required(107, "date", Types.DateType.get()),
-      required(108, "ts", Types.TimestampType.withZone()),
-      required(110, "s", Types.StringType.get()),
-      required(113, "bytes", Types.BinaryType.get()),
-      required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
-      required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-      required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
-  );
+  private static final Schema SUPPORTED_PRIMITIVES =
+      new Schema(
+          required(100, "id", Types.LongType.get()),
+          required(101, "data", Types.StringType.get()),
+          required(102, "b", Types.BooleanType.get()),
+          required(103, "i", Types.IntegerType.get()),
+          required(104, "l", Types.LongType.get()),
+          required(105, "f", Types.FloatType.get()),
+          required(106, "d", Types.DoubleType.get()),
+          required(107, "date", Types.DateType.get()),
+          required(108, "ts", Types.TimestampType.withZone()),
+          required(110, "s", Types.StringType.get()),
+          required(113, "bytes", Types.BinaryType.get()),
+          required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
+          required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
+          required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
+          );
 
-  private static final Schema SIMPLE_SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get()));
+  private static final Schema SIMPLE_SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
-  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SIMPLE_SCHEMA)
-      .identity("data")
-      .build();
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SIMPLE_SCHEMA).identity("data").build();
 
   private static SparkSession spark = null;
 
@@ -112,8 +110,7 @@ public class TestPartitionValues {
     currentSpark.stop();
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private final String format;
   private final boolean vectorized;
@@ -135,29 +132,30 @@ public class TestPartitionValues {
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c"),
-        new SimpleRecord(4, null)
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, null));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("id", "data").write()
+    df.select("id", "data")
+        .write()
         .format("iceberg")
         .mode(SaveMode.Append)
         .save(location.toString());
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(location.toString());
+    Dataset<Row> result =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(location.toString());
 
-    List<SimpleRecord> actual = result
-        .orderBy("id")
-        .as(Encoders.bean(SimpleRecord.class))
-        .collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
@@ -175,29 +173,28 @@ public class TestPartitionValues {
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-            new SimpleRecord(1, "a"),
-            new SimpleRecord(2, "b"),
-            new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("data", "id").write()
-            .format("iceberg")
-            .mode(SaveMode.Append)
-            .option(SparkWriteOptions.CHECK_ORDERING, "false")
-            .save(location.toString());
+    df.select("data", "id")
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .option(SparkWriteOptions.CHECK_ORDERING, "false")
+        .save(location.toString());
 
-    Dataset<Row> result = spark.read()
+    Dataset<Row> result =
+        spark
+            .read()
             .format("iceberg")
             .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
             .load(location.toString());
 
-    List<SimpleRecord> actual = result
-            .orderBy("id")
-            .as(Encoders.bean(SimpleRecord.class))
-            .collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
@@ -215,30 +212,29 @@ public class TestPartitionValues {
     Table table = tables.create(SIMPLE_SCHEMA, SPEC, location.toString());
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-            new SimpleRecord(1, "a"),
-            new SimpleRecord(2, "b"),
-            new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    df.select("data", "id").write()
-            .format("iceberg")
-            .mode(SaveMode.Append)
-            .option(SparkWriteOptions.CHECK_ORDERING, "false")
-            .option(SparkWriteOptions.CHECK_NULLABILITY, "false")
-            .save(location.toString());
+    df.select("data", "id")
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .option(SparkWriteOptions.CHECK_ORDERING, "false")
+        .option(SparkWriteOptions.CHECK_NULLABILITY, "false")
+        .save(location.toString());
 
-    Dataset<Row> result = spark.read()
+    Dataset<Row> result =
+        spark
+            .read()
             .format("iceberg")
             .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
             .load(location.toString());
 
-    List<SimpleRecord> actual = result
-            .orderBy("id")
-            .as(Encoders.bean(SimpleRecord.class))
-            .collectAsList();
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
@@ -246,9 +242,10 @@ public class TestPartitionValues {
 
   @Test
   public void testPartitionValueTypes() throws Exception {
-    String[] columnNames = new String[] {
-        "b", "i", "l", "f", "d", "date", "ts", "s", "bytes", "dec_9_0", "dec_11_2", "dec_38_10"
-    };
+    String[] columnNames =
+        new String[] {
+          "b", "i", "l", "f", "d", "date", "ts", "s", "bytes", "dec_9_0", "dec_11_2", "dec_38_10"
+        };
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
 
@@ -260,23 +257,27 @@ public class TestPartitionValues {
     List<GenericData.Record> expected = RandomData.generateList(source.schema(), 2, 128735L);
     File avroData = temp.newFile("data.avro");
     Assert.assertTrue(avroData.delete());
-    try (FileAppender<GenericData.Record> appender = Avro.write(Files.localOutput(avroData))
-        .schema(source.schema())
-        .build()) {
+    try (FileAppender<GenericData.Record> appender =
+        Avro.write(Files.localOutput(avroData)).schema(source.schema()).build()) {
       appender.addAll(expected);
     }
 
     // add the Avro data file to the source table
-    source.newAppend()
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withRecordCount(10)
-            .withInputFile(Files.localInput(avroData))
-            .build())
+    source
+        .newAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withRecordCount(10)
+                .withInputFile(Files.localInput(avroData))
+                .build())
         .commit();
 
-    Dataset<Row> sourceDF = spark.read().format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(sourceLocation);
+    Dataset<Row> sourceDF =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(sourceLocation);
 
     for (String column : columnNames) {
       String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
@@ -291,16 +292,15 @@ public class TestPartitionValues {
       Table table = tables.create(SUPPORTED_PRIMITIVES, spec, location.toString());
       table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-      sourceDF.write()
-          .format("iceberg")
-          .mode(SaveMode.Append)
-          .save(location.toString());
+      sourceDF.write().format("iceberg").mode(SaveMode.Append).save(location.toString());
 
-      List<Row> actual = spark.read()
-          .format("iceberg")
-          .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-          .load(location.toString())
-          .collectAsList();
+      List<Row> actual =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+              .load(location.toString())
+              .collectAsList();
 
       Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
 
@@ -313,9 +313,10 @@ public class TestPartitionValues {
 
   @Test
   public void testNestedPartitionValues() throws Exception {
-    String[] columnNames = new String[] {
-        "b", "i", "l", "f", "d", "date", "ts", "s", "bytes", "dec_9_0", "dec_11_2", "dec_38_10"
-    };
+    String[] columnNames =
+        new String[] {
+          "b", "i", "l", "f", "d", "date", "ts", "s", "bytes", "dec_9_0", "dec_11_2", "dec_38_10"
+        };
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Schema nestedSchema = new Schema(optional(1, "nested", SUPPORTED_PRIMITIVES.asStruct()));
@@ -328,23 +329,27 @@ public class TestPartitionValues {
     List<GenericData.Record> expected = RandomData.generateList(source.schema(), 2, 128735L);
     File avroData = temp.newFile("data.avro");
     Assert.assertTrue(avroData.delete());
-    try (FileAppender<GenericData.Record> appender = Avro.write(Files.localOutput(avroData))
-        .schema(source.schema())
-        .build()) {
+    try (FileAppender<GenericData.Record> appender =
+        Avro.write(Files.localOutput(avroData)).schema(source.schema()).build()) {
       appender.addAll(expected);
     }
 
     // add the Avro data file to the source table
-    source.newAppend()
-        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
-            .withRecordCount(10)
-            .withInputFile(Files.localInput(avroData))
-            .build())
+    source
+        .newAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withRecordCount(10)
+                .withInputFile(Files.localInput(avroData))
+                .build())
         .commit();
 
-    Dataset<Row> sourceDF = spark.read().format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(sourceLocation);
+    Dataset<Row> sourceDF =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(sourceLocation);
 
     for (String column : columnNames) {
       String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
@@ -354,45 +359,46 @@ public class TestPartitionValues {
       File dataFolder = new File(location, "data");
       Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-      PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity("nested." + column).build();
+      PartitionSpec spec =
+          PartitionSpec.builderFor(nestedSchema).identity("nested." + column).build();
 
       Table table = tables.create(nestedSchema, spec, location.toString());
       table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-      sourceDF.write()
-          .format("iceberg")
-          .mode(SaveMode.Append)
-          .save(location.toString());
+      sourceDF.write().format("iceberg").mode(SaveMode.Append).save(location.toString());
 
-      List<Row> actual = spark.read()
-          .format("iceberg")
-          .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-          .load(location.toString())
-          .collectAsList();
+      List<Row> actual =
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+              .load(location.toString())
+              .collectAsList();
 
       Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
 
       for (int i = 0; i < expected.size(); i += 1) {
-        TestHelpers.assertEqualsSafe(
-            nestedSchema.asStruct(), expected.get(i), actual.get(i));
+        TestHelpers.assertEqualsSafe(nestedSchema.asStruct(), expected.get(i), actual.get(i));
       }
     }
   }
 
   /**
    * To verify if WrappedPositionAccessor is generated against a string field within a nested field,
-   * rather than a Position2Accessor.
-   * Or when building the partition path, a ClassCastException is thrown with the message like:
-   * Cannot cast org.apache.spark.unsafe.types.UTF8String to java.lang.CharSequence
+   * rather than a Position2Accessor. Or when building the partition path, a ClassCastException is
+   * thrown with the message like: Cannot cast org.apache.spark.unsafe.types.UTF8String to
+   * java.lang.CharSequence
    */
   @Test
   public void testPartitionedByNestedString() throws Exception {
     // schema and partition spec
-    Schema nestedSchema = new Schema(
-        Types.NestedField.required(1, "struct",
-            Types.StructType.of(Types.NestedField.required(2, "string", Types.StringType.get()))
-        )
-    );
+    Schema nestedSchema =
+        new Schema(
+            Types.NestedField.required(
+                1,
+                "struct",
+                Types.StructType.of(
+                    Types.NestedField.required(2, "string", Types.StringType.get()))));
     PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity("struct.string").build();
 
     // create table
@@ -402,32 +408,31 @@ public class TestPartitionValues {
 
     // input data frame
     StructField[] structFields = {
-        new StructField("struct",
-            DataTypes.createStructType(
-                new StructField[] {
-                    new StructField("string", DataTypes.StringType, false, Metadata.empty())
-                }
-            ),
-            false, Metadata.empty()
-        )
+      new StructField(
+          "struct",
+          DataTypes.createStructType(
+              new StructField[] {
+                new StructField("string", DataTypes.StringType, false, Metadata.empty())
+              }),
+          false,
+          Metadata.empty())
     };
 
-    List<Row> rows = new ArrayList<>();
+    List<Row> rows = Lists.newArrayList();
     rows.add(RowFactory.create(RowFactory.create("nested_string_value")));
     Dataset<Row> sourceDF = spark.createDataFrame(rows, new StructType(structFields));
 
     // write into iceberg
-    sourceDF.write()
-        .format("iceberg")
-        .mode(SaveMode.Append)
-        .save(baseLocation);
+    sourceDF.write().format("iceberg").mode(SaveMode.Append).save(baseLocation);
 
     // verify
-    List<Row> actual = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-        .load(baseLocation)
-        .collectAsList();
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+            .load(baseLocation)
+            .collectAsList();
 
     Assert.assertEquals("Number of rows should match", rows.size(), actual.size());
   }

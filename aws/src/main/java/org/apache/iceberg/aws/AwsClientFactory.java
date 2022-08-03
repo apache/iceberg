@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws;
 
 import java.io.Serializable;
@@ -27,39 +26,43 @@ import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /**
- * Interface to customize AWS clients used by Iceberg.
- * A custom factory must have a no-arg constructor, and use {@link #initialize(Map)} to initialize the factory.
+ * Interface to customize AWS clients used by Iceberg. A custom factory must have a no-arg
+ * constructor, and use {@link #initialize(Map)} to initialize the factory.
  */
 public interface AwsClientFactory extends Serializable {
 
   /**
    * create a Amazon S3 client
+   *
    * @return s3 client
    */
   S3Client s3();
 
   /**
    * create a AWS Glue client
+   *
    * @return glue client
    */
   GlueClient glue();
 
   /**
    * Create a AWS KMS client
+   *
    * @return kms client
    */
   KmsClient kms();
 
   /**
    * Create a Amazon DynamoDB client
+   *
    * @return dynamoDB client
    */
   DynamoDbClient dynamo();
 
   /**
    * Initialize AWS client factory from catalog properties.
+   *
    * @param properties catalog properties
    */
   void initialize(Map<String, String> properties);
-
 }

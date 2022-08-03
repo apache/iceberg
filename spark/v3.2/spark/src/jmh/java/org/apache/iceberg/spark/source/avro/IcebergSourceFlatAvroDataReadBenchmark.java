@@ -16,8 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source.avro;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
+import static org.apache.spark.sql.functions.current_date;
+import static org.apache.spark.sql.functions.date_add;
+import static org.apache.spark.sql.functions.expr;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,19 +36,12 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
-import static org.apache.spark.sql.functions.current_date;
-import static org.apache.spark.sql.functions.date_add;
-import static org.apache.spark.sql.functions.expr;
-
 /**
- * A benchmark that evaluates the performance of reading Avro data with a flat schema
- * using Iceberg and the built-in file source in Spark.
+ * A benchmark that evaluates the performance of reading Avro data with a flat schema using Iceberg
+ * and the built-in file source in Spark.
  *
- * To run this benchmark for either spark-2 or spark-3:
- * <code>
- *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
+ * <p>To run this benchmark for spark-3.2: <code>
+ *   ./gradlew -DsparkVersions=3.2 :iceberg-spark:iceberg-spark-3.2_2.12:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatAvroDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-avro-data-read-benchmark-result.txt
  * </code>
@@ -70,11 +68,13 @@ public class IcebergSourceFlatAvroDataReadBenchmark extends IcebergSourceFlatDat
   public void readIceberg() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
-      materialize(df);
-    });
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
+          materialize(df);
+        });
   }
 
   @Benchmark
@@ -82,10 +82,12 @@ public class IcebergSourceFlatAvroDataReadBenchmark extends IcebergSourceFlatDat
   public void readFileSource() {
     Map<String, String> conf = Maps.newHashMap();
     conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().format("avro").load(dataLocation());
-      materialize(df);
-    });
+    withSQLConf(
+        conf,
+        () -> {
+          Dataset<Row> df = spark().read().format("avro").load(dataLocation());
+          materialize(df);
+        });
   }
 
   @Benchmark
@@ -93,11 +95,13 @@ public class IcebergSourceFlatAvroDataReadBenchmark extends IcebergSourceFlatDat
   public void readWithProjectionIceberg() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("longCol");
-      materialize(df);
-    });
+    withTableProperties(
+        tableProperties,
+        () -> {
+          String tableLocation = table().location();
+          Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("longCol");
+          materialize(df);
+        });
   }
 
   @Benchmark
@@ -105,28 +109,34 @@ public class IcebergSourceFlatAvroDataReadBenchmark extends IcebergSourceFlatDat
   public void readWithProjectionFileSource() {
     Map<String, String> conf = Maps.newHashMap();
     conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().format("avro").load(dataLocation()).select("longCol");
-      materialize(df);
-    });
+    withSQLConf(
+        conf,
+        () -> {
+          Dataset<Row> df = spark().read().format("avro").load(dataLocation()).select("longCol");
+          materialize(df);
+        });
   }
 
   private void appendData() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(DEFAULT_FILE_FORMAT, "avro");
-    withTableProperties(tableProperties, () -> {
-      for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
-        Dataset<Row> df = spark().range(NUM_ROWS)
-            .withColumnRenamed("id", "longCol")
-            .withColumn("intCol", expr("CAST(longCol AS INT)"))
-            .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-            .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-            .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
-            .withColumn("dateCol", date_add(current_date(), fileNum))
-            .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-            .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
-        appendAsFile(df);
-      }
-    });
+    withTableProperties(
+        tableProperties,
+        () -> {
+          for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
+            Dataset<Row> df =
+                spark()
+                    .range(NUM_ROWS)
+                    .withColumnRenamed("id", "longCol")
+                    .withColumn("intCol", expr("CAST(longCol AS INT)"))
+                    .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+                    .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+                    .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+                    .withColumn("dateCol", date_add(current_date(), fileNum))
+                    .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+                    .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
+            appendAsFile(df);
+          }
+        });
   }
 }

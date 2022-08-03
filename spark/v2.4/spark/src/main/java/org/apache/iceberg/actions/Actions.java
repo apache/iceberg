@@ -16,29 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.spark.actions.BaseDeleteOrphanFilesSparkAction;
-import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
-import org.apache.iceberg.spark.actions.BaseRewriteManifestsSparkAction;
 import org.apache.spark.sql.SparkSession;
 
 /**
  * An API for interacting with actions in Spark.
  *
- * @deprecated since 0.12.0, will be removed in 0.13.0; use an implementation of {@link ActionsProvider} instead.
+ * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+ *     backward compatibility. This implementation is no longer maintained, the new implementation
+ *     is available with Spark 3.x
  */
 @Deprecated
 public class Actions {
 
-  /*
-  We load the actual implementation of Actions via reflection to allow for differences
-  between the major Spark APIs while still defining the API in this class.
-  */
+  // Load the actual implementation of Actions via reflection to allow for differences
+  // between the major Spark APIs while still defining the API in this class.
   private static final String IMPL_NAME = "SparkActions";
   private static DynConstructors.Ctor<Actions> implConstructor;
 
@@ -51,9 +46,12 @@ public class Actions {
       String className = implClass();
       try {
         implConstructor =
-            DynConstructors.builder().hiddenImpl(className, SparkSession.class, Table.class).buildChecked();
+            DynConstructors.builder()
+                .hiddenImpl(className, SparkSession.class, Table.class)
+                .buildChecked();
       } catch (NoSuchMethodException e) {
-        throw new IllegalArgumentException("Cannot find appropriate Actions implementation on the classpath.", e);
+        throw new IllegalArgumentException(
+            "Cannot find appropriate Actions implementation on the classpath.", e);
       }
     }
     return implConstructor;
@@ -68,7 +66,9 @@ public class Actions {
   }
 
   /**
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use an implementation of {@link ActionsProvider} instead.
+   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+   *     backward compatibility. This implementation is no longer maintained, the new implementation
+   *     is available with Spark 3.x
    */
   @Deprecated
   public static Actions forTable(SparkSession spark, Table table) {
@@ -76,7 +76,9 @@ public class Actions {
   }
 
   /**
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use an implementation of {@link ActionsProvider} instead.
+   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+   *     backward compatibility. This implementation is no longer maintained, the new implementation
+   *     is available with Spark 3.x
    */
   @Deprecated
   public static Actions forTable(Table table) {
@@ -84,119 +86,13 @@ public class Actions {
   }
 
   /**
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link DeleteOrphanFiles} instead.
-   */
-  @Deprecated
-  public RemoveOrphanFilesAction removeOrphanFiles() {
-    BaseDeleteOrphanFilesSparkAction delegate = new BaseDeleteOrphanFilesSparkAction(spark, table);
-    return new RemoveOrphanFilesAction(delegate);
-  }
-
-  /**
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link RewriteManifests} instead.
-   */
-  @Deprecated
-  public RewriteManifestsAction rewriteManifests() {
-    BaseRewriteManifestsSparkAction delegate = new BaseRewriteManifestsSparkAction(spark, table);
-    return new RewriteManifestsAction(delegate);
-  }
-
-  /**
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link RewriteDataFiles} instead.
+   * @deprecated since 0.12.0, used for supporting {@link RewriteDataFilesAction} in Spark 2.4 for
+   *     backward compatibility. This implementation is no longer maintained, the new implementation
+   *     is available with Spark 3.x
    */
   @Deprecated
   public RewriteDataFilesAction rewriteDataFiles() {
     return new RewriteDataFilesAction(spark, table);
-  }
-
-  /**
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link ExpireSnapshots} instead.
-   */
-  @Deprecated
-  public ExpireSnapshotsAction expireSnapshots() {
-    BaseExpireSnapshotsSparkAction delegate = new BaseExpireSnapshotsSparkAction(spark, table);
-    return new ExpireSnapshotsAction(delegate);
-  }
-
-  /**
-   * Converts the provided table into an Iceberg table in place. The table will no longer be accessible by it's
-   * previous implementation
-   *
-   * @param tableName Table to be converted
-   * @return {@link CreateAction} to perform migration
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link MigrateTable} instead.
-   */
-  @Deprecated
-  public static CreateAction migrate(String tableName) {
-    try {
-      return DynMethods.builder("migrate")
-          .impl(implClass(), String.class).buildStaticChecked()
-          .invoke(tableName);
-    } catch (NoSuchMethodException ex) {
-      throw new UnsupportedOperationException("Migrate is not implemented for this version of Spark");
-    }
-  }
-
-  /**
-   * Converts the provided table into an Iceberg table in place. The table will no longer be accessible by it's
-   * previous implementation
-   *
-   * @param tableName Table to be converted
-   * @param spark     Spark session to use for looking up table
-   * @return {@link CreateAction} to perform migration
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link MigrateTable} instead.
-   */
-  @Deprecated
-  public static CreateAction migrate(SparkSession spark, String tableName) {
-    try {
-      return DynMethods.builder("migrate")
-          .impl(implClass(), SparkSession.class, String.class).buildStaticChecked()
-          .invoke(spark, tableName);
-    } catch (NoSuchMethodException ex) {
-      throw new UnsupportedOperationException("Migrate is not implemented for this version of Spark");
-    }
-  }
-
-  /**
-   * Creates an independent Iceberg table based on a given table. The new Iceberg table can be altered, appended or
-   * deleted without causing any change to the original. New data and metadata will be created in the default
-   * location for tables of this name in the destination catalog.
-   *
-   * @param sourceTable Original table which is the basis for the new Iceberg table
-   * @param destTable   New Iceberg table being created
-   * @return {@link SnapshotAction} to perform snapshot
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link SnapshotTable} instead.
-   */
-  @Deprecated
-  public static SnapshotAction snapshot(SparkSession spark, String sourceTable, String destTable) {
-    try {
-      return DynMethods.builder("snapshot")
-          .impl(implClass(), SparkSession.class, String.class, String.class).buildStaticChecked()
-          .invoke(spark, sourceTable, destTable);
-    } catch (NoSuchMethodException ex) {
-      throw new UnsupportedOperationException("Snapshot is not implemented for this version of Spark");
-    }
-  }
-
-  /**
-   * Creates an independent Iceberg table based on a given table. The new Iceberg table can be altered, appended or
-   * deleted without causing any change to the original. New data and metadata will be created in the default
-   * location for tables of this name in the destination catalog.
-   *
-   * @param sourceTable Original table which is the basis for the new Iceberg table
-   * @param destTable   New Iceberg table being created
-   * @return {@link SnapshotAction} to perform snapshot
-   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link SnapshotTable} instead.
-   */
-  @Deprecated
-  public static SnapshotAction snapshot(String sourceTable, String destTable) {
-    try {
-      return DynMethods.builder("snapshot")
-          .impl(implClass(), String.class, String.class).buildStaticChecked()
-          .invoke(sourceTable, destTable);
-    } catch (NoSuchMethodException ex) {
-      throw new UnsupportedOperationException("Snapshot is not implemented for this version of Spark");
-    }
   }
 
   protected SparkSession spark() {
@@ -206,5 +102,4 @@ public class Actions {
   protected Table table() {
     return table;
   }
-
 }

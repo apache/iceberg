@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 import java.io.Serializable;
 import java.time.Duration;
@@ -29,11 +30,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-
-/**
- * Context object with optional arguments for a Flink Scan.
- */
+/** Context object with optional arguments for a Flink Scan. */
 class ScanContext implements Serializable {
 
   private static final long serialVersionUID = 1L;
@@ -68,7 +65,11 @@ class ScanContext implements Serializable {
   private static final ConfigOption<Duration> MONITOR_INTERVAL =
       ConfigOptions.key("monitor-interval").durationType().defaultValue(Duration.ofSeconds(10));
 
+  private static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT =
+      ConfigOptions.key("max-planning-snapshot-count").intType().defaultValue(Integer.MAX_VALUE);
+
   private final boolean caseSensitive;
+  private final boolean exposeLocality;
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -78,16 +79,30 @@ class ScanContext implements Serializable {
   private final Long splitOpenFileCost;
   private final boolean isStreaming;
   private final Duration monitorInterval;
+  private final int maxPlanningSnapshotCount;
 
   private final String nameMapping;
   private final Schema schema;
   private final List<Expression> filters;
   private final long limit;
 
-  private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
-                      Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
-                      boolean isStreaming, Duration monitorInterval, String nameMapping,
-                      Schema schema, List<Expression> filters, long limit) {
+  private ScanContext(
+      boolean caseSensitive,
+      Long snapshotId,
+      Long startSnapshotId,
+      Long endSnapshotId,
+      Long asOfTimestamp,
+      Long splitSize,
+      Integer splitLookback,
+      Long splitOpenFileCost,
+      boolean isStreaming,
+      Duration monitorInterval,
+      String nameMapping,
+      Schema schema,
+      List<Expression> filters,
+      long limit,
+      boolean exposeLocality,
+      int maxPlanningSnapshotCount) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -103,6 +118,8 @@ class ScanContext implements Serializable {
     this.schema = schema;
     this.filters = filters;
     this.limit = limit;
+    this.exposeLocality = exposeLocality;
+    this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
   }
 
   boolean caseSensitive() {
@@ -161,6 +178,14 @@ class ScanContext implements Serializable {
     return limit;
   }
 
+  boolean exposeLocality() {
+    return exposeLocality;
+  }
+
+  public int maxPlanningSnapshotCount() {
+    return maxPlanningSnapshotCount;
+  }
+
   ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
@@ -177,6 +202,8 @@ class ScanContext implements Serializable {
         .project(schema)
         .filters(filters)
         .limit(limit)
+        .exposeLocality(exposeLocality)
+        .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
         .build();
   }
 
@@ -196,6 +223,8 @@ class ScanContext implements Serializable {
         .project(schema)
         .filters(filters)
         .limit(limit)
+        .exposeLocality(exposeLocality)
+        .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
         .build();
   }
 
@@ -214,13 +243,14 @@ class ScanContext implements Serializable {
     private Long splitOpenFileCost = SPLIT_FILE_OPEN_COST.defaultValue();
     private boolean isStreaming = STREAMING.defaultValue();
     private Duration monitorInterval = MONITOR_INTERVAL.defaultValue();
+    private int maxPlanningSnapshotCount = MAX_PLANNING_SNAPSHOT_COUNT.defaultValue();
     private String nameMapping;
     private Schema projectedSchema;
     private List<Expression> filters;
     private long limit = -1L;
+    private boolean exposeLocality;
 
-    private Builder() {
-    }
+    private Builder() {}
 
     Builder caseSensitive(boolean newCaseSensitive) {
       this.caseSensitive = newCaseSensitive;
@@ -292,6 +322,16 @@ class ScanContext implements Serializable {
       return this;
     }
 
+    Builder exposeLocality(boolean newExposeLocality) {
+      this.exposeLocality = newExposeLocality;
+      return this;
+    }
+
+    public Builder maxPlanningSnapshotCount(int newMaxPlanningSnapshotCount) {
+      this.maxPlanningSnapshotCount = newMaxPlanningSnapshotCount;
+      return this;
+    }
+
     Builder fromProperties(Map<String, String> properties) {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
@@ -306,14 +346,28 @@ class ScanContext implements Serializable {
           .splitOpenFileCost(config.get(SPLIT_FILE_OPEN_COST))
           .streaming(config.get(STREAMING))
           .monitorInterval(config.get(MONITOR_INTERVAL))
-          .nameMapping(properties.get(DEFAULT_NAME_MAPPING));
+          .nameMapping(properties.get(DEFAULT_NAME_MAPPING))
+          .maxPlanningSnapshotCount(config.get(MAX_PLANNING_SNAPSHOT_COUNT));
     }
 
     public ScanContext build() {
-      return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
-          endSnapshotId, asOfTimestamp, splitSize, splitLookback,
-          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filters, limit);
+      return new ScanContext(
+          caseSensitive,
+          snapshotId,
+          startSnapshotId,
+          endSnapshotId,
+          asOfTimestamp,
+          splitSize,
+          splitLookback,
+          splitOpenFileCost,
+          isStreaming,
+          monitorInterval,
+          nameMapping,
+          projectedSchema,
+          filters,
+          limit,
+          exposeLocality,
+          maxPlanningSnapshotCount);
     }
   }
 }

@@ -16,46 +16,44 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
-import java.util.Objects;
-import org.projectnessie.api.TreeApi;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.projectnessie.client.api.NessieApiV1;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
-import org.projectnessie.model.Hash;
 import org.projectnessie.model.Reference;
 
 class UpdateableReference {
 
   private Reference reference;
-  private final TreeApi client;
+  private final boolean mutable;
 
-  UpdateableReference(Reference reference, TreeApi client) {
+  /**
+   * Construct a new {@link UpdateableReference} using a Nessie reference object and a flag whether
+   * an explicit hash was used to create the reference object.
+   */
+  UpdateableReference(Reference reference, boolean hashReference) {
     this.reference = reference;
-    this.client = client;
+    this.mutable = reference instanceof Branch && !hashReference;
   }
 
-  public boolean refresh() throws NessieNotFoundException {
-    if (reference instanceof Hash) {
+  public boolean refresh(NessieApiV1 api) throws NessieNotFoundException {
+    if (!mutable) {
       return false;
     }
     Reference oldReference = reference;
-    reference = client.getReferenceByName(reference.getName());
+    reference = api.getReference().refName(reference.getName()).get();
     return !oldReference.equals(reference);
   }
 
   public void updateReference(Reference ref) {
-    Objects.requireNonNull(ref);
-    this.reference = ref;
+    Preconditions.checkState(mutable, "Hash references cannot be updated.");
+    this.reference = Preconditions.checkNotNull(ref, "ref is null");
   }
 
   public boolean isBranch() {
     return reference instanceof Branch;
-  }
-
-  public UpdateableReference copy() {
-    return new UpdateableReference(reference, client);
   }
 
   public String getHash() {
@@ -69,10 +67,13 @@ class UpdateableReference {
     return (Branch) reference;
   }
 
+  public Reference getReference() {
+    return reference;
+  }
+
   public void checkMutable() {
-    if (!isBranch()) {
-      throw new IllegalArgumentException("You can only mutate tables when using a branch.");
-    }
+    Preconditions.checkArgument(
+        mutable, "You can only mutate tables when using a branch without a hash or timestamp.");
   }
 
   public String getName() {

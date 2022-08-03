@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.StructLike;
@@ -55,6 +54,18 @@ public class BoundTransform<S, T> implements BoundTerm<T> {
   @Override
   public Type type() {
     return transform.getResultType(ref.type());
+  }
+
+  @Override
+  public boolean isEquivalentTo(BoundTerm<?> other) {
+    if (other instanceof BoundTransform) {
+      BoundTransform<?, ?> bound = (BoundTransform<?, ?>) other;
+      return ref.isEquivalentTo(bound.ref()) && transform.equals(bound.transform());
+    } else if (transform.isIdentity() && other instanceof BoundReference) {
+      return ref.isEquivalentTo(other);
+    }
+
+    return false;
   }
 
   @Override

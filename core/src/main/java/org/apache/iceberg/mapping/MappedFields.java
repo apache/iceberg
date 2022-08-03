@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mapping;
 
 import java.io.Serializable;
@@ -61,24 +60,29 @@ public class MappedFields implements Serializable {
 
   private static Map<String, Integer> indexIds(List<MappedField> fields) {
     ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
-    fields.forEach(field ->
-        field.names().forEach(name -> {
-          Integer id = field.id();
-          if (id != null) {
-            builder.put(name, id);
-          }
-        }));
+    fields.forEach(
+        field ->
+            field
+                .names()
+                .forEach(
+                    name -> {
+                      Integer id = field.id();
+                      if (id != null) {
+                        builder.put(name, id);
+                      }
+                    }));
     return builder.build();
   }
 
   private static Map<Integer, MappedField> indexFields(List<MappedField> fields) {
     ImmutableMap.Builder<Integer, MappedField> builder = ImmutableMap.builder();
-    fields.forEach(field -> {
-      Integer id = field.id();
-      if (id != null) {
-        builder.put(id, field);
-      }
-    });
+    fields.forEach(
+        field -> {
+          Integer id = field.id();
+          if (id != null) {
+            builder.put(id, field);
+          }
+        });
     return builder.build();
   }
 
@@ -113,7 +117,7 @@ public class MappedFields implements Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hash(fields);
+    return Objects.hashCode(fields);
   }
 
   @Override

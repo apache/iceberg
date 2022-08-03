@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -26,6 +25,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -36,7 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 
 abstract class ManifestMergeManager<F extends ContentFile<F>> {
   private final long targetSizeBytes;
@@ -46,16 +46,27 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
   // cache merge results to reuse when retrying
   private final Map<List<ManifestFile>, ManifestFile> mergedManifests = Maps.newConcurrentMap();
 
-  ManifestMergeManager(long targetSizeBytes, int minCountToMerge, boolean mergeEnabled) {
+  private final Supplier<ExecutorService> workerPoolSupplier;
+
+  ManifestMergeManager(
+      long targetSizeBytes,
+      int minCountToMerge,
+      boolean mergeEnabled,
+      Supplier<ExecutorService> executorSupplier) {
     this.targetSizeBytes = targetSizeBytes;
     this.minCountToMerge = minCountToMerge;
     this.mergeEnabled = mergeEnabled;
+    this.workerPoolSupplier = executorSupplier;
   }
 
   protected abstract long snapshotId();
+
   protected abstract PartitionSpec spec(int specId);
+
   protected abstract void deleteFile(String location);
+
   protected abstract ManifestWriter<F> newManifestWriter(PartitionSpec spec);
+
   protected abstract ManifestReader<F> newManifestReader(ManifestFile manifest);
 
   Iterable<ManifestFile> mergeManifests(Iterable<ManifestFile> manifests) {
@@ -91,17 +102,19 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     }
   }
 
-  private ListMultimap<Integer, ManifestFile> groupBySpec(ManifestFile first, Iterator<ManifestFile> remaining) {
-    ListMultimap<Integer, ManifestFile> groups = Multimaps.newListMultimap(
-        Maps.newTreeMap(Comparator.<Integer>reverseOrder()),
-        Lists::newArrayList);
+  private ListMultimap<Integer, ManifestFile> groupBySpec(
+      ManifestFile first, Iterator<ManifestFile> remaining) {
+    ListMultimap<Integer, ManifestFile> groups =
+        Multimaps.newListMultimap(
+            Maps.newTreeMap(Comparator.<Integer>reverseOrder()), Lists::newArrayList);
     groups.put(first.partitionSpecId(), first);
     remaining.forEachRemaining(manifest -> groups.put(manifest.partitionSpecId(), manifest));
     return groups;
   }
 
   @SuppressWarnings("unchecked")
-  private Iterable<ManifestFile> mergeGroup(ManifestFile first, int specId, List<ManifestFile> group) {
+  private Iterable<ManifestFile> mergeGroup(
+      ManifestFile first, int specId, List<ManifestFile> group) {
     // use a lookback of 1 to avoid reordering the manifests. using 1 also means this should pack
     // from the end so that the manifest that gets under-filled is the first one, which will be
     // merged the next time.
@@ -111,34 +124,38 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     // process bins in parallel, but put results in the order of the bins into an array to preserve
     // the order of manifests and contents. preserving the order helps avoid random deletes when
     // data files are eventually aged off.
-    List<ManifestFile>[] binResults = (List<ManifestFile>[])
-        Array.newInstance(List.class, bins.size());
+    List<ManifestFile>[] binResults =
+        (List<ManifestFile>[]) Array.newInstance(List.class, bins.size());
 
     Tasks.range(bins.size())
-        .stopOnFailure().throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
-        .run(index -> {
-          List<ManifestFile> bin = bins.get(index);
-          List<ManifestFile> outputManifests = Lists.newArrayList();
-          binResults[index] = outputManifests;
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPoolSupplier.get())
+        .run(
+            index -> {
+              List<ManifestFile> bin = bins.get(index);
+              List<ManifestFile> outputManifests = Lists.newArrayList();
+              binResults[index] = outputManifests;
 
-          if (bin.size() == 1) {
-            // no need to rewrite
-            outputManifests.add(bin.get(0));
-            return;
-          }
+              if (bin.size() == 1) {
+                // no need to rewrite
+                outputManifests.add(bin.get(0));
+                return;
+              }
 
-          // if the bin has the first manifest (the new data files or an appended manifest file) then only merge it
-          // if the number of manifests is above the minimum count. this is applied only to bins with an in-memory
-          // manifest so that large manifests don't prevent merging older groups.
-          if (bin.contains(first) && bin.size() < minCountToMerge) {
-            // not enough to merge, add all manifest files to the output list
-            outputManifests.addAll(bin);
-          } else {
-            // merge the group
-            outputManifests.add(createManifest(specId, bin));
-          }
-        });
+              // if the bin has the first manifest (the new data files or an appended manifest file)
+              // then only merge it
+              // if the number of manifests is above the minimum count. this is applied only to bins
+              // with an in-memory
+              // manifest so that large manifests don't prevent merging older groups.
+              if (bin.contains(first) && bin.size() < minCountToMerge) {
+                // not enough to merge, add all manifest files to the output list
+                outputManifests.addAll(bin);
+              } else {
+                // merge the group
+                outputManifests.add(createManifest(specId, bin));
+              }
+            });
 
     return Iterables.concat(binResults);
   }
@@ -187,6 +204,5 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     mergedManifests.put(bin, manifest);
 
     return manifest;
-
   }
 }

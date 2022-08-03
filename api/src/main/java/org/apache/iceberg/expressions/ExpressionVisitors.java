@@ -16,19 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 
-/**
- * Utils for traversing {@link Expression expressions}.
- */
+/** Utils for traversing {@link Expression expressions}. */
 public class ExpressionVisitors {
 
-  private ExpressionVisitors() {
-  }
+  private ExpressionVisitors() {}
 
   public abstract static class ExpressionVisitor<R> {
     public R alwaysTrue() {
@@ -60,12 +56,6 @@ public class ExpressionVisitors {
     }
   }
 
-  /**
-   * This base class is used by existing visitors that have not been updated to extend BoundExpressionVisitor.
-   *
-   * @deprecated use {@link BoundVisitor} instead
-   */
-  @Deprecated
   public abstract static class BoundExpressionVisitor<R> extends ExpressionVisitor<R> {
     public <T> R isNull(BoundReference<T> ref) {
       return null;
@@ -76,11 +66,13 @@ public class ExpressionVisitors {
     }
 
     public <T> R isNaN(BoundReference<T> ref) {
-      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement isNaN");
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not implement isNaN");
     }
 
     public <T> R notNaN(BoundReference<T> ref) {
-      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement notNaN");
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not implement notNaN");
     }
 
     public <T> R lt(BoundReference<T> ref, Literal<T> lit) {
@@ -108,21 +100,43 @@ public class ExpressionVisitors {
     }
 
     public <T> R in(BoundReference<T> ref, Set<T> literalSet) {
-      throw new UnsupportedOperationException("In operation is not supported by the visitor");
+      throw new UnsupportedOperationException("In expression is not supported by the visitor");
     }
 
     public <T> R notIn(BoundReference<T> ref, Set<T> literalSet) {
-      throw new UnsupportedOperationException("notIn operation is not supported by the visitor");
+      throw new UnsupportedOperationException("notIn expression is not supported by the visitor");
     }
 
     public <T> R startsWith(BoundReference<T> ref, Literal<T> lit) {
-      throw new UnsupportedOperationException("Unsupported operation.");
+      throw new UnsupportedOperationException(
+          "startsWith expression is not supported by the visitor");
+    }
+
+    public <T> R notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "notStartsWith expression is not supported by the visitor");
+    }
+
+    /**
+     * Handle a non-reference value in this visitor.
+     *
+     * <p>Visitors that require {@link BoundReference references} and not {@link Bound terms} can
+     * use this method to return a default value for expressions with non-references. The default
+     * implementation will throw a validation exception because the non-reference is not supported.
+     *
+     * @param term a non-reference bound expression
+     * @param <T> a Java return type
+     * @return a return value for the visitor
+     */
+    public <T> R handleNonReference(Bound<T> term) {
+      throw new ValidationException("Visitor %s does not support non-reference: %s", this, term);
     }
 
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
-      ValidationException.check(pred.term() instanceof BoundReference,
-          "Visitor %s does not support expression: %s", this, pred.term());
+      if (!(pred.term() instanceof BoundReference)) {
+        return handleNonReference(pred.term());
+      }
 
       if (pred.isLiteralPredicate()) {
         BoundLiteralPredicate<T> literalPred = pred.asLiteralPredicate();
@@ -140,9 +154,12 @@ public class ExpressionVisitors {
           case NOT_EQ:
             return notEq((BoundReference<T>) pred.term(), literalPred.literal());
           case STARTS_WITH:
-            return startsWith((BoundReference<T>) pred.term(),  literalPred.literal());
+            return startsWith((BoundReference<T>) pred.term(), literalPred.literal());
+          case NOT_STARTS_WITH:
+            return notStartsWith((BoundReference<T>) pred.term(), literalPred.literal());
           default:
-            throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
+            throw new IllegalStateException(
+                "Invalid operation for BoundLiteralPredicate: " + pred.op());
         }
 
       } else if (pred.isUnaryPredicate()) {
@@ -156,7 +173,8 @@ public class ExpressionVisitors {
           case NOT_NAN:
             return notNaN((BoundReference<T>) pred.term());
           default:
-            throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + pred.op());
+            throw new IllegalStateException(
+                "Invalid operation for BoundUnaryPredicate: " + pred.op());
         }
 
       } else if (pred.isSetPredicate()) {
@@ -166,7 +184,8 @@ public class ExpressionVisitors {
           case NOT_IN:
             return notIn((BoundReference<T>) pred.term(), pred.asSetPredicate().literalSet());
           default:
-            throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + pred.op());
+            throw new IllegalStateException(
+                "Invalid operation for BoundSetPredicate: " + pred.op());
         }
       }
 
@@ -189,11 +208,13 @@ public class ExpressionVisitors {
     }
 
     public <T> R isNaN(Bound<T> expr) {
-      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement isNaN");
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not implement isNaN");
     }
 
     public <T> R notNaN(Bound<T> expr) {
-      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement notNaN");
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not implement notNaN");
     }
 
     public <T> R lt(Bound<T> expr, Literal<T> lit) {
@@ -232,6 +253,10 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    public <T> R notStartsWith(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       if (pred.isLiteralPredicate()) {
@@ -250,9 +275,12 @@ public class ExpressionVisitors {
           case NOT_EQ:
             return notEq(pred.term(), literalPred.literal());
           case STARTS_WITH:
-            return startsWith(pred.term(),  literalPred.literal());
+            return startsWith(pred.term(), literalPred.literal());
+          case NOT_STARTS_WITH:
+            return notStartsWith(pred.term(), literalPred.literal());
           default:
-            throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + pred.op());
+            throw new IllegalStateException(
+                "Invalid operation for BoundLiteralPredicate: " + pred.op());
         }
 
       } else if (pred.isUnaryPredicate()) {
@@ -266,7 +294,8 @@ public class ExpressionVisitors {
           case NOT_NAN:
             return notNaN(pred.term());
           default:
-            throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + pred.op());
+            throw new IllegalStateException(
+                "Invalid operation for BoundUnaryPredicate: " + pred.op());
         }
 
       } else if (pred.isSetPredicate()) {
@@ -276,7 +305,8 @@ public class ExpressionVisitors {
           case NOT_IN:
             return notIn(pred.term(), pred.asSetPredicate().literalSet());
           default:
-            throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + pred.op());
+            throw new IllegalStateException(
+                "Invalid operation for BoundSetPredicate: " + pred.op());
         }
       }
 
@@ -291,9 +321,9 @@ public class ExpressionVisitors {
 
   /**
    * Traverses the given {@link Expression expression} with a {@link ExpressionVisitor visitor}.
-   * <p>
-   * The visitor will be called to handle each node in the expression tree in postfix order. Result
-   * values produced by child nodes are passed when parent nodes are handled.
+   *
+   * <p>The visitor will be called to handle each node in the expression tree in postfix order.
+   * Result values produced by child nodes are passed when parent nodes are handled.
    *
    * @param expr an expression to traverse
    * @param visitor a visitor that will be called to handle each node in the expression tree
@@ -323,18 +353,17 @@ public class ExpressionVisitors {
           Or or = (Or) expr;
           return visitor.or(visit(or.left(), visitor), visit(or.right(), visitor));
         default:
-          throw new UnsupportedOperationException(
-              "Unknown operation: " + expr.op());
+          throw new UnsupportedOperationException("Unknown operation: " + expr.op());
       }
     }
   }
 
   /**
    * Traverses the given {@link Expression expression} with a {@link ExpressionVisitor visitor}.
-   * <p>
-   * The visitor will be called to handle only nodes required for determining result
-   * in the expression tree in postfix order. Result values produced by child nodes
-   * are passed when parent nodes are handled.
+   *
+   * <p>The visitor will be called to handle only nodes required for determining result in the
+   * expression tree in postfix order. Result values produced by child nodes are passed when parent
+   * nodes are handled.
    *
    * @param expr an expression to traverse
    * @param visitor a visitor that will be called to handle each node in the expression tree
@@ -371,8 +400,7 @@ public class ExpressionVisitors {
           }
           return visitor.or(Boolean.FALSE, visitEvaluator(or.right(), visitor));
         default:
-          throw new UnsupportedOperationException(
-              "Unknown operation: " + expr.op());
+          throw new UnsupportedOperationException("Unknown operation: " + expr.op());
       }
     }
   }

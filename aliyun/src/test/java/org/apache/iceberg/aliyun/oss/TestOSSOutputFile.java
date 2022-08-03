@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
@@ -32,6 +31,7 @@ import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.Assert;
 import org.junit.Test;
@@ -49,7 +49,8 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     byte[] data = randomData(dataSize);
 
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
-    try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
+    try (OutputStream os = out.create();
+        InputStream is = new ByteArrayInputStream(data)) {
       ByteStreams.copy(is, os);
     }
 
@@ -78,8 +79,11 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     writeOSSData(uri, data);
 
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
-    AssertHelpers.assertThrows("Should complain about location already exists",
-        AlreadyExistsException.class, "Location already exists", out::create);
+    AssertHelpers.assertThrows(
+        "Should complain about location already exists",
+        AlreadyExistsException.class,
+        "Location already exists",
+        out::create);
   }
 
   @Test
@@ -94,12 +98,15 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     byte[] expect = randomData(expectSize);
 
     OutputFile out = OSSOutputFile.fromLocation(ossClient, uri.location(), aliyunProperties);
-    try (OutputStream os = out.createOrOverwrite(); InputStream is = new ByteArrayInputStream(expect)) {
+    try (OutputStream os = out.createOrOverwrite();
+        InputStream is = new ByteArrayInputStream(expect)) {
       ByteStreams.copy(is, os);
     }
 
-    Assert.assertEquals(String.format("Should overwrite object length from %d to %d", dataSize, expectSize),
-        expectSize, ossDataLength(uri));
+    Assert.assertEquals(
+        String.format("Should overwrite object length from %d to %d", dataSize, expectSize),
+        expectSize,
+        ossDataLength(uri));
 
     byte[] actual = ossDataContent(uri, expectSize);
     Assert.assertArrayEquals("Should overwrite object content", expect, actual);
@@ -108,7 +115,8 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
   @Test
   public void testLocation() {
     OSSURI uri = randomURI();
-    OutputFile out = new OSSOutputFile(ossClient, uri, aliyunProperties);
+    OutputFile out =
+        new OSSOutputFile(ossClient, uri, aliyunProperties, MetricsContext.nullMetrics());
     Assert.assertEquals("Location should match", uri.location(), out.location());
   }
 
@@ -117,8 +125,10 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     int dataSize = 1024 * 10;
     byte[] data = randomData(dataSize);
 
-    OutputFile out = new OSSOutputFile(ossClient, randomURI(), aliyunProperties);
-    try (OutputStream os = out.create(); InputStream is = new ByteArrayInputStream(data)) {
+    OutputFile out =
+        new OSSOutputFile(ossClient, randomURI(), aliyunProperties, MetricsContext.nullMetrics());
+    try (OutputStream os = out.create();
+        InputStream is = new ByteArrayInputStream(data)) {
       ByteStreams.copy(is, os);
     }
 

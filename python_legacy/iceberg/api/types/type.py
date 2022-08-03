@@ -63,7 +63,7 @@ class Type(object):
     def as_list_type(self):
         raise ValueError("Not a list type: " + self)
 
-    def asMapType(self):
+    def as_map_type(self):
         raise ValueError("Not a map type: " + self)
 
     def is_nested_type(self):

@@ -16,15 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Map;
-import org.apache.iceberg.actions.SnapshotAction;
-import org.apache.iceberg.actions.Spark3SnapshotAction;
+import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -35,16 +33,19 @@ import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
 
 class SnapshotTableProcedure extends BaseProcedure {
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("source_table", DataTypes.StringType),
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("location", DataTypes.StringType),
-      ProcedureParameter.optional("properties", STRING_MAP)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("source_table", DataTypes.StringType),
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.optional("location", DataTypes.StringType),
+        ProcedureParameter.optional("properties", STRING_MAP)
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("imported_files_count", DataTypes.LongType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("imported_files_count", DataTypes.LongType, false, Metadata.empty())
+          });
 
   private SnapshotTableProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
@@ -72,38 +73,41 @@ class SnapshotTableProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     String source = args.getString(0);
-    CatalogAndIdentifier sourceIdent = toCatalogAndIdentifier(source, PARAMETERS[0].name(), tableCatalog());
-
+    Preconditions.checkArgument(
+        source != null && !source.isEmpty(),
+        "Cannot handle an empty identifier for argument source_table");
     String dest = args.getString(1);
-    CatalogAndIdentifier destIdent = toCatalogAndIdentifier(dest, PARAMETERS[1].name(), tableCatalog());
-
+    Preconditions.checkArgument(
+        dest != null && !dest.isEmpty(), "Cannot handle an empty identifier for argument table");
     String snapshotLocation = args.isNullAt(2) ? null : args.getString(2);
 
     Map<String, String> properties = Maps.newHashMap();
     if (!args.isNullAt(3)) {
-      args.getMap(3).foreach(DataTypes.StringType, DataTypes.StringType,
-          (k, v) -> {
-            properties.put(k.toString(), v.toString());
-            return BoxedUnit.UNIT;
-          });
+      args.getMap(3)
+          .foreach(
+              DataTypes.StringType,
+              DataTypes.StringType,
+              (k, v) -> {
+                properties.put(k.toString(), v.toString());
+                return BoxedUnit.UNIT;
+              });
     }
 
-    Preconditions.checkArgument(sourceIdent != destIdent || sourceIdent.catalog() != destIdent.catalog(),
+    Preconditions.checkArgument(
+        !source.equals(dest),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
-    SnapshotAction action = new Spark3SnapshotAction(spark(), sourceIdent.catalog(), sourceIdent.identifier(),
-        destIdent.catalog(), destIdent.identifier());
+    SnapshotTable action = SparkActions.get().snapshotTable(source).as(dest);
 
     if (snapshotLocation != null) {
-      action.withLocation(snapshotLocation);
+      action.tableLocation(snapshotLocation);
     }
 
-    long importedDataFiles = action.withProperties(properties).execute();
-    return new InternalRow[] {newInternalRow(importedDataFiles)};
+    SnapshotTable.Result result = action.tableProperties(properties).execute();
+    return new InternalRow[] {newInternalRow(result.importedDataFilesCount())};
   }
 
   @Override
   public String description() {
     return "SnapshotTableProcedure";
   }
-
 }

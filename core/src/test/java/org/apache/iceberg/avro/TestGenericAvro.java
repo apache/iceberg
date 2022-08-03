@@ -16,40 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Record;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InMemoryOutputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
 
 public class TestGenericAvro extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomAvroData.generate(schema, 100, 0L);
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
-
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(testFile))
-        .schema(schema)
-        .named("test")
-        .build()) {
+    OutputFile outputFile = new InMemoryOutputFile();
+    try (FileAppender<Record> writer =
+        Avro.write(outputFile).schema(schema).named("test").build()) {
       for (Record rec : expected) {
         writer.add(rec);
       }
     }
 
     List<Record> rows;
-    try (AvroIterable<Record> reader = Avro.read(Files.localInput(testFile))
-        .project(schema)
-        .build()) {
+    try (AvroIterable<Record> reader =
+        Avro.read(outputFile.toInputFile()).project(schema).build()) {
       rows = Lists.newArrayList(reader);
     }
 

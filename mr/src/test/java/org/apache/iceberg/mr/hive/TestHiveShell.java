@@ -16,10 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -33,16 +31,20 @@ import org.apache.hive.service.cli.SessionHandle;
 import org.apache.hive.service.cli.session.HiveSession;
 import org.apache.hive.service.server.HiveServer2;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Test class for running HiveQL queries, essentially acting like a Beeline shell in tests.
  *
- * It spins up both an HS2 and a Metastore instance to work with. The shell will only accept
- * queries if it has been previously initialized via {@link #start()}, and a session has been opened via
- * {@link #openSession()}. Prior to calling {@link #start()}, the shell should first be configured with props that apply
- * across all test cases by calling {@link #setHiveConfValue(String, String)} ()}. On the other hand, session-level conf
- * can be applied anytime via {@link #setHiveSessionValue(String, String)} ()}, once we've opened an active session.
+ * <p>It spins up both an HS2 and a Metastore instance to work with. The shell will only accept
+ * queries if it has been previously initialized via {@link #start()}, and a session has been opened
+ * via {@link #openSession()}. Prior to calling {@link #start()}, the shell should first be
+ * configured with props that apply across all test cases by calling {@link
+ * #setHiveConfValue(String, String)} ()}. On the other hand, session-level conf can be applied
+ * anytime via {@link #setHiveSessionValue(String, String)} ()}, once we've opened an active
+ * session.
  */
 public class TestHiveShell {
 
@@ -60,7 +62,8 @@ public class TestHiveShell {
   }
 
   public void setHiveConfValue(String key, String value) {
-    Preconditions.checkState(!started, "TestHiveShell has already been started. Cannot set Hive conf anymore.");
+    Preconditions.checkState(
+        !started, "TestHiveShell has already been started. Cannot set Hive conf anymore.");
     hs2Conf.verifyAndSet(key, value);
   }
 
@@ -80,8 +83,11 @@ public class TestHiveShell {
   public void start() {
     // Create a copy of the HiveConf for the metastore
     metastore.start(new HiveConf(hs2Conf), 10);
-    hs2Conf.setVar(HiveConf.ConfVars.METASTOREURIS, metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS));
-    hs2Conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
+    hs2Conf.setVar(
+        HiveConf.ConfVars.METASTOREURIS,
+        metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS));
+    hs2Conf.setVar(
+        HiveConf.ConfVars.METASTOREWAREHOUSE,
         metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE));
 
     // Initializing RpcMetrics in a single JVM multiple times can cause issues
@@ -89,7 +95,8 @@ public class TestHiveShell {
 
     hs2.init(hs2Conf);
     hs2.start();
-    client = hs2.getServices().stream()
+    client =
+        hs2.getServices().stream()
             .filter(CLIService.class::isInstance)
             .findFirst()
             .map(CLIService.class::cast)
@@ -97,7 +104,7 @@ public class TestHiveShell {
     started = true;
   }
 
-  public void stop() {
+  public void stop() throws Exception {
     if (client != null) {
       client.stop();
     }
@@ -111,10 +118,13 @@ public class TestHiveShell {
   }
 
   public void openSession() {
-    Preconditions.checkState(started, "You have to start TestHiveShell first, before opening a session.");
+    Preconditions.checkState(
+        started, "You have to start TestHiveShell first, before opening a session.");
     try {
-      SessionHandle sessionHandle = client.getSessionManager().openSession(
-          CLIService.SERVER_VERSION, "", "", "127.0.0.1", Collections.emptyMap());
+      SessionHandle sessionHandle =
+          client
+              .getSessionManager()
+              .openSession(CLIService.SERVER_VERSION, "", "", "127.0.0.1", Collections.emptyMap());
       session = client.getSessionManager().getSession(sessionHandle);
     } catch (Exception e) {
       throw new RuntimeException("Unable to open new Hive session: ", e);
@@ -132,11 +142,13 @@ public class TestHiveShell {
   }
 
   public List<Object[]> executeStatement(String statement) {
-    Preconditions.checkState(session != null,
-            "You have to start TestHiveShell and open a session first, before running a query.");
+    Preconditions.checkState(
+        session != null,
+        "You have to start TestHiveShell and open a session first, before running a query.");
     try {
-      OperationHandle handle = client.executeStatement(session.getSessionHandle(), statement, Collections.emptyMap());
-      List<Object[]> resultSet = new ArrayList<>();
+      OperationHandle handle =
+          client.executeStatement(session.getSessionHandle(), statement, Collections.emptyMap());
+      List<Object[]> resultSet = Lists.newArrayList();
       if (handle.hasResultSet()) {
         RowSet rowSet;
         // keep fetching results until we can
@@ -148,7 +160,8 @@ public class TestHiveShell {
       }
       return resultSet;
     } catch (HiveSQLException e) {
-      throw new IllegalArgumentException("Failed to execute Hive query '" + statement + "': " + e.getMessage(), e);
+      throw new IllegalArgumentException(
+          "Failed to execute Hive query '" + statement + "': " + e.getMessage(), e);
     }
   }
 
@@ -188,6 +201,9 @@ public class TestHiveShell {
 
     // Disable vectorization for HiveIcebergInputFormat
     hiveConf.setBoolVar(HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED, false);
+
+    // do not serialize the FileIO config
+    hiveConf.set(InputFormatConfig.CONFIG_SERIALIZATION_DISABLED, "true");
 
     return hiveConf;
   }

@@ -218,7 +218,7 @@ This product includes code from Apache Avro.
 * Conversion in DecimalWriter is based on Avro's Conversions.DecimalConversion.
 
 Copyright: 2014-2017 The Apache Software Foundation.
-Home page: https://parquet.apache.org/
+Home page: https://avro.apache.org/
 License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -228,6 +228,8 @@ This product includes code from Apache Parquet.
 * DynMethods.java
 * DynConstructors.java
 * AssertHelpers.java
+* IOUtil.java readFully and tests
+* ByteBufferInputStream implementations and tests
 
 Copyright: 2014-2017 The Apache Software Foundation.
 Home page: https://parquet.apache.org/
