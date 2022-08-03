@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.orc;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -50,9 +52,6 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestGenericData extends DataTest {
 
   @Override
@@ -64,11 +63,12 @@ public class TestGenericData extends DataTest {
 
   @Test
   public void writeAndValidateRepeatingRecords() throws IOException {
-    Schema structSchema = new Schema(
-        required(100, "id", Types.LongType.get()),
-        required(101, "data", Types.StringType.get())
-    );
-    List<Record> expectedRepeating = Collections.nCopies(100, RandomGenericData.generate(structSchema, 1, 0L).get(0));
+    Schema structSchema =
+        new Schema(
+            required(100, "id", Types.LongType.get()),
+            required(101, "data", Types.StringType.get()));
+    List<Record> expectedRepeating =
+        Collections.nCopies(100, RandomGenericData.generate(structSchema, 1, 0L).get(0));
 
     writeAndValidateRecords(structSchema, expectedRepeating);
   }
@@ -77,10 +77,10 @@ public class TestGenericData extends DataTest {
   public void writeAndValidateTimestamps() throws IOException {
     TimeZone currentTz = TimeZone.getDefault();
     try {
-      Schema timestampSchema = new Schema(
-          required(1, "tsTzCol", Types.TimestampType.withZone()),
-          required(2, "tsCol", Types.TimestampType.withoutZone())
-      );
+      Schema timestampSchema =
+          new Schema(
+              required(1, "tsTzCol", Types.TimestampType.withZone()),
+              required(2, "tsCol", Types.TimestampType.withoutZone()));
 
       // Write using America/New_York timezone
       TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
@@ -100,10 +100,11 @@ public class TestGenericData extends DataTest {
       File testFile = temp.newFile();
       Assert.assertTrue("Delete should succeed", testFile.delete());
 
-      try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
-          .schema(timestampSchema)
-          .createWriterFunc(GenericOrcWriter::buildWriter)
-          .build()) {
+      try (FileAppender<Record> writer =
+          ORC.write(Files.localOutput(testFile))
+              .schema(timestampSchema)
+              .createWriterFunc(GenericOrcWriter::buildWriter)
+              .build()) {
         writer.add(record1);
         writer.add(record2);
         writer.add(record3);
@@ -113,21 +114,31 @@ public class TestGenericData extends DataTest {
       // Read using Asia/Kolkata timezone
       TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));
       List<Record> rows;
-      try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
-          .project(timestampSchema)
-          .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(timestampSchema, fileSchema))
-          .build()) {
+      try (CloseableIterable<Record> reader =
+          ORC.read(Files.localInput(testFile))
+              .project(timestampSchema)
+              .createReaderFunc(
+                  fileSchema -> GenericOrcReader.buildReader(timestampSchema, fileSchema))
+              .build()) {
         rows = Lists.newArrayList(reader);
       }
 
-      Assert.assertEquals(OffsetDateTime.parse("2017-01-17T01:10:34Z"), rows.get(0).getField("tsTzCol"));
-      Assert.assertEquals(LocalDateTime.parse("1970-01-01T00:01:00"), rows.get(0).getField("tsCol"));
-      Assert.assertEquals(OffsetDateTime.parse("2017-05-17T01:10:34Z"), rows.get(1).getField("tsTzCol"));
-      Assert.assertEquals(LocalDateTime.parse("1970-05-01T00:01:00"), rows.get(1).getField("tsCol"));
-      Assert.assertEquals(OffsetDateTime.parse("1935-01-17T01:10:34Z"), rows.get(2).getField("tsTzCol"));
-      Assert.assertEquals(LocalDateTime.parse("1935-01-01T00:01:00"), rows.get(2).getField("tsCol"));
-      Assert.assertEquals(OffsetDateTime.parse("1935-05-17T01:10:34Z"), rows.get(3).getField("tsTzCol"));
-      Assert.assertEquals(LocalDateTime.parse("1935-05-01T00:01:00"), rows.get(3).getField("tsCol"));
+      Assert.assertEquals(
+          OffsetDateTime.parse("2017-01-17T01:10:34Z"), rows.get(0).getField("tsTzCol"));
+      Assert.assertEquals(
+          LocalDateTime.parse("1970-01-01T00:01:00"), rows.get(0).getField("tsCol"));
+      Assert.assertEquals(
+          OffsetDateTime.parse("2017-05-17T01:10:34Z"), rows.get(1).getField("tsTzCol"));
+      Assert.assertEquals(
+          LocalDateTime.parse("1970-05-01T00:01:00"), rows.get(1).getField("tsCol"));
+      Assert.assertEquals(
+          OffsetDateTime.parse("1935-01-17T01:10:34Z"), rows.get(2).getField("tsTzCol"));
+      Assert.assertEquals(
+          LocalDateTime.parse("1935-01-01T00:01:00"), rows.get(2).getField("tsCol"));
+      Assert.assertEquals(
+          OffsetDateTime.parse("1935-05-17T01:10:34Z"), rows.get(3).getField("tsTzCol"));
+      Assert.assertEquals(
+          LocalDateTime.parse("1935-05-01T00:01:00"), rows.get(3).getField("tsCol"));
     } finally {
       TimeZone.setDefault(currentTz);
     }
@@ -139,10 +150,11 @@ public class TestGenericData extends DataTest {
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     Configuration conf = new Configuration();
-    TypeDescription writerSchema = TypeDescription.fromString("struct<a:tinyint,b:smallint,c:char(10),d:varchar(10)>");
-    Writer writer = OrcFile.createWriter(new Path(testFile.toString()),
-        OrcFile.writerOptions(conf)
-            .setSchema(writerSchema));
+    TypeDescription writerSchema =
+        TypeDescription.fromString("struct<a:tinyint,b:smallint,c:char(10),d:varchar(10)>");
+    Writer writer =
+        OrcFile.createWriter(
+            new Path(testFile.toString()), OrcFile.writerOptions(conf).setSchema(writerSchema));
     VectorizedRowBatch batch = writerSchema.createRowBatch();
     batch.ensureSize(1);
     batch.size = 1;
@@ -154,16 +166,17 @@ public class TestGenericData extends DataTest {
     writer.close();
 
     List<Record> rows;
-    Schema readSchema = new Schema(
-        optional(1, "a", Types.IntegerType.get()),
-        optional(2, "b", Types.IntegerType.get()),
-        optional(3, "c", Types.StringType.get()),
-        optional(4, "d", Types.StringType.get())
-    );
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
-        .project(readSchema)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema))
-        .build()) {
+    Schema readSchema =
+        new Schema(
+            optional(1, "a", Types.IntegerType.get()),
+            optional(2, "b", Types.IntegerType.get()),
+            optional(3, "c", Types.StringType.get()),
+            optional(4, "d", Types.StringType.get()));
+    try (CloseableIterable<Record> reader =
+        ORC.read(Files.localInput(testFile))
+            .project(readSchema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema))
+            .build()) {
       rows = Lists.newArrayList(reader);
     }
     Assert.assertEquals(1, rows.get(0).getField("a"));
@@ -176,20 +189,22 @@ public class TestGenericData extends DataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
-        .schema(schema)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> writer =
+        ORC.write(Files.localOutput(testFile))
+            .schema(schema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .build()) {
       for (Record rec : expected) {
         writer.add(rec);
       }
     }
 
     List<Record> rows;
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        ORC.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+            .build()) {
       rows = Lists.newArrayList(reader);
     }
 

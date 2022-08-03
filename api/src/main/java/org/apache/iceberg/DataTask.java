@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
 
-/**
- * A task that returns data as {@link StructLike rows} instead of where to read data.
- */
+/** A task that returns data as {@link StructLike rows} instead of where to read data. */
 public interface DataTask extends FileScanTask {
   @Override
   default boolean isDataTask() {
@@ -35,8 +32,6 @@ public interface DataTask extends FileScanTask {
     return this;
   }
 
-  /**
-   * Returns an iterable of {@link StructLike} rows.
-   */
+  /** Returns an iterable of {@link StructLike} rows. */
   CloseableIterable<StructLike> rows();
 }

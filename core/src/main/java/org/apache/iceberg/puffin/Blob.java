@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import java.nio.ByteBuffer;
@@ -30,23 +29,37 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 public final class Blob {
   private final String type;
   private final List<Integer> inputFields;
+  private final long snapshotId;
+  private final long sequenceNumber;
   private final ByteBuffer blobData;
   private final PuffinCompressionCodec requestedCompression;
   private final Map<String, String> properties;
 
-  public Blob(String type, List<Integer> inputFields, ByteBuffer blobData) {
-    this(type, inputFields, blobData, null, ImmutableMap.of());
+  public Blob(
+      String type,
+      List<Integer> inputFields,
+      long snapshotId,
+      long sequenceNumber,
+      ByteBuffer blobData) {
+    this(type, inputFields, snapshotId, sequenceNumber, blobData, null, ImmutableMap.of());
   }
 
   public Blob(
-      String type, List<Integer> inputFields, ByteBuffer blobData,
-      @Nullable PuffinCompressionCodec requestedCompression, Map<String, String> properties) {
+      String type,
+      List<Integer> inputFields,
+      long snapshotId,
+      long sequenceNumber,
+      ByteBuffer blobData,
+      @Nullable PuffinCompressionCodec requestedCompression,
+      Map<String, String> properties) {
     Preconditions.checkNotNull(type, "type is null");
     Preconditions.checkNotNull(inputFields, "inputFields is null");
     Preconditions.checkNotNull(blobData, "blobData is null");
     Preconditions.checkNotNull(properties, "properties is null");
     this.type = type;
     this.inputFields = ImmutableList.copyOf(inputFields);
+    this.snapshotId = snapshotId;
+    this.sequenceNumber = sequenceNumber;
     this.blobData = blobData;
     this.requestedCompression = requestedCompression;
     this.properties = ImmutableMap.copyOf(properties);
@@ -58,6 +71,14 @@ public final class Blob {
 
   public List<Integer> inputFields() {
     return inputFields;
+  }
+
+  public long snapshotId() {
+    return snapshotId;
+  }
+
+  public long sequenceNumber() {
+    return sequenceNumber;
   }
 
   public ByteBuffer blobData() {

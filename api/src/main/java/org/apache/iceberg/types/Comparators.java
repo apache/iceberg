@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.types;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -30,24 +28,23 @@ import org.apache.iceberg.util.UnicodeUtil;
 
 public class Comparators {
 
-  private Comparators() {
-  }
+  private Comparators() {}
 
-  private static final ImmutableMap<Type.PrimitiveType, Comparator<?>> COMPARATORS = ImmutableMap
-      .<Type.PrimitiveType, Comparator<?>>builder()
-      .put(Types.BooleanType.get(), Comparator.naturalOrder())
-      .put(Types.IntegerType.get(), Comparator.naturalOrder())
-      .put(Types.LongType.get(), Comparator.naturalOrder())
-      .put(Types.FloatType.get(), Comparator.naturalOrder())
-      .put(Types.DoubleType.get(), Comparator.naturalOrder())
-      .put(Types.DateType.get(), Comparator.naturalOrder())
-      .put(Types.TimeType.get(), Comparator.naturalOrder())
-      .put(Types.TimestampType.withZone(), Comparator.naturalOrder())
-      .put(Types.TimestampType.withoutZone(), Comparator.naturalOrder())
-      .put(Types.StringType.get(), Comparators.charSequences())
-      .put(Types.UUIDType.get(), Comparator.naturalOrder())
-      .put(Types.BinaryType.get(), Comparators.unsignedBytes())
-      .build();
+  private static final ImmutableMap<Type.PrimitiveType, Comparator<?>> COMPARATORS =
+      ImmutableMap.<Type.PrimitiveType, Comparator<?>>builder()
+          .put(Types.BooleanType.get(), Comparator.naturalOrder())
+          .put(Types.IntegerType.get(), Comparator.naturalOrder())
+          .put(Types.LongType.get(), Comparator.naturalOrder())
+          .put(Types.FloatType.get(), Comparator.naturalOrder())
+          .put(Types.DoubleType.get(), Comparator.naturalOrder())
+          .put(Types.DateType.get(), Comparator.naturalOrder())
+          .put(Types.TimeType.get(), Comparator.naturalOrder())
+          .put(Types.TimestampType.withZone(), Comparator.naturalOrder())
+          .put(Types.TimestampType.withoutZone(), Comparator.naturalOrder())
+          .put(Types.StringType.get(), Comparators.charSequences())
+          .put(Types.UUIDType.get(), Comparator.naturalOrder())
+          .put(Types.BinaryType.get(), Comparators.unsignedBytes())
+          .build();
 
   public static Comparator<StructLike> forType(Types.StructType struct) {
     return new StructLikeComparator(struct);
@@ -84,35 +81,23 @@ public class Comparators {
     throw new UnsupportedOperationException("Cannot determine comparator for type: " + type);
   }
 
-  @SuppressWarnings("unchecked")
-  private static <T> Class<T> internalClass(Type type) {
-    if (type.isPrimitiveType()) {
-      return (Class<T>) type.typeId().javaClass();
-    } else if (type.isStructType()) {
-      return (Class<T>) StructLike.class;
-    } else if (type.isListType()) {
-      return (Class<T>) List.class;
-    } else if (type.isMapType()) {
-      return (Class<T>) Map.class;
-    }
-
-    throw new UnsupportedOperationException("Cannot determine expected class for type: " + type);
-  }
-
   private static class StructLikeComparator implements Comparator<StructLike> {
     private final Comparator<Object>[] comparators;
     private final Class<?>[] classes;
 
     private StructLikeComparator(Types.StructType struct) {
-      this.comparators = struct.fields().stream()
-          .map(field -> field.isOptional() ?
-              Comparators.nullsFirst().thenComparing(internal(field.type())) :
-              internal(field.type())
-          )
-          .toArray((IntFunction<Comparator<Object>[]>) Comparator[]::new);
-      this.classes = struct.fields().stream()
-          .map(field -> internalClass(field.type()))
-          .toArray(Class<?>[]::new);
+      this.comparators =
+          struct.fields().stream()
+              .map(
+                  field ->
+                      field.isOptional()
+                          ? Comparators.nullsFirst().thenComparing(internal(field.type()))
+                          : internal(field.type()))
+              .toArray((IntFunction<Comparator<Object>[]>) Comparator[]::new);
+      this.classes =
+          struct.fields().stream()
+              .map(field -> field.type().typeId().javaClass())
+              .toArray(Class<?>[]::new);
     }
 
     @Override
@@ -138,9 +123,10 @@ public class Comparators {
 
     private ListComparator(Types.ListType list) {
       Comparator<T> elemComparator = internal(list.elementType());
-      this.elementComparator = list.isElementOptional() ?
-          Comparators.<T>nullsFirst().thenComparing(elemComparator) :
-          elemComparator;
+      this.elementComparator =
+          list.isElementOptional()
+              ? Comparators.<T>nullsFirst().thenComparing(elemComparator)
+              : elemComparator;
     }
 
     @Override
@@ -190,8 +176,7 @@ public class Comparators {
   private static class NullsFirst<T> implements Comparator<T> {
     private static final NullsFirst<?> INSTANCE = new NullsFirst<>();
 
-    private NullsFirst() {
-    }
+    private NullsFirst() {}
 
     @Override
     public int compare(T o1, T o2) {
@@ -218,8 +203,7 @@ public class Comparators {
   private static class NullsLast<T> implements Comparator<T> {
     private static final NullsLast<?> INSTANCE = new NullsLast<>();
 
-    private NullsLast() {
-    }
+    private NullsLast() {}
 
     @Override
     public int compare(T o1, T o2) {
@@ -269,8 +253,7 @@ public class Comparators {
   private static class UnsignedByteBufComparator implements Comparator<ByteBuffer> {
     private static final UnsignedByteBufComparator INSTANCE = new UnsignedByteBufComparator();
 
-    private UnsignedByteBufComparator() {
-    }
+    private UnsignedByteBufComparator() {}
 
     @Override
     public int compare(ByteBuffer buf1, ByteBuffer buf2) {
@@ -285,9 +268,8 @@ public class Comparators {
       int b2pos = buf2.position();
       for (int i = 0; i < len; i += 1) {
         // Conversion to int is what Byte.toUnsignedInt would do
-        int cmp = Integer.compare(
-            ((int) buf1.get(b1pos + i)) & 0xff,
-            ((int) buf2.get(b2pos + i)) & 0xff);
+        int cmp =
+            Integer.compare(((int) buf1.get(b1pos + i)) & 0xff, ((int) buf2.get(b2pos + i)) & 0xff);
         if (cmp != 0) {
           return cmp;
         }
@@ -301,8 +283,7 @@ public class Comparators {
   private static class UnsignedByteArrayComparator implements Comparator<byte[]> {
     private static final UnsignedByteArrayComparator INSTANCE = new UnsignedByteArrayComparator();
 
-    private UnsignedByteArrayComparator() {
-    }
+    private UnsignedByteArrayComparator() {}
 
     @Override
     public int compare(byte[] array1, byte[] array2) {
@@ -329,16 +310,16 @@ public class Comparators {
   private static class CharSeqComparator implements Comparator<CharSequence> {
     private static final CharSeqComparator INSTANCE = new CharSeqComparator();
 
-    private CharSeqComparator() {
-    }
+    private CharSeqComparator() {}
 
     /**
-     * Java character supports only upto 3 byte UTF-8 characters. 4 byte UTF-8 character is represented using two Java
-     * characters (using UTF-16 surrogate pairs). Character by character comparison may yield incorrect results
-     * while comparing a 4 byte UTF-8 character to a java char. Character by character comparison works as expected
-     * if both characters are <= 3 byte UTF-8 character or  both characters are 4 byte UTF-8 characters.
-     * isCharInUTF16HighSurrogateRange method detects a 4-byte character and considers that character to be
-     * lexicographically greater than any 3 byte or lower UTF-8 character.
+     * Java character supports only upto 3 byte UTF-8 characters. 4 byte UTF-8 character is
+     * represented using two Java characters (using UTF-16 surrogate pairs). Character by character
+     * comparison may yield incorrect results while comparing a 4 byte UTF-8 character to a java
+     * char. Character by character comparison works as expected if both characters are <= 3 byte
+     * UTF-8 character or both characters are 4 byte UTF-8 characters.
+     * isCharInUTF16HighSurrogateRange method detects a 4-byte character and considers that
+     * character to be lexicographically greater than any 3 byte or lower UTF-8 character.
      */
     @Override
     public int compare(CharSequence s1, CharSequence s2) {

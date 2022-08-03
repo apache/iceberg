@@ -25,16 +25,21 @@ from typing import (
 
 import pytest
 
-from iceberg.catalog import Identifier, Properties
-from iceberg.catalog.base import Catalog
-from iceberg.exceptions import (
-    AlreadyExistsError,
+from pyiceberg.catalog import Identifier, Properties
+from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.exceptions import (
+    NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
     NoSuchNamespaceError,
     NoSuchTableError,
+    TableAlreadyExistsError,
 )
-from iceberg.schema import Schema
-from iceberg.table.base import PartitionSpec, Table
+from pyiceberg.schema import Schema
+from pyiceberg.table.base import Table
+from pyiceberg.table.metadata import INITIAL_SPEC_ID
+from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V1
 
 
 class InMemoryCatalog(Catalog):
@@ -53,7 +58,8 @@ class InMemoryCatalog(Catalog):
         identifier: Union[str, Identifier],
         schema: Schema,
         location: Optional[str] = None,
-        partition_spec: Optional[PartitionSpec] = None,
+        partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
+        sort_order: SortOrder = UNSORTED_SORT_ORDER,
         properties: Optional[Properties] = None,
     ) -> Table:
 
@@ -61,13 +67,12 @@ class InMemoryCatalog(Catalog):
         namespace = Catalog.namespace_from(identifier)
 
         if identifier in self.__tables:
-            raise AlreadyExistsError(f"Table already exists: {identifier}")
+            raise TableAlreadyExistsError(f"Table already exists: {identifier}")
         else:
             if namespace not in self.__namespaces:
                 self.__namespaces[namespace] = {}
 
-            table = Table()
-            table.identifier = identifier
+            table = Table(identifier=identifier, metadata=EXAMPLE_TABLE_METADATA_V1)
             self.__tables[identifier] = table
             return table
 
@@ -100,14 +105,13 @@ class InMemoryCatalog(Catalog):
         if to_namespace not in self.__namespaces:
             self.__namespaces[to_namespace] = {}
 
-        table.identifier = to_identifier
-        self.__tables[to_identifier] = table
-        return table
+        self.__tables[to_identifier] = Table(identifier=to_identifier, metadata=table.metadata)
+        return self.__tables[to_identifier]
 
     def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
         namespace = Catalog.identifier_to_tuple(namespace)
         if namespace in self.__namespaces:
-            raise AlreadyExistsError(f"Namespace already exists: {namespace}")
+            raise NamespaceAlreadyExistsError(f"Namespace already exists: {namespace}")
         else:
             self.__namespaces[namespace] = properties if properties else {}
 
@@ -141,17 +145,29 @@ class InMemoryCatalog(Catalog):
 
     def update_namespace_properties(
         self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
-    ) -> None:
+    ) -> PropertiesUpdateSummary:
+        removed: Set[str] = set()
+        updated: Set[str] = set()
+
         namespace = Catalog.identifier_to_tuple(namespace)
         if namespace in self.__namespaces:
             if removals:
                 for key in removals:
                     if key in self.__namespaces[namespace]:
                         del self.__namespaces[namespace][key]
+                        removed.add(key)
             if updates:
-                self.__namespaces[namespace].update(updates)
+                for key, value in updates.items():
+                    self.__namespaces[namespace][key] = value
+                    updated.add(key)
         else:
             raise NoSuchNamespaceError(f"Namespace does not exist: {namespace}")
+
+        expected_to_change = removed.difference(removals or set())
+
+        return PropertiesUpdateSummary(
+            removed=list(removed or []), updated=list(updates.keys() if updates else []), missing=list(expected_to_change)
+        )
 
 
 TEST_TABLE_IDENTIFIER = ("com", "organization", "department", "my_table")
@@ -159,7 +175,7 @@ TEST_TABLE_NAMESPACE = ("com", "organization", "department")
 TEST_TABLE_NAME = "my_table"
 TEST_TABLE_SCHEMA = Schema(schema_id=1)
 TEST_TABLE_LOCATION = "protocol://some/location"
-TEST_TABLE_PARTITION_SPEC = PartitionSpec()
+TEST_TABLE_PARTITION_SPEC = PartitionSpec(spec_id=INITIAL_SPEC_ID, fields=())
 TEST_TABLE_PROPERTIES = {"key1": "value1", "key2": "value2"}
 NO_SUCH_TABLE_ERROR = "Table does not exist: \\('com', 'organization', 'department', 'my_table'\\)"
 TABLE_ALREADY_EXISTS_ERROR = "Table already exists: \\('com', 'organization', 'department', 'my_table'\\)"
@@ -229,7 +245,7 @@ def test_create_table_raises_error_when_table_already_exists(catalog: InMemoryCa
     # Given
     given_catalog_has_a_table(catalog)
     # When
-    with pytest.raises(AlreadyExistsError, match=TABLE_ALREADY_EXISTS_ERROR):
+    with pytest.raises(TableAlreadyExistsError, match=TABLE_ALREADY_EXISTS_ERROR):
         catalog.create_table(
             identifier=TEST_TABLE_IDENTIFIER,
             schema=TEST_TABLE_SCHEMA,
@@ -311,7 +327,7 @@ def test_create_namespace_raises_error_on_existing_namespace(catalog: InMemoryCa
     # Given
     catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
     # When
-    with pytest.raises(AlreadyExistsError, match=NAMESPACE_ALREADY_EXISTS_ERROR):
+    with pytest.raises(NamespaceAlreadyExistsError, match=NAMESPACE_ALREADY_EXISTS_ERROR):
         catalog.create_namespace(TEST_TABLE_NAMESPACE, TEST_TABLE_PROPERTIES)
 
 
@@ -381,11 +397,12 @@ def test_update_namespace_metadata(catalog: InMemoryCatalog):
 
     # When
     new_metadata = {"key3": "value3", "key4": "value4"}
-    catalog.update_namespace_properties(TEST_TABLE_NAMESPACE, updates=new_metadata)
+    summary = catalog.update_namespace_properties(TEST_TABLE_NAMESPACE, updates=new_metadata)
 
     # Then
     assert TEST_TABLE_NAMESPACE in catalog.list_namespaces()
     assert new_metadata.items() <= catalog.load_namespace_properties(TEST_TABLE_NAMESPACE).items()
+    assert summary == PropertiesUpdateSummary(removed=[], updated=["key3", "key4"], missing=[])
 
 
 def test_update_namespace_metadata_removals(catalog: InMemoryCatalog):
@@ -395,12 +412,13 @@ def test_update_namespace_metadata_removals(catalog: InMemoryCatalog):
     # When
     new_metadata = {"key3": "value3", "key4": "value4"}
     remove_metadata = {"key1"}
-    catalog.update_namespace_properties(TEST_TABLE_NAMESPACE, remove_metadata, new_metadata)
+    summary = catalog.update_namespace_properties(TEST_TABLE_NAMESPACE, remove_metadata, new_metadata)
 
     # Then
     assert TEST_TABLE_NAMESPACE in catalog.list_namespaces()
     assert new_metadata.items() <= catalog.load_namespace_properties(TEST_TABLE_NAMESPACE).items()
     assert remove_metadata.isdisjoint(catalog.load_namespace_properties(TEST_TABLE_NAMESPACE).keys())
+    assert summary == PropertiesUpdateSummary(removed=["key1"], updated=["key3", "key4"], missing=[])
 
 
 def test_update_namespace_metadata_raises_error_when_namespace_does_not_exist(catalog: InMemoryCatalog):

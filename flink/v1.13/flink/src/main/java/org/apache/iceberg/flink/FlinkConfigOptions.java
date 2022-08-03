@@ -16,24 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
-
 
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 
 public class FlinkConfigOptions {
 
-  private FlinkConfigOptions() {
-  }
+  private FlinkConfigOptions() {}
 
   public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM =
       ConfigOptions.key("table.exec.iceberg.infer-source-parallelism")
           .booleanType()
           .defaultValue(true)
-          .withDescription("If is false, parallelism of source are set by config.\n" +
-              "If is true, source parallelism is inferred according to splits number.\n");
+          .withDescription(
+              "If is false, parallelism of source are set by config.\n"
+                  + "If is true, source parallelism is inferred according to splits number.\n");
 
   public static final ConfigOption<Integer> TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX =
       ConfigOptions.key("table.exec.iceberg.infer-source-parallelism.max")
@@ -45,5 +43,6 @@ public class FlinkConfigOptions {
       ConfigOptions.key("table.exec.iceberg.expose-split-locality-info")
           .booleanType()
           .noDefaultValue()
-          .withDescription("Expose split host information to use Flink's locality aware split assigner.");
+          .withDescription(
+              "Expose split host information to use Flink's locality aware split assigner.");
 }

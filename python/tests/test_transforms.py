@@ -14,16 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=W0123
-
+# pylint: disable=eval-used,protected-access
 from decimal import Decimal
 from uuid import UUID
 
 import mmh3 as mmh3
 import pytest
 
-from iceberg import transforms
-from iceberg.types import (
+from pyiceberg import transforms
+from pyiceberg.transforms import (
+    BucketTransform,
+    IdentityTransform,
+    Transform,
+    TruncateTransform,
+    UnknownTransform,
+    VoidTransform,
+)
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -39,12 +46,13 @@ from iceberg.types import (
     TimeType,
     UUIDType,
 )
-from iceberg.utils.datetime import (
+from pyiceberg.utils.datetime import (
     date_to_days,
     time_to_micros,
     timestamp_to_micros,
     timestamptz_to_micros,
 )
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
 @pytest.mark.parametrize(
@@ -72,30 +80,30 @@ from iceberg.utils.datetime import (
     ],
 )
 def test_bucket_hash_values(test_input, test_type, expected):
-    assert transforms.bucket(test_type, 8).hash(test_input) == expected
+    assert BucketTransform(num_buckets=8).transform(test_type, bucket=False)(test_input) == expected
 
 
 @pytest.mark.parametrize(
-    "bucket,value,expected",
+    "transform,value,expected",
     [
-        (transforms.bucket(IntegerType(), 100), 34, 79),
-        (transforms.bucket(LongType(), 100), 34, 79),
-        (transforms.bucket(DateType(), 100), 17486, 26),
-        (transforms.bucket(TimeType(), 100), 81068000000, 59),
-        (transforms.bucket(TimestampType(), 100), 1510871468000000, 7),
-        (transforms.bucket(DecimalType(9, 2), 100), Decimal("14.20"), 59),
-        (transforms.bucket(StringType(), 100), "iceberg", 89),
+        (BucketTransform(100).transform(IntegerType()), 34, 79),
+        (BucketTransform(100).transform(LongType()), 34, 79),
+        (BucketTransform(100).transform(DateType()), 17486, 26),
+        (BucketTransform(100).transform(TimeType()), 81068000000, 59),
+        (BucketTransform(100).transform(TimestampType()), 1510871468000000, 7),
+        (BucketTransform(100).transform(DecimalType(9, 2)), Decimal("14.20"), 59),
+        (BucketTransform(100).transform(StringType()), "iceberg", 89),
         (
-            transforms.bucket(UUIDType(), 100),
+            BucketTransform(100).transform(UUIDType()),
             UUID("f79c3e09-677c-4bbd-a479-3f349cb785e7"),
             40,
         ),
-        (transforms.bucket(FixedType(3), 128), b"foo", 32),
-        (transforms.bucket(BinaryType(), 128), b"\x00\x01\x02\x03", 57),
+        (BucketTransform(128).transform(FixedType(3)), b"foo", 32),
+        (BucketTransform(128).transform(BinaryType()), b"\x00\x01\x02\x03", 57),
     ],
 )
-def test_buckets(bucket, value, expected):
-    assert bucket.apply(value) == expected
+def test_buckets(transform, value, expected):
+    assert transform(value) == expected
 
 
 @pytest.mark.parametrize(
@@ -115,20 +123,20 @@ def test_buckets(bucket, value, expected):
     ],
 )
 def test_bucket_method(type_var):
-    bucket_transform = transforms.bucket(type_var, 8)
+    bucket_transform = BucketTransform(8)
     assert str(bucket_transform) == str(eval(repr(bucket_transform)))
     assert bucket_transform.can_transform(type_var)
     assert bucket_transform.result_type(type_var) == IntegerType()
     assert bucket_transform.num_buckets == 8
     assert bucket_transform.apply(None) is None
-    assert bucket_transform.to_human_string("test") == "test"
+    assert bucket_transform.to_human_string(type_var, "test") == "test"
 
 
 def test_string_with_surrogate_pair():
     string_with_surrogate_pair = "string with a surrogate pair: 💰"
     as_bytes = bytes(string_with_surrogate_pair, "UTF-8")
-    bucket_transform = transforms.bucket(StringType(), 100)
-    assert bucket_transform.hash(string_with_surrogate_pair) == mmh3.hash(as_bytes)
+    bucket_transform = BucketTransform(100).transform(StringType(), bucket=False)
+    assert bucket_transform(string_with_surrogate_pair) == mmh3.hash(as_bytes)
 
 
 @pytest.mark.parametrize(
@@ -146,8 +154,8 @@ def test_string_with_surrogate_pair():
     ],
 )
 def test_identity_human_string(type_var, value, expected):
-    identity = transforms.identity(type_var)
-    assert identity.to_human_string(value) == expected
+    identity = IdentityTransform()
+    assert identity.to_human_string(type_var, value) == expected
 
 
 @pytest.mark.parametrize(
@@ -170,32 +178,143 @@ def test_identity_human_string(type_var, value, expected):
     ],
 )
 def test_identity_method(type_var):
-    identity_transform = transforms.identity(type_var)
+    identity_transform = IdentityTransform()
     assert str(identity_transform) == str(eval(repr(identity_transform)))
     assert identity_transform.can_transform(type_var)
     assert identity_transform.result_type(type_var) == type_var
-    assert identity_transform.apply("test") == "test"
+    assert identity_transform.transform(type_var)("test") == "test"
+
+
+@pytest.mark.parametrize("type_var", [IntegerType(), LongType()])
+@pytest.mark.parametrize(
+    "input_var,expected",
+    [(1, 0), (5, 0), (9, 0), (10, 10), (11, 10), (-1, -10), (-10, -10), (-12, -20)],
+)
+def test_truncate_integer(type_var, input_var, expected):
+    trunc = TruncateTransform(10)
+    assert trunc.transform(type_var)(input_var) == expected
+
+
+@pytest.mark.parametrize(
+    "input_var,expected",
+    [
+        (Decimal("12.34"), Decimal("12.30")),
+        (Decimal("12.30"), Decimal("12.30")),
+        (Decimal("12.29"), Decimal("12.20")),
+        (Decimal("0.05"), Decimal("0.00")),
+        (Decimal("-0.05"), Decimal("-0.10")),
+    ],
+)
+def test_truncate_decimal(input_var, expected):
+    trunc = TruncateTransform(10)
+    assert trunc.transform(DecimalType(9, 2))(input_var) == expected
+
+
+@pytest.mark.parametrize("input_var,expected", [("abcdefg", "abcde"), ("abc", "abc")])
+def test_truncate_string(input_var, expected):
+    trunc = TruncateTransform(5)
+    assert trunc.transform(StringType())(input_var) == expected
+
+
+@pytest.mark.parametrize(
+    "type_var,value,expected_human_str,expected",
+    [
+        (BinaryType(), b"\x00\x01\x02\x03", "AAECAw==", b"\x00"),
+        (BinaryType(), bytes("\u2603de", "utf-8"), "4piDZGU=", b"\xe2"),
+        (DecimalType(8, 5), Decimal("14.21"), "14.21", Decimal("14.21")),
+        (IntegerType(), 123, "123", 123),
+        (LongType(), 123, "123", 123),
+        (StringType(), "foo", "foo", "f"),
+        (StringType(), "\u2603de", "\u2603de", "\u2603"),
+    ],
+)
+def test_truncate_method(type_var, value, expected_human_str, expected):
+    truncate_transform = TruncateTransform(1)
+    assert str(truncate_transform) == str(eval(repr(truncate_transform)))
+    assert truncate_transform.can_transform(type_var)
+    assert truncate_transform.result_type(type_var) == type_var
+    assert truncate_transform.to_human_string(type_var, value) == expected_human_str
+    assert truncate_transform.transform(type_var)(value) == expected
+    assert truncate_transform.to_human_string(type_var, None) == "null"
+    assert truncate_transform.width == 1
+    assert truncate_transform.transform(type_var)(None) is None
+    assert truncate_transform.preserves_order
+    assert truncate_transform.satisfies_order_of(truncate_transform)
 
 
 def test_unknown_transform():
-    unknown_transform = transforms.UnknownTransform(FixedType(8), "unknown")
+    unknown_transform = transforms.UnknownTransform("unknown")
     assert str(unknown_transform) == str(eval(repr(unknown_transform)))
     with pytest.raises(AttributeError):
-        unknown_transform.apply("test")
-    assert unknown_transform.can_transform(FixedType(8))
+        unknown_transform.transform(StringType())("test")
     assert not unknown_transform.can_transform(FixedType(5))
     assert isinstance(unknown_transform.result_type(BooleanType()), StringType)
 
 
 def test_void_transform():
-    void_transform = transforms.always_null()
-    assert void_transform is transforms.always_null()
+    void_transform = VoidTransform()
+    assert void_transform is VoidTransform()
     assert void_transform == eval(repr(void_transform))
-    assert void_transform.apply("test") is None
+    assert void_transform.transform(StringType())("test") is None
     assert void_transform.can_transform(BooleanType())
     assert isinstance(void_transform.result_type(BooleanType()), BooleanType)
     assert not void_transform.preserves_order
-    assert void_transform.satisfies_order_of(transforms.always_null())
-    assert not void_transform.satisfies_order_of(transforms.bucket(DateType(), 100))
-    assert void_transform.to_human_string("test") == "null"
+    assert void_transform.satisfies_order_of(VoidTransform())
+    assert not void_transform.satisfies_order_of(BucketTransform(100))
+    assert void_transform.to_human_string(StringType(), "test") == "null"
     assert void_transform.dedup_name == "void"
+
+
+class TestType(IcebergBaseModel):
+    __root__: Transform
+
+
+def test_bucket_transform_serialize():
+    assert BucketTransform(num_buckets=22).json() == '"bucket[22]"'
+
+
+def test_bucket_transform_deserialize():
+    transform = TestType.parse_raw('"bucket[22]"').__root__
+    assert transform == BucketTransform(num_buckets=22)
+
+
+def test_bucket_transform_str():
+    assert str(BucketTransform(num_buckets=22)) == "bucket[22]"
+
+
+def test_bucket_transform_repr():
+    assert repr(BucketTransform(num_buckets=22)) == "BucketTransform(num_buckets=22)"
+
+
+def test_truncate_transform_serialize():
+    assert UnknownTransform("unknown").json() == '"unknown"'
+
+
+def test_unknown_transform_deserialize():
+    transform = TestType.parse_raw('"unknown"').__root__
+    assert transform == UnknownTransform("unknown")
+
+
+def test_unknown_transform_str():
+    assert str(UnknownTransform("unknown")) == "unknown"
+
+
+def test_unknown_transform_repr():
+    assert repr(UnknownTransform("unknown")) == "UnknownTransform(transform='unknown')"
+
+
+def test_void_transform_serialize():
+    assert VoidTransform().json() == '"void"'
+
+
+def test_void_transform_deserialize():
+    transform = TestType.parse_raw('"void"').__root__
+    assert transform == VoidTransform()
+
+
+def test_void_transform_str():
+    assert str(VoidTransform()) == "void"
+
+
+def test_void_transform_repr():
+    assert repr(VoidTransform()) == "VoidTransform()"

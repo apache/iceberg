@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.util.List;
@@ -31,11 +30,8 @@ public interface ParquetValueWriter<T> {
 
   void setColumnStore(ColumnWriteStore columnStore);
 
-  /**
-   * Returns a stream of {@link FieldMetrics} that this ParquetValueWriter keeps track of.
-   */
+  /** Returns a stream of {@link FieldMetrics} that this ParquetValueWriter keeps track of. */
   default Stream<FieldMetrics<?>> metrics() {
     return Stream.empty();
   }
 }
-

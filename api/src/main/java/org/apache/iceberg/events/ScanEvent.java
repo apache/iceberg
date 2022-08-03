@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.events;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 
-/**
- * Event sent to listeners when a table scan is planned.
- */
+/** Event sent to listeners when a table scan is planned. */
 public final class ScanEvent {
   private final String tableName;
   private final long snapshotId;

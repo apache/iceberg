@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
-/**
- * Exception raised when attempting to load a table that does not exist.
- */
+/** Exception raised when attempting to load a table that does not exist. */
 public class NoSuchTableException extends RuntimeException {
   @FormatMethod
   public NoSuchTableException(String message, Object... args) {

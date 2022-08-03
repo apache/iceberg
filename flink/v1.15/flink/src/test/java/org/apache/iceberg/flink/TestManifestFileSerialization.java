@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -52,61 +54,62 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestManifestFileSerialization {
 
-  private static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.LongType.get()),
-      optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()),
-      required(4, "double", Types.DoubleType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "data", Types.StringType.get()),
+          required(3, "date", Types.StringType.get()),
+          required(4, "double", Types.DoubleType.get()));
 
-  private static final PartitionSpec SPEC = PartitionSpec
-      .builderFor(SCHEMA)
-      .identity("double")
-      .build();
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(SCHEMA).identity("double").build();
 
-  private static final DataFile FILE_A = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-1.parquet")
-      .withFileSizeInBytes(0)
-      .withPartition(org.apache.iceberg.TestHelpers.Row.of(1D))
-      .withPartitionPath("double=1")
-      .withMetrics(new Metrics(5L,
-          null, // no column sizes
-          ImmutableMap.of(1, 5L, 2, 3L), // value count
-          ImmutableMap.of(1, 0L, 2, 2L), // null count
-          ImmutableMap.of(), // nan count
-          ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-          ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
-      ))
-      .build();
+  private static final DataFile FILE_A =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-1.parquet")
+          .withFileSizeInBytes(0)
+          .withPartition(org.apache.iceberg.TestHelpers.Row.of(1D))
+          .withPartitionPath("double=1")
+          .withMetrics(
+              new Metrics(
+                  5L,
+                  null, // no column sizes
+                  ImmutableMap.of(1, 5L, 2, 3L), // value count
+                  ImmutableMap.of(1, 0L, 2, 2L), // null count
+                  ImmutableMap.of(), // nan count
+                  ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+                  ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
+                  ))
+          .build();
 
-  private static final DataFile FILE_B = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-2.parquet")
-      .withFileSizeInBytes(0)
-      .withPartition(org.apache.iceberg.TestHelpers.Row.of(Double.NaN))
-      .withPartitionPath("double=NaN")
-      .withMetrics(new Metrics(1L,
-          null, // no column sizes
-          ImmutableMap.of(1, 1L, 4, 1L), // value count
-          ImmutableMap.of(1, 0L, 2, 0L), // null count
-          ImmutableMap.of(4, 1L), // nan count
-          ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-          ImmutableMap.of(1, longToBuffer(1L)) // upper bounds
-      ))
-      .build();
+  private static final DataFile FILE_B =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-2.parquet")
+          .withFileSizeInBytes(0)
+          .withPartition(org.apache.iceberg.TestHelpers.Row.of(Double.NaN))
+          .withPartitionPath("double=NaN")
+          .withMetrics(
+              new Metrics(
+                  1L,
+                  null, // no column sizes
+                  ImmutableMap.of(1, 1L, 4, 1L), // value count
+                  ImmutableMap.of(1, 0L, 2, 0L), // null count
+                  ImmutableMap.of(4, 1L), // nan count
+                  ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+                  ImmutableMap.of(1, longToBuffer(1L)) // upper bounds
+                  ))
+          .build();
 
   private static final FileIO FILE_IO = new HadoopFileIO(new Configuration());
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
-
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testKryoSerialization() throws IOException {
-    KryoSerializer<ManifestFile> kryo = new KryoSerializer<>(ManifestFile.class, new ExecutionConfig());
+    KryoSerializer<ManifestFile> kryo =
+        new KryoSerializer<>(ManifestFile.class, new ExecutionConfig());
 
     DataOutputSerializer outputView = new DataOutputSerializer(1024);
 
@@ -138,7 +141,8 @@ public class TestManifestFileSerialization {
       out.writeObject(GenericManifestFile.copyOf(manifest).build());
     }
 
-    try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+    try (ObjectInputStream in =
+        new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 3; i += 1) {
         Object obj = in.readObject();
         Assertions.assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);

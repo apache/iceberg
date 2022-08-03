@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import org.apache.flink.configuration.Configuration;
@@ -29,20 +28,18 @@ public class MiniClusterResource {
   private static final int DEFAULT_TM_NUM = 1;
   private static final int DEFAULT_PARALLELISM = 4;
 
-  public static final Configuration DISABLE_CLASSLOADER_CHECK_CONFIG = new Configuration()
-      // disable classloader check as Avro may cache class/object in the serializers.
-      .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
+  public static final Configuration DISABLE_CLASSLOADER_CHECK_CONFIG =
+      new Configuration()
+          // disable classloader check as Avro may cache class/object in the serializers.
+          .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
 
-  private MiniClusterResource() {
-
-  }
+  private MiniClusterResource() {}
 
   /**
-   * It will start a mini cluster with classloader.check-leaked-classloader=false,
-   * so that we won't break the unit tests because of the class loader leak issue.
-   * In our iceberg integration tests, there're some that will assert the results
-   * after finished the flink jobs, so actually we may access the class loader
-   * that has been closed by the flink task managers if we enable the switch
+   * It will start a mini cluster with classloader.check-leaked-classloader=false, so that we won't
+   * break the unit tests because of the class loader leak issue. In our iceberg integration tests,
+   * there're some that will assert the results after finished the flink jobs, so actually we may
+   * access the class loader that has been closed by the flink task managers if we enable the switch
    * classloader.check-leaked-classloader by default.
    */
   public static MiniClusterWithClientResource createWithClassloaderCheckDisabled() {
@@ -53,5 +50,4 @@ public class MiniClusterResource {
             .setConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG)
             .build());
   }
-
 }

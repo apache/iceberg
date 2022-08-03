@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
@@ -31,25 +31,27 @@ import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * This is the single (non-parallel) monitoring task which takes a {@link FlinkInputFormat},
- * it is responsible for:
+ * This is the single (non-parallel) monitoring task which takes a {@link FlinkInputFormat}, it is
+ * responsible for:
  *
  * <ol>
- *     <li>Monitoring snapshots of the Iceberg table.</li>
- *     <li>Creating the {@link FlinkInputSplit splits} corresponding to the incremental files</li>
- *     <li>Assigning them to downstream tasks for further processing.</li>
+ *   <li>Monitoring snapshots of the Iceberg table.
+ *   <li>Creating the {@link FlinkInputSplit splits} corresponding to the incremental files
+ *   <li>Assigning them to downstream tasks for further processing.
  * </ol>
  *
- * <p>The splits to be read are forwarded to the downstream {@link StreamingReaderOperator}
- * which can have parallelism greater than one.
+ * <p>The splits to be read are forwarded to the downstream {@link StreamingReaderOperator} which
+ * can have parallelism greater than one.
  */
-public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit> implements CheckpointedFunction {
+public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit>
+    implements CheckpointedFunction {
 
   private static final Logger LOG = LoggerFactory.getLogger(StreamingMonitorFunction.class);
 
@@ -60,7 +62,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
   private volatile boolean isRunning = true;
 
-  // The checkpoint thread is not the same thread that running the function for SourceStreamTask now. It's necessary to
+  // The checkpoint thread is not the same thread that running the function for SourceStreamTask
+  // now. It's necessary to
   // mark this as volatile.
   private volatile long lastSnapshotId = INIT_LAST_SNAPSHOT_ID;
 
@@ -69,12 +72,17 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   private transient ListState<Long> lastSnapshotIdState;
 
   public StreamingMonitorFunction(TableLoader tableLoader, ScanContext scanContext) {
-    Preconditions.checkArgument(scanContext.snapshotId() == null,
-        "Cannot set snapshot-id option for streaming reader");
-    Preconditions.checkArgument(scanContext.asOfTimestamp() == null,
+    Preconditions.checkArgument(
+        scanContext.snapshotId() == null, "Cannot set snapshot-id option for streaming reader");
+    Preconditions.checkArgument(
+        scanContext.asOfTimestamp() == null,
         "Cannot set as-of-timestamp option for streaming reader");
-    Preconditions.checkArgument(scanContext.endSnapshotId() == null,
+    Preconditions.checkArgument(
+        scanContext.endSnapshotId() == null,
         "Cannot set end-snapshot-id option for streaming reader");
+    Preconditions.checkArgument(
+        scanContext.maxPlanningSnapshotCount() > 0,
+        "The max-planning-snapshot-count must be greater than zero");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
   }
@@ -86,21 +94,24 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     table = tableLoader.loadTable();
 
     // Initialize the flink state for last snapshot id.
-    lastSnapshotIdState = context.getOperatorStateStore().getListState(
-        new ListStateDescriptor<>(
-            "snapshot-id-state",
-            LongSerializer.INSTANCE));
+    lastSnapshotIdState =
+        context
+            .getOperatorStateStore()
+            .getListState(new ListStateDescriptor<>("snapshot-id-state", LongSerializer.INSTANCE));
 
     // Restore the last-snapshot-id from flink's state if possible.
     if (context.isRestored()) {
       LOG.info("Restoring state for the {}.", getClass().getSimpleName());
       lastSnapshotId = lastSnapshotIdState.get().iterator().next();
     } else if (scanContext.startSnapshotId() != null) {
-      Preconditions.checkNotNull(table.currentSnapshot(), "Don't have any available snapshot in table.");
+      Preconditions.checkNotNull(
+          table.currentSnapshot(), "Don't have any available snapshot in table.");
 
       long currentSnapshotId = table.currentSnapshot().snapshotId();
-      Preconditions.checkState(SnapshotUtil.isAncestorOf(table, currentSnapshotId, scanContext.startSnapshotId()),
-          "The option start-snapshot-id %s is not an ancestor of the current snapshot.", scanContext.startSnapshotId());
+      Preconditions.checkState(
+          SnapshotUtil.isAncestorOf(table, currentSnapshotId, scanContext.startSnapshotId()),
+          "The option start-snapshot-id %s is not an ancestor of the current snapshot.",
+          scanContext.startSnapshotId());
 
       lastSnapshotId = scanContext.startSnapshotId();
     }
@@ -121,7 +132,26 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     }
   }
 
-  private void monitorAndForwardSplits() {
+  private long toSnapshotIdInclusive(
+      long lastConsumedSnapshotId, long currentSnapshotId, int maxPlanningSnapshotCount) {
+    List<Long> snapshotIds =
+        SnapshotUtil.snapshotIdsBetween(table, lastConsumedSnapshotId, currentSnapshotId);
+    if (snapshotIds.size() <= maxPlanningSnapshotCount) {
+      return currentSnapshotId;
+    } else {
+      // It uses reverted index since snapshotIdsBetween returns Ids that are ordered by committed
+      // time descending.
+      return snapshotIds.get(snapshotIds.size() - maxPlanningSnapshotCount);
+    }
+  }
+
+  @VisibleForTesting
+  void sourceContext(SourceContext<FlinkInputSplit> ctx) {
+    this.sourceContext = ctx;
+  }
+
+  @VisibleForTesting
+  void monitorAndForwardSplits() {
     // Refresh the table to get the latest committed snapshot.
     table.refresh();
 
@@ -133,12 +163,25 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
         newScanContext = scanContext.copyWithSnapshotId(snapshotId);
       } else {
+        snapshotId =
+            toSnapshotIdInclusive(
+                lastSnapshotId, snapshotId, scanContext.maxPlanningSnapshotCount());
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 
+      LOG.debug(
+          "Start discovering splits from {} (exclusive) to {} (inclusive)",
+          lastSnapshotId,
+          snapshotId);
+      long start = System.currentTimeMillis();
       FlinkInputSplit[] splits = FlinkSplitGenerator.createInputSplits(table, newScanContext);
+      LOG.debug(
+          "Discovered {} splits, time elapsed {}ms",
+          splits.length,
+          System.currentTimeMillis() - start);
 
       // only need to hold the checkpoint lock when emitting the splits and updating lastSnapshotId
+      start = System.currentTimeMillis();
       synchronized (sourceContext.getCheckpointLock()) {
         for (FlinkInputSplit split : splits) {
           sourceContext.collect(split);
@@ -146,6 +189,10 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
         lastSnapshotId = snapshotId;
       }
+      LOG.debug(
+          "Forwarded {} splits, time elapsed {}ms",
+          splits.length,
+          System.currentTimeMillis() - start);
     }
   }
 

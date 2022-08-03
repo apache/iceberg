@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -33,14 +32,15 @@ import org.apache.iceberg.util.JsonUtil;
 
 public final class FileMetadataParser {
 
-  private FileMetadataParser() {
-  }
+  private FileMetadataParser() {}
 
   private static final String BLOBS = "blobs";
   private static final String PROPERTIES = "properties";
 
   private static final String TYPE = "type";
   private static final String FIELDS = "fields";
+  private static final String SNAPSHOT_ID = "snapshot-id";
+  private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String OFFSET = "offset";
   private static final String LENGTH = "length";
   private static final String COMPRESSION_CODEC = "compression-codec";
@@ -96,8 +96,10 @@ public final class FileMetadataParser {
 
     ImmutableList.Builder<BlobMetadata> blobs = ImmutableList.builder();
     JsonNode blobsJson = json.get(BLOBS);
-    Preconditions.checkArgument(blobsJson != null && blobsJson.isArray(),
-        "Cannot parse blobs from non-array: %s", blobsJson);
+    Preconditions.checkArgument(
+        blobsJson != null && blobsJson.isArray(),
+        "Cannot parse blobs from non-array: %s",
+        blobsJson);
     for (JsonNode blobJson : blobsJson) {
       blobs.add(blobMetadataFromJson(blobJson));
     }
@@ -108,9 +110,7 @@ public final class FileMetadataParser {
       properties = JsonUtil.getStringMap(PROPERTIES, json);
     }
 
-    return new FileMetadata(
-        blobs.build(),
-        properties);
+    return new FileMetadata(blobs.build(), properties);
   }
 
   static void toJson(BlobMetadata blobMetadata, JsonGenerator generator) throws IOException {
@@ -123,6 +123,8 @@ public final class FileMetadataParser {
       generator.writeNumber(field);
     }
     generator.writeEndArray();
+    generator.writeNumberField(SNAPSHOT_ID, blobMetadata.snapshotId());
+    generator.writeNumberField(SEQUENCE_NUMBER, blobMetadata.sequenceNumber());
 
     generator.writeNumberField(OFFSET, blobMetadata.offset());
     generator.writeNumberField(LENGTH, blobMetadata.length());
@@ -145,6 +147,8 @@ public final class FileMetadataParser {
   static BlobMetadata blobMetadataFromJson(JsonNode json) {
     String type = JsonUtil.getString(TYPE, json);
     List<Integer> fields = JsonUtil.getIntegerList(FIELDS, json);
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
+    long sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, json);
     long offset = JsonUtil.getLong(OFFSET, json);
     long length = JsonUtil.getLong(LENGTH, json);
     String compressionCodec = JsonUtil.getStringOrNull(COMPRESSION_CODEC, json);
@@ -154,13 +158,7 @@ public final class FileMetadataParser {
       properties = JsonUtil.getStringMap(PROPERTIES, json);
     }
 
-
     return new BlobMetadata(
-        type,
-        fields,
-        offset,
-        length,
-        compressionCodec,
-        properties);
+        type, fields, snapshotId, sequenceNumber, offset, length, compressionCodec, properties);
   }
 }

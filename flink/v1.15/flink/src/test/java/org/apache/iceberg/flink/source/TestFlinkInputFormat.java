@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,11 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
-/**
- * Test {@link FlinkInputFormat}.
- */
+/** Test {@link FlinkInputFormat}. */
 public class TestFlinkInputFormat extends TestFlinkSource {
 
   public TestFlinkInputFormat(String fileFormat) {
@@ -50,28 +47,30 @@ public class TestFlinkInputFormat extends TestFlinkSource {
   }
 
   @Override
-  public void before() throws IOException {
-    super.before();
-  }
-
-  @Override
   protected List<Row> run(
-      FlinkSource.Builder formatBuilder, Map<String, String> sqlOptions, String sqlFilter, String... sqlSelectedFields)
+      FlinkSource.Builder formatBuilder,
+      Map<String, String> sqlOptions,
+      String sqlFilter,
+      String... sqlSelectedFields)
       throws Exception {
     return runFormat(formatBuilder.tableLoader(tableLoader()).buildFormat());
   }
 
   @Test
   public void testNestedProjection() throws Exception {
-    Schema schema = new Schema(
-        required(1, "data", Types.StringType.get()),
-        required(2, "nested", Types.StructType.of(
-            Types.NestedField.required(3, "f1", Types.StringType.get()),
-            Types.NestedField.required(4, "f2", Types.StringType.get()),
-            Types.NestedField.required(5, "f3", Types.LongType.get()))),
-        required(6, "id", Types.LongType.get()));
+    Schema schema =
+        new Schema(
+            required(1, "data", Types.StringType.get()),
+            required(
+                2,
+                "nested",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "f1", Types.StringType.get()),
+                    Types.NestedField.required(4, "f2", Types.StringType.get()),
+                    Types.NestedField.required(5, "f3", Types.LongType.get()))),
+            required(6, "id", Types.LongType.get()));
 
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), schema);
+    Table table = catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), schema);
 
     List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
@@ -81,13 +80,17 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     // The Flink SQL output: [f2, data]
     // The FlinkInputFormat output: [nested[f2], data]
 
-    TableSchema projectedSchema = TableSchema.builder()
-        .field("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING())))
-        .field("data", DataTypes.STRING()).build();
-    List<Row> result = runFormat(FlinkSource.forRowData()
-        .tableLoader(tableLoader())
-        .project(projectedSchema)
-        .buildFormat());
+    TableSchema projectedSchema =
+        TableSchema.builder()
+            .field("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING())))
+            .field("data", DataTypes.STRING())
+            .build();
+    List<Row> result =
+        runFormat(
+            FlinkSource.forRowData()
+                .tableLoader(tableLoader())
+                .project(projectedSchema)
+                .buildFormat());
 
     List<Row> expected = Lists.newArrayList();
     for (Record record : writeRecords) {
@@ -100,23 +103,29 @@ public class TestFlinkInputFormat extends TestFlinkSource {
 
   @Test
   public void testBasicProjection() throws IOException {
-    Schema writeSchema = new Schema(
-        Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.optional(1, "data", Types.StringType.get()),
-        Types.NestedField.optional(2, "time", Types.TimestampType.withZone())
-    );
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()),
+            Types.NestedField.optional(2, "time", Types.TimestampType.withZone()));
 
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), writeSchema);
+    Table table =
+        catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
 
     List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
 
-    TableSchema projectedSchema = TableSchema.builder()
-        .field("id", DataTypes.BIGINT())
-        .field("data", DataTypes.STRING())
-        .build();
-    List<Row> result = runFormat(FlinkSource.forRowData()
-        .tableLoader(tableLoader()).project(projectedSchema).buildFormat());
+    TableSchema projectedSchema =
+        TableSchema.builder()
+            .field("id", DataTypes.BIGINT())
+            .field("data", DataTypes.STRING())
+            .build();
+    List<Row> result =
+        runFormat(
+            FlinkSource.forRowData()
+                .tableLoader(tableLoader())
+                .project(projectedSchema)
+                .buildFormat());
 
     List<Row> expected = Lists.newArrayList();
     for (Record record : writeRecords) {

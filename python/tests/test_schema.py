@@ -16,15 +16,15 @@
 # under the License.
 
 from textwrap import dedent
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pytest
 
-from iceberg import schema
-from iceberg.expressions.base import Accessor
-from iceberg.files import StructProtocol
-from iceberg.schema import build_position_accessors
-from iceberg.types import (
+from pyiceberg import schema
+from pyiceberg.expressions.base import Accessor
+from pyiceberg.files import StructProtocol
+from pyiceberg.schema import Schema, build_position_accessors
+from pyiceberg.types import (
     BooleanType,
     FloatType,
     IntegerType,
@@ -36,14 +36,14 @@ from iceberg.types import (
 )
 
 
-def test_schema_str(table_schema_simple):
+def test_schema_str(table_schema_simple: Schema):
     """Test casting a schema to a string"""
     assert str(table_schema_simple) == dedent(
         """\
     table {
-      1: foo: required string
-      2: bar: optional int
-      3: baz: required boolean
+      1: foo: optional string
+      2: bar: required int
+      3: baz: optional boolean
     }"""
     )
 
@@ -61,7 +61,7 @@ def test_schema_str(table_schema_simple):
         ),
     ],
 )
-def test_schema_repr(schema_repr, expected_repr):
+def test_schema_repr(schema_repr: Schema, expected_repr: str):
     """Test schema representation"""
     assert repr(schema_repr) == expected_repr
 
@@ -107,8 +107,8 @@ def test_schema_index_by_id_visitor(table_schema_nested):
             ),
             required=True,
         ),
-        7: NestedField(field_id=7, name="key", field_type=StringType(), required=False),
-        9: NestedField(field_id=9, name="key", field_type=StringType(), required=False),
+        7: NestedField(field_id=7, name="key", field_type=StringType(), required=True),
+        9: NestedField(field_id=9, name="key", field_type=StringType(), required=True),
         8: NestedField(
             field_id=8,
             name="value",
@@ -274,14 +274,14 @@ def test_index_by_id_schema_visitor(table_schema_nested):
             ),
             required=True,
         ),
-        7: NestedField(field_id=7, name="key", field_type=StringType(), required=False),
+        7: NestedField(field_id=7, name="key", field_type=StringType(), required=True),
         8: NestedField(
             field_id=8,
             name="value",
             field_type=MapType(key_id=9, key_type=StringType(), value_id=10, value_type=IntegerType(), value_required=True),
             required=True,
         ),
-        9: NestedField(field_id=9, name="key", field_type=StringType(), required=False),
+        9: NestedField(field_id=9, name="key", field_type=StringType(), required=True),
         10: NestedField(field_id=10, name="value", field_type=IntegerType(), required=True),
         11: NestedField(
             field_id=11,
@@ -386,9 +386,9 @@ def test_build_position_accessors(table_schema_nested):
     }
 
 
-def test_build_position_accessors_with_struct(table_schema_nested):
+def test_build_position_accessors_with_struct(table_schema_nested: Schema):
     class TestStruct(StructProtocol):
-        def __init__(self, pos: Dict[int, Any] = None):
+        def __init__(self, pos: Optional[Dict[int, Any]] = None):
             self._pos: Dict[int, Any] = pos or {}
 
         def set(self, pos: int, value) -> None:
@@ -399,4 +399,20 @@ def test_build_position_accessors_with_struct(table_schema_nested):
 
     accessors = build_position_accessors(table_schema_nested)
     container = TestStruct({6: TestStruct({0: "name"})})
-    assert accessors.get(16).get(container) == "name"
+    inner_accessor = accessors.get(16)
+    assert inner_accessor
+    assert inner_accessor.get(container) == "name"
+
+
+def test_serialize_schema(table_schema_simple: Schema):
+    actual = table_schema_simple.json()
+    expected = """{"type": "struct", "fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [2]}"""
+    assert actual == expected
+
+
+def test_deserialize_schema(table_schema_simple: Schema):
+    actual = Schema.parse_raw(
+        """{"type": "struct", "fields": [{"id": 1, "name": "foo", "type": "string", "required": false}, {"id": 2, "name": "bar", "type": "int", "required": true}, {"id": 3, "name": "baz", "type": "boolean", "required": false}], "schema-id": 1, "identifier-field-ids": [2]}"""
+    )
+    expected = table_schema_simple
+    assert actual == expected

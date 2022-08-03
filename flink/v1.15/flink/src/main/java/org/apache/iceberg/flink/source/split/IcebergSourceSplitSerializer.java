@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.split;
 
 import java.io.IOException;
@@ -24,9 +23,8 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 
 /**
- * TODO: use Java serialization for now.
- * Will switch to more stable serializer from
- * <a href="https://github.com/apache/iceberg/issues/1698">issue-1698</a>.
+ * TODO: use Java serialization for now. Will switch to more stable serializer from <a
+ * href="https://github.com/apache/iceberg/issues/1698">issue-1698</a>.
  */
 @Internal
 public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<IcebergSourceSplit> {
@@ -49,8 +47,11 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
       case 1:
         return IcebergSourceSplit.deserializeV1(serialized);
       default:
-        throw new IOException(String.format("Failed to deserialize IcebergSourceSplit. " +
-            "Encountered unsupported version: %d. Supported version are [1]", version));
+        throw new IOException(
+            String.format(
+                "Failed to deserialize IcebergSourceSplit. "
+                    + "Encountered unsupported version: %d. Supported version are [1]",
+                version));
     }
   }
 }

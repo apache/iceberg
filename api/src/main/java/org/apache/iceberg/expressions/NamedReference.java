@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.Schema;
@@ -39,12 +38,11 @@ public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
   @Override
   public BoundReference<T> bind(Types.StructType struct, boolean caseSensitive) {
     Schema schema = new Schema(struct.fields());
-    Types.NestedField field = caseSensitive ?
-        schema.findField(name) :
-        schema.caseInsensitiveFindField(name);
+    Types.NestedField field =
+        caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
 
-    ValidationException.check(field != null,
-        "Cannot find field '%s' in struct: %s", name, schema.asStruct());
+    ValidationException.check(
+        field != null, "Cannot find field '%s' in struct: %s", name, schema.asStruct());
 
     return new BoundReference<>(field, schema.accessorForField(field.fieldId()));
   }

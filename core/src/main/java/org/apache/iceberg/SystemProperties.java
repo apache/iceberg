@@ -16,16 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-/**
- * Configuration properties that are controlled by Java system properties.
- */
+/** Configuration properties that are controlled by Java system properties. */
 public class SystemProperties {
 
-  private SystemProperties() {
-  }
+  private SystemProperties() {}
 
   /**
    * Sets the size of the worker pool. The worker pool limits the number of tasks concurrently
@@ -34,9 +30,7 @@ public class SystemProperties {
    */
   public static final String WORKER_THREAD_POOL_SIZE_PROP = "iceberg.worker.num-threads";
 
-  /**
-   * Whether to use the shared worker pool when planning table scans.
-   */
+  /** Whether to use the shared worker pool when planning table scans. */
   public static final String SCAN_THREAD_POOL_ENABLED = "iceberg.scan.plan-in-worker-pool";
 
   static boolean getBoolean(String systemProperty, boolean defaultValue) {

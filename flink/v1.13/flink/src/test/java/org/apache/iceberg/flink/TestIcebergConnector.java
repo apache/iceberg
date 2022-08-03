@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
@@ -54,8 +52,7 @@ public class TestIcebergConnector extends FlinkTestBase {
 
   private static final String TABLE_NAME = "test_table";
 
-  @ClassRule
-  public static final TemporaryFolder WAREHOUSE = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder WAREHOUSE = new TemporaryFolder();
 
   private final String catalogName;
   private final Map<String, String> properties;
@@ -67,118 +64,106 @@ public class TestIcebergConnector extends FlinkTestBase {
     return Lists.newArrayList(
         // Create iceberg table in the hadoop catalog and default database.
         new Object[] {
-            "testhadoop",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hadoop"
-            ),
-            true
+          "testhadoop",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hadoop"),
+          true
         },
         new Object[] {
-            "testhadoop",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hadoop",
-                "catalog-table", "not_existing_table"
-            ),
-            true
+          "testhadoop",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hadoop",
+              "catalog-table", "not_existing_table"),
+          true
         },
         new Object[] {
-            "testhadoop",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hadoop"
-            ),
-            false
+          "testhadoop",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hadoop"),
+          false
         },
         // Create iceberg table in the hadoop catalog and not_existing_db.
         new Object[] {
-            "testhadoop",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hadoop",
-                "catalog-database", "not_existing_db"
-            ),
-            true
+          "testhadoop",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hadoop",
+              "catalog-database", "not_existing_db"),
+          true
         },
         new Object[] {
-            "testhadoop",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hadoop",
-                "catalog-database", "not_existing_db",
-                "catalog-table", "not_existing_table"
-            ),
-            true
+          "testhadoop",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hadoop",
+              "catalog-database", "not_existing_db",
+              "catalog-table", "not_existing_table"),
+          true
         },
         new Object[] {
-            "testhadoop",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hadoop",
-                "catalog-database", "not_existing_db"
-            ),
-            false
+          "testhadoop",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hadoop",
+              "catalog-database", "not_existing_db"),
+          false
         },
         // Create iceberg table in the hive catalog and default database.
         new Object[] {
-            "testhive",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hive"
-            ),
-            true
+          "testhive",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hive"),
+          true
         },
         new Object[] {
-            "testhive",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hive",
-                "catalog-table", "not_existing_table"
-            ),
-            true
+          "testhive",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hive",
+              "catalog-table", "not_existing_table"),
+          true
         },
         new Object[] {
-            "testhive",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hive"
-            ),
-            false
+          "testhive",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hive"),
+          false
         },
         // Create iceberg table in the hive catalog and not_existing_db.
         new Object[] {
-            "testhive",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hive",
-                "catalog-database", "not_existing_db"
-            ),
-            true
+          "testhive",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hive",
+              "catalog-database", "not_existing_db"),
+          true
         },
         new Object[] {
-            "testhive",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hive",
-                "catalog-database", "not_existing_db",
-                "catalog-table", "not_existing_table"
-            ),
-            true
+          "testhive",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hive",
+              "catalog-database", "not_existing_db",
+              "catalog-table", "not_existing_table"),
+          true
         },
         new Object[] {
-            "testhive",
-            ImmutableMap.of(
-                "connector", "iceberg",
-                "catalog-type", "hive",
-                "catalog-database", "not_existing_db"
-            ),
-            false
-        }
-    );
+          "testhive",
+          ImmutableMap.of(
+              "connector", "iceberg",
+              "catalog-type", "hive",
+              "catalog-database", "not_existing_db"),
+          false
+        });
   }
 
-  public TestIcebergConnector(String catalogName, Map<String, String> properties, boolean isStreaming) {
+  public TestIcebergConnector(
+      String catalogName, Map<String, String> properties, boolean isStreaming) {
     this.catalogName = catalogName;
     this.properties = properties;
     this.isStreaming = isStreaming;
@@ -189,13 +174,13 @@ public class TestIcebergConnector extends FlinkTestBase {
     if (tEnv == null) {
       synchronized (this) {
         if (tEnv == null) {
-          EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
-              .newInstance()
-              .useBlinkPlanner();
+          EnvironmentSettings.Builder settingsBuilder =
+              EnvironmentSettings.newInstance().useBlinkPlanner();
           if (isStreaming) {
             settingsBuilder.inStreamingMode();
-            StreamExecutionEnvironment env = StreamExecutionEnvironment
-                .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+            StreamExecutionEnvironment env =
+                StreamExecutionEnvironment.getExecutionEnvironment(
+                    MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
             env.enableCheckpointing(400);
             env.setMaxParallelism(2);
             env.setParallelism(2);
@@ -205,7 +190,8 @@ public class TestIcebergConnector extends FlinkTestBase {
             tEnv = TableEnvironment.create(settingsBuilder.build());
           }
           // Set only one parallelism.
-          tEnv.getConfig().getConfiguration()
+          tEnv.getConfig()
+              .getConfiguration()
               .set(CoreOptions.DEFAULT_PARALLELISM, 1)
               .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
         }
@@ -242,21 +228,24 @@ public class TestIcebergConnector extends FlinkTestBase {
     // Create table under the flink's current database.
     sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
     sql("INSERT INTO %s VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')", TABLE_NAME);
-    Assert.assertEquals("Should have expected rows",
+    Assert.assertEquals(
+        "Should have expected rows",
         Sets.newHashSet(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
         Sets.newHashSet(sql("SELECT * FROM %s", TABLE_NAME)));
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, new Configuration());
-    Assert.assertTrue("Should have created the expected database",
-        flinkCatalog.databaseExists(databaseName()));
-    Assert.assertTrue("Should have created the expected table",
+    Assert.assertTrue(
+        "Should have created the expected database", flinkCatalog.databaseExists(databaseName()));
+    Assert.assertTrue(
+        "Should have created the expected table",
         flinkCatalog.tableExists(new ObjectPath(databaseName(), tableName())));
 
     // Drop and create it again.
     sql("DROP TABLE %s", TABLE_NAME);
     sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
-    Assert.assertEquals("Should have expected rows",
+    Assert.assertEquals(
+        "Should have expected rows",
         Sets.newHashSet(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
         Sets.newHashSet(sql("SELECT * FROM %s", TABLE_NAME)));
   }
@@ -274,7 +263,8 @@ public class TestIcebergConnector extends FlinkTestBase {
     try {
       testCreateConnectorTable();
       // Ensure that the table was created under the specific database.
-      AssertHelpers.assertThrows("Table should already exists",
+      AssertHelpers.assertThrows(
+          "Table should already exists",
           ValidationException.class,
           "Could not execute CreateTable in path",
           () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME));
@@ -305,15 +295,14 @@ public class TestIcebergConnector extends FlinkTestBase {
     // Create a connector table in an iceberg catalog.
     sql("CREATE CATALOG `test_catalog` WITH %s", toWithClause(catalogProps));
     try {
-      AssertHelpers.assertThrowsCause("Cannot create the iceberg connector table in iceberg catalog",
+      AssertHelpers.assertThrowsCause(
+          "Cannot create the iceberg connector table in iceberg catalog",
           IllegalArgumentException.class,
           "Cannot create the table with 'connector'='iceberg' table property in an iceberg catalog",
-          () -> sql("CREATE TABLE `test_catalog`.`%s`.`%s` (id BIGINT, data STRING) WITH %s",
-              FlinkCatalogFactory.DEFAULT_DATABASE_NAME,
-              TABLE_NAME,
-              toWithClause(tableProps)
-          )
-      );
+          () ->
+              sql(
+                  "CREATE TABLE `test_catalog`.`%s`.`%s` (id BIGINT, data STRING) WITH %s",
+                  FlinkCatalogFactory.DEFAULT_DATABASE_NAME, TABLE_NAME, toWithClause(tableProps)));
     } finally {
       sql("DROP CATALOG IF EXISTS `test_catalog`");
     }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -64,18 +63,19 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     if (tEnv == null) {
       synchronized (this) {
         if (tEnv == null) {
-          EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
-              .newInstance()
-              .useBlinkPlanner()
-              .inStreamingMode();
+          EnvironmentSettings.Builder settingsBuilder =
+              EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode();
 
-          StreamExecutionEnvironment env = StreamExecutionEnvironment
-              .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+          StreamExecutionEnvironment env =
+              StreamExecutionEnvironment.getExecutionEnvironment(
+                  MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
           env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
           env.enableCheckpointing(400);
 
-          StreamTableEnvironment streamTableEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
-          streamTableEnv.getConfig()
+          StreamTableEnvironment streamTableEnv =
+              StreamTableEnvironment.create(env, settingsBuilder.build());
+          streamTableEnv
+              .getConfig()
               .getConfiguration()
               .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
           tEnv = streamTableEnv;
@@ -108,11 +108,11 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     GenericRecord gRecord = GenericRecord.create(table.schema());
     List<Record> records = Lists.newArrayList();
     for (Row row : rows) {
-      records.add(gRecord.copy(
-          "id", row.getField(0),
-          "data", row.getField(1),
-          "dt", row.getField(2)
-      ));
+      records.add(
+          gRecord.copy(
+              "id", row.getField(0),
+              "data", row.getField(1),
+              "dt", row.getField(2)));
     }
 
     if (partition != null) {
@@ -132,9 +132,12 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
 
       Row actualRow = iterator.next();
       Assert.assertEquals("Should have expected fields", 3, actualRow.getArity());
-      Assert.assertEquals("Should have expected id", expectedRow.getField(0), actualRow.getField(0));
-      Assert.assertEquals("Should have expected data", expectedRow.getField(1), actualRow.getField(1));
-      Assert.assertEquals("Should have expected dt", expectedRow.getField(2), actualRow.getField(2));
+      Assert.assertEquals(
+          "Should have expected id", expectedRow.getField(0), actualRow.getField(0));
+      Assert.assertEquals(
+          "Should have expected data", expectedRow.getField(1), actualRow.getField(1));
+      Assert.assertEquals(
+          "Should have expected dt", expectedRow.getField(2), actualRow.getField(2));
     }
   }
 
@@ -143,7 +146,8 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
 
-    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
+    TableResult result =
+        exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
     try (CloseableIterator<Row> iterator = result.collect()) {
 
       Row row1 = Row.of(1, "aaa", "2021-01-01");
@@ -157,13 +161,13 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
-
   @Test
   public void testPartitionedTable() throws Exception {
     sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR) PARTITIONED BY (dt)", TABLE);
     Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
 
-    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
+    TableResult result =
+        exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
     try (CloseableIterator<Row> iterator = result.collect()) {
       Row row1 = Row.of(1, "aaa", "2021-01-01");
       insertRows("2021-01-01", table, row1);
@@ -193,7 +197,8 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     Row row2 = Row.of(2, "bbb", "2021-01-01");
     insertRows(table, row1, row2);
 
-    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
+    TableResult result =
+        exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
     try (CloseableIterator<Row> iterator = result.collect()) {
       assertRows(ImmutableList.of(row1, row2), iterator);
 
@@ -225,8 +230,11 @@ public class TestStreamScanSql extends FlinkCatalogTestBase {
     Row row4 = Row.of(4, "ddd", "2021-01-01");
     insertRows(table, row3, row4);
 
-    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', " +
-        "'start-snapshot-id'='%d')*/", TABLE, startSnapshotId);
+    TableResult result =
+        exec(
+            "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', "
+                + "'start-snapshot-id'='%d')*/",
+            TABLE, startSnapshotId);
     try (CloseableIterator<Row> iterator = result.collect()) {
       // The row2 in start snapshot will be excluded.
       assertRows(ImmutableList.of(row3, row4), iterator);

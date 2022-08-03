@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
@@ -28,18 +27,20 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 /**
- * An adaptor so that the ORC RecordReader can be used as an Iterator.
- * Because the same VectorizedRowBatch is reused on each call to next,
- * it gets changed when hasNext or next is called.
+ * An adaptor so that the ORC RecordReader can be used as an Iterator. Because the same
+ * VectorizedRowBatch is reused on each call to next, it gets changed when hasNext or next is
+ * called.
  */
-public class VectorizedRowBatchIterator implements CloseableIterator<Pair<VectorizedRowBatch, Long>> {
+public class VectorizedRowBatchIterator
+    implements CloseableIterator<Pair<VectorizedRowBatch, Long>> {
   private final String fileLocation;
   private final RecordReader rows;
   private final VectorizedRowBatch batch;
   private boolean advanced = false;
   private long batchOffsetInFile = 0;
 
-  VectorizedRowBatchIterator(String fileLocation, TypeDescription schema, RecordReader rows, int recordsPerBatch) {
+  VectorizedRowBatchIterator(
+      String fileLocation, TypeDescription schema, RecordReader rows, int recordsPerBatch) {
     this.fileLocation = fileLocation;
     this.rows = rows;
     this.batch = schema.createRowBatch(recordsPerBatch);

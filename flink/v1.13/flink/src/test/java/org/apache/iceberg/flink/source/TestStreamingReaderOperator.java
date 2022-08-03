@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.File;
@@ -55,18 +54,15 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestStreamingReaderOperator extends TableTestBase {
 
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.IntegerType.get()),
-      Types.NestedField.required(2, "data", Types.StringType.get())
-  );
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "data", Types.StringType.get()));
   private static final FileFormat DEFAULT_FORMAT = FileFormat.PARQUET;
 
   @Parameterized.Parameters(name = "FormatVersion={0}")
   public static Iterable<Object[]> parameters() {
-    return ImmutableList.of(
-        new Object[] {1},
-        new Object[] {2}
-    );
+    return ImmutableList.of(new Object[] {1}, new Object[] {2});
   }
 
   public TestStreamingReaderOperator(int formatVersion) {
@@ -114,7 +110,8 @@ public class TestStreamingReaderOperator extends TableTestBase {
 
   @Test
   public void testTriggerCheckpoint() throws Exception {
-    // Received emitted splits: split1, split2, split3, checkpoint request is triggered when reading records from
+    // Received emitted splits: split1, split2, split3, checkpoint request is triggered when reading
+    // records from
     // split1.
     List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(3);
 
@@ -133,11 +130,11 @@ public class TestStreamingReaderOperator extends TableTestBase {
       harness.processElement(splits.get(2), ++timestamp);
 
       // Trigger snapshot state, it will start to work once all records from split0 are read.
-      processor.getMainMailboxExecutor()
-          .execute(() -> harness.snapshot(1, 3), "Trigger snapshot");
+      processor.getMainMailboxExecutor().execute(() -> harness.snapshot(1, 3), "Trigger snapshot");
 
       Assert.assertTrue("Should have processed the split0", processor.runMailboxStep());
-      Assert.assertTrue("Should have processed the snapshot state action", processor.runMailboxStep());
+      Assert.assertTrue(
+          "Should have processed the snapshot state action", processor.runMailboxStep());
 
       TestHelpers.assertRecords(readOutputValues(harness), expectedRecords.get(0), SCHEMA);
 
@@ -147,8 +144,8 @@ public class TestStreamingReaderOperator extends TableTestBase {
       // Read records from split2.
       Assert.assertTrue("Should have processed the split2", processor.runMailboxStep());
 
-      TestHelpers.assertRecords(readOutputValues(harness),
-          Lists.newArrayList(Iterables.concat(expectedRecords)), SCHEMA);
+      TestHelpers.assertRecords(
+          readOutputValues(harness), Lists.newArrayList(Iterables.concat(expectedRecords)), SCHEMA);
     }
   }
 
@@ -210,7 +207,8 @@ public class TestStreamingReaderOperator extends TableTestBase {
     }
   }
 
-  private List<Row> readOutputValues(OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness) {
+  private List<Row> readOutputValues(
+      OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness) {
     List<Row> results = Lists.newArrayList();
     for (RowData rowData : harness.extractOutputValues()) {
       results.add(Row.of(rowData.getInt(0), rowData.getString(1).toString()));
@@ -243,15 +241,14 @@ public class TestStreamingReaderOperator extends TableTestBase {
       ScanContext scanContext;
       if (i == snapshotIds.size() - 1) {
         // Generate the splits from the first snapshot.
-        scanContext = ScanContext.builder()
-            .useSnapshotId(snapshotIds.get(i))
-            .build();
+        scanContext = ScanContext.builder().useSnapshotId(snapshotIds.get(i)).build();
       } else {
         // Generate the splits between the previous snapshot and current snapshot.
-        scanContext = ScanContext.builder()
-            .startSnapshotId(snapshotIds.get(i + 1))
-            .endSnapshotId(snapshotIds.get(i))
-            .build();
+        scanContext =
+            ScanContext.builder()
+                .startSnapshotId(snapshotIds.get(i + 1))
+                .endSnapshotId(snapshotIds.get(i))
+                .build();
       }
 
       Collections.addAll(inputSplits, FlinkSplitGenerator.createInputSplits(table, scanContext));
@@ -260,15 +257,18 @@ public class TestStreamingReaderOperator extends TableTestBase {
     return inputSplits;
   }
 
-  private OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> createReader() throws Exception {
+  private OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> createReader()
+      throws Exception {
     // This input format is used to opening the emitted split.
-    FlinkInputFormat inputFormat = FlinkSource.forRowData()
-        .tableLoader(TestTableLoader.of(tableDir.getAbsolutePath()))
-        .buildFormat();
+    FlinkInputFormat inputFormat =
+        FlinkSource.forRowData()
+            .tableLoader(TestTableLoader.of(tableDir.getAbsolutePath()))
+            .buildFormat();
 
-    OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(inputFormat);
-    OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = new OneInputStreamOperatorTestHarness<>(
-        factory, 1, 1, 0);
+    OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory =
+        StreamingReaderOperator.factory(inputFormat);
+    OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness =
+        new OneInputStreamOperatorTestHarness<>(factory, 1, 1, 0);
     harness.getStreamConfig().setTimeCharacteristic(TimeCharacteristic.ProcessingTime);
 
     return harness;

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -32,26 +31,31 @@ import org.apache.iceberg.catalog.TableIdentifier;
  */
 public class TestableCachingCatalog extends CachingCatalog {
 
-  public static TestableCachingCatalog wrap(Catalog catalog, Duration expirationInterval, Ticker ticker) {
-    return new TestableCachingCatalog(catalog, true /* caseSensitive */, expirationInterval, ticker);
+  public static TestableCachingCatalog wrap(
+      Catalog catalog, Duration expirationInterval, Ticker ticker) {
+    return new TestableCachingCatalog(
+        catalog, true /* caseSensitive */, expirationInterval, ticker);
   }
 
   private final Duration cacheExpirationInterval;
 
-  TestableCachingCatalog(Catalog catalog, boolean caseSensitive, Duration expirationInterval, Ticker ticker) {
+  TestableCachingCatalog(
+      Catalog catalog, boolean caseSensitive, Duration expirationInterval, Ticker ticker) {
     super(catalog, caseSensitive, expirationInterval.toMillis(), ticker);
     this.cacheExpirationInterval = expirationInterval;
   }
 
   public Cache<TableIdentifier, Table> cache() {
-    // cleanUp must be called as tests apply assertions directly on the underlying map, but metadata table
+    // cleanUp must be called as tests apply assertions directly on the underlying map, but metadata
+    // table
     // map entries are cleaned up asynchronously.
     tableCache.cleanUp();
     return tableCache;
   }
 
   public boolean isCacheExpirationEnabled() {
-    return tableCache.policy().expireAfterAccess().isPresent() || tableCache.policy().expireAfterWrite().isPresent();
+    return tableCache.policy().expireAfterAccess().isPresent()
+        || tableCache.policy().expireAfterWrite().isPresent();
   }
 
   // Throws a NoSuchElementException if this entry is not in the cache (has already been TTL'd).

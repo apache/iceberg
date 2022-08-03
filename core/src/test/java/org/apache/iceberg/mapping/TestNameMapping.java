@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mapping;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
@@ -25,18 +26,14 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestNameMapping {
   @Test
   public void testFlatSchemaToMapping() {
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(2, "data", Types.StringType.get()));
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    MappedFields expected = MappedFields.of(
-        MappedField.of(1, "id"),
-        MappedField.of(2, "data"));
+    MappedFields expected = MappedFields.of(MappedField.of(1, "id"), MappedField.of(2, "data"));
 
     NameMapping mapping = MappingUtil.create(schema);
     Assert.assertEquals(expected, mapping.asMappedFields());
@@ -44,21 +41,25 @@ public class TestNameMapping {
 
   @Test
   public void testNestedStructSchemaToMapping() {
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(2, "data", Types.StringType.get()),
-        required(3, "location", Types.StructType.of(
-            required(4, "latitude", Types.FloatType.get()),
-            required(5, "longitude", Types.FloatType.get())
-        )));
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(
+                3,
+                "location",
+                Types.StructType.of(
+                    required(4, "latitude", Types.FloatType.get()),
+                    required(5, "longitude", Types.FloatType.get()))));
 
-    MappedFields expected = MappedFields.of(
-        MappedField.of(1, "id"),
-        MappedField.of(2, "data"),
-        MappedField.of(3, "location", MappedFields.of(
-            MappedField.of(4, "latitude"),
-            MappedField.of(5, "longitude")
-        )));
+    MappedFields expected =
+        MappedFields.of(
+            MappedField.of(1, "id"),
+            MappedField.of(2, "data"),
+            MappedField.of(
+                3,
+                "location",
+                MappedFields.of(MappedField.of(4, "latitude"), MappedField.of(5, "longitude"))));
 
     NameMapping mapping = MappingUtil.create(schema);
     Assert.assertEquals(expected, mapping.asMappedFields());
@@ -66,20 +67,21 @@ public class TestNameMapping {
 
   @Test
   public void testMapSchemaToMapping() {
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(2, "data", Types.StringType.get()),
-        required(3, "map", Types.MapType.ofRequired(4, 5,
-            Types.StringType.get(),
-            Types.DoubleType.get())));
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(
+                3,
+                "map",
+                Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.DoubleType.get())));
 
-    MappedFields expected = MappedFields.of(
-        MappedField.of(1, "id"),
-        MappedField.of(2, "data"),
-        MappedField.of(3, "map", MappedFields.of(
-            MappedField.of(4, "key"),
-            MappedField.of(5, "value")
-        )));
+    MappedFields expected =
+        MappedFields.of(
+            MappedField.of(1, "id"),
+            MappedField.of(2, "data"),
+            MappedField.of(
+                3, "map", MappedFields.of(MappedField.of(4, "key"), MappedField.of(5, "value"))));
 
     NameMapping mapping = MappingUtil.create(schema);
     Assert.assertEquals(expected, mapping.asMappedFields());
@@ -87,25 +89,32 @@ public class TestNameMapping {
 
   @Test
   public void testComplexKeyMapSchemaToMapping() {
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(2, "data", Types.StringType.get()),
-        required(3, "map", Types.MapType.ofRequired(4, 5,
-            Types.StructType.of(
-                required(6, "x", Types.DoubleType.get()),
-                required(7, "y", Types.DoubleType.get())),
-            Types.DoubleType.get())));
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(
+                3,
+                "map",
+                Types.MapType.ofRequired(
+                    4,
+                    5,
+                    Types.StructType.of(
+                        required(6, "x", Types.DoubleType.get()),
+                        required(7, "y", Types.DoubleType.get())),
+                    Types.DoubleType.get())));
 
-    MappedFields expected = MappedFields.of(
-        MappedField.of(1, "id"),
-        MappedField.of(2, "data"),
-        MappedField.of(3, "map", MappedFields.of(
-            MappedField.of(4, "key", MappedFields.of(
-                MappedField.of(6, "x"),
-                MappedField.of(7, "y")
-            )),
-            MappedField.of(5, "value")
-        )));
+    MappedFields expected =
+        MappedFields.of(
+            MappedField.of(1, "id"),
+            MappedField.of(2, "data"),
+            MappedField.of(
+                3,
+                "map",
+                MappedFields.of(
+                    MappedField.of(
+                        4, "key", MappedFields.of(MappedField.of(6, "x"), MappedField.of(7, "y"))),
+                    MappedField.of(5, "value"))));
 
     NameMapping mapping = MappingUtil.create(schema);
     Assert.assertEquals(expected, mapping.asMappedFields());
@@ -113,26 +122,34 @@ public class TestNameMapping {
 
   @Test
   public void testComplexValueMapSchemaToMapping() {
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(2, "data", Types.StringType.get()),
-        required(3, "map", Types.MapType.ofRequired(4, 5,
-            Types.DoubleType.get(),
-            Types.StructType.of(
-                required(6, "x", Types.DoubleType.get()),
-                required(7, "y", Types.DoubleType.get()))
-        )));
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(
+                3,
+                "map",
+                Types.MapType.ofRequired(
+                    4,
+                    5,
+                    Types.DoubleType.get(),
+                    Types.StructType.of(
+                        required(6, "x", Types.DoubleType.get()),
+                        required(7, "y", Types.DoubleType.get())))));
 
-    MappedFields expected = MappedFields.of(
-        MappedField.of(1, "id"),
-        MappedField.of(2, "data"),
-        MappedField.of(3, "map", MappedFields.of(
-            MappedField.of(4, "key"),
-            MappedField.of(5, "value", MappedFields.of(
-                MappedField.of(6, "x"),
-                MappedField.of(7, "y")
-            ))
-        )));
+    MappedFields expected =
+        MappedFields.of(
+            MappedField.of(1, "id"),
+            MappedField.of(2, "data"),
+            MappedField.of(
+                3,
+                "map",
+                MappedFields.of(
+                    MappedField.of(4, "key"),
+                    MappedField.of(
+                        5,
+                        "value",
+                        MappedFields.of(MappedField.of(6, "x"), MappedField.of(7, "y"))))));
 
     NameMapping mapping = MappingUtil.create(schema);
     Assert.assertEquals(expected, mapping.asMappedFields());
@@ -140,17 +157,17 @@ public class TestNameMapping {
 
   @Test
   public void testListSchemaToMapping() {
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(2, "data", Types.StringType.get()),
-        required(3, "list", Types.ListType.ofRequired(4, Types.StringType.get())));
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(3, "list", Types.ListType.ofRequired(4, Types.StringType.get())));
 
-    MappedFields expected = MappedFields.of(
-        MappedField.of(1, "id"),
-        MappedField.of(2, "data"),
-        MappedField.of(3, "list", MappedFields.of(
-            MappedField.of(4, "element")
-        )));
+    MappedFields expected =
+        MappedFields.of(
+            MappedField.of(1, "id"),
+            MappedField.of(2, "data"),
+            MappedField.of(3, "list", MappedFields.of(MappedField.of(4, "element"))));
 
     NameMapping mapping = MappingUtil.create(schema);
     Assert.assertEquals(expected, mapping.asMappedFields());
@@ -159,44 +176,56 @@ public class TestNameMapping {
   @Test
   public void testFailsDuplicateId() {
     // the schema can be created because ID indexing is lazy
-    AssertHelpers.assertThrows("Should fail if IDs are reused",
-        IllegalArgumentException.class, "Multiple entries with same",
-        () -> new Schema(
-            required(1, "id", Types.LongType.get()),
-            required(1, "data", Types.StringType.get())));
+    AssertHelpers.assertThrows(
+        "Should fail if IDs are reused",
+        IllegalArgumentException.class,
+        "Multiple entries with same",
+        () ->
+            new Schema(
+                required(1, "id", Types.LongType.get()),
+                required(1, "data", Types.StringType.get())));
   }
 
   @Test
   public void testFailsDuplicateName() {
-    AssertHelpers.assertThrows("Should fail if names are reused",
-        IllegalArgumentException.class, "Multiple entries with same key",
+    AssertHelpers.assertThrows(
+        "Should fail if names are reused",
+        IllegalArgumentException.class,
+        "Multiple entries with same key",
         () -> new NameMapping(MappedFields.of(MappedField.of(1, "x"), MappedField.of(2, "x"))));
   }
 
   @Test
   public void testAllowsDuplicateNamesInSeparateContexts() {
-    new NameMapping(MappedFields.of(
-        MappedField.of(1, "x", MappedFields.of(MappedField.of(3, "x"))),
-        MappedField.of(2, "y", MappedFields.of(MappedField.of(4, "x")))
-    ));
+    new NameMapping(
+        MappedFields.of(
+            MappedField.of(1, "x", MappedFields.of(MappedField.of(3, "x"))),
+            MappedField.of(2, "y", MappedFields.of(MappedField.of(4, "x")))));
   }
 
   @Test
   public void testMappingFindById() {
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(2, "data", Types.StringType.get()),
-        required(3, "map", Types.MapType.ofRequired(4, 5,
-            Types.DoubleType.get(),
-            Types.StructType.of(
-                required(6, "x", Types.DoubleType.get()),
-                required(7, "y", Types.DoubleType.get())))),
-        required(8, "list", Types.ListType.ofRequired(9,
-            Types.StringType.get())),
-        required(10, "location", Types.StructType.of(
-            required(11, "latitude", Types.FloatType.get()),
-            required(12, "longitude", Types.FloatType.get())
-        )));
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(
+                3,
+                "map",
+                Types.MapType.ofRequired(
+                    4,
+                    5,
+                    Types.DoubleType.get(),
+                    Types.StructType.of(
+                        required(6, "x", Types.DoubleType.get()),
+                        required(7, "y", Types.DoubleType.get())))),
+            required(8, "list", Types.ListType.ofRequired(9, Types.StringType.get())),
+            required(
+                10,
+                "location",
+                Types.StructType.of(
+                    required(11, "latitude", Types.FloatType.get()),
+                    required(12, "longitude", Types.FloatType.get()))));
 
     NameMapping mapping = MappingUtil.create(schema);
 
@@ -206,32 +235,41 @@ public class TestNameMapping {
     Assert.assertEquals(MappedField.of(9, "element"), mapping.find(9));
     Assert.assertEquals(MappedField.of(11, "latitude"), mapping.find(11));
     Assert.assertEquals(
-        MappedField.of(10, "location", MappedFields.of(
-            MappedField.of(11, "latitude"),
-            MappedField.of(12, "longitude"))),
+        MappedField.of(
+            10,
+            "location",
+            MappedFields.of(MappedField.of(11, "latitude"), MappedField.of(12, "longitude"))),
         mapping.find(10));
   }
 
   @Test
   public void testMappingFindByName() {
-    Schema schema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        required(2, "data", Types.StringType.get()),
-        required(3, "map", Types.MapType.ofRequired(4, 5,
-            Types.DoubleType.get(),
-            Types.StructType.of(
-                required(6, "x", Types.DoubleType.get()),
-                required(7, "y", Types.DoubleType.get())))),
-        required(8, "list", Types.ListType.ofRequired(9,
-            Types.StringType.get())),
-        required(10, "location", Types.StructType.of(
-            required(11, "latitude", Types.FloatType.get()),
-            required(12, "longitude", Types.FloatType.get())
-        )));
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(
+                3,
+                "map",
+                Types.MapType.ofRequired(
+                    4,
+                    5,
+                    Types.DoubleType.get(),
+                    Types.StructType.of(
+                        required(6, "x", Types.DoubleType.get()),
+                        required(7, "y", Types.DoubleType.get())))),
+            required(8, "list", Types.ListType.ofRequired(9, Types.StringType.get())),
+            required(
+                10,
+                "location",
+                Types.StructType.of(
+                    required(11, "latitude", Types.FloatType.get()),
+                    required(12, "longitude", Types.FloatType.get()))));
 
     NameMapping mapping = MappingUtil.create(schema);
 
-    Assert.assertNull("Should not return a field mapping for a nested name", mapping.find("element"));
+    Assert.assertNull(
+        "Should not return a field mapping for a nested name", mapping.find("element"));
     Assert.assertNull("Should not return a field mapping for a nested name", mapping.find("x"));
     Assert.assertNull("Should not return a field mapping for a nested name", mapping.find("key"));
     Assert.assertNull("Should not return a field mapping for a nested name", mapping.find("value"));
@@ -240,9 +278,10 @@ public class TestNameMapping {
     Assert.assertEquals(MappedField.of(9, "element"), mapping.find("list", "element"));
     Assert.assertEquals(MappedField.of(11, "latitude"), mapping.find("location", "latitude"));
     Assert.assertEquals(
-        MappedField.of(10, "location", MappedFields.of(
-            MappedField.of(11, "latitude"),
-            MappedField.of(12, "longitude"))),
+        MappedField.of(
+            10,
+            "location",
+            MappedFields.of(MappedField.of(11, "latitude"), MappedField.of(12, "longitude"))),
         mapping.find("location"));
   }
 }

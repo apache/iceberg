@@ -1,6 +1,7 @@
 version.txt
 versions.lock
 versions.props
+iceberg-build.properties
 .java-version
 books.json
 new-books.json

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -37,8 +36,7 @@ public class RowPositionColumnVector extends ColumnVector {
   }
 
   @Override
-  public void close() {
-  }
+  public void close() {}
 
   @Override
   public boolean hasNull() {

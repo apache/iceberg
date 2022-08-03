@@ -1,5 +1,5 @@
 versionOverrides:
-  org.apache.iceberg:iceberg-api:release-base-0.13.0: "0.13.0"
+  org.apache.iceberg:iceberg-api:apache-iceberg-0.14.0: "0.14.0"
 acceptedBreaks:
   release-base-0.13.0:
     org.apache.iceberg:iceberg-api:
@@ -31,10 +31,10 @@ acceptedBreaks:
       new: "method boolean org.apache.iceberg.expressions.BoundTerm<T>::isEquivalentTo(org.apache.iceberg.expressions.BoundTerm<?>)"
       justification: "new API method"
     - code: "java.method.addedToInterface"
-      new: "method java.lang.Iterable<org.apache.iceberg.DataFile> org.apache.iceberg.Snapshot::addedFiles(org.apache.iceberg.io.FileIO)"
+      new: "method java.lang.Iterable<org.apache.iceberg.DataFile> org.apache.iceberg.Snapshot::addedDataFiles(org.apache.iceberg.io.FileIO)"
       justification: "Allow adding a new method to the interface - old method is deprecated"
     - code: "java.method.addedToInterface"
-      new: "method java.lang.Iterable<org.apache.iceberg.DataFile> org.apache.iceberg.Snapshot::deletedFiles(org.apache.iceberg.io.FileIO)"
+      new: "method java.lang.Iterable<org.apache.iceberg.DataFile> org.apache.iceberg.Snapshot::removedDataFiles(org.apache.iceberg.io.FileIO)"
       justification: "Allow adding a new method to the interface - old method is deprecated"
     - code: "java.method.addedToInterface"
       new: "method java.util.List<org.apache.iceberg.ManifestFile> org.apache.iceberg.Snapshot::allManifests(org.apache.iceberg.io.FileIO)"

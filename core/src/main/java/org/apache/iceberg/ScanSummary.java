@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -49,11 +48,10 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 
 public class ScanSummary {
-  private ScanSummary() {
-  }
+  private ScanSummary() {}
 
-  private static final ImmutableList<String> SCAN_SUMMARY_COLUMNS = ImmutableList.of(
-      "partition", "record_count", "file_size_in_bytes");
+  private static final ImmutableList<String> SCAN_SUMMARY_COLUMNS =
+      ImmutableList.of("partition", "record_count", "file_size_in_bytes");
 
   /**
    * Create a scan summary builder for a table scan.
@@ -66,8 +64,8 @@ public class ScanSummary {
   }
 
   public static class Builder {
-    private static final Set<String> TIMESTAMP_NAMES = Sets.newHashSet(
-        "dateCreated", "lastUpdated");
+    private static final Set<String> TIMESTAMP_NAMES =
+        Sets.newHashSet("dateCreated", "lastUpdated");
     private final TableScan scan;
     private final Table table;
     private final TableOperations ops;
@@ -186,8 +184,8 @@ public class ScanSummary {
         // if oldest known snapshot is in the range, then there may be an expired snapshot that has
         // been removed that matched the range. because the timestamp of that snapshot is unknown,
         // it can't be included in the results and the results are not reliable.
-        if (snapshotsInTimeRange.contains(oldestSnapshot.snapshotId()) &&
-            minTimestamp < oldestSnapshot.timestampMillis()) {
+        if (snapshotsInTimeRange.contains(oldestSnapshot.snapshotId())
+            && minTimestamp < oldestSnapshot.timestampMillis()) {
           throw new IllegalArgumentException(
               "Cannot satisfy time filters: time range may include expired snapshots");
         }
@@ -196,19 +194,25 @@ public class ScanSummary {
         // time range. manifests after the end of the time range must be included because
         // compaction may create a manifest after the time range that includes files added in the
         // range.
-        manifests = Iterables.filter(manifests, manifest -> {
-          if (manifest.snapshotId() == null) {
-            return true; // can't tell when the manifest was written, so it may contain matches
-          }
+        manifests =
+            Iterables.filter(
+                manifests,
+                manifest -> {
+                  if (manifest.snapshotId() == null) {
+                    return true; // can't tell when the manifest was written, so it may contain
+                    // matches
+                  }
 
-          Long timestamp = snapshotTimestamps.get(manifest.snapshotId());
-          // if the timestamp is null, then its snapshot has expired. the check for the oldest
-          // snapshot ensures that all expired snapshots are not in the time range.
-          return timestamp != null && timestamp >= minTimestamp;
-        });
+                  Long timestamp = snapshotTimestamps.get(manifest.snapshotId());
+                  // if the timestamp is null, then its snapshot has expired. the check for the
+                  // oldest
+                  // snapshot ensures that all expired snapshots are not in the time range.
+                  return timestamp != null && timestamp >= minTimestamp;
+                });
       }
 
-      return computeTopPartitionMetrics(rowFilter, manifests, filterByTimestamp, snapshotsInTimeRange);
+      return computeTopPartitionMetrics(
+          rowFilter, manifests, filterByTimestamp, snapshotsInTimeRange);
     }
 
     private Map<String, PartitionMetrics> computeTopPartitionMetrics(
@@ -216,15 +220,16 @@ public class ScanSummary {
         Iterable<ManifestFile> manifests,
         boolean filterByTimestamp,
         Set<Long> snapshotsInTimeRange) {
-      TopN<String, PartitionMetrics> topN = new TopN<>(
-          limit, throwIfLimited, Comparators.charSequences());
+      TopN<String, PartitionMetrics> topN =
+          new TopN<>(limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), manifests)
-          .specsById(ops.current().specsById())
-          .filterData(rowFilter)
-          .ignoreDeleted()
-          .select(SCAN_SUMMARY_COLUMNS)
-          .entries()) {
+      try (CloseableIterable<ManifestEntry<DataFile>> entries =
+          new ManifestGroup(ops.io(), manifests)
+              .specsById(ops.current().specsById())
+              .filterData(rowFilter)
+              .ignoreDeleted()
+              .select(SCAN_SUMMARY_COLUMNS)
+              .entries()) {
 
         PartitionSpec spec = table.spec();
         for (ManifestEntry<?> entry : entries) {
@@ -236,8 +241,11 @@ public class ScanSummary {
           }
 
           String partition = spec.partitionToPath(entry.file().partition());
-          topN.update(partition, metrics -> (metrics == null ? new PartitionMetrics() : metrics)
-              .updateFromFile(entry.file(), timestamp));
+          topN.update(
+              partition,
+              metrics ->
+                  (metrics == null ? new PartitionMetrics() : metrics)
+                      .updateFromFile(entry.file(), timestamp));
         }
 
       } catch (IOException e) {
@@ -270,12 +278,13 @@ public class ScanSummary {
       return dataTimestampMillis;
     }
 
-    PartitionMetrics updateFromCounts(int numFiles, long filesRecordCount, long filesSize,
-                                      Long timestampMillis) {
+    PartitionMetrics updateFromCounts(
+        int numFiles, long filesRecordCount, long filesSize, Long timestampMillis) {
       this.fileCount += numFiles;
       this.recordCount += filesRecordCount;
       this.totalSize += filesSize;
-      if (timestampMillis != null && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
+      if (timestampMillis != null
+          && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
         this.dataTimestampMillis = timestampMillis;
       }
       return this;
@@ -285,8 +294,8 @@ public class ScanSummary {
       this.fileCount += 1;
       this.recordCount += file.recordCount();
       this.totalSize += file.fileSizeInBytes();
-      if (timestampMillis != null &&
-          (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
+      if (timestampMillis != null
+          && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
         this.dataTimestampMillis = timestampMillis;
       }
       return this;
@@ -294,12 +303,19 @@ public class ScanSummary {
 
     @Override
     public String toString() {
-      String dataTimestamp = dataTimestampMillis != null ?
-          DateTimeUtil.formatTimestampMillis(dataTimestampMillis) : null;
-      return "PartitionMetrics(fileCount=" + fileCount +
-          ", recordCount=" + recordCount +
-          ", totalSize=" + totalSize +
-          ", dataTimestamp=" + dataTimestamp + ")";
+      String dataTimestamp =
+          dataTimestampMillis != null
+              ? DateTimeUtil.formatTimestampMillis(dataTimestampMillis)
+              : null;
+      return "PartitionMetrics(fileCount="
+          + fileCount
+          + ", recordCount="
+          + recordCount
+          + ", totalSize="
+          + totalSize
+          + ", dataTimestamp="
+          + dataTimestamp
+          + ")";
     }
   }
 

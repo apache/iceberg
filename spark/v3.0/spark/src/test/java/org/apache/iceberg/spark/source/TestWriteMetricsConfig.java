@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -53,28 +56,24 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestWriteMetricsConfig {
 
   private static final Configuration CONF = new Configuration();
-  private static final Schema SIMPLE_SCHEMA = new Schema(
-      optional(1, "id", Types.IntegerType.get()),
-      optional(2, "data", Types.StringType.get())
-  );
-  private static final Schema COMPLEX_SCHEMA = new Schema(
-      required(1, "longCol", Types.IntegerType.get()),
-      optional(2, "strCol", Types.StringType.get()),
-      required(3, "record", Types.StructType.of(
-          required(4, "id", Types.IntegerType.get()),
-          required(5, "data", Types.StringType.get())
-      ))
-  );
+  private static final Schema SIMPLE_SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
+  private static final Schema COMPLEX_SCHEMA =
+      new Schema(
+          required(1, "longCol", Types.IntegerType.get()),
+          optional(2, "strCol", Types.StringType.get()),
+          required(
+              3,
+              "record",
+              Types.StructType.of(
+                  required(4, "id", Types.IntegerType.get()),
+                  required(5, "data", Types.StringType.get()))));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
   private static JavaSparkContext sc = null;
@@ -103,11 +102,9 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full");
     Table table = tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(expectedRecords, SimpleRecord.class);
     df.select("id", "data")
         .coalesce(1)
@@ -136,11 +133,9 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
     Table table = tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(expectedRecords, SimpleRecord.class);
     df.select("id", "data")
         .coalesce(1)
@@ -169,11 +164,9 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     Table table = tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(expectedRecords, SimpleRecord.class);
     df.select("id", "data")
         .coalesce(1)
@@ -203,11 +196,9 @@ public class TestWriteMetricsConfig {
     properties.put("write.metadata.metrics.column.id", "full");
     Table table = tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expectedRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
     Dataset<Row> df = spark.createDataFrame(expectedRecords, SimpleRecord.class);
     df.select("id", "data")
         .coalesce(1)
@@ -240,7 +231,8 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
     properties.put("write.metadata.metrics.column.ids", "full");
 
-    AssertHelpers.assertThrows("Creating a table with invalid metrics should fail",
+    AssertHelpers.assertThrows(
+        "Creating a table with invalid metrics should fail",
         ValidationException.class,
         null,
         () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation));
@@ -251,9 +243,7 @@ public class TestWriteMetricsConfig {
     String tableLocation = temp.newFolder("iceberg-table").toString();
 
     HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(COMPLEX_SCHEMA)
-        .identity("strCol")
-        .build();
+    PartitionSpec spec = PartitionSpec.builderFor(COMPLEX_SCHEMA).identity("strCol").build();
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     properties.put("write.metadata.metrics.column.longCol", "counts");
@@ -263,9 +253,11 @@ public class TestWriteMetricsConfig {
 
     Iterable<InternalRow> rows = RandomData.generateSpark(COMPLEX_SCHEMA, 10, 0);
     JavaRDD<InternalRow> rdd = sc.parallelize(Lists.newArrayList(rows));
-    Dataset<Row> df = spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(COMPLEX_SCHEMA), false);
+    Dataset<Row> df =
+        spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(COMPLEX_SCHEMA), false);
 
-    df.coalesce(1).write()
+    df.coalesce(1)
+        .write()
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
         .mode(SaveMode.Append)

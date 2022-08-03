@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
@@ -41,11 +40,16 @@ public class TestFlinkAppenderFactory extends TestAppenderFactory<RowData> {
   }
 
   @Override
-  protected FileAppenderFactory<RowData> createAppenderFactory(List<Integer> equalityFieldIds,
-                                                               Schema eqDeleteSchema,
-                                                               Schema posDeleteRowSchema) {
-    return new FlinkAppenderFactory(table.schema(), rowType, table.properties(), table.spec(),
-        ArrayUtil.toIntArray(equalityFieldIds), eqDeleteSchema, posDeleteRowSchema);
+  protected FileAppenderFactory<RowData> createAppenderFactory(
+      List<Integer> equalityFieldIds, Schema eqDeleteSchema, Schema posDeleteRowSchema) {
+    return new FlinkAppenderFactory(
+        table.schema(),
+        rowType,
+        table.properties(),
+        table.spec(),
+        ArrayUtil.toIntArray(equalityFieldIds),
+        eqDeleteSchema,
+        posDeleteRowSchema);
   }
 
   @Override

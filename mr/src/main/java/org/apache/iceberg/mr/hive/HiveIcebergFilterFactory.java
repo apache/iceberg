@@ -16,8 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
+
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.or;
 
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -35,28 +45,18 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
 
-import static org.apache.iceberg.expressions.Expressions.and;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.in;
-import static org.apache.iceberg.expressions.Expressions.isNaN;
-import static org.apache.iceberg.expressions.Expressions.isNull;
-import static org.apache.iceberg.expressions.Expressions.lessThan;
-import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.not;
-import static org.apache.iceberg.expressions.Expressions.or;
-
 public class HiveIcebergFilterFactory {
 
-  private HiveIcebergFilterFactory() {
-  }
+  private HiveIcebergFilterFactory() {}
 
   public static Expression generateFilterExpression(SearchArgument sarg) {
     return translate(sarg.getExpression(), sarg.getLeaves());
   }
 
   /**
-   * Recursive method to traverse down the ExpressionTree to evaluate each expression and its leaf nodes.
+   * Recursive method to traverse down the ExpressionTree to evaluate each expression and its leaf
+   * nodes.
+   *
    * @param tree Current ExpressionTree where the 'top' node is being evaluated.
    * @param leaves List of all leaf nodes within the tree.
    * @return Expression that is translated from the Hive SearchArgument.
@@ -89,6 +89,7 @@ public class HiveIcebergFilterFactory {
 
   /**
    * Translate leaf nodes from Hive operator to Iceberg operator.
+   *
    * @param leaf Leaf node
    * @return Expression fully translated from Hive PredicateLeaf
    */
@@ -106,8 +107,9 @@ public class HiveIcebergFilterFactory {
         return in(column, leafToLiteralList(leaf));
       case BETWEEN:
         List<Object> icebergLiterals = leafToLiteralList(leaf);
-        return and(greaterThanOrEqual(column, icebergLiterals.get(0)),
-                lessThanOrEqual(column, icebergLiterals.get(1)));
+        return and(
+            greaterThanOrEqual(column, icebergLiterals.get(0)),
+            lessThanOrEqual(column, icebergLiterals.get(1)));
       case IS_NULL:
         return isNull(column);
       default:
@@ -115,11 +117,12 @@ public class HiveIcebergFilterFactory {
     }
   }
 
-  // PredicateLeafImpl has a work-around for Kryo serialization with java.util.Date objects where it converts values to
-  // Timestamp using Date#getTime. This conversion discards microseconds, so this is a necessary to avoid it.
-  private static final DynFields.UnboundField<?> LITERAL_FIELD = DynFields.builder()
-      .hiddenImpl(SearchArgumentImpl.PredicateLeafImpl.class, "literal")
-      .build();
+  // PredicateLeafImpl has a work-around for Kryo serialization with java.util.Date objects where it
+  // converts values to
+  // Timestamp using Date#getTime. This conversion discards microseconds, so this is a necessary to
+  // avoid it.
+  private static final DynFields.UnboundField<?> LITERAL_FIELD =
+      DynFields.builder().hiddenImpl(SearchArgumentImpl.PredicateLeafImpl.class, "literal").build();
 
   private static Object leafToLiteral(PredicateLeaf leaf) {
     switch (leaf.getType()) {
@@ -151,36 +154,44 @@ public class HiveIcebergFilterFactory {
       case STRING:
         return leaf.getLiteralList();
       case DATE:
-        return leaf.getLiteralList().stream().map(value -> daysFromDate((Date) value))
-                .collect(Collectors.toList());
+        return leaf.getLiteralList().stream()
+            .map(value -> daysFromDate((Date) value))
+            .collect(Collectors.toList());
       case DECIMAL:
         return leaf.getLiteralList().stream()
-                .map(value -> hiveDecimalToBigDecimal((HiveDecimalWritable) value))
-                .collect(Collectors.toList());
+            .map(value -> hiveDecimalToBigDecimal((HiveDecimalWritable) value))
+            .collect(Collectors.toList());
       case TIMESTAMP:
         return leaf.getLiteralList().stream()
-                .map(value -> microsFromTimestamp((Timestamp) value))
-                .collect(Collectors.toList());
+            .map(value -> microsFromTimestamp((Timestamp) value))
+            .collect(Collectors.toList());
       default:
         throw new UnsupportedOperationException("Unknown type: " + leaf.getType());
     }
   }
 
   private static BigDecimal hiveDecimalToBigDecimal(HiveDecimalWritable hiveDecimalWritable) {
-    return hiveDecimalWritable.getHiveDecimal().bigDecimalValue().setScale(hiveDecimalWritable.scale());
+    return hiveDecimalWritable
+        .getHiveDecimal()
+        .bigDecimalValue()
+        .setScale(hiveDecimalWritable.scale());
   }
 
   // Hive uses `java.sql.Date.valueOf(lit.toString());` to convert a literal to Date
-  // Which uses `java.util.Date()` internally to create the object and that uses the TimeZone.getDefaultRef()
-  // To get back the expected date we have to use the LocalDate which gets rid of the TimeZone misery as it uses
+  // Which uses `java.util.Date()` internally to create the object and that uses the
+  // TimeZone.getDefaultRef()
+  // To get back the expected date we have to use the LocalDate which gets rid of the TimeZone
+  // misery as it uses
   // the year/month/day to generate the object
   private static int daysFromDate(Date date) {
     return DateTimeUtil.daysFromDate(date.toLocalDate());
   }
 
   // Hive uses `java.sql.Timestamp.valueOf(lit.toString());` to convert a literal to Timestamp
-  // Which again uses `java.util.Date()` internally to create the object which uses the TimeZone.getDefaultRef()
-  // To get back the expected timestamp we have to use the LocalDateTime which gets rid of the TimeZone misery
+  // Which again uses `java.util.Date()` internally to create the object which uses the
+  // TimeZone.getDefaultRef()
+  // To get back the expected timestamp we have to use the LocalDateTime which gets rid of the
+  // TimeZone misery
   // as it uses the year/month/day/hour/min/sec/nanos to generate the object
   private static int daysFromTimestamp(Timestamp timestamp) {
     return DateTimeUtil.daysFromDate(timestamp.toLocalDateTime().toLocalDate());

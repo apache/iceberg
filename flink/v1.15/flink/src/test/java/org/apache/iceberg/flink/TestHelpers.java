@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
@@ -67,8 +66,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
 public class TestHelpers {
-  private TestHelpers() {
-  }
+  private TestHelpers() {}
 
   public static <T> T roundTripKryoSerialize(Class<T> clazz, T table) throws IOException {
     KryoSerializer<T> kryo = new KryoSerializer<>(clazz, new ExecutionConfig());
@@ -81,13 +79,15 @@ public class TestHelpers {
   }
 
   public static RowData copyRowData(RowData from, RowType rowType) {
-    TypeSerializer[] fieldSerializers = rowType.getChildren().stream()
-        .map((LogicalType type) -> InternalSerializers.create(type))
-        .toArray(TypeSerializer[]::new);
+    TypeSerializer[] fieldSerializers =
+        rowType.getChildren().stream()
+            .map((LogicalType type) -> InternalSerializers.create(type))
+            .toArray(TypeSerializer[]::new);
     return RowDataUtil.clone(from, null, rowType, fieldSerializers);
   }
 
-  public static void readRowData(FlinkInputFormat input, Consumer<RowData> visitor) throws IOException {
+  public static void readRowData(FlinkInputFormat input, Consumer<RowData> visitor)
+      throws IOException {
     for (FlinkInputSplit s : input.createInputSplits(0)) {
       input.open(s);
       try {
@@ -101,19 +101,21 @@ public class TestHelpers {
     }
   }
 
-  public static List<RowData> readRowData(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
+  public static List<RowData> readRowData(FlinkInputFormat inputFormat, RowType rowType)
+      throws IOException {
     List<RowData> results = Lists.newArrayList();
     readRowData(inputFormat, row -> results.add(copyRowData(row, rowType)));
     return results;
   }
 
-  public static List<Row> readRows(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
+  public static List<Row> readRows(FlinkInputFormat inputFormat, RowType rowType)
+      throws IOException {
     return convertRowDataToRow(readRowData(inputFormat, rowType), rowType);
   }
 
   public static List<Row> convertRowDataToRow(List<RowData> rowDataList, RowType rowType) {
-    DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
-        TypeConversions.fromLogicalToDataType(rowType));
+    DataStructureConverter<Object, Object> converter =
+        DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
     return rowDataList.stream()
         .map(converter::toExternal)
         .map(Row.class::cast)
@@ -123,9 +125,12 @@ public class TestHelpers {
   public static void assertRecords(List<Row> results, List<Record> expectedRecords, Schema schema) {
     List<Row> expected = Lists.newArrayList();
     @SuppressWarnings("unchecked")
-    DataStructureConverter<RowData, Row> converter = (DataStructureConverter) DataStructureConverters.getConverter(
-        TypeConversions.fromLogicalToDataType(FlinkSchemaUtil.convert(schema)));
-    expectedRecords.forEach(r -> expected.add(converter.toExternal(RowDataConverter.convert(schema, r))));
+    DataStructureConverter<RowData, Row> converter =
+        (DataStructureConverter)
+            DataStructureConverters.getConverter(
+                TypeConversions.fromLogicalToDataType(FlinkSchemaUtil.convert(schema)));
+    expectedRecords.forEach(
+        r -> expected.add(converter.toExternal(RowDataConverter.convert(schema, r))));
     assertRows(results, expected);
   }
 
@@ -141,13 +146,17 @@ public class TestHelpers {
     assertRowData(schema.asStruct(), FlinkSchemaUtil.convert(schema), expected, actual);
   }
 
-  public static void assertRowData(Types.StructType structType, LogicalType rowType, StructLike expectedRecord,
-                                   RowData actualRowData) {
+  public static void assertRowData(
+      Types.StructType structType,
+      LogicalType rowType,
+      StructLike expectedRecord,
+      RowData actualRowData) {
     if (expectedRecord == null && actualRowData == null) {
       return;
     }
 
-    Assert.assertTrue("expected Record and actual RowData should be both null or not null",
+    Assert.assertTrue(
+        "expected Record and actual RowData should be both null or not null",
         expectedRecord != null && actualRowData != null);
 
     List<Type> types = Lists.newArrayList();
@@ -158,24 +167,30 @@ public class TestHelpers {
     for (int i = 0; i < types.size(); i += 1) {
       LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
       Object expected = expectedRecord.get(i, Object.class);
-      // The RowData.createFieldGetter won't return null for the required field. But in the projection case, if we are
-      // projecting a nested required field from an optional struct, then we should give a null for the projected field
-      // if the outer struct value is null. So we need to check the nullable for actualRowData here. For more details
+      // The RowData.createFieldGetter won't return null for the required field. But in the
+      // projection case, if we are
+      // projecting a nested required field from an optional struct, then we should give a null for
+      // the projected field
+      // if the outer struct value is null. So we need to check the nullable for actualRowData here.
+      // For more details
       // please see issue #2738.
-      Object actual = actualRowData.isNullAt(i) ? null :
-          RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+      Object actual =
+          actualRowData.isNullAt(i)
+              ? null
+              : RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
       assertEquals(types.get(i), logicalType, expected, actual);
     }
   }
 
-  private static void assertEquals(Type type, LogicalType logicalType, Object expected, Object actual) {
+  private static void assertEquals(
+      Type type, LogicalType logicalType, Object expected, Object actual) {
 
     if (expected == null && actual == null) {
       return;
     }
 
-    Assert.assertTrue("expected and actual should be both null or not null",
-        expected != null && actual != null);
+    Assert.assertTrue(
+        "expected and actual should be both null or not null", expected != null && actual != null);
 
     switch (type.typeId()) {
       case BOOLEAN:
@@ -194,7 +209,9 @@ public class TestHelpers {
         Assert.assertEquals("double value should be equal", expected, actual);
         break;
       case STRING:
-        Assertions.assertThat(expected).as("Should expect a CharSequence").isInstanceOf(CharSequence.class);
+        Assertions.assertThat(expected)
+            .as("Should expect a CharSequence")
+            .isInstanceOf(CharSequence.class);
         Assert.assertEquals("string should be equal", String.valueOf(expected), actual.toString());
         break;
       case DATE:
@@ -203,40 +220,56 @@ public class TestHelpers {
         Assert.assertEquals("date should be equal", expected, date);
         break;
       case TIME:
-        Assertions.assertThat(expected).as("Should expect a LocalTime").isInstanceOf(LocalTime.class);
+        Assertions.assertThat(expected)
+            .as("Should expect a LocalTime")
+            .isInstanceOf(LocalTime.class);
         int milliseconds = (int) (((LocalTime) expected).toNanoOfDay() / 1000_000);
         Assert.assertEquals("time millis should be equal", milliseconds, actual);
         break;
       case TIMESTAMP:
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          Assertions.assertThat(expected).as("Should expect a OffsetDataTime").isInstanceOf(OffsetDateTime.class);
+          Assertions.assertThat(expected)
+              .as("Should expect a OffsetDataTime")
+              .isInstanceOf(OffsetDateTime.class);
           OffsetDateTime ts = (OffsetDateTime) expected;
-          Assert.assertEquals("OffsetDataTime should be equal", ts.toLocalDateTime(),
+          Assert.assertEquals(
+              "OffsetDataTime should be equal",
+              ts.toLocalDateTime(),
               ((TimestampData) actual).toLocalDateTime());
         } else {
-          Assertions.assertThat(expected).as("Should expect a LocalDataTime").isInstanceOf(LocalDateTime.class);
+          Assertions.assertThat(expected)
+              .as("Should expect a LocalDataTime")
+              .isInstanceOf(LocalDateTime.class);
           LocalDateTime ts = (LocalDateTime) expected;
-          Assert.assertEquals("LocalDataTime should be equal", ts,
-              ((TimestampData) actual).toLocalDateTime());
+          Assert.assertEquals(
+              "LocalDataTime should be equal", ts, ((TimestampData) actual).toLocalDateTime());
         }
         break;
       case BINARY:
-        Assertions.assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
+        Assertions.assertThat(expected)
+            .as("Should expect a ByteBuffer")
+            .isInstanceOf(ByteBuffer.class);
         Assert.assertEquals("binary should be equal", expected, ByteBuffer.wrap((byte[]) actual));
         break;
       case DECIMAL:
-        Assertions.assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
+        Assertions.assertThat(expected)
+            .as("Should expect a BigDecimal")
+            .isInstanceOf(BigDecimal.class);
         BigDecimal bd = (BigDecimal) expected;
-        Assert.assertEquals("decimal value should be equal", bd,
-            ((DecimalData) actual).toBigDecimal());
+        Assert.assertEquals(
+            "decimal value should be equal", bd, ((DecimalData) actual).toBigDecimal());
         break;
       case LIST:
-        Assertions.assertThat(expected).as("Should expect a Collection").isInstanceOf(Collection.class);
+        Assertions.assertThat(expected)
+            .as("Should expect a Collection")
+            .isInstanceOf(Collection.class);
         Collection<?> expectedArrayData = (Collection<?>) expected;
         ArrayData actualArrayData = (ArrayData) actual;
         LogicalType elementType = ((ArrayType) logicalType).getElementType();
-        Assert.assertEquals("array length should be equal", expectedArrayData.size(), actualArrayData.size());
-        assertArrayValues(type.asListType().elementType(), elementType, expectedArrayData, actualArrayData);
+        Assert.assertEquals(
+            "array length should be equal", expectedArrayData.size(), actualArrayData.size());
+        assertArrayValues(
+            type.asListType().elementType(), elementType, expectedArrayData, actualArrayData);
         break;
       case MAP:
         Assertions.assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
@@ -248,7 +281,9 @@ public class TestHelpers {
         break;
       case UUID:
         Assertions.assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
-        Assert.assertEquals("UUID should be equal", expected.toString(),
+        Assert.assertEquals(
+            "UUID should be equal",
+            expected.toString(),
             UUID.nameUUIDFromBytes((byte[]) actual).toString());
         break;
       case FIXED:
@@ -260,8 +295,8 @@ public class TestHelpers {
     }
   }
 
-  private static void assertArrayValues(Type type, LogicalType logicalType, Collection<?> expectedArray,
-                                        ArrayData actualArray) {
+  private static void assertArrayValues(
+      Type type, LogicalType logicalType, Collection<?> expectedArray, ArrayData actualArray) {
     List<?> expectedElements = Lists.newArrayList(expectedArray);
     for (int i = 0; i < expectedArray.size(); i += 1) {
       if (expectedElements.get(i) == null) {
@@ -271,12 +306,16 @@ public class TestHelpers {
 
       Object expected = expectedElements.get(i);
 
-      assertEquals(type, logicalType, expected,
+      assertEquals(
+          type,
+          logicalType,
+          expected,
           ArrayData.createElementGetter(logicalType).getElementOrNull(actualArray, i));
     }
   }
 
-  private static void assertMapValues(Types.MapType mapType, LogicalType type, Map<?, ?> expected, MapData actual) {
+  private static void assertMapValues(
+      Types.MapType mapType, LogicalType type, Map<?, ?> expected, MapData actual) {
     Assert.assertEquals("map size should be equal", expected.size(), actual.size());
 
     ArrayData actualKeyArrayData = actual.keyArray();
@@ -305,7 +344,10 @@ public class TestHelpers {
       }
       Assert.assertNotNull("Should have a matching key", matchedActualKey);
       final int valueIndex = matchedKeyIndex;
-      assertEquals(valueType, actualValueType, entry.getValue(),
+      assertEquals(
+          valueType,
+          actualValueType,
+          entry.getValue(),
           valueGetter.getElementOrNull(actualValueArrayData, valueIndex));
     }
   }
@@ -319,31 +361,55 @@ public class TestHelpers {
     Assert.assertEquals("Length must match", expected.length(), actual.length());
     Assert.assertEquals("Spec id must match", expected.partitionSpecId(), actual.partitionSpecId());
     Assert.assertEquals("ManifestContent must match", expected.content(), actual.content());
-    Assert.assertEquals("SequenceNumber must match", expected.sequenceNumber(), actual.sequenceNumber());
-    Assert.assertEquals("MinSequenceNumber must match", expected.minSequenceNumber(), actual.minSequenceNumber());
+    Assert.assertEquals(
+        "SequenceNumber must match", expected.sequenceNumber(), actual.sequenceNumber());
+    Assert.assertEquals(
+        "MinSequenceNumber must match", expected.minSequenceNumber(), actual.minSequenceNumber());
     Assert.assertEquals("Snapshot id must match", expected.snapshotId(), actual.snapshotId());
-    Assert.assertEquals("Added files flag must match", expected.hasAddedFiles(), actual.hasAddedFiles());
-    Assert.assertEquals("Added files count must match", expected.addedFilesCount(), actual.addedFilesCount());
-    Assert.assertEquals("Added rows count must match", expected.addedRowsCount(), actual.addedRowsCount());
-    Assert.assertEquals("Existing files flag must match", expected.hasExistingFiles(), actual.hasExistingFiles());
-    Assert.assertEquals("Existing files count must match", expected.existingFilesCount(), actual.existingFilesCount());
-    Assert.assertEquals("Existing rows count must match", expected.existingRowsCount(), actual.existingRowsCount());
-    Assert.assertEquals("Deleted files flag must match", expected.hasDeletedFiles(), actual.hasDeletedFiles());
-    Assert.assertEquals("Deleted files count must match", expected.deletedFilesCount(), actual.deletedFilesCount());
-    Assert.assertEquals("Deleted rows count must match", expected.deletedRowsCount(), actual.deletedRowsCount());
+    Assert.assertEquals(
+        "Added files flag must match", expected.hasAddedFiles(), actual.hasAddedFiles());
+    Assert.assertEquals(
+        "Added files count must match", expected.addedFilesCount(), actual.addedFilesCount());
+    Assert.assertEquals(
+        "Added rows count must match", expected.addedRowsCount(), actual.addedRowsCount());
+    Assert.assertEquals(
+        "Existing files flag must match", expected.hasExistingFiles(), actual.hasExistingFiles());
+    Assert.assertEquals(
+        "Existing files count must match",
+        expected.existingFilesCount(),
+        actual.existingFilesCount());
+    Assert.assertEquals(
+        "Existing rows count must match", expected.existingRowsCount(), actual.existingRowsCount());
+    Assert.assertEquals(
+        "Deleted files flag must match", expected.hasDeletedFiles(), actual.hasDeletedFiles());
+    Assert.assertEquals(
+        "Deleted files count must match", expected.deletedFilesCount(), actual.deletedFilesCount());
+    Assert.assertEquals(
+        "Deleted rows count must match", expected.deletedRowsCount(), actual.deletedRowsCount());
 
     List<ManifestFile.PartitionFieldSummary> expectedSummaries = expected.partitions();
     List<ManifestFile.PartitionFieldSummary> actualSummaries = actual.partitions();
-    Assert.assertEquals("PartitionFieldSummary size does not match", expectedSummaries.size(), actualSummaries.size());
+    Assert.assertEquals(
+        "PartitionFieldSummary size does not match",
+        expectedSummaries.size(),
+        actualSummaries.size());
     for (int i = 0; i < expectedSummaries.size(); i++) {
-      Assert.assertEquals("Null flag in partition must match",
-          expectedSummaries.get(i).containsNull(), actualSummaries.get(i).containsNull());
-      Assert.assertEquals("NaN flag in partition must match",
-          expectedSummaries.get(i).containsNaN(), actualSummaries.get(i).containsNaN());
-      Assert.assertEquals("Lower bounds in partition must match",
-          expectedSummaries.get(i).lowerBound(), actualSummaries.get(i).lowerBound());
-      Assert.assertEquals("Upper bounds in partition must match",
-          expectedSummaries.get(i).upperBound(), actualSummaries.get(i).upperBound());
+      Assert.assertEquals(
+          "Null flag in partition must match",
+          expectedSummaries.get(i).containsNull(),
+          actualSummaries.get(i).containsNull());
+      Assert.assertEquals(
+          "NaN flag in partition must match",
+          expectedSummaries.get(i).containsNaN(),
+          actualSummaries.get(i).containsNaN());
+      Assert.assertEquals(
+          "Lower bounds in partition must match",
+          expectedSummaries.get(i).lowerBound(),
+          actualSummaries.get(i).lowerBound());
+      Assert.assertEquals(
+          "Upper bounds in partition must match",
+          expectedSummaries.get(i).upperBound(),
+          actualSummaries.get(i).upperBound());
     }
   }
 
@@ -358,7 +424,8 @@ public class TestHelpers {
     Assert.assertEquals("Format", expected.format(), actual.format());
     Assert.assertEquals("Partition size", expected.partition().size(), actual.partition().size());
     for (int i = 0; i < expected.partition().size(); i++) {
-      Assert.assertEquals("Partition data at index " + i,
+      Assert.assertEquals(
+          "Partition data at index " + i,
           expected.partition().get(i, Object.class),
           actual.partition().get(i, Object.class));
     }
@@ -371,6 +438,7 @@ public class TestHelpers {
     Assert.assertEquals("Upper bounds", expected.upperBounds(), actual.upperBounds());
     Assert.assertEquals("Key metadata", expected.keyMetadata(), actual.keyMetadata());
     Assert.assertEquals("Split offsets", expected.splitOffsets(), actual.splitOffsets());
-    Assert.assertEquals("Equality field id list", actual.equalityFieldIds(), expected.equalityFieldIds());
+    Assert.assertEquals(
+        "Equality field id list", actual.equalityFieldIds(), expected.equalityFieldIds());
   }
 }

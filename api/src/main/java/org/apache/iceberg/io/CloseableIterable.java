@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
@@ -47,8 +46,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   static <E> CloseableIterable<E> withNoopClose(Iterable<E> iterable) {
     return new CloseableIterable<E>() {
       @Override
-      public void close() {
-      }
+      public void close() {}
 
       @Override
       public CloseableIterator<E> iterator() {
@@ -76,15 +74,19 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <E> CloseableIterable<E> filter(CloseableIterable<E> iterable, Predicate<E> pred) {
-    return combine(() -> new FilterIterator<E>(iterable.iterator()) {
-      @Override
-      protected boolean shouldKeep(E item) {
-        return pred.test(item);
-      }
-    }, iterable);
+    return combine(
+        () ->
+            new FilterIterator<E>(iterable.iterator()) {
+              @Override
+              protected boolean shouldKeep(E item) {
+                return pred.test(item);
+              }
+            },
+        iterable);
   }
 
-  static <I, O> CloseableIterable<O> transform(CloseableIterable<I> iterable, Function<I, O> transform) {
+  static <I, O> CloseableIterable<O> transform(
+      CloseableIterable<I> iterable, Function<I, O> transform) {
     Preconditions.checkNotNull(transform, "Cannot apply a null transform");
 
     return new CloseableIterable<O>() {
@@ -118,12 +120,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <E> CloseableIterable<E> concat(Iterable<CloseableIterable<E>> iterable) {
-    Iterator<CloseableIterable<E>> iterables = iterable.iterator();
-    if (!iterables.hasNext()) {
-      return empty();
-    } else {
-      return new ConcatCloseableIterable<>(iterable);
-    }
+    return new ConcatCloseableIterable<>(iterable);
   }
 
   class ConcatCloseableIterable<E> extends CloseableGroup implements CloseableIterable<E> {
@@ -148,8 +145,6 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       private ConcatCloseableIterator(Iterable<CloseableIterable<E>> inputs) {
         this.iterables = inputs.iterator();
-        this.currentIterable = iterables.next();
-        this.currentIterator = currentIterable.iterator();
       }
 
       @Override
@@ -158,13 +153,15 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
           return false;
         }
 
-        if (currentIterator.hasNext()) {
+        if (null != currentIterator && currentIterator.hasNext()) {
           return true;
         }
 
         while (iterables.hasNext()) {
           try {
-            currentIterable.close();
+            if (null != currentIterable) {
+              currentIterable.close();
+            }
           } catch (IOException e) {
             throw new RuntimeIOException(e, "Failed to close iterable");
           }
@@ -178,7 +175,9 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
         }
 
         try {
-          currentIterable.close();
+          if (null != currentIterable) {
+            currentIterable.close();
+          }
         } catch (IOException e) {
           throw new RuntimeIOException(e, "Failed to close iterable");
         }
@@ -210,5 +209,4 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
     }
   }
-
 }

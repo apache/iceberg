@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * A {@link Table} implementation that exposes its valid delete files as rows.
- * <p>
- * A valid delete file is one that is readable from any snapshot currently tracked by the table.
- * <p>
- * This table may return duplicate rows.
+ *
+ * <p>A valid delete file is one that is readable from any snapshot currently tracked by the table.
+ *
+ * <p>This table may return duplicate rows.
  */
 public class AllDeleteFilesTable extends BaseFilesTable {
 
@@ -54,13 +53,14 @@ public class AllDeleteFilesTable extends BaseFilesTable {
       super(ops, table, schema, MetadataTableType.ALL_DELETE_FILES);
     }
 
-    private AllDeleteFilesTableScan(TableOperations ops, Table table, Schema schema,
-                                    TableScanContext context) {
+    private AllDeleteFilesTableScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       super(ops, table, schema, MetadataTableType.ALL_DELETE_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new AllDeleteFilesTableScan(ops, table, schema, context);
     }
 

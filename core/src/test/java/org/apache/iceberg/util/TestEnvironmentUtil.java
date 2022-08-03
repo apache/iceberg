@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Map;
@@ -27,17 +26,29 @@ import org.junit.jupiter.api.Test;
 class TestEnvironmentUtil {
   @Test
   public void testEnvironmentSubstitution() {
-    Assertions.assertEquals(
-        ImmutableMap.of("user-test", System.getenv().get("USER")),
-        EnvironmentUtil.resolveAll(ImmutableMap.of("user-test", "env:USER")),
-        "Should get the user from the environment");
+    String userFromEnv = System.getenv().get("USER");
+    Map<String, String> resolvedProps =
+        EnvironmentUtil.resolveAll(ImmutableMap.of("user-test", "env:USER"));
+    if (userFromEnv == null) {
+      // some build env may not have the USER env variable set
+      Assertions.assertEquals(
+          ImmutableMap.of(),
+          resolvedProps,
+          "Resolved properties should be empty if not exist from environment variables");
+    } else {
+      Assertions.assertEquals(
+          ImmutableMap.of("user-test", userFromEnv),
+          resolvedProps,
+          "Should get the user from the environment");
+    }
   }
 
   @Test
   public void testMultipleEnvironmentSubstitutions() {
-    Map<String, String> result = EnvironmentUtil.resolveAll(
-        ImmutableMap.of("USER", "u", "VAR", "value"),
-        ImmutableMap.of("user-test", "env:USER", "other", "left-alone", "var", "env:VAR"));
+    Map<String, String> result =
+        EnvironmentUtil.resolveAll(
+            ImmutableMap.of("USER", "u", "VAR", "value"),
+            ImmutableMap.of("user-test", "env:USER", "other", "left-alone", "var", "env:VAR"));
 
     Assertions.assertEquals(
         ImmutableMap.of("user-test", "u", "other", "left-alone", "var", "value"),
@@ -47,13 +58,10 @@ class TestEnvironmentUtil {
 
   @Test
   public void testEnvironmentSubstitutionWithMissingVar() {
-    Map<String, String> result = EnvironmentUtil.resolveAll(
-        ImmutableMap.of(),
-        ImmutableMap.of("user-test", "env:USER"));
+    Map<String, String> result =
+        EnvironmentUtil.resolveAll(ImmutableMap.of(), ImmutableMap.of("user-test", "env:USER"));
 
     Assertions.assertEquals(
-        ImmutableMap.of(),
-        result,
-        "Should not contain values with missing environment variables");
+        ImmutableMap.of(), result, "Should not contain values with missing environment variables");
   }
 }

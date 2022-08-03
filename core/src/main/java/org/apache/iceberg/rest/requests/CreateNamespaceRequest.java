@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.requests;
 
 import java.util.Map;
@@ -28,9 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTRequest;
 
-/**
- * A REST request to create a namespace, with an optional set of properties.
- */
+/** A REST request to create a namespace, with an optional set of properties. */
 public class CreateNamespaceRequest implements RESTRequest {
 
   private Namespace namespace;
@@ -75,8 +72,7 @@ public class CreateNamespaceRequest implements RESTRequest {
     private Namespace namespace;
     private final ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public Builder withNamespace(Namespace ns) {
       Preconditions.checkNotNull(ns, "Invalid namespace: null");
@@ -87,8 +83,10 @@ public class CreateNamespaceRequest implements RESTRequest {
     public Builder setProperties(Map<String, String> props) {
       Preconditions.checkNotNull(props, "Invalid collection of properties: null");
       Preconditions.checkArgument(!props.containsKey(null), "Invalid property: null");
-      Preconditions.checkArgument(!props.containsValue(null),
-          "Invalid value for properties %s: null", Maps.filterValues(props, Objects::isNull).keySet());
+      Preconditions.checkArgument(
+          !props.containsValue(null),
+          "Invalid value for properties %s: null",
+          Maps.filterValues(props, Objects::isNull).keySet());
       properties.putAll(props);
       return this;
     }

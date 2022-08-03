@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
 
 /**
  * A {@link Table} implementation that exposes its valid files as rows.
- * <p>
- * A valid file is one that is readable from any snapshot currently tracked by the table.
- * <p>
- * This table may return duplicate rows.
+ *
+ * <p>A valid file is one that is readable from any snapshot currently tracked by the table.
+ *
+ * <p>This table may return duplicate rows.
  */
 public class AllFilesTable extends BaseFilesTable {
 
@@ -54,13 +53,14 @@ public class AllFilesTable extends BaseFilesTable {
       super(ops, table, schema, MetadataTableType.ALL_FILES);
     }
 
-    private AllFilesTableScan(TableOperations ops, Table table, Schema schema,
-                              TableScanContext context) {
+    private AllFilesTableScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       super(ops, table, schema, MetadataTableType.ALL_FILES, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new AllFilesTableScan(ops, table, schema, context);
     }
 

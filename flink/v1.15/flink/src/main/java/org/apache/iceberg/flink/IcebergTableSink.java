@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.util.List;
@@ -38,6 +37,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   private final TableLoader tableLoader;
   private final TableSchema tableSchema;
   private final ReadableConfig readableConfig;
+  private final Map<String, String> writeProps;
 
   private boolean overwrite = false;
 
@@ -46,35 +46,45 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     this.tableSchema = toCopy.tableSchema;
     this.overwrite = toCopy.overwrite;
     this.readableConfig = toCopy.readableConfig;
+    this.writeProps = toCopy.writeProps;
   }
 
-  public IcebergTableSink(TableLoader tableLoader, TableSchema tableSchema, ReadableConfig readableConfig) {
+  public IcebergTableSink(
+      TableLoader tableLoader,
+      TableSchema tableSchema,
+      ReadableConfig readableConfig,
+      Map<String, String> writeProps) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
     this.readableConfig = readableConfig;
+    this.writeProps = writeProps;
   }
 
   @Override
   public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
-    Preconditions.checkState(!overwrite || context.isBounded(),
+    Preconditions.checkState(
+        !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
 
-    List<String> equalityColumns = tableSchema.getPrimaryKey()
-        .map(UniqueConstraint::getColumns)
-        .orElseGet(ImmutableList::of);
+    List<String> equalityColumns =
+        tableSchema.getPrimaryKey().map(UniqueConstraint::getColumns).orElseGet(ImmutableList::of);
 
-    return (DataStreamSinkProvider) (providerContext, dataStream) -> FlinkSink.forRowData(dataStream)
-        .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
-        .equalityFieldColumns(equalityColumns)
-        .overwrite(overwrite)
-        .flinkConf(readableConfig)
-        .append();
+    return (DataStreamSinkProvider)
+        (providerContext, dataStream) ->
+            FlinkSink.forRowData(dataStream)
+                .tableLoader(tableLoader)
+                .tableSchema(tableSchema)
+                .equalityFieldColumns(equalityColumns)
+                .overwrite(overwrite)
+                .setAll(writeProps)
+                .flinkConf(readableConfig)
+                .append();
   }
 
   @Override
   public void applyStaticPartition(Map<String, String> partition) {
-    // The flink's PartitionFanoutWriter will handle the static partition write policy automatically.
+    // The flink's PartitionFanoutWriter will handle the static partition write policy
+    // automatically.
   }
 
   @Override

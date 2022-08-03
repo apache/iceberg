@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=W0212
+from typing import Any, Dict
+
 import pytest
 
-from iceberg.schema import Schema
-from iceberg.types import (
+from pyiceberg.schema import Schema
+from pyiceberg.types import (
     BinaryType,
     BooleanType,
     DateType,
@@ -31,34 +34,32 @@ from iceberg.types import (
     StringType,
     StructType,
 )
-from iceberg.utils.schema_conversion import AvroSchemaConversion
+from pyiceberg.utils.schema_conversion import AvroSchemaConversion
 
 
-def test_iceberg_to_avro(manifest_schema):
-    iceberg_schema = AvroSchemaConversion().avro_to_iceberg(manifest_schema)
+def test_iceberg_to_avro(avro_schema_manifest_file: Dict[str, Any]):
+    iceberg_schema = AvroSchemaConversion().avro_to_iceberg(avro_schema_manifest_file)
     expected_iceberg_schema = Schema(
         NestedField(
-            field_id=500, name="manifest_path", field_type=StringType(), required=False, doc="Location URI with FS scheme"
+            field_id=500, name="manifest_path", field_type=StringType(), required=True, doc="Location URI with FS scheme"
         ),
-        NestedField(field_id=501, name="manifest_length", field_type=LongType(), required=False, doc="Total file size in bytes"),
-        NestedField(
-            field_id=502, name="partition_spec_id", field_type=IntegerType(), required=False, doc="Spec ID used to write"
-        ),
+        NestedField(field_id=501, name="manifest_length", field_type=LongType(), required=True, doc="Total file size in bytes"),
+        NestedField(field_id=502, name="partition_spec_id", field_type=IntegerType(), required=True, doc="Spec ID used to write"),
         NestedField(
             field_id=503,
             name="added_snapshot_id",
             field_type=LongType(),
-            required=True,
+            required=False,
             doc="Snapshot ID that added the manifest",
         ),
         NestedField(
-            field_id=504, name="added_data_files_count", field_type=IntegerType(), required=True, doc="Added entry count"
+            field_id=504, name="added_data_files_count", field_type=IntegerType(), required=False, doc="Added entry count"
         ),
         NestedField(
-            field_id=505, name="existing_data_files_count", field_type=IntegerType(), required=True, doc="Existing entry count"
+            field_id=505, name="existing_data_files_count", field_type=IntegerType(), required=False, doc="Existing entry count"
         ),
         NestedField(
-            field_id=506, name="deleted_data_files_count", field_type=IntegerType(), required=True, doc="Deleted entry count"
+            field_id=506, name="deleted_data_files_count", field_type=IntegerType(), required=False, doc="Deleted entry count"
         ),
         NestedField(
             field_id=507,
@@ -66,45 +67,43 @@ def test_iceberg_to_avro(manifest_schema):
             field_type=ListType(
                 element_id=508,
                 element_type=StructType(
-                    fields=(
-                        NestedField(
-                            field_id=509,
-                            name="contains_null",
-                            field_type=BooleanType(),
-                            required=False,
-                            doc="True if any file has a null partition value",
-                        ),
-                        NestedField(
-                            field_id=518,
-                            name="contains_nan",
-                            field_type=BooleanType(),
-                            required=True,
-                            doc="True if any file has a nan partition value",
-                        ),
-                        NestedField(
-                            field_id=510,
-                            name="lower_bound",
-                            field_type=BinaryType(),
-                            required=True,
-                            doc="Partition lower bound for all files",
-                        ),
-                        NestedField(
-                            field_id=511,
-                            name="upper_bound",
-                            field_type=BinaryType(),
-                            required=True,
-                            doc="Partition upper bound for all files",
-                        ),
-                    )
+                    NestedField(
+                        field_id=509,
+                        name="contains_null",
+                        field_type=BooleanType(),
+                        required=True,
+                        doc="True if any file has a null partition value",
+                    ),
+                    NestedField(
+                        field_id=518,
+                        name="contains_nan",
+                        field_type=BooleanType(),
+                        required=False,
+                        doc="True if any file has a nan partition value",
+                    ),
+                    NestedField(
+                        field_id=510,
+                        name="lower_bound",
+                        field_type=BinaryType(),
+                        required=False,
+                        doc="Partition lower bound for all files",
+                    ),
+                    NestedField(
+                        field_id=511,
+                        name="upper_bound",
+                        field_type=BinaryType(),
+                        required=False,
+                        doc="Partition upper bound for all files",
+                    ),
                 ),
-                element_required=False,
+                element_required=True,
             ),
-            required=True,
+            required=False,
             doc="Summary for each partition",
         ),
-        NestedField(field_id=512, name="added_rows_count", field_type=LongType(), required=True, doc="Added rows count"),
-        NestedField(field_id=513, name="existing_rows_count", field_type=LongType(), required=True, doc="Existing rows count"),
-        NestedField(field_id=514, name="deleted_rows_count", field_type=LongType(), required=True, doc="Deleted rows count"),
+        NestedField(field_id=512, name="added_rows_count", field_type=LongType(), required=False, doc="Added rows count"),
+        NestedField(field_id=513, name="existing_rows_count", field_type=LongType(), required=False, doc="Existing rows count"),
+        NestedField(field_id=514, name="deleted_rows_count", field_type=LongType(), required=False, doc="Deleted rows count"),
         schema_id=1,
         identifier_field_ids=[],
     )
@@ -133,8 +132,8 @@ def test_avro_list_required_primitive():
         NestedField(
             field_id=100,
             name="array_with_string",
-            field_type=ListType(element_id=101, element_type=StringType(), element_required=False),
-            required=False,
+            field_type=ListType(element_id=101, element_type=StringType(), element_required=True),
+            required=True,
         ),
         schema_id=1,
     )
@@ -166,8 +165,8 @@ def test_avro_list_wrapped_primitive():
         NestedField(
             field_id=100,
             name="array_with_string",
-            field_type=ListType(element_id=101, element_type=StringType(), element_required=False),
-            required=False,
+            field_type=ListType(element_id=101, element_type=StringType(), element_required=True),
+            required=True,
         ),
         schema_id=1,
     )
@@ -217,13 +216,13 @@ def test_avro_list_required_record():
                 element_id=101,
                 element_type=StructType(
                     fields=(
-                        NestedField(field_id=102, name="contains_null", field_type=BooleanType(), required=False),
-                        NestedField(field_id=103, name="contains_nan", field_type=BooleanType(), required=True),
+                        NestedField(field_id=102, name="contains_null", field_type=BooleanType(), required=True),
+                        NestedField(field_id=103, name="contains_nan", field_type=BooleanType(), required=False),
                     )
                 ),
-                element_required=False,
+                element_required=True,
             ),
-            required=False,
+            required=True,
         ),
         schema_id=1,
         identifier_field_ids=[],
@@ -249,12 +248,12 @@ def test_nested_type():
 def test_map_type():
     avro_type = {
         "type": "map",
-        "values": ["long", "null"],
+        "values": ["null", "long"],
         "key-id": 101,
         "value-id": 102,
     }
     actual = AvroSchemaConversion()._convert_schema(avro_type)
-    expected = MapType(key_id=101, key_type=StringType(), value_id=102, value_type=LongType(), value_required=True)
+    expected = MapType(key_id=101, key_type=StringType(), value_id=102, value_type=LongType(), value_required=False)
     assert actual == expected
 
 

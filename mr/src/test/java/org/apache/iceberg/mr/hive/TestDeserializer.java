@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mr.hive;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,21 +39,18 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestDeserializer {
-  private static final Schema CUSTOMER_SCHEMA = new Schema(
-      optional(1, "customer_id", Types.LongType.get()),
-      optional(2, "first_name", Types.StringType.get())
-  );
+  private static final Schema CUSTOMER_SCHEMA =
+      new Schema(
+          optional(1, "customer_id", Types.LongType.get()),
+          optional(2, "first_name", Types.StringType.get()));
 
   private static final StandardStructObjectInspector CUSTOMER_OBJECT_INSPECTOR =
       ObjectInspectorFactory.getStandardStructObjectInspector(
           Arrays.asList("customer_id", "first_name"),
           Arrays.asList(
               PrimitiveObjectInspectorFactory.writableLongObjectInspector,
-              PrimitiveObjectInspectorFactory.writableStringObjectInspector
-          ));
+              PrimitiveObjectInspectorFactory.writableStringObjectInspector));
 
   @Test
   public void testSchemaDeserialize() {
@@ -61,71 +59,72 @@ public class TestDeserializer {
             Arrays.asList("0:col1", "1:col2"),
             Arrays.asList(
                 PrimitiveObjectInspectorFactory.writableLongObjectInspector,
-                PrimitiveObjectInspectorFactory.writableStringObjectInspector
-            ));
+                PrimitiveObjectInspectorFactory.writableStringObjectInspector));
 
-    Deserializer deserializer = new Deserializer.Builder()
-        .schema(CUSTOMER_SCHEMA)
-        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(CUSTOMER_SCHEMA))
-        .sourceInspector(schemaObjectInspector)
-        .build();
+    Deserializer deserializer =
+        new Deserializer.Builder()
+            .schema(CUSTOMER_SCHEMA)
+            .writerInspector((StructObjectInspector) IcebergObjectInspector.create(CUSTOMER_SCHEMA))
+            .sourceInspector(schemaObjectInspector)
+            .build();
 
     Record expected = GenericRecord.create(CUSTOMER_SCHEMA);
     expected.set(0, 1L);
     expected.set(1, "Bob");
 
-    Record actual = deserializer.deserialize(new Object[] { new LongWritable(1L), new Text("Bob") });
+    Record actual = deserializer.deserialize(new Object[] {new LongWritable(1L), new Text("Bob")});
 
     Assert.assertEquals(expected, actual);
   }
 
   @Test
   public void testStructDeserialize() {
-    Deserializer deserializer = new Deserializer.Builder()
-        .schema(CUSTOMER_SCHEMA)
-        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(CUSTOMER_SCHEMA))
-        .sourceInspector(CUSTOMER_OBJECT_INSPECTOR)
-        .build();
+    Deserializer deserializer =
+        new Deserializer.Builder()
+            .schema(CUSTOMER_SCHEMA)
+            .writerInspector((StructObjectInspector) IcebergObjectInspector.create(CUSTOMER_SCHEMA))
+            .sourceInspector(CUSTOMER_OBJECT_INSPECTOR)
+            .build();
 
     Record expected = GenericRecord.create(CUSTOMER_SCHEMA);
     expected.set(0, 1L);
     expected.set(1, "Bob");
 
-    Record actual = deserializer.deserialize(new Object[] { new LongWritable(1L), new Text("Bob") });
+    Record actual = deserializer.deserialize(new Object[] {new LongWritable(1L), new Text("Bob")});
 
     Assert.assertEquals(expected, actual);
   }
 
   @Test
   public void testMapDeserialize() {
-    Schema schema = new Schema(
-        optional(1, "map_type", Types.MapType.ofOptional(2, 3,
-            Types.LongType.get(),
-            Types.StringType.get()
-        ))
-    );
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "map_type",
+                Types.MapType.ofOptional(2, 3, Types.LongType.get(), Types.StringType.get())));
 
-    StructObjectInspector inspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        Arrays.asList("map_type"),
-        Arrays.asList(
-            ObjectInspectorFactory.getStandardMapObjectInspector(
-                PrimitiveObjectInspectorFactory.writableLongObjectInspector,
-                PrimitiveObjectInspectorFactory.writableStringObjectInspector
-            )
-        ));
+    StructObjectInspector inspector =
+        ObjectInspectorFactory.getStandardStructObjectInspector(
+            Arrays.asList("map_type"),
+            Arrays.asList(
+                ObjectInspectorFactory.getStandardMapObjectInspector(
+                    PrimitiveObjectInspectorFactory.writableLongObjectInspector,
+                    PrimitiveObjectInspectorFactory.writableStringObjectInspector)));
 
-    Deserializer deserializer = new Deserializer.Builder()
-        .schema(schema)
-        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(schema))
-        .sourceInspector(inspector)
-        .build();
+    Deserializer deserializer =
+        new Deserializer.Builder()
+            .schema(schema)
+            .writerInspector((StructObjectInspector) IcebergObjectInspector.create(schema))
+            .sourceInspector(inspector)
+            .build();
 
     Record expected = GenericRecord.create(schema);
     expected.set(0, Collections.singletonMap(1L, "Taylor"));
 
     MapWritable map = new MapWritable();
     map.put(new LongWritable(1L), new Text("Taylor"));
-    Object[] data = new Object[] { map };
+    Object[] data = new Object[] {map};
     Record actual = deserializer.deserialize(data);
 
     Assert.assertEquals(expected, actual);
@@ -133,27 +132,27 @@ public class TestDeserializer {
 
   @Test
   public void testListDeserialize() {
-    Schema schema = new Schema(
-        optional(1, "list_type", Types.ListType.ofOptional(2, Types.LongType.get()))
-    );
+    Schema schema =
+        new Schema(optional(1, "list_type", Types.ListType.ofOptional(2, Types.LongType.get())));
 
-    StructObjectInspector inspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        Arrays.asList("list_type"),
-        Arrays.asList(
-            ObjectInspectorFactory.getStandardListObjectInspector(
-                PrimitiveObjectInspectorFactory.writableLongObjectInspector)
-        ));
+    StructObjectInspector inspector =
+        ObjectInspectorFactory.getStandardStructObjectInspector(
+            Arrays.asList("list_type"),
+            Arrays.asList(
+                ObjectInspectorFactory.getStandardListObjectInspector(
+                    PrimitiveObjectInspectorFactory.writableLongObjectInspector)));
 
-    Deserializer deserializer = new Deserializer.Builder()
-        .schema(schema)
-        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(schema))
-        .sourceInspector(inspector)
-        .build();
+    Deserializer deserializer =
+        new Deserializer.Builder()
+            .schema(schema)
+            .writerInspector((StructObjectInspector) IcebergObjectInspector.create(schema))
+            .sourceInspector(inspector)
+            .build();
 
     Record expected = GenericRecord.create(schema);
     expected.set(0, Collections.singletonList(1L));
 
-    Object[] data = new Object[] { new Object[] { new LongWritable(1L) } };
+    Object[] data = new Object[] {new Object[] {new LongWritable(1L)}};
     Record actual = deserializer.deserialize(data);
 
     Assert.assertEquals(expected, actual);
@@ -161,13 +160,17 @@ public class TestDeserializer {
 
   @Test
   public void testDeserializeEverySupportedType() {
-    Assume.assumeFalse("No test yet for Hive3 (Date/Timestamp creation)", MetastoreUtil.hive3PresentOnClasspath());
+    Assume.assumeFalse(
+        "No test yet for Hive3 (Date/Timestamp creation)", MetastoreUtil.hive3PresentOnClasspath());
 
-    Deserializer deserializer = new Deserializer.Builder()
-        .schema(HiveIcebergTestUtils.FULL_SCHEMA)
-        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(HiveIcebergTestUtils.FULL_SCHEMA))
-        .sourceInspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
-        .build();
+    Deserializer deserializer =
+        new Deserializer.Builder()
+            .schema(HiveIcebergTestUtils.FULL_SCHEMA)
+            .writerInspector(
+                (StructObjectInspector)
+                    IcebergObjectInspector.create(HiveIcebergTestUtils.FULL_SCHEMA))
+            .sourceInspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
+            .build();
 
     Record expected = HiveIcebergTestUtils.getTestRecord();
     Record actual = deserializer.deserialize(HiveIcebergTestUtils.valuesForTestRecord(expected));
@@ -177,11 +180,14 @@ public class TestDeserializer {
 
   @Test
   public void testNullDeserialize() {
-    Deserializer deserializer = new Deserializer.Builder()
-        .schema(HiveIcebergTestUtils.FULL_SCHEMA)
-        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(HiveIcebergTestUtils.FULL_SCHEMA))
-        .sourceInspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
-        .build();
+    Deserializer deserializer =
+        new Deserializer.Builder()
+            .schema(HiveIcebergTestUtils.FULL_SCHEMA)
+            .writerInspector(
+                (StructObjectInspector)
+                    IcebergObjectInspector.create(HiveIcebergTestUtils.FULL_SCHEMA))
+            .sourceInspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
+            .build();
 
     Record expected = HiveIcebergTestUtils.getNullTestRecord();
 

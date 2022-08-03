@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.dynamodb;
 
 import java.io.Closeable;
@@ -84,10 +83,9 @@ import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
-/**
- * DynamoDB implementation of Iceberg catalog
- */
-public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+/** DynamoDB implementation of Iceberg catalog */
+public class DynamoDbCatalog extends BaseMetastoreCatalog
+    implements Closeable, SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbCatalog.class);
   private static final int CATALOG_TABLE_CREATION_WAIT_ATTEMPTS_MAX = 5;
@@ -113,8 +111,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
 
-  public DynamoDbCatalog() {
-  }
+  public DynamoDbCatalog() {}
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
@@ -127,8 +124,10 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   }
 
   @VisibleForTesting
-  void initialize(String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
-    Preconditions.checkArgument(path != null && path.length() > 0,
+  void initialize(
+      String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
+    Preconditions.checkArgument(
+        path != null && path.length() > 0,
         "Cannot initialize DynamoDbCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
@@ -159,22 +158,27 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
     validateTableIdentifier(tableIdentifier);
-    GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
-        .tableName(awsProperties.dynamoDbTableName())
-        .consistentRead(true)
-        .key(namespacePrimaryKey(tableIdentifier.namespace()))
-        .build());
+    GetItemResponse response =
+        dynamo.getItem(
+            GetItemRequest.builder()
+                .tableName(awsProperties.dynamoDbTableName())
+                .consistentRead(true)
+                .key(namespacePrimaryKey(tableIdentifier.namespace()))
+                .build());
 
     if (!response.hasItem()) {
-      throw new NoSuchNamespaceException("Cannot find default warehouse location: namespace %s does not exist",
+      throw new NoSuchNamespaceException(
+          "Cannot find default warehouse location: namespace %s does not exist",
           tableIdentifier.namespace());
     }
 
     String defaultLocationCol = toPropertyCol(PROPERTY_DEFAULT_LOCATION);
     if (response.item().containsKey(defaultLocationCol)) {
-      return String.format("%s/%s", response.item().get(defaultLocationCol), tableIdentifier.name());
+      return String.format(
+          "%s/%s", response.item().get(defaultLocationCol), tableIdentifier.name());
     } else {
-      return String.format("%s/%s.db/%s", warehousePath, tableIdentifier.namespace(), tableIdentifier.name());
+      return String.format(
+          "%s/%s.db/%s", warehousePath, tableIdentifier.namespace(), tableIdentifier.name());
     }
   }
 
@@ -183,14 +187,16 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     validateNamespace(namespace);
     Map<String, AttributeValue> values = namespacePrimaryKey(namespace);
     setNewCatalogEntryMetadata(values);
-    metadata.forEach((key, value) -> values.put(toPropertyCol(key), AttributeValue.builder().s(value).build()));
+    metadata.forEach(
+        (key, value) -> values.put(toPropertyCol(key), AttributeValue.builder().s(value).build()));
 
     try {
-      dynamo.putItem(PutItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .conditionExpression("attribute_not_exists(" + DynamoDbCatalog.COL_VERSION + ")")
-          .item(values)
-          .build());
+      dynamo.putItem(
+          PutItemRequest.builder()
+              .tableName(awsProperties.dynamoDbTableName())
+              .conditionExpression("attribute_not_exists(" + DynamoDbCatalog.COL_VERSION + ")")
+              .item(values)
+              .build());
     } catch (ConditionalCheckFailedException e) {
       throw new AlreadyExistsException("Cannot create namespace %s: already exists", namespace);
     }
@@ -203,20 +209,23 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     Map<String, AttributeValue> lastEvaluatedKey = null;
     String condition = COL_IDENTIFIER + " = :identifier";
     Map<String, AttributeValue> conditionValues = Maps.newHashMap();
-    conditionValues.put(":identifier", AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
+    conditionValues.put(
+        ":identifier", AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
     if (!namespace.isEmpty()) {
       condition += " AND " + "begins_with(" + COL_NAMESPACE + ",:ns)";
       conditionValues.put(":ns", AttributeValue.builder().s(namespace.toString()).build());
     }
 
     do {
-      QueryResponse response = dynamo.query(QueryRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .consistentRead(true)
-          .keyConditionExpression(condition)
-          .expressionAttributeValues(conditionValues)
-          .exclusiveStartKey(lastEvaluatedKey)
-          .build());
+      QueryResponse response =
+          dynamo.query(
+              QueryRequest.builder()
+                  .tableName(awsProperties.dynamoDbTableName())
+                  .consistentRead(true)
+                  .keyConditionExpression(condition)
+                  .expressionAttributeValues(conditionValues)
+                  .exclusiveStartKey(lastEvaluatedKey)
+                  .build());
 
       if (response.hasItems()) {
         for (Map<String, AttributeValue> item : response.items()) {
@@ -232,13 +241,16 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   }
 
   @Override
-  public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
+  public Map<String, String> loadNamespaceMetadata(Namespace namespace)
+      throws NoSuchNamespaceException {
     validateNamespace(namespace);
-    GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
-        .tableName(awsProperties.dynamoDbTableName())
-        .consistentRead(true)
-        .key(namespacePrimaryKey(namespace))
-        .build());
+    GetItemResponse response =
+        dynamo.getItem(
+            GetItemRequest.builder()
+                .tableName(awsProperties.dynamoDbTableName())
+                .consistentRead(true)
+                .key(namespacePrimaryKey(namespace))
+                .build());
 
     if (!response.hasItem()) {
       throw new NoSuchNamespaceException("Cannot find namespace %s", namespace);
@@ -257,11 +269,12 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     }
 
     try {
-      dynamo.deleteItem(DeleteItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .key(namespacePrimaryKey(namespace))
-          .conditionExpression("attribute_exists(" + COL_NAMESPACE + ")")
-          .build());
+      dynamo.deleteItem(
+          DeleteItemRequest.builder()
+              .tableName(awsProperties.dynamoDbTableName())
+              .key(namespacePrimaryKey(namespace))
+              .conditionExpression("attribute_exists(" + COL_NAMESPACE + ")")
+              .build());
       return true;
     } catch (ConditionalCheckFailedException e) {
       return false;
@@ -269,7 +282,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   }
 
   @Override
-  public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
+  public boolean setProperties(Namespace namespace, Map<String, String> properties)
+      throws NoSuchNamespaceException {
     List<String> updateParts = Lists.newArrayList();
     Map<String, String> attributeNames = Maps.newHashMap();
     Map<String, AttributeValue> attributeValues = Maps.newHashMap();
@@ -289,7 +303,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   }
 
   @Override
-  public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
+  public boolean removeProperties(Namespace namespace, Set<String> properties)
+      throws NoSuchNamespaceException {
     List<String> removeParts = Lists.newArrayList(properties.iterator());
     Map<String, String> attributeNames = Maps.newHashMap();
     Map<String, AttributeValue> attributeValues = Maps.newHashMap();
@@ -303,7 +318,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
     List<String> updateParts = Lists.newArrayList();
     updateCatalogEntryMetadata(updateParts, attributeValues);
-    String updateExpression = "REMOVE " + COMMA.join(removeParts) + " SET " + COMMA.join(updateParts);
+    String updateExpression =
+        "REMOVE " + COMMA.join(removeParts) + " SET " + COMMA.join(updateParts);
     return updateProperties(namespace, updateExpression, attributeValues, attributeNames);
   }
 
@@ -312,15 +328,17 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     List<TableIdentifier> identifiers = Lists.newArrayList();
     Map<String, AttributeValue> lastEvaluatedKey;
     String condition = COL_NAMESPACE + " = :ns";
-    Map<String, AttributeValue> conditionValues = ImmutableMap.of(
-        ":ns", AttributeValue.builder().s(namespace.toString()).build());
+    Map<String, AttributeValue> conditionValues =
+        ImmutableMap.of(":ns", AttributeValue.builder().s(namespace.toString()).build());
     do {
-      QueryResponse response = dynamo.query(QueryRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .indexName(GSI_NAMESPACE_IDENTIFIER)
-          .keyConditionExpression(condition)
-          .expressionAttributeValues(conditionValues)
-          .build());
+      QueryResponse response =
+          dynamo.query(
+              QueryRequest.builder()
+                  .tableName(awsProperties.dynamoDbTableName())
+                  .indexName(GSI_NAMESPACE_IDENTIFIER)
+                  .keyConditionExpression(condition)
+                  .expressionAttributeValues(conditionValues)
+                  .build());
 
       if (response.hasItems()) {
         for (Map<String, AttributeValue> item : response.items()) {
@@ -340,11 +358,13 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     Map<String, AttributeValue> key = tablePrimaryKey(identifier);
     try {
-      GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .consistentRead(true)
-          .key(key)
-          .build());
+      GetItemResponse response =
+          dynamo.getItem(
+              GetItemRequest.builder()
+                  .tableName(awsProperties.dynamoDbTableName())
+                  .consistentRead(true)
+                  .key(key)
+                  .build());
 
       if (!response.hasItem()) {
         throw new NoSuchTableException("Cannot find table %s to drop", identifier);
@@ -352,12 +372,13 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
       TableOperations ops = newTableOps(identifier);
       TableMetadata lastMetadata = ops.current();
-      dynamo.deleteItem(DeleteItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .key(tablePrimaryKey(identifier))
-          .conditionExpression(COL_VERSION + " = :v")
-          .expressionAttributeValues(ImmutableMap.of(":v", response.item().get(COL_VERSION)))
-          .build());
+      dynamo.deleteItem(
+          DeleteItemRequest.builder()
+              .tableName(awsProperties.dynamoDbTableName())
+              .key(tablePrimaryKey(identifier))
+              .conditionExpression(COL_VERSION + " = :v")
+              .expressionAttributeValues(ImmutableMap.of(":v", response.item().get(COL_VERSION)))
+              .build());
       LOG.info("Successfully dropped table {} from DynamoDb catalog", identifier);
 
       if (purge && lastMetadata != null) {
@@ -381,24 +402,30 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     Map<String, AttributeValue> fromKey = tablePrimaryKey(from);
     Map<String, AttributeValue> toKey = tablePrimaryKey(to);
 
-    GetItemResponse fromResponse = dynamo.getItem(GetItemRequest.builder()
-        .tableName(awsProperties.dynamoDbTableName())
-        .consistentRead(true)
-        .key(fromKey)
-        .build());
+    GetItemResponse fromResponse =
+        dynamo.getItem(
+            GetItemRequest.builder()
+                .tableName(awsProperties.dynamoDbTableName())
+                .consistentRead(true)
+                .key(fromKey)
+                .build());
 
     if (!fromResponse.hasItem()) {
-      throw new NoSuchTableException("Cannot rename table %s to %s: %s does not exist", from, to, from);
+      throw new NoSuchTableException(
+          "Cannot rename table %s to %s: %s does not exist", from, to, from);
     }
 
-    GetItemResponse toResponse = dynamo.getItem(GetItemRequest.builder()
-        .tableName(awsProperties.dynamoDbTableName())
-        .consistentRead(true)
-        .key(toKey)
-        .build());
+    GetItemResponse toResponse =
+        dynamo.getItem(
+            GetItemRequest.builder()
+                .tableName(awsProperties.dynamoDbTableName())
+                .consistentRead(true)
+                .key(toKey)
+                .build());
 
     if (toResponse.hasItem()) {
-      throw new AlreadyExistsException("Cannot rename table %s to %s: %s already exists", from, to, to);
+      throw new AlreadyExistsException(
+          "Cannot rename table %s to %s: %s already exists", from, to, to);
     }
 
     fromResponse.item().entrySet().stream()
@@ -407,23 +434,27 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
     setNewCatalogEntryMetadata(toKey);
 
-    dynamo.transactWriteItems(TransactWriteItemsRequest.builder()
-        .transactItems(
-            TransactWriteItem.builder()
-                .delete(Delete.builder()
-                    .tableName(awsProperties.dynamoDbTableName())
-                    .key(fromKey)
-                    .conditionExpression(COL_VERSION + " = :v")
-                    .expressionAttributeValues(ImmutableMap.of(":v", fromResponse.item().get(COL_VERSION)))
+    dynamo.transactWriteItems(
+        TransactWriteItemsRequest.builder()
+            .transactItems(
+                TransactWriteItem.builder()
+                    .delete(
+                        Delete.builder()
+                            .tableName(awsProperties.dynamoDbTableName())
+                            .key(fromKey)
+                            .conditionExpression(COL_VERSION + " = :v")
+                            .expressionAttributeValues(
+                                ImmutableMap.of(":v", fromResponse.item().get(COL_VERSION)))
+                            .build())
+                    .build(),
+                TransactWriteItem.builder()
+                    .put(
+                        Put.builder()
+                            .tableName(awsProperties.dynamoDbTableName())
+                            .item(toKey)
+                            .conditionExpression("attribute_not_exists(" + COL_VERSION + ")")
+                            .build())
                     .build())
-                .build(),
-            TransactWriteItem.builder()
-                .put(Put.builder()
-                    .tableName(awsProperties.dynamoDbTableName())
-                    .item(toKey)
-                    .conditionExpression("attribute_not_exists(" + COL_VERSION + ")")
-                    .build())
-                .build())
             .build());
 
     LOG.info("Successfully renamed table from {} to {}", from, to);
@@ -445,9 +476,10 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   }
 
   /**
-   * The property used to set a default location for tables in a namespace.
-   * Call {@link #setProperties(Namespace, Map)} to set a path value using this property for a namespace,
-   * then all tables in the namespace will have default table root path under that given path.
+   * The property used to set a default location for tables in a namespace. Call {@link
+   * #setProperties(Namespace, Map)} to set a path value using this property for a namespace, then
+   * all tables in the namespace will have default table root path under that given path.
+   *
    * @return default location property key
    */
   public static String defaultLocationProperty() {
@@ -487,9 +519,11 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     values.put(COL_VERSION, AttributeValue.builder().s(UUID.randomUUID().toString()).build());
   }
 
-  static void updateCatalogEntryMetadata(List<String> updateParts, Map<String, AttributeValue> attributeValues) {
+  static void updateCatalogEntryMetadata(
+      List<String> updateParts, Map<String, AttributeValue> attributeValues) {
     updateParts.add(COL_UPDATED_AT + " = :uat");
-    attributeValues.put(":uat", AttributeValue.builder().n(Long.toString(System.currentTimeMillis())).build());
+    attributeValues.put(
+        ":uat", AttributeValue.builder().n(Long.toString(System.currentTimeMillis())).build());
     updateParts.add(COL_VERSION + " = :uv");
     attributeValues.put(":uv", AttributeValue.builder().s(UUID.randomUUID().toString()).build());
   }
@@ -507,27 +541,28 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
   private void validateNamespace(Namespace namespace) {
     for (String level : namespace.levels()) {
-      ValidationException.check(level != null && !level.isEmpty(),
-          "Namespace level must not be empty: %s", namespace);
-      ValidationException.check(!level.contains("."),
-          "Namespace level must not contain dot, but found %s in %s", level, namespace);
+      ValidationException.check(
+          level != null && !level.isEmpty(), "Namespace level must not be empty: %s", namespace);
+      ValidationException.check(
+          !level.contains("."),
+          "Namespace level must not contain dot, but found %s in %s",
+          level,
+          namespace);
     }
   }
 
   private void validateTableIdentifier(TableIdentifier identifier) {
     validateNamespace(identifier.namespace());
-    ValidationException.check(identifier.hasNamespace(),
-        "Table namespace must not be empty: %s", identifier);
+    ValidationException.check(
+        identifier.hasNamespace(), "Table namespace must not be empty: %s", identifier);
     String tableName = identifier.name();
-    ValidationException.check(!tableName.contains("."),
-        "Table name must not contain dot: %s", tableName);
+    ValidationException.check(
+        !tableName.contains("."), "Table name must not contain dot: %s", tableName);
   }
 
   private boolean dynamoDbTableExists(String tableName) {
     try {
-      dynamo.describeTable(DescribeTableRequest.builder()
-          .tableName(tableName)
-          .build());
+      dynamo.describeTable(DescribeTableRequest.builder().tableName(tableName).build());
       return true;
     } catch (ResourceNotFoundException e) {
       return false;
@@ -539,24 +574,46 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
       return;
     }
 
-    LOG.info("DynamoDb catalog table {} not found, trying to create", awsProperties.dynamoDbTableName());
-    dynamo.createTable(CreateTableRequest.builder()
-        .tableName(awsProperties.dynamoDbTableName())
-        .keySchema(
-            KeySchemaElement.builder().attributeName(COL_IDENTIFIER).keyType(KeyType.HASH).build(),
-            KeySchemaElement.builder().attributeName(COL_NAMESPACE).keyType(KeyType.RANGE).build())
-        .attributeDefinitions(
-            AttributeDefinition.builder().attributeName(COL_IDENTIFIER).attributeType(ScalarAttributeType.S).build(),
-            AttributeDefinition.builder().attributeName(COL_NAMESPACE).attributeType(ScalarAttributeType.S).build())
-        .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
-            .indexName(GSI_NAMESPACE_IDENTIFIER)
+    LOG.info(
+        "DynamoDb catalog table {} not found, trying to create", awsProperties.dynamoDbTableName());
+    dynamo.createTable(
+        CreateTableRequest.builder()
+            .tableName(awsProperties.dynamoDbTableName())
             .keySchema(
-                KeySchemaElement.builder().attributeName(COL_NAMESPACE).keyType(KeyType.HASH).build(),
-                KeySchemaElement.builder().attributeName(COL_IDENTIFIER).keyType(KeyType.RANGE).build())
-            .projection(Projection.builder().projectionType(ProjectionType.KEYS_ONLY).build())
-            .build())
-        .billingMode(BillingMode.PAY_PER_REQUEST)
-        .build());
+                KeySchemaElement.builder()
+                    .attributeName(COL_IDENTIFIER)
+                    .keyType(KeyType.HASH)
+                    .build(),
+                KeySchemaElement.builder()
+                    .attributeName(COL_NAMESPACE)
+                    .keyType(KeyType.RANGE)
+                    .build())
+            .attributeDefinitions(
+                AttributeDefinition.builder()
+                    .attributeName(COL_IDENTIFIER)
+                    .attributeType(ScalarAttributeType.S)
+                    .build(),
+                AttributeDefinition.builder()
+                    .attributeName(COL_NAMESPACE)
+                    .attributeType(ScalarAttributeType.S)
+                    .build())
+            .globalSecondaryIndexes(
+                GlobalSecondaryIndex.builder()
+                    .indexName(GSI_NAMESPACE_IDENTIFIER)
+                    .keySchema(
+                        KeySchemaElement.builder()
+                            .attributeName(COL_NAMESPACE)
+                            .keyType(KeyType.HASH)
+                            .build(),
+                        KeySchemaElement.builder()
+                            .attributeName(COL_IDENTIFIER)
+                            .keyType(KeyType.RANGE)
+                            .build())
+                    .projection(
+                        Projection.builder().projectionType(ProjectionType.KEYS_ONLY).build())
+                    .build())
+            .billingMode(BillingMode.PAY_PER_REQUEST)
+            .build());
 
     // wait for the dynamo table to complete provisioning, which takes around 10 seconds
     Tasks.foreach(awsProperties.dynamoDbTableName())
@@ -568,44 +625,51 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
   private void checkTableActive(String tableName) {
     try {
-      DescribeTableResponse response = dynamo.describeTable(DescribeTableRequest.builder()
-          .tableName(tableName)
-          .build());
+      DescribeTableResponse response =
+          dynamo.describeTable(DescribeTableRequest.builder().tableName(tableName).build());
       TableStatus currentStatus = response.table().tableStatus();
       if (!currentStatus.equals(TableStatus.ACTIVE)) {
-        throw new IllegalStateException(String.format("Dynamo catalog table %s is not active, current status: %s",
-            tableName, currentStatus));
+        throw new IllegalStateException(
+            String.format(
+                "Dynamo catalog table %s is not active, current status: %s",
+                tableName, currentStatus));
       }
     } catch (ResourceNotFoundException e) {
-      throw new IllegalStateException(String.format("Cannot find Dynamo catalog table %s", tableName));
+      throw new IllegalStateException(
+          String.format("Cannot find Dynamo catalog table %s", tableName));
     }
   }
 
-  private boolean updateProperties(Namespace namespace, String updateExpression,
-                                   Map<String, AttributeValue> attributeValues,
-                                   Map<String, String> attributeNames) {
+  private boolean updateProperties(
+      Namespace namespace,
+      String updateExpression,
+      Map<String, AttributeValue> attributeValues,
+      Map<String, String> attributeNames) {
     validateNamespace(namespace);
     Map<String, AttributeValue> key = namespacePrimaryKey(namespace);
     try {
-      GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .consistentRead(true)
-          .key(key)
-          .build());
+      GetItemResponse response =
+          dynamo.getItem(
+              GetItemRequest.builder()
+                  .tableName(awsProperties.dynamoDbTableName())
+                  .consistentRead(true)
+                  .key(key)
+                  .build());
 
       if (!response.hasItem()) {
         throw new NoSuchNamespaceException("Cannot find namespace %s", namespace);
       }
 
       attributeValues.put(":v", response.item().get(COL_VERSION));
-      dynamo.updateItem(UpdateItemRequest.builder()
-          .tableName(awsProperties.dynamoDbTableName())
-          .key(key)
-          .conditionExpression(COL_VERSION + " = :v")
-          .updateExpression(updateExpression)
-          .expressionAttributeValues(attributeValues)
-          .expressionAttributeNames(attributeNames)
-          .build());
+      dynamo.updateItem(
+          UpdateItemRequest.builder()
+              .tableName(awsProperties.dynamoDbTableName())
+              .key(key)
+              .conditionExpression(COL_VERSION + " = :v")
+              .updateExpression(updateExpression)
+              .expressionAttributeValues(attributeValues)
+              .expressionAttributeNames(attributeNames)
+              .build());
       return true;
     } catch (ConditionalCheckFailedException e) {
       return false;

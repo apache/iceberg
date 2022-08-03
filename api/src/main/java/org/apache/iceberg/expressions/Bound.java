@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.StructLike;
@@ -27,9 +26,7 @@ import org.apache.iceberg.StructLike;
  * @param <T> the Java type of values produced by this expression
  */
 public interface Bound<T> {
-  /**
-   * Returns the underlying reference.
-   */
+  /** Returns the underlying reference. */
   BoundReference<?> ref();
 
   /**

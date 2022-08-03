@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.ManifestEntriesTable.ManifestReadTask;
@@ -29,10 +28,11 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
 
 /**
- * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
- * <p>
- * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
- * use {@link DataFilesTable}.
+ * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete
+ * and data files.
+ *
+ * <p>WARNING: this table exposes internal details, like files that have been deleted. For a table
+ * of the live data files, use {@link DataFilesTable}.
  */
 public class AllEntriesTable extends BaseMetadataTable {
 
@@ -54,7 +54,8 @@ public class AllEntriesTable extends BaseMetadataTable {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = ManifestEntry.getSchema(partitionType);
     if (partitionType.fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
+      // avoid returning an empty struct, which is not always supported. instead, drop the partition
+      // field (id 102)
       return TypeUtil.selectNot(schema, Sets.newHashSet(102));
     } else {
       return schema;
@@ -77,8 +78,8 @@ public class AllEntriesTable extends BaseMetadataTable {
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
-                                       TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new Scan(ops, table, schema, context);
     }
 
@@ -92,8 +93,11 @@ public class AllEntriesTable extends BaseMetadataTable {
       Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(table(), manifest, schema(), schemaString, specString, residuals));
+      return CloseableIterable.transform(
+          manifests,
+          manifest ->
+              new ManifestReadTask(
+                  table(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 }

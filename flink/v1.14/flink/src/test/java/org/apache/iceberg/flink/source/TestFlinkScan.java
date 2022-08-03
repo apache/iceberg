@@ -16,11 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -31,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -43,20 +39,19 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.flink.HadoopCatalogResource;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -69,12 +64,11 @@ public abstract class TestFlinkScan {
   public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
       MiniClusterResource.createWithClassloaderCheckDisabled();
 
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
-  protected HadoopCatalog catalog;
-  protected String warehouse;
-  protected String location;
+  @Rule
+  public final HadoopCatalogResource catalogResource =
+      new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
 
   // parametrized variables
   protected final FileFormat fileFormat;
@@ -88,33 +82,22 @@ public abstract class TestFlinkScan {
     this.fileFormat = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
   }
 
-  @Before
-  public void before() throws IOException {
-    File warehouseFile = TEMPORARY_FOLDER.newFolder();
-    Assert.assertTrue(warehouseFile.delete());
-    // before variables
-    warehouse = "file:" + warehouseFile;
-    Configuration conf = new Configuration();
-    catalog = new HadoopCatalog(conf, warehouse);
-    location = String.format("%s/%s/%s", warehouse, TestFixtures.DATABASE, TestFixtures.TABLE);
-  }
-
-  @After
-  public void after() throws IOException {
-  }
-
   protected TableLoader tableLoader() {
-    return TableLoader.fromHadoopTable(location);
+    return catalogResource.tableLoader();
   }
 
   protected abstract List<Row> runWithProjection(String... projected) throws Exception;
+
   protected abstract List<Row> runWithFilter(Expression filter, String sqlFilter) throws Exception;
+
   protected abstract List<Row> runWithOptions(Map<String, String> options) throws Exception;
+
   protected abstract List<Row> run() throws Exception;
 
   @Test
   public void testUnpartitionedTable() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
@@ -122,35 +105,42 @@ public abstract class TestFlinkScan {
 
   @Test
   public void testPartitionedTable() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
+    Table table =
+        catalogResource
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(
-        org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
+        .appendToTable(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
 
   @Test
   public void testProjection() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
+    Table table =
+        catalogResource
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> inputRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(
-        org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), inputRecords);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
+        .appendToTable(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), inputRecords);
     assertRows(runWithProjection("data"), Row.of(inputRecords.get(0).get(0)));
   }
 
   @Test
   public void testIdentityPartitionProjections() throws Exception {
-    Schema logSchema = new Schema(
-        Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-        Types.NestedField.optional(2, "dt", Types.StringType.get()),
-        Types.NestedField.optional(3, "level", Types.StringType.get()),
-        Types.NestedField.optional(4, "message", Types.StringType.get())
-    );
+    Schema logSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "dt", Types.StringType.get()),
+            Types.NestedField.optional(3, "level", Types.StringType.get()),
+            Types.NestedField.optional(4, "message", Types.StringType.get()));
     PartitionSpec spec =
         PartitionSpec.builderFor(logSchema).identity("dt").identity("level").build();
 
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, logSchema, spec);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, logSchema, spec);
     List<Record> inputRecords = RandomGenericData.generate(logSchema, 10, 0L);
 
     int idx = 0;
@@ -158,8 +148,11 @@ public abstract class TestFlinkScan {
     for (Record record : inputRecords) {
       record.set(1, "2020-03-2" + idx);
       record.set(2, Integer.toString(idx));
-      append.appendFile(new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).writeFile(
-          org.apache.iceberg.TestHelpers.Row.of("2020-03-2" + idx, Integer.toString(idx)), ImmutableList.of(record)));
+      append.appendFile(
+          new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
+              .writeFile(
+                  org.apache.iceberg.TestHelpers.Row.of("2020-03-2" + idx, Integer.toString(idx)),
+                  ImmutableList.of(record)));
       idx += 1;
     }
     append.commit();
@@ -178,12 +171,18 @@ public abstract class TestFlinkScan {
     validateIdentityPartitionProjections(table, Arrays.asList("message", "level"), inputRecords);
     validateIdentityPartitionProjections(table, Arrays.asList("level", "dt"), inputRecords);
     // out-of-order triplets
-    validateIdentityPartitionProjections(table, Arrays.asList("dt", "level", "message"), inputRecords);
-    validateIdentityPartitionProjections(table, Arrays.asList("level", "dt", "message"), inputRecords);
-    validateIdentityPartitionProjections(table, Arrays.asList("dt", "message", "level"), inputRecords);
-    validateIdentityPartitionProjections(table, Arrays.asList("level", "message", "dt"), inputRecords);
-    validateIdentityPartitionProjections(table, Arrays.asList("message", "dt", "level"), inputRecords);
-    validateIdentityPartitionProjections(table, Arrays.asList("message", "level", "dt"), inputRecords);
+    validateIdentityPartitionProjections(
+        table, Arrays.asList("dt", "level", "message"), inputRecords);
+    validateIdentityPartitionProjections(
+        table, Arrays.asList("level", "dt", "message"), inputRecords);
+    validateIdentityPartitionProjections(
+        table, Arrays.asList("dt", "message", "level"), inputRecords);
+    validateIdentityPartitionProjections(
+        table, Arrays.asList("level", "message", "dt"), inputRecords);
+    validateIdentityPartitionProjections(
+        table, Arrays.asList("message", "dt", "level"), inputRecords);
+    validateIdentityPartitionProjections(
+        table, Arrays.asList("message", "level", "dt"), inputRecords);
   }
 
   private void validateIdentityPartitionProjections(
@@ -197,14 +196,17 @@ public abstract class TestFlinkScan {
       for (int i = 0; i < projectedFields.size(); i++) {
         String name = projectedFields.get(i);
         Assert.assertEquals(
-            "Projected field " + name + " should match", inputRecord.getField(name), actualRecord.getField(i));
+            "Projected field " + name + " should match",
+            inputRecord.getField(name),
+            actualRecord.getField(i));
       }
     }
   }
 
   @Test
   public void testSnapshotReads() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
 
@@ -220,15 +222,18 @@ public abstract class TestFlinkScan {
 
     TestHelpers.assertRecords(
         runWithOptions(ImmutableMap.of("snapshot-id", Long.toString(snapshotId))),
-        expectedRecords, TestFixtures.SCHEMA);
+        expectedRecords,
+        TestFixtures.SCHEMA);
     TestHelpers.assertRecords(
         runWithOptions(ImmutableMap.of("as-of-timestamp", Long.toString(timestampMillis))),
-        expectedRecords, TestFixtures.SCHEMA);
+        expectedRecords,
+        TestFixtures.SCHEMA);
   }
 
   @Test
   public void testIncrementalRead() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
 
@@ -250,57 +255,77 @@ public abstract class TestFlinkScan {
     List<Record> expected2 = Lists.newArrayList();
     expected2.addAll(records2);
     expected2.addAll(records3);
-    TestHelpers.assertRecords(runWithOptions(
-        ImmutableMap.<String, String>builder()
-            .put("start-snapshot-id", Long.toString(snapshotId1))
-            .put("end-snapshot-id", Long.toString(snapshotId3)).build()),
-        expected2, TestFixtures.SCHEMA);
+    TestHelpers.assertRecords(
+        runWithOptions(
+            ImmutableMap.<String, String>builder()
+                .put("start-snapshot-id", Long.toString(snapshotId1))
+                .put("end-snapshot-id", Long.toString(snapshotId3))
+                .build()),
+        expected2,
+        TestFixtures.SCHEMA);
   }
 
   @Test
   public void testFilterExp() throws Exception {
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
+    Table table =
+        catalogResource
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
 
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
     expectedRecords.get(1).set(2, "2020-03-20");
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
-    DataFile dataFile1 = helper.writeFile(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
-    DataFile dataFile2 = helper.writeFile(org.apache.iceberg.TestHelpers.Row.of("2020-03-21", 0),
-        RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
+    DataFile dataFile1 =
+        helper.writeFile(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
+    DataFile dataFile2 =
+        helper.writeFile(
+            org.apache.iceberg.TestHelpers.Row.of("2020-03-21", 0),
+            RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
-    TestHelpers.assertRecords(runWithFilter(
-        Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'"),
+    TestHelpers.assertRecords(
+        runWithFilter(Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'"),
         expectedRecords,
         TestFixtures.SCHEMA);
   }
 
   @Test
   public void testPartitionTypes() throws Exception {
-    Schema typesSchema = new Schema(
-        Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-        Types.NestedField.optional(2, "decimal", Types.DecimalType.of(38, 18)),
-        Types.NestedField.optional(3, "str", Types.StringType.get()),
-        Types.NestedField.optional(4, "binary", Types.BinaryType.get()),
-        Types.NestedField.optional(5, "date", Types.DateType.get()),
-        Types.NestedField.optional(6, "time", Types.TimeType.get()),
-        Types.NestedField.optional(7, "timestamp", Types.TimestampType.withoutZone())
-    );
-    PartitionSpec spec = PartitionSpec.builderFor(typesSchema).identity("decimal").identity("str").identity("binary")
-        .identity("date").identity("time").identity("timestamp").build();
+    Schema typesSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "decimal", Types.DecimalType.of(38, 18)),
+            Types.NestedField.optional(3, "str", Types.StringType.get()),
+            Types.NestedField.optional(4, "binary", Types.BinaryType.get()),
+            Types.NestedField.optional(5, "date", Types.DateType.get()),
+            Types.NestedField.optional(6, "time", Types.TimeType.get()),
+            Types.NestedField.optional(7, "timestamp", Types.TimestampType.withoutZone()));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(typesSchema)
+            .identity("decimal")
+            .identity("str")
+            .identity("binary")
+            .identity("date")
+            .identity("time")
+            .identity("timestamp")
+            .build();
 
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, typesSchema, spec);
+    Table table =
+        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, typesSchema, spec);
     List<Record> records = RandomGenericData.generate(typesSchema, 10, 0L);
     GenericAppenderHelper appender = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
     for (Record record : records) {
-      org.apache.iceberg.TestHelpers.Row partition = org.apache.iceberg.TestHelpers.Row.of(
-          record.get(1),
-          record.get(2),
-          record.get(3),
-          record.get(4) == null ? null : DateTimeUtil.daysFromDate((LocalDate) record.get(4)),
-          record.get(5) == null ? null : DateTimeUtil.microsFromTime((LocalTime) record.get(5)),
-          record.get(6) == null ? null : DateTimeUtil.microsFromTimestamp((LocalDateTime) record.get(6)));
+      org.apache.iceberg.TestHelpers.Row partition =
+          org.apache.iceberg.TestHelpers.Row.of(
+              record.get(1),
+              record.get(2),
+              record.get(3),
+              record.get(4) == null ? null : DateTimeUtil.daysFromDate((LocalDate) record.get(4)),
+              record.get(5) == null ? null : DateTimeUtil.microsFromTime((LocalTime) record.get(5)),
+              record.get(6) == null
+                  ? null
+                  : DateTimeUtil.microsFromTimestamp((LocalDateTime) record.get(6)));
       appender.appendToTable(partition, Collections.singletonList(record));
     }
 
@@ -309,11 +334,15 @@ public abstract class TestFlinkScan {
 
   @Test
   public void testCustomizedFlinkDataTypes() throws Exception {
-    Schema schema = new Schema(
-        Types.NestedField.required(
-            1, "map", Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.StringType.get())),
-        Types.NestedField.required(4, "arr", Types.ListType.ofRequired(5, Types.StringType.get())));
-    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, schema);
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(
+                1,
+                "map",
+                Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.StringType.get())),
+            Types.NestedField.required(
+                4, "arr", Types.ListType.ofRequired(5, Types.StringType.get())));
+    Table table = catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, schema);
     List<Record> records = RandomGenericData.generate(schema, 10, 0L);
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
     helper.appendToTable(records);

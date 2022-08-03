@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.nio.ByteBuffer;
@@ -31,6 +30,5 @@ public class EncryptionKeyMetadatas {
     return BaseEncryptionKeyMetadata.fromByteArray(keyMetadata);
   }
 
-  private EncryptionKeyMetadatas() {
-  }
+  private EncryptionKeyMetadatas() {}
 }

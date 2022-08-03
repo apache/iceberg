@@ -16,18 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.puffin;
-
-import java.util.Map;
-import javax.annotation.Nullable;
-import org.apache.iceberg.io.InMemoryInputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.Pair;
-import org.junit.Test;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.puffin.PuffinCompressionCodec.NONE;
@@ -38,6 +27,16 @@ import static org.apache.iceberg.puffin.PuffinFormatTestUtil.readTestResource;
 import static org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap.toImmutableMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.Map;
+import javax.annotation.Nullable;
+import org.apache.iceberg.io.InMemoryInputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.Pair;
+import org.junit.Test;
 
 public class TestPuffinReader {
   @Test
@@ -52,17 +51,14 @@ public class TestPuffinReader {
 
   private void testEmpty(String resourceName, @Nullable Long footerSize) throws Exception {
     InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource(resourceName));
-    Puffin.ReadBuilder readBuilder = Puffin.read(inputFile)
-        .withFileSize(inputFile.getLength());
+    Puffin.ReadBuilder readBuilder = Puffin.read(inputFile).withFileSize(inputFile.getLength());
     if (footerSize != null) {
       readBuilder = readBuilder.withFooterSize(footerSize);
     }
     try (PuffinReader reader = readBuilder.build()) {
       FileMetadata fileMetadata = reader.fileMetadata();
-      assertThat(fileMetadata.properties()).as("file properties")
-          .isEqualTo(ImmutableMap.of());
-      assertThat(fileMetadata.blobs()).as("blob list")
-          .isEmpty();
+      assertThat(fileMetadata.properties()).as("file properties").isEqualTo(ImmutableMap.of());
+      assertThat(fileMetadata.blobs()).as("blob list").isEmpty();
     }
   }
 
@@ -78,18 +74,17 @@ public class TestPuffinReader {
     testWrongFooterSize(resourceName, footerSize + 10000, "Invalid footer size");
   }
 
-  private void testWrongFooterSize(String resourceName, long wrongFooterSize, String expectedMessagePrefix)
-      throws Exception {
+  private void testWrongFooterSize(
+      String resourceName, long wrongFooterSize, String expectedMessagePrefix) throws Exception {
     InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource(resourceName));
-    Puffin.ReadBuilder builder = Puffin.read(inputFile)
-        .withFileSize(inputFile.getLength())
-        .withFooterSize(wrongFooterSize);
+    Puffin.ReadBuilder builder =
+        Puffin.read(inputFile).withFileSize(inputFile.getLength()).withFooterSize(wrongFooterSize);
     assertThatThrownBy(
-        () -> {
-          try (PuffinReader reader = builder.build()) {
-            reader.fileMetadata();
-          }
-        })
+            () -> {
+              try (PuffinReader reader = builder.build()) {
+                reader.fileMetadata();
+              }
+            })
         .hasMessageStartingWith(expectedMessagePrefix);
   }
 
@@ -103,49 +98,58 @@ public class TestPuffinReader {
     testReadMetricData("v1/sample-metric-data-compressed-zstd.bin", ZSTD);
   }
 
-  private void testReadMetricData(String resourceName, PuffinCompressionCodec expectedCodec) throws Exception {
+  private void testReadMetricData(String resourceName, PuffinCompressionCodec expectedCodec)
+      throws Exception {
     InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource(resourceName));
     try (PuffinReader reader = Puffin.read(inputFile).build()) {
       FileMetadata fileMetadata = reader.fileMetadata();
-      assertThat(fileMetadata.properties()).as("file properties")
+      assertThat(fileMetadata.properties())
+          .as("file properties")
           .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));
-      assertThat(fileMetadata.blobs()).as("blob list")
-          .hasSize(2);
+      assertThat(fileMetadata.blobs()).as("blob list").hasSize(2);
 
       BlobMetadata firstBlob = fileMetadata.blobs().get(0);
       assertThat(firstBlob.type()).as("type").isEqualTo("some-blob");
       assertThat(firstBlob.inputFields()).as("columns").isEqualTo(ImmutableList.of(1));
       assertThat(firstBlob.offset()).as("offset").isEqualTo(4);
-      assertThat(firstBlob.compressionCodec()).as("compression codec")
+      assertThat(firstBlob.compressionCodec())
+          .as("compression codec")
           .isEqualTo(expectedCodec.codecName());
 
       BlobMetadata secondBlob = fileMetadata.blobs().get(1);
       assertThat(secondBlob.type()).as("type").isEqualTo("some-other-blob");
       assertThat(secondBlob.inputFields()).as("columns").isEqualTo(ImmutableList.of(2));
-      assertThat(secondBlob.offset()).as("offset")
+      assertThat(secondBlob.offset())
+          .as("offset")
           .isEqualTo(firstBlob.offset() + firstBlob.length());
-      assertThat(secondBlob.compressionCodec()).as("compression codec")
+      assertThat(secondBlob.compressionCodec())
+          .as("compression codec")
           .isEqualTo(expectedCodec.codecName());
 
-      Map<BlobMetadata, byte[]> read = Streams.stream(reader.readAll(ImmutableList.of(firstBlob, secondBlob)))
-          .collect(toImmutableMap(Pair::first, pair -> ByteBuffers.toByteArray(pair.second())));
+      Map<BlobMetadata, byte[]> read =
+          Streams.stream(reader.readAll(ImmutableList.of(firstBlob, secondBlob)))
+              .collect(toImmutableMap(Pair::first, pair -> ByteBuffers.toByteArray(pair.second())));
 
-      assertThat(read).as("read")
+      assertThat(read)
+          .as("read")
           .containsOnlyKeys(firstBlob, secondBlob)
           .containsEntry(firstBlob, "abcdefghi".getBytes(UTF_8))
           .containsEntry(
               secondBlob,
-              "some blob \u0000 binary data 🤯 that is not very very very very very very long, is it?".getBytes(UTF_8));
+              "some blob \u0000 binary data 🤯 that is not very very very very very very long, is it?"
+                  .getBytes(UTF_8));
     }
   }
 
   @Test
   public void testValidateFooterSizeValue() throws Exception {
     // Ensure the definition of SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE remains accurate
-    InMemoryInputFile inputFile = new InMemoryInputFile(readTestResource("v1/sample-metric-data-compressed-zstd.bin"));
-    try (PuffinReader reader = Puffin.read(inputFile)
-        .withFooterSize(SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE)
-        .build()) {
+    InMemoryInputFile inputFile =
+        new InMemoryInputFile(readTestResource("v1/sample-metric-data-compressed-zstd.bin"));
+    try (PuffinReader reader =
+        Puffin.read(inputFile)
+            .withFooterSize(SAMPLE_METRIC_DATA_COMPRESSED_ZSTD_FOOTER_SIZE)
+            .build()) {
       assertThat(reader.fileMetadata().properties())
           .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));
     }

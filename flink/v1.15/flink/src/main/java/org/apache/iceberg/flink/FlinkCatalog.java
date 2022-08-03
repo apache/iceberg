@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.io.Closeable;
@@ -83,13 +82,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
- * <p>
- * The mapping between Flink database and Iceberg namespace:
- * Supplying a base namespace for a given catalog, so if you have a catalog that supports a 2-level namespace, you
- * would supply the first level in the catalog configuration and the second level would be exposed as Flink databases.
- * <p>
- * The Iceberg table manages its partitions by itself. The partition of the Iceberg table is independent of the
- * partition of Flink.
+ *
+ * <p>The mapping between Flink database and Iceberg namespace: Supplying a base namespace for a
+ * given catalog, so if you have a catalog that supports a 2-level namespace, you would supply the
+ * first level in the catalog configuration and the second level would be exposed as Flink
+ * databases.
+ *
+ * <p>The Iceberg table manages its partitions by itself. The partition of the Iceberg table is
+ * independent of the partition of Flink.
  */
 public class FlinkCatalog extends AbstractCatalog {
 
@@ -115,7 +115,8 @@ public class FlinkCatalog extends AbstractCatalog {
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
-    asNamespaceCatalog = originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;
+    asNamespaceCatalog =
+        originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;
     closeable = originalCatalog instanceof Closeable ? (Closeable) originalCatalog : null;
   }
 
@@ -180,7 +181,8 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public CatalogDatabase getDatabase(String databaseName) throws DatabaseNotExistException, CatalogException {
+  public CatalogDatabase getDatabase(String databaseName)
+      throws DatabaseNotExistException, CatalogException {
     if (asNamespaceCatalog == null) {
       if (!getDefaultDatabase().equals(databaseName)) {
         throw new DatabaseNotExistException(getName(), databaseName);
@@ -214,11 +216,13 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void createDatabase(String name, CatalogDatabase database, boolean ignoreIfExists)
       throws DatabaseAlreadyExistException, CatalogException {
-    createDatabase(name, mergeComment(database.getProperties(), database.getComment()), ignoreIfExists);
+    createDatabase(
+        name, mergeComment(database.getProperties(), database.getComment()), ignoreIfExists);
     registerPartitionFunction(name);
   }
 
-  private void createDatabase(String databaseName, Map<String, String> metadata, boolean ignoreIfExists)
+  private void createDatabase(
+      String databaseName, Map<String, String> metadata, boolean ignoreIfExists)
       throws DatabaseAlreadyExistException, CatalogException {
     if (asNamespaceCatalog != null) {
       try {
@@ -229,7 +233,8 @@ public class FlinkCatalog extends AbstractCatalog {
         }
       }
     } else {
-      throw new UnsupportedOperationException("Namespaces are not supported by catalog: " + getName());
+      throw new UnsupportedOperationException(
+          "Namespaces are not supported by catalog: " + getName());
     }
   }
 
@@ -279,7 +284,8 @@ public class FlinkCatalog extends AbstractCatalog {
 
       try {
         Map<String, String> oldProperties = asNamespaceCatalog.loadNamespaceMetadata(namespace);
-        Map<String, String> newProperties = mergeComment(newDatabase.getProperties(), newDatabase.getComment());
+        Map<String, String> newProperties =
+            mergeComment(newDatabase.getProperties(), newDatabase.getComment());
 
         for (String key : oldProperties.keySet()) {
           if (!newProperties.containsKey(key)) {
@@ -318,7 +324,8 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public List<String> listTables(String databaseName) throws DatabaseNotExistException, CatalogException {
+  public List<String> listTables(String databaseName)
+      throws DatabaseNotExistException, CatalogException {
     try {
       return icebergCatalog.listTables(toNamespace(databaseName)).stream()
           .map(TableIdentifier::name)
@@ -329,7 +336,8 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public CatalogTable getTable(ObjectPath tablePath) throws TableNotExistException, CatalogException {
+  public CatalogTable getTable(ObjectPath tablePath)
+      throws TableNotExistException, CatalogException {
     Table table = loadIcebergTable(tablePath);
     return toCatalogTable(table);
   }
@@ -383,10 +391,12 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void createTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
       throws CatalogException, TableAlreadyExistException {
-    if (Objects.equals(table.getOptions().get("connector"), FlinkDynamicTableFactory.FACTORY_IDENTIFIER)) {
-      throw new IllegalArgumentException("Cannot create the table with 'connector'='iceberg' table property in " +
-          "an iceberg catalog, Please create table with 'connector'='iceberg' property in a non-iceberg catalog or " +
-          "create table without 'connector'='iceberg' related properties in an iceberg table.");
+    if (Objects.equals(
+        table.getOptions().get("connector"), FlinkDynamicTableFactory.FACTORY_IDENTIFIER)) {
+      throw new IllegalArgumentException(
+          "Cannot create the table with 'connector'='iceberg' table property in "
+              + "an iceberg catalog, Please create table with 'connector'='iceberg' property in a non-iceberg catalog or "
+              + "create table without 'connector'='iceberg' related properties in an iceberg table.");
     }
 
     createIcebergTable(tablePath, table, ignoreIfExists);
@@ -411,11 +421,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     try {
       icebergCatalog.createTable(
-          toIdentifier(tablePath),
-          icebergSchema,
-          spec,
-          location,
-          properties.build());
+          toIdentifier(tablePath), icebergSchema, spec, location, properties.build());
     } catch (AlreadyExistsException e) {
       if (!ignoreIfExists) {
         throw new TableAlreadyExistException(getName(), tablePath, e);
@@ -430,15 +436,16 @@ public class FlinkCatalog extends AbstractCatalog {
 
     if (ts1.getPrimaryKey().isPresent() && ts2.getPrimaryKey().isPresent()) {
       equalsPrimary =
-          Objects.equals(ts1.getPrimaryKey().get().getType(), ts2.getPrimaryKey().get().getType()) &&
-          Objects.equals(ts1.getPrimaryKey().get().getColumns(), ts2.getPrimaryKey().get().getColumns());
+          Objects.equals(ts1.getPrimaryKey().get().getType(), ts2.getPrimaryKey().get().getType())
+              && Objects.equals(
+                  ts1.getPrimaryKey().get().getColumns(), ts2.getPrimaryKey().get().getColumns());
     } else if (!ts1.getPrimaryKey().isPresent() && !ts2.getPrimaryKey().isPresent()) {
       equalsPrimary = true;
     }
 
-    if (!(Objects.equals(ts1.getTableColumns(), ts2.getTableColumns()) &&
-          Objects.equals(ts1.getWatermarkSpecs(), ts2.getWatermarkSpecs()) &&
-          equalsPrimary)) {
+    if (!(Objects.equals(ts1.getTableColumns(), ts2.getTableColumns())
+        && Objects.equals(ts1.getWatermarkSpecs(), ts2.getWatermarkSpecs())
+        && equalsPrimary)) {
       throw new UnsupportedOperationException("Altering schema is not supported yet.");
     }
 
@@ -467,7 +474,8 @@ public class FlinkCatalog extends AbstractCatalog {
 
     // Currently, Flink SQL only support altering table properties.
 
-    // For current Flink Catalog API, support for adding/removing/renaming columns cannot be done by comparing
+    // For current Flink Catalog API, support for adding/removing/renaming columns cannot be done by
+    // comparing
     // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
     validateTableSchemaAndPartition(table, (CatalogTable) newTable);
 
@@ -497,27 +505,36 @@ public class FlinkCatalog extends AbstractCatalog {
       }
     }
 
-    oldProperties.keySet().forEach(k -> {
-      if (!newTable.getOptions().containsKey(k)) {
-        setProperties.put(k, null);
-      }
-    });
+    oldProperties
+        .keySet()
+        .forEach(
+            k -> {
+              if (!newTable.getOptions().containsKey(k)) {
+                setProperties.put(k, null);
+              }
+            });
 
     commitChanges(icebergTable, setLocation, setSnapshotId, pickSnapshotId, setProperties);
   }
 
   private static void validateFlinkTable(CatalogBaseTable table) {
-    Preconditions.checkArgument(table instanceof CatalogTable, "The Table should be a CatalogTable.");
+    Preconditions.checkArgument(
+        table instanceof CatalogTable, "The Table should be a CatalogTable.");
 
     TableSchema schema = table.getSchema();
-    schema.getTableColumns().forEach(column -> {
-      if (!FlinkCompatibilityUtil.isPhysicalColumn(column)) {
-        throw new UnsupportedOperationException("Creating table with computed columns is not supported yet.");
-      }
-    });
+    schema
+        .getTableColumns()
+        .forEach(
+            column -> {
+              if (!FlinkCompatibilityUtil.isPhysicalColumn(column)) {
+                throw new UnsupportedOperationException(
+                    "Creating table with computed columns is not supported yet.");
+              }
+            });
 
     if (!schema.getWatermarkSpecs().isEmpty()) {
-      throw new UnsupportedOperationException("Creating table with watermark specs is not supported yet.");
+      throw new UnsupportedOperationException(
+          "Creating table with watermark specs is not supported yet.");
     }
   }
 
@@ -542,11 +559,17 @@ public class FlinkCatalog extends AbstractCatalog {
     return partitionKeysBuilder.build();
   }
 
-  private static void commitChanges(Table table, String setLocation, String setSnapshotId,
-                                    String pickSnapshotId, Map<String, String> setProperties) {
-    // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
+  private static void commitChanges(
+      Table table,
+      String setLocation,
+      String setSnapshotId,
+      String pickSnapshotId,
+      Map<String, String> setProperties) {
+    // don't allow setting the snapshot and picking a commit at the same time because order is
+    // ambiguous and choosing
     // one order leads to different results
-    Preconditions.checkArgument(setSnapshotId == null || pickSnapshotId == null,
+    Preconditions.checkArgument(
+        setSnapshotId == null || pickSnapshotId == null,
         "Cannot set the current snapshot ID and cherry-pick snapshot changes");
 
     if (setSnapshotId != null) {
@@ -563,20 +586,19 @@ public class FlinkCatalog extends AbstractCatalog {
     Transaction transaction = table.newTransaction();
 
     if (setLocation != null) {
-      transaction.updateLocation()
-          .setLocation(setLocation)
-          .commit();
+      transaction.updateLocation().setLocation(setLocation).commit();
     }
 
     if (!setProperties.isEmpty()) {
       UpdateProperties updateProperties = transaction.updateProperties();
-      setProperties.forEach((k, v) -> {
-        if (v == null) {
-          updateProperties.remove(k);
-        } else {
-          updateProperties.set(k, v);
-        }
-      });
+      setProperties.forEach(
+          (k, v) -> {
+            if (v == null) {
+              updateProperties.remove(k);
+            } else {
+              updateProperties.set(k, v);
+            }
+          });
       updateProperties.commit();
     }
 
@@ -587,7 +609,8 @@ public class FlinkCatalog extends AbstractCatalog {
     TableSchema schema = FlinkSchemaUtil.toSchema(table.schema());
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
-    // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer may use
+    // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer
+    // may use
     // CatalogTableImpl to copy a new catalog table.
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
     // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
@@ -603,7 +626,8 @@ public class FlinkCatalog extends AbstractCatalog {
     return catalogLoader;
   }
 
-  // ------------------------------ Unsupported methods ---------------------------------------------
+  // ------------------------------ Unsupported methods
+  // ---------------------------------------------
 
   @Override
   public List<String> listViews(String databaseName) throws CatalogException {
@@ -617,25 +641,35 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public boolean partitionExists(ObjectPath tablePath, CatalogPartitionSpec partitionSpec) throws CatalogException {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public void createPartition(ObjectPath tablePath, CatalogPartitionSpec partitionSpec, CatalogPartition partition,
-      boolean ignoreIfExists) throws CatalogException {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public void dropPartition(ObjectPath tablePath, CatalogPartitionSpec partitionSpec, boolean ignoreIfNotExists)
+  public boolean partitionExists(ObjectPath tablePath, CatalogPartitionSpec partitionSpec)
       throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void alterPartition(ObjectPath tablePath, CatalogPartitionSpec partitionSpec, CatalogPartition newPartition,
-      boolean ignoreIfNotExists) throws CatalogException {
+  public void createPartition(
+      ObjectPath tablePath,
+      CatalogPartitionSpec partitionSpec,
+      CatalogPartition partition,
+      boolean ignoreIfExists)
+      throws CatalogException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void dropPartition(
+      ObjectPath tablePath, CatalogPartitionSpec partitionSpec, boolean ignoreIfNotExists)
+      throws CatalogException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void alterPartition(
+      ObjectPath tablePath,
+      CatalogPartitionSpec partitionSpec,
+      CatalogPartition newPartition,
+      boolean ignoreIfNotExists)
+      throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
@@ -645,7 +679,8 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public CatalogFunction getFunction(ObjectPath functionPath) throws FunctionNotExistException, CatalogException {
+  public CatalogFunction getFunction(ObjectPath functionPath)
+      throws FunctionNotExistException, CatalogException {
     CatalogFunction catalogFunction = partitionFunctions.get(functionPath.getFullName());
     if (catalogFunction == null) {
       throw new FunctionNotExistException(getName(), functionPath);
@@ -660,13 +695,15 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public void createFunction(ObjectPath functionPath, CatalogFunction function, boolean ignoreIfExists)
+  public void createFunction(
+      ObjectPath functionPath, CatalogFunction function, boolean ignoreIfExists)
       throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void alterFunction(ObjectPath functionPath, CatalogFunction newFunction, boolean ignoreIfNotExists)
+  public void alterFunction(
+      ObjectPath functionPath, CatalogFunction newFunction, boolean ignoreIfNotExists)
       throws CatalogException {
     throw new UnsupportedOperationException();
   }
@@ -678,26 +715,36 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public void alterTableStatistics(ObjectPath tablePath, CatalogTableStatistics tableStatistics,
-      boolean ignoreIfNotExists) throws CatalogException {
+  public void alterTableStatistics(
+      ObjectPath tablePath, CatalogTableStatistics tableStatistics, boolean ignoreIfNotExists)
+      throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void alterTableColumnStatistics(ObjectPath tablePath, CatalogColumnStatistics columnStatistics,
-      boolean ignoreIfNotExists) throws CatalogException {
+  public void alterTableColumnStatistics(
+      ObjectPath tablePath, CatalogColumnStatistics columnStatistics, boolean ignoreIfNotExists)
+      throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void alterPartitionStatistics(ObjectPath tablePath, CatalogPartitionSpec partitionSpec,
-      CatalogTableStatistics partitionStatistics, boolean ignoreIfNotExists) throws CatalogException {
+  public void alterPartitionStatistics(
+      ObjectPath tablePath,
+      CatalogPartitionSpec partitionSpec,
+      CatalogTableStatistics partitionStatistics,
+      boolean ignoreIfNotExists)
+      throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void alterPartitionColumnStatistics(ObjectPath tablePath, CatalogPartitionSpec partitionSpec,
-      CatalogColumnStatistics columnStatistics, boolean ignoreIfNotExists) throws CatalogException {
+  public void alterPartitionColumnStatistics(
+      ObjectPath tablePath,
+      CatalogPartitionSpec partitionSpec,
+      CatalogColumnStatistics columnStatistics,
+      boolean ignoreIfNotExists)
+      throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
@@ -722,31 +769,32 @@ public class FlinkCatalog extends AbstractCatalog {
         set.add(new CatalogPartitionSpec(map));
       }
     } catch (IOException e) {
-      throw new CatalogException(String.format("Failed to list partitions of table %s", tablePath), e);
+      throw new CatalogException(
+          String.format("Failed to list partitions of table %s", tablePath), e);
     }
 
     return Lists.newArrayList(set);
   }
 
   @Override
-  public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath, CatalogPartitionSpec partitionSpec)
-      throws CatalogException {
+  public List<CatalogPartitionSpec> listPartitions(
+      ObjectPath tablePath, CatalogPartitionSpec partitionSpec) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public List<CatalogPartitionSpec> listPartitionsByFilter(ObjectPath tablePath, List<Expression> filters)
-      throws CatalogException {
+  public List<CatalogPartitionSpec> listPartitionsByFilter(
+      ObjectPath tablePath, List<Expression> filters) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
-  // After partition pruning and filter push down, the statistics have become very inaccurate, so the statistics from
+  // After partition pruning and filter push down, the statistics have become very inaccurate, so
+  // the statistics from
   // here are of little significance.
   // Flink will support something like SupportsReportStatistics in future.
 
   @Override
-  public CatalogTableStatistics getTableStatistics(ObjectPath tablePath)
-      throws CatalogException {
+  public CatalogTableStatistics getTableStatistics(ObjectPath tablePath) throws CatalogException {
     return CatalogTableStatistics.UNKNOWN;
   }
 
@@ -757,14 +805,14 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public CatalogTableStatistics getPartitionStatistics(ObjectPath tablePath, CatalogPartitionSpec partitionSpec)
-      throws CatalogException {
+  public CatalogTableStatistics getPartitionStatistics(
+      ObjectPath tablePath, CatalogPartitionSpec partitionSpec) throws CatalogException {
     return CatalogTableStatistics.UNKNOWN;
   }
 
   @Override
-  public CatalogColumnStatistics getPartitionColumnStatistics(ObjectPath tablePath, CatalogPartitionSpec partitionSpec)
-      throws CatalogException {
+  public CatalogColumnStatistics getPartitionColumnStatistics(
+      ObjectPath tablePath, CatalogPartitionSpec partitionSpec) throws CatalogException {
     return CatalogColumnStatistics.UNKNOWN;
   }
 }

@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.write;
 
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 
-/**
- * An interface for building a scan and a write for a row-level operation.
- */
+/** An interface for building a scan and a write for a row-level operation. */
 public interface MergeBuilder {
   /**
    * Creates a scan builder for a row-level operation.
