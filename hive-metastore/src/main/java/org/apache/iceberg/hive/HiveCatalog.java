@@ -482,8 +482,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     // Otherwise, stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
-    String warehouseLocation = getDatabaseLocation(tableIdentifier.namespace().levels()[0]);
-    return String.format("%s/%s", warehouseLocation, tableIdentifier.name());
+    String databaseLocation = getDatabaseLocation(tableIdentifier.namespace().levels()[0]);
+    return String.format("%s/%s", databaseLocation, tableIdentifier.name());
   }
 
   private String getDatabaseLocation(String databaseName) {
