@@ -1412,4 +1412,20 @@ public class TestRowDelta extends V2TableTestBase {
                 .validateNoConflictingDeleteFiles()
                 .commit());
   }
+
+  @Test
+  public void testRowDeltaToBranchUnsupported() {
+    AssertHelpers.assertThrows(
+        "Should reject committing row delta to branch",
+        UnsupportedOperationException.class,
+        "Cannot commit to branch someBranch: org.apache.iceberg.BaseRowDelta does not support branch commits",
+        () ->
+            table
+                .newRowDelta()
+                .caseSensitive(false)
+                .addRows(FILE_B)
+                .addDeletes(FILE_A2_DELETES)
+                .toBranch("someBranch")
+                .commit());
+  }
 }

@@ -742,4 +742,13 @@ public class TestReplacePartitions extends TableTestBase {
   public void testEmptyPartitionPathWithUnpartitionedTable() {
     DataFiles.builder(PartitionSpec.unpartitioned()).withPartitionPath("");
   }
+
+  @Test
+  public void testReplacePartitionsOnBranchUnsupported() {
+    AssertHelpers.assertThrows(
+        "Should reject committing rewrite manifests to branch",
+        UnsupportedOperationException.class,
+        "Cannot commit to branch someBranch: org.apache.iceberg.BaseReplacePartitions does not support branch commits",
+        () -> table.newReplacePartitions().addFile(FILE_UNPARTITIONED_A).toBranch("someBranch"));
+  }
 }
