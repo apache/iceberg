@@ -21,7 +21,6 @@ from typing import (
     Literal,
     Optional,
     Set,
-    Tuple,
     Type,
     Union,
 )
@@ -190,19 +189,6 @@ class RestCatalog(Catalog):
             self.token = token
         self.config = self._fetch_config(properties)
         super().__init__(name, properties)
-
-    @staticmethod
-    def _split_credential(token: str) -> Tuple[str, str]:
-        """Splits the token in a client id and secret
-
-        Args:
-            token: The token with a semicolon as a separator
-
-        Returns:
-            The client id and secret
-        """
-        client, secret = token.split(":")
-        return client, secret
 
     @property
     def headers(self) -> Properties:
