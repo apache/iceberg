@@ -125,18 +125,18 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     Long snapshotId = PropertyUtil.propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID, -1);
     Long asOfTimestamp = PropertyUtil.propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP, -1);
     Preconditions.checkArgument(
-        asOfTimestamp == null || snapshotId == null,
+        asOfTimestamp == -1 || snapshotId == -1,
         "Cannot specify both snapshot-id (%s) and as-of-timestamp (%s)",
         snapshotId,
         asOfTimestamp);
 
     String selector = null;
 
-    if (snapshotId != null) {
+    if (snapshotId != -1) {
       selector = SNAPSHOT_ID + snapshotId;
     }
 
-    if (asOfTimestamp != null) {
+    if (asOfTimestamp != -1) {
       selector = AT_TIMESTAMP + asOfTimestamp;
     }
 
