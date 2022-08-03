@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import org.apache.spark.sql.internal.SQLConf;
-
 public class SparkSQLProperties {
 
   private SparkSQLProperties() {}
@@ -44,9 +42,4 @@ public class SparkSQLProperties {
   // Controls whether to check the order of fields during writes
   public static final String CHECK_ORDERING = "spark.sql.iceberg.check-ordering";
   public static final boolean CHECK_ORDERING_DEFAULT = true;
-
-  // Controls whether case of schema field name needs to be considered during case sensitive
-  // operations
-  // like name field name comparison
-  public static final String CASE_SENSITIVE = SQLConf.CASE_SENSITIVE().key();
 }

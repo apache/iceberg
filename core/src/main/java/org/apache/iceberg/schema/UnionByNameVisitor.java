@@ -36,13 +36,9 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
   private final Schema partnerSchema;
   private boolean caseSensitive = true;
 
-  private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema) {
+  private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema, boolean caseSensitive) {
     this.api = api;
     this.partnerSchema = partnerSchema;
-  }
-
-  private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema, boolean caseSensitive) {
-    this(api, partnerSchema);
     this.caseSensitive = caseSensitive;
   }
 
@@ -56,11 +52,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
    * @param newSchema a new schema to compare with the existing
    */
   public static void visit(UpdateSchema api, Schema existingSchema, Schema newSchema) {
-    visit(
-        newSchema,
-        -1,
-        new UnionByNameVisitor(api, existingSchema),
-        new PartnerIdByNameAccessors(existingSchema));
+    visit(api, existingSchema, newSchema, true);
   }
 
   /**

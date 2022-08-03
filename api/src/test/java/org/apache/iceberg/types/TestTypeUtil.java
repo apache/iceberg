@@ -626,7 +626,7 @@ public class TestTypeUtil {
   }
 
   @Test
-  public void testreassignOrRefreshIdsCaseInsensitive() {
+  public void testReassignOrRefreshIdsCaseInsensitive() {
     Schema schema =
         new Schema(
             Lists.newArrayList(

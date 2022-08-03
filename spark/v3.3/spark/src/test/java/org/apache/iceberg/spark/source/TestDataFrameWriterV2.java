@@ -24,13 +24,13 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
-import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -202,12 +202,10 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "ID bigint, DaTa string",
             "{ \"id\": 1, \"data\": \"a\" }",
             "{ \"id\": 2, \"data\": \"b\" }");
+    // disable spark.sql.caseSensitive
+    sql("SET %s=false", SQLConf.CASE_SENSITIVE().key());
     // write should succeed
-    ds.writeTo(tableName)
-        .option(SparkWriteOptions.CASE_SENSITIVE, "false")
-        .option("merge-schema", "true")
-        .option("check-ordering", "false")
-        .append();
+    ds.writeTo(tableName).option("merge-schema", "true").option("check-ordering", "false").append();
 
     List<Types.NestedField> fields =
         Spark3Util.loadIcebergTable(spark, tableName).schema().asStruct().fields();

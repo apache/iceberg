@@ -284,8 +284,7 @@ public class TypeUtil {
    * @throws IllegalArgumentException if a field cannot be found (by name) in the source schema
    */
   public static Schema reassignIds(Schema schema, Schema idSourceSchema) {
-    Types.StructType struct = visit(schema, new ReassignIds(idSourceSchema, null)).asStructType();
-    return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
+    return reassignIds(schema, idSourceSchema, true);
   }
 
   /**
@@ -308,10 +307,7 @@ public class TypeUtil {
   }
 
   public static Schema reassignOrRefreshIds(Schema schema, Schema idSourceSchema) {
-    AtomicInteger highest = new AtomicInteger(idSourceSchema.highestFieldId());
-    Types.StructType struct =
-        visit(schema, new ReassignIds(idSourceSchema, highest::incrementAndGet)).asStructType();
-    return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
+    return reassignOrRefreshIds(schema, idSourceSchema, true);
   }
 
   public static Schema reassignOrRefreshIds(
