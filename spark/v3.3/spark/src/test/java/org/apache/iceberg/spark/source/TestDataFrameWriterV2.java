@@ -27,7 +27,9 @@ import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
@@ -193,24 +195,33 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWriteWithCaseSensitiveOption() throws NoSuchTableException, ParseException {
-    sql(
+    SparkSession sparkSession = spark.cloneSession();
+    sparkSession.sql(String.format(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA)).collect();
 
-    Dataset<Row> ds =
-        jsonToDF(
-            "ID bigint, DaTa string",
-            "{ \"id\": 1, \"data\": \"a\" }",
-            "{ \"id\": 2, \"data\": \"b\" }");
+    String schema = "ID bigint, DaTa string";
+    ImmutableList<String> records = ImmutableList.of(
+        "{ \"id\": 1, \"data\": \"a\" }",
+        "{ \"id\": 2, \"data\": \"b\" }");
+
     // disable spark.sql.caseSensitive
-    sql("SET %s=false", SQLConf.CASE_SENSITIVE().key());
+    sparkSession.sql(String.format("SET %s=false", SQLConf.CASE_SENSITIVE().key()));
+    Dataset<String> jsonDF = sparkSession.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
+    Dataset<Row> ds = sparkSession
+        .read().schema(schema).json(jsonDF);
     // write should succeed
     ds.writeTo(tableName).option("merge-schema", "true").option("check-ordering", "false").append();
-
     List<Types.NestedField> fields =
-        Spark3Util.loadIcebergTable(spark, tableName).schema().asStruct().fields();
-
+        Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
     // Additional columns should not be created
     Assert.assertEquals(2, fields.size());
+
+    // enable spark.sql.caseSensitive
+    sparkSession.sql(String.format("SET %s=true", SQLConf.CASE_SENSITIVE().key()));
+    ds.writeTo(tableName).option("merge-schema", "true").option("check-ordering", "false").append();
+    fields =
+        Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
+    Assert.assertEquals(4, fields.size());
   }
 }
