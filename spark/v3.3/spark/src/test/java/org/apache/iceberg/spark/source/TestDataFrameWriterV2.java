@@ -196,20 +196,22 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
   @Test
   public void testWriteWithCaseSensitiveOption() throws NoSuchTableException, ParseException {
     SparkSession sparkSession = spark.cloneSession();
-    sparkSession.sql(String.format(
-        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
-        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA)).collect();
+    sparkSession
+        .sql(
+            String.format(
+                "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+                tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA))
+        .collect();
 
     String schema = "ID bigint, DaTa string";
-    ImmutableList<String> records = ImmutableList.of(
-        "{ \"id\": 1, \"data\": \"a\" }",
-        "{ \"id\": 2, \"data\": \"b\" }");
+    ImmutableList<String> records =
+        ImmutableList.of("{ \"id\": 1, \"data\": \"a\" }", "{ \"id\": 2, \"data\": \"b\" }");
 
     // disable spark.sql.caseSensitive
     sparkSession.sql(String.format("SET %s=false", SQLConf.CASE_SENSITIVE().key()));
-    Dataset<String> jsonDF = sparkSession.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
-    Dataset<Row> ds = sparkSession
-        .read().schema(schema).json(jsonDF);
+    Dataset<String> jsonDF =
+        sparkSession.createDataset(ImmutableList.copyOf(records), Encoders.STRING());
+    Dataset<Row> ds = sparkSession.read().schema(schema).json(jsonDF);
     // write should succeed
     ds.writeTo(tableName).option("merge-schema", "true").option("check-ordering", "false").append();
     List<Types.NestedField> fields =
@@ -220,8 +222,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     // enable spark.sql.caseSensitive
     sparkSession.sql(String.format("SET %s=true", SQLConf.CASE_SENSITIVE().key()));
     ds.writeTo(tableName).option("merge-schema", "true").option("check-ordering", "false").append();
-    fields =
-        Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
+    fields = Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
     Assert.assertEquals(4, fields.size());
   }
 }
