@@ -51,6 +51,14 @@ class InputStream(Protocol):
     def close(self) -> None:
         ...
 
+    @abstractmethod
+    def __enter__(self):
+        ...
+
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        ...
+
 
 @runtime_checkable
 class OutputStream(Protocol):  # pragma: no cover
@@ -66,6 +74,14 @@ class OutputStream(Protocol):  # pragma: no cover
 
     @abstractmethod
     def close(self) -> None:
+        ...
+
+    @abstractmethod
+    def __enter__(self):
+        ...
+
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, exc_tb):
         ...
 
 

@@ -70,3 +70,9 @@ class MemoryInputStream(InputStream):
     def close(self) -> None:
         del self.buffer
         self.pos = 0
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
