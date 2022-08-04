@@ -118,6 +118,10 @@ public class SnapshotUtil {
     return lastSnapshot;
   }
 
+  public static Snapshot oldestAncestorOf(Table table, long snapshotId) {
+    return oldestAncestorOf(snapshotId, table::snapshot);
+  }
+
   /**
    * Traverses the history and finds the oldest ancestor of the specified snapshot.
    *
@@ -136,10 +140,6 @@ public class SnapshotUtil {
     }
 
     return lastSnapshot;
-  }
-
-  public static Snapshot oldestAncestorOf(Table table, long snapshotId) {
-    return oldestAncestorOf(snapshotId, table::snapshot);
   }
 
   public static Iterable<Snapshot> ancestorsOf(long snapshotId, Function<Long, Snapshot> lookup) {

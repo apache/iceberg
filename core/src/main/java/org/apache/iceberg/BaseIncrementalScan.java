@@ -80,7 +80,7 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
               toSnapshotIdInclusive,
               filter(),
               schema(),
-              false));
+              false /* from snapshot ID inclusive */));
     } else {
       Listeners.notifyAll(
           new IncrementalScanEvent(
@@ -89,7 +89,7 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
               toSnapshotIdInclusive,
               filter(),
               schema(),
-              true));
+              true /* from snapshot ID inclusive */));
     }
 
     return doPlanFiles(fromSnapshotIdExclusive, toSnapshotIdInclusive);
