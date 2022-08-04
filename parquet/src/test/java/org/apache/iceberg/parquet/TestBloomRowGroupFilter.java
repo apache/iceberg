@@ -83,6 +83,8 @@ public class TestBloomRowGroupFilter {
 
   private static final Types.StructType structFieldType =
       Types.StructType.of(Types.NestedField.required(16, "int_field", IntegerType.get()));
+  private static final Types.StructType specialCharacterStructFieldType =
+      Types.StructType.of(Types.NestedField.required(29, "int_field-s", IntegerType.get()));
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", IntegerType.get()),
@@ -110,10 +112,13 @@ public class TestBloomRowGroupFilter {
           optional(24, "binary", Types.BinaryType.get()),
           optional(25, "int_decimal", Types.DecimalType.of(8, 2)),
           optional(26, "long_decimal", Types.DecimalType.of(14, 2)),
-          optional(27, "fixed_decimal", Types.DecimalType.of(31, 2)));
+          optional(27, "fixed_decimal", Types.DecimalType.of(31, 2)),
+          optional(28, "struct_not_null-s", specialCharacterStructFieldType));
 
   private static final Types.StructType _structFieldType =
       Types.StructType.of(Types.NestedField.required(16, "_int_field", IntegerType.get()));
+  private static final Types.StructType _specialCharacterStructFieldType =
+      Types.StructType.of(Types.NestedField.required(29, "_int_field-s", IntegerType.get()));
 
   private static final Schema FILE_SCHEMA =
       new Schema(
@@ -141,7 +146,8 @@ public class TestBloomRowGroupFilter {
           optional(24, "_binary", Types.BinaryType.get()),
           optional(25, "_int_decimal", Types.DecimalType.of(8, 2)),
           optional(26, "_long_decimal", Types.DecimalType.of(14, 2)),
-          optional(27, "_fixed_decimal", Types.DecimalType.of(31, 2)));
+          optional(27, "_fixed_decimal", Types.DecimalType.of(31, 2)),
+          optional(28, "_struct_not_null-s", _specialCharacterStructFieldType));
 
   private static final String TOO_LONG_FOR_STATS;
 
@@ -192,6 +198,11 @@ public class TestBloomRowGroupFilter {
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
+    org.apache.avro.Schema specialCharacterStructSchema =
+        AvroSchemaUtil.convert(_specialCharacterStructFieldType);
+
+    String compatibleStructName = AvroSchemaUtil.makeCompatibleName("_struct_not_null-s");
+    String compatibleStructFieldName = AvroSchemaUtil.makeCompatibleName("_int_field-s");
 
     OutputFile outFile = Files.localOutput(parquetFile);
     try (FileAppender<Record> appender =
@@ -222,6 +233,9 @@ public class TestBloomRowGroupFilter {
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_int_decimal", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_long_decimal", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_fixed_decimal", "true")
+            .set(
+                PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_struct_not_null-s._int_field-s",
+                "true")
             .build()) {
       GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
       // create 50 records
@@ -257,6 +271,9 @@ public class TestBloomRowGroupFilter {
         builder.set("_int_decimal", new BigDecimal(String.valueOf(77.77 + i)));
         builder.set("_long_decimal", new BigDecimal(String.valueOf(88.88 + i)));
         builder.set("_fixed_decimal", new BigDecimal(String.valueOf(99.99 + i)));
+        Record specialCharacterStructNotNull = new Record(specialCharacterStructSchema);
+        specialCharacterStructNotNull.put(compatibleStructFieldName, INT_MIN_VALUE + i);
+        builder.set(compatibleStructName, specialCharacterStructNotNull);
 
         appender.add(builder.build());
       }
@@ -946,6 +963,72 @@ public class TestBloomRowGroupFilter {
     for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, notEqual("struct_not_null.int_field", i))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    }
+  }
+
+  @Test
+  public void testStructFieldWithSpecialCharacterLt() {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(SCHEMA, lessThan("struct_not_null-s.int_field-s", i))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    }
+  }
+
+  @Test
+  public void testStructFieldWithSpecialCharacterLtEq() {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(
+                  SCHEMA, lessThanOrEqual("struct_not_null-s.int_field-s", i))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    }
+  }
+
+  @Test
+  public void testStructFieldWithSpecialCharacterGt() {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(SCHEMA, greaterThan("struct_not_null-s.int_field-s", i))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    }
+  }
+
+  @Test
+  public void testStructFieldWithSpecialCharacterGtEq() {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(
+                  SCHEMA, greaterThanOrEqual("struct_not_null-s.int_field-s", i))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
+    }
+  }
+
+  @Test
+  public void testStructFieldWithSpecialCharacterEq() {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(SCHEMA, equal("struct_not_null-s.int_field-s", i))
+              .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
+      if (i >= INT_MIN_VALUE && i <= INT_MAX_VALUE) {
+        Assert.assertTrue("Should read: value within range", shouldRead);
+      } else {
+        Assert.assertFalse("Should not read: value outside range", shouldRead);
+      }
+    }
+  }
+
+  @Test
+  public void testStructFieldWithSpecialCharacterNotEq() {
+    for (int i = INT_MIN_VALUE - 20; i < INT_MAX_VALUE + 20; i++) {
+      boolean shouldRead =
+          new ParquetBloomRowGroupFilter(SCHEMA, notEqual("struct_not_null-s.int_field-s", i))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       Assert.assertTrue("Should read: bloom filter doesn't help", shouldRead);
     }

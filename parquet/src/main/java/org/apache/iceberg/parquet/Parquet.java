@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -85,9 +86,14 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.parquet.HadoopReadOptions;
@@ -104,8 +110,12 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Parquet {
+  private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
+
   private Parquet() {}
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
@@ -231,6 +241,42 @@ public class Parquet {
       return this;
     }
 
+    private void setBloomFilterConfig(
+        Context context, BiConsumer<String, Boolean> withBloomFilterEnabled) {
+      Splitter dotSplitter = Splitter.on('.');
+      Joiner dotJoiner = Joiner.on(".");
+      context
+          .columnBloomFilterEnabled()
+          .forEach(
+              (columnPath, value) -> {
+                // check the column exists and support bloom filter
+                Types.NestedField field = schema.caseInsensitiveFindField(columnPath);
+                if (field == null) {
+                  LOG.warn(
+                      "Column: {} is not found in the schema: {}, ignore it.", columnPath, schema);
+                  return;
+                }
+                Type fieldType = field.type();
+                // doesn't support boolean, list, map, struct type
+                if (!fieldType.isPrimitiveType()
+                    || fieldType.typeId().equals(Type.TypeID.BOOLEAN)) {
+                  LOG.warn(
+                      "The type: {} of column: {} is not supported for parquet bloom filter, ignore it",
+                      fieldType,
+                      columnPath);
+                  return;
+                }
+
+                String compatibleName =
+                    dotJoiner.join(
+                        Streams.stream(dotSplitter.split(columnPath))
+                            .map(AvroSchemaUtil::makeCompatibleName)
+                            .collect(Collectors.toList()));
+
+                withBloomFilterEnabled.accept(compatibleName, Boolean.valueOf(value));
+              });
+    }
+
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -291,11 +337,7 @@ public class Parquet {
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
                 .withMaxBloomFilterBytes(bloomFilterMaxBytes);
 
-        for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
-          String colPath = entry.getKey();
-          String bloomEnabled = entry.getValue();
-          propsBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
-        }
+        setBloomFilterConfig(context, propsBuilder::withBloomFilterEnabled);
 
         ParquetProperties parquetProperties = propsBuilder.build();
 
@@ -325,11 +367,7 @@ public class Parquet {
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryPageSize(dictionaryPageSize);
 
-        for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
-          String colPath = entry.getKey();
-          String bloomEnabled = entry.getValue();
-          parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
-        }
+        setBloomFilterConfig(context, parquetWriteBuilder::withBloomFilterEnabled);
 
         return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
