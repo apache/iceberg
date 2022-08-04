@@ -482,11 +482,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     // Otherwise, stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
-    String databaseLocation = getDatabaseLocation(tableIdentifier.namespace().levels()[0]);
+    String databaseLocation = databaseLocation(tableIdentifier.namespace().levels()[0]);
     return String.format("%s/%s", databaseLocation, tableIdentifier.name());
   }
 
-  private String getDatabaseLocation(String databaseName) {
+  private String databaseLocation(String databaseName) {
     String warehouseLocation = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
     Preconditions.checkNotNull(
         warehouseLocation, "Warehouse location is not set: hive.metastore.warehouse.dir=null");
@@ -516,7 +516,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     Map<String, String> parameter = Maps.newHashMap();
 
     database.setName(namespace.level(0));
-    database.setLocationUri(getDatabaseLocation(namespace.level(0)));
+    database.setLocationUri(databaseLocation(namespace.level(0)));
 
     meta.forEach(
         (key, value) -> {
