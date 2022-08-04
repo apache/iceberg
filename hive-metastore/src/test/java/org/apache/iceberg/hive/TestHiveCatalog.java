@@ -742,7 +742,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   }
 
   @Test
-  public void testGetWarehouseLocationWithSlashInWarehouseDir() {
+  public void testDatabaseLocationWithSlashInWarehouseDir() {
     Configuration conf = new Configuration();
     // With a trailing slash
     conf.set("hive.metastore.warehouse.dir", "s3://bucket/");
