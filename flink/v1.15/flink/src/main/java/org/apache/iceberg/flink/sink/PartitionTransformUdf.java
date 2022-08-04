@@ -12,11 +12,10 @@
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the Licenet ideajoinet ideajoin for the
+ * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -46,6 +45,8 @@ import org.apache.iceberg.util.Pair;
 public class PartitionTransformUdf {
 
   public static class Truncate extends ScalarFunction {
+
+    public static final String FUNCTION_NAME = "truncates";
 
     private static final Cache<Tuple2<Integer, Type>, Transform<Object, Object>> TRUNCATE_CACHE =
         Caffeine.newBuilder().build();
@@ -77,29 +78,32 @@ public class PartitionTransformUdf {
     }
 
     public BigDecimal eval(int num, BigDecimal value) {
-      Transform<Object, Object> truncate = truncateTransform(
-          num,
-          Types.DecimalType.of(value.precision(), value.scale()));
+      Transform<Object, Object> truncate =
+          truncateTransform(num, Types.DecimalType.of(value.precision(), value.scale()));
       return (BigDecimal) truncate.apply(value);
     }
 
     @Override
     public TypeInference getTypeInference(DataTypeFactory typeFactory) {
       return TypeInference.newBuilder()
-          .outputTypeStrategy(callContext -> {
-            LogicalTypeRoot typeRoot = callContext.getArgumentDataTypes().get(1).getLogicalType().getTypeRoot();
-            if (typeRoot == LogicalTypeRoot.CHAR) {
-              return Optional.of(DataTypes.STRING());
-            } else if (typeRoot == LogicalTypeRoot.BINARY) {
-              return Optional.of(DataTypes.BYTES());
-            }
-            return Optional.of(callContext.getArgumentDataTypes().get(1));
-          })
+          .outputTypeStrategy(
+              callContext -> {
+                LogicalTypeRoot typeRoot =
+                    callContext.getArgumentDataTypes().get(1).getLogicalType().getTypeRoot();
+                if (typeRoot == LogicalTypeRoot.CHAR) {
+                  return Optional.of(DataTypes.STRING());
+                } else if (typeRoot == LogicalTypeRoot.BINARY) {
+                  return Optional.of(DataTypes.BYTES());
+                }
+                return Optional.of(callContext.getArgumentDataTypes().get(1));
+              })
           .build();
     }
   }
 
   public static class Bucket extends ScalarFunction {
+
+    public static final String FUNCTION_NAME = "buckets";
 
     private static final Cache<Pair<Integer, Type>, Transform<Object, Integer>> BUCKET_CACHE =
         Caffeine.newBuilder().build();
@@ -119,9 +123,8 @@ public class PartitionTransformUdf {
     }
 
     public int eval(int num, BigDecimal value) {
-      Transform<Object, Integer> bucket = bucketTransform(
-          num,
-          Types.DecimalType.of(value.precision(), value.scale()));
+      Transform<Object, Integer> bucket =
+          bucketTransform(num, Types.DecimalType.of(value.precision(), value.scale()));
       return bucket.apply(value);
     }
 

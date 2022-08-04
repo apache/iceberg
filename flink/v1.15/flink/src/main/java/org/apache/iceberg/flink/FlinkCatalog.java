@@ -99,7 +99,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
-  private final Map<String, CatalogFunction> partitionFunctions;
+  private final Map<ObjectPath, CatalogFunction> functions;
 
   public FlinkCatalog(
       String catalogName,
@@ -111,7 +111,7 @@ public class FlinkCatalog extends AbstractCatalog {
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
-    this.partitionFunctions = Maps.newHashMap();
+    this.functions = Maps.newHashMap();
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
@@ -168,16 +168,15 @@ public class FlinkCatalog extends AbstractCatalog {
         .collect(Collectors.toList());
   }
 
-  public void registerPartitionFunction(String databaseName) {
-    partitionFunctions.putIfAbsent(databaseName + ".buckets",
-        new CatalogFunctionImpl(PartitionTransformUdf.Bucket.class.getName(), FunctionLanguage.JAVA));
-    partitionFunctions.putIfAbsent(databaseName + ".truncates",
-        new CatalogFunctionImpl(PartitionTransformUdf.Truncate.class.getName(), FunctionLanguage.JAVA));
-  }
-
-  public void deregisterPartitionFunction(String databaseName) {
-    partitionFunctions.remove(databaseName + ".buckets");
-    partitionFunctions.remove(databaseName + ".truncates");
+  private void registerPartitionFunction(String databaseName) {
+    functions.putIfAbsent(
+        new ObjectPath(databaseName, PartitionTransformUdf.Bucket.FUNCTION_NAME),
+        new CatalogFunctionImpl(
+            PartitionTransformUdf.Bucket.class.getName(), FunctionLanguage.JAVA));
+    functions.putIfAbsent(
+        new ObjectPath(databaseName, PartitionTransformUdf.Truncate.FUNCTION_NAME),
+        new CatalogFunctionImpl(
+            PartitionTransformUdf.Truncate.class.getName(), FunctionLanguage.JAVA));
   }
 
   @Override
@@ -259,7 +258,7 @@ public class FlinkCatalog extends AbstractCatalog {
         if (!success && !ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name);
         }
-        deregisterPartitionFunction(name);
+        functions.entrySet().removeIf(entry -> entry.getKey().getDatabaseName().equals(name));
       } catch (NoSuchNamespaceException e) {
         if (!ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name, e);
@@ -674,24 +673,33 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public List<String> listFunctions(String dbName) throws CatalogException {
-    return Collections.emptyList();
+  public List<String> listFunctions(String dbName)
+      throws DatabaseNotExistException, CatalogException {
+
+    if (!databaseExists(dbName)) {
+      throw new DatabaseNotExistException(getName(), dbName);
+    }
+
+    return functions.keySet().stream()
+        .filter(key -> key.getDatabaseName().equals(dbName))
+        .map(ObjectPath::getObjectName)
+        .collect(Collectors.toList());
   }
 
   @Override
   public CatalogFunction getFunction(ObjectPath functionPath)
       throws FunctionNotExistException, CatalogException {
-    CatalogFunction catalogFunction = partitionFunctions.get(functionPath.getFullName());
-    if (catalogFunction == null) {
+
+    if (!functionExists(functionPath)) {
       throw new FunctionNotExistException(getName(), functionPath);
-    } else {
-      return catalogFunction;
     }
+
+    return functions.get(functionPath);
   }
 
   @Override
   public boolean functionExists(ObjectPath functionPath) throws CatalogException {
-    return false;
+    return databaseExists(functionPath.getDatabaseName()) && functions.containsKey(functionPath);
   }
 
   @Override
