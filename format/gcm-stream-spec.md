@@ -84,10 +84,6 @@ AGS encrypts all blocks by the GCM cipher, without padding. The AES GCM cipher m
 
 ### Additional Authenticated Data
 
-The AES GCM cipher protects against byte replacement inside a ciphertext - but, without an AAD, it can't prevent replacement of one ciphertext with another (encrypted with the same key). AGS leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AGS can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflects the identity of a file and of the blocks inside the file.
+The AES GCM cipher protects against byte replacement inside a ciphertext block - but, without an AAD, it can't prevent replacement of one ciphertext block with another (encrypted with the same key). AGS leverages AADs to protect against swapping ciphertext blocks inside a file or between files. AGS can also protect against swapping full files - for example, replacement of a metadata file with an old version. AADs are built to reflects the identity of a file and of the blocks inside the file.
 
-AGS constructs a block AAD from two components: an AAD prefix - a string provided by Iceberg for the file (the file ID), and an AAD suffix (block sequence number in the file, as an int in a 4-byte little-endian form). The block AAD is a direct concatenation of the prefix and suffix parts.
-
-
-
-
+AGS constructs a block AAD from two components: an AAD prefix - a string provided by Iceberg for the file (with the file ID), and an AAD suffix - the block sequence number in the file, as an int in a 4-byte little-endian form. The block AAD is a direct concatenation of the prefix and suffix parts.
