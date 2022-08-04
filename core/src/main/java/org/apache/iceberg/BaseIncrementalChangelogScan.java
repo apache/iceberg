@@ -57,7 +57,7 @@ class BaseIncrementalChangelogScan
       Long fromSnapshotIdExclusive, long toSnapshotIdInclusive) {
 
     Deque<Snapshot> changelogSnapshots =
-        changelogSnapshots(fromSnapshotIdExclusive, toSnapshotIdInclusive);
+        orderedChangelogSnapshots(fromSnapshotIdExclusive, toSnapshotIdInclusive);
 
     if (changelogSnapshots.isEmpty()) {
       return CloseableIterable.empty();
@@ -98,7 +98,9 @@ class BaseIncrementalChangelogScan
         planFiles(), targetSplitSize(), splitLookback(), splitOpenFileCost());
   }
 
-  private Deque<Snapshot> changelogSnapshots(Long fromIdExcl, long toIdIncl) {
+  // builds a collection of changelog snapshots (oldest to newest)
+  // the order of the snapshots is important as it is used to determine change ordinals
+  private Deque<Snapshot> orderedChangelogSnapshots(Long fromIdExcl, long toIdIncl) {
     Deque<Snapshot> changelogSnapshots = new ArrayDeque<>();
 
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table(), toIdIncl, fromIdExcl)) {
@@ -108,7 +110,6 @@ class BaseIncrementalChangelogScan
               "Delete files are currently not supported in changelog scans");
         }
 
-        // insert at the beginning to have old snapshots first
         changelogSnapshots.addFirst(snapshot);
       }
     }
