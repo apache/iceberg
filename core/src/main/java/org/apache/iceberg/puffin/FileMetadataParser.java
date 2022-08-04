@@ -95,11 +95,9 @@ public final class FileMetadataParser {
   static FileMetadata fileMetadataFromJson(JsonNode json) {
 
     ImmutableList.Builder<BlobMetadata> blobs = ImmutableList.builder();
-    JsonNode blobsJson = json.get(BLOBS);
+    JsonNode blobsJson = JsonUtil.get(BLOBS, json);
     Preconditions.checkArgument(
-        blobsJson != null && blobsJson.isArray(),
-        "Cannot parse blobs from non-array: %s",
-        blobsJson);
+        blobsJson.isArray(), "Cannot parse blobs from non-array: %s", blobsJson);
     for (JsonNode blobJson : blobsJson) {
       blobs.add(blobMetadataFromJson(blobJson));
     }
