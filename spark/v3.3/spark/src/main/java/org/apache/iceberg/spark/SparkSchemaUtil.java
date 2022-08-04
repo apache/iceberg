@@ -187,13 +187,7 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
    */
   public static Schema convert(Schema baseSchema, StructType sparkType) {
-    // convert to a type with fresh ids
-    Types.StructType struct =
-        SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
-    // reassign ids to match the base schema
-    Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
-    // fix types that can't be represented in Spark (UUID and Fixed)
-    return SparkFixupTypes.fixup(schema, baseSchema);
+    return convert(baseSchema, sparkType, true);
   }
 
   /**
