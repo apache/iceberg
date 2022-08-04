@@ -54,7 +54,13 @@ class FromInputFile:
             TableMetadata: A table metadata instance
 
         """
-        return FromByteStream.table_metadata(byte_stream=input_file.open(), encoding=encoding)
+        # 😢 https://github.com/apache/iceberg/pull/5436
+        # with PyArrowFile(metadata_location) as file:
+        #     metadata = TableMetadata.parse_obj(json.loads(file.read()))
+        f = input_file.open()
+        metadata = FromByteStream.table_metadata(byte_stream=f, encoding=encoding)
+        f.close()
+        return metadata
 
 
 class ToOutputFile:

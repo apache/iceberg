@@ -15,6 +15,8 @@
 #  specific language governing permissions and limitations
 #  under the License.
 # pylint: disable=protected-access,redefined-outer-name
+import uuid
+from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -32,7 +34,7 @@ from hive_metastore.ttypes import (
 from hive_metastore.ttypes import Table as HiveTable
 
 from pyiceberg.catalog.base import PropertiesUpdateSummary
-from pyiceberg.catalog.hive import HiveCatalog
+from pyiceberg.catalog.hive import HiveCatalog, _construct_hive_storage_descriptor
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -40,13 +42,36 @@ from pyiceberg.exceptions import (
     NoSuchTableError,
 )
 from pyiceberg.schema import Schema
+from pyiceberg.serializers import ToOutputFile
+from pyiceberg.table.metadata import TableMetadataV2
+from pyiceberg.table.partitioning import PartitionField, PartitionSpec
+from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
+from pyiceberg.table.snapshots import Operation, Snapshot, Summary
+from pyiceberg.table.sorting import (
+    NullOrder,
+    SortDirection,
+    SortField,
+    SortOrder,
+)
+from pyiceberg.transforms import BucketTransform, IdentityTransform
+from pyiceberg.types import (
+    BooleanType,
+    IntegerType,
+    LongType,
+    NestedField,
+    StringType,
+)
+from tests.conftest import LocalFileIO
 
 HIVE_CATALOG_NAME = "hive"
 HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"
 
 
 @pytest.fixture
-def hive_table() -> HiveTable:
+def hive_table(tmp_path_factory, example_table_metadata_v2: Dict[str, Any]) -> HiveTable:
+    metadata_path = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}-metadata.json")
+    ToOutputFile.table_metadata(TableMetadataV2(**example_table_metadata_v2), LocalFileIO().new_output(str(metadata_path)), True)
+
     return HiveTable(
         tableName="new_tabl2e",
         dbName="default",
@@ -81,7 +106,12 @@ def hive_table() -> HiveTable:
             storedAsSubDirectories=False,
         ),
         partitionKeys=[],
-        parameters={"EXTERNAL": "TRUE", "transient_lastDdlTime": "1659092339"},
+        parameters={
+            "EXTERNAL": "TRUE",
+            "transient_lastDdlTime": "1659092339",
+            "table_type": "ICEBERG",
+            "metadata_location": metadata_path,
+        },
         viewOriginalText=None,
         viewExpandedText=None,
         tableType="EXTERNAL_TABLE",
@@ -105,11 +135,11 @@ def hive_table() -> HiveTable:
 
 
 @pytest.fixture
-def hive_database() -> HiveDatabase:
+def hive_database(tmp_path_factory) -> HiveDatabase:
     return HiveDatabase(
         name="default",
         description=None,
-        locationUri="file:/tmp/default2.db",
+        locationUri=str(tmp_path_factory.mktemp("database") / "database"),
         parameters={"test": "property"},
         privileges=None,
         ownerName=None,
@@ -139,15 +169,15 @@ def test_check_number_of_namespaces(table_schema_simple: Schema):
         catalog.create_table("table", schema=table_schema_simple)
 
 
-@patch("time.time", MagicMock(return_value=12345000))
-def test_create_table(table_schema_simple: Schema, hive_table: HiveTable):
+@patch("time.time", MagicMock(return_value=12345))
+def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, hive_table: HiveTable):
     catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
 
     catalog._client = MagicMock()
-    catalog._client.__enter__().create_table.return_value = hive_table
+    catalog._client.__enter__().create_table.return_value = None
     catalog._client.__enter__().get_table.return_value = hive_table
-
-    catalog.create_table(("default", "table"), schema=table_schema_simple, properties={"owner": "javaberg"})
+    catalog._client.__enter__().get_database.return_value = hive_database
+    table = catalog.create_table(("default", "table"), schema=table_schema_simple, properties={"owner": "javaberg"})
 
     catalog._client.__enter__().create_table.assert_called_with(
         HiveTable(
@@ -163,7 +193,7 @@ def test_create_table(table_schema_simple: Schema, hive_table: HiveTable):
                     FieldSchema(name="bar", type="int", comment=None),
                     FieldSchema(name="baz", type="boolean", comment=None),
                 ],
-                location=None,
+                location=f"{hive_database.locationUri}/table/",
                 inputFormat="org.apache.hadoop.mapred.FileInputFormat",
                 outputFormat="org.apache.hadoop.mapred.FileOutputFormat",
                 compressed=None,
@@ -184,7 +214,7 @@ def test_create_table(table_schema_simple: Schema, hive_table: HiveTable):
                 storedAsSubDirectories=None,
             ),
             partitionKeys=None,
-            parameters={"EXTERNAL": "TRUE", "table_type": "ICEBERG", "metadata_location": "s3://"},
+            parameters={"EXTERNAL": "TRUE", "table_type": "ICEBERG", "metadata_location": table.metadata_location},
             viewOriginalText=None,
             viewExpandedText=None,
             tableType="EXTERNAL_TABLE",
@@ -206,6 +236,39 @@ def test_create_table(table_schema_simple: Schema, hive_table: HiveTable):
             txnId=None,
         )
     )
+    assert table.metadata_location and table.metadata_location.endswith(".metadata.json")
+
+    assert table.identifier == ("default", "new_tabl2e")
+    assert table.metadata.location.endswith("database/table/")
+    assert table.metadata == TableMetadataV2(
+        location=table.metadata.location,
+        table_uuid=table.metadata.table_uuid,
+        last_updated_ms=12345,
+        last_column_id=3,
+        schemas=[
+            Schema(
+                NestedField(field_id=1, name="foo", field_type=StringType(), required=False),
+                NestedField(field_id=2, name="bar", field_type=IntegerType(), required=True),
+                NestedField(field_id=3, name="baz", field_type=BooleanType(), required=False),
+                schema_id=1,
+                identifier_field_ids=[2],
+            )
+        ],
+        current_schema_id=1,
+        partition_specs=[PartitionSpec(spec_id=0, fields=())],
+        default_spec_id=0,
+        last_partition_id=0,
+        properties={"owner": "javaberg"},
+        current_snapshot_id=None,
+        snapshots=[],
+        snapshot_log=[],
+        metadata_log=[],
+        sort_orders=[SortOrder(order_id=0)],
+        default_sort_order_id=0,
+        refs={},
+        format_version=2,
+        last_sequence_number=0,
+    )
 
 
 def test_load_table(hive_table: HiveTable):
@@ -213,9 +276,92 @@ def test_load_table(hive_table: HiveTable):
 
     catalog._client = MagicMock()
     catalog._client.__enter__().get_table.return_value = hive_table
-    catalog.load_table(("default", "table"))
+    table = catalog.load_table(("default", "new_tabl2e"))
 
-    catalog._client.__enter__().get_table.assert_called_with(dbname="default", tbl_name="table")
+    catalog._client.__enter__().get_table.assert_called_with(dbname="default", tbl_name="new_tabl2e")
+
+    assert table.identifier == ("default", "new_tabl2e")
+    assert table.metadata == TableMetadataV2(
+        location="s3://bucket/test/location",
+        table_uuid=uuid.UUID("9c12d441-03fe-4693-9a96-a0705ddf69c1"),
+        last_updated_ms=1602638573590,
+        last_column_id=3,
+        schemas=[
+            Schema(
+                NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+                schema_id=0,
+                identifier_field_ids=[],
+            ),
+            Schema(
+                NestedField(field_id=1, name="x", field_type=LongType(), required=True),
+                NestedField(field_id=2, name="y", field_type=LongType(), required=True, doc="comment"),
+                NestedField(field_id=3, name="z", field_type=LongType(), required=True),
+                schema_id=1,
+                identifier_field_ids=[1, 2],
+            ),
+        ],
+        current_schema_id=1,
+        partition_specs=[
+            PartitionSpec(
+                spec_id=0, fields=(PartitionField(source_id=1, field_id=1000, transform=IdentityTransform(), name="x"),)
+            )
+        ],
+        default_spec_id=0,
+        last_partition_id=1000,
+        properties={"read.split.target.size": "134217728"},
+        current_snapshot_id=3055729675574597004,
+        snapshots=[
+            Snapshot(
+                snapshot_id=3051729675574597004,
+                parent_snapshot_id=None,
+                sequence_number=0,
+                timestamp_ms=1515100955770,
+                manifest_list="s3://a/b/1.avro",
+                summary=Summary(Operation.APPEND),
+                schema_id=None,
+            ),
+            Snapshot(
+                snapshot_id=3055729675574597004,
+                parent_snapshot_id=3051729675574597004,
+                sequence_number=1,
+                timestamp_ms=1555100955770,
+                manifest_list="s3://a/b/2.avro",
+                summary=Summary(Operation.APPEND),
+                schema_id=1,
+            ),
+        ],
+        snapshot_log=[
+            {"snapshot-id": 3051729675574597004, "timestamp-ms": 1515100955770},
+            {"snapshot-id": 3055729675574597004, "timestamp-ms": 1555100955770},
+        ],
+        metadata_log=[],
+        sort_orders=[
+            SortOrder(
+                3,
+                SortField(
+                    source_id=2, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST
+                ),
+                SortField(
+                    source_id=3,
+                    transform=BucketTransform(num_buckets=4),
+                    direction=SortDirection.DESC,
+                    null_order=NullOrder.NULLS_LAST,
+                ),
+            )
+        ],
+        default_sort_order_id=3,
+        refs={
+            "main": SnapshotRef(
+                snapshot_id=3055729675574597004,
+                snapshot_ref_type=SnapshotRefType.BRANCH,
+                min_snapshots_to_keep=None,
+                max_snapshot_age_ms=None,
+                max_ref_age_ms=None,
+            )
+        },
+        format_version=2,
+        last_sequence_number=34,
+    )
 
 
 def test_rename_table_from_does_not_exists():
@@ -377,7 +523,7 @@ def test_load_namespace_properties(hive_database: HiveDatabase):
     catalog._client = MagicMock()
     catalog._client.__enter__().get_database.return_value = hive_database
 
-    assert catalog.load_namespace_properties("default2") == {"location": "file:/tmp/default2.db", "test": "property"}
+    assert catalog.load_namespace_properties("default2") == {"location": hive_database.locationUri, "test": "property"}
 
     catalog._client.__enter__().get_database.assert_called_with(name="default2")
 
@@ -410,7 +556,7 @@ def test_update_namespace_properties(hive_database: HiveDatabase):
         HiveDatabase(
             name="default",
             description=None,
-            locationUri="file:/tmp/default2.db",
+            locationUri=hive_database.locationUri,
             parameters={"test": None, "label": "core"},
             privileges=None,
             ownerName=None,
@@ -444,3 +590,67 @@ def test_update_namespace_properties_overlap():
         catalog.update_namespace_properties(("table",), removals=set("a"), updates={"a": "b"})
 
     assert "Updates and deletes have an overlap: {'a'}" in str(exc_info.value)
+
+
+def test_construct_hive_storage_descriptor_simple(table_schema_simple: Schema):
+    descriptor = _construct_hive_storage_descriptor(table_schema_simple, "s3://")
+    assert descriptor == StorageDescriptor(
+        cols=[
+            FieldSchema(name="foo", type="string", comment=None),
+            FieldSchema(name="bar", type="int", comment=None),
+            FieldSchema(name="baz", type="boolean", comment=None),
+        ],
+        location="s3://",
+        inputFormat="org.apache.hadoop.mapred.FileInputFormat",
+        outputFormat="org.apache.hadoop.mapred.FileOutputFormat",
+        compressed=None,
+        numBuckets=None,
+        serdeInfo=SerDeInfo(
+            name=None,
+            serializationLib="org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+            parameters=None,
+            description=None,
+            serializerClass=None,
+            deserializerClass=None,
+            serdeType=None,
+        ),
+        bucketCols=None,
+        sortCols=None,
+        parameters=None,
+        skewedInfo=None,
+        storedAsSubDirectories=None,
+    )
+
+
+def test_construct_hive_storage_descriptor_nested(table_schema_nested: Schema):
+    descriptor = _construct_hive_storage_descriptor(table_schema_nested, "s3://")
+    assert descriptor == StorageDescriptor(
+        cols=[
+            FieldSchema(name="foo", type="string", comment=None),
+            FieldSchema(name="bar", type="int", comment=None),
+            FieldSchema(name="baz", type="boolean", comment=None),
+            FieldSchema(name="qux", type="array<string>", comment=None),
+            FieldSchema(name="quux", type="map<string, map<string, int>>", comment=None),
+            FieldSchema(name="location", type="array<struct<latitude: float, longitude: float>>", comment=None),
+            FieldSchema(name="person", type="struct<name: string, age: int>", comment=None),
+        ],
+        location="s3://",
+        inputFormat="org.apache.hadoop.mapred.FileInputFormat",
+        outputFormat="org.apache.hadoop.mapred.FileOutputFormat",
+        compressed=None,
+        numBuckets=None,
+        serdeInfo=SerDeInfo(
+            name=None,
+            serializationLib="org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+            parameters=None,
+            description=None,
+            serializerClass=None,
+            deserializerClass=None,
+            serdeType=None,
+        ),
+        bucketCols=None,
+        sortCols=None,
+        parameters=None,
+        skewedInfo=None,
+        storedAsSubDirectories=None,
+    )

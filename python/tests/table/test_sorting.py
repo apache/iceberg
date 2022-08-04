@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Any, Dict
+
 from pyiceberg.table.metadata import TableMetadata
 from pyiceberg.table.sorting import (
     UNSORTED_SORT_ORDER,
@@ -23,7 +25,6 @@ from pyiceberg.table.sorting import (
     SortOrder,
 )
 from pyiceberg.transforms import BucketTransform, IdentityTransform, VoidTransform
-from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V2
 
 
 def test_serialize_sort_order_unsorted():
@@ -53,8 +54,8 @@ def test_deserialize_sort_order():
     assert SortOrder.parse_raw(payload) == expected
 
 
-def test_sorting_schema():
-    table_metadata = TableMetadata.parse_obj(EXAMPLE_TABLE_METADATA_V2)
+def test_sorting_schema(example_table_metadata_v2: Dict[str, Any]):
+    table_metadata = TableMetadata.parse_obj(example_table_metadata_v2)
 
     assert table_metadata.sort_orders == [
         SortOrder(
