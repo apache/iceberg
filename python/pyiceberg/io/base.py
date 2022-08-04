@@ -187,6 +187,18 @@ class FileIO(ABC):
         """
 
     @abstractmethod
+    def mkdir(self, location: Union[str, InputFile, OutputFile], recursive: bool = True) -> None:
+        """Creates the directory (including parent directories)
+
+        Args:
+            location: The path to the directory
+            recursive: Create the parent directories recursively
+
+        Raises:
+            PermissionError: If the file at location cannot be accessed due to a permission error
+        """
+
+    @abstractmethod
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given path
 

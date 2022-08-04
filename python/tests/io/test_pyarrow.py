@@ -195,6 +195,18 @@ def test_raise_on_delete_file_with_no_permission():
         assert "Cannot delete file" in str(exc_info.value)
 
 
+def test_mkdir():
+    """Creates a directory"""
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        file_location = os.path.join(tmpdirname, "another_dir")
+        file_io = PyArrowFileIO()
+
+        file_io.mkdir(file_location)
+
+        assert os.path.isdir(file_location)
+
+
 @patch("pyiceberg.io.pyarrow.PyArrowFile.exists", return_value=False)
 @patch("pyiceberg.io.pyarrow.FileSystem")
 def test_raise_on_opening_an_s3_file_no_permission(filesystem_mock, exists_mock):

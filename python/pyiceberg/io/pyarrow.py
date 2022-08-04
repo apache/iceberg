@@ -187,6 +187,20 @@ class PyArrowFileIO(FileIO):
         """
         return PyArrowFile(location)
 
+    def mkdir(self, location: Union[str, InputFile, OutputFile], recursive: bool = True):
+        """Creates a directory
+
+        Args:
+            location: The path to the directory
+            recursive: Create the parent directories recursively
+
+        Raises:
+            PermissionError: If the file at location cannot be accessed due to a permission error
+        """
+        str_path = location.location if isinstance(location, (InputFile, OutputFile)) else location
+        filesystem, path = FileSystem.from_uri(str_path)  # Infer the proper filesystem
+        filesystem.create_dir(path, recursive=recursive)
+
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         """Delete the file at the given location
 

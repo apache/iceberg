@@ -118,6 +118,11 @@ class LocalFileIO(FileIO):
     def new_output(self, location: str):
         return LocalOutputFile(location=location)
 
+    def mkdir(self, location: Union[str, InputFile, OutputFile], recursive: bool = True) -> None:
+        location = location.location if isinstance(location, (InputFile, OutputFile)) else location
+        parsed_location = urlparse(location)
+        os.mkdir(parsed_location.path)
+
     def delete(self, location: Union[str, InputFile, OutputFile]) -> None:
         location = location.location if isinstance(location, (InputFile, OutputFile)) else location
         parsed_location = urlparse(location)
