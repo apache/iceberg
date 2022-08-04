@@ -410,4 +410,14 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   default UpdateSchema setIdentifierFields(String... names) {
     return setIdentifierFields(Sets.newHashSet(names));
   }
+
+  /**
+   * Determines if the case of schema needs to be considered when comparing column names
+   *
+   * @param caseSensitive when false case is not considered in column name comparisons.
+   * @return this for method chaining
+   */
+  default UpdateSchema caseSensitive(boolean caseSensitive) {
+    throw new UnsupportedOperationException();
+  }
 }
