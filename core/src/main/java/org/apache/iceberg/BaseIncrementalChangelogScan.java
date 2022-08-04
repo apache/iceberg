@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.Map;
 import java.util.Set;
@@ -63,8 +64,7 @@ class BaseIncrementalChangelogScan
       return CloseableIterable.empty();
     }
 
-    Set<Long> changelogSnapshotIds =
-        changelogSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+    Set<Long> changelogSnapshotIds = toSnapshotIds(changelogSnapshots);
 
     Set<ManifestFile> newDataManifests =
         FluentIterable.from(changelogSnapshots)
@@ -115,6 +115,10 @@ class BaseIncrementalChangelogScan
     }
 
     return changelogSnapshots;
+  }
+
+  private Set<Long> toSnapshotIds(Collection<Snapshot> snapshots) {
+    return snapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
   }
 
   private static Map<Long, Integer> computeSnapshotOrdinals(Deque<Snapshot> snapshots) {
