@@ -189,11 +189,22 @@ public class SparkScanBuilder
         "Cannot set both %s and %s to select which table snapshot to scan",
         SparkReadOptions.SNAPSHOT_ID,
         SparkReadOptions.AS_OF_TIMESTAMP);
+    Preconditions.checkArgument(
+        snapshotId == null || snapshotRef == null,
+        "Cannot set both %s and %s to select which table snapshot to scan",
+        SparkReadOptions.SNAPSHOT_ID,
+        SparkReadOptions.SNAPSHOT_REF);
+    Preconditions.checkArgument(
+        asOfTimestamp == null || snapshotRef == null,
+        "Cannot set both %s and %s to select which table snapshot to scan",
+        SparkReadOptions.AS_OF_TIMESTAMP,
+        SparkReadOptions.SNAPSHOT_REF);
+
 
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
 
-    if (snapshotId != null || asOfTimestamp != null) {
+    if (snapshotId != null || asOfTimestamp != null || snapshotRef != null) {
       Preconditions.checkArgument(
           startSnapshotId == null && endSnapshotId == null,
           "Cannot set %s and %s for incremental scans when either %s or %s is set",
