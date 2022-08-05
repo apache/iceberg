@@ -41,6 +41,7 @@ class SparkBatchQueryScan extends SparkBatchScan {
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
+  private final String snapshotRef;
   private final Long asOfTimestamp;
   private final Long splitSize;
   private final Integer splitLookback;
@@ -61,6 +62,8 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
     this.snapshotId = readConf.snapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
+    this.snapshotRef = readConf.snapshotRef();
+
 
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
@@ -101,6 +104,10 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
       if (asOfTimestamp != null) {
         scan = scan.asOfTime(asOfTimestamp);
+      }
+
+      if (snapshotRef != null) {
+        scan = scan.useSnapshotRef(snapshotRef);
       }
 
       if (startSnapshotId != null) {
