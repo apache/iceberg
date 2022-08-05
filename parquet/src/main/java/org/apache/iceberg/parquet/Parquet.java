@@ -253,7 +253,10 @@ public class Parquet {
                 Types.NestedField field = schema.caseInsensitiveFindField(columnPath);
                 if (field == null) {
                   LOG.warn(
-                      "Column: {} is not found in the schema: {}, ignore it.", columnPath, schema);
+                      "Invalid bloom filter column configuration, field: {} is not found in the schema: {}, "
+                          + "this column configuration will be ignored.",
+                      columnPath,
+                      schema);
                   return;
                 }
                 Type fieldType = field.type();
@@ -261,9 +264,10 @@ public class Parquet {
                 if (!fieldType.isPrimitiveType()
                     || fieldType.typeId().equals(Type.TypeID.BOOLEAN)) {
                   LOG.warn(
-                      "The type: {} of column: {} is not supported for parquet bloom filter, ignore it",
-                      fieldType,
-                      columnPath);
+                      "Invalid bloom filter column configuration: field {} is of type '{}' which cannot "
+                          + "benefit from a bloom filter. This column configuration will be ignored.",
+                      columnPath,
+                      fieldType);
                   return;
                 }
 
