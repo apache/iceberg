@@ -101,7 +101,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
           .ofPositionDeletes()
           .withPath("/path/to/data-a-pos-deletes.parquet")
           .withFileSizeInBytes(10)
-          .withPartitionPath("c1=0") // easy way to set partition data for now
+          .withPartition(TestHelpers.Row.of(0))
           .withRecordCount(1)
           .build();
   static final DeleteFile FILE_A_EQ_DELETES =
@@ -109,7 +109,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
           .ofEqualityDeletes()
           .withPath("/path/to/data-a-eq-deletes.parquet")
           .withFileSizeInBytes(10)
-          .withPartitionPath("c1=0") // easy way to set partition data for now
+          .withPartition(TestHelpers.Row.of(0))
           .withRecordCount(1)
           .build();
 

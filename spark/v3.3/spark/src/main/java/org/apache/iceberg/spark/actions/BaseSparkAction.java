@@ -68,9 +68,6 @@ import scala.Tuple2;
 
 abstract class BaseSparkAction<ThisT> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseSparkAction.class);
-
-  protected static final String CONTENT_FILE = "Content File";
   protected static final String MANIFEST = "Manifest";
   protected static final String MANIFEST_LIST = "Manifest List";
   protected static final String OTHERS = "Others";
@@ -79,6 +76,7 @@ abstract class BaseSparkAction<ThisT> {
   protected static final String FILE_TYPE = "file_type";
   protected static final String LAST_MODIFIED = "last_modified";
 
+  private static final Logger LOG = LoggerFactory.getLogger(BaseSparkAction.class);
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
   private static final int DELETE_NUM_RETRIES = 3;
 
