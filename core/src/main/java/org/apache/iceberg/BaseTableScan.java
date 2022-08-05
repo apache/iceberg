@@ -96,9 +96,9 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
 
   @Override
   public TableScan useSnapshotRef(String snapshotRef) {
-    Preconditions.checkArgument(ops.current().ref(snapshotRef) != null,
+    Preconditions.checkArgument(table().snapshot(snapshotRef) != null,
         "Cannot find ref with name %s", snapshotRef);
-    return useSnapshot(table.snapshot(snapshotRef).snapshotId());
+    return useSnapshot(table().snapshot(snapshotRef).snapshotId());
   }
 
   @Override
