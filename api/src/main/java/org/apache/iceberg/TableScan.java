@@ -16,17 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-import java.util.Collection;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-/**
- * API for configuring a table scan.
- */
-public interface TableScan extends Scan<TableScan> {
+/** API for configuring a table scan. */
+public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTask> {
   /**
    * Returns the {@link Table} from which this scan loads data.
    *
@@ -77,84 +72,37 @@ public interface TableScan extends Scan<TableScan> {
   }
 
   /**
-   * Returns this scan's filter {@link Expression}.
-   *
-   * @return this scan's filter expression
-   */
-  Expression filter();
-
-  /**
-   * Create a new {@link TableScan} from this that applies data filtering to files but not to rows in those files.
-   *
-   * @return a new scan based on this that does not filter rows in files.
-   */
-  TableScan ignoreResiduals();
-
-  /**
-   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to {@code toSnapshotId}
-   * inclusive.
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to
+   * {@code toSnapshotId} inclusive.
    *
    * @param fromSnapshotId the last snapshot id read by the user, exclusive
    * @param toSnapshotId read append data up to this snapshot id
-   * @return a table scan which can read append data from {@code fromSnapshotId}
-   * exclusive and up to {@code toSnapshotId} inclusive
+   * @return a table scan which can read append data from {@code fromSnapshotId} exclusive and up to
+   *     {@code toSnapshotId} inclusive
    */
   default TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
     throw new UnsupportedOperationException("Incremental scan is not supported");
   }
 
   /**
-   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to the current snapshot
-   * inclusive.
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to
+   * the current snapshot inclusive.
    *
    * @param fromSnapshotId - the last snapshot id read by the user, exclusive
-   * @return a table scan which can read append data from {@code fromSnapshotId}
-   * exclusive and up to current snapshot inclusive
+   * @return a table scan which can read append data from {@code fromSnapshotId} exclusive and up to
+   *     current snapshot inclusive
    */
   default TableScan appendsAfter(long fromSnapshotId) {
     throw new UnsupportedOperationException("Incremental scan is not supported");
   }
 
   /**
-   * Returns this scan's projection {@link Schema}.
-   * <p>
-   * If the projection schema was set directly using {@link #project(Schema)}, returns that schema.
-   * <p>
-   * If the projection schema was set by calling {@link #select(Collection)}, returns a projection
-   * schema that includes the selected data fields and any fields used in the filter expression.
-   *
-   * @return this scan's projection schema
-   */
-  Schema schema();
-
-  /**
    * Returns the {@link Snapshot} that will be used by this scan.
-   * <p>
-   * If the snapshot was not configured using {@link #asOfTime(long)} or {@link #useSnapshot(long)}, the current table
-   * snapshot will be used.
+   *
+   * <p>If the snapshot was not configured using {@link #asOfTime(long)} or {@link
+   * #useSnapshot(long)}, the current table snapshot will be used.
    *
    * @return the Snapshot this scan will use
    */
   Snapshot snapshot();
-
-  /**
-   * Returns whether this scan should apply column name case sensitiveness as per {@link #caseSensitive(boolean)}.
-   * @return true if case sensitive, false otherwise.
-   */
-  boolean isCaseSensitive();
-
-  /**
-   * Returns the target split size for this scan.
-   */
-  long targetSplitSize();
-
-  /**
-   * Returns the split lookback for this scan.
-   */
-  int splitLookback();
-
-  /**
-   * Returns the split open file cost for this scan.
-   */
-  long splitOpenFileCost();
 }

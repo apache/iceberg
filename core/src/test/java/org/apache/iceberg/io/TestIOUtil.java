@@ -16,13 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,8 +37,10 @@ public class TestIOUtil {
     MockInputStream stream = new MockInputStream();
     IOUtil.readFully(stream, buffer, 0, buffer.length);
 
-    Assert.assertArrayEquals("Byte array contents should match",
-        Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5), buffer);
+    Assert.assertArrayEquals(
+        "Byte array contents should match",
+        Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5),
+        buffer);
     Assert.assertEquals("Stream position should reflect bytes read", 5, stream.getPos());
   }
 
@@ -46,8 +51,10 @@ public class TestIOUtil {
     MockInputStream stream = new MockInputStream(2, 3, 3);
     IOUtil.readFully(stream, buffer, 0, buffer.length);
 
-    Assert.assertArrayEquals("Byte array contents should match",
-        Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5), buffer);
+    Assert.assertArrayEquals(
+        "Byte array contents should match",
+        Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5),
+        buffer);
     Assert.assertEquals("Stream position should reflect bytes read", 5, stream.getPos());
   }
 
@@ -58,11 +65,14 @@ public class TestIOUtil {
     final MockInputStream stream = new MockInputStream(2, 3, 3);
     IOUtil.readFully(stream, buffer, 0, buffer.length);
 
-    Assert.assertArrayEquals("Byte array contents should match", MockInputStream.TEST_ARRAY, buffer);
+    Assert.assertArrayEquals(
+        "Byte array contents should match", MockInputStream.TEST_ARRAY, buffer);
     Assert.assertEquals("Stream position should reflect bytes read", 10, stream.getPos());
 
-    AssertHelpers.assertThrows("Should throw EOFException if no more bytes left",
-        EOFException.class, () -> {
+    AssertHelpers.assertThrows(
+        "Should throw EOFException if no more bytes left",
+        EOFException.class,
+        () -> {
           IOUtil.readFully(stream, buffer, 0, 1);
           return null;
         });
@@ -74,14 +84,18 @@ public class TestIOUtil {
 
     final MockInputStream stream = new MockInputStream(2, 3, 3);
 
-    AssertHelpers.assertThrows("Should throw EOFException if no more bytes left",
-        EOFException.class, () -> {
+    AssertHelpers.assertThrows(
+        "Should throw EOFException if no more bytes left",
+        EOFException.class,
+        () -> {
           IOUtil.readFully(stream, buffer, 0, buffer.length);
           return null;
         });
 
-    Assert.assertArrayEquals("Should have consumed bytes",
-        MockInputStream.TEST_ARRAY, Arrays.copyOfRange(buffer, 0, 10));
+    Assert.assertArrayEquals(
+        "Should have consumed bytes",
+        MockInputStream.TEST_ARRAY,
+        Arrays.copyOfRange(buffer, 0, 10));
     Assert.assertEquals("Stream position should reflect bytes read", 10, stream.getPos());
   }
 
@@ -92,8 +106,10 @@ public class TestIOUtil {
     MockInputStream stream = new MockInputStream();
     IOUtil.readFully(stream, buffer, 2, 5);
 
-    Assert.assertArrayEquals("Byte array contents should match",
-        Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5), Arrays.copyOfRange(buffer, 2, 7));
+    Assert.assertArrayEquals(
+        "Byte array contents should match",
+        Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5),
+        Arrays.copyOfRange(buffer, 2, 7));
     Assert.assertEquals("Stream position should reflect bytes read", 5, stream.getPos());
   }
 
@@ -114,9 +130,20 @@ public class TestIOUtil {
     MockInputStream stream = new MockInputStream(2, 2, 3);
     IOUtil.readFully(stream, buffer, 2, 5);
 
-    Assert.assertArrayEquals("Byte array contents should match",
-        Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5), Arrays.copyOfRange(buffer, 2, 7));
+    Assert.assertArrayEquals(
+        "Byte array contents should match",
+        Arrays.copyOfRange(MockInputStream.TEST_ARRAY, 0, 5),
+        Arrays.copyOfRange(buffer, 2, 7));
     Assert.assertEquals("Stream position should reflect bytes read", 5, stream.getPos());
   }
 
+  @Test
+  public void testWriteFully() throws Exception {
+    byte[] input = Strings.repeat("Welcome to Warsaw!\n", 12345).getBytes(StandardCharsets.UTF_8);
+    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    try (PositionOutputStream outputStream = outputFile.create()) {
+      IOUtil.writeFully(outputStream, ByteBuffer.wrap(input.clone()));
+    }
+    Assertions.assertThat(outputFile.toByteArray()).isEqualTo(input);
+  }
 }

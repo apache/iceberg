@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
@@ -27,7 +26,8 @@ public class BaseFileGroupRewriteResult implements FileGroupRewriteResult {
   private final int rewrittenDataFilesCount;
   private final FileGroupInfo info;
 
-  public BaseFileGroupRewriteResult(FileGroupInfo info, int addedFilesCount, int rewrittenFilesCount) {
+  public BaseFileGroupRewriteResult(
+      FileGroupInfo info, int addedFilesCount, int rewrittenFilesCount) {
     this.info = info;
     this.addedDataFilesCount = addedFilesCount;
     this.rewrittenDataFilesCount = rewrittenFilesCount;

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import java.io.UncheckedIOException;
@@ -34,11 +33,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class RESTUtil {
-  private static final Joiner NULL_JOINER = Joiner.on("%00");
-  private static final Splitter NULL_SPLITTER = Splitter.on("%00");
+  private static final char NAMESPACE_SEPARATOR = '\u001f';
+  public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
+  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
+  private static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
+  private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
+  private static final Splitter NAMESPACE_ESCAPED_SPLITTER =
+      Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
 
-  private RESTUtil() {
-  }
+  private RESTUtil() {}
 
   public static String stripTrailingSlash(String path) {
     if (path == null) {
@@ -62,11 +65,12 @@ public class RESTUtil {
   public static Map<String, String> merge(Map<String, String> target, Map<String, String> updates) {
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
 
-    target.forEach((key, value) -> {
-      if (!updates.containsKey(key)) {
-        builder.put(key, value);
-      }
-    });
+    target.forEach(
+        (key, value) -> {
+          if (!updates.containsKey(key)) {
+            builder.put(key, value);
+          }
+        });
 
     updates.forEach(builder::put);
 
@@ -74,23 +78,25 @@ public class RESTUtil {
   }
 
   /**
-   * Takes in a map, and returns a copy filtered on the entries with keys beginning with the designated prefix.
-   * The keys are returned with the prefix removed.
-   * <p>
-   * Any entries whose keys don't begin with the prefix are not returned.
-   * <p>
-   * This can be used to get a subset of the configuration related to the REST catalog, such as all
-   * properties from a prefix of `spark.sql.catalog.my_catalog.rest.` to get REST catalog specific properties
-   * from the spark configuration.
+   * Takes in a map, and returns a copy filtered on the entries with keys beginning with the
+   * designated prefix. The keys are returned with the prefix removed.
+   *
+   * <p>Any entries whose keys don't begin with the prefix are not returned.
+   *
+   * <p>This can be used to get a subset of the configuration related to the REST catalog, such as
+   * all properties from a prefix of `spark.sql.catalog.my_catalog.rest.` to get REST catalog
+   * specific properties from the spark configuration.
    */
-  public static Map<String, String> extractPrefixMap(Map<String, String> properties, String prefix) {
+  public static Map<String, String> extractPrefixMap(
+      Map<String, String> properties, String prefix) {
     Preconditions.checkNotNull(properties, "Invalid properties map: null");
     Map<String, String> result = Maps.newHashMap();
-    properties.forEach((key, value) -> {
-      if (key != null && key.startsWith(prefix)) {
-        result.put(key.substring(prefix.length()), value);
-      }
-    });
+    properties.forEach(
+        (key, value) -> {
+          if (key != null && key.startsWith(prefix)) {
+            result.put(key.substring(prefix.length()), value);
+          }
+        });
 
     return result;
   }
@@ -99,24 +105,24 @@ public class RESTUtil {
 
   /**
    * Encodes a map of form data as application/x-www-form-urlencoded.
-   * <p>
-   * This encodes the form with pairs separated by &amp; and keys separated from values by =.
+   *
+   * <p>This encodes the form with pairs separated by &amp; and keys separated from values by =.
    *
    * @param formData a map of form data
    * @return a String of encoded form data
    */
   public static String encodeFormData(Map<?, ?> formData) {
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-    formData.forEach((key, value) -> builder.put(
-        encodeString(String.valueOf(key)),
-        encodeString(String.valueOf(value))));
+    formData.forEach(
+        (key, value) ->
+            builder.put(encodeString(String.valueOf(key)), encodeString(String.valueOf(value))));
     return FORM_JOINER.join(builder.build());
   }
 
   /**
    * Encodes a string using URL encoding
-   * <p>
-   * {@link #decodeString(String)} should be used to decode.
+   *
+   * <p>{@link #decodeString(String)} should be used to decode.
    *
    * @param toEncode string to encode
    * @return UTF-8 encoded string, suitable for use as a URL parameter
@@ -133,8 +139,8 @@ public class RESTUtil {
 
   /**
    * Decodes a URL-encoded string.
-   * <p>
-   * See also {@link #encodeString(String)} for URL encoding.
+   *
+   * <p>See also {@link #encodeString(String)} for URL encoding.
    *
    * @param encoded a string to decode
    * @return a decoded string
@@ -151,11 +157,11 @@ public class RESTUtil {
 
   /**
    * Returns a String representation of a namespace that is suitable for use in a URL / URI.
-   * <p>
-   * This function needs to be called when a namespace is used as a path variable (or query parameter etc.),
-   * to format the namespace per the spec.
-   * <p>
-   * {@link #decodeNamespace} should be used to parse the namespace from a URL parameter.
+   *
+   * <p>This function needs to be called when a namespace is used as a path variable (or query
+   * parameter etc.), to format the namespace per the spec.
+   *
+   * <p>{@link #decodeNamespace} should be used to parse the namespace from a URL parameter.
    *
    * @param ns namespace to encode
    * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
@@ -169,21 +175,21 @@ public class RESTUtil {
       encodedLevels[i] = encodeString(levels[i]);
     }
 
-    return NULL_JOINER.join(encodedLevels);
+    return NAMESPACE_ESCAPED_JOINER.join(encodedLevels);
   }
 
   /**
-   * Takes in a string representation of a namespace as used for a URL parameter
-   * and returns the corresponding namespace.
-   * <p>
-   * See also {@link #encodeNamespace} for generating correctly formatted URLs.
+   * Takes in a string representation of a namespace as used for a URL parameter and returns the
+   * corresponding namespace.
+   *
+   * <p>See also {@link #encodeNamespace} for generating correctly formatted URLs.
    *
    * @param encodedNs a namespace to decode
    * @return a namespace
    */
   public static Namespace decodeNamespace(String encodedNs) {
     Preconditions.checkArgument(encodedNs != null, "Invalid namespace: null");
-    String[] levels = Iterables.toArray(NULL_SPLITTER.split(encodedNs), String.class);
+    String[] levels = Iterables.toArray(NAMESPACE_ESCAPED_SPLITTER.split(encodedNs), String.class);
 
     // Decode levels in place
     for (int i = 0; i < levels.length; i++) {
@@ -192,5 +198,4 @@ public class RESTUtil {
 
     return Namespace.of(levels);
   }
-
 }

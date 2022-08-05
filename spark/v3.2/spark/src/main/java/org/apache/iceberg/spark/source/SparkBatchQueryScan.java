@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
@@ -75,8 +74,13 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   private List<FileScanTask> files = null; // lazy cache of files
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkBatchQueryScan(SparkSession spark, Table table, TableScan scan, SparkReadConf readConf,
-                      Schema expectedSchema, List<Expression> filters) {
+  SparkBatchQueryScan(
+      SparkSession spark,
+      Table table,
+      TableScan scan,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
 
     super(spark, table, readConf, expectedSchema, filters);
 
@@ -126,12 +130,12 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   @Override
   protected List<CombinedScanTask> tasks() {
     if (tasks == null) {
-      CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
-          CloseableIterable.withNoopClose(files()),
-          scan.targetSplitSize());
-      CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-          splitFiles, scan.targetSplitSize(),
-          scan.splitLookback(), scan.splitOpenFileCost());
+      CloseableIterable<FileScanTask> splitFiles =
+          TableScanUtil.splitFiles(
+              CloseableIterable.withNoopClose(files()), scan.targetSplitSize());
+      CloseableIterable<CombinedScanTask> scanTasks =
+          TableScanUtil.planTasks(
+              splitFiles, scan.targetSplitSize(), scan.splitLookback(), scan.splitOpenFileCost());
       tasks = Lists.newArrayList(scanTasks);
     }
 
@@ -170,21 +174,29 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
 
       for (Integer specId : specIds()) {
         PartitionSpec spec = table().specs().get(specId);
-        Expression inclusiveExpr = Projections.inclusive(spec, caseSensitive()).project(runtimeFilterExpr);
+        Expression inclusiveExpr =
+            Projections.inclusive(spec, caseSensitive()).project(runtimeFilterExpr);
         Evaluator inclusive = new Evaluator(spec.partitionType(), inclusiveExpr);
         evaluatorsBySpecId.put(specId, inclusive);
       }
 
-      LOG.info("Trying to filter {} files using runtime filter {}", files().size(), runtimeFilterExpr);
+      LOG.info(
+          "Trying to filter {} files using runtime filter {}", files().size(), runtimeFilterExpr);
 
-      List<FileScanTask> filteredFiles = files().stream()
-          .filter(file -> {
-            Evaluator evaluator = evaluatorsBySpecId.get(file.spec().specId());
-            return evaluator.eval(file.file().partition());
-          })
-          .collect(Collectors.toList());
+      List<FileScanTask> filteredFiles =
+          files().stream()
+              .filter(
+                  file -> {
+                    Evaluator evaluator = evaluatorsBySpecId.get(file.spec().specId());
+                    return evaluator.eval(file.file().partition());
+                  })
+              .collect(Collectors.toList());
 
-      LOG.info("{}/{} files matched runtime filter {}", filteredFiles.size(), files().size(), runtimeFilterExpr);
+      LOG.info(
+          "{}/{} files matched runtime filter {}",
+          filteredFiles.size(),
+          files().size(),
+          runtimeFilterExpr);
 
       // don't invalidate tasks if the runtime filter had no effect to avoid planning splits again
       if (filteredFiles.size() < files().size()) {
@@ -251,28 +263,40 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     }
 
     SparkBatchQueryScan that = (SparkBatchQueryScan) o;
-    return table().name().equals(that.table().name()) &&
-        readSchema().equals(that.readSchema()) && // compare Spark schemas to ignore field ids
-        filterExpressions().toString().equals(that.filterExpressions().toString()) &&
-        runtimeFilterExpressions.toString().equals(that.runtimeFilterExpressions.toString()) &&
-        Objects.equals(snapshotId, that.snapshotId) &&
-        Objects.equals(startSnapshotId, that.startSnapshotId) &&
-        Objects.equals(endSnapshotId, that.endSnapshotId) &&
-        Objects.equals(asOfTimestamp, that.asOfTimestamp) &&
-        Objects.equals(snapshotRef, that.snapshotRef);
+    return table().name().equals(that.table().name())
+        && readSchema().equals(that.readSchema())
+        && // compare Spark schemas to ignore field ids
+        filterExpressions().toString().equals(that.filterExpressions().toString())
+        && runtimeFilterExpressions.toString().equals(that.runtimeFilterExpressions.toString())
+        && Objects.equals(snapshotId, that.snapshotId)
+        && Objects.equals(startSnapshotId, that.startSnapshotId)
+        && Objects.equals(endSnapshotId, that.endSnapshotId)
+        && Objects.equals(asOfTimestamp, that.asOfTimestamp)
+        && Objects.equals(snapshotRef, that.snapshotRef);
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), readSchema(), filterExpressions().toString(), runtimeFilterExpressions.toString(),
-        snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, snapshotRef);
+        table().name(),
+        readSchema(),
+        filterExpressions().toString(),
+        runtimeFilterExpressions.toString(),
+        snapshotId,
+        startSnapshotId,
+        endSnapshotId,
+        asOfTimestamp,
+        snapshotRef);
   }
 
   @Override
   public String toString() {
     return String.format(
         "IcebergScan(table=%s, type=%s, filters=%s, runtimeFilters=%s, caseSensitive=%s)",
-        table(), expectedSchema().asStruct(), filterExpressions(), runtimeFilterExpressions, caseSensitive());
+        table(),
+        expectedSchema().asStruct(),
+        filterExpressions(),
+        runtimeFilterExpressions,
+        caseSensitive());
   }
 }

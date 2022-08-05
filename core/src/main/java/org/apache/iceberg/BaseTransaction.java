@@ -16,8 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.io.Serializable;
 import java.util.List;
@@ -40,15 +48,6 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-
 public class BaseTransaction implements Transaction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
 
@@ -65,14 +64,16 @@ public class BaseTransaction implements Transaction {
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
   private final Set<Long> intermediateSnapshotIds;
-  private final Set<String> deletedFiles = Sets.newHashSet(); // keep track of files deleted in the most recent commit
+  private final Set<String> deletedFiles =
+      Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private TransactionType type;
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
 
-  BaseTransaction(String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
+  BaseTransaction(
+      String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
     this.tableName = tableName;
     this.ops = ops;
     this.transactionTable = new TransactionTable();
@@ -99,8 +100,8 @@ public class BaseTransaction implements Transaction {
   }
 
   private void checkLastOperationCommitted(String operation) {
-    Preconditions.checkState(hasLastOpCommitted,
-        "Cannot create new %s: last operation has not committed", operation);
+    Preconditions.checkState(
+        hasLastOpCommitted, "Cannot create new %s: last operation has not committed", operation);
     this.hasLastOpCommitted = false;
   }
 
@@ -248,8 +249,8 @@ public class BaseTransaction implements Transaction {
 
   @Override
   public void commitTransaction() {
-    Preconditions.checkState(hasLastOpCommitted,
-        "Cannot commit transaction: last operation has not committed");
+    Preconditions.checkState(
+        hasLastOpCommitted, "Cannot commit transaction: last operation has not committed");
 
     switch (type) {
       case CREATE_TABLE:
@@ -283,16 +284,18 @@ public class BaseTransaction implements Transaction {
       // the commit failed and no files were committed. clean up each update.
       Tasks.foreach(updates)
           .suppressFailureWhenFinished()
-          .run(update -> {
-            if (update instanceof SnapshotProducer) {
-              ((SnapshotProducer) update).cleanAll();
-            }
-          });
+          .run(
+              update -> {
+                if (update instanceof SnapshotProducer) {
+                  ((SnapshotProducer) update).cleanAll();
+                }
+              });
 
       throw e;
 
     } finally {
-      // create table never needs to retry because the table has no previous state. because retries are not a
+      // create table never needs to retry because the table has no previous state. because retries
+      // are not a
       // concern, it is safe to delete all of the deleted files from individual operations
       Tasks.foreach(deletedFiles)
           .suppressFailureWhenFinished()
@@ -308,29 +311,32 @@ public class BaseTransaction implements Transaction {
       Tasks.foreach(ops)
           .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
           .exponentialBackoff(
-              PropertyUtil.propertyAsInt(props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-              PropertyUtil.propertyAsInt(props, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-              PropertyUtil.propertyAsInt(props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(
+                  props, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(
+                  props, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+              PropertyUtil.propertyAsInt(
+                  props, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .run(underlyingOps -> {
+          .run(
+              underlyingOps -> {
+                try {
+                  underlyingOps.refresh();
+                } catch (NoSuchTableException e) {
+                  if (!orCreate) {
+                    throw e;
+                  }
+                }
 
-            try {
-              underlyingOps.refresh();
-            } catch (NoSuchTableException e) {
-              if (!orCreate) {
-                throw e;
-              }
-            }
+                // because this is a replace table, it will always completely replace the table
+                // metadata. even if it was just updated.
+                if (base != underlyingOps.current()) {
+                  this.base = underlyingOps.current(); // just refreshed
+                }
 
-            // because this is a replace table, it will always completely replace the table
-            // metadata. even if it was just updated.
-            if (base != underlyingOps.current()) {
-              this.base = underlyingOps.current(); // just refreshed
-            }
-
-            underlyingOps.commit(base, current);
-          });
+                underlyingOps.commit(base, current);
+              });
 
     } catch (CommitStateUnknownException e) {
       throw e;
@@ -339,16 +345,18 @@ public class BaseTransaction implements Transaction {
       // the commit failed and no files were committed. clean up each update.
       Tasks.foreach(updates)
           .suppressFailureWhenFinished()
-          .run(update -> {
-            if (update instanceof SnapshotProducer) {
-              ((SnapshotProducer) update).cleanAll();
-            }
-          });
+          .run(
+              update -> {
+                if (update instanceof SnapshotProducer) {
+                  ((SnapshotProducer) update).cleanAll();
+                }
+              });
 
       throw e;
 
     } finally {
-      // replace table never needs to retry because the table state is completely replaced. because retries are not
+      // replace table never needs to retry because the table state is completely replaced. because
+      // retries are not
       // a concern, it is safe to delete all of the deleted files from individual operations
       Tasks.foreach(deletedFiles)
           .suppressFailureWhenFinished()
@@ -375,16 +383,17 @@ public class BaseTransaction implements Transaction {
               base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
               2.0 /* exponential */)
           .onlyRetryOn(CommitFailedException.class)
-          .run(underlyingOps -> {
-            applyUpdates(underlyingOps);
+          .run(
+              underlyingOps -> {
+                applyUpdates(underlyingOps);
 
-            if (current.currentSnapshot() != null) {
-              currentSnapshotId.set(current.currentSnapshot().snapshotId());
-            }
+                if (current.currentSnapshot() != null) {
+                  currentSnapshotId.set(current.currentSnapshot().snapshotId());
+                }
 
-            // fix up the snapshot log, which should not contain intermediate snapshots
-            underlyingOps.commit(base, current);
-          });
+                // fix up the snapshot log, which should not contain intermediate snapshots
+                underlyingOps.commit(base, current);
+              });
 
     } catch (CommitStateUnknownException e) {
       throw e;
@@ -404,20 +413,24 @@ public class BaseTransaction implements Transaction {
         intermediateSnapshotIds.add(currentSnapshotId.get());
       }
 
-      // clean up the data files that were deleted by each operation. first, get the list of committed manifests to
-      // ensure that no committed manifest is deleted. a manifest could be deleted in one successful operation
-      // commit, but reused in another successful commit of that operation if the whole transaction is retried.
+      // clean up the data files that were deleted by each operation. first, get the list of
+      // committed manifests to
+      // ensure that no committed manifest is deleted. a manifest could be deleted in one successful
+      // operation
+      // commit, but reused in another successful commit of that operation if the whole transaction
+      // is retried.
       Set<String> committedFiles = committedFiles(ops, intermediateSnapshotIds);
       if (committedFiles != null) {
         // delete all of the files that were deleted in the most recent set of operation commits
         Tasks.foreach(deletedFiles)
             .suppressFailureWhenFinished()
             .onFailure((file, exc) -> LOG.warn("Failed to delete uncommitted file: {}", file, exc))
-            .run(path -> {
-              if (!committedFiles.contains(path)) {
-                ops.io().deleteFile(path);
-              }
-            });
+            .run(
+                path -> {
+                  if (!committedFiles.contains(path)) {
+                    ops.io().deleteFile(path);
+                  }
+                });
       } else {
         LOG.warn("Failed to load metadata for a committed snapshot, skipping clean-up");
       }
@@ -431,11 +444,12 @@ public class BaseTransaction implements Transaction {
     // the commit failed and no files were committed. clean up each update.
     Tasks.foreach(updates)
         .suppressFailureWhenFinished()
-        .run(update -> {
-          if (update instanceof SnapshotProducer) {
-            ((SnapshotProducer) update).cleanAll();
-          }
-        });
+        .run(
+            update -> {
+              if (update instanceof SnapshotProducer) {
+                ((SnapshotProducer) update).cleanAll();
+              }
+            });
 
     // delete all files that were cleaned up
     Tasks.foreach(deletedFiles)
@@ -454,7 +468,8 @@ public class BaseTransaction implements Transaction {
         try {
           update.commit();
         } catch (CommitFailedException e) {
-          // Cannot pass even with retry due to conflicting metadata changes. So, break the retry-loop.
+          // Cannot pass even with retry due to conflicting metadata changes. So, break the
+          // retry-loop.
           throw new PendingUpdateFailedException(e);
         }
       }
@@ -472,8 +487,7 @@ public class BaseTransaction implements Transaction {
       Snapshot snap = ops.current().snapshot(snapshotId);
       if (snap != null) {
         committedFiles.add(snap.manifestListLocation());
-        snap.allManifests(ops.io())
-            .forEach(manifest -> committedFiles.add(manifest.path()));
+        snap.allManifests(ops.io()).forEach(manifest -> committedFiles.add(manifest.path()));
       } else {
         return null;
       }
@@ -565,8 +579,7 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
-    public void refresh() {
-    }
+    public void refresh() {}
 
     @Override
     public TableScan newScan() {
@@ -710,7 +723,8 @@ public class BaseTransaction implements Transaction {
 
     @Override
     public ManageSnapshots manageSnapshots() {
-      throw new UnsupportedOperationException("Transaction tables do not support managing snapshots");
+      throw new UnsupportedOperationException(
+          "Transaction tables do not support managing snapshots");
     }
 
     @Override
@@ -759,7 +773,8 @@ public class BaseTransaction implements Transaction {
   }
 
   /**
-   * Exception used to avoid retrying {@link PendingUpdate} when it is failed with {@link CommitFailedException}.
+   * Exception used to avoid retrying {@link PendingUpdate} when it is failed with {@link
+   * CommitFailedException}.
    */
   private static class PendingUpdateFailedException extends RuntimeException {
     private final CommitFailedException wrapped;

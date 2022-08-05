@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
@@ -44,26 +43,27 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
       ThreadLocal.withInitial(() -> new byte[10]);
 
   private static final ThreadLocal<ByteBuffer> FP_BUFFER =
-      ThreadLocal.withInitial(() -> {
-        byte[] header = HEADER_BUFFER.get();
-        return ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
-      });
+      ThreadLocal.withInitial(
+          () -> {
+            byte[] header = HEADER_BUFFER.get();
+            return ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN);
+          });
 
   private final org.apache.iceberg.Schema readSchema;
   private final SchemaStore resolver;
   private final Map<Long, RawDecoder<D>> decoders = new MapMaker().makeMap();
 
   /**
-   * Creates a new decoder that constructs datum instances described by an
-   * {@link org.apache.iceberg.Schema Iceberg schema}.
-   * <p>
-   * The {@code readSchema} is as used the expected schema (read schema). Datum instances created
+   * Creates a new decoder that constructs datum instances described by an {@link
+   * org.apache.iceberg.Schema Iceberg schema}.
+   *
+   * <p>The {@code readSchema} is as used the expected schema (read schema). Datum instances created
    * by this class will are described by the expected schema.
-   * <p>
-   * The schema used to decode incoming buffers is determined by the schema fingerprint encoded in
-   * the message header. This class can decode messages that were encoded using the
-   * {@code readSchema} and other schemas that are added using
-   * {@link #addSchema(org.apache.iceberg.Schema)}.
+   *
+   * <p>The schema used to decode incoming buffers is determined by the schema fingerprint encoded
+   * in the message header. This class can decode messages that were encoded using the {@code
+   * readSchema} and other schemas that are added using {@link
+   * #addSchema(org.apache.iceberg.Schema)}.
    *
    * @param readSchema the schema used to construct datum instances
    */
@@ -72,18 +72,18 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
   }
 
   /**
-   * Creates a new decoder that constructs datum instances described by an
-   * {@link org.apache.iceberg.Schema Iceberg schema}.
-   * <p>
-   * The {@code readSchema} is as used the expected schema (read schema). Datum instances created
+   * Creates a new decoder that constructs datum instances described by an {@link
+   * org.apache.iceberg.Schema Iceberg schema}.
+   *
+   * <p>The {@code readSchema} is as used the expected schema (read schema). Datum instances created
    * by this class will are described by the expected schema.
-   * <p>
-   * The schema used to decode incoming buffers is determined by the schema fingerprint encoded in
-   * the message header. This class can decode messages that were encoded using the
-   * {@code readSchema} and other schemas that are added using
-   * {@link #addSchema(org.apache.iceberg.Schema)}.
-   * <p>
-   * Schemas may also be returned from an Avro {@link SchemaStore}. Avro Schemas from the store
+   *
+   * <p>The schema used to decode incoming buffers is determined by the schema fingerprint encoded
+   * in the message header. This class can decode messages that were encoded using the {@code
+   * readSchema} and other schemas that are added using {@link
+   * #addSchema(org.apache.iceberg.Schema)}.
+   *
+   * <p>Schemas may also be returned from an Avro {@link SchemaStore}. Avro Schemas from the store
    * must be compatible with Iceberg and should contain id properties and use only Iceberg types.
    *
    * @param readSchema the {@link Schema} used to construct datum instances
@@ -123,8 +123,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
       }
     }
 
-    throw new MissingSchemaException(
-        "Cannot resolve schema for fingerprint: " + fp);
+    throw new MissingSchemaException("Cannot resolve schema for fingerprint: " + fp);
   }
 
   @Override
@@ -139,9 +138,8 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
     }
 
     if (IcebergEncoder.V1_HEADER[0] != header[0] || IcebergEncoder.V1_HEADER[1] != header[1]) {
-      throw new BadHeaderException(String.format(
-          "Unrecognized header bytes: 0x%02X 0x%02X",
-          header[0], header[1]));
+      throw new BadHeaderException(
+          String.format("Unrecognized header bytes: 0x%02X 0x%02X", header[0], header[1]));
     }
 
     RawDecoder<D> decoder = getDecoder(FP_BUFFER.get().getLong(2));
@@ -155,10 +153,10 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
     private final DatumReader<D> reader;
 
     /**
-     * Creates a new {@link MessageDecoder} that constructs datum instances described by the
-     * {@link Schema readSchema}.
-     * <p>
-     * The {@code readSchema} is used for the expected schema and the {@code writeSchema} is the
+     * Creates a new {@link MessageDecoder} that constructs datum instances described by the {@link
+     * Schema readSchema}.
+     *
+     * <p>The {@code readSchema} is used for the expected schema and the {@code writeSchema} is the
      * schema used to decode buffers. The {@code writeSchema} must be the schema that was used to
      * encode all buffers decoded by this class.
      *
@@ -166,9 +164,12 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
      * @param writeSchema the schema used to decode buffers
      */
     private RawDecoder(org.apache.iceberg.Schema readSchema, Schema writeSchema) {
-      this.reader = new ProjectionDatumReader<>(
-          avroSchema -> DataReader.create(readSchema, avroSchema),
-          readSchema, ImmutableMap.of(), null);
+      this.reader =
+          new ProjectionDatumReader<>(
+              avroSchema -> DataReader.create(readSchema, avroSchema),
+              readSchema,
+              ImmutableMap.of(),
+              null);
       this.reader.setSchema(writeSchema);
     }
 
@@ -193,12 +194,11 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * @throws IOException if there is an error while reading
    */
   @SuppressWarnings("checkstyle:InnerAssignment")
-  private boolean readFully(InputStream stream, byte[] bytes)
-      throws IOException {
+  private boolean readFully(InputStream stream, byte[] bytes) throws IOException {
     int pos = 0;
     int bytesRead;
-    while ((bytes.length - pos) > 0 &&
-        (bytesRead = stream.read(bytes, pos, bytes.length - pos)) > 0) {
+    while ((bytes.length - pos) > 0
+        && (bytesRead = stream.read(bytes, pos, bytes.length - pos)) > 0) {
       pos += bytesRead;
     }
     return pos == bytes.length;

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.Deque;
@@ -25,9 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.TypeDescription;
 
-/**
- * Generic visitor of an ORC Schema.
- */
+/** Generic visitor of an ORC Schema. */
 public abstract class OrcSchemaVisitor<T> {
 
   private final Deque<String> fieldNames = Lists.newLinkedList();
@@ -87,9 +84,10 @@ public abstract class OrcSchemaVisitor<T> {
     }
   }
 
-  private static <T> List<T> visitFields(List<TypeDescription> fields, List<String> names,
-                                         OrcSchemaVisitor<T> visitor) {
-    Preconditions.checkArgument(fields.size() == names.size(), "Not all fields have names in ORC struct");
+  private static <T> List<T> visitFields(
+      List<TypeDescription> fields, List<String> names, OrcSchemaVisitor<T> visitor) {
+    Preconditions.checkArgument(
+        fields.size() == names.size(), "Not all fields have names in ORC struct");
 
     List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
     for (int i = 0; i < fields.size(); i++) {

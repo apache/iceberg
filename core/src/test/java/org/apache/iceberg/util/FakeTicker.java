@@ -16,22 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * A {@code Ticker} whose value can be advanced programmatically in tests
- */
+/** A {@code Ticker} whose value can be advanced programmatically in tests */
 public class FakeTicker implements Ticker {
 
   private final AtomicLong nanos = new AtomicLong();
 
-  public FakeTicker() {
-  }
+  public FakeTicker() {}
 
   public FakeTicker advance(Duration duration) {
     nanos.addAndGet(duration.toNanos());

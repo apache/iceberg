@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
-/**
- * Exception raised when attempting to drop a namespace that is not empty.
- */
+/** Exception raised when attempting to drop a namespace that is not empty. */
 public class NamespaceNotEmptyException extends RuntimeException {
   @FormatMethod
   public NamespaceNotEmptyException(String message, Object... args) {

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.util.List;
@@ -28,10 +27,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
 /**
- * A position delete writer capable of writing to multiple specs and partitions that requires
- * the incoming delete records to be properly clustered by partition spec and by partition within each spec.
+ * A position delete writer capable of writing to multiple specs and partitions that requires the
+ * incoming delete records to be properly clustered by partition spec and by partition within each
+ * spec.
  */
-public class ClusteredPositionDeleteWriter<T> extends ClusteredWriter<PositionDelete<T>, DeleteWriteResult> {
+public class ClusteredPositionDeleteWriter<T>
+    extends ClusteredWriter<PositionDelete<T>, DeleteWriteResult> {
 
   private final FileWriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
@@ -40,8 +41,11 @@ public class ClusteredPositionDeleteWriter<T> extends ClusteredWriter<PositionDe
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
-  public ClusteredPositionDeleteWriter(FileWriterFactory<T> writerFactory, OutputFileFactory fileFactory,
-                                       FileIO io, long targetFileSizeInBytes) {
+  public ClusteredPositionDeleteWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
@@ -51,8 +55,10 @@ public class ClusteredPositionDeleteWriter<T> extends ClusteredWriter<PositionDe
   }
 
   @Override
-  protected FileWriter<PositionDelete<T>, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
-    return new RollingPositionDeleteWriter<>(writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
+  protected FileWriter<PositionDelete<T>, DeleteWriteResult> newWriter(
+      PartitionSpec spec, StructLike partition) {
+    return new RollingPositionDeleteWriter<>(
+        writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition);
   }
 
   @Override

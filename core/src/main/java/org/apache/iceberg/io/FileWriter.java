@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
@@ -25,11 +24,12 @@ import org.apache.iceberg.DeleteFile;
 
 /**
  * A writer capable of writing files of a single type (i.e. data/delete) to one spec/partition.
- * <p>
- * As opposed to {@link FileAppender}, this interface should be implemented by classes that not only
- * append records to files but actually produce {@link DataFile}s or {@link DeleteFile}s objects
- * with Iceberg metadata. Implementations may wrap {@link FileAppender}s with extra information
- * such as spec, partition, sort order ID needed to construct {@link DataFile}s or {@link DeleteFile}s.
+ *
+ * <p>As opposed to {@link FileAppender}, this interface should be implemented by classes that not
+ * only append records to files but actually produce {@link DataFile}s or {@link DeleteFile}s
+ * objects with Iceberg metadata. Implementations may wrap {@link FileAppender}s with extra
+ * information such as spec, partition, sort order ID needed to construct {@link DataFile}s or
+ * {@link DeleteFile}s.
  *
  * @param <T> the row type
  * @param <R> the result type
@@ -62,8 +62,8 @@ public interface FileWriter<T, R> extends Closeable {
   long length();
 
   /**
-   * Returns a result that contains information about written {@link DataFile}s or {@link DeleteFile}s.
-   * The result is valid only after the writer is closed.
+   * Returns a result that contains information about written {@link DataFile}s or {@link
+   * DeleteFile}s. The result is valid only after the writer is closed.
    *
    * @return the file writer result
    */

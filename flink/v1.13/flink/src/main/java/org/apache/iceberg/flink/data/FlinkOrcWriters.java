@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.time.Instant;
@@ -47,8 +46,7 @@ import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
 class FlinkOrcWriters {
 
-  private FlinkOrcWriters() {
-  }
+  private FlinkOrcWriters() {}
 
   static OrcValueWriter<StringData> strings() {
     return StringWriter.INSTANCE;
@@ -80,12 +78,16 @@ class FlinkOrcWriters {
     }
   }
 
-  static <T> OrcValueWriter<ArrayData> list(OrcValueWriter<T> elementWriter, LogicalType elementType) {
+  static <T> OrcValueWriter<ArrayData> list(
+      OrcValueWriter<T> elementWriter, LogicalType elementType) {
     return new ListWriter<>(elementWriter, elementType);
   }
 
-  static <K, V> OrcValueWriter<MapData> map(OrcValueWriter<K> keyWriter, OrcValueWriter<V> valueWriter,
-                                            LogicalType keyType, LogicalType valueType) {
+  static <K, V> OrcValueWriter<MapData> map(
+      OrcValueWriter<K> keyWriter,
+      OrcValueWriter<V> valueWriter,
+      LogicalType keyType,
+      LogicalType valueType) {
     return new MapWriter<>(keyWriter, valueWriter, keyType, valueType);
   }
 
@@ -132,7 +134,8 @@ class FlinkOrcWriters {
       cv.setIsUTC(true);
       // millis
       OffsetDateTime offsetDateTime = data.toInstant().atOffset(ZoneOffset.UTC);
-      cv.time[rowId] = offsetDateTime.toEpochSecond() * 1_000 + offsetDateTime.getNano() / 1_000_000;
+      cv.time[rowId] =
+          offsetDateTime.toEpochSecond() * 1_000 + offsetDateTime.getNano() / 1_000_000;
       // truncate nanos to only keep microsecond precision.
       cv.nanos[rowId] = (offsetDateTime.getNano() / 1_000) * 1_000;
     }
@@ -163,12 +166,21 @@ class FlinkOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, DecimalData data, ColumnVector output) {
-      Preconditions.checkArgument(scale == data.scale(),
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
-      Preconditions.checkArgument(data.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, data);
+      Preconditions.checkArgument(
+          scale == data.scale(),
+          "Cannot write value as decimal(%s,%s), wrong scale: %s",
+          precision,
+          scale,
+          data);
+      Preconditions.checkArgument(
+          data.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          data);
 
-      ((DecimalColumnVector) output).vector[rowId].setFromLongAndScale(data.toUnscaledLong(), data.scale());
+      ((DecimalColumnVector) output)
+          .vector[rowId].setFromLongAndScale(data.toUnscaledLong(), data.scale());
     }
   }
 
@@ -183,12 +195,21 @@ class FlinkOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, DecimalData data, ColumnVector output) {
-      Preconditions.checkArgument(scale == data.scale(),
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
-      Preconditions.checkArgument(data.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, data);
+      Preconditions.checkArgument(
+          scale == data.scale(),
+          "Cannot write value as decimal(%s,%s), wrong scale: %s",
+          precision,
+          scale,
+          data);
+      Preconditions.checkArgument(
+          data.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          data);
 
-      ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data.toBigDecimal(), false));
+      ((DecimalColumnVector) output)
+          .vector[rowId].set(HiveDecimal.create(data.toBigDecimal(), false));
     }
   }
 
@@ -221,7 +242,6 @@ class FlinkOrcWriters {
     public Stream<FieldMetrics<?>> metrics() {
       return elementWriter.metrics();
     }
-
   }
 
   static class MapWriter<K, V> implements OrcValueWriter<MapData> {
@@ -230,8 +250,11 @@ class FlinkOrcWriters {
     private final ArrayData.ElementGetter keyGetter;
     private final ArrayData.ElementGetter valueGetter;
 
-    MapWriter(OrcValueWriter<K> keyWriter, OrcValueWriter<V> valueWriter,
-              LogicalType keyType, LogicalType valueType) {
+    MapWriter(
+        OrcValueWriter<K> keyWriter,
+        OrcValueWriter<V> valueWriter,
+        LogicalType keyType,
+        LogicalType valueType) {
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
       this.keyGetter = ArrayData.createElementGetter(keyType);
@@ -282,7 +305,6 @@ class FlinkOrcWriters {
     protected Object get(RowData struct, int index) {
       return fieldGetters.get(index).getFieldOrNull(struct);
     }
-
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

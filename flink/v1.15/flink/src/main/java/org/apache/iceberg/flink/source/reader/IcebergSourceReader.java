@@ -16,27 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.SingleThreadMultiplexSourceReaderBase;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SplitRequestEvent;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class IcebergSourceReader<T> extends
-    SingleThreadMultiplexSourceReaderBase<RecordAndPosition<T>, T, IcebergSourceSplit, IcebergSourceSplit> {
+@Internal
+public class IcebergSourceReader<T>
+    extends SingleThreadMultiplexSourceReaderBase<
+        RecordAndPosition<T>, T, IcebergSourceSplit, IcebergSourceSplit> {
 
   public IcebergSourceReader(
-      ReaderFunction<T> readerFunction,
-      SourceReaderContext context,
-      ReaderMetricsContext metrics) {
+      String fullTableName, ReaderFunction<T> readerFunction, SourceReaderContext context) {
     super(
-        () -> new IcebergSourceSplitReader<>(readerFunction, context, metrics),
+        () -> new IcebergSourceSplitReader<>(fullTableName, readerFunction, context),
         new IcebergSourceRecordEmitter<>(),
         context.getConfiguration(),
         context);

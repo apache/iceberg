@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.parquet;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,8 +47,6 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 public class TestGenericData extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -56,18 +55,20 @@ public class TestGenericData extends DataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> appender = Parquet.write(Files.localOutput(testFile))
-        .schema(schema)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .build()) {
+    try (FileAppender<Record> appender =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build()) {
       appender.addAll(expected);
     }
 
     List<Record> rows;
-    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
       rows = Lists.newArrayList(reader);
     }
 
@@ -76,7 +77,8 @@ public class TestGenericData extends DataTest {
     }
 
     // test reuseContainers
-    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(testFile))
             .project(schema)
             .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
@@ -93,22 +95,22 @@ public class TestGenericData extends DataTest {
 
   @Test
   public void testTwoLevelList() throws IOException {
-    Schema schema = new Schema(
-        optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
-        optional(2, "topbytes", Types.BinaryType.get())
-    );
+    Schema schema =
+        new Schema(
+            optional(1, "arraybytes", Types.ListType.ofRequired(3, Types.BinaryType.get())),
+            optional(2, "topbytes", Types.BinaryType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
 
     File testFile = temp.newFile();
     Assert.assertTrue(testFile.delete());
 
-    ParquetWriter<org.apache.avro.generic.GenericRecord>
-        writer = AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
-        .withDataModel(GenericData.get())
-        .withSchema(avroSchema)
-        .config("parquet.avro.add-list-element-records", "true")
-        .config("parquet.avro.write-old-list-structure", "true")
-        .build();
+    ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
+        AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
+            .withDataModel(GenericData.get())
+            .withSchema(avroSchema)
+            .config("parquet.avro.add-list-element-records", "true")
+            .config("parquet.avro.write-old-list-structure", "true")
+            .build();
 
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
     List<ByteBuffer> expectedByteList = new ArrayList();
@@ -123,11 +125,12 @@ public class TestGenericData extends DataTest {
     writer.close();
 
     // test reuseContainers
-    try (CloseableIterable<Record> reader = Parquet.read(Files.localInput(testFile))
-        .project(schema)
-        .reuseContainers()
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .reuseContainers()
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
       CloseableIterator it = reader.iterator();
       Assert.assertTrue("Should have at least one row", it.hasNext());
       while (it.hasNext()) {

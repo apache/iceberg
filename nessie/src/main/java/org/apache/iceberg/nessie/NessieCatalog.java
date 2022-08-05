@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +36,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -53,13 +54,13 @@ import org.slf4j.LoggerFactory;
 /**
  * Nessie implementation of Iceberg Catalog.
  *
- * <p>
- * A note on namespaces: Nessie namespaces are implicit and do not need to be explicitly created or deleted.
- * The create and delete namespace methods are no-ops for the NessieCatalog. One can still list namespaces that have
- * objects stored in them to assist with namespace-centric catalog exploration.
- * </p>
+ * <p>A note on namespaces: Nessie namespaces are implicit and do not need to be explicitly created
+ * or deleted. The create and delete namespace methods are no-ops for the NessieCatalog. One can
+ * still list namespaces that have objects stored in them to assist with namespace-centric catalog
+ * exploration.
  */
-public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
+public class NessieCatalog extends BaseMetastoreCatalog
+    implements AutoCloseable, SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
@@ -69,9 +70,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private String name;
   private FileIO fileIO;
   private Map<String, String> catalogOptions;
+  private CloseableGroup closeableGroup;
 
-  public NessieCatalog() {
-  }
+  public NessieCatalog() {}
 
   @SuppressWarnings("checkstyle:HiddenField")
   @Override
@@ -79,45 +80,62 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     Map<String, String> catalogOptions = ImmutableMap.copyOf(options);
     String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
     // remove nessie prefix
-    final Function<String, String> removePrefix = x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
-    final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
-    String requestedHash = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
-    NessieApiV1 api = createNessieClientBuilder(options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
-        .fromConfig(x -> options.get(removePrefix.apply(x)))
-        .build(NessieApiV1.class);
+    final Function<String, String> removePrefix =
+        x -> x.replace(NessieUtil.NESSIE_CONFIG_PREFIX, "");
+    final String requestedRef =
+        options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
+    String requestedHash =
+        options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF_HASH));
+    NessieApiV1 api =
+        createNessieClientBuilder(
+                options.get(NessieConfigConstants.CONF_NESSIE_CLIENT_BUILDER_IMPL))
+            .fromConfig(x -> options.get(removePrefix.apply(x)))
+            .build(NessieApiV1.class);
 
-    initialize(name,
+    initialize(
+        name,
         new NessieIcebergClient(api, requestedRef, requestedHash, catalogOptions),
-        fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config),
+        fileIOImpl == null
+            ? new HadoopFileIO(config)
+            : CatalogUtil.loadFileIO(fileIOImpl, options, config),
         catalogOptions);
   }
 
   /**
-   * An alternative way to initialize the catalog using a pre-configured {@link NessieIcebergClient} and {@link FileIO}
-   * instance.
+   * An alternative way to initialize the catalog using a pre-configured {@link NessieIcebergClient}
+   * and {@link FileIO} instance.
+   *
    * @param name The name of the catalog, defaults to "nessie" if <code>null</code>
    * @param client The pre-configured {@link NessieIcebergClient} instance to use
    * @param fileIO The {@link FileIO} instance to use
    * @param catalogOptions The catalog options to use
    */
   @SuppressWarnings("checkstyle:HiddenField")
-  public void initialize(String name, NessieIcebergClient client, FileIO fileIO, Map<String, String> catalogOptions) {
+  public void initialize(
+      String name, NessieIcebergClient client, FileIO fileIO, Map<String, String> catalogOptions) {
     this.name = name == null ? "nessie" : name;
     this.client = Preconditions.checkNotNull(client, "client must be non-null");
     this.fileIO = Preconditions.checkNotNull(fileIO, "fileIO must be non-null");
-    this.catalogOptions = Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null");
+    this.catalogOptions =
+        Preconditions.checkNotNull(catalogOptions, "catalogOptions must be non-null");
     this.warehouseLocation = validateWarehouseLocation(name, catalogOptions);
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(client);
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
   private String validateWarehouseLocation(String name, Map<String, String> catalogOptions) {
     String warehouseLocation = catalogOptions.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {
-      // Explicitly log a warning, otherwise the thrown exception can get list in the "silent-ish catch"
+      // Explicitly log a warning, otherwise the thrown exception can get list in the "silent-ish
+      // catch"
       // in o.a.i.spark.Spark3Util.catalogAndIdentifier(o.a.s.sql.SparkSession, List<String>,
       //     o.a.s.sql.connector.catalog.CatalogPlugin)
       // in the code block
-      //    Pair<CatalogPlugin, Identifier> catalogIdentifier = SparkUtil.catalogAndIdentifier(nameParts,
+      //    Pair<CatalogPlugin, Identifier> catalogIdentifier =
+      // SparkUtil.catalogAndIdentifier(nameParts,
       //        catalogName ->  {
       //          try {
       //            return catalogManager.catalog(catalogName);
@@ -129,8 +147,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       //        defaultCatalog,
       //        currentNamespace
       //    );
-      LOG.warn("Catalog creation for inputName={} and options {} failed, because parameter " +
-          "'warehouse' is not set, Nessie can't store data.", name, catalogOptions);
+      LOG.warn(
+          "Catalog creation for inputName={} and options {} failed, because parameter "
+              + "'warehouse' is not set, Nessie can't store data.",
+          name,
+          catalogOptions);
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
     return warehouseLocation;
@@ -140,9 +161,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     NessieClientBuilder<?> clientBuilder;
     if (customBuilder != null) {
       try {
-        clientBuilder = DynMethods.builder("builder").impl(customBuilder).build().asStatic().invoke();
+        clientBuilder =
+            DynMethods.builder("builder").impl(customBuilder).build().asStatic().invoke();
       } catch (Exception e) {
-        throw new RuntimeException(String.format("Failed to use custom NessieClientBuilder '%s'.", customBuilder), e);
+        throw new RuntimeException(
+            String.format("Failed to use custom NessieClientBuilder '%s'.", customBuilder), e);
       }
     } else {
       clientBuilder = HttpClientBuilder.builder();
@@ -151,8 +174,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   @Override
-  public void close() {
-    client.close();
+  public void close() throws IOException {
+    if (null != closeableGroup) {
+      closeableGroup.close();
+    }
   }
 
   @Override
@@ -162,11 +187,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    TableReference tr = TableReference.parse(tableIdentifier.name());
-    Preconditions.checkArgument(!tr.hasTimestamp(), "Invalid table name: # is only allowed for hashes (reference by " +
-        "timestamp is not supported)");
+    TableReference tr = parseTableReference(tableIdentifier);
     return new NessieTableOperations(
-        ContentKey.of(org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()), tr.getName()),
+        ContentKey.of(
+            org.projectnessie.model.Namespace.of(tableIdentifier.namespace().levels()),
+            tr.getName()),
         client.withReference(tr.getReference(), tr.getHash()),
         fileIO,
         catalogOptions);
@@ -187,12 +212,36 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    return client.dropTable(identifier, purge);
+    TableReference tableReference = parseTableReference(identifier);
+    return client
+        .withReference(tableReference.getReference(), tableReference.getHash())
+        .dropTable(identifierWithoutTableReference(identifier, tableReference), purge);
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    client.renameTable(from, NessieUtil.removeCatalogName(to, name()));
+    TableReference fromTableReference = parseTableReference(from);
+    TableReference toTableReference = parseTableReference(to);
+    String fromReference =
+        fromTableReference.hasReference()
+            ? fromTableReference.getReference()
+            : client.getRef().getName();
+    String toReference =
+        toTableReference.hasReference()
+            ? toTableReference.getReference()
+            : client.getRef().getName();
+    Preconditions.checkArgument(
+        fromReference.equalsIgnoreCase(toReference),
+        "from: %s and to: %s reference name must be same",
+        fromReference,
+        toReference);
+
+    client
+        .withReference(fromTableReference.getReference(), fromTableReference.getHash())
+        .renameTable(
+            identifierWithoutTableReference(from, fromTableReference),
+            NessieUtil.removeCatalogName(
+                identifierWithoutTableReference(to, toTableReference), name()));
   }
 
   @Override
@@ -206,14 +255,16 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   /**
-   * Load the given namespace but return an empty map because namespace properties are currently not supported.
+   * Load the given namespace but return an empty map because namespace properties are currently not
+   * supported.
    *
    * @param namespace a namespace. {@link Namespace}
    * @return an empty map
    * @throws NoSuchNamespaceException If the namespace does not exist
    */
   @Override
-  public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
+  public Map<String, String> loadNamespaceMetadata(Namespace namespace)
+      throws NoSuchNamespaceException {
     return client.loadNamespaceMetadata(namespace);
   }
 
@@ -255,5 +306,22 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   @VisibleForTesting
   FileIO fileIO() {
     return fileIO;
+  }
+
+  private TableReference parseTableReference(TableIdentifier tableIdentifier) {
+    TableReference tr = TableReference.parse(tableIdentifier.name());
+    Preconditions.checkArgument(
+        !tr.hasTimestamp(),
+        "Invalid table name: # is only allowed for hashes (reference by "
+            + "timestamp is not supported)");
+    return tr;
+  }
+
+  private TableIdentifier identifierWithoutTableReference(
+      TableIdentifier identifier, TableReference tableReference) {
+    if (tableReference.hasReference()) {
+      return TableIdentifier.of(identifier.namespace(), tableReference.getName());
+    }
+    return identifier;
   }
 }

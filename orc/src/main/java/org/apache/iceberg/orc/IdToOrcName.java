@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.util.Deque;
@@ -33,10 +32,12 @@ import org.apache.iceberg.types.Types;
 
 /**
  * Generates mapping from field IDs to ORC qualified names.
- * <p>
- * This visitor also enclose column names in backticks i.e. ` so that ORC can correctly parse column names with
- * special characters. A comparison of ORC convention with Iceberg convention is provided below
- * <pre><code>
+ *
+ * <p>This visitor also enclose column names in backticks i.e. ` so that ORC can correctly parse
+ * column names with special characters. A comparison of ORC convention with Iceberg convention is
+ * provided below
+ *
+ * <pre>{@code
  *                                      Iceberg           ORC
  * field                                field             field
  * struct -> field                      struct.field      struct.field
@@ -46,7 +47,7 @@ import org.apache.iceberg.types.Types;
  * map -> value                         map.value         map._value
  * map -> struct key -> field           map.key.field     map._key.field
  * map -> struct value -> field         map.field         map._value.field
- * </code></pre>
+ * }</pre>
  */
 class IdToOrcName extends TypeUtil.SchemaVisitor<Map<Integer, String>> {
   private static final Joiner DOT = Joiner.on(".");
@@ -100,7 +101,8 @@ class IdToOrcName extends TypeUtil.SchemaVisitor<Map<Integer, String>> {
   }
 
   @Override
-  public Map<Integer, String> struct(Types.StructType struct, List<Map<Integer, String>> fieldResults) {
+  public Map<Integer, String> struct(
+      Types.StructType struct, List<Map<Integer, String>> fieldResults) {
     return idToName;
   }
 
@@ -117,7 +119,8 @@ class IdToOrcName extends TypeUtil.SchemaVisitor<Map<Integer, String>> {
   }
 
   @Override
-  public Map<Integer, String> map(Types.MapType map, Map<Integer, String> keyResult, Map<Integer, String> valueResult) {
+  public Map<Integer, String> map(
+      Types.MapType map, Map<Integer, String> keyResult, Map<Integer, String> valueResult) {
     addField("_key", map.keyId());
     addField("_value", map.valueId());
     return idToName;
@@ -135,7 +138,8 @@ class IdToOrcName extends TypeUtil.SchemaVisitor<Map<Integer, String>> {
   }
 
   private String quoteName(String name) {
-    String escapedName = name.replace("`", "``"); // if the column name contains ` then escape it with another `
+    String escapedName =
+        name.replace("`", "``"); // if the column name contains ` then escape it with another `
     return "`" + escapedName + "`";
   }
 }

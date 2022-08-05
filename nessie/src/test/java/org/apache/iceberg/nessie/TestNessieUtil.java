@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.nessie;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -47,9 +46,13 @@ public class TestNessieUtil {
     // Construct a dummy TableMetadata object
     Map<String, String> properties = Collections.singletonMap("property-key", "property-value");
     String location = "obj://foo/bar/baz";
-    TableMetadata tableMetadata = TableMetadata.newTableMetadata(
-        new Schema(1, NestedField.of(1, false, "column", StringType.get())),
-        PartitionSpec.unpartitioned(), SortOrder.unsorted(), location, properties);
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            new Schema(1, NestedField.of(1, false, "column", StringType.get())),
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            location,
+            properties);
 
     // Produce a generic JsonNode from the TableMetadata
     JsonNode jsonNode = NessieUtil.tableMetadataAsJsonNode(tableMetadata);
@@ -59,19 +62,19 @@ public class TestNessieUtil {
             n -> n.get("format-version").asLong(-2L),
             n -> n.get("location").asText("x"),
             n -> n.get("properties").get("property-key").asText())
-        .containsExactly(
-            1L,
-            location,
-            "property-value");
+        .containsExactly(1L, location, "property-value");
 
     // Create a Nessie IcebergTable object with the JsonNode as the metadata
     IcebergTable icebergTableNoMetadata = IcebergTable.of(location, 0L, 1, 2, 3, "cid");
-    IcebergTable icebergTable = ImmutableIcebergTable.builder().from(icebergTableNoMetadata)
-        .metadata(GenericMetadata.of("iceberg", jsonNode)).build();
+    IcebergTable icebergTable =
+        ImmutableIcebergTable.builder()
+            .from(icebergTableNoMetadata)
+            .metadata(GenericMetadata.of("iceberg", jsonNode))
+            .build();
 
     // Deserialize the TableMetadata from Nessie IcebergTable
-    TableMetadata deserializedMetadata = NessieUtil.tableMetadataFromIcebergTable(null,
-        icebergTable, location);
+    TableMetadata deserializedMetadata =
+        NessieUtil.tableMetadataFromIcebergTable(null, icebergTable, location);
 
     // (Could compare tableMetadata against deserializedMetadata, but TableMetadata has no equals())
 
@@ -87,9 +90,12 @@ public class TestNessieUtil {
     IcebergTable icebergTableNoMetadata = IcebergTable.of(location, 0L, 1, 2, 3, "cid");
 
     // Check that newInputFile() is called when IcebergTable has no metadata
-    Mockito.when(fileIoMock.newInputFile(location)).thenThrow(new RuntimeException("newInputFile called"));
-    Assertions.assertThatThrownBy(() ->
-            NessieUtil.tableMetadataFromIcebergTable(fileIoMock, icebergTableNoMetadata, location))
+    Mockito.when(fileIoMock.newInputFile(location))
+        .thenThrow(new RuntimeException("newInputFile called"));
+    Assertions.assertThatThrownBy(
+            () ->
+                NessieUtil.tableMetadataFromIcebergTable(
+                    fileIoMock, icebergTableNoMetadata, location))
         .isInstanceOf(RuntimeException.class)
         .hasMessage("newInputFile called");
   }
@@ -106,14 +112,17 @@ public class TestNessieUtil {
     String commitMsg = "commit msg";
     String appId = "SPARK_ID_123";
     String user = "sparkUser";
-    CommitMeta commitMeta = NessieUtil.buildCommitMetadata(
-        commitMsg,
-        ImmutableMap.of(CatalogProperties.APP_ID, appId, CatalogProperties.USER, user));
+    CommitMeta commitMeta =
+        NessieUtil.buildCommitMetadata(
+            commitMsg,
+            ImmutableMap.of(CatalogProperties.APP_ID, appId, CatalogProperties.USER, user));
     Assertions.assertThat(commitMeta.getMessage()).isEqualTo(commitMsg);
     Assertions.assertThat(commitMeta.getAuthor()).isEqualTo(user);
     Assertions.assertThat(commitMeta.getProperties()).hasSize(2);
-    Assertions.assertThat(commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE)).isEqualTo("iceberg");
-    Assertions.assertThat(commitMeta.getProperties().get(CatalogProperties.APP_ID)).isEqualTo(appId);
+    Assertions.assertThat(commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE))
+        .isEqualTo("iceberg");
+    Assertions.assertThat(commitMeta.getProperties().get(CatalogProperties.APP_ID))
+        .isEqualTo(appId);
   }
 
   @Test
@@ -123,7 +132,8 @@ public class TestNessieUtil {
     Assertions.assertThat(commitMeta.getMessage()).isEqualTo(commitMsg);
     Assertions.assertThat(commitMeta.getAuthor()).isEqualTo(System.getProperty("user.name"));
     Assertions.assertThat(commitMeta.getProperties()).hasSize(1);
-    Assertions.assertThat(commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE)).isEqualTo("iceberg");
+    Assertions.assertThat(commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE))
+        .isEqualTo("iceberg");
   }
 
   @Test

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.mapping;
 
 import java.io.Serializable;
@@ -25,9 +24,7 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
-/**
- * An immutable mapping between a field ID and a set of names.
- */
+/** An immutable mapping between a field ID and a set of names. */
 public class MappedField implements Serializable {
 
   public static MappedField of(Integer id, String name) {
@@ -77,9 +74,9 @@ public class MappedField implements Serializable {
     }
 
     MappedField that = (MappedField) other;
-    return names.equals(that.names) &&
-        Objects.equals(id, that.id) &&
-        Objects.equals(nestedMapping, that.nestedMapping);
+    return names.equals(that.names)
+        && Objects.equals(id, that.id)
+        && Objects.equals(nestedMapping, that.nestedMapping);
   }
 
   @Override
@@ -89,7 +86,10 @@ public class MappedField implements Serializable {
 
   @Override
   public String toString() {
-    return "([" + Joiner.on(", ").join(names) + "] -> " + (id != null ? id : "?") +
-        (nestedMapping != null ? ", " + nestedMapping + ")" : ")");
+    return "(["
+        + Joiner.on(", ").join(names)
+        + "] -> "
+        + (id != null ? id : "?")
+        + (nestedMapping != null ? ", " + nestedMapping + ")" : ")");
   }
 }

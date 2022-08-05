@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -29,12 +28,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 /**
- * Parses TableIdentifiers from a JSON representation, which is the JSON
- * representation utilized in the REST catalog.
- * <p>
- * For TableIdentifier.of("dogs", "owners.and.handlers", "food"), we'd have
- * the following JSON representation, where the dot character of an
- * individual level is in the namespace is replaced by the null byte character.
+ * Parses TableIdentifiers from a JSON representation, which is the JSON representation utilized in
+ * the REST catalog.
+ *
+ * <p>For TableIdentifier.of("dogs", "owners.and.handlers", "food"), we'd have the following JSON
+ * representation, where the dot character of an individual level is in the namespace is replaced by
+ * the unit separator byte character.
+ *
  * <pre>
  * {
  *   "namespace": ["dogs", "owners.and.handlers"],
@@ -47,8 +47,7 @@ public class TableIdentifierParser {
   private static final String NAMESPACE = "namespace";
   private static final String NAME = "name";
 
-  private TableIdentifierParser() {
-  }
+  private TableIdentifierParser() {}
 
   public static String toJson(TableIdentifier identifier) {
     return toJson(identifier, false);
@@ -69,7 +68,8 @@ public class TableIdentifierParser {
     }
   }
 
-  public static void toJson(TableIdentifier identifier, JsonGenerator generator) throws IOException {
+  public static void toJson(TableIdentifier identifier, JsonGenerator generator)
+      throws IOException {
     generator.writeStartObject();
     generator.writeFieldName(NAMESPACE);
     generator.writeArray(identifier.namespace().levels(), 0, identifier.namespace().length());
@@ -78,23 +78,27 @@ public class TableIdentifierParser {
   }
 
   public static TableIdentifier fromJson(String json) {
-    Preconditions.checkArgument(json != null,
-        "Cannot parse table identifier from invalid JSON: null");
-    Preconditions.checkArgument(!json.isEmpty(),
-        "Cannot parse table identifier from invalid JSON: ''");
+    Preconditions.checkArgument(
+        json != null, "Cannot parse table identifier from invalid JSON: null");
+    Preconditions.checkArgument(
+        !json.isEmpty(), "Cannot parse table identifier from invalid JSON: ''");
     try {
       return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Cannot parse table identifier from invalid JSON: %s", json), e);
+      throw new UncheckedIOException(
+          String.format("Cannot parse table identifier from invalid JSON: %s", json), e);
     }
   }
 
   public static TableIdentifier fromJson(JsonNode node) {
-    Preconditions.checkArgument(node != null && !node.isNull() && node.isObject(),
-        "Cannot parse missing or non-object table identifier: %s", node);
+    Preconditions.checkArgument(
+        node != null && !node.isNull() && node.isObject(),
+        "Cannot parse missing or non-object table identifier: %s",
+        node);
     List<String> levels = JsonUtil.getStringListOrNull(NAMESPACE, node);
     String tableName = JsonUtil.getString(NAME, node);
-    Namespace namespace = levels == null ? Namespace.empty() : Namespace.of(levels.toArray(new String[0]));
+    Namespace namespace =
+        levels == null ? Namespace.empty() : Namespace.of(levels.toArray(new String[0]));
     return TableIdentifier.of(namespace, tableName);
   }
 }

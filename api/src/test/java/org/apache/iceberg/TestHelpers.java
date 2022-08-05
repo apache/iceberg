@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.ByteArrayInputStream;
@@ -39,33 +38,41 @@ import org.junit.Assert;
 
 public class TestHelpers {
 
-  private TestHelpers() {
+  private TestHelpers() {}
+
+  /** Wait in a tight check loop until system clock is past {@code timestampMillis} */
+  public static long waitUntilAfter(long timestampMillis) {
+    long current = System.currentTimeMillis();
+    while (current <= timestampMillis) {
+      current = System.currentTimeMillis();
+    }
+    return current;
   }
 
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
-    Assert.assertTrue("Expression should have expected type: " + expected,
-        expected.isInstance(expr));
+    Assert.assertTrue(
+        "Expression should have expected type: " + expected, expected.isInstance(expr));
     return expected.cast(expr);
   }
 
   @SuppressWarnings("unchecked")
   public static <T> BoundPredicate<T> assertAndUnwrap(Expression expr) {
-    Assert.assertTrue("Expression should be a bound predicate: " + expr,
-        expr instanceof BoundPredicate);
+    Assert.assertTrue(
+        "Expression should be a bound predicate: " + expr, expr instanceof BoundPredicate);
     return (BoundPredicate<T>) expr;
   }
 
   @SuppressWarnings("unchecked")
   public static <T> BoundSetPredicate<T> assertAndUnwrapBoundSet(Expression expr) {
-    Assert.assertTrue("Expression should be a bound set predicate: " + expr,
-        expr instanceof BoundSetPredicate);
+    Assert.assertTrue(
+        "Expression should be a bound set predicate: " + expr, expr instanceof BoundSetPredicate);
     return (BoundSetPredicate<T>) expr;
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundPredicate<T> assertAndUnwrapUnbound(Expression expr) {
-    Assert.assertTrue("Expression should be an unbound predicate: " + expr,
-        expr instanceof UnboundPredicate);
+    Assert.assertTrue(
+        "Expression should be an unbound predicate: " + expr, expr instanceof UnboundPredicate);
     return (UnboundPredicate<T>) expr;
   }
 
@@ -80,8 +87,8 @@ public class TestHelpers {
       out.writeObject(type);
     }
 
-    try (ObjectInputStream in = new ObjectInputStream(
-        new ByteArrayInputStream(bytes.toByteArray()))) {
+    try (ObjectInputStream in =
+        new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       return (T) in.readObject();
     }
   }
@@ -91,23 +98,24 @@ public class TestHelpers {
       Assert.fail("Should have same number of schemas in both lists");
     }
 
-    IntStream.range(0, list1.size()).forEach(
-        index -> {
-          Schema schema1 = list1.get(index);
-          Schema schema2 = list2.get(index);
-          Assert.assertEquals("Should have matching schema id",
-              schema1.schemaId(), schema2.schemaId());
-          Assert.assertEquals("Should have matching schema struct",
-              schema1.asStruct(), schema2.asStruct());
-        }
-    );
+    IntStream.range(0, list1.size())
+        .forEach(
+            index -> {
+              Schema schema1 = list1.get(index);
+              Schema schema2 = list2.get(index);
+              Assert.assertEquals(
+                  "Should have matching schema id", schema1.schemaId(), schema2.schemaId());
+              Assert.assertEquals(
+                  "Should have matching schema struct", schema1.asStruct(), schema2.asStruct());
+            });
   }
 
   public static void assertSerializedMetadata(Table expected, Table actual) {
     Assert.assertEquals("Name must match", expected.name(), actual.name());
     Assert.assertEquals("Location must match", expected.location(), actual.location());
     Assert.assertEquals("Props must match", expected.properties(), actual.properties());
-    Assert.assertEquals("Schema must match", expected.schema().asStruct(), actual.schema().asStruct());
+    Assert.assertEquals(
+        "Schema must match", expected.schema().asStruct(), actual.schema().asStruct());
     Assert.assertEquals("Spec must match", expected.spec(), actual.spec());
     Assert.assertEquals("Sort order must match", expected.sortOrder(), actual.sortOrder());
   }
@@ -116,7 +124,8 @@ public class TestHelpers {
     assertSerializedMetadata(expected, actual);
     Assert.assertEquals("Specs must match", expected.specs(), actual.specs());
     Assert.assertEquals("Sort orders must match", expected.sortOrders(), actual.sortOrders());
-    Assert.assertEquals("Current snapshot must match", expected.currentSnapshot(), actual.currentSnapshot());
+    Assert.assertEquals(
+        "Current snapshot must match", expected.currentSnapshot(), actual.currentSnapshot());
     Assert.assertEquals("Snapshots must match", expected.snapshots(), actual.snapshots());
     Assert.assertEquals("History must match", expected.history(), actual.history());
   }
@@ -126,14 +135,19 @@ public class TestHelpers {
       Assert.fail("Should have same number of schemas in both maps");
     }
 
-    map1.forEach((schemaId, schema1) -> {
-      Schema schema2 = map2.get(schemaId);
-      Assert.assertNotNull(String.format("Schema ID %s does not exist in map: %s", schemaId, map2), schema2);
+    map1.forEach(
+        (schemaId, schema1) -> {
+          Schema schema2 = map2.get(schemaId);
+          Assert.assertNotNull(
+              String.format("Schema ID %s does not exist in map: %s", schemaId, map2), schema2);
 
-      Assert.assertEquals("Should have matching schema id", schema1.schemaId(), schema2.schemaId());
-      Assert.assertTrue(String.format("Should be the same schema. Schema 1: %s, schema 2: %s", schema1, schema2),
-          schema1.sameSchema(schema2));
-    });
+          Assert.assertEquals(
+              "Should have matching schema id", schema1.schemaId(), schema2.schemaId());
+          Assert.assertTrue(
+              String.format(
+                  "Should be the same schema. Schema 1: %s, schema 2: %s", schema1, schema2),
+              schema1.sameSchema(schema2));
+        });
   }
 
   private static class CheckReferencesBound extends ExpressionVisitors.ExpressionVisitor<Void> {
@@ -150,9 +164,7 @@ public class TestHelpers {
     }
   }
 
-  /**
-   * Implements {@link StructLike#get} for passing data in tests.
-   */
+  /** Implements {@link StructLike#get} for passing data in tests. */
   public static class Row implements StructLike {
     public static Row of(Object... values) {
       return new Row(values);
@@ -177,7 +189,7 @@ public class TestHelpers {
 
     @Override
     public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Setting values is not supported");
+      values[pos] = value;
     }
 
     @Override
@@ -210,7 +222,8 @@ public class TestHelpers {
       this(containsNull, null, lowerBound, upperBound);
     }
 
-    public TestFieldSummary(boolean containsNull, Boolean containsNaN, ByteBuffer lowerBound, ByteBuffer upperBound) {
+    public TestFieldSummary(
+        boolean containsNull, Boolean containsNaN, ByteBuffer lowerBound, ByteBuffer upperBound) {
       this.containsNull = containsNull;
       this.containsNaN = containsNaN;
       this.lowerBound = lowerBound;
@@ -258,9 +271,16 @@ public class TestHelpers {
     private final List<PartitionFieldSummary> partitions;
     private final byte[] keyMetadata;
 
-    public TestManifestFile(String path, long length, int specId, Long snapshotId,
-                            Integer addedFiles, Integer existingFiles, Integer deletedFiles,
-                            List<PartitionFieldSummary> partitions, ByteBuffer keyMetadata) {
+    public TestManifestFile(
+        String path,
+        long length,
+        int specId,
+        Long snapshotId,
+        Integer addedFiles,
+        Integer existingFiles,
+        Integer deletedFiles,
+        List<PartitionFieldSummary> partitions,
+        ByteBuffer keyMetadata) {
       this.path = path;
       this.length = length;
       this.specId = specId;
@@ -276,10 +296,20 @@ public class TestHelpers {
       this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     }
 
-    public TestManifestFile(String path, long length, int specId, ManifestContent content, Long snapshotId,
-                            Integer addedFiles, Long addedRows, Integer existingFiles,
-                            Long existingRows, Integer deletedFiles, Long deletedRows,
-                            List<PartitionFieldSummary> partitions, ByteBuffer keyMetadata) {
+    public TestManifestFile(
+        String path,
+        long length,
+        int specId,
+        ManifestContent content,
+        Long snapshotId,
+        Integer addedFiles,
+        Long addedRows,
+        Integer existingFiles,
+        Long existingRows,
+        Integer deletedFiles,
+        Long deletedRows,
+        List<PartitionFieldSummary> partitions,
+        ByteBuffer keyMetadata) {
       this.path = path;
       this.length = length;
       this.specId = specId;
@@ -390,12 +420,15 @@ public class TestHelpers {
       this(path, partition, recordCount, null, null, null, null, null);
     }
 
-    public TestDataFile(String path, StructLike partition, long recordCount,
-                        Map<Integer, Long> valueCounts,
-                        Map<Integer, Long> nullValueCounts,
-                        Map<Integer, Long> nanValueCounts,
-                        Map<Integer, ByteBuffer> lowerBounds,
-                        Map<Integer, ByteBuffer> upperBounds) {
+    public TestDataFile(
+        String path,
+        StructLike partition,
+        long recordCount,
+        Map<Integer, Long> valueCounts,
+        Map<Integer, Long> nullValueCounts,
+        Map<Integer, Long> nanValueCounts,
+        Map<Integer, ByteBuffer> lowerBounds,
+        Map<Integer, ByteBuffer> upperBounds) {
       this.path = path;
       this.partition = partition;
       this.recordCount = recordCount;

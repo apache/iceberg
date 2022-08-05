@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -54,11 +53,12 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
   private int records = 0;
   private boolean closed = false;
 
-  SortedPosDeleteWriter(FileAppenderFactory<T> appenderFactory,
-                        OutputFileFactory fileFactory,
-                        FileFormat format,
-                        StructLike partition,
-                        long recordsNumThreshold) {
+  SortedPosDeleteWriter(
+      FileAppenderFactory<T> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileFormat format,
+      StructLike partition,
+      long recordsNumThreshold) {
     this.appenderFactory = appenderFactory;
     this.fileFactory = fileFactory;
     this.format = format;
@@ -66,16 +66,18 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
     this.recordsNumThreshold = recordsNumThreshold;
   }
 
-  SortedPosDeleteWriter(FileAppenderFactory<T> appenderFactory,
-                        OutputFileFactory fileFactory,
-                        FileFormat format,
-                        StructLike partition) {
+  SortedPosDeleteWriter(
+      FileAppenderFactory<T> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileFormat format,
+      StructLike partition) {
     this(appenderFactory, fileFactory, format, partition, DEFAULT_RECORDS_NUM_THRESHOLD);
   }
 
   @Override
   public long length() {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement length");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement length");
   }
 
   @Override
@@ -97,7 +99,8 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
 
     records += 1;
 
-    // TODO Flush buffer based on the policy that checking whether whole heap memory size exceed the threshold.
+    // TODO Flush buffer based on the policy that checking whether whole heap memory size exceed the
+    // threshold.
     if (records >= recordsNumThreshold) {
       flushDeletes();
     }
@@ -140,7 +143,8 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
       outputFile = fileFactory.newOutputFile(partition);
     }
 
-    PositionDeleteWriter<T> writer = appenderFactory.newPosDeleteWriter(outputFile, format, partition);
+    PositionDeleteWriter<T> writer =
+        appenderFactory.newPosDeleteWriter(outputFile, format, partition);
     try (PositionDeleteWriter<T> closeableWriter = writer) {
       // Sort all the paths.
       List<CharSequence> paths = Lists.newArrayListWithCapacity(posDeletes.keySet().size());
@@ -157,8 +161,10 @@ class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWr
         positions.forEach(posRow -> closeableWriter.delete(path, posRow.pos(), posRow.row()));
       }
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to write the sorted path/pos pairs to pos-delete file: " +
-          outputFile.encryptingOutputFile().location(), e);
+      throw new UncheckedIOException(
+          "Failed to write the sorted path/pos pairs to pos-delete file: "
+              + outputFile.encryptingOutputFile().location(),
+          e);
     }
 
     // Clear the buffered pos-deletions.

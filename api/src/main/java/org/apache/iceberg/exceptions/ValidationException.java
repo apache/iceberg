@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
@@ -25,13 +24,13 @@ import org.apache.iceberg.Schema;
 
 /**
  * Exception which is raised when the arguments are valid in isolation, but not in conjunction with
- * other arguments or state, as opposed to {@link IllegalArgumentException} which is raised when
- * an argument value is always invalid.
- * <p>
- * A ValidationException will cause the operation to abort.
- * <p>
- * For example, this is thrown when attempting to create a table with a {@link PartitionSpec} that
- * is not compatible with the table {@link Schema}
+ * other arguments or state, as opposed to {@link IllegalArgumentException} which is raised when an
+ * argument value is always invalid.
+ *
+ * <p>A ValidationException will cause the operation to abort.
+ *
+ * <p>For example, this is thrown when attempting to create a table with a {@link PartitionSpec}
+ * that is not compatible with the table {@link Schema}
  */
 public class ValidationException extends RuntimeException {
   @FormatMethod

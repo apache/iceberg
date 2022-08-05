@@ -16,48 +16,44 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 
 public class DataTableScan extends BaseTableScan {
-  static final ImmutableList<String> SCAN_COLUMNS = ImmutableList.of(
-      "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
-      "file_size_in_bytes", "record_count", "partition", "key_metadata", "split_offsets"
-  );
-  static final ImmutableList<String> SCAN_WITH_STATS_COLUMNS = ImmutableList.<String>builder()
-      .addAll(SCAN_COLUMNS)
-      .add("value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds", "column_sizes")
-      .build();
-  static final boolean PLAN_SCANS_WITH_WORKER_POOL =
-      SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
   public DataTableScan(TableOperations ops, Table table) {
     super(ops, table, table.schema());
   }
 
-  protected DataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+  protected DataTableScan(
+      TableOperations ops, Table table, Schema schema, TableScanContext context) {
     super(ops, table, schema, context);
   }
 
   @Override
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
-    Preconditions.checkState(snapshotId() == null,
-        "Cannot enable incremental scan, scan-snapshot set to id=%s", snapshotId());
-    return new IncrementalDataTableScan(tableOps(), table(), schema(),
-        context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
+    Preconditions.checkState(
+        snapshotId() == null,
+        "Cannot enable incremental scan, scan-snapshot set to id=%s",
+        snapshotId());
+    return new IncrementalDataTableScan(
+        tableOps(),
+        table(),
+        schema(),
+        context().fromSnapshotIdExclusive(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
 
   @Override
   public TableScan appendsAfter(long fromSnapshotId) {
     Snapshot currentSnapshot = table().currentSnapshot();
-    Preconditions.checkState(currentSnapshot != null, "Cannot scan appends after %s, there is no current snapshot",
+    Preconditions.checkState(
+        currentSnapshot != null,
+        "Cannot scan appends after %s, there is no current snapshot",
         fromSnapshotId);
     return appendsBetween(fromSnapshotId, currentSnapshot.snapshotId());
   }
@@ -68,11 +64,13 @@ public class DataTableScan extends BaseTableScan {
     // we do not use its return value
     super.useSnapshot(scanSnapshotId);
     Schema snapshotSchema = SnapshotUtil.schemaFor(table(), scanSnapshotId);
-    return newRefinedScan(tableOps(), table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
+    return newRefinedScan(
+        tableOps(), table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
   }
 
   @Override
-  protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+  protected TableScan newRefinedScan(
+      TableOperations ops, Table table, Schema schema, TableScanContext context) {
     return new DataTableScan(ops, table, schema, context);
   }
 
@@ -81,30 +79,27 @@ public class DataTableScan extends BaseTableScan {
     Snapshot snapshot = snapshot();
 
     FileIO io = table().io();
-    ManifestGroup manifestGroup = new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
-        .caseSensitive(isCaseSensitive())
-        .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
-        .filterData(filter())
-        .specsById(table().specs())
-        .ignoreDeleted();
+    List<ManifestFile> dataManifests = snapshot.dataManifests(io);
+    List<ManifestFile> deleteManifests = snapshot.deleteManifests(io);
+    scanMetrics().totalDataManifests().increment(dataManifests.size());
+    scanMetrics().totalDeleteManifests().increment(deleteManifests.size());
+    ManifestGroup manifestGroup =
+        new ManifestGroup(io, dataManifests, deleteManifests)
+            .caseSensitive(isCaseSensitive())
+            .select(scanColumns())
+            .filterData(filter())
+            .specsById(table().specs())
+            .scanMetrics(scanMetrics())
+            .ignoreDeleted();
 
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
-    if (snapshot.dataManifests(io).size() > 1 &&
-        (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
+    if (dataManifests.size() > 1 && shouldPlanWithExecutor()) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
     return manifestGroup.planFiles();
-  }
-
-  @Override
-  public long targetSplitSize() {
-    long tableValue = tableOps().current().propertyAsLong(
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
-    return PropertyUtil.propertyAsLong(options(), TableProperties.SPLIT_SIZE, tableValue);
   }
 }

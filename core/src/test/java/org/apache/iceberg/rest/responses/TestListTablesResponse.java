@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,13 +32,15 @@ import org.junit.Test;
 
 public class TestListTablesResponse extends RequestResponseTestBase<ListTablesResponse> {
 
-  private static final List<TableIdentifier> IDENTIFIERS = ImmutableList.of(
-      TableIdentifier.of(Namespace.of("accounting", "tax"), "paid"));
+  private static final List<TableIdentifier> IDENTIFIERS =
+      ImmutableList.of(TableIdentifier.of(Namespace.of("accounting", "tax"), "paid"));
 
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
-    String fullJson = "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
-    assertRoundTripSerializesEquallyFrom(fullJson, ListTablesResponse.builder().addAll(IDENTIFIERS).build());
+    String fullJson =
+        "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
+    assertRoundTripSerializesEquallyFrom(
+        fullJson, ListTablesResponse.builder().addAll(IDENTIFIERS).build());
 
     String emptyIdentifiers = "{\"identifiers\":[]}";
     assertRoundTripSerializesEquallyFrom(emptyIdentifiers, ListTablesResponse.builder().build());
@@ -47,7 +48,7 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
 
   @Test
   public void testDeserializeInvalidResponsesThrows() {
-    String identifiersHasWrongType = "{\"identifiers\":\"accounting%00tax\"}";
+    String identifiersHasWrongType = "{\"identifiers\":\"accounting%1Ftax\"}";
     AssertHelpers.assertThrows(
         "A JSON response with the incorrect type for the field identifiers should fail to parse",
         JsonProcessingException.class,
@@ -73,31 +74,27 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
     AssertHelpers.assertThrows(
         "A JSON response with an invalid identifier in the list of identifiers should fail to parse",
         JsonProcessingException.class,
-        () -> deserialize(jsonWithInvalidIdentifiersInList)
-    );
+        () -> deserialize(jsonWithInvalidIdentifiersInList));
 
     String jsonWithInvalidIdentifiersInList2 =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},\"accounting.tax.paid\"]}";
     AssertHelpers.assertThrows(
         "A JSON response with an invalid identifier in the list of identifiers should fail to parse",
         JsonProcessingException.class,
-        () -> deserialize(jsonWithInvalidIdentifiersInList2)
-    );
+        () -> deserialize(jsonWithInvalidIdentifiersInList2));
 
     String jsonWithInvalidTypeForNamePartOfIdentifier =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":true}]}";
     AssertHelpers.assertThrows(
         "A JSON response with an invalid identifier in the list of identifiers should fail to parse",
         JsonProcessingException.class,
-        () -> deserialize(jsonWithInvalidTypeForNamePartOfIdentifier)
-    );
+        () -> deserialize(jsonWithInvalidTypeForNamePartOfIdentifier));
 
     String nullJson = null;
     AssertHelpers.assertThrows(
         "A null JSON response should fail to deserialize",
         IllegalArgumentException.class,
-        () -> deserialize(nullJson)
-    );
+        () -> deserialize(nullJson));
   }
 
   @Test
@@ -106,43 +103,40 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
         "The builder should not allow using null as a table identifier to add to the list",
         NullPointerException.class,
         "Invalid table identifier: null",
-        () -> ListTablesResponse.builder().add(null).build()
-    );
+        () -> ListTablesResponse.builder().add(null).build());
 
     AssertHelpers.assertThrows(
         "The builder should not allow passing a null list of table identifiers to add",
         NullPointerException.class,
         "Invalid table identifier list: null",
-        () -> ListTablesResponse.builder().addAll(null).build()
-    );
+        () -> ListTablesResponse.builder().addAll(null).build());
 
-    List<TableIdentifier> listWithNullElement = Lists.newArrayList(
-        TableIdentifier.of(Namespace.of("foo"), "bar"), null);
+    List<TableIdentifier> listWithNullElement =
+        Lists.newArrayList(TableIdentifier.of(Namespace.of("foo"), "bar"), null);
     AssertHelpers.assertThrows(
         "The builder should not allow passing a collection of table identifiers with a null element in it",
         IllegalArgumentException.class,
         "Invalid table identifier: null",
-        () -> ListTablesResponse.builder().addAll(listWithNullElement).build()
-    );
+        () -> ListTablesResponse.builder().addAll(listWithNullElement).build());
   }
 
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] { "identifiers" };
+    return new String[] {"identifiers"};
   }
 
   @Override
   public ListTablesResponse createExampleInstance() {
-    return ListTablesResponse.builder()
-        .addAll(IDENTIFIERS)
-        .build();
+    return ListTablesResponse.builder().addAll(IDENTIFIERS).build();
   }
 
   @Override
   public void assertEquals(ListTablesResponse actual, ListTablesResponse expected) {
-    Assert.assertTrue("Identifiers should be equal",
-        actual.identifiers().size() == expected.identifiers().size() &&
-            Sets.newHashSet(actual.identifiers()).equals(Sets.newHashSet(expected.identifiers())));
+    Assert.assertTrue(
+        "Identifiers should be equal",
+        actual.identifiers().size() == expected.identifiers().size()
+            && Sets.newHashSet(actual.identifiers())
+                .equals(Sets.newHashSet(expected.identifiers())));
   }
 
   @Override

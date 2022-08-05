@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import org.apache.flink.annotation.Internal;
@@ -43,8 +42,7 @@ public class RecordAndPosition<T> {
     this.recordOffset = recordOffset;
   }
 
-  public RecordAndPosition() {
-  }
+  public RecordAndPosition() {}
 
   // ------------------------------------------------------------------------
 
@@ -77,5 +75,4 @@ public class RecordAndPosition<T> {
   public String toString() {
     return String.format("%s @ %d + %d", record, fileOffset, recordOffset);
   }
-
 }

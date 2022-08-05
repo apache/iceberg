@@ -16,19 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.io.ObjectStreamException;
 
-/**
- * An {@link Expression expression} that is always false.
- */
+/** An {@link Expression expression} that is always false. */
 public class False implements Expression {
   static final False INSTANCE = new False();
 
-  private False() {
-  }
+  private False() {}
 
   @Override
   public Operation op() {
@@ -38,6 +34,11 @@ public class False implements Expression {
   @Override
   public Expression negate() {
     return True.INSTANCE;
+  }
+
+  @Override
+  public boolean isEquivalentTo(Expression other) {
+    return other.op() == Operation.FALSE;
   }
 
   @Override

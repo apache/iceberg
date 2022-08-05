@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.sql;
 
 import java.io.IOException;
@@ -66,11 +65,14 @@ public class TestDropTable extends SparkCatalogTestBase {
   }
 
   private void dropTableInternal() throws IOException {
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "test")),
+        sql("SELECT * FROM %s", tableName));
 
     List<String> manifestAndFiles = manifestsAndFiles();
-    Assert.assertEquals("There should be 2 files for manifests and files", 2, manifestAndFiles.size());
+    Assert.assertEquals(
+        "There should be 2 files for manifests and files", 2, manifestAndFiles.size());
     Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
     sql("DROP TABLE %s", tableName);
@@ -86,11 +88,14 @@ public class TestDropTable extends SparkCatalogTestBase {
 
   @Test
   public void testPurgeTable() throws IOException {
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "test")),
+        sql("SELECT * FROM %s", tableName));
 
     List<String> manifestAndFiles = manifestsAndFiles();
-    Assert.assertEquals("There should be 2 files for manifests and files", 2, manifestAndFiles.size());
+    Assert.assertEquals(
+        "There should be 2 files for manifests and files", 2, manifestAndFiles.size());
     Assert.assertTrue("All files should exist", checkFilesExist(manifestAndFiles, true));
 
     sql("DROP TABLE %s PURGE", tableName);
@@ -102,14 +107,19 @@ public class TestDropTable extends SparkCatalogTestBase {
   public void testPurgeTableGCDisabled() throws IOException {
     sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
 
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(1, "test")), sql("SELECT * FROM %s", tableName));
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "test")),
+        sql("SELECT * FROM %s", tableName));
 
     List<String> manifestAndFiles = manifestsAndFiles();
-    Assert.assertEquals("There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
+    Assert.assertEquals(
+        "There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
     Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
-    AssertHelpers.assertThrows("Purge table is not allowed when GC is disabled", ValidationException.class,
+    AssertHelpers.assertThrows(
+        "Purge table is not allowed when GC is disabled",
+        ValidationException.class,
         "Cannot purge table: GC is disabled (deleting files may corrupt other tables",
         () -> sql("DROP TABLE %s PURGE", tableName));
 
@@ -119,15 +129,21 @@ public class TestDropTable extends SparkCatalogTestBase {
 
   private List<String> manifestsAndFiles() {
     List<Object[]> files = readMetadataTableToJavaList(MetadataTableType.FILES.name(), "file_path");
-    List<Object[]> manifests = readMetadataTableToJavaList(MetadataTableType.MANIFESTS.name(), "path");
-    return Streams.concat(files.stream(), manifests.stream()).map(row -> (String) row[0]).collect(Collectors.toList());
+    List<Object[]> manifests =
+        readMetadataTableToJavaList(MetadataTableType.MANIFESTS.name(), "path");
+    return Streams.concat(files.stream(), manifests.stream())
+        .map(row -> (String) row[0])
+        .collect(Collectors.toList());
   }
 
   private List<Object[]> readMetadataTableToJavaList(String metadataTableType, String column) {
-    List<Row> rows = spark.read().format("iceberg")
-        .load(String.format("%s.%s", tableName, metadataTableType))
-        .select(column)
-        .collectAsList();
+    List<Row> rows =
+        spark
+            .read()
+            .format("iceberg")
+            .load(String.format("%s.%s", tableName, metadataTableType))
+            .select(column)
+            .collectAsList();
 
     if (rows.size() < 1) {
       return ImmutableList.of();
@@ -143,12 +159,14 @@ public class TestDropTable extends SparkCatalogTestBase {
     }
 
     FileSystem fs = new Path(files.get(0)).getFileSystem(hiveConf);
-    return files.stream().allMatch(file -> {
-      try {
-        return fs.exists(new Path(file)) ^ mask;
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    });
+    return files.stream()
+        .allMatch(
+            file -> {
+              try {
+                return fs.exists(new Path(file)) ^ mask;
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            });
   }
 }

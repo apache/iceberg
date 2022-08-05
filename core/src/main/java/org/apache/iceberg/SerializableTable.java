@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -33,20 +32,21 @@ import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * A read-only serializable table that can be sent to other nodes in a cluster.
- * <p>
- * An instance of this class represents an immutable serializable copy of a table state and
- * will not reflect any subsequent changed made to the original table.
- * <p>
- * While this class captures the metadata file location that can be used to load the complete
- * table metadata, it directly persists the current schema, spec, sort order, table properties
- * to avoid reading the metadata file from other nodes for frequently needed metadata.
- * <p>
- * The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager},
+ *
+ * <p>An instance of this class represents an immutable serializable copy of a table state and will
+ * not reflect any subsequent changed made to the original table.
+ *
+ * <p>While this class captures the metadata file location that can be used to load the complete
+ * table metadata, it directly persists the current schema, spec, sort order, table properties to
+ * avoid reading the metadata file from other nodes for frequently needed metadata.
+ *
+ * <p>The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager},
  * {@link LocationProvider} are serializable. If you are serializing the table using a custom
  * serialization framework like Kryo, those instances of {@link FileIO}, {@link EncryptionManager},
  * {@link LocationProvider} must be supported by that particular serialization framework.
- * <p>
- * <em>Note:</em> loading the complete metadata from a large number of nodes can overwhelm the storage.
+ *
+ * <p><em>Note:</em> loading the complete metadata from a large number of nodes can overwhelm the
+ * storage.
  */
 public class SerializableTable implements Table, Serializable {
 
@@ -68,7 +68,7 @@ public class SerializableTable implements Table, Serializable {
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
 
-  private SerializableTable(Table table) {
+  protected SerializableTable(Table table) {
     this.name = table.name();
     this.location = table.location();
     this.metadataFileLocation = metadataFileLocation(table);
@@ -121,10 +121,12 @@ public class SerializableTable implements Table, Serializable {
       synchronized (this) {
         if (lazyTable == null) {
           if (metadataFileLocation == null) {
-            throw new UnsupportedOperationException("Cannot load metadata: metadata file location is null");
+            throw new UnsupportedOperationException(
+                "Cannot load metadata: metadata file location is null");
           }
 
-          TableOperations ops = new StaticTableOperations(metadataFileLocation, io, locationProvider);
+          TableOperations ops =
+              new StaticTableOperations(metadataFileLocation, io, locationProvider);
           this.lazyTable = newTable(ops, name);
         }
       }
@@ -185,9 +187,10 @@ public class SerializableTable implements Table, Serializable {
         if (lazySpecs == null && lazyTable == null) {
           // prefer parsing JSON as opposed to loading the metadata
           Map<Integer, PartitionSpec> specs = Maps.newHashMapWithExpectedSize(specAsJsonMap.size());
-          specAsJsonMap.forEach((specId, specAsJson) -> {
-            specs.put(specId, PartitionSpecParser.fromJson(schema(), specAsJson));
-          });
+          specAsJsonMap.forEach(
+              (specId, specAsJson) -> {
+                specs.put(specId, PartitionSpecParser.fromJson(schema(), specAsJson));
+              });
           this.lazySpecs = specs;
         } else if (lazySpecs == null) {
           this.lazySpecs = lazyTable.specs();
@@ -353,11 +356,11 @@ public class SerializableTable implements Table, Serializable {
     return String.format("Operation %s is not supported after the table is serialized", operation);
   }
 
-  private static class SerializableMetadataTable extends SerializableTable {
+  public static class SerializableMetadataTable extends SerializableTable {
     private final MetadataTableType type;
     private final String baseTableName;
 
-    SerializableMetadataTable(BaseMetadataTable metadataTable) {
+    protected SerializableMetadataTable(BaseMetadataTable metadataTable) {
       super(metadataTable);
       this.type = metadataTable.metadataTableType();
       this.baseTableName = metadataTable.table().name();

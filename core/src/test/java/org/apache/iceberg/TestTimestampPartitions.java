@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,14 +29,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 @RunWith(Parameterized.class)
 public class TestTimestampPartitions extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestTimestampPartitions(int formatVersion) {
@@ -43,34 +42,34 @@ public class TestTimestampPartitions extends TableTestBase {
 
   @Test
   public void testPartitionAppend() throws IOException {
-    Schema dateSchema = new Schema(
-        required(1, "id", Types.LongType.get()),
-        optional(2, "timestamp", Types.TimestampType.withoutZone())
-    );
+    Schema dateSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "timestamp", Types.TimestampType.withoutZone()));
 
-    PartitionSpec partitionSpec = PartitionSpec
-        .builderFor(dateSchema)
-        .day("timestamp", "date")
-        .build();
+    PartitionSpec partitionSpec =
+        PartitionSpec.builderFor(dateSchema).day("timestamp", "date").build();
 
-    DataFile dataFile = DataFiles.builder(partitionSpec)
-        .withPath("/path/to/data-1.parquet")
-        .withFileSizeInBytes(0)
-        .withRecordCount(0)
-        .withPartitionPath("date=2018-06-08")
-        .build();
+    DataFile dataFile =
+        DataFiles.builder(partitionSpec)
+            .withPath("/path/to/data-1.parquet")
+            .withFileSizeInBytes(0)
+            .withRecordCount(0)
+            .withPartitionPath("date=2018-06-08")
+            .build();
 
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    this.table = TestTables.create(tableDir, "test_date_partition", dateSchema, partitionSpec, formatVersion);
+    this.table =
+        TestTables.create(
+            tableDir, "test_date_partition", dateSchema, partitionSpec, formatVersion);
 
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    table.newAppend().appendFile(dataFile).commit();
     long id = table.currentSnapshot().snapshotId();
     Assert.assertEquals(table.currentSnapshot().allManifests(table.io()).size(), 1);
-    validateManifestEntries(table.currentSnapshot().allManifests(table.io()).get(0),
+    validateManifestEntries(
+        table.currentSnapshot().allManifests(table.io()).get(0),
         ids(id),
         files(dataFile),
         statuses(ManifestEntry.Status.ADDED));

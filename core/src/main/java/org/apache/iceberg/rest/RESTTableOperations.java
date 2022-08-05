@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest;
 
 import java.util.List;
@@ -58,13 +57,22 @@ class RESTTableOperations implements TableOperations {
   private TableMetadata current;
 
   RESTTableOperations(
-      RESTClient client, String path, Supplier<Map<String, String>> headers, FileIO io, TableMetadata current) {
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO io,
+      TableMetadata current) {
     this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
   }
 
   RESTTableOperations(
-      RESTClient client, String path, Supplier<Map<String, String>> headers, FileIO io, UpdateType updateType,
-      List<MetadataUpdate> createChanges, TableMetadata current) {
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> headers,
+      FileIO io,
+      UpdateType updateType,
+      List<MetadataUpdate> createChanges,
+      TableMetadata current) {
     this.client = client;
     this.path = path;
     this.headers = headers;
@@ -86,7 +94,8 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    return updateCurrentMetadata(client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+    return updateCurrentMetadata(
+        client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
@@ -96,7 +105,8 @@ class RESTTableOperations implements TableOperations {
     Consumer<ErrorResponse> errorHandler;
     switch (updateType) {
       case CREATE:
-        Preconditions.checkState(base == null, "Invalid base metadata for create transaction, expected null: %s", base);
+        Preconditions.checkState(
+            base == null, "Invalid base metadata for create transaction, expected null: %s", base);
         requestBuilder = UpdateTableRequest.builderForCreate();
         baseChanges = createChanges;
         errorHandler = ErrorHandlers.tableErrorHandler(); // throws NoSuchTableException
@@ -118,16 +128,19 @@ class RESTTableOperations implements TableOperations {
         break;
 
       default:
-        throw new UnsupportedOperationException(String.format("Update type %s is not supported", updateType));
+        throw new UnsupportedOperationException(
+            String.format("Update type %s is not supported", updateType));
     }
 
     baseChanges.forEach(requestBuilder::update);
     metadata.changes().forEach(requestBuilder::update);
     UpdateTableRequest request = requestBuilder.build();
 
-    // the error handler will throw necessary exceptions like CommitFailedException and UnknownCommitStateException
+    // the error handler will throw necessary exceptions like CommitFailedException and
+    // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
-    LoadTableResponse response = client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+    LoadTableResponse response =
+        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
 
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
@@ -141,9 +154,11 @@ class RESTTableOperations implements TableOperations {
   }
 
   private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
-    // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST spec so it can be
+    // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST
+    // spec so it can be
     // safely ignored. there is no requirement to update config on refresh or commit.
-    if (current == null || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
+    if (current == null
+        || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
       this.current = response.tableMetadata();
     }
 
@@ -151,8 +166,7 @@ class RESTTableOperations implements TableOperations {
   }
 
   private static String metadataFileLocation(TableMetadata metadata, String filename) {
-    String metadataLocation = metadata.properties()
-        .get(TableProperties.WRITE_METADATA_LOCATION);
+    String metadataLocation = metadata.properties().get(TableProperties.WRITE_METADATA_LOCATION);
 
     if (metadataLocation != null) {
       return String.format("%s/%s", metadataLocation, filename);
@@ -181,7 +195,8 @@ class RESTTableOperations implements TableOperations {
 
       @Override
       public TableMetadata refresh() {
-        throw new UnsupportedOperationException("Cannot call refresh on temporary table operations");
+        throw new UnsupportedOperationException(
+            "Cannot call refresh on temporary table operations");
       }
 
       @Override
@@ -196,7 +211,8 @@ class RESTTableOperations implements TableOperations {
 
       @Override
       public LocationProvider locationProvider() {
-        return LocationProviders.locationsFor(uncommittedMetadata.location(), uncommittedMetadata.properties());
+        return LocationProviders.locationsFor(
+            uncommittedMetadata.location(), uncommittedMetadata.properties());
       }
 
       @Override

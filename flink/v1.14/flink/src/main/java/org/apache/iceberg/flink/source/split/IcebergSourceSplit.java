@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.split;
 
 import java.io.IOException;
@@ -43,8 +42,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
   // The splits are frequently serialized into checkpoints.
   // Caching the byte representation makes repeated serialization cheap.
-  @Nullable
-  private transient byte[] serializedBytesCache;
+  @Nullable private transient byte[] serializedBytesCache;
 
   private IcebergSourceSplit(CombinedScanTask task, int fileOffset, long recordOffset) {
     this.task = task;
@@ -75,9 +73,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
   @Override
   public String splitId() {
-    return MoreObjects.toStringHelper(this)
-        .add("files", toString(task.files()))
-        .toString();
+    return MoreObjects.toStringHelper(this).add("files", toString(task.files())).toString();
   }
 
   public void updatePosition(int newFileOffset, long newRecordOffset) {
@@ -97,12 +93,16 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   }
 
   private String toString(Collection<FileScanTask> files) {
-    return Iterables.toString(files.stream().map(fileScanTask ->
-        MoreObjects.toStringHelper(fileScanTask)
-            .add("file", fileScanTask.file().path().toString())
-            .add("start", fileScanTask.start())
-            .add("length", fileScanTask.length())
-            .toString()).collect(Collectors.toList()));
+    return Iterables.toString(
+        files.stream()
+            .map(
+                fileScanTask ->
+                    MoreObjects.toStringHelper(fileScanTask)
+                        .add("file", fileScanTask.file().path().toString())
+                        .add("start", fileScanTask.start())
+                        .add("length", fileScanTask.length())
+                        .toString())
+            .collect(Collectors.toList()));
   }
 
   byte[] serializeV1() throws IOException {
@@ -114,7 +114,8 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
 
   static IcebergSourceSplit deserializeV1(byte[] serialized) throws IOException {
     try {
-      return InstantiationUtil.deserializeObject(serialized, IcebergSourceSplit.class.getClassLoader());
+      return InstantiationUtil.deserializeObject(
+          serialized, IcebergSourceSplit.class.getClassLoader());
     } catch (ClassNotFoundException e) {
       throw new RuntimeException("Failed to deserialize the split.", e);
     }

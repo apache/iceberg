@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.util.List;
@@ -87,7 +86,8 @@ public interface PartitionSpecVisitor<T> {
   }
 
   default T unknown(int fieldId, String sourceName, int sourceId, String transform) {
-    throw new UnsupportedOperationException(String.format("Unknown transform %s is not supported", transform));
+    throw new UnsupportedOperationException(
+        String.format("Unknown transform %s is not supported", transform));
   }
 
   /**

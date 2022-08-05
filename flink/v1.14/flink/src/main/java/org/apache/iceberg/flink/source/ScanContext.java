@@ -16,26 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-
-/**
- * Context object with optional arguments for a Flink Scan.
- */
-class ScanContext implements Serializable {
+/** Context object with optional arguments for a Flink Scan. */
+@Internal
+public class ScanContext implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
@@ -47,6 +47,14 @@ class ScanContext implements Serializable {
 
   private static final ConfigOption<Long> AS_OF_TIMESTAMP =
       ConfigOptions.key("as-of-timestamp").longType().defaultValue(null);
+
+  private static final ConfigOption<StreamingStartingStrategy> STARTING_STRATEGY =
+      ConfigOptions.key("starting-strategy")
+          .enumType(StreamingStartingStrategy.class)
+          .defaultValue(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT);
+
+  private static final ConfigOption<Long> START_SNAPSHOT_TIMESTAMP =
+      ConfigOptions.key("start-snapshot-timestamp").longType().defaultValue(null);
 
   private static final ConfigOption<Long> START_SNAPSHOT_ID =
       ConfigOptions.key("start-snapshot-id").longType().defaultValue(null);
@@ -72,10 +80,15 @@ class ScanContext implements Serializable {
   private static final ConfigOption<Boolean> INCLUDE_COLUMN_STATS =
       ConfigOptions.key("include-column-stats").booleanType().defaultValue(false);
 
+  private static final ConfigOption<Integer> MAX_PLANNING_SNAPSHOT_COUNT =
+      ConfigOptions.key("max-planning-snapshot-count").intType().defaultValue(Integer.MAX_VALUE);
+
   private final boolean caseSensitive;
   private final boolean exposeLocality;
   private final Long snapshotId;
+  private final StreamingStartingStrategy startingStrategy;
   private final Long startSnapshotId;
+  private final Long startSnapshotTimestamp;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
   private final Long splitSize;
@@ -83,6 +96,7 @@ class ScanContext implements Serializable {
   private final Long splitOpenFileCost;
   private final boolean isStreaming;
   private final Duration monitorInterval;
+  private final int maxPlanningSnapshotCount;
 
   private final String nameMapping;
   private final Schema schema;
@@ -91,13 +105,31 @@ class ScanContext implements Serializable {
   private final boolean includeColumnStats;
   private final Integer planParallelism;
 
-  private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
-                      Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
-                      boolean isStreaming, Duration monitorInterval, String nameMapping, Schema schema,
-                      List<Expression> filters, long limit, boolean includeColumnStats, boolean exposeLocality,
-                      Integer planParallelism) {
+  private ScanContext(
+      boolean caseSensitive,
+      Long snapshotId,
+      StreamingStartingStrategy startingStrategy,
+      Long startSnapshotTimestamp,
+      Long startSnapshotId,
+      Long endSnapshotId,
+      Long asOfTimestamp,
+      Long splitSize,
+      Integer splitLookback,
+      Long splitOpenFileCost,
+      boolean isStreaming,
+      Duration monitorInterval,
+      String nameMapping,
+      Schema schema,
+      List<Expression> filters,
+      long limit,
+      boolean includeColumnStats,
+      boolean exposeLocality,
+      Integer planParallelism,
+      int maxPlanningSnapshotCount) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
+    this.startingStrategy = startingStrategy;
+    this.startSnapshotTimestamp = startSnapshotTimestamp;
     this.startSnapshotId = startSnapshotId;
     this.endSnapshotId = endSnapshotId;
     this.asOfTimestamp = asOfTimestamp;
@@ -106,6 +138,7 @@ class ScanContext implements Serializable {
     this.splitOpenFileCost = splitOpenFileCost;
     this.isStreaming = isStreaming;
     this.monitorInterval = monitorInterval;
+    this.maxPlanningSnapshotCount = maxPlanningSnapshotCount;
 
     this.nameMapping = nameMapping;
     this.schema = schema;
@@ -114,77 +147,112 @@ class ScanContext implements Serializable {
     this.includeColumnStats = includeColumnStats;
     this.exposeLocality = exposeLocality;
     this.planParallelism = planParallelism;
+
+    validate();
   }
 
-  boolean caseSensitive() {
+  private void validate() {
+    if (isStreaming) {
+      if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_ID) {
+        Preconditions.checkArgument(
+            startSnapshotId != null,
+            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: null");
+        Preconditions.checkArgument(
+            startSnapshotTimestamp == null,
+            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
+      }
+      if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP) {
+        Preconditions.checkArgument(
+            startSnapshotTimestamp != null,
+            "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_TIMESTAMP strategy: null");
+        Preconditions.checkArgument(
+            startSnapshotId == null,
+            "Invalid starting snapshot id for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
+      }
+    }
+  }
+
+  public boolean caseSensitive() {
     return caseSensitive;
   }
 
-  Long snapshotId() {
+  public Long snapshotId() {
     return snapshotId;
   }
 
-  Long startSnapshotId() {
+  public StreamingStartingStrategy streamingStartingStrategy() {
+    return startingStrategy;
+  }
+
+  public Long startSnapshotTimestamp() {
+    return startSnapshotTimestamp;
+  }
+
+  public Long startSnapshotId() {
     return startSnapshotId;
   }
 
-  Long endSnapshotId() {
+  public Long endSnapshotId() {
     return endSnapshotId;
   }
 
-  Long asOfTimestamp() {
+  public Long asOfTimestamp() {
     return asOfTimestamp;
   }
 
-  Long splitSize() {
+  public Long splitSize() {
     return splitSize;
   }
 
-  Integer splitLookback() {
+  public Integer splitLookback() {
     return splitLookback;
   }
 
-  Long splitOpenFileCost() {
+  public Long splitOpenFileCost() {
     return splitOpenFileCost;
   }
 
-  boolean isStreaming() {
+  public boolean isStreaming() {
     return isStreaming;
   }
 
-  Duration monitorInterval() {
+  public Duration monitorInterval() {
     return monitorInterval;
   }
 
-  String nameMapping() {
+  public String nameMapping() {
     return nameMapping;
   }
 
-  Schema project() {
+  public Schema project() {
     return schema;
   }
 
-  List<Expression> filters() {
+  public List<Expression> filters() {
     return filters;
   }
 
-  long limit() {
+  public long limit() {
     return limit;
   }
 
-  boolean includeColumnStats() {
+  public boolean includeColumnStats() {
     return includeColumnStats;
   }
 
-  boolean exposeLocality() {
+  public boolean exposeLocality() {
     return exposeLocality;
   }
 
-  Integer planParallelism() {
+  public Integer planParallelism() {
     return planParallelism;
   }
 
-  ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
+  public int maxPlanningSnapshotCount() {
+    return maxPlanningSnapshotCount;
+  }
+
+  public ScanContext copyWithAppendsBetween(Long newStartSnapshotId, long newEndSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(null)
@@ -203,10 +271,11 @@ class ScanContext implements Serializable {
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
+        .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
         .build();
   }
 
-  ScanContext copyWithSnapshotId(long newSnapshotId) {
+  public ScanContext copyWithSnapshotId(long newSnapshotId) {
     return ScanContext.builder()
         .caseSensitive(caseSensitive)
         .useSnapshotId(newSnapshotId)
@@ -225,16 +294,19 @@ class ScanContext implements Serializable {
         .includeColumnStats(includeColumnStats)
         .exposeLocality(exposeLocality)
         .planParallelism(planParallelism)
+        .maxPlanningSnapshotCount(maxPlanningSnapshotCount)
         .build();
   }
 
-  static Builder builder() {
+  public static Builder builder() {
     return new Builder();
   }
 
-  static class Builder {
+  public static class Builder {
     private boolean caseSensitive = CASE_SENSITIVE.defaultValue();
     private Long snapshotId = SNAPSHOT_ID.defaultValue();
+    private StreamingStartingStrategy startingStrategy = STARTING_STRATEGY.defaultValue();
+    private Long startSnapshotTimestamp = START_SNAPSHOT_TIMESTAMP.defaultValue();
     private Long startSnapshotId = START_SNAPSHOT_ID.defaultValue();
     private Long endSnapshotId = END_SNAPSHOT_ID.defaultValue();
     private Long asOfTimestamp = AS_OF_TIMESTAMP.defaultValue();
@@ -249,103 +321,121 @@ class ScanContext implements Serializable {
     private long limit = -1L;
     private boolean includeColumnStats = INCLUDE_COLUMN_STATS.defaultValue();
     private boolean exposeLocality;
-    private Integer planParallelism = FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
+    private Integer planParallelism =
+        FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE.defaultValue();
+    private int maxPlanningSnapshotCount = MAX_PLANNING_SNAPSHOT_COUNT.defaultValue();
 
-    private Builder() {
-    }
+    private Builder() {}
 
-    Builder caseSensitive(boolean newCaseSensitive) {
+    public Builder caseSensitive(boolean newCaseSensitive) {
       this.caseSensitive = newCaseSensitive;
       return this;
     }
 
-    Builder useSnapshotId(Long newSnapshotId) {
+    public Builder useSnapshotId(Long newSnapshotId) {
       this.snapshotId = newSnapshotId;
       return this;
     }
 
-    Builder startSnapshotId(Long newStartSnapshotId) {
+    public Builder startingStrategy(StreamingStartingStrategy newStartingStrategy) {
+      this.startingStrategy = newStartingStrategy;
+      return this;
+    }
+
+    public Builder startSnapshotTimestamp(Long newStartSnapshotTimestamp) {
+      this.startSnapshotTimestamp = newStartSnapshotTimestamp;
+      return this;
+    }
+
+    public Builder startSnapshotId(Long newStartSnapshotId) {
       this.startSnapshotId = newStartSnapshotId;
       return this;
     }
 
-    Builder endSnapshotId(Long newEndSnapshotId) {
+    public Builder endSnapshotId(Long newEndSnapshotId) {
       this.endSnapshotId = newEndSnapshotId;
       return this;
     }
 
-    Builder asOfTimestamp(Long newAsOfTimestamp) {
+    public Builder asOfTimestamp(Long newAsOfTimestamp) {
       this.asOfTimestamp = newAsOfTimestamp;
       return this;
     }
 
-    Builder splitSize(Long newSplitSize) {
+    public Builder splitSize(Long newSplitSize) {
       this.splitSize = newSplitSize;
       return this;
     }
 
-    Builder splitLookback(Integer newSplitLookback) {
+    public Builder splitLookback(Integer newSplitLookback) {
       this.splitLookback = newSplitLookback;
       return this;
     }
 
-    Builder splitOpenFileCost(Long newSplitOpenFileCost) {
+    public Builder splitOpenFileCost(Long newSplitOpenFileCost) {
       this.splitOpenFileCost = newSplitOpenFileCost;
       return this;
     }
 
-    Builder streaming(boolean streaming) {
+    public Builder streaming(boolean streaming) {
       this.isStreaming = streaming;
       return this;
     }
 
-    Builder monitorInterval(Duration newMonitorInterval) {
+    public Builder monitorInterval(Duration newMonitorInterval) {
       this.monitorInterval = newMonitorInterval;
       return this;
     }
 
-    Builder nameMapping(String newNameMapping) {
+    public Builder nameMapping(String newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }
 
-    Builder project(Schema newProjectedSchema) {
+    public Builder project(Schema newProjectedSchema) {
       this.projectedSchema = newProjectedSchema;
       return this;
     }
 
-    Builder filters(List<Expression> newFilters) {
+    public Builder filters(List<Expression> newFilters) {
       this.filters = newFilters;
       return this;
     }
 
-    Builder limit(long newLimit) {
+    public Builder limit(long newLimit) {
       this.limit = newLimit;
       return this;
     }
 
-    Builder includeColumnStats(boolean newIncludeColumnStats) {
+    public Builder includeColumnStats(boolean newIncludeColumnStats) {
       this.includeColumnStats = newIncludeColumnStats;
       return this;
     }
 
-    Builder exposeLocality(boolean newExposeLocality) {
+    public Builder exposeLocality(boolean newExposeLocality) {
       this.exposeLocality = newExposeLocality;
       return this;
     }
 
-    Builder planParallelism(Integer parallelism) {
+    public Builder planParallelism(Integer parallelism) {
       this.planParallelism = parallelism;
       return this;
     }
 
-    Builder fromProperties(Map<String, String> properties) {
+    public Builder maxPlanningSnapshotCount(int newMaxPlanningSnapshotCount) {
+      this.maxPlanningSnapshotCount = newMaxPlanningSnapshotCount;
+      return this;
+    }
+
+    public Builder fromProperties(Map<String, String> properties) {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
 
       return this.useSnapshotId(config.get(SNAPSHOT_ID))
           .caseSensitive(config.get(CASE_SENSITIVE))
           .asOfTimestamp(config.get(AS_OF_TIMESTAMP))
+          .startingStrategy(config.get(STARTING_STRATEGY))
+          .startSnapshotTimestamp(config.get(START_SNAPSHOT_TIMESTAMP))
           .startSnapshotId(config.get(START_SNAPSHOT_ID))
           .endSnapshotId(config.get(END_SNAPSHOT_ID))
           .splitSize(config.get(SPLIT_SIZE))
@@ -354,14 +444,32 @@ class ScanContext implements Serializable {
           .streaming(config.get(STREAMING))
           .monitorInterval(config.get(MONITOR_INTERVAL))
           .nameMapping(properties.get(DEFAULT_NAME_MAPPING))
-          .includeColumnStats(config.get(INCLUDE_COLUMN_STATS));
+          .includeColumnStats(config.get(INCLUDE_COLUMN_STATS))
+          .maxPlanningSnapshotCount(config.get(MAX_PLANNING_SNAPSHOT_COUNT));
     }
 
     public ScanContext build() {
-      return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
-          endSnapshotId, asOfTimestamp, splitSize, splitLookback,
-          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filters, limit, includeColumnStats, exposeLocality, planParallelism);
+      return new ScanContext(
+          caseSensitive,
+          snapshotId,
+          startingStrategy,
+          startSnapshotTimestamp,
+          startSnapshotId,
+          endSnapshotId,
+          asOfTimestamp,
+          splitSize,
+          splitLookback,
+          splitOpenFileCost,
+          isStreaming,
+          monitorInterval,
+          nameMapping,
+          projectedSchema,
+          filters,
+          limit,
+          includeColumnStats,
+          exposeLocality,
+          planParallelism,
+          maxPlanningSnapshotCount);
     }
   }
 }

@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
 
-/**
- * A {@link Table} implementation that exposes a table's data files as rows.
- */
+/** A {@link Table} implementation that exposes a table's data files as rows. */
 public class DataFilesTable extends BaseFilesTable {
 
   DataFilesTable(TableOperations ops, Table table) {
@@ -55,7 +52,8 @@ public class DataFilesTable extends BaseFilesTable {
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    protected TableScan newRefinedScan(
+        TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new DataFilesTableScan(ops, table, schema, context);
     }
 

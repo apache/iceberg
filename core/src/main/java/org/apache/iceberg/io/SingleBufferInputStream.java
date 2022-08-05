@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.EOFException;
@@ -26,8 +25,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * This ByteBufferInputStream does not consume the ByteBuffer being passed in,
- * but will create a slice of the current buffer.
+ * This ByteBufferInputStream does not consume the ByteBuffer being passed in, but will create a
+ * slice of the current buffer.
  */
 class SingleBufferInputStream extends ByteBufferInputStream {
 
@@ -84,7 +83,8 @@ class SingleBufferInputStream extends ByteBufferInputStream {
   @Override
   public void seek(long newPosition) throws IOException {
     if (newPosition > length) {
-      throw new EOFException(String.format("Cannot seek to position after end of file: %s", newPosition));
+      throw new EOFException(
+          String.format("Cannot seek to position after end of file: %s", newPosition));
     }
 
     if (getPos() > newPosition) {

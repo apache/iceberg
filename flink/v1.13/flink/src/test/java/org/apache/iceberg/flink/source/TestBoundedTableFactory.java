@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.util.List;
@@ -36,46 +35,53 @@ public class TestBoundedTableFactory extends ChangeLogTableTestBase {
     List<List<Row>> emptyDataSet = ImmutableList.of();
 
     String dataId = BoundedTableFactory.registerDataSet(emptyDataSet);
-    sql("CREATE TABLE %s(id INT, data STRING) WITH ('connector'='BoundedSource', 'data-id'='%s')", table, dataId);
+    sql(
+        "CREATE TABLE %s(id INT, data STRING) WITH ('connector'='BoundedSource', 'data-id'='%s')",
+        table, dataId);
 
-    Assert.assertEquals("Should have caught empty change log set.", ImmutableList.of(),
+    Assert.assertEquals(
+        "Should have caught empty change log set.",
+        ImmutableList.of(),
         sql("SELECT * FROM %s", table));
   }
 
   @Test
   public void testBoundedTableFactory() {
     String table = name.getMethodName();
-    List<List<Row>> dataSet = ImmutableList.of(
+    List<List<Row>> dataSet =
         ImmutableList.of(
-            insertRow(1, "aaa"),
-            deleteRow(1, "aaa"),
-            insertRow(1, "bbb"),
-            insertRow(2, "aaa"),
-            deleteRow(2, "aaa"),
-            insertRow(2, "bbb")
-        ),
-        ImmutableList.of(
-            updateBeforeRow(2, "bbb"),
-            updateAfterRow(2, "ccc"),
-            deleteRow(2, "ccc"),
-            insertRow(2, "ddd")
-        ),
-        ImmutableList.of(
-            deleteRow(1, "bbb"),
-            insertRow(1, "ccc"),
-            deleteRow(1, "ccc"),
-            insertRow(1, "ddd")
-        )
-    );
+            ImmutableList.of(
+                insertRow(1, "aaa"),
+                deleteRow(1, "aaa"),
+                insertRow(1, "bbb"),
+                insertRow(2, "aaa"),
+                deleteRow(2, "aaa"),
+                insertRow(2, "bbb")),
+            ImmutableList.of(
+                updateBeforeRow(2, "bbb"),
+                updateAfterRow(2, "ccc"),
+                deleteRow(2, "ccc"),
+                insertRow(2, "ddd")),
+            ImmutableList.of(
+                deleteRow(1, "bbb"),
+                insertRow(1, "ccc"),
+                deleteRow(1, "ccc"),
+                insertRow(1, "ddd")));
 
     String dataId = BoundedTableFactory.registerDataSet(dataSet);
-    sql("CREATE TABLE %s(id INT, data STRING) WITH ('connector'='BoundedSource', 'data-id'='%s')", table, dataId);
+    sql(
+        "CREATE TABLE %s(id INT, data STRING) WITH ('connector'='BoundedSource', 'data-id'='%s')",
+        table, dataId);
 
     List<Row> rowSet = dataSet.stream().flatMap(Streams::stream).collect(Collectors.toList());
-    Assert.assertEquals("Should have the expected change log events.", rowSet, sql("SELECT * FROM %s", table));
+    Assert.assertEquals(
+        "Should have the expected change log events.", rowSet, sql("SELECT * FROM %s", table));
 
-    Assert.assertEquals("Should have the expected change log events",
-        rowSet.stream().filter(r -> Objects.equals(r.getField(1), "aaa")).collect(Collectors.toList()),
+    Assert.assertEquals(
+        "Should have the expected change log events",
+        rowSet.stream()
+            .filter(r -> Objects.equals(r.getField(1), "aaa"))
+            .collect(Collectors.toList()),
         sql("SELECT * FROM %s WHERE data='aaa'", table));
   }
 }

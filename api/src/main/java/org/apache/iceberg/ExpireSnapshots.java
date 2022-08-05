@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.List;
@@ -25,18 +24,18 @@ import java.util.function.Consumer;
 
 /**
  * API for removing old {@link Snapshot snapshots} from a table.
- * <p>
- * This API accumulates snapshot deletions and commits the new list to the table. This API does not
- * allow deleting the current snapshot.
- * <p>
- * When committing, these changes will be applied to the latest table metadata. Commit conflicts
- * will be resolved by applying the changes to the new latest metadata and reattempting the commit.
- * <p>
- * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were
- * deleted by snapshots that are expired will be deleted. {@link #deleteWith(Consumer)} can be used
- * to pass an alternative deletion method.
  *
- * {@link #apply()} returns a list of the snapshots that will be removed.
+ * <p>This API accumulates snapshot deletions and commits the new list to the table. This API does
+ * not allow deleting the current snapshot.
+ *
+ * <p>When committing, these changes will be applied to the latest table metadata. Commit conflicts
+ * will be resolved by applying the changes to the new latest metadata and reattempting the commit.
+ *
+ * <p>Manifest files that are no longer used by valid snapshots will be deleted. Data files that
+ * were deleted by snapshots that are expired will be deleted. {@link #deleteWith(Consumer)} can be
+ * used to pass an alternative deletion method.
+ *
+ * <p>{@link #apply()} returns a list of the snapshots that will be removed.
  */
 public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
 
@@ -58,13 +57,14 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
 
   /**
    * Retains the most recent ancestors of the current snapshot.
-   * <p>
-   * If a snapshot would be expired because it is older than the expiration timestamp, but is one of
-   * the {@code numSnapshots} most recent ancestors of the current state, it will be retained. This
-   * will not cause snapshots explicitly identified by id from expiring.
-   * <p>
-   * This may keep more than {@code numSnapshots} ancestors if snapshots are added concurrently. This
-   * may keep less than {@code numSnapshots} ancestors if the current table state does not have that many.
+   *
+   * <p>If a snapshot would be expired because it is older than the expiration timestamp, but is one
+   * of the {@code numSnapshots} most recent ancestors of the current state, it will be retained.
+   * This will not cause snapshots explicitly identified by id from expiring.
+   *
+   * <p>This may keep more than {@code numSnapshots} ancestors if snapshots are added concurrently.
+   * This may keep less than {@code numSnapshots} ancestors if the current table state does not have
+   * that many.
    *
    * @param numSnapshots the number of snapshots to retain
    * @return this for method chaining
@@ -73,11 +73,11 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
 
   /**
    * Passes an alternative delete implementation that will be used for manifests and data files.
-   * <p>
-   * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were
-   * deleted by snapshots that are expired will be deleted.
-   * <p>
-   * If this method is not called, unnecessary manifests and data files will still be deleted.
+   *
+   * <p>Manifest files that are no longer used by valid snapshots will be deleted. Data files that
+   * were deleted by snapshots that are expired will be deleted.
+   *
+   * <p>If this method is not called, unnecessary manifests and data files will still be deleted.
    *
    * @param deleteFunc a function that will be called to delete manifests and data files
    * @return this for method chaining
@@ -86,21 +86,22 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
 
   /**
    * Passes an alternative executor service that will be used for manifests and data files deletion.
-   * <p>
-   * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were
-   * deleted by snapshots that are expired will be deleted.
-   * <p>
-   * If this method is not called, unnecessary manifests and data files will still be deleted using a single threaded
-   * executor service.
    *
-   * @param executorService an executor service to parallelize tasks to delete manifests and data files
+   * <p>Manifest files that are no longer used by valid snapshots will be deleted. Data files that
+   * were deleted by snapshots that are expired will be deleted.
+   *
+   * <p>If this method is not called, unnecessary manifests and data files will still be deleted
+   * using a single threaded executor service.
+   *
+   * @param executorService an executor service to parallelize tasks to delete manifests and data
+   *     files
    * @return this for method chaining
    */
   ExpireSnapshots executeDeleteWith(ExecutorService executorService);
 
   /**
-   * Passes an alternative executor service that will be used for planning.
-   * If this method is not called, the default worker pool will be used.
+   * Passes an alternative executor service that will be used for planning. If this method is not
+   * called, the default worker pool will be used.
    *
    * @param executorService an executor service to plan
    * @return this for method chaining
@@ -109,9 +110,9 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
 
   /**
    * Allows expiration of snapshots without any cleanup of underlying manifest or data files.
-   * <p>
-   * Allows control in removing data and manifest files which may be more efficiently removed using
-   * a distributed framework through the actions API.
+   *
+   * <p>Allows control in removing data and manifest files which may be more efficiently removed
+   * using a distributed framework through the actions API.
    *
    * @param clean setting this to false will skip deleting expired manifests and files
    * @return this for method chaining

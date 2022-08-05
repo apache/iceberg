@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.orc;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,13 +43,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestOrcRowIterator {
 
-  private static final Schema DATA_SCHEMA = new Schema(
-      required(100, "id", Types.LongType.get())
-  );
+  private static final Schema DATA_SCHEMA = new Schema(required(100, "id", Types.LongType.get()));
 
   private static final int NUM_ROWS = 8000;
   private static final List<Record> DATA_ROWS;
@@ -62,8 +59,7 @@ public class TestOrcRowIterator {
     }
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private File testFile;
 
@@ -72,15 +68,17 @@ public class TestOrcRowIterator {
     testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .schema(DATA_SCHEMA)
-        // write in such a way that the file contains 2 stripes each with 4 row groups of 1000 rows
-        .set("iceberg.orc.vectorbatch.size", "1000")
-        .set(OrcConf.ROW_INDEX_STRIDE.getAttribute(), "1000")
-        .set(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "4000")
-        .set(OrcConf.STRIPE_SIZE.getAttribute(), "1")
-        .build()) {
+    try (FileAppender<Record> writer =
+        ORC.write(Files.localOutput(testFile))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .schema(DATA_SCHEMA)
+            // write in such a way that the file contains 2 stripes each with 4 row groups of 1000
+            // rows
+            .set("iceberg.orc.vectorbatch.size", "1000")
+            .set(OrcConf.ROW_INDEX_STRIDE.getAttribute(), "1000")
+            .set(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "4000")
+            .set(OrcConf.STRIPE_SIZE.getAttribute(), "1")
+            .build()) {
       writer.addAll(DATA_ROWS);
     }
   }
@@ -98,17 +96,20 @@ public class TestOrcRowIterator {
     // We skip the 2nd row group [1000, 2000] in Stripe 1
     // With default batch size of 1024, will read the following batches
     // Stripe 1: 1000, 1024, 976
-    readAndValidate(Expressions.in("id", 500, 2500, 3500),
-        Lists.newArrayList(Iterables.concat(DATA_ROWS.subList(0, 1000), DATA_ROWS.subList(2000, 4000))));
+    readAndValidate(
+        Expressions.in("id", 500, 2500, 3500),
+        Lists.newArrayList(
+            Iterables.concat(DATA_ROWS.subList(0, 1000), DATA_ROWS.subList(2000, 4000))));
   }
 
   private void readAndValidate(Expression filter, List<Record> expected) throws IOException {
     List<Record> rows;
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
-        .project(DATA_SCHEMA)
-        .filter(filter)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(DATA_SCHEMA, fileSchema))
-        .build()) {
+    try (CloseableIterable<Record> reader =
+        ORC.read(Files.localInput(testFile))
+            .project(DATA_SCHEMA)
+            .filter(filter)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(DATA_SCHEMA, fileSchema))
+            .build()) {
       rows = Lists.newArrayList(reader);
     }
 

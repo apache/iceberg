@@ -16,12 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.hadoop;
 
-/**
- * Interface used to avoid runtime dependencies on Hadoop Configurable
- */
+/** Interface used to avoid runtime dependencies on Hadoop Configurable */
 public interface Configurable<C> {
   void setConf(C conf);
 }

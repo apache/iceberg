@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.Schema;
@@ -54,16 +53,19 @@ public class SparkRewriteBuilder implements WriteBuilder {
 
   @Override
   public BatchWrite buildForBatch() {
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+    Preconditions.checkArgument(
+        handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
 
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+    TypeUtil.validateWriteSchema(
+        table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     SparkUtil.validatePartitionTransforms(table.spec());
 
     String appId = spark.sparkContext().applicationId();
 
-    SparkWrite write = new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
+    SparkWrite write =
+        new SparkWrite(spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema);
     return write.asRewrite(fileSetID);
   }
 }

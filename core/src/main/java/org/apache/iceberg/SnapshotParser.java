@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -35,8 +34,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
 
-  private SnapshotParser() {
-  }
+  private SnapshotParser() {}
 
   private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String SNAPSHOT_ID = "snapshot-id";
@@ -48,8 +46,7 @@ public class SnapshotParser {
   private static final String MANIFEST_LIST = "manifest-list";
   private static final String SCHEMA_ID = "schema-id";
 
-  static void toJson(Snapshot snapshot, JsonGenerator generator)
-      throws IOException {
+  static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     if (snapshot.sequenceNumber() > TableMetadata.INITIAL_SEQUENCE_NUMBER) {
       generator.writeNumberField(SEQUENCE_NUMBER, snapshot.sequenceNumber());
@@ -118,8 +115,8 @@ public class SnapshotParser {
   }
 
   static Snapshot fromJson(FileIO io, JsonNode node) {
-    Preconditions.checkArgument(node.isObject(),
-        "Cannot parse table version from a non-object: %s", node);
+    Preconditions.checkArgument(
+        node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
     long sequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
     if (node.has(SEQUENCE_NUMBER)) {
@@ -136,8 +133,10 @@ public class SnapshotParser {
     String operation = null;
     if (node.has(SUMMARY)) {
       JsonNode sNode = node.get(SUMMARY);
-      Preconditions.checkArgument(sNode != null && !sNode.isNull() && sNode.isObject(),
-          "Cannot parse summary from non-object value: %s", sNode);
+      Preconditions.checkArgument(
+          sNode != null && !sNode.isNull() && sNode.isObject(),
+          "Cannot parse summary from non-object value: %s",
+          sNode);
 
       ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
       Iterator<String> fields = sNode.fieldNames();
@@ -158,14 +157,25 @@ public class SnapshotParser {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
-          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId, manifestList);
+          io,
+          sequenceNumber,
+          snapshotId,
+          parentId,
+          timestamp,
+          operation,
+          summary,
+          schemaId,
+          manifestList);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
-      List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
-          location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, schemaId, manifests);
+      List<ManifestFile> manifests =
+          Lists.transform(
+              JsonUtil.getStringList(MANIFESTS, node),
+              location -> new GenericManifestFile(io.newInputFile(location), 0));
+      return new BaseSnapshot(
+          io, snapshotId, parentId, timestamp, operation, summary, schemaId, manifests);
     }
   }
 

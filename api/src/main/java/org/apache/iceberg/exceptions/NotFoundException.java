@@ -16,14 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
-/**
- * Exception raised when attempting to read a file that does not exist.
- */
+/** Exception raised when attempting to read a file that does not exist. */
 public class NotFoundException extends RuntimeException {
   @FormatMethod
   public NotFoundException(String message, Object... args) {

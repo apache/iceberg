@@ -16,17 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.metrics;
 
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Generalized interface for creating telemetry related instances for tracking
- * operations.  Implementations must take into account usage considerations
- * like thread safety and serialization.
+ * Generalized interface for creating telemetry related instances for tracking operations.
+ * Implementations must take into account usage considerations like thread safety and serialization.
  */
 public interface MetricsContext extends Serializable {
   enum Unit {
@@ -45,13 +44,10 @@ public interface MetricsContext extends Serializable {
     }
   }
 
-  default void initialize(Map<String, String> properties) {
-  }
+  default void initialize(Map<String, String> properties) {}
 
   interface Counter<T extends Number> {
-    /**
-     * Increment the counter by a single whole number value (i.e. 1).
-     */
+    /** Increment the counter by a single whole number value (i.e. 1). */
     void increment();
 
     /**
@@ -65,19 +61,44 @@ public interface MetricsContext extends Serializable {
      * Reporting count is optional if the counter is reporting externally.
      *
      * @return current count if available
+     * @deprecated Use {@link Counter#value()}
      */
+    @Deprecated
     default Optional<T> count() {
       return Optional.empty();
     }
 
+    /**
+     * Reports the current count.
+     *
+     * @return The current count
+     */
+    default T value() {
+      throw new UnsupportedOperationException("Count is not supported.");
+    }
+
+    /**
+     * The unit of the counter.
+     *
+     * @return The unit of the counter.
+     */
     default Unit unit() {
       return Unit.UNDEFINED;
+    }
+
+    /**
+     * The name of the counter.
+     *
+     * @return The name of the counter.
+     */
+    default String name() {
+      return "undefined";
     }
   }
 
   /**
-   * Get a named counter of a specific type.  Metric implementations may impose
-   * restrictions on what types are supported for specific counters.
+   * Get a named counter of a specific type. Metric implementations may impose restrictions on what
+   * types are supported for specific counters.
    *
    * @param name name of the metric
    * @param type numeric type of the counter value
@@ -89,23 +110,41 @@ public interface MetricsContext extends Serializable {
   }
 
   /**
+   * Get a named timer.
+   *
+   * @param name name of the metric
+   * @param unit the time unit designation of the metric
+   * @return a timer implementation
+   */
+  default Timer timer(String name, TimeUnit unit) {
+    throw new UnsupportedOperationException("Timer is not supported.");
+  }
+
+  /**
    * Utility method for producing no metrics.
    *
    * @return a non-recording metrics context
    */
   static MetricsContext nullMetrics() {
     return new MetricsContext() {
+
+      @Override
+      public Timer timer(String name, TimeUnit unit) {
+        return Timer.NOOP;
+      }
+
       @Override
       public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-        return new Counter<T>() {
-          @Override
-          public void increment() {
-          }
+        if (Integer.class.equals(type)) {
+          return (Counter<T>) IntCounter.NOOP;
+        }
 
-          @Override
-          public void increment(T amount) {
-          }
-        };
+        if (Long.class.equals(type)) {
+          return (Counter<T>) LongCounter.NOOP;
+        }
+
+        throw new IllegalArgumentException(
+            String.format("Counter for type %s is not supported", type.getName()));
       }
     };
   }

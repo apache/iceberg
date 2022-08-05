@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
@@ -49,9 +48,7 @@ class PartitionData
   private final String stringSchema;
   private transient Schema schema = null;
 
-  /**
-   * Used by Avro reflection to instantiate this class when reading manifest files.
-   */
+  /** Used by Avro reflection to instantiate this class when reading manifest files. */
   PartitionData(Schema schema) {
     this.partitionType = AvroSchemaUtil.convert(schema).asNestedType().asStructType();
     this.size = partitionType.fields().size();
@@ -62,8 +59,10 @@ class PartitionData
 
   PartitionData(Types.StructType partitionType) {
     for (Types.NestedField field : partitionType.fields()) {
-      Preconditions.checkArgument(field.type().isPrimitiveType(),
-          "Partitions cannot contain nested types: %s", field.type());
+      Preconditions.checkArgument(
+          field.type().isPrimitiveType(),
+          "Partitions cannot contain nested types: %s",
+          field.type());
     }
 
     this.partitionType = partitionType;
@@ -73,9 +72,7 @@ class PartitionData
     this.stringSchema = schema.toString();
   }
 
-  /**
-   * Copy constructor
-   */
+  /** Copy constructor */
   private PartitionData(PartitionData toCopy) {
     this.partitionType = toCopy.partitionType;
     this.size = toCopy.size;
@@ -110,16 +107,16 @@ class PartitionData
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public <T> T get(int pos, Class<T> javaClass) {
     Object value = get(pos);
     if (value == null || javaClass.isInstance(value)) {
       return javaClass.cast(value);
     }
 
-    throw new IllegalArgumentException(String.format(
-        "Wrong class, %s, for object: %s",
-        javaClass.getName(), String.valueOf(value)));
+    throw new IllegalArgumentException(
+        String.format(
+            "Wrong class, expected %s, but was %s, for object: %s",
+            javaClass.getName(), value.getClass().getName(), value));
   }
 
   @Override
@@ -164,9 +161,7 @@ class PartitionData
       if (i > 0) {
         sb.append(", ");
       }
-      sb.append(partitionType.fields().get(i).name())
-          .append("=")
-          .append(data[i]);
+      sb.append(partitionType.fields().get(i).name()).append("=").append(data[i]);
     }
     sb.append("}");
     return sb.toString();

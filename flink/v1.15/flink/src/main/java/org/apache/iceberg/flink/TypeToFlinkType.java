@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.util.List;
@@ -44,8 +43,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
-  TypeToFlinkType() {
-  }
+  TypeToFlinkType() {}
 
   @Override
   public LogicalType schema(Schema schema, LogicalType structType) {
@@ -60,8 +58,8 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
       LogicalType type = fieldResults.get(i);
-      RowType.RowField flinkField = new RowType.RowField(
-          field.name(), type.copy(field.isOptional()), field.doc());
+      RowType.RowField flinkField =
+          new RowType.RowField(field.name(), type.copy(field.isOptional()), field.doc());
       flinkFields.add(flinkField);
     }
 
@@ -100,9 +98,11 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
       case DATE:
         return new DateType();
       case TIME:
-        // For the type: Flink only support TimeType with default precision (second) now. The precision of time is
+        // For the type: Flink only support TimeType with default precision (second) now. The
+        // precision of time is
         // not supported in Flink, so we can think of it as a simple time type directly.
-        // For the data: Flink uses int that support mills to represent time data, so it supports mills precision.
+        // For the data: Flink uses int that support mills to represent time data, so it supports
+        // mills precision.
         return new TimeType();
       case TIMESTAMP:
         Types.TimestampType timestamp = (Types.TimestampType) primitive;
