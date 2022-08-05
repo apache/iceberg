@@ -30,6 +30,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -94,6 +96,22 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
           .withPartition(TestHelpers.Row.of(3))
           .withRecordCount(1)
           .build();
+  static final DeleteFile FILE_A_POS_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a-pos-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("c1=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
+  static final DeleteFile FILE_A_EQ_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes()
+          .withPath("/path/to/data-a-eq-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("c1=0") // easy way to set partition data for now
+          .withRecordCount(1)
+          .build();
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
@@ -109,6 +127,8 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
 
   private void checkRemoveFilesResults(
       long expectedDatafiles,
+      long expectedPosDeleteFiles,
+      long expectedEqDeleteFiles,
       long expectedManifestsDeleted,
       long expectedManifestListsDeleted,
       long expectedOtherFilesDeleted,
@@ -121,6 +141,14 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         "Incorrect number of datafiles deleted",
         expectedDatafiles,
         results.deletedDataFilesCount());
+    Assert.assertEquals(
+        "Incorrect number of position delete files deleted",
+        expectedPosDeleteFiles,
+        results.deletedPositionDeleteFilesCount());
+    Assert.assertEquals(
+        "Incorrect number of equality delete files deleted",
+        expectedEqDeleteFiles,
+        results.deletedEqualityDeleteFilesCount());
     Assert.assertEquals(
         "Incorrect number of manifest lists deleted",
         expectedManifestListsDeleted,
@@ -177,7 +205,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
             file ->
                 Assert.assertTrue(
                     "FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString())));
-    checkRemoveFilesResults(4L, 6L, 4L, 6, result);
+    checkRemoveFilesResults(4L, 0, 0, 6L, 4L, 6, result);
   }
 
   @Test
@@ -195,7 +223,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
     DeleteReachableFiles.Result result =
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io()).execute();
 
-    checkRemoveFilesResults(3L, 3L, 3L, 5, result);
+    checkRemoveFilesResults(3L, 0, 0, 3L, 3L, 5, result);
   }
 
   @Test
@@ -203,7 +231,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
     DeleteReachableFiles.Result result =
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io()).execute();
 
-    checkRemoveFilesResults(0, 0, 0, 2, result);
+    checkRemoveFilesResults(0, 0, 0, 0, 0, 2, result);
   }
 
   @Test
@@ -223,7 +251,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
     DeleteReachableFiles.Result result = baseRemoveFilesSparkAction.execute();
 
-    checkRemoveFilesResults(4, 5, 5, 8, result);
+    checkRemoveFilesResults(4, 0, 0, 5, 5, 8, result);
   }
 
   @Test
@@ -234,7 +262,37 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
 
     DeleteReachableFiles baseRemoveFilesSparkAction =
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
-    checkRemoveFilesResults(2, 2, 2, 4, baseRemoveFilesSparkAction.execute());
+    checkRemoveFilesResults(2, 0, 0, 2, 2, 4, baseRemoveFilesSparkAction.execute());
+  }
+
+  @Test
+  public void testPositionDeleteFiles() {
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    table.newRowDelta().addDeletes(FILE_A_POS_DELETES).commit();
+
+    DeleteReachableFiles baseRemoveFilesSparkAction =
+        sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
+    checkRemoveFilesResults(2, 1, 0, 3, 3, 6, baseRemoveFilesSparkAction.execute());
+  }
+
+  @Test
+  public void testEqualityDeleteFiles() {
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    table.newRowDelta().addDeletes(FILE_A_EQ_DELETES).commit();
+
+    DeleteReachableFiles baseRemoveFilesSparkAction =
+        sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
+    checkRemoveFilesResults(2, 0, 1, 3, 3, 6, baseRemoveFilesSparkAction.execute());
   }
 
   @Test
@@ -247,7 +305,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
     // IO defaults to HadoopFileIO
     DeleteReachableFiles baseRemoveFilesSparkAction =
         sparkActions().deleteReachableFiles(metadataLocation(table));
-    checkRemoveFilesResults(2, 2, 2, 4, baseRemoveFilesSparkAction.execute());
+    checkRemoveFilesResults(2, 0, 0, 2, 2, 4, baseRemoveFilesSparkAction.execute());
   }
 
   @Test
@@ -273,7 +331,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
           int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
           int totalJobsRun = jobsAfter - jobsBefore;
 
-          checkRemoveFilesResults(3L, 4L, 3L, 5, results);
+          checkRemoveFilesResults(3L, 0, 0, 4L, 3L, 5, results);
 
           Assert.assertEquals(
               "Expected total jobs to be equal to total number of shuffle partitions",
@@ -301,7 +359,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
     DeleteReachableFiles.Result res = baseRemoveFilesSparkAction.execute();
 
-    checkRemoveFilesResults(1, 1, 1, 4, res);
+    checkRemoveFilesResults(1, 0, 0, 1, 1, 4, res);
   }
 
   @Test

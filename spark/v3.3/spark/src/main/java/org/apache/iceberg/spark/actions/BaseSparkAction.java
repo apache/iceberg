@@ -25,11 +25,15 @@ import static org.apache.spark.sql.functions.lit;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
@@ -37,6 +41,8 @@ import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
@@ -47,6 +53,7 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.Tasks;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
@@ -55,9 +62,13 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import scala.Tuple2;
 
 abstract class BaseSparkAction<ThisT> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BaseSparkAction.class);
 
   protected static final String CONTENT_FILE = "Content File";
   protected static final String MANIFEST = "Manifest";
@@ -69,6 +80,7 @@ abstract class BaseSparkAction<ThisT> {
   protected static final String LAST_MODIFIED = "last_modified";
 
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
+  private static final int DELETE_NUM_RETRIES = 3;
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
@@ -198,6 +210,113 @@ abstract class BaseSparkAction<ThisT> {
 
   protected Dataset<Row> loadMetadataTable(Table table, MetadataTableType type) {
     return SparkTableUtil.loadMetadataTable(spark, table, type);
+  }
+
+  /**
+   * Deletes files and keeps track of how many files were removed for each file type.
+   *
+   * @param executorService an executor service to use for parallel deletes
+   * @param deleteFunc a delete func
+   * @param files an iterator of Spark rows of the structure (path: String, type: String)
+   * @return stats on which files were deleted
+   */
+  protected DeleteSummary deleteFiles(
+      ExecutorService executorService, Consumer<String> deleteFunc, Iterator<Row> files) {
+
+    DeleteSummary summary = new DeleteSummary();
+
+    Tasks.foreach(files)
+        .retry(DELETE_NUM_RETRIES)
+        .stopRetryOn(NotFoundException.class)
+        .suppressFailureWhenFinished()
+        .executeWith(executorService)
+        .onFailure(
+            (fileInfo, exc) -> {
+              String file = fileInfo.getString(0);
+              String type = fileInfo.getString(1);
+              LOG.warn("Delete failed for {}: {}", type, file, exc);
+            })
+        .run(
+            fileInfo -> {
+              String file = fileInfo.getString(0);
+              String type = fileInfo.getString(1);
+              deleteFunc.accept(file);
+              summary.deletedFile(file, type);
+            });
+
+    return summary;
+  }
+
+  static class DeleteSummary {
+    private final AtomicLong dataFilesCount = new AtomicLong(0L);
+    private final AtomicLong positionDeleteFilesCount = new AtomicLong(0L);
+    private final AtomicLong equalityDeleteFilesCount = new AtomicLong(0L);
+    private final AtomicLong manifestsCount = new AtomicLong(0L);
+    private final AtomicLong manifestListsCount = new AtomicLong(0L);
+    private final AtomicLong otherFilesCount = new AtomicLong(0L);
+
+    public void deletedFile(String file, String type) {
+      if (FileContent.DATA.name().equalsIgnoreCase(type)) {
+        dataFilesCount.incrementAndGet();
+        LOG.trace("Deleted data file: {}", file);
+
+      } else if (FileContent.POSITION_DELETES.name().equalsIgnoreCase(type)) {
+        positionDeleteFilesCount.incrementAndGet();
+        LOG.trace("Deleted positional delete file: {}", file);
+
+      } else if (FileContent.EQUALITY_DELETES.name().equalsIgnoreCase(type)) {
+        equalityDeleteFilesCount.incrementAndGet();
+        LOG.trace("Deleted equality delete file: {}", file);
+
+      } else if (MANIFEST.equalsIgnoreCase(type)) {
+        manifestsCount.incrementAndGet();
+        LOG.debug("Deleted manifest: {}", file);
+
+      } else if (MANIFEST_LIST.equalsIgnoreCase(type)) {
+        manifestListsCount.incrementAndGet();
+        LOG.debug("Deleted manifest list: {}", file);
+
+      } else if (OTHERS.equalsIgnoreCase(type)) {
+        otherFilesCount.incrementAndGet();
+        LOG.debug("Deleted other metadata file: {}", file);
+
+      } else {
+        throw new ValidationException("Illegal file type: %s", type);
+      }
+    }
+
+    public long dataFilesCount() {
+      return dataFilesCount.get();
+    }
+
+    public long positionDeleteFilesCount() {
+      return positionDeleteFilesCount.get();
+    }
+
+    public long equalityDeleteFilesCount() {
+      return equalityDeleteFilesCount.get();
+    }
+
+    public long manifestsCount() {
+      return manifestsCount.get();
+    }
+
+    public long manifestListsCount() {
+      return manifestListsCount.get();
+    }
+
+    public long otherFilesCount() {
+      return otherFilesCount.get();
+    }
+
+    public long totalFilesCount() {
+      return dataFilesCount()
+          + positionDeleteFilesCount()
+          + equalityDeleteFilesCount()
+          + manifestsCount()
+          + manifestListsCount()
+          + otherFilesCount();
+    }
   }
 
   private static class ReadManifest
