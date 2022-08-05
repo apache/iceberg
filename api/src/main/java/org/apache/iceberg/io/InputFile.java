@@ -37,6 +37,14 @@ public interface InputFile {
   long getLength();
 
   /**
+   * Returns the modification time of the file, in milliseconds
+   *
+   * @return the modification time of the file, in milliseconds
+   * @throws RuntimeIOException If the implementation throws an {@link IOException}
+   */
+  long getModifiedTime();
+
+  /**
    * Opens a new {@link SeekableInputStream} for the underlying data file
    *
    * @return a seekable stream for reading the file

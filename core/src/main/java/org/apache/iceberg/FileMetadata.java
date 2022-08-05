@@ -47,6 +47,7 @@ public class FileMetadata {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
+    private long fileModifiedTime = -1L;
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
@@ -73,6 +74,7 @@ public class FileMetadata {
       this.format = null;
       this.recordCount = -1L;
       this.fileSizeInBytes = -1L;
+      this.fileModifiedTime = -1L;
       this.columnSizes = null;
       this.valueCounts = null;
       this.nullValueCounts = null;
@@ -93,6 +95,7 @@ public class FileMetadata {
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
       this.fileSizeInBytes = toCopy.fileSizeInBytes();
+      this.fileModifiedTime = toCopy.fileModifiedTime();
       this.columnSizes = toCopy.columnSizes();
       this.valueCounts = toCopy.valueCounts();
       this.nullValueCounts = toCopy.nullValueCounts();
@@ -120,6 +123,7 @@ public class FileMetadata {
     public Builder withStatus(FileStatus stat) {
       this.filePath = stat.getPath().toString();
       this.fileSizeInBytes = stat.getLen();
+      this.fileModifiedTime = stat.getModificationTime();
       return this;
     }
 
@@ -130,6 +134,7 @@ public class FileMetadata {
 
       this.filePath = file.location();
       this.fileSizeInBytes = file.getLength();
+      this.fileModifiedTime = file.getModifiedTime();
       return this;
     }
 
@@ -166,6 +171,11 @@ public class FileMetadata {
 
     public Builder withFileSizeInBytes(long newFileSizeInBytes) {
       this.fileSizeInBytes = newFileSizeInBytes;
+      return this;
+    }
+
+    public Builder withFileModifiedTime(long newFileModifiedTime) {
+      this.fileModifiedTime = newFileModifiedTime;
       return this;
     }
 
@@ -238,6 +248,7 @@ public class FileMetadata {
           format,
           isPartitioned ? DataFiles.copy(spec, partitionData) : null,
           fileSizeInBytes,
+          fileModifiedTime,
           new Metrics(
               recordCount,
               columnSizes,

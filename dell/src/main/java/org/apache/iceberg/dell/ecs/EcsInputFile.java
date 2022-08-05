@@ -57,6 +57,11 @@ class EcsInputFile extends BaseEcsFile implements InputFile {
   }
 
   @Override
+  public long getModifiedTime() {
+    return getObjectMetadata().getLastModified().getTime();
+  }
+
+  @Override
   public SeekableInputStream newStream() {
     return new EcsSeekableInputStream(client(), uri(), metrics());
   }

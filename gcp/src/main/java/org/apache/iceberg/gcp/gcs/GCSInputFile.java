@@ -27,6 +27,7 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 class GCSInputFile extends BaseGCSFile implements InputFile {
   private Long length;
+  private Long modifiedTime;
 
   static GCSInputFile fromLocation(
       String location, Storage storage, GCPProperties gcpProperties, MetricsContext metrics) {
@@ -64,6 +65,15 @@ class GCSInputFile extends BaseGCSFile implements InputFile {
     }
 
     return length;
+  }
+
+  @Override
+  public long getModifiedTime() {
+    if (modifiedTime == null) {
+      this.modifiedTime = getBlob().getUpdateTime();
+    }
+
+    return modifiedTime;
   }
 
   @Override

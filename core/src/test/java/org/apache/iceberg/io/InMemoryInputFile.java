@@ -27,6 +27,7 @@ public class InMemoryInputFile implements InputFile {
 
   private final String location;
   private final byte[] contents;
+  private final long modifiedTime;
 
   public InMemoryInputFile(byte[] contents) {
     this("memory:" + UUID.randomUUID(), contents);
@@ -37,11 +38,17 @@ public class InMemoryInputFile implements InputFile {
     Preconditions.checkNotNull(contents, "contents is null");
     this.location = location;
     this.contents = contents.clone();
+    this.modifiedTime = System.currentTimeMillis();
   }
 
   @Override
   public long getLength() {
     return contents.length;
+  }
+
+  @Override
+  public long getModifiedTime() {
+    return modifiedTime;
   }
 
   @Override

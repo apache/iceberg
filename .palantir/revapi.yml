@@ -1,6 +1,11 @@
 versionOverrides:
   org.apache.iceberg:iceberg-api:apache-iceberg-0.14.0: "0.14.0"
 acceptedBreaks:
+  apache-iceberg-0.14.0:
+    org.apache.iceberg:iceberg-api:
+    - code: "java.method.addedToInterface"
+      new: "method long org.apache.iceberg.io.InputFile::getModifiedTime()"
+      justification: "Accept all changes prior to introducing API compatibility checks"
   release-base-0.13.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

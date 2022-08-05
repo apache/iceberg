@@ -118,6 +118,11 @@ public class Files {
     }
 
     @Override
+    public long getModifiedTime() {
+      return file.lastModified();
+    }
+
+    @Override
     public SeekableInputStream newStream() {
       try {
         return new SeekableFileInputStream(new RandomAccessFile(file, "r"));

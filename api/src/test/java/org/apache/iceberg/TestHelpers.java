@@ -475,6 +475,11 @@ public class TestHelpers {
     }
 
     @Override
+    public long fileModifiedTime() {
+      return 0;
+    }
+
+    @Override
     public Map<Integer, Long> columnSizes() {
       return null;
     }

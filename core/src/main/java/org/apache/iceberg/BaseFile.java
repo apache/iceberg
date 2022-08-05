@@ -63,6 +63,7 @@ abstract class BaseFile<F>
   private PartitionData partitionData = null;
   private Long recordCount = null;
   private long fileSizeInBytes = -1L;
+  private long fileModifiedTime = -1L;
 
   // optional fields
   private Map<Integer, Long> columnSizes = null;
@@ -123,6 +124,7 @@ abstract class BaseFile<F>
       FileFormat format,
       PartitionData partition,
       long fileSizeInBytes,
+      long fileModifiedTime,
       long recordCount,
       Map<Integer, Long> columnSizes,
       Map<Integer, Long> valueCounts,
@@ -151,6 +153,7 @@ abstract class BaseFile<F>
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
+    this.fileModifiedTime = fileModifiedTime;
     this.columnSizes = columnSizes;
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
@@ -179,6 +182,7 @@ abstract class BaseFile<F>
     this.partitionType = toCopy.partitionType;
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
+    this.fileModifiedTime = toCopy.fileModifiedTime;
     if (fullCopy) {
       this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
       this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
@@ -296,6 +300,9 @@ abstract class BaseFile<F>
       case 17:
         this.fileOrdinal = (long) value;
         return;
+      case 18:
+        this.fileModifiedTime = (Long) value;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -350,6 +357,8 @@ abstract class BaseFile<F>
         return sortOrderId;
       case 17:
         return fileOrdinal;
+      case 18:
+        return fileModifiedTime;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -398,6 +407,11 @@ abstract class BaseFile<F>
   @Override
   public long fileSizeInBytes() {
     return fileSizeInBytes;
+  }
+
+  @Override
+  public long fileModifiedTime() {
+    return fileModifiedTime;
   }
 
   @Override
@@ -468,6 +482,7 @@ abstract class BaseFile<F>
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
+        .add("file_modified_time", fileModifiedTime)
         .add("column_sizes", columnSizes)
         .add("value_counts", valueCounts)
         .add("null_value_counts", nullValueCounts)

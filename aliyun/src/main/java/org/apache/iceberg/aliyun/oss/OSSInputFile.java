@@ -30,6 +30,7 @@ import org.apache.iceberg.metrics.MetricsContext;
 public class OSSInputFile extends BaseOSSFile implements InputFile {
 
   private Long length = null;
+  private Long modifiedTime = null;
 
   OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties, MetricsContext metrics) {
     super(client, uri, aliyunProperties, metrics);
@@ -52,6 +53,14 @@ public class OSSInputFile extends BaseOSSFile implements InputFile {
       length = objectMetadata().getSize();
     }
     return length;
+  }
+
+  @Override
+  public long getModifiedTime() {
+    if (modifiedTime == null) {
+      modifiedTime = objectMetadata().getLastModified().getTime();
+    }
+    return modifiedTime;
   }
 
   @Override

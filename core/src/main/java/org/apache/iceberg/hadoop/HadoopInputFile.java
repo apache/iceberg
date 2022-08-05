@@ -50,6 +50,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   private final Configuration conf;
   private FileStatus stat = null;
   private Long length = null;
+  private Long modifiedTime = null;
   private NativeFileCryptoParameters nativeDecryptionParameters;
 
   public static HadoopInputFile fromLocation(CharSequence location, Configuration conf) {
@@ -173,6 +174,14 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
       this.length = lazyStat().getLen();
     }
     return length;
+  }
+
+  @Override
+  public long getModifiedTime() {
+    if (modifiedTime == null) {
+      this.modifiedTime = lazyStat().getModificationTime();
+    }
+    return modifiedTime;
   }
 
   @Override

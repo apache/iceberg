@@ -38,6 +38,7 @@ public class SparkDataFile implements DataFile {
   private final int partitionPosition;
   private final int recordCountPosition;
   private final int fileSizeInBytesPosition;
+  private final int fileModifiedTimePosition;
   private final int columnSizesPosition;
   private final int valueCountsPosition;
   private final int nullValueCountsPosition;
@@ -73,6 +74,7 @@ public class SparkDataFile implements DataFile {
     partitionPosition = positions.get("partition");
     recordCountPosition = positions.get("record_count");
     fileSizeInBytesPosition = positions.get("file_size_in_bytes");
+    fileModifiedTimePosition = positions.get("file_modified_time");
     columnSizesPosition = positions.get("column_sizes");
     valueCountsPosition = positions.get("value_counts");
     nullValueCountsPosition = positions.get("null_value_counts");
@@ -126,6 +128,11 @@ public class SparkDataFile implements DataFile {
   @Override
   public long fileSizeInBytes() {
     return wrapped.getAs(fileSizeInBytesPosition);
+  }
+
+  @Override
+  public long fileModifiedTime() {
+    return wrapped.getAs(fileModifiedTimePosition);
   }
 
   @Override

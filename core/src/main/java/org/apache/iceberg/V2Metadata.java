@@ -478,6 +478,11 @@ class V2Metadata {
     }
 
     @Override
+    public long fileModifiedTime() {
+      return wrapped.fileModifiedTime();
+    }
+
+    @Override
     public Map<Integer, Long> columnSizes() {
       return wrapped.columnSizes();
     }

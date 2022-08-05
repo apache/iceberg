@@ -29,6 +29,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryptedFile {
   private NativeFileCryptoParameters nativeDecryptionParameters;
   private Long length;
+  private Long modifiedTime;
 
   public static S3InputFile fromLocation(
       String location, S3Client client, AwsProperties awsProperties, MetricsContext metrics) {
@@ -73,6 +74,15 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
   public long getLength() {
     if (length == null) {
       this.length = getObjectMetadata().contentLength();
+    }
+
+    return length;
+  }
+
+  @Override
+  public long getModifiedTime() {
+    if (modifiedTime == null) {
+      this.modifiedTime = getObjectMetadata().lastModified().toEpochMilli();
     }
 
     return length;

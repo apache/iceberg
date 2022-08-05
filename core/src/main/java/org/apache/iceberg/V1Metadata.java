@@ -361,6 +361,8 @@ class V1Metadata {
           return wrapped.splitOffsets();
         case 14:
           return wrapped.sortOrderId();
+        case 15:
+          return wrapped.fileModifiedTime();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -413,6 +415,11 @@ class V1Metadata {
     @Override
     public long fileSizeInBytes() {
       return wrapped.fileSizeInBytes();
+    }
+
+    @Override
+    public long fileModifiedTime() {
+      return wrapped.fileModifiedTime();
     }
 
     @Override
