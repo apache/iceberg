@@ -88,7 +88,7 @@ NAMESPACE_SEPARATOR = b"\x1F".decode("UTF-8")
 
 
 class TableResponse(IcebergBaseModel):
-    metadata_location: Optional[str] = Field(alias="metadata-location", default=None)
+    metadata_location: str = Field(alias="metadata-location")
     metadata: Union[TableMetadataV1, TableMetadataV2] = Field()
     config: Properties = Field(default_factory=dict)
 

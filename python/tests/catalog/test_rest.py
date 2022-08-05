@@ -259,11 +259,11 @@ def test_load_table_200(rest_mock: Mocker):
     rest_mock.get(
         f"{TEST_URI}v1/namespaces/fokko/tables/table",
         json={
-            "metadataLocation": "s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f/metadata/00001-5f2f8166-244c-4eae-ac36-384ecdec81fc.gz.metadata.json",
+            "metadata-location": "s3://warehouse/database/table/metadata/00001-5f2f8166-244c-4eae-ac36-384ecdec81fc.gz.metadata.json",
             "metadata": {
                 "format-version": 1,
                 "table-uuid": "b55d9dda-6561-423a-8bfc-787980ce421f",
-                "location": "s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f",
+                "location": "s3://warehouse/database/table",
                 "last-updated-ms": 1646787054459,
                 "last-column-id": 2,
                 "schema": {
@@ -312,7 +312,7 @@ def test_load_table_200(rest_mock: Mocker):
                             "total-position-deletes": "0",
                             "total-equality-deletes": "0",
                         },
-                        "manifest-list": "s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f/metadata/snap-3497810964824022504-1-c4f68204-666b-4e50-a9df-b10c34bf6b82.avro",
+                        "manifest-list": "s3://warehouse/database/table/metadata/snap-3497810964824022504-1-c4f68204-666b-4e50-a9df-b10c34bf6b82.avro",
                         "schema-id": 0,
                     }
                 ],
@@ -320,7 +320,7 @@ def test_load_table_200(rest_mock: Mocker):
                 "metadata-log": [
                     {
                         "timestamp-ms": 1646787031514,
-                        "metadata-file": "s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f/metadata/00000-88484a1c-00e5-4a07-a787-c0e7aeffa805.gz.metadata.json",
+                        "metadata-file": "s3://warehouse/database/table/metadata/00000-88484a1c-00e5-4a07-a787-c0e7aeffa805.gz.metadata.json",
                     }
                 ],
             },
@@ -331,9 +331,9 @@ def test_load_table_200(rest_mock: Mocker):
     table = RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_table(("fokko", "table"))
     assert table == Table(
         identifier=("rest", "fokko", "table"),
-        metadata_location=None,
+        metadata_location="s3://warehouse/database/table/metadata/00001-5f2f8166-244c-4eae-ac36-384ecdec81fc.gz.metadata.json",
         metadata=TableMetadataV1(
-            location="s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f",
+            location="s3://warehouse/database/table",
             table_uuid=UUID("b55d9dda-6561-423a-8bfc-787980ce421f"),
             last_updated_ms=1646787054459,
             last_column_id=2,
@@ -357,7 +357,7 @@ def test_load_table_200(rest_mock: Mocker):
                     parent_snapshot_id=None,
                     sequence_number=None,
                     timestamp_ms=1646787054459,
-                    manifest_list="s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f/metadata/snap-3497810964824022504-1-c4f68204-666b-4e50-a9df-b10c34bf6b82.avro",
+                    manifest_list="s3://warehouse/database/table/metadata/snap-3497810964824022504-1-c4f68204-666b-4e50-a9df-b10c34bf6b82.avro",
                     summary=Summary(
                         operation=Operation.APPEND,
                         **{  # type: ignore
@@ -381,7 +381,7 @@ def test_load_table_200(rest_mock: Mocker):
             metadata_log=[
                 {
                     "timestamp-ms": 1646787031514,
-                    "metadata-file": "s3://tabular-public-us-west-2-dev/bb30733e-8769-4dab-aa1b-e76245bb2bd4/b55d9dda-6561-423a-8bfc-787980ce421f/metadata/00000-88484a1c-00e5-4a07-a787-c0e7aeffa805.gz.metadata.json",
+                    "metadata-file": "s3://warehouse/database/table/metadata/00000-88484a1c-00e5-4a07-a787-c0e7aeffa805.gz.metadata.json",
                 }
             ],
             sort_orders=[SortOrder(order_id=0)],
@@ -448,11 +448,11 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema):
     rest_mock.post(
         f"{TEST_URI}v1/namespaces/fokko/tables",
         json={
-            "metadataLocation": None,
+            "metadata-location": "s3://warehouse/database/table/metadata.json",
             "metadata": {
                 "format-version": 1,
                 "table-uuid": "bf289591-dcc0-4234-ad4f-5c3eed811a29",
-                "location": "s3://tabular-wh-us-west-2-dev/8bcb0838-50fc-472d-9ddb-8feb89ef5f1e/bf289591-dcc0-4234-ad4f-5c3eed811a29",
+                "location": "s3://warehouse/database/table",
                 "last-updated-ms": 1657810967051,
                 "last-column-id": 3,
                 "schema": {
@@ -515,9 +515,9 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema):
     )
     assert table == Table(
         identifier=("rest", "fokko", "fokko2"),
-        metadata_location=None,
+        metadata_location="s3://warehouse/database/table/metadata.json",
         metadata=TableMetadataV1(
-            location="s3://tabular-wh-us-west-2-dev/8bcb0838-50fc-472d-9ddb-8feb89ef5f1e/bf289591-dcc0-4234-ad4f-5c3eed811a29",
+            location="s3://warehouse/database/table",
             table_uuid=UUID("bf289591-dcc0-4234-ad4f-5c3eed811a29"),
             last_updated_ms=1657810967051,
             last_column_id=3,
