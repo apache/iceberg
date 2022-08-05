@@ -99,7 +99,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       @Override
       public CloseableIterator<E> iterator() {
-        return CloseableIterator.withClose(iterable.iterator());
+        return iterable.iterator();
       }
     };
   }
