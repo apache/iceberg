@@ -288,7 +288,7 @@ class RestCatalog(Catalog):
                 response = f"{error.type}: {error.message}"
         except JSONDecodeError:
             # In the case we don't have a proper response
-            response = f"RESTError: Could not decode json payload: {exc.response.text}"
+            response = f"RESTError {exc.response.status_code}: Could not decode json payload: {exc.response.text}"
 
         raise exception(response) from exc
 
