@@ -29,7 +29,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -738,6 +740,49 @@ public class TestMetadataUpdateParser {
         "Remove properties should serialize to the correct JSON value", expected, actual);
   }
 
+  @Test
+  public void testSetStatistics() {
+    String json =
+        "{\"action\":\"set-statistics\",\"snapshot-id\":42,\"statistics\":{\"snapshot-id\":42,"
+            + "\"statistics-path\":\"s3://bucket/warehouse/stats.puffin\",\"file-size-in-bytes\":124,"
+            + "\"file-footer-size-in-bytes\":27,\"blob-metadata\":[{\"type\":\"boring-type\","
+            + "\"snapshot-id\":42,\"sequence-number\":2,\"fields\":[1],"
+            + "\"properties\":{\"prop-key\":\"prop-value\"}}]}}";
+    MetadataUpdate expected =
+        new MetadataUpdate.SetStatistics(
+            42,
+            new GenericStatisticsFile(
+                42,
+                "s3://bucket/warehouse/stats.puffin",
+                124,
+                27,
+                ImmutableList.of(
+                    new GenericBlobMetadata(
+                        "boring-type",
+                        42,
+                        2,
+                        ImmutableList.of(1),
+                        ImmutableMap.of("prop-key", "prop-value")))));
+    assertEquals(
+        MetadataUpdateParser.SET_STATISTICS, expected, MetadataUpdateParser.fromJson(json));
+    Assert.assertEquals(
+        "Set statistics should convert to the correct JSON value",
+        json,
+        MetadataUpdateParser.toJson(expected));
+  }
+
+  @Test
+  public void testRemoveStatistics() {
+    String json = "{\"action\":\"remove-statistics\",\"snapshot-id\":42}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveStatistics(42);
+    assertEquals(
+        MetadataUpdateParser.REMOVE_STATISTICS, expected, MetadataUpdateParser.fromJson(json));
+    Assert.assertEquals(
+        "Remove statistics should convert to the correct JSON value",
+        json,
+        MetadataUpdateParser.toJson(expected));
+  }
+
   public void assertEquals(
       String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
@@ -778,6 +823,16 @@ public class TestMetadataUpdateParser {
         assertEqualsSetDefaultSortOrder(
             (MetadataUpdate.SetDefaultSortOrder) expectedUpdate,
             (MetadataUpdate.SetDefaultSortOrder) actualUpdate);
+        break;
+      case MetadataUpdateParser.SET_STATISTICS:
+        assertEqualsSetStatistics(
+            (MetadataUpdate.SetStatistics) expectedUpdate,
+            (MetadataUpdate.SetStatistics) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_STATISTICS:
+        assertEqualsRemoveStatistics(
+            (MetadataUpdate.RemoveStatistics) expectedUpdate,
+            (MetadataUpdate.RemoveStatistics) actualUpdate);
         break;
       case MetadataUpdateParser.ADD_SNAPSHOT:
         assertEqualsAddSnapshot(
@@ -906,6 +961,66 @@ public class TestMetadataUpdateParser {
       MetadataUpdate.SetDefaultSortOrder expected, MetadataUpdate.SetDefaultSortOrder actual) {
     Assert.assertEquals(
         "Sort order id should be the same", expected.sortOrderId(), actual.sortOrderId());
+  }
+
+  private static void assertEqualsSetStatistics(
+      MetadataUpdate.SetStatistics expected, MetadataUpdate.SetStatistics actual) {
+    Assert.assertEquals("Snapshot IDs should be equal", expected.snapshotId(), actual.snapshotId());
+    Assert.assertEquals(
+        "Statistics files snapshot IDs should be equal",
+        expected.statisticsFile().snapshotId(),
+        actual.statisticsFile().snapshotId());
+    Assert.assertEquals(
+        "Statistics files paths should be equal",
+        expected.statisticsFile().path(),
+        actual.statisticsFile().path());
+    Assert.assertEquals(
+        "Statistics files size should be equal",
+        expected.statisticsFile().fileSizeInBytes(),
+        actual.statisticsFile().fileSizeInBytes());
+    Assert.assertEquals(
+        "Statistics files footer size should be equal",
+        expected.statisticsFile().fileFooterSizeInBytes(),
+        actual.statisticsFile().fileFooterSizeInBytes());
+    Assert.assertEquals(
+        "Statistics blob list size should be equal",
+        expected.statisticsFile().blobMetadata().size(),
+        actual.statisticsFile().blobMetadata().size());
+
+    Streams.zip(
+            expected.statisticsFile().blobMetadata().stream(),
+            actual.statisticsFile().blobMetadata().stream(),
+            Pair::of)
+        .forEachOrdered(
+            pair -> {
+              BlobMetadata expectedBlob = pair.first();
+              BlobMetadata actualBlob = pair.second();
+
+              Assert.assertEquals(
+                  "Expected blob type should be equal", expectedBlob.type(), actualBlob.type());
+              Assert.assertEquals(
+                  "Expected blob fields should be equal",
+                  expectedBlob.fields(),
+                  actualBlob.fields());
+              Assert.assertEquals(
+                  "Expected blob source snapshot ID should be equal",
+                  expectedBlob.sourceSnapshotId(),
+                  actualBlob.sourceSnapshotId());
+              Assert.assertEquals(
+                  "Expected blob source snapshot sequence number should be equal",
+                  expectedBlob.sourceSnapshotSequenceNumber(),
+                  actualBlob.sourceSnapshotSequenceNumber());
+              Assert.assertEquals(
+                  "Expected blob properties should be equal",
+                  expectedBlob.properties(),
+                  actualBlob.properties());
+            });
+  }
+
+  private static void assertEqualsRemoveStatistics(
+      MetadataUpdate.RemoveStatistics expected, MetadataUpdate.RemoveStatistics actual) {
+    Assert.assertEquals(
+        "Snapshots to remove should be the same", expected.snapshotId(), actual.snapshotId());
   }
 
   private static void assertEqualsAddSnapshot(
