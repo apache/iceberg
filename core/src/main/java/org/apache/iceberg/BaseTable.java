@@ -80,6 +80,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public IncrementalChangelogScan newIncrementalChangelogScan() {
+    return new BaseIncrementalChangelogScan(ops, this);
+  }
+
+  @Override
   public Schema schema() {
     return ops.current().schema();
   }

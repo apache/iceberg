@@ -19,10 +19,8 @@
 package org.apache.iceberg;
 
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
@@ -53,18 +51,6 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
 
   protected Long snapshotId() {
     return context().snapshotId();
-  }
-
-  protected boolean colStats() {
-    return context().returnColumnStats();
-  }
-
-  protected boolean shouldIgnoreResiduals() {
-    return context().ignoreResiduals();
-  }
-
-  protected ExecutorService planExecutor() {
-    return context().planExecutor();
   }
 
   protected Map<String, String> options() {
@@ -117,11 +103,6 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
   }
 
   @Override
-  public Expression filter() {
-    return context().rowFilter();
-  }
-
-  @Override
   public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshot();
     if (snapshot != null) {
@@ -169,11 +150,6 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
     return snapshotId() != null
         ? tableOps().current().snapshot(snapshotId())
         : tableOps().current().currentSnapshot();
-  }
-
-  @Override
-  public boolean isCaseSensitive() {
-    return context().caseSensitive();
   }
 
   @Override
