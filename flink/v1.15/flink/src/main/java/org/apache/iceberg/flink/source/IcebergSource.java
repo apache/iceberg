@@ -137,7 +137,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
   @Override
   public SourceReader<T, IcebergSourceSplit> createReader(SourceReaderContext readerContext) {
-    return new IcebergSourceReader<>(readerFunction, readerContext);
+    return new IcebergSourceReader<>(lazyTable().name(), readerFunction, readerContext);
   }
 
   @Override
