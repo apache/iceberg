@@ -230,16 +230,16 @@ abstract class BaseSparkAction<ThisT> {
         .executeWith(executorService)
         .onFailure(
             (fileInfo, exc) -> {
-              String file = fileInfo.getString(0);
+              String path = fileInfo.getString(0);
               String type = fileInfo.getString(1);
-              LOG.warn("Delete failed for {}: {}", type, file, exc);
+              LOG.warn("Delete failed for {}: {}", type, path, exc);
             })
         .run(
             fileInfo -> {
-              String file = fileInfo.getString(0);
+              String path = fileInfo.getString(0);
               String type = fileInfo.getString(1);
-              deleteFunc.accept(file);
-              summary.deletedFile(file, type);
+              deleteFunc.accept(path);
+              summary.deletedFile(path, type);
             });
 
     return summary;
@@ -253,30 +253,30 @@ abstract class BaseSparkAction<ThisT> {
     private final AtomicLong manifestListsCount = new AtomicLong(0L);
     private final AtomicLong otherFilesCount = new AtomicLong(0L);
 
-    public void deletedFile(String file, String type) {
+    public void deletedFile(String path, String type) {
       if (FileContent.DATA.name().equalsIgnoreCase(type)) {
         dataFilesCount.incrementAndGet();
-        LOG.trace("Deleted data file: {}", file);
+        LOG.trace("Deleted data file: {}", path);
 
       } else if (FileContent.POSITION_DELETES.name().equalsIgnoreCase(type)) {
         positionDeleteFilesCount.incrementAndGet();
-        LOG.trace("Deleted positional delete file: {}", file);
+        LOG.trace("Deleted positional delete file: {}", path);
 
       } else if (FileContent.EQUALITY_DELETES.name().equalsIgnoreCase(type)) {
         equalityDeleteFilesCount.incrementAndGet();
-        LOG.trace("Deleted equality delete file: {}", file);
+        LOG.trace("Deleted equality delete file: {}", path);
 
       } else if (MANIFEST.equalsIgnoreCase(type)) {
         manifestsCount.incrementAndGet();
-        LOG.debug("Deleted manifest: {}", file);
+        LOG.debug("Deleted manifest: {}", path);
 
       } else if (MANIFEST_LIST.equalsIgnoreCase(type)) {
         manifestListsCount.incrementAndGet();
-        LOG.debug("Deleted manifest list: {}", file);
+        LOG.debug("Deleted manifest list: {}", path);
 
       } else if (OTHERS.equalsIgnoreCase(type)) {
         otherFilesCount.incrementAndGet();
-        LOG.debug("Deleted other metadata file: {}", file);
+        LOG.debug("Deleted other metadata file: {}", path);
 
       } else {
         throw new ValidationException("Illegal file type: %s", type);
