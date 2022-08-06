@@ -42,6 +42,8 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.apache.spark.sql.execution.QueryExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,7 +86,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Integer retainLastValue = null;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = null;
-  private Dataset<Row> expiredFiles = null;
+  private Dataset<FileInfo> expiredFileDS = null;
 
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -140,19 +142,39 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
    *
    * <p>This does not delete data files. To delete data files, run {@link #execute()}.
    *
-   * <p>This may be called before or after {@link #execute()} is called to return the expired file
-   * list.
+   * <p>This may be called before or after {@link #execute()} to return the expired files.
+   *
+   * @return a Dataset of files that are no longer referenced by the table
+   * @deprecated since 1.0.0, will be removed in 1.1.0; use {@link #expireFiles()} instead.
+   */
+  @Deprecated
+  public Dataset<Row> expire() {
+    // rely on the same query execution to reuse shuffles
+    QueryExecution queryExecution = expiredFileDS().queryExecution();
+    return new Dataset<>(queryExecution, RowEncoder.apply(queryExecution.analyzed().schema()));
+  }
+
+  /**
+   * Expires snapshots and commits the changes to the table, returning a Dataset of files to delete.
+   *
+   * <p>This does not delete data files. To delete data files, run {@link #execute()}.
+   *
+   * <p>This may be called before or after {@link #execute()} to return the expired files.
    *
    * @return a Dataset of files that are no longer referenced by the table
    */
-  public Dataset<Row> expire() {
-    if (expiredFiles == null) {
+  public Dataset<FileInfo> expireFiles() {
+    return expiredFileDS();
+  }
+
+  private Dataset<FileInfo> expiredFileDS() {
+    if (expiredFileDS == null) {
       // fetch metadata before expiration
-      Dataset<Row> originalFiles = buildValidFileDF(ops.current());
+      Dataset<FileInfo> originalFileDS = validFileDS(ops.current());
 
       // perform expiration
-      org.apache.iceberg.ExpireSnapshots expireSnapshots =
-          table.expireSnapshots().cleanExpiredFiles(false);
+      org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();
+
       for (long id : expiredSnapshotIds) {
         expireSnapshots = expireSnapshots.expireSnapshotId(id);
       }
@@ -165,16 +187,16 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         expireSnapshots = expireSnapshots.retainLast(retainLastValue);
       }
 
-      expireSnapshots.commit();
+      expireSnapshots.cleanExpiredFiles(false).commit();
 
       // fetch metadata after expiration
-      Dataset<Row> validFiles = buildValidFileDF(ops.refresh());
+      Dataset<FileInfo> validFileDS = validFileDS(ops.refresh());
 
       // determine expired files
-      this.expiredFiles = originalFiles.except(validFiles);
+      this.expiredFileDS = originalFileDS.except(validFileDS);
     }
 
-    return expiredFiles;
+    return expiredFileDS;
   }
 
   @Override
@@ -209,23 +231,25 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private ExpireSnapshots.Result doExecute() {
-    boolean streamResults =
-        PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
-    if (streamResults) {
-      return deleteFiles(expire().toLocalIterator());
+    if (streamResults()) {
+      return deleteFiles(expiredFileDS().toLocalIterator());
     } else {
-      return deleteFiles(expire().collectAsList().iterator());
+      return deleteFiles(expiredFileDS().collectAsList().iterator());
     }
   }
 
-  private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
-    Table staticTable = newStaticTable(metadata, table.io());
-    return buildValidContentFileWithTypeDF(staticTable)
-        .union(withFileType(buildManifestFileDF(staticTable), MANIFEST))
-        .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST));
+  private boolean streamResults() {
+    return PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
   }
 
-  private ExpireSnapshots.Result deleteFiles(Iterator<Row> files) {
+  private Dataset<FileInfo> validFileDS(TableMetadata metadata) {
+    Table staticTable = newStaticTable(metadata, table.io());
+    return contentFileDS(staticTable)
+        .union(manifestDS(staticTable))
+        .union(manifestListDS(staticTable));
+  }
+
+  private ExpireSnapshots.Result deleteFiles(Iterator<FileInfo> files) {
     DeleteSummary summary = deleteFiles(deleteExecutorService, deleteFunc, files);
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
