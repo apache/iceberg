@@ -82,7 +82,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       }
       TableMetadata current = ops.current();
       if (metadataFileLocation.equals(current.metadataFileLocation())) {
-        LOG.info("The metadata file location is the same as the existing table, ignore it.");
+        LOG.warn("The metadata file location is the same as the existing table, ignore this operation.");
         return new BaseTable(ops, identifier.toString());
       }
       dropTable(identifier, false);
