@@ -445,7 +445,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table table = glueCatalog.loadTable(identifier);
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
     Assertions.assertThat(glueCatalog.dropTable(identifier, false)).isTrue();
-    Assertions.assertThat(glueCatalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Assertions.assertThat(glueCatalog.registerTable(identifier, metadataLocation, false)).isNotNull();
     Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
@@ -459,7 +459,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     Table table = glueCatalog.loadTable(identifier);
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
-    Assertions.assertThatThrownBy(() -> glueCatalog.registerTable(identifier, metadataLocation))
+    glueCatalog.registerTable(identifier, metadataLocation, true);
+    Assertions.assertThat(glueCatalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThatThrownBy(() -> glueCatalog.registerTable(identifier, metadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class);
     Assertions.assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();

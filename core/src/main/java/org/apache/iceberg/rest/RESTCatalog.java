@@ -203,8 +203,8 @@ public class RESTCatalog
   }
 
   @Override
-  public Table registerTable(TableIdentifier ident, String metadataFileLocation) {
-    return delegate.registerTable(ident, metadataFileLocation);
+  public Table registerTable(TableIdentifier ident, String metadataFileLocation, boolean force) {
+    return delegate.registerTable(ident, metadataFileLocation, force);
   }
 
   @Override

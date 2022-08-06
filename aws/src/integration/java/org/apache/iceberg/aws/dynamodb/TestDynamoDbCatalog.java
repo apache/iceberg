@@ -308,7 +308,7 @@ public class TestDynamoDbCatalog {
     Assertions.assertThat(catalog.dropTable(identifier, false)).isTrue();
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
-    Assertions.assertThat(catalog.registerTable(identifier, metadataLocation)).isNotNull();
+    Assertions.assertThat(catalog.registerTable(identifier, metadataLocation, false)).isNotNull();
     Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
     Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();
@@ -323,7 +323,9 @@ public class TestDynamoDbCatalog {
     Table registeringTable = catalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((DynamoDbTableOperations) ops).currentMetadataLocation();
-    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+    catalog.registerTable(identifier, metadataLocation, true);
+    Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class);
     Assertions.assertThat(catalog.dropTable(identifier, true)).isTrue();
     Assertions.assertThat(catalog.dropNamespace(namespace)).isTrue();

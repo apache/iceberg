@@ -66,19 +66,28 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   }
 
   @Override
-  public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+  public Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean force) {
     Preconditions.checkArgument(
         identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
     Preconditions.checkArgument(
         metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
-    // Throw an exception if this table already exists in the catalog.
+    TableOperations ops = newTableOps(identifier);
     if (tableExists(identifier)) {
-      throw new AlreadyExistsException("Table already exists: %s", identifier);
+      if (!force) {
+        // Throw an exception if this table already exists in the catalog.
+        throw new AlreadyExistsException("Table already exists: %s", identifier);
+      }
+      TableMetadata current = ops.current();
+      if (metadataFileLocation.equals(current.metadataFileLocation())) {
+        LOG.info("The metadata file location is the same as the existing table, ignore it.");
+        return new BaseTable(ops, identifier.toString());
+      }
+      dropTable(identifier, false);
     }
 
-    TableOperations ops = newTableOps(identifier);
     InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
     TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
     ops.commit(null, metadata);

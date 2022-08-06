@@ -39,7 +39,8 @@ class RegisterTableProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.required("metadata_file", DataTypes.StringType)
+        ProcedureParameter.required("metadata_file", DataTypes.StringType),
+        ProcedureParameter.optional("force", DataTypes.StringType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -78,6 +79,7 @@ class RegisterTableProcedure extends BaseProcedure {
     TableIdentifier tableName =
         Spark3Util.identifierToTableIdentifier(toIdentifier(args.getString(0), "table"));
     String metadataFile = args.getString(1);
+    boolean force = !args.isNullAt(2) && args.getString(2).equalsIgnoreCase("force");
     Preconditions.checkArgument(
         tableCatalog() instanceof HasIcebergCatalog,
         "Cannot use Register Table in a non-Iceberg catalog");
@@ -86,7 +88,8 @@ class RegisterTableProcedure extends BaseProcedure {
         "Cannot handle an empty argument metadata_file");
 
     Catalog icebergCatalog = ((HasIcebergCatalog) tableCatalog()).icebergCatalog();
-    Table table = icebergCatalog.registerTable(tableName, metadataFile);
+    Table table = icebergCatalog.registerTable(tableName, metadataFile, force);
+
     Long currentSnapshotId = null;
     Long totalDataFiles = null;
     Long totalRecords = null;

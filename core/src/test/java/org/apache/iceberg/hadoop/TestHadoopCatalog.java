@@ -643,7 +643,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Table registeringTable = catalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((HadoopTableOperations) ops).current().metadataFileLocation();
-    Assertions.assertThat(catalog.registerTable(identifier2, metadataLocation)).isNotNull();
+    Assertions.assertThat(catalog.registerTable(identifier2, metadataLocation, false)).isNotNull();
     Assertions.assertThat(catalog.loadTable(identifier2)).isNotNull();
     Assertions.assertThat(catalog.dropTable(identifier)).isTrue();
     Assertions.assertThat(catalog.dropTable(identifier2)).isTrue();
@@ -657,7 +657,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Table registeringTable = catalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String metadataLocation = ((HadoopTableOperations) ops).current().metadataFileLocation();
-    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+    catalog.registerTable(identifier, metadataLocation, true);
+    Assertions.assertThat(catalog.loadTable(identifier)).isNotNull();
+    Assertions.assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
     Assertions.assertThat(catalog.dropTable(identifier)).isTrue();

@@ -431,7 +431,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
     Assert.assertEquals(1, metadataVersionFiles.size());
 
-    catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0));
+    catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0), false);
 
     org.apache.hadoop.hive.metastore.api.Table newTable =
         metastoreClient.getTable(DB_NAME, TABLE_NAME);
@@ -482,7 +482,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     // register the table to hive catalog using the latest metadata file
     String latestMetadataFile = ((BaseTable) table).operations().current().metadataFileLocation();
-    catalog.registerTable(identifier, "file:" + latestMetadataFile);
+    catalog.registerTable(identifier, "file:" + latestMetadataFile, false);
     Assert.assertNotNull(metastoreClient.getTable(DB_NAME, "table1"));
 
     // load the table in hive catalog
@@ -546,7 +546,8 @@ public class HiveTableTest extends HiveTableBaseTest {
         "Should complain that the table already exists",
         AlreadyExistsException.class,
         "Table already exists",
-        () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)));
+        () ->
+            catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0), false));
   }
 
   @Test
