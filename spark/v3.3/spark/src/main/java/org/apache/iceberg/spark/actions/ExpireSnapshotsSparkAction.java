@@ -25,16 +25,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -42,7 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -229,66 +225,15 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
 
-  /**
-   * Deletes files passed to it based on their type.
-   *
-   * @param expired an Iterator of Spark Rows of the structure (path: String, type: String)
-   * @return Statistics on which files were deleted
-   */
-  private BaseExpireSnapshotsActionResult deleteFiles(Iterator<Row> expired) {
-    AtomicLong dataFileCount = new AtomicLong(0L);
-    AtomicLong posDeleteFileCount = new AtomicLong(0L);
-    AtomicLong eqDeleteFileCount = new AtomicLong(0L);
-    AtomicLong manifestCount = new AtomicLong(0L);
-    AtomicLong manifestListCount = new AtomicLong(0L);
-
-    Tasks.foreach(expired)
-        .retry(3)
-        .stopRetryOn(NotFoundException.class)
-        .suppressFailureWhenFinished()
-        .executeWith(deleteExecutorService)
-        .onFailure(
-            (fileInfo, exc) -> {
-              String file = fileInfo.getString(0);
-              String type = fileInfo.getString(1);
-              LOG.warn("Delete failed for {}: {}", type, file, exc);
-            })
-        .run(
-            fileInfo -> {
-              String file = fileInfo.getString(0);
-              String type = fileInfo.getString(1);
-              deleteFunc.accept(file);
-
-              if (FileContent.DATA.name().equalsIgnoreCase(type)) {
-                dataFileCount.incrementAndGet();
-                LOG.trace("Deleted Data File: {}", file);
-              } else if (FileContent.POSITION_DELETES.name().equalsIgnoreCase(type)) {
-                posDeleteFileCount.incrementAndGet();
-                LOG.trace("Deleted Positional Delete File: {}", file);
-              } else if (FileContent.EQUALITY_DELETES.name().equalsIgnoreCase(type)) {
-                eqDeleteFileCount.incrementAndGet();
-                LOG.trace("Deleted Equality Delete File: {}", file);
-              } else if (MANIFEST.equals(type)) {
-                manifestCount.incrementAndGet();
-                LOG.debug("Deleted Manifest: {}", file);
-              } else if (MANIFEST_LIST.equalsIgnoreCase(type)) {
-                manifestListCount.incrementAndGet();
-                LOG.debug("Deleted Manifest List: {}", file);
-              } else {
-                throw new ValidationException("Illegal file type: %s", type);
-              }
-            });
-
-    long contentFileCount =
-        dataFileCount.get() + posDeleteFileCount.get() + eqDeleteFileCount.get();
-    LOG.info(
-        "Deleted {} total files", contentFileCount + manifestCount.get() + manifestListCount.get());
+  private ExpireSnapshots.Result deleteFiles(Iterator<Row> files) {
+    DeleteSummary summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+    LOG.info("Deleted {} total files", summary.totalFilesCount());
 
     return new BaseExpireSnapshotsActionResult(
-        dataFileCount.get(),
-        posDeleteFileCount.get(),
-        eqDeleteFileCount.get(),
-        manifestCount.get(),
-        manifestListCount.get());
+        summary.dataFilesCount(),
+        summary.positionDeleteFilesCount(),
+        summary.equalityDeleteFilesCount(),
+        summary.manifestsCount(),
+        summary.manifestListsCount());
   }
 }
