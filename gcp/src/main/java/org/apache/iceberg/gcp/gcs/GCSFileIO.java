@@ -29,6 +29,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,7 +122,7 @@ public class GCSFileIO implements FileIO {
 
   @Override
   public void initialize(Map<String, String> props) {
-    this.properties = props;
+    this.properties = SerializableMap.copyOf(props).immutableMap();
     this.gcpProperties = new GCPProperties(props);
 
     this.storageSupplier =

@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -351,7 +352,7 @@ public class S3FileIO
   @Override
   public void initialize(Map<String, String> props) {
     this.awsProperties = new AwsProperties(props);
-    this.properties = props;
+    this.properties = SerializableMap.copyOf(props).immutableMap();
 
     // Do not override s3 client if it was provided
     if (s3 == null) {

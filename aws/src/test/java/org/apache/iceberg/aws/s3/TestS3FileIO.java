@@ -40,6 +40,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.aws.KryoHelpers;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
@@ -263,6 +264,17 @@ public class TestS3FileIO {
       Assert.assertTrue(deserialized instanceof S3FileIO);
       Assert.assertEquals(s3FileIO.properties(), deserialized.properties());
     }
+  }
+
+  @Test
+  public void testS3FileIOSerialization() throws IOException {
+    FileIO testS3FileIO = new S3FileIO();
+
+    // s3 fileIO should be serializable when properties are passed as immutable map
+    testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
+    FileIO roundTripSerializedFileIO = KryoHelpers.roundTripSerialize(testS3FileIO);
+
+    Assert.assertEquals(testS3FileIO.properties(), roundTripSerializedFileIO.properties());
   }
 
   private void createRandomObjects(String prefix, int count) {

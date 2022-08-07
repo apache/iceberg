@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.glue;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -210,18 +209,18 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     if (catalogProperties != null) {
-      // Immutable map is not used here to support Kryo Serde.
       Map<String, String> tableSpecificCatalogProperties =
-          Maps.newHashMapWithExpectedSize(catalogProperties.size() + 2);
-      tableSpecificCatalogProperties.putAll(catalogProperties);
-      tableSpecificCatalogProperties.put(
-          AwsProperties.LAKE_FORMATION_DB_NAME,
-          IcebergToGlueConverter.getDatabaseName(
-              tableIdentifier, awsProperties.glueCatalogSkipNameValidation()));
-      tableSpecificCatalogProperties.put(
-          AwsProperties.LAKE_FORMATION_TABLE_NAME,
-          IcebergToGlueConverter.getTableName(
-              tableIdentifier, awsProperties.glueCatalogSkipNameValidation()));
+          ImmutableMap.<String, String>builder()
+              .putAll(catalogProperties)
+              .put(
+                  AwsProperties.LAKE_FORMATION_DB_NAME,
+                  IcebergToGlueConverter.getDatabaseName(
+                      tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
+              .put(
+                  AwsProperties.LAKE_FORMATION_TABLE_NAME,
+                  IcebergToGlueConverter.getTableName(
+                      tableIdentifier, awsProperties.glueCatalogSkipNameValidation()))
+              .build();
       // FileIO initialization depends on tableSpecificCatalogProperties, so a new FileIO is
       // initialized each time
       return new GlueTableOperations(
@@ -229,7 +228,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
           lockManager,
           catalogName,
           awsProperties,
-          initializeFileIO(Collections.unmodifiableMap(tableSpecificCatalogProperties)),
+          initializeFileIO(tableSpecificCatalogProperties),
           tableIdentifier);
     }
 
