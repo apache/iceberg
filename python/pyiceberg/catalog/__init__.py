@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import Table
+from pyiceberg.table import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import Identifier, Properties

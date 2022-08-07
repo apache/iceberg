@@ -14,3 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+from typing import Optional, Union
+
+from pydantic import Field
+
+from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
+from pyiceberg.typedef import Identifier
+from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
+
+
+class Table(IcebergBaseModel):
+    identifier: Identifier = Field()
+    metadata_location: Optional[str] = Field()
+    metadata: Optional[Union[TableMetadataV1, TableMetadataV2]] = Field()
