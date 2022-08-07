@@ -43,8 +43,12 @@ from hive_metastore.ttypes import Table as HiveTable
 from thrift.protocol import TBinaryProtocol
 from thrift.transport import TSocket, TTransport
 
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,

@@ -19,8 +19,8 @@ from typing import Optional, Union
 
 from pydantic import Field
 
-from pyiceberg.catalog.base import Identifier
 from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
+from pyiceberg.typedef import Identifier
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 

@@ -25,8 +25,12 @@ from typing import (
 
 import pytest
 
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,

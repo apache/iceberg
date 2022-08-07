@@ -30,8 +30,12 @@ from pydantic import Field
 from requests import HTTPError
 
 from pyiceberg import __version__
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
     AuthorizationExpiredError,
     BadCredentialsError,
