@@ -82,6 +82,7 @@ public class GlueTestBase {
             LockManagers.defaultLockManager(), fileIO);
     AwsProperties properties = new AwsProperties();
     properties.setGlueCatalogSkipArchive(true);
+    properties.setS3FileIoDeleteBatchSize(10);
     glueCatalogWithSkip = new GlueCatalog();
     glueCatalogWithSkip.initialize(catalogName, testBucketPath, properties, glue,
             LockManagers.defaultLockManager(), fileIO);

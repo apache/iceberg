@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -33,9 +34,11 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -102,37 +105,14 @@ public class CatalogUtil {
       deleteFiles(io, manifestsToDelete);
     }
 
-    Tasks.foreach(Iterables.transform(manifestsToDelete, ManifestFile::path))
-        .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
-        .run(io::deleteFile);
-
-    Tasks.foreach(manifestListsToDelete)
-        .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
-        .run(io::deleteFile);
-
-    Tasks.foreach(
-            Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file))
-        .executeWith(ThreadPools.getWorkerPool())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (metadataFile, exc) ->
-                LOG.warn("Delete failed for previous metadata file: {}", metadataFile, exc))
-        .run(io::deleteFile);
-
-    Tasks.foreach(metadata.metadataFileLocation())
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (metadataFile, exc) ->
-                LOG.warn("Delete failed for metadata file: {}", metadataFile, exc))
-        .run(io::deleteFile);
+    deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest", true);
+    deleteFiles(io, manifestListsToDelete, "manifest list", true);
+    deleteFiles(
+        io,
+        Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
+        "previous metadata",
+        true);
+    deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
 
   @SuppressWarnings("DangerousStringInternUsage")
@@ -151,25 +131,67 @@ public class CatalogUtil {
         .run(
             manifest -> {
               try (ManifestReader<?> reader = ManifestFiles.open(manifest, io)) {
+                List<String> pathsToDelete = Lists.newArrayList();
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // intern the file path because the weak key map uses identity (==) instead of
                   // equals
                   String path = entry.file().path().toString().intern();
                   Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
                   if (alreadyDeleted == null || !alreadyDeleted) {
-                    try {
-                      io.deleteFile(path);
-                    } catch (RuntimeException e) {
-                      // this may happen if the map of deleted files gets cleaned up by gc
-                      LOG.warn("Delete failed for data file: {}", path, e);
-                    }
+                    pathsToDelete.add(path);
                   }
                 }
+
+                String type = reader.isDeleteManifestReader() ? "delete" : "data";
+                deleteFiles(io, pathsToDelete, type, false);
               } catch (IOException e) {
                 throw new RuntimeIOException(
                     e, "Failed to read manifest file: %s", manifest.path());
               }
             });
+  }
+
+  /**
+   * Helper to delete files. Bulk deletion is used if possible.
+   *
+   * @param io FileIO for deletes
+   * @param files files to delete
+   * @param type type of files being deleted
+   * @param concurrent controls concurrent deletion. Only applicable for non-bulk FileIO
+   */
+  private static void deleteFiles(
+      FileIO io, Iterable<String> files, String type, boolean concurrent) {
+    if (io instanceof SupportsBulkOperations) {
+      try {
+        SupportsBulkOperations bulkIO = (SupportsBulkOperations) io;
+        bulkIO.deleteFiles(files);
+      } catch (RuntimeException e) {
+        LOG.warn("Failed to bulk delete {} files: {}", type, e);
+      }
+    } else {
+      if (concurrent) {
+        deleteFiles(io, files, type);
+      } else {
+        files.forEach(file -> deleteFile(io, file, type));
+      }
+    }
+  }
+
+  private static void deleteFiles(FileIO io, Iterable<String> files, String type) {
+    Tasks.foreach(files)
+        .executeWith(ThreadPools.getWorkerPool())
+        .noRetry()
+        .suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Failed to delete {} file {}: {}", type, file, exc))
+        .run(io::deleteFile);
+  }
+
+  private static void deleteFile(FileIO io, String file, String type) {
+    try {
+      io.deleteFile(file);
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to delete {} file {}: {}", type, file, e);
+    }
   }
 
   /**
