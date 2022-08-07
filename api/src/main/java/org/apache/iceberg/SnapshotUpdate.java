@@ -65,5 +65,10 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
    *
    * @param branch which is name of SnapshotRef of type branch.
    */
-  ThisT toBranch(String branch);
+  default ThisT toBranch(String branch) {
+    throw new UnsupportedOperationException(
+        String.format(
+            "Cannot commit to branch %s: %s does not support branch commits",
+            branch, this.getClass().getName()));
+  }
 }
