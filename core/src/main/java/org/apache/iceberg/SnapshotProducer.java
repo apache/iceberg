@@ -114,14 +114,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return self();
   }
 
-  @Override
-  public ThisT toBranch(String branch) {
-    throw new UnsupportedOperationException(
-        String.format(
-            "Cannot commit to branch %s: %s does not support branch commits",
-            branch, this.getClass().getName()));
-  }
-
   /**
    * * A setter for the target branch on which snapshot producer operation should be performed
    *
@@ -178,10 +170,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected void validate(TableMetadata currentMetadata, Snapshot snapshot) {}
 
   /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
+   * Apply the update's changes to the given metadata and snapshot. Return the new manifest list.
    *
    * @param metadataToUpdate the base table metadata to apply changes to
-   * @param snapshot
+   * @param snapshot snapshot to apply the changes to
    * @return a manifest list for the new snapshot.
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate, Snapshot snapshot);
