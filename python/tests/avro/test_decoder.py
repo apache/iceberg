@@ -119,6 +119,12 @@ class OneByteAtATimeInputStream(InputStream):
     def close(self) -> None:
         pass
 
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
 
 def test_read_single_byte_at_the_time():
     decoder = BinaryDecoder(OneByteAtATimeInputStream())

@@ -54,7 +54,8 @@ class FromInputFile:
             TableMetadata: A table metadata instance
 
         """
-        return FromByteStream.table_metadata(byte_stream=input_file.open(), encoding=encoding)
+        with input_file.open() as input_stream:
+            return FromByteStream.table_metadata(byte_stream=input_stream, encoding=encoding)
 
 
 class ToOutputFile:
@@ -70,6 +71,5 @@ class ToOutputFile:
             output_file (OutputFile): A custom implementation of the iceberg.io.file.OutputFile abstract base class
             overwrite (bool): Where to overwrite the file if it already exists. Defaults to `False`.
         """
-        f = output_file.create(overwrite=overwrite)
-        f.write(metadata.json().encode("utf-8"))
-        f.close()
+        with output_file.create(overwrite=overwrite) as output_stream:
+            output_stream.write(metadata.json().encode("utf-8"))
