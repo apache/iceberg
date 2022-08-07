@@ -29,7 +29,7 @@ from pydantic import Field
 
 from pyiceberg.avro.file import AvroFile
 from pyiceberg.avro.reader import AvroStruct
-from pyiceberg.io.base import InputFile
+from pyiceberg.io import InputFile
 from pyiceberg.schema import Schema
 from pyiceberg.types import (
     IcebergType,
