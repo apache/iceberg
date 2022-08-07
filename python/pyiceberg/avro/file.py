@@ -28,7 +28,7 @@ from pyiceberg.avro.codecs import KNOWN_CODECS, Codec
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.reader import AvroStruct, ConstructReader, StructReader
 from pyiceberg.avro.resolver import resolve
-from pyiceberg.io.base import InputFile, InputStream
+from pyiceberg.io import InputFile, InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.schema import Schema, visit
 from pyiceberg.types import (

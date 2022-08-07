@@ -28,7 +28,7 @@ from urllib.parse import urlparse
 
 from pyarrow.fs import FileInfo, FileSystem, FileType
 
-from pyiceberg.io.base import (
+from pyiceberg.io import (
     FileIO,
     InputFile,
     InputStream,

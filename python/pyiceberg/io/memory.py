@@ -17,7 +17,7 @@
 
 from io import SEEK_CUR, SEEK_END, SEEK_SET
 
-from pyiceberg.io.base import InputStream
+from pyiceberg.io import InputStream
 
 
 class MemoryInputStream(InputStream):

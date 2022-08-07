@@ -53,7 +53,7 @@ from pyiceberg.types import (
     TimestamptzType,
     TimeType,
 )
-from tests.io.test_io_base import LocalInputFile
+from tests.io.test_io import LocalInputFile
 
 
 def test_read_header(generated_manifest_entry_file: str, iceberg_manifest_entry_schema: Schema):
