@@ -59,9 +59,9 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.compression-level    | null               | Parquet compression level                          |
 | write.delete.parquet.compression-codec | data compression codec | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed |
 | write.delete.parquet.compression-level | data compression level | Parquet compression level                          |
-| write.avro.compression-codec       | gzip               | Avro compression codec: gzip (deflate with 9 level), zstd, snappy, uncompressed |
+| write.avro.compression-codec       | gzip               | Avro compression codec: gzip (deflate-9), zstd, snappy, uncompressed |
 | write.avro.compression-level       | null               | Avro compression level                             |
-| write.delete.avro.compression-codec | data compression codec | Avro compression codec: gzip (deflate with 9 level), zstd, snappy, uncompressed |
+| write.delete.avro.compression-codec | data compression codec | Avro compression codec: gzip (deflate-9), zstd, snappy, uncompressed |
 | write.delete.avro.compression-level | data compression level | Avro compression level                             |
 | write.orc.stripe-size-bytes        | 67108864 (64 MB)   | Define the default ORC stripe size, in bytes       |
 | write.delete.orc.stripe-size-bytes | 67108864 (64 MB)   | Define the default ORC stripe size, in bytes       |
