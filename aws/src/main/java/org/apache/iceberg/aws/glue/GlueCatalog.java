@@ -210,6 +210,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     if (catalogProperties != null) {
+      // Immutable map is not used here to support Kryo Serde.
       Map<String, String> tableSpecificCatalogProperties =
           Maps.newHashMapWithExpectedSize(catalogProperties.size() + 2);
       tableSpecificCatalogProperties.putAll(catalogProperties);

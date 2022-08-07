@@ -18,17 +18,21 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.KryoHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -584,5 +588,22 @@ public class TestGlueCatalog {
     glueCatalog.initialize(
         CATALOG_NAME, WAREHOUSE_PATH, props, glue, LockManagers.defaultLockManager(), null);
     Assert.assertEquals(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")), true);
+  }
+
+  @Test
+  public void testS3FileIOSerialization() throws IOException {
+    GlueCatalog testGlueCatalog = new GlueCatalog();
+    testGlueCatalog.initialize(
+        CATALOG_NAME,
+        WAREHOUSE_PATH,
+        new AwsProperties(),
+        glue,
+        LockManagers.defaultLockManager(),
+        null,
+        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, "dummy/location", "k1", "v1"));
+    FileIO s3FileIO = testGlueCatalog.newTableOps(TableIdentifier.of("db", "table")).io();
+    FileIO roundTripSerializedFileIO = KryoHelpers.roundTripSerialize(s3FileIO);
+
+    Assert.assertEquals(s3FileIO.properties(), roundTripSerializedFileIO.properties());
   }
 }

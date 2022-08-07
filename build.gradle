@@ -384,6 +384,7 @@ project(':iceberg-aws') {
 
     testImplementation 'software.amazon.awssdk:iam'
     testImplementation 'software.amazon.awssdk:s3control'
+    testImplementation 'com.twitter:chill-java:0.10.0'
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"
