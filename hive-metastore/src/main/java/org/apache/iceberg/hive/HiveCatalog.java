@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
@@ -482,18 +481,17 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       throw new RuntimeException("Interrupted during commit", e);
     }
 
-    // Otherwise stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
-    String warehouseLocation = getWarehouseLocation();
-    return String.format(
-        "%s/%s.db/%s",
-        warehouseLocation, tableIdentifier.namespace().levels()[0], tableIdentifier.name());
+    // Otherwise, stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
+    String databaseLocation = databaseLocation(tableIdentifier.namespace().levels()[0]);
+    return String.format("%s/%s", databaseLocation, tableIdentifier.name());
   }
 
-  private String getWarehouseLocation() {
+  private String databaseLocation(String databaseName) {
     String warehouseLocation = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
     Preconditions.checkNotNull(
         warehouseLocation, "Warehouse location is not set: hive.metastore.warehouse.dir=null");
-    return warehouseLocation;
+    warehouseLocation = LocationUtil.stripTrailingSlash(warehouseLocation);
+    return String.format("%s/%s.db", warehouseLocation, databaseName);
   }
 
   private Map<String, String> convertToMetadata(Database database) {
@@ -518,8 +516,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     Map<String, String> parameter = Maps.newHashMap();
 
     database.setName(namespace.level(0));
-    database.setLocationUri(
-        new Path(getWarehouseLocation(), namespace.level(0)).toString() + ".db");
+    database.setLocationUri(databaseLocation(namespace.level(0)));
 
     meta.forEach(
         (key, value) -> {

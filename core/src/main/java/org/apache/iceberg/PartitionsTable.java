@@ -176,10 +176,7 @@ public class PartitionsTable extends BaseMetadataTable {
         new ManifestGroup(io, snapshot.dataManifests(io), snapshot.deleteManifests(io))
             .caseSensitive(caseSensitive)
             .filterManifests(m -> evalCache.get(m.partitionSpecId()).eval(m))
-            .select(
-                scan.colStats()
-                    ? DataTableScan.SCAN_WITH_STATS_COLUMNS
-                    : DataTableScan.SCAN_COLUMNS)
+            .select(scan.scanColumns())
             .specsById(scan.table().specs())
             .ignoreDeleted();
 

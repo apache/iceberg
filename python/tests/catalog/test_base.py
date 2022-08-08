@@ -25,8 +25,12 @@ from typing import (
 
 import pytest
 
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -35,7 +39,7 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import Table
+from pyiceberg.table import Table
 from pyiceberg.table.metadata import INITIAL_SPEC_ID
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder

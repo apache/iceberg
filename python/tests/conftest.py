@@ -32,7 +32,7 @@ from urllib.parse import urlparse
 import pytest
 
 from pyiceberg import schema
-from pyiceberg.io.base import (
+from pyiceberg.io import (
     FileIO,
     InputFile,
     OutputFile,
@@ -53,7 +53,7 @@ from pyiceberg.types import (
     StructType,
 )
 from tests.catalog.test_base import InMemoryCatalog
-from tests.io.test_io_base import LocalInputFile
+from tests.io.test_io import LocalInputFile
 
 
 class FooStruct:

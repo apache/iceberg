@@ -90,7 +90,7 @@ class IncrementalDataTableScan extends DataTableScan {
     ManifestGroup manifestGroup =
         new ManifestGroup(table().io(), manifests)
             .caseSensitive(isCaseSensitive())
-            .select(colStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
+            .select(scanColumns())
             .filterData(filter())
             .filterManifestEntries(
                 manifestEntry ->
@@ -107,8 +107,7 @@ class IncrementalDataTableScan extends DataTableScan {
         new IncrementalScanEvent(
             table().name(), fromSnapshotId, toSnapshotId, filter(), schema(), false));
 
-    if (manifests.size() > 1
-        && (PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor())) {
+    if (manifests.size() > 1 && shouldPlanWithExecutor()) {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 

@@ -80,6 +80,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public IncrementalChangelogScan newIncrementalChangelogScan() {
+    return new BaseIncrementalChangelogScan(ops, this);
+  }
+
+  @Override
   public Schema schema() {
     return ops.current().schema();
   }
@@ -237,6 +242,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public LocationProvider locationProvider() {
     return operations().locationProvider();
+  }
+
+  @Override
+  public Map<String, SnapshotRef> refs() {
+    return ops.current().refs();
   }
 
   @Override

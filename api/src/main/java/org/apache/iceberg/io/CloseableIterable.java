@@ -33,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
   /**
-   * Returns an closeable iterator over elements of type {@code T}.
+   * Returns a closeable iterator over elements of type {@code T}.
    *
    * @return an {@link CloseableIterator}.
    */
@@ -85,8 +85,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
    */
   static <E> CloseableIterable<E> whenComplete(
       CloseableIterable<E> iterable, Runnable onCompletionRunnable) {
-    Preconditions.checkNotNull(
-        onCompletionRunnable, "Cannot execute a null Runnable after completion");
+    Preconditions.checkNotNull(onCompletionRunnable, "Invalid runnable: null");
     return new CloseableIterable<E>() {
       @Override
       public void close() throws IOException {
@@ -99,7 +98,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       @Override
       public CloseableIterator<E> iterator() {
-        return CloseableIterator.withClose(iterable.iterator());
+        return iterable.iterator();
       }
     };
   }
@@ -177,7 +176,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
   static <I, O> CloseableIterable<O> transform(
       CloseableIterable<I> iterable, Function<I, O> transform) {
-    Preconditions.checkNotNull(transform, "Cannot apply a null transform");
+    Preconditions.checkNotNull(transform, "Invalid transform: null");
 
     return new CloseableIterable<O>() {
       @Override

@@ -20,7 +20,7 @@ from uuid import UUID
 import pytest
 from requests_mock import Mocker
 
-from pyiceberg.catalog.base import PropertiesUpdateSummary, Table
+from pyiceberg.catalog import PropertiesUpdateSummary, Table
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.exceptions import (
     BadCredentialsError,

@@ -22,7 +22,7 @@ import pytest
 
 from pyiceberg.avro.decoder import BinaryDecoder
 from pyiceberg.avro.resolver import promote
-from pyiceberg.io.base import InputStream
+from pyiceberg.io import InputStream
 from pyiceberg.io.memory import MemoryInputStream
 from pyiceberg.types import DoubleType, FloatType
 
@@ -118,6 +118,12 @@ class OneByteAtATimeInputStream(InputStream):
 
     def close(self) -> None:
         pass
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
 def test_read_single_byte_at_the_time():

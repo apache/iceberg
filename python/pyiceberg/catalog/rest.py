@@ -30,8 +30,12 @@ from pydantic import Field
 from requests import HTTPError
 
 from pyiceberg import __version__
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
     AuthorizationExpiredError,
     BadCredentialsError,
@@ -48,7 +52,7 @@ from pyiceberg.exceptions import (
     UnauthorizedError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import Table
+from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
@@ -288,7 +292,7 @@ class RestCatalog(Catalog):
                 response = f"{error.type}: {error.message}"
         except JSONDecodeError:
             # In the case we don't have a proper response
-            response = f"RESTError: Could not decode json payload: {exc.response.text}"
+            response = f"RESTError {exc.response.status_code}: Could not decode json payload: {exc.response.text}"
 
         raise exception(response) from exc
 

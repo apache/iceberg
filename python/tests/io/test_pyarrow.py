@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pyarrow.fs import FileType
 
-from pyiceberg.io.base import InputStream, OutputStream
+from pyiceberg.io import InputStream, OutputStream
 from pyiceberg.io.pyarrow import PyArrowFile, PyArrowFileIO
 
 

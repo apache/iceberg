@@ -19,7 +19,7 @@ import codecs
 import json
 from typing import Union
 
-from pyiceberg.io.base import InputFile, InputStream, OutputFile
+from pyiceberg.io import InputFile, InputStream, OutputFile
 from pyiceberg.table.metadata import TableMetadata, TableMetadataV1, TableMetadataV2
 
 
@@ -54,13 +54,8 @@ class FromInputFile:
             TableMetadata: A table metadata instance
 
         """
-        # 😢 https://github.com/apache/iceberg/pull/5436
-        # with PyArrowFile(metadata_location) as file:
-        #     metadata = TableMetadata.parse_obj(json.loads(file.read()))
-        f = input_file.open()
-        metadata = FromByteStream.table_metadata(byte_stream=f, encoding=encoding)
-        f.close()
-        return metadata
+        with input_file.open() as input_stream:
+            return FromByteStream.table_metadata(byte_stream=input_stream, encoding=encoding)
 
 
 class ToOutputFile:
@@ -76,6 +71,5 @@ class ToOutputFile:
             output_file (OutputFile): A custom implementation of the iceberg.io.file.OutputFile abstract base class
             overwrite (bool): Where to overwrite the file if it already exists. Defaults to `False`.
         """
-        f = output_file.create(overwrite=overwrite)
-        f.write(metadata.json().encode("utf-8"))
-        f.close()
+        with output_file.create(overwrite=overwrite) as output_stream:
+            output_stream.write(metadata.json().encode("utf-8"))

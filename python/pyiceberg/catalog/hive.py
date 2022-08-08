@@ -45,8 +45,12 @@ from hive_metastore.ttypes import Table as HiveTable
 from thrift.protocol import TBinaryProtocol
 from thrift.transport import TSocket, TTransport
 
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -57,7 +61,7 @@ from pyiceberg.exceptions import (
 from pyiceberg.io.pyarrow import PyArrowFile
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile, ToOutputFile
-from pyiceberg.table.base import Table
+from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder

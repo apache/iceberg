@@ -20,17 +20,48 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     implements Scan<ThisT, T, G> {
+
+  private static final List<String> SCAN_COLUMNS =
+      ImmutableList.of(
+          "snapshot_id",
+          "file_path",
+          "file_ordinal",
+          "file_format",
+          "block_size_in_bytes",
+          "file_size_in_bytes",
+          "record_count",
+          "partition",
+          "key_metadata",
+          "split_offsets");
+
+  private static final List<String> STATS_COLUMNS =
+      ImmutableList.of(
+          "value_counts",
+          "null_value_counts",
+          "nan_value_counts",
+          "lower_bounds",
+          "upper_bounds",
+          "column_sizes");
+
+  private static final List<String> SCAN_WITH_STATS_COLUMNS =
+      ImmutableList.<String>builder().addAll(SCAN_COLUMNS).addAll(STATS_COLUMNS).build();
+
+  private static final boolean PLAN_SCANS_WITH_WORKER_POOL =
+      SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
+
   private final TableOperations ops;
   private final Table table;
   private final Schema schema;
@@ -59,6 +90,22 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return context;
   }
 
+  protected List<String> scanColumns() {
+    return context.returnColumnStats() ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS;
+  }
+
+  protected boolean shouldIgnoreResiduals() {
+    return context().ignoreResiduals();
+  }
+
+  protected boolean shouldPlanWithExecutor() {
+    return PLAN_SCANS_WITH_WORKER_POOL || context().planWithCustomizedExecutor();
+  }
+
+  protected ExecutorService planExecutor() {
+    return context().planExecutor();
+  }
+
   protected abstract ThisT newRefinedScan(
       TableOperations newOps, Table newTable, Schema newSchema, TableScanContext newContext);
 
@@ -78,6 +125,11 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   }
 
   @Override
+  public boolean isCaseSensitive() {
+    return context().caseSensitive();
+  }
+
+  @Override
   public ThisT includeColumnStats() {
     return newRefinedScan(ops, table, schema, context.shouldReturnColumnStats(true));
   }
@@ -91,6 +143,11 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   public ThisT filter(Expression expr) {
     return newRefinedScan(
         ops, table, schema, context.filterRows(Expressions.and(context.rowFilter(), expr)));
+  }
+
+  @Override
+  public Expression filter() {
+    return context().rowFilter();
   }
 
   @Override

@@ -19,7 +19,7 @@ import struct
 from datetime import date, datetime, time
 from io import SEEK_CUR
 
-from pyiceberg.io.base import InputStream
+from pyiceberg.io import InputStream
 from pyiceberg.utils.datetime import (
     days_to_date,
     micros_to_time,

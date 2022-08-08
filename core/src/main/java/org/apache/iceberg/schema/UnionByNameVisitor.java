@@ -34,10 +34,12 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
   private final UpdateSchema api;
   private final Schema partnerSchema;
+  private boolean caseSensitive = true;
 
-  private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema) {
+  private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema, boolean caseSensitive) {
     this.api = api;
     this.partnerSchema = partnerSchema;
+    this.caseSensitive = caseSensitive;
   }
 
   /**
@@ -50,11 +52,26 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
    * @param newSchema a new schema to compare with the existing
    */
   public static void visit(UpdateSchema api, Schema existingSchema, Schema newSchema) {
+    visit(api, existingSchema, newSchema, true);
+  }
+
+  /**
+   * Adds changes needed to produce a union of two schemas to an {@link UpdateSchema} operation.
+   *
+   * <p>Changes are accumulated to evolve the existingSchema into a union with newSchema.
+   *
+   * @param api an UpdateSchema for adding changes
+   * @param existingSchema an existing schema
+   * @param caseSensitive when false, the case of schema's fields are ignored
+   * @param newSchema a new schema to compare with the existing
+   */
+  public static void visit(
+      UpdateSchema api, Schema existingSchema, Schema newSchema, boolean caseSensitive) {
     visit(
         newSchema,
         -1,
-        new UnionByNameVisitor(api, existingSchema),
-        new PartnerIdByNameAccessors(existingSchema));
+        new UnionByNameVisitor(api, existingSchema, caseSensitive),
+        new PartnerIdByNameAccessors(existingSchema, caseSensitive));
   }
 
   @Override
@@ -74,7 +91,11 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
               if (isMissing) {
                 addColumn(partnerId, field);
               } else {
-                updateColumn(field, partnerStruct.field(field.name()));
+                Types.NestedField nestedField =
+                    caseSensitive
+                        ? partnerStruct.field(field.name())
+                        : partnerStruct.caseInsensitiveField(field.name());
+                updateColumn(field, nestedField);
               }
             });
 
@@ -161,9 +182,15 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
   private static class PartnerIdByNameAccessors implements PartnerAccessors<Integer> {
     private final Schema partnerSchema;
+    private boolean caseSensitive = true;
 
     private PartnerIdByNameAccessors(Schema partnerSchema) {
       this.partnerSchema = partnerSchema;
+    }
+
+    private PartnerIdByNameAccessors(Schema partnerSchema, boolean caseSensitive) {
+      this(partnerSchema);
+      this.caseSensitive = caseSensitive;
     }
 
     @Override
@@ -175,7 +202,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
         struct = partnerSchema.findField(partnerFieldId).type().asStructType();
       }
 
-      Types.NestedField field = struct.field(name);
+      Types.NestedField field =
+          caseSensitive ? struct.field(name) : struct.caseInsensitiveField(name);
       if (field != null) {
         return field.fieldId();
       }

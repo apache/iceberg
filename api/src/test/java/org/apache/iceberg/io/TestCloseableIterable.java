@@ -104,7 +104,7 @@ public class TestCloseableIterable {
     Assertions.assertThatThrownBy(
             () -> CloseableIterable.whenComplete(CloseableIterable.combine(items, () -> {}), null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot execute a null Runnable after completion");
+        .hasMessage("Invalid runnable: null");
 
     try (CloseableIterable<Integer> iter =
         CloseableIterable.whenComplete(
@@ -259,5 +259,13 @@ public class TestCloseableIterable {
             () -> CloseableIterable.filter(counter, CloseableIterable.empty(), null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid predicate: null");
+  }
+
+  @Test
+  public void transformNullCheck() {
+    Assertions.assertThatThrownBy(
+            () -> CloseableIterable.transform(CloseableIterable.empty(), null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid transform: null");
   }
 }

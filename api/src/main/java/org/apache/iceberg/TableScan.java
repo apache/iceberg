@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** API for configuring a table scan. */
@@ -63,13 +62,6 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
   }
 
   /**
-   * Returns this scan's filter {@link Expression}.
-   *
-   * @return this scan's filter expression
-   */
-  Expression filter();
-
-  /**
    * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to
    * {@code toSnapshotId} inclusive.
    *
@@ -103,12 +95,4 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
    * @return the Snapshot this scan will use
    */
   Snapshot snapshot();
-
-  /**
-   * Returns whether this scan should apply column name case sensitiveness as per {@link
-   * Scan#caseSensitive(boolean)}.
-   *
-   * @return true if case sensitive, false otherwise.
-   */
-  boolean isCaseSensitive();
 }
