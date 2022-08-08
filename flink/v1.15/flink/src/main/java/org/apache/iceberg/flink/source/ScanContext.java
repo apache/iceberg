@@ -143,7 +143,10 @@ public class ScanContext implements Serializable {
       boolean exposeLocality,
       Integer planParallelism,
       int maxPlanningSnapshotCount,
-      String branch, String tag, String startTag, String endTag) {
+      String branch,
+      String tag,
+      String startTag,
+      String endTag) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.tag = tag;
@@ -542,7 +545,10 @@ public class ScanContext implements Serializable {
           exposeLocality,
           planParallelism,
           maxPlanningSnapshotCount,
-          branch, tag, startTag, endTag);
+          branch,
+          tag,
+          startTag,
+          endTag);
     }
   }
 }
