@@ -93,8 +93,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation 'software.amazon.awssdk:kms'
     testImplementation 'software.amazon.awssdk:glue'
     testImplementation project(':iceberg-gcp')
-    testImplementation platform('com.google.cloud:libraries-bom')
-    testImplementation 'com.google.cloud:google-cloud-storage'
     testImplementation "org.xerial:sqlite-jdbc"
   }
 

@@ -277,6 +277,17 @@ public class TestS3FileIO {
     Assert.assertEquals(testS3FileIO.properties(), roundTripSerializedFileIO.properties());
   }
 
+  @Test
+  public void testS3FileIOJavaSerialization() {
+    FileIO testS3FileIO = new S3FileIO();
+
+    // s3 fileIO should be serializable when properties are passed as immutable map
+    testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
+    FileIO roundTripSerializedFileIO = SerializationUtils.roundtrip(testS3FileIO);
+
+    Assert.assertEquals(testS3FileIO.properties(), roundTripSerializedFileIO.properties());
+  }
+
   private void createRandomObjects(String prefix, int count) {
     S3URI s3URI = new S3URI(prefix);
 
