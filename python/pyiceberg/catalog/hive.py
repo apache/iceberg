@@ -60,6 +60,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.partitioning import PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -213,7 +214,7 @@ class HiveCatalog(Catalog):
         location: Optional[str] = None,
         partition_spec: Optional[PartitionSpec] = None,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Optional[Properties] = None,
+        properties: Properties = EMPTY_DICT,
     ) -> Table:
         """Create a table
 
@@ -326,7 +327,7 @@ class HiveCatalog(Catalog):
             raise NoSuchNamespaceError(f"Database does not exists: {to_database_name}") from e
         return Table()
 
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
+    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
         """Create a namespace in the catalog.
 
         Args:
@@ -342,7 +343,7 @@ class HiveCatalog(Catalog):
 
         try:
             with self._client as open_client:
-                open_client.create_database(_annotate_namespace(hive_database, properties or {}))
+                open_client.create_database(_annotate_namespace(hive_database, properties))
         except AlreadyExistsException as e:
             raise NamespaceAlreadyExistsError(f"Database {database_name} already exists") from e
 
@@ -417,7 +418,7 @@ class HiveCatalog(Catalog):
             raise NoSuchNamespaceError(f"Database does not exists: {database_name}") from e
 
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """Removes provided property keys and updates properties for a namespace.
 

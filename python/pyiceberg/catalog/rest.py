@@ -56,6 +56,7 @@ from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
@@ -303,10 +304,9 @@ class RestCatalog(Catalog):
         location: Optional[str] = None,
         partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Optional[Properties] = None,
+        properties: Properties = EMPTY_DICT,
     ) -> Table:
         namespace_and_table = self._split_identifier_for_path(identifier)
-        properties = properties or {}
         request = CreateTableRequest(
             name=namespace_and_table["table"],
             location=location,
@@ -387,8 +387,8 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchTableError, 409: TableAlreadyExistsError})
 
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
-        payload = {"namespace": self.identifier_to_tuple(namespace), "properties": properties or {}}
+    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
+        payload = {"namespace": self.identifier_to_tuple(namespace), "properties": properties}
         response = requests.post(self.url(Endpoints.create_namespace), json=payload, headers=self.headers)
         try:
             response.raise_for_status()
@@ -424,7 +424,7 @@ class RestCatalog(Catalog):
         return NamespaceResponse(**response.json()).properties
 
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
         payload = {"removals": list(removals or []), "updates": updates}
