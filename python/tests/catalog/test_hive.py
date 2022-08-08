@@ -34,7 +34,7 @@ from hive_metastore.ttypes import (
 from hive_metastore.ttypes import Table as HiveTable
 
 from pyiceberg.catalog import PropertiesUpdateSummary
-from pyiceberg.catalog.hive import HiveCatalog, _construct_hive_storage_descriptor
+from pyiceberg.catalog.hive import WAREHOUSE, HiveCatalog, _construct_hive_storage_descriptor
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -660,3 +660,9 @@ def test_construct_hive_storage_descriptor_nested(table_schema_nested: Schema):
         skewedInfo=None,
         storedAsSubDirectories=None,
     )
+
+
+def test_resolve_table_location_warehouse():
+    catalog = HiveCatalog(HIVE_CATALOG_NAME, {WAREHOUSE: "/tmp/warehouse/"}, uri=HIVE_METASTORE_FAKE_URL)
+    location = catalog._resolve_table_location(None, "database", "table")
+    assert location == "/tmp/warehouse/database/table"

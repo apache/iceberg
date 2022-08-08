@@ -107,6 +107,7 @@ TABLE_TYPE = "table_type"
 METADATA_LOCATION = "metadata_location"
 ICEBERG = "iceberg"
 LOCATION = "location"
+WAREHOUSE = "warehouse"
 
 
 class _HiveClient:
@@ -261,6 +262,10 @@ class HiveCatalog(Catalog):
 
     def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str):
         if not location:
+            if warehouse_location := self.properties.get(WAREHOUSE):
+                warehouse_location = warehouse_location.rstrip("/")
+                return f"{warehouse_location}/{database_name}/{table_name}"
+
             database_properties = self.load_namespace_properties(database_name)
             if database_location := database_properties.get(LOCATION):
                 database_location = database_location.rstrip("/")
