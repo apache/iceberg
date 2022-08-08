@@ -42,6 +42,20 @@ public interface MetricsContext extends Serializable {
     public String displayName() {
       return displayName;
     }
+
+    public static Unit fromDisplayName(String displayName) {
+      if ("undefined".equalsIgnoreCase(displayName)) {
+        return UNDEFINED;
+      }
+      if ("bytes".equalsIgnoreCase(displayName)) {
+        return BYTES;
+      }
+      if ("count".equalsIgnoreCase(displayName)) {
+        return COUNT;
+      }
+
+      throw new IllegalArgumentException("Cannot determine unit from display name: " + displayName);
+    }
   }
 
   default void initialize(Map<String, String> properties) {}

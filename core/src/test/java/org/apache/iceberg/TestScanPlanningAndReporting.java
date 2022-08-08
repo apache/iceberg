@@ -61,7 +61,6 @@ public class TestScanPlanningAndReporting extends TableTestBase {
 
     assertThat(scanReport.tableName()).isEqualTo(tableName);
     assertThat(scanReport.snapshotId()).isEqualTo(2L);
-    assertThat(scanReport.filter()).isEqualTo(Expressions.alwaysTrue().toString());
     assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
         .isGreaterThan(Duration.ZERO);
     assertThat(scanReport.scanMetrics().resultDataFiles().value()).isEqualTo(3);

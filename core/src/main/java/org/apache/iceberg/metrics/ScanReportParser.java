@@ -46,11 +46,11 @@ public class ScanReportParser {
 
   public static void toJson(ScanReport scanReport, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != scanReport, "Invalid scan report: null");
+
     gen.writeStartObject();
 
     gen.writeStringField(TABLE_NAME, scanReport.tableName());
     gen.writeNumberField(SNAPSHOT_ID, scanReport.snapshotId());
-    gen.writeStringField(FILTER, scanReport.filter().toString());
 
     gen.writeFieldName(PROJECTION);
     SchemaParser.toJson(scanReport.projection(), gen);
@@ -72,7 +72,6 @@ public class ScanReportParser {
 
     String tableName = JsonUtil.getString(TABLE_NAME, json);
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, json);
-    String filter = JsonUtil.getString(FILTER, json);
     Schema projection = SchemaParser.fromJson(JsonUtil.get(PROJECTION, json));
     ScanMetricsResult scanMetricsResult =
         ScanMetricsResultParser.fromJson(JsonUtil.get(METRICS, json));
@@ -80,7 +79,6 @@ public class ScanReportParser {
         .withTableName(tableName)
         .withSnapshotId(snapshotId)
         .withProjection(projection)
-        .withFilter(filter)
         .fromScanMetricsResult(scanMetricsResult)
         .build();
   }

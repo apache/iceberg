@@ -191,7 +191,7 @@ public class JsonUtil {
   }
 
   public static JsonNode get(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing object %s", property);
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing field: %s", property);
     return node.get(property);
   }
 

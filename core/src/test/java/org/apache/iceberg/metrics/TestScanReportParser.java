@@ -21,9 +21,6 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.True;
-import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -55,16 +52,9 @@ public class TestScanReportParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanReportParser.fromJson(
-                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string filter");
-
-    Assertions.assertThatThrownBy(
-            () ->
-                ScanReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":\"true\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing object projection");
+        .hasMessage("Cannot parse missing field: projection");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -72,7 +62,7 @@ public class TestScanReportParser {
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":\"true\","
                         + "\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing object metrics");
+        .hasMessage("Cannot parse missing field: metrics");
   }
 
   @Test
@@ -89,13 +79,11 @@ public class TestScanReportParser {
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
 
     String tableName = "roundTripTableName";
-    True filter = Expressions.alwaysTrue();
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ScanReport.builder()
             .withTableName(tableName)
-            .withFilter(filter)
             .withProjection(projection)
             .withSnapshotId(23L)
             .fromScanMetrics(scanMetrics)
@@ -105,7 +93,7 @@ public class TestScanReportParser {
             ScanReportParser.fromJson(
                 "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,"
                     + "\"filter\":\"true\",\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]},"
-                    + "\"metrics\":{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                    + "\"metrics\":{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                     + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                     + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                     + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
@@ -138,21 +126,11 @@ public class TestScanReportParser {
   }
 
   @Test
-  public void invalidFilter() {
-    Assertions.assertThatThrownBy(
-            () ->
-                ScanReportParser.fromJson(
-                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":999}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse filter to a string value: 999");
-  }
-
-  @Test
   public void invalidSchema() {
     Assertions.assertThatThrownBy(
             () ->
                 ScanReportParser.fromJson(
-                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"filter\":\"true\",\"projection\":23}"))
+                    "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"projection\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse type from json: 23");
   }
@@ -171,13 +149,11 @@ public class TestScanReportParser {
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
 
     String tableName = "roundTripTableName";
-    UnboundPredicate<Integer> filter = Expressions.greaterThan("x", 30);
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ScanReport.builder()
             .withTableName(tableName)
-            .withFilter(filter)
             .withProjection(projection)
             .withSnapshotId(23L)
             .fromScanMetrics(scanMetrics)

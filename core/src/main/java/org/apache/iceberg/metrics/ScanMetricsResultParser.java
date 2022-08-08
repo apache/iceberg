@@ -50,6 +50,7 @@ class ScanMetricsResultParser {
 
   static void toJson(ScanMetricsResult metrics, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != metrics, "Invalid scan metrics: null");
+
     gen.writeStartObject();
 
     gen.writeFieldName(TOTAL_PLANNING_DURATION);

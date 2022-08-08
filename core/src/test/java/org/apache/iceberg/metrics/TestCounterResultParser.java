@@ -28,8 +28,9 @@ public class TestCounterResultParser {
 
   @Test
   public void nullCounter() {
-    CounterResult<?> counterResult = CounterResultParser.fromJson((JsonNode) null);
-    Assertions.assertThat(counterResult).isEqualTo(CounterResultParser.NOOP_INT_COUNTER);
+    Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson((JsonNode) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse counter from null object");
 
     Assertions.assertThatThrownBy(() -> CounterResultParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -88,7 +89,7 @@ public class TestCounterResultParser {
                 CounterResultParser.fromJson(
                     "{\"name\":\"example\",\"unit\":\"UNKNOWN\",\"value\":23,\"type\":\"java.lang.Long\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("No enum constant org.apache.iceberg.metrics.MetricsContext.Unit.UNKNOWN");
+        .hasMessage("Cannot determine unit from display name: UNKNOWN");
   }
 
   @Test
@@ -120,15 +121,5 @@ public class TestCounterResultParser {
     CounterResult<Long> longCounter = new CounterResult<>("longExample", Unit.COUNT, 23L);
     Assertions.assertThat(CounterResultParser.fromJson(CounterResultParser.toJson(longCounter)))
         .isEqualTo(longCounter);
-
-    Assertions.assertThat(
-            CounterResultParser.fromJson(
-                CounterResultParser.toJson(CounterResultParser.NOOP_INT_COUNTER)))
-        .isEqualTo(CounterResultParser.NOOP_INT_COUNTER);
-
-    Assertions.assertThat(
-            CounterResultParser.fromJson(
-                CounterResultParser.toJson(CounterResultParser.NOOP_LONG_COUNTER)))
-        .isEqualTo(CounterResultParser.NOOP_LONG_COUNTER);
   }
 }

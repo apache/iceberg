@@ -27,13 +27,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 class CounterResultParser {
+
   private static final String MISSING_FIELD_ERROR_MSG =
       "Cannot parse counter from '%s': Missing field '%s'";
-
-  static final CounterResult<Integer> NOOP_INT_COUNTER =
-      new CounterResult<>("undefined", Unit.UNDEFINED, 0);
-  static final CounterResult<Long> NOOP_LONG_COUNTER =
-      new CounterResult<>("undefined", Unit.UNDEFINED, 0L);
+  private static final String NULL_ERROR_MSG = "Cannot parse counter from null object";
 
   private static final String NAME = "name";
   private static final String UNIT = "unit";
@@ -55,7 +52,7 @@ class CounterResultParser {
 
     gen.writeStartObject();
     gen.writeStringField(NAME, counter.name());
-    gen.writeStringField(UNIT, counter.unit().name());
+    gen.writeStringField(UNIT, counter.unit().displayName());
     gen.writeNumberField(VALUE, counter.value().longValue());
     if (counter.value() instanceof Integer) {
       gen.writeStringField(TYPE, Integer.class.getName());
@@ -70,10 +67,9 @@ class CounterResultParser {
   }
 
   static CounterResult<?> fromJson(JsonNode json) {
-    if (null == json) {
-      return NOOP_INT_COUNTER;
-    }
+    Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
     Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
+
     String type = JsonUtil.getString(TYPE, json);
     if (Integer.class.getName().equals(type)) {
       return intCounterFromJson(json);
@@ -82,17 +78,13 @@ class CounterResultParser {
   }
 
   static CounterResult<Integer> intCounterFromJson(String property, JsonNode json) {
-    if (null == json) {
-      return NOOP_INT_COUNTER;
-    }
     return intCounterFromJson(get(property, json));
   }
 
   static CounterResult<Integer> intCounterFromJson(JsonNode json) {
-    if (null == json) {
-      return NOOP_INT_COUNTER;
-    }
+    Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
     Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
+
     String type = JsonUtil.getString(TYPE, json);
     Preconditions.checkArgument(
         Integer.class.getName().equals(type), "Cannot parse to int counter: %s", json);
@@ -100,21 +92,18 @@ class CounterResultParser {
     String name = JsonUtil.getString(NAME, json);
     String unit = JsonUtil.getString(UNIT, json);
     int value = JsonUtil.getInt(VALUE, json);
-    return new CounterResult<>(name, Unit.valueOf(unit), value);
+    return new CounterResult<>(name, Unit.fromDisplayName(unit), value);
   }
 
   static CounterResult<Long> longCounterFromJson(String property, JsonNode json) {
-    if (null == json) {
-      return NOOP_LONG_COUNTER;
-    }
+    Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
     return longCounterFromJson(get(property, json));
   }
 
   static CounterResult<Long> longCounterFromJson(JsonNode json) {
-    if (null == json) {
-      return NOOP_LONG_COUNTER;
-    }
+    Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
     Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
+
     String type = JsonUtil.getString(TYPE, json);
     Preconditions.checkArgument(
         Long.class.getName().equals(type), "Cannot parse to long counter: %s", json);
@@ -122,12 +111,13 @@ class CounterResultParser {
     String name = JsonUtil.getString(NAME, json);
     String unit = JsonUtil.getString(UNIT, json);
     long value = JsonUtil.getLong(VALUE, json);
-    return new CounterResult<>(name, Unit.valueOf(unit), value);
+    return new CounterResult<>(name, Unit.fromDisplayName(unit), value);
   }
 
   private static JsonNode get(String property, JsonNode node) {
     Preconditions.checkArgument(
         node.has(property), "Cannot parse counter from missing object '%s'", property);
+
     JsonNode counter = node.get(property);
     Preconditions.checkArgument(counter.has(NAME), MISSING_FIELD_ERROR_MSG, property, NAME);
     Preconditions.checkArgument(counter.has(TYPE), MISSING_FIELD_ERROR_MSG, property, TYPE);

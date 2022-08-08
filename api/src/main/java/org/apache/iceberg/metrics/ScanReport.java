@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -34,20 +33,13 @@ public class ScanReport implements Serializable {
 
   private final String tableName;
   private final long snapshotId;
-  // TODO: change this to Expression once we have an ExpressionParser
-  private final String filter;
   private final Schema projection;
   private final ScanMetricsResult scanMetrics;
 
   private ScanReport(
-      String tableName,
-      long snapshotId,
-      String filter,
-      Schema projection,
-      ScanMetricsResult scanMetrics) {
+      String tableName, long snapshotId, Schema projection, ScanMetricsResult scanMetrics) {
     this.tableName = tableName;
     this.snapshotId = snapshotId;
-    this.filter = filter;
     this.projection = projection;
     this.scanMetrics = scanMetrics;
   }
@@ -58,10 +50,6 @@ public class ScanReport implements Serializable {
 
   public long snapshotId() {
     return snapshotId;
-  }
-
-  public String filter() {
-    return filter;
   }
 
   public Schema projection() {
@@ -81,7 +69,6 @@ public class ScanReport implements Serializable {
     return MoreObjects.toStringHelper(this)
         .add("tableName", tableName)
         .add("snapshotId", snapshotId)
-        .add("filter", filter)
         .add("projection", projection)
         .add("scanMetrics", scanMetrics)
         .toString();
@@ -95,26 +82,24 @@ public class ScanReport implements Serializable {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
+
     ScanReport that = (ScanReport) o;
     return snapshotId == that.snapshotId
         && Objects.equal(tableName, that.tableName)
-        && Objects.equal(filter, that.filter)
         && Objects.equal(projection, that.projection)
         && Objects.equal(scanMetrics, that.scanMetrics);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(tableName, snapshotId, filter, projection, scanMetrics);
+    return Objects.hashCode(tableName, snapshotId, projection, scanMetrics);
   }
 
   public static class Builder {
     private String tableName;
     private long snapshotId = -1L;
-    private String filter;
     private Schema projection;
-    private ScanMetrics scanMetrics;
-    private ScanMetricsResult scanMetricsResult;
+    private ScanMetricsResult scanMetrics;
 
     private Builder() {}
 
@@ -128,44 +113,26 @@ public class ScanReport implements Serializable {
       return this;
     }
 
-    // TODO: remove once there's an ExpressionParser
-    public Builder withFilter(String newFilter) {
-      this.filter = newFilter;
-      return this;
-    }
-
-    public Builder withFilter(Expression newFilter) {
-      this.filter = newFilter.toString();
-      return this;
-    }
-
     public Builder withProjection(Schema newProjection) {
       this.projection = newProjection;
       return this;
     }
 
     public Builder fromScanMetrics(ScanMetrics newScanMetrics) {
-      this.scanMetrics = newScanMetrics;
+      this.scanMetrics = ScanMetricsResult.fromScanMetrics(newScanMetrics);
       return this;
     }
 
     public Builder fromScanMetricsResult(ScanMetricsResult newScanMetricsResult) {
-      this.scanMetricsResult = newScanMetricsResult;
+      this.scanMetrics = newScanMetricsResult;
       return this;
     }
 
     public ScanReport build() {
       Preconditions.checkArgument(null != tableName, "Invalid table name: null");
-      Preconditions.checkArgument(null != filter, "Invalid expression filter: null");
       Preconditions.checkArgument(null != projection, "Invalid schema projection: null");
-      Preconditions.checkArgument(
-          null != scanMetrics || null != scanMetricsResult, "Invalid scan metrics: null");
-      return new ScanReport(
-          tableName,
-          snapshotId,
-          filter,
-          projection,
-          null != scanMetrics ? ScanMetricsResult.fromScanMetrics(scanMetrics) : scanMetricsResult);
+      Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
+      return new ScanReport(tableName, snapshotId, projection, scanMetrics);
     }
   }
 
@@ -224,6 +191,7 @@ public class ScanReport implements Serializable {
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
+
       TimerResult that = (TimerResult) o;
       return count == that.count
           && Objects.equal(name, that.name)
@@ -286,6 +254,7 @@ public class ScanReport implements Serializable {
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
+
       CounterResult<?> that = (CounterResult<?>) o;
       return Objects.equal(name, that.name)
           && unit == that.unit
@@ -404,6 +373,7 @@ public class ScanReport implements Serializable {
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
+
       ScanMetricsResult that = (ScanMetricsResult) o;
       return Objects.equal(totalPlanningDuration, that.totalPlanningDuration)
           && Objects.equal(resultDataFiles, that.resultDataFiles)

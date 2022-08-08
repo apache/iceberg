@@ -122,7 +122,6 @@ abstract class BaseTableScan extends BaseScan<TableScan, FileScanTask, CombinedS
             scanDuration.stop();
             ScanReport scanReport =
                 ScanReport.builder()
-                    .withFilter(ExpressionUtil.sanitize(filter()))
                     .withProjection(schema())
                     .withTableName(table().name())
                     .withSnapshotId(snapshot.snapshotId())

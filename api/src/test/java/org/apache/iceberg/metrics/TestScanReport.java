@@ -21,8 +21,6 @@ package org.apache.iceberg.metrics;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.True;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -39,12 +37,7 @@ public class TestScanReport {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid expression filter: null");
 
-    Assertions.assertThatThrownBy(
-            () ->
-                ScanReport.builder()
-                    .withTableName("x")
-                    .withFilter(Expressions.alwaysTrue())
-                    .build())
+    Assertions.assertThatThrownBy(() -> ScanReport.builder().withTableName("x").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid schema projection: null");
 
@@ -52,7 +45,6 @@ public class TestScanReport {
             () ->
                 ScanReport.builder()
                     .withTableName("x")
-                    .withFilter(Expressions.alwaysTrue())
                     .withProjection(
                         new Schema(
                             Types.NestedField.required(1, "c1", Types.StringType.get(), "c1")))
@@ -64,20 +56,17 @@ public class TestScanReport {
   @Test
   public void fromEmptyScanMetrics() {
     String tableName = "x";
-    True filter = Expressions.alwaysTrue();
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ScanReport.builder()
             .withTableName(tableName)
-            .withFilter(filter)
             .withProjection(projection)
             .fromScanMetrics(ScanReport.ScanMetrics.NOOP)
             .build();
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
     Assertions.assertThat(scanReport.projection()).isEqualTo(projection);
-    Assertions.assertThat(scanReport.filter()).isEqualTo(filter.toString());
     Assertions.assertThat(scanReport.snapshotId()).isEqualTo(-1);
     Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
         .isEqualTo(Duration.ZERO);
@@ -98,13 +87,11 @@ public class TestScanReport {
     scanMetrics.totalDataManifests().increment(5);
 
     String tableName = "x";
-    True filter = Expressions.alwaysTrue();
     Schema projection =
         new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     ScanReport scanReport =
         ScanReport.builder()
             .withTableName(tableName)
-            .withFilter(filter)
             .withProjection(projection)
             .withSnapshotId(23L)
             .fromScanMetrics(scanMetrics)
@@ -112,7 +99,6 @@ public class TestScanReport {
 
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
     Assertions.assertThat(scanReport.projection()).isEqualTo(projection);
-    Assertions.assertThat(scanReport.filter()).isEqualTo(filter.toString());
     Assertions.assertThat(scanReport.snapshotId()).isEqualTo(23L);
     Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
         .isEqualTo(Duration.ofMinutes(10L));

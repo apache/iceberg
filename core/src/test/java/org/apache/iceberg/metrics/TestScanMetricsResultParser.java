@@ -46,14 +46,14 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000}}"))
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'result-data-files'");
 
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'result-delete-files'");
@@ -61,7 +61,7 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -70,7 +70,7 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
@@ -80,7 +80,7 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
@@ -91,7 +91,7 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
@@ -103,7 +103,7 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
@@ -116,7 +116,7 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                         + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
@@ -144,7 +144,7 @@ public class TestScanMetricsResultParser {
     ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(scanMetrics);
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
-                "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
+                "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                     + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                     + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
                     + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
@@ -172,8 +172,8 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000},"
-                        + "\"result-data-files\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration-nanos\":600000000000}}"))
+                    "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
+                        + "\"result-data-files\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from 'result-data-files': Missing field 'type'");
   }
@@ -181,7 +181,7 @@ public class TestScanMetricsResultParser {
   @Test
   public void roundTripSerde() {
     ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
-    scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
+    scanMetrics.totalPlanningDuration().record(10, TimeUnit.DAYS);
     scanMetrics.resultDataFiles().increment(5);
     scanMetrics.resultDeleteFiles().increment(5);
     scanMetrics.scannedDataManifests().increment(5);
