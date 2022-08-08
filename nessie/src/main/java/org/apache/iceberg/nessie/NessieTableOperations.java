@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.nessie;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Snapshot;
@@ -35,7 +34,6 @@ import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Content;
 import org.projectnessie.model.ContentKey;
-import org.projectnessie.model.GenericMetadata;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableCommitMeta;
 import org.projectnessie.model.ImmutableIcebergTable;
@@ -170,7 +168,6 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       Snapshot snapshot = metadata.currentSnapshot();
       long snapshotId = snapshot != null ? snapshot.snapshotId() : -1L;
 
-      JsonNode newMetadata = NessieUtil.tableMetadataAsJsonNode(metadata);
       IcebergTable newTable =
           newTableBuilder
               .snapshotId(snapshotId)
@@ -178,8 +175,6 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
               .specId(metadata.defaultSpecId())
               .sortOrderId(metadata.defaultSortOrderId())
               .metadataLocation(newMetadataLocation)
-              .metadata(
-                  GenericMetadata.of("org.apache:iceberg:" + metadata.formatVersion(), newMetadata))
               .build();
 
       LOG.debug(

@@ -18,70 +18,16 @@
  */
 package org.apache.iceberg.nessie;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import java.util.Collections;
-import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.types.Types.NestedField;
-import org.apache.iceberg.types.Types.StringType;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.projectnessie.model.CommitMeta;
-import org.projectnessie.model.GenericMetadata;
 import org.projectnessie.model.IcebergTable;
-import org.projectnessie.model.ImmutableIcebergTable;
 
 public class TestNessieUtil {
-
-  @Test
-  public void testTableMetadataJsonRoundtrip() {
-    // Construct a dummy TableMetadata object
-    Map<String, String> properties = Collections.singletonMap("property-key", "property-value");
-    String location = "obj://foo/bar/baz";
-    TableMetadata tableMetadata =
-        TableMetadata.newTableMetadata(
-            new Schema(1, NestedField.of(1, false, "column", StringType.get())),
-            PartitionSpec.unpartitioned(),
-            SortOrder.unsorted(),
-            location,
-            properties);
-
-    // Produce a generic JsonNode from the TableMetadata
-    JsonNode jsonNode = NessieUtil.tableMetadataAsJsonNode(tableMetadata);
-    Assertions.assertThat(jsonNode)
-        .asInstanceOf(InstanceOfAssertFactories.type(JsonNode.class))
-        .extracting(
-            n -> n.get("format-version").asLong(-2L),
-            n -> n.get("location").asText("x"),
-            n -> n.get("properties").get("property-key").asText())
-        .containsExactly(1L, location, "property-value");
-
-    // Create a Nessie IcebergTable object with the JsonNode as the metadata
-    IcebergTable icebergTableNoMetadata = IcebergTable.of(location, 0L, 1, 2, 3, "cid");
-    IcebergTable icebergTable =
-        ImmutableIcebergTable.builder()
-            .from(icebergTableNoMetadata)
-            .metadata(GenericMetadata.of("iceberg", jsonNode))
-            .build();
-
-    // Deserialize the TableMetadata from Nessie IcebergTable
-    TableMetadata deserializedMetadata =
-        NessieUtil.tableMetadataFromIcebergTable(null, icebergTable, location);
-
-    // (Could compare tableMetadata against deserializedMetadata, but TableMetadata has no equals())
-
-    // Produce a JsonNode from the deserializedMetadata and compare that against jsonNode
-    JsonNode deserializedJsonNode = NessieUtil.tableMetadataAsJsonNode(deserializedMetadata);
-    Assertions.assertThat(deserializedJsonNode).isEqualTo(jsonNode);
-  }
 
   @Test
   public void testTableMetadataFromFileIO() {

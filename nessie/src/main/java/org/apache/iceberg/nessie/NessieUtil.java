@@ -19,8 +19,6 @@
 package org.apache.iceberg.nessie;
 
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Arrays;
@@ -118,18 +116,5 @@ public final class NessieUtil {
       deserialized = TableMetadataParser.read(io, metadataLocation);
     }
     return deserialized;
-  }
-
-  static JsonNode tableMetadataAsJsonNode(TableMetadata metadata) {
-    JsonNode newMetadata;
-    try {
-      String jsonString = TableMetadataParser.toJson(metadata);
-      try (JsonParser parser = JsonUtil.factory().createParser(jsonString)) {
-        newMetadata = parser.readValueAs(JsonNode.class);
-      }
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-    return newMetadata;
   }
 }
