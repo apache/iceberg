@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg;
 
-public class TestDataTableScan extends ScanTestBase<TableScan> {
+public class TestDataTableScan extends ScanTestBase<TableScan, FileScanTask, CombinedScanTask> {
   public TestDataTableScan(int formatVersion) {
     super(formatVersion);
   }

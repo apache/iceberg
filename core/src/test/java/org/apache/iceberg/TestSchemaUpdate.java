@@ -121,6 +121,40 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testDeleteFieldsCaseSensitiveDisabled() {
+    // use schema projection to test column deletes
+    List<String> columns =
+        Lists.newArrayList(
+            "Id",
+            "Data",
+            "Preferences",
+            "Preferences.feature1",
+            "Preferences.feature2",
+            "Locations",
+            "Locations.lat",
+            "Locations.long",
+            "Points",
+            "Points.x",
+            "Points.y",
+            "Doubles",
+            "Properties");
+    for (String name : columns) {
+      Set<Integer> selected = Sets.newHashSet(ALL_IDS);
+      // remove the id and any nested fields from the projection
+      Types.NestedField nested = SCHEMA.caseInsensitiveFindField(name);
+      selected.remove(nested.fieldId());
+      selected.removeAll(TypeUtil.getProjectedIds(nested.type()));
+
+      Schema del = new SchemaUpdate(SCHEMA, 19).caseSensitive(false).deleteColumn(name).apply();
+
+      Assert.assertEquals(
+          "Should match projection with '" + name + "' removed",
+          TypeUtil.project(SCHEMA, selected).asStruct(),
+          del.asStruct());
+    }
+  }
+
+  @Test
   public void testUpdateTypes() {
     Types.StructType expected =
         Types.StructType.of(
@@ -169,6 +203,61 @@ public class TestSchemaUpdate {
             .updateColumn("id", Types.LongType.get())
             .updateColumn("locations.lat", Types.DoubleType.get())
             .updateColumn("locations.long", Types.DoubleType.get())
+            .apply();
+
+    Assert.assertEquals("Should convert types", expected, updated.asStruct());
+  }
+
+  @Test
+  public void testUpdateTypesCaseInsensitive() {
+    Types.StructType expected =
+        Types.StructType.of(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "data", Types.StringType.get()),
+            optional(
+                3,
+                "preferences",
+                Types.StructType.of(
+                    required(8, "feature1", Types.BooleanType.get()),
+                    optional(9, "feature2", Types.BooleanType.get())),
+                "struct of named boolean options"),
+            required(
+                4,
+                "locations",
+                Types.MapType.ofRequired(
+                    10,
+                    11,
+                    Types.StructType.of(
+                        required(20, "address", Types.StringType.get()),
+                        required(21, "city", Types.StringType.get()),
+                        required(22, "state", Types.StringType.get()),
+                        required(23, "zip", Types.IntegerType.get())),
+                    Types.StructType.of(
+                        required(12, "lat", Types.DoubleType.get()),
+                        required(13, "long", Types.DoubleType.get()))),
+                "map of address to coordinate"),
+            optional(
+                5,
+                "points",
+                Types.ListType.ofOptional(
+                    14,
+                    Types.StructType.of(
+                        required(15, "x", Types.LongType.get()),
+                        required(16, "y", Types.LongType.get()))),
+                "2-D cartesian points"),
+            required(6, "doubles", Types.ListType.ofRequired(17, Types.DoubleType.get())),
+            optional(
+                7,
+                "properties",
+                Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
+                "string map of properties"));
+
+    Schema updated =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .caseSensitive(false)
+            .updateColumn("ID", Types.LongType.get())
+            .updateColumn("Locations.Lat", Types.DoubleType.get())
+            .updateColumn("Locations.Long", Types.DoubleType.get())
             .apply();
 
     Assert.assertEquals("Should convert types", expected, updated.asStruct());
@@ -275,6 +364,64 @@ public class TestSchemaUpdate {
             .renameColumn("locations.lat", "latitude")
             .renameColumn("points.x", "X")
             .renameColumn("points.y", "y.y") // has a '.' in the field name
+            .apply();
+
+    Assert.assertEquals("Should rename all fields", expected, renamed.asStruct());
+  }
+
+  @Test
+  public void testRenameCaseInsensitive() {
+    Types.StructType expected =
+        Types.StructType.of(
+            required(1, "id", Types.IntegerType.get()),
+            optional(2, "json", Types.StringType.get()),
+            optional(
+                3,
+                "options",
+                Types.StructType.of(
+                    required(8, "feature1", Types.BooleanType.get()),
+                    optional(9, "newfeature", Types.BooleanType.get())),
+                "struct of named boolean options"),
+            required(
+                4,
+                "locations",
+                Types.MapType.ofRequired(
+                    10,
+                    11,
+                    Types.StructType.of(
+                        required(20, "address", Types.StringType.get()),
+                        required(21, "city", Types.StringType.get()),
+                        required(22, "state", Types.StringType.get()),
+                        required(23, "zip", Types.IntegerType.get())),
+                    Types.StructType.of(
+                        required(12, "latitude", Types.FloatType.get()),
+                        required(13, "long", Types.FloatType.get()))),
+                "map of address to coordinate"),
+            optional(
+                5,
+                "points",
+                Types.ListType.ofOptional(
+                    14,
+                    Types.StructType.of(
+                        required(15, "X", Types.LongType.get()),
+                        required(16, "y.y", Types.LongType.get()))),
+                "2-D cartesian points"),
+            required(6, "doubles", Types.ListType.ofRequired(17, Types.DoubleType.get())),
+            optional(
+                7,
+                "properties",
+                Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
+                "string map of properties"));
+
+    Schema renamed =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .caseSensitive(false)
+            .renameColumn("Data", "json")
+            .renameColumn("Preferences", "options")
+            .renameColumn("Preferences.Feature2", "newfeature") // inside a renamed column
+            .renameColumn("Locations.Lat", "latitude")
+            .renameColumn("Points.x", "X")
+            .renameColumn("Points.y", "y.y") // has a '.' in the field name
             .apply();
 
     Assert.assertEquals("Should rename all fields", expected, renamed.asStruct());
@@ -455,6 +602,22 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testAddRequiredColumnCaseInsensitive() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    AssertHelpers.assertThrows(
+        "Should reject add required column if same column name different case found",
+        IllegalArgumentException.class,
+        "Cannot add column, name already exists: ID",
+        () ->
+            new SchemaUpdate(schema, 1)
+                .caseSensitive(false)
+                .allowIncompatibleChanges()
+                .addRequiredColumn("ID", Types.StringType.get())
+                .apply());
+  }
+
+  @Test
   public void testMakeColumnOptional() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
     Schema expected = new Schema(optional(1, "id", Types.IntegerType.get()));
@@ -481,6 +644,22 @@ public class TestSchemaUpdate {
 
     Schema result =
         new SchemaUpdate(schema, 1).allowIncompatibleChanges().requireColumn("id").apply();
+
+    Assert.assertEquals(
+        "Should update column to be required", expected.asStruct(), result.asStruct());
+  }
+
+  @Test
+  public void testRequireColumnCaseInsensitive() {
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema expected = new Schema(required(1, "id", Types.IntegerType.get()));
+
+    Schema result =
+        new SchemaUpdate(schema, 1)
+            .caseSensitive(false)
+            .allowIncompatibleChanges()
+            .requireColumn("ID")
+            .apply();
 
     Assert.assertEquals(
         "Should update column to be required", expected.asStruct(), result.asStruct());
@@ -1877,6 +2056,45 @@ public class TestSchemaUpdate {
 
     newSchema =
         new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID).moveFirst("id").apply();
+
+    Assert.assertEquals(
+        "move first should not affect identifier fields",
+        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
+        newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testMoveIdentifierFieldsCaseInsensitive() {
+    Schema schemaWithIdentifierFields =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("id").apply();
+
+    Schema newSchema =
+        new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+            .caseSensitive(false)
+            .moveAfter("iD", "locations")
+            .apply();
+
+    Assert.assertEquals(
+        "move after should not affect identifier fields",
+        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema =
+        new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+            .caseSensitive(false)
+            .moveBefore("ID", "locations")
+            .apply();
+
+    Assert.assertEquals(
+        "move before should not affect identifier fields",
+        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema =
+        new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+            .caseSensitive(false)
+            .moveFirst("ID")
+            .apply();
 
     Assert.assertEquals(
         "move first should not affect identifier fields",

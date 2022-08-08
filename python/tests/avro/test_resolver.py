@@ -177,6 +177,46 @@ def test_promote_decimal_to_decimal():
     assert promote(DecimalType(19, 25), DecimalType(22, 25)) == DecimalReader(22, 25)
 
 
+def test_struct_not_aligned():
+    with pytest.raises(ResolveException):
+        assert promote(StructType(), StringType())
+
+
+def test_map_not_aligned():
+    with pytest.raises(ResolveException):
+        assert promote(MapType(1, StringType(), 2, IntegerType()), StringType())
+
+
+def test_primitive_not_aligned():
+    with pytest.raises(ResolveException):
+        assert promote(IntegerType(), MapType(1, StringType(), 2, IntegerType()))
+
+
+def test_integer_not_aligned():
+    with pytest.raises(ResolveException):
+        assert promote(IntegerType(), StringType())
+
+
+def test_float_not_aligned():
+    with pytest.raises(ResolveException):
+        assert promote(FloatType(), StringType())
+
+
+def test_string_not_aligned():
+    with pytest.raises(ResolveException):
+        assert promote(StringType(), FloatType())
+
+
+def test_binary_not_aligned():
+    with pytest.raises(ResolveException):
+        assert promote(BinaryType(), FloatType())
+
+
+def test_decimal_not_aligned():
+    with pytest.raises(ResolveException):
+        assert promote(DecimalType(22, 19), StringType())
+
+
 def test_promote_decimal_to_decimal_reduce_precision():
     # DecimalType(P, S) to DecimalType(P2, S) where P2 > P
     with pytest.raises(ResolveException) as exc_info:

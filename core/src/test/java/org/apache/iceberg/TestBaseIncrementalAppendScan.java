@@ -22,7 +22,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestBaseIncrementalAppendScan extends ScanTestBase<IncrementalAppendScan> {
+public class TestBaseIncrementalAppendScan
+    extends ScanTestBase<IncrementalAppendScan, FileScanTask, CombinedScanTask> {
   public TestBaseIncrementalAppendScan(int formatVersion) {
     super(formatVersion);
   }

@@ -17,7 +17,7 @@
 
 install:
 	pip install poetry
-	poetry install -E pyarrow
+	poetry install -E pyarrow -E hive
 
 lint:
 	poetry run pre-commit run --all-files

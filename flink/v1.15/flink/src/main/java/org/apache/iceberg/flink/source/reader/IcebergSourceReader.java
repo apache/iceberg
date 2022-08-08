@@ -21,19 +21,22 @@ package org.apache.iceberg.flink.source.reader;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.SingleThreadMultiplexSourceReaderBase;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SplitRequestEvent;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
+@Internal
 public class IcebergSourceReader<T>
     extends SingleThreadMultiplexSourceReaderBase<
         RecordAndPosition<T>, T, IcebergSourceSplit, IcebergSourceSplit> {
 
-  public IcebergSourceReader(ReaderFunction<T> readerFunction, SourceReaderContext context) {
+  public IcebergSourceReader(
+      String fullTableName, ReaderFunction<T> readerFunction, SourceReaderContext context) {
     super(
-        () -> new IcebergSourceSplitReader<>(readerFunction, context),
+        () -> new IcebergSourceSplitReader<>(fullTableName, readerFunction, context),
         new IcebergSourceRecordEmitter<>(),
         context.getConfiguration(),
         context);

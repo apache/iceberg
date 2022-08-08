@@ -33,6 +33,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -296,5 +297,13 @@ public class SparkWriteConf {
     String isolationLevelName =
         confParser.stringConf().option(SparkWriteOptions.ISOLATION_LEVEL).parseOptional();
     return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
+  }
+
+  public boolean caseSensitive() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SQLConf.CASE_SENSITIVE().key())
+        .defaultValue(SQLConf.CASE_SENSITIVE().defaultValueString())
+        .parse();
   }
 }

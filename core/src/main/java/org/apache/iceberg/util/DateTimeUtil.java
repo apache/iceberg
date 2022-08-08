@@ -24,6 +24,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoUnit;
 
 public class DateTimeUtil {
@@ -82,5 +84,53 @@ public class DateTimeUtil {
 
   public static String formatTimestampMillis(long millis) {
     return Instant.ofEpochMilli(millis).toString().replace("Z", "+00:00");
+  }
+
+  public static String daysToIsoDate(int days) {
+    return dateFromDays(days).format(DateTimeFormatter.ISO_LOCAL_DATE);
+  }
+
+  public static String microsToIsoTime(long micros) {
+    return timeFromMicros(micros).format(DateTimeFormatter.ISO_LOCAL_TIME);
+  }
+
+  public static String microsToIsoTimestamptz(long micros) {
+    LocalDateTime localDateTime = timestampFromMicros(micros);
+    DateTimeFormatter zeroOffsetFormatter =
+        new DateTimeFormatterBuilder()
+            .parseCaseInsensitive()
+            .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            .appendOffset("+HH:MM:ss", "+00:00")
+            .toFormatter();
+    return localDateTime.atOffset(ZoneOffset.UTC).format(zeroOffsetFormatter);
+  }
+
+  public static String microsToIsoTimestamp(long micros) {
+    LocalDateTime localDateTime = timestampFromMicros(micros);
+    return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+  }
+
+  public static int isoDateToDays(String dateString) {
+    return daysFromDate(LocalDate.parse(dateString, DateTimeFormatter.ISO_LOCAL_DATE));
+  }
+
+  public static long isoTimeToMicros(String timeString) {
+    return microsFromTime(LocalTime.parse(timeString, DateTimeFormatter.ISO_LOCAL_TIME));
+  }
+
+  public static long isoTimestamptzToMicros(String timestampString) {
+    return microsFromTimestamptz(
+        OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
+  }
+
+  public static boolean isUTCTimestamptz(String timestampString) {
+    OffsetDateTime offsetDateTime =
+        OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME);
+    return offsetDateTime.getOffset().equals(ZoneOffset.UTC);
+  }
+
+  public static long isoTimestampToMicros(String timestampString) {
+    return microsFromTimestamp(
+        LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
   }
 }

@@ -624,4 +624,25 @@ public class TestTypeUtil {
                 required(15, "B", Types.IntegerType.get())));
     Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
   }
+
+  @Test
+  public void testReassignOrRefreshIdsCaseInsensitive() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(1, "FIELD1", Types.IntegerType.get()),
+                required(2, "FIELD2", Types.IntegerType.get())));
+    Schema sourceSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(1, "field1", Types.IntegerType.get()),
+                required(2, "field2", Types.IntegerType.get())));
+    final Schema actualSchema = TypeUtil.reassignOrRefreshIds(schema, sourceSchema, false);
+    final Schema expectedSchema =
+        new Schema(
+            Lists.newArrayList(
+                required(1, "FIELD1", Types.IntegerType.get()),
+                required(2, "FIELD2", Types.IntegerType.get())));
+    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+  }
 }

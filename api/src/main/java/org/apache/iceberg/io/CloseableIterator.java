@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.function.Function;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public interface CloseableIterator<T> extends Iterator<T>, Closeable {
@@ -58,7 +59,7 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
 
   static <I, O> CloseableIterator<O> transform(
       CloseableIterator<I> iterator, Function<I, O> transform) {
-    Preconditions.checkNotNull(transform, "Cannot apply a null transform");
+    Preconditions.checkNotNull(transform, "Invalid transform: null");
 
     return new CloseableIterator<O>() {
       @Override
@@ -74,6 +75,28 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
       @Override
       public O next() {
         return transform.apply(iterator.next());
+      }
+    };
+  }
+
+  static <T> CloseableIterator<T> count(
+      MetricsContext.Counter<?> counter, CloseableIterator<T> iterator) {
+    return new CloseableIterator<T>() {
+      @Override
+      public void close() throws IOException {
+        iterator.close();
+      }
+
+      @Override
+      public boolean hasNext() {
+        return iterator.hasNext();
+      }
+
+      @Override
+      public T next() {
+        T next = iterator.next();
+        counter.increment();
+        return next;
       }
     };
   }

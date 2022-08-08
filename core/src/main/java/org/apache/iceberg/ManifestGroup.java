@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -60,6 +61,7 @@ class ManifestGroup {
   private List<String> columns;
   private boolean caseSensitive;
   private ExecutorService executorService;
+  private ScanReport.ScanMetrics scanMetrics;
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
     this(
@@ -83,6 +85,7 @@ class ManifestGroup {
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
+    this.scanMetrics = ScanReport.ScanMetrics.NOOP;
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -116,6 +119,11 @@ class ManifestGroup {
   ManifestGroup filterManifestEntries(
       Predicate<ManifestEntry<DataFile>> newManifestEntryPredicate) {
     this.manifestEntryPredicate = manifestEntryPredicate.and(newManifestEntryPredicate);
+    return this;
+  }
+
+  ManifestGroup scanMetrics(ScanReport.ScanMetrics metrics) {
+    this.scanMetrics = metrics;
     return this;
   }
 
@@ -171,7 +179,7 @@ class ManifestGroup {
                   return ResidualEvaluator.of(spec, filter, caseSensitive);
                 });
 
-    DeleteFileIndex deleteFiles = deleteIndexBuilder.build();
+    DeleteFileIndex deleteFiles = deleteIndexBuilder.scanMetrics(scanMetrics).build();
 
     boolean dropStats = ManifestReader.dropStats(dataFilter, columns);
     if (!deleteFiles.isEmpty()) {
@@ -184,7 +192,7 @@ class ManifestGroup {
                 specId -> {
                   PartitionSpec spec = specsById.get(specId);
                   ResidualEvaluator residuals = residualCache.get(specId);
-                  return new TaskContext(spec, deleteFiles, residuals, dropStats);
+                  return new TaskContext(spec, deleteFiles, residuals, dropStats, scanMetrics);
                 });
 
     Iterable<CloseableIterable<T>> tasks =
@@ -239,11 +247,14 @@ class ManifestGroup {
       evaluator = null;
     }
 
-    Iterable<ManifestFile> matchingManifests =
+    CloseableIterable<ManifestFile> closeableDataManifests =
+        CloseableIterable.withNoopClose(dataManifests);
+    CloseableIterable<ManifestFile> matchingManifests =
         evalCache == null
-            ? dataManifests
-            : Iterables.filter(
-                dataManifests,
+            ? closeableDataManifests
+            : CloseableIterable.filter(
+                scanMetrics.skippedDataManifests(),
+                closeableDataManifests,
                 manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
     if (ignoreDeleted) {
@@ -251,7 +262,8 @@ class ManifestGroup {
       // remove any manifests that don't have any existing or added files. if either the added or
       // existing files count is missing, the manifest must be scanned.
       matchingManifests =
-          Iterables.filter(
+          CloseableIterable.filter(
+              scanMetrics.skippedDataManifests(),
               matchingManifests,
               manifest -> manifest.hasAddedFiles() || manifest.hasExistingFiles());
     }
@@ -261,12 +273,17 @@ class ManifestGroup {
       // remove any manifests that don't have any deleted or added files. if either the added or
       // deleted files count is missing, the manifest must be scanned.
       matchingManifests =
-          Iterables.filter(
+          CloseableIterable.filter(
+              scanMetrics.skippedDataManifests(),
               matchingManifests,
               manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles());
     }
 
-    matchingManifests = Iterables.filter(matchingManifests, manifestPredicate::test);
+    matchingManifests =
+        CloseableIterable.filter(
+            scanMetrics.skippedDataManifests(), matchingManifests, manifestPredicate);
+    matchingManifests =
+        CloseableIterable.count(scanMetrics.scannedDataManifests(), matchingManifests);
 
     return Iterables.transform(
         matchingManifests,
@@ -281,7 +298,8 @@ class ManifestGroup {
                         .filterRows(dataFilter)
                         .filterPartitions(partitionFilter)
                         .caseSensitive(caseSensitive)
-                        .select(columns);
+                        .select(columns)
+                        .scanMetrics(scanMetrics);
 
                 CloseableIterable<ManifestEntry<DataFile>> entries;
                 if (ignoreDeleted) {
@@ -325,6 +343,12 @@ class ManifestGroup {
         entry -> {
           DataFile dataFile = entry.file().copy(ctx.shouldKeepStats());
           DeleteFile[] deleteFiles = ctx.deletes().forEntry(entry);
+          for (DeleteFile deleteFile : deleteFiles) {
+            ctx.scanMetrics().totalDeleteFileSizeInBytes().increment(deleteFile.fileSizeInBytes());
+          }
+          ctx.scanMetrics().totalFileSizeInBytes().increment(dataFile.fileSizeInBytes());
+          ctx.scanMetrics().resultDataFiles().increment();
+          ctx.scanMetrics().resultDeleteFiles().increment(deleteFiles.length);
           return new BaseFileScanTask(
               dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
         });
@@ -342,17 +366,20 @@ class ManifestGroup {
     private final DeleteFileIndex deletes;
     private final ResidualEvaluator residuals;
     private final boolean dropStats;
+    private final ScanReport.ScanMetrics scanMetrics;
 
     TaskContext(
         PartitionSpec spec,
         DeleteFileIndex deletes,
         ResidualEvaluator residuals,
-        boolean dropStats) {
+        boolean dropStats,
+        ScanReport.ScanMetrics scanMetrics) {
       this.schemaAsString = SchemaParser.toJson(spec.schema());
       this.specAsString = PartitionSpecParser.toJson(spec);
       this.deletes = deletes;
       this.residuals = residuals;
       this.dropStats = dropStats;
+      this.scanMetrics = scanMetrics;
     }
 
     String schemaAsString() {
@@ -373,6 +400,10 @@ class ManifestGroup {
 
     boolean shouldKeepStats() {
       return !dropStats;
+    }
+
+    public ScanReport.ScanMetrics scanMetrics() {
+      return scanMetrics;
     }
   }
 }

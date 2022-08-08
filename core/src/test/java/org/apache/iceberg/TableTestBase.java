@@ -22,6 +22,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -518,6 +521,31 @@ public class TableTestBase {
     return positionDelete.set(path, pos, row);
   }
 
+  protected void withUnavailableLocations(Iterable<String> locations, Action action) {
+    for (String location : locations) {
+      move(location, location + "_temp");
+    }
+
+    try {
+      action.invoke();
+    } finally {
+      for (String location : locations) {
+        move(location + "_temp", location);
+      }
+    }
+  }
+
+  private void move(String location, String newLocation) {
+    Path path = Paths.get(location);
+    Path tempPath = Paths.get(newLocation);
+
+    try {
+      java.nio.file.Files.move(path, tempPath);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to move: " + location, e);
+    }
+  }
+
   static void validateManifestEntries(
       ManifestFile manifest,
       Iterator<Long> ids,
@@ -585,5 +613,10 @@ public class TableTestBase {
         Assert.assertEquals(context, expected, actual);
       }
     }
+  }
+
+  @FunctionalInterface
+  protected interface Action {
+    void invoke();
   }
 }

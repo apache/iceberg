@@ -18,9 +18,9 @@ from json import JSONDecodeError
 from typing import (
     Dict,
     List,
+    Literal,
     Optional,
     Set,
-    Tuple,
     Type,
     Union,
 )
@@ -30,16 +30,21 @@ from pydantic import Field
 from requests import HTTPError
 
 from pyiceberg import __version__
-from pyiceberg.catalog import Identifier, Properties
-from pyiceberg.catalog.base import Catalog, PropertiesUpdateSummary
+from pyiceberg.catalog import (
+    Catalog,
+    Identifier,
+    Properties,
+    PropertiesUpdateSummary,
+)
 from pyiceberg.exceptions import (
-    AlreadyExistsError,
     AuthorizationExpiredError,
     BadCredentialsError,
     BadRequestError,
     ForbiddenError,
+    NamespaceAlreadyExistsError,
     NoSuchNamespaceError,
     NoSuchTableError,
+    OAuthError,
     RESTError,
     ServerError,
     ServiceUnavailableError,
@@ -47,7 +52,7 @@ from pyiceberg.exceptions import (
     UnauthorizedError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table.base import Table
+from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
@@ -148,6 +153,14 @@ class ErrorResponse(IcebergBaseModel):
     error: ErrorResponseMessage = Field()
 
 
+class OAuthErrorResponse(IcebergBaseModel):
+    error: Literal[
+        "invalid_request", "invalid_client", "invalid_grant", "unauthorized_client", "unsupported_grant_type", "invalid_scope"
+    ]
+    error_description: Optional[str]
+    error_uri: Optional[str]
+
+
 class RestCatalog(Catalog):
     token: str
     config: Properties
@@ -180,19 +193,6 @@ class RestCatalog(Catalog):
             self.token = token
         self.config = self._fetch_config(properties)
         super().__init__(name, properties)
-
-    @staticmethod
-    def _split_credential(token: str) -> Tuple[str, str]:
-        """Splits the token in a client id and secret
-
-        Args:
-            token: The token with a semicolon as a separator
-
-        Returns:
-            The client id and secret
-        """
-        client, secret = token.split(":")
-        return client, secret
 
     @property
     def headers(self) -> Properties:
@@ -233,7 +233,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {401: BadCredentialsError})
+            self._handle_non_200_response(exc, {400: OAuthError, 401: BadCredentialsError})
 
         return TokenResponse(**response.json()).access_token
 
@@ -255,39 +255,46 @@ class RestCatalog(Catalog):
         return {"namespace": identifier[:-1], "name": identifier[-1]}
 
     def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]):
-        try:
-            response = ErrorResponse(**exc.response.json())
-        except JSONDecodeError:
-            # In the case we don't have a proper response
-            response = ErrorResponse(
-                error=ErrorResponseMessage(
-                    message=f"Could not decode json payload: {exc.response.text}",
-                    type="RESTError",
-                    code=exc.response.status_code,
-                )
-            )
-
+        exception: Type[Exception]
         code = exc.response.status_code
         if code in error_handler:
-            raise error_handler[code](response.error.message) from exc
+            exception = error_handler[code]
         elif code == 400:
-            raise BadRequestError(response.error.message) from exc
+            exception = BadRequestError
         elif code == 401:
-            raise UnauthorizedError(response.error.message) from exc
+            exception = UnauthorizedError
         elif code == 403:
-            raise ForbiddenError(response.error.message) from exc
+            exception = ForbiddenError
         elif code == 422:
-            raise RESTError(response.error.message) from exc
+            exception = RESTError
         elif code == 419:
-            raise AuthorizationExpiredError(response.error.message)
+            exception = AuthorizationExpiredError
         elif code == 501:
-            raise NotImplementedError(response.error.message)
+            exception = NotImplementedError
         elif code == 503:
-            raise ServiceUnavailableError(response.error.message) from exc
+            exception = ServiceUnavailableError
         elif 500 <= code < 600:
-            raise ServerError(response.error.message) from exc
+            exception = ServerError
         else:
-            raise RESTError(response.error.message) from exc
+            exception = RESTError
+
+        try:
+            if exception == OAuthError:
+                # The OAuthErrorResponse has a different format
+                error = OAuthErrorResponse(**exc.response.json())
+                response = str(error.error)
+                if description := error.error_description:
+                    response += f": {description}"
+                if uri := error.error_uri:
+                    response += f" ({uri})"
+            else:
+                error = ErrorResponse(**exc.response.json()).error
+                response = f"{error.type}: {error.message}"
+        except JSONDecodeError:
+            # In the case we don't have a proper response
+            response = f"RESTError {exc.response.status_code}: Could not decode json payload: {exc.response.text}"
+
+        raise exception(response) from exc
 
     def create_table(
         self,
@@ -327,8 +334,8 @@ class RestCatalog(Catalog):
             metadata=table_response.metadata,
         )
 
-    def list_tables(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
-        namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace or ""))
+    def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
+        namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
         response = requests.get(
             self.url(Endpoints.list_tables, namespace=namespace_concat),
             headers=self.headers,
@@ -386,7 +393,7 @@ class RestCatalog(Catalog):
         try:
             response.raise_for_status()
         except HTTPError as exc:
-            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: AlreadyExistsError})
+            self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: NamespaceAlreadyExistsError})
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
         namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))

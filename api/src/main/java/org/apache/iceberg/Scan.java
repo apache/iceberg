@@ -60,6 +60,13 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
   ThisT caseSensitive(boolean caseSensitive);
 
   /**
+   * Returns whether this scan is case-sensitive with respect to column names.
+   *
+   * @return true if case-sensitive, false otherwise.
+   */
+  boolean isCaseSensitive();
+
+  /**
    * Create a new scan from this that loads the column stats with each data file.
    *
    * <p>Column stats include: value count, null value count, lower bounds, and upper bounds.
@@ -85,6 +92,13 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
    * @return a new scan based on this with results filtered by the expression
    */
   ThisT filter(Expression expr);
+
+  /**
+   * Returns this scan's filter {@link Expression}.
+   *
+   * @return this scan's filter expression
+   */
+  Expression filter();
 
   /**
    * Create a new scan from this that applies data filtering to files but not to rows in those

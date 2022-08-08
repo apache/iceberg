@@ -24,8 +24,8 @@ class NamespaceNotEmptyError(Exception):
     """Raised when a name-space being dropped is not empty"""
 
 
-class AlreadyExistsError(Exception):
-    """Raised when a table or name-space being created already exists in the catalog"""
+class NamespaceAlreadyExistsError(Exception):
+    """Raised when a name-space being created already exists in the catalog"""
 
 
 class ValidationError(Exception):
@@ -70,3 +70,7 @@ class ForbiddenError(RESTError):
 
 class AuthorizationExpiredError(RESTError):
     """When the credentials are expired when performing an action on the REST catalog"""
+
+
+class OAuthError(RESTError):
+    """Raises when there is an error with the OAuth call"""
