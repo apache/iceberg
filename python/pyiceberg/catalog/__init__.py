@@ -182,8 +182,11 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def list_namespaces(self) -> list[Identifier]:
+    def list_namespaces(self, namespace: str | Identifier = ()) -> list[Identifier]:
         """List namespaces from the given namespace. If not given, list top-level namespaces from the catalog.
+
+        Args:
+            namespace (str | Identifier | None): Namespace identifier to search.
 
         Returns:
             List[Identifier]: a List of namespace identifiers

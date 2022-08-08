@@ -61,7 +61,7 @@ from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 class Endpoints:
     get_config: str = "config"
-    list_namespaces: str = "namespaces"
+    list_namespaces: str = "namespaces?parent={parent}"
     create_namespace: str = "namespaces"
     load_namespace_metadata: str = "namespaces/{namespace}"
     drop_namespace: str = "namespaces/{namespace}"
@@ -403,8 +403,11 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
 
-    def list_namespaces(self) -> List[Identifier]:
-        response = requests.get(self.url(Endpoints.list_namespaces), headers=self.headers)
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
+        namespace_tuple = self.identifier_to_tuple(namespace)
+        response = requests.get(
+            self.url(Endpoints.list_namespaces.format(parent=NAMESPACE_SEPARATOR.join(namespace_tuple))), headers=self.headers
+        )
         response.raise_for_status()
         namespaces = ListNamespaceResponse(**response.json())
         try:
