@@ -100,6 +100,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final Closeable closeable;
   private final boolean cacheEnabled;
   private final Map<ObjectPath, CatalogFunction> functions;
+  private final String SYSTEM_DATABASE_NAME = "system";
 
   public FlinkCatalog(
       String catalogName,
@@ -125,7 +126,14 @@ public class FlinkCatalog extends AbstractCatalog {
     // Create the default database if it does not exist.
     try {
       createDatabase(getDefaultDatabase(), ImmutableMap.of(), true);
-      registerPartitionFunction(getDefaultDatabase());
+      functions.put(
+          new ObjectPath(SYSTEM_DATABASE_NAME, PartitionTransformUdf.Bucket.FUNCTION_NAME),
+          new CatalogFunctionImpl(
+              PartitionTransformUdf.Bucket.class.getName(), FunctionLanguage.JAVA));
+      functions.put(
+          new ObjectPath(SYSTEM_DATABASE_NAME, PartitionTransformUdf.Truncate.FUNCTION_NAME),
+          new CatalogFunctionImpl(
+              PartitionTransformUdf.Truncate.class.getName(), FunctionLanguage.JAVA));
     } catch (DatabaseAlreadyExistException e) {
       // Ignore the exception if it's already exist.
     }
@@ -168,17 +176,6 @@ public class FlinkCatalog extends AbstractCatalog {
         .collect(Collectors.toList());
   }
 
-  private void registerPartitionFunction(String databaseName) {
-    functions.putIfAbsent(
-        new ObjectPath(databaseName, PartitionTransformUdf.Bucket.FUNCTION_NAME),
-        new CatalogFunctionImpl(
-            PartitionTransformUdf.Bucket.class.getName(), FunctionLanguage.JAVA));
-    functions.putIfAbsent(
-        new ObjectPath(databaseName, PartitionTransformUdf.Truncate.FUNCTION_NAME),
-        new CatalogFunctionImpl(
-            PartitionTransformUdf.Truncate.class.getName(), FunctionLanguage.JAVA));
-  }
-
   @Override
   public CatalogDatabase getDatabase(String databaseName)
       throws DatabaseNotExistException, CatalogException {
@@ -186,7 +183,6 @@ public class FlinkCatalog extends AbstractCatalog {
       if (!getDefaultDatabase().equals(databaseName)) {
         throw new DatabaseNotExistException(getName(), databaseName);
       } else {
-        registerPartitionFunction(databaseName);
         return new CatalogDatabaseImpl(Maps.newHashMap(), "");
       }
     } else {
@@ -194,7 +190,6 @@ public class FlinkCatalog extends AbstractCatalog {
         Map<String, String> metadata =
             Maps.newHashMap(asNamespaceCatalog.loadNamespaceMetadata(toNamespace(databaseName)));
         String comment = metadata.remove("comment");
-        registerPartitionFunction(databaseName);
         return new CatalogDatabaseImpl(metadata, comment);
       } catch (NoSuchNamespaceException e) {
         throw new DatabaseNotExistException(getName(), databaseName, e);
@@ -217,7 +212,6 @@ public class FlinkCatalog extends AbstractCatalog {
       throws DatabaseAlreadyExistException, CatalogException {
     createDatabase(
         name, mergeComment(database.getProperties(), database.getComment()), ignoreIfExists);
-    registerPartitionFunction(name);
   }
 
   private void createDatabase(
@@ -699,7 +693,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public boolean functionExists(ObjectPath functionPath) throws CatalogException {
-    return databaseExists(functionPath.getDatabaseName()) && functions.containsKey(functionPath);
+    return functions.containsKey(functionPath);
   }
 
   @Override
