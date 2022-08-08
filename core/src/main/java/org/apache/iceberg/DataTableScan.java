@@ -69,6 +69,14 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
+  public TableScan useTag(String tag) {
+    Preconditions.checkArgument(table().snapshot(tag) != null, "Cannot find tag with name %s", tag);
+    Preconditions.checkArgument(
+        table().refs().get(tag).isTag(), "Ref %s is a branch, not a tag", tag);
+    return useSnapshot(table().snapshot(tag).snapshotId());
+  }
+
+  @Override
   protected TableScan newRefinedScan(
       TableOperations ops, Table table, Schema schema, TableScanContext context) {
     return new DataTableScan(ops, table, schema, context);

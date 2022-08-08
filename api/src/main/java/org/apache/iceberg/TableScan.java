@@ -50,6 +50,18 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
   TableScan asOfTime(long timestampMillis);
 
   /**
+   * Create a new {@link TableScan} from this scan's configuration that will use the
+   * snapshot referenced by a tag.
+   *
+   * @param tag a snapshot ref of type tag.
+   * @return a new scan based on this with the given snapshot ref tag
+   * @throws IllegalArgumentException if the tag cannot be found
+   */
+  default TableScan useTag(String tag) {
+    throw new UnsupportedOperationException("Scanning from a tag is not supported");
+  }
+
+  /**
    * Create a new {@link TableScan} from this that will read the given data columns. This produces
    * an expected schema that includes all fields that are either selected or used by this scan's
    * filter expression.
