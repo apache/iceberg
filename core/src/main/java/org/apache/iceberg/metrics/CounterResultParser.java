@@ -30,7 +30,6 @@ class CounterResultParser {
 
   private static final String MISSING_FIELD_ERROR_MSG =
       "Cannot parse counter from '%s': Missing field '%s'";
-  private static final String NULL_ERROR_MSG = "Cannot parse counter from null object";
 
   private static final String NAME = "name";
   private static final String UNIT = "unit";
@@ -65,7 +64,7 @@ class CounterResultParser {
   }
 
   static CounterResult<Long> fromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
+    Preconditions.checkArgument(null != json, "Cannot parse counter from null object");
     Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
 
     String name = JsonUtil.getString(NAME, json);
@@ -76,7 +75,7 @@ class CounterResultParser {
 
   private static JsonNode get(String property, JsonNode node) {
     Preconditions.checkArgument(
-        node.has(property), "Cannot parse counter from missing object '%s'", property);
+        node.has(property), "Cannot parse counter from missing field: %s", property);
 
     JsonNode counter = node.get(property);
     Preconditions.checkArgument(counter.has(NAME), MISSING_FIELD_ERROR_MSG, property, NAME);

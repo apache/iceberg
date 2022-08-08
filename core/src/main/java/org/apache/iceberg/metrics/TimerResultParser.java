@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.metrics.ScanReport.TimerResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -79,7 +80,7 @@ class TimerResultParser {
 
   private static JsonNode get(String property, JsonNode node) {
     Preconditions.checkArgument(
-        node.has(property), "Cannot parse timer from missing object '%s'", property);
+        node.has(property), "Cannot parse timer from missing field: %s", property);
 
     JsonNode timer = node.get(property);
     Preconditions.checkArgument(timer.has(NAME), MISSING_FIELD_ERROR_MSG, property, NAME);
@@ -92,45 +93,33 @@ class TimerResultParser {
 
   @VisibleForTesting
   static long fromDuration(Duration duration, TimeUnit unit) {
-    switch (unit) {
-      case NANOSECONDS:
-        return duration.toNanos();
-      case MICROSECONDS:
-        return duration.toNanos() * 1000L;
-      case MILLISECONDS:
-        return duration.toMillis();
-      case SECONDS:
-        return duration.toMillis() * 1000L;
-      case MINUTES:
-        return duration.toMinutes();
-      case HOURS:
-        return duration.toHours();
-      case DAYS:
-        return duration.toDays();
-      default:
-        throw new IllegalArgumentException("Cannot determine value from time unit: " + unit);
-    }
+    return unit.convert(duration.toNanos(), TimeUnit.NANOSECONDS);
   }
 
   @VisibleForTesting
   static Duration toDuration(long val, TimeUnit unit) {
+    return Duration.of(val, toChronoUnit(unit));
+  }
+
+  private static ChronoUnit toChronoUnit(TimeUnit unit) {
+    // copied from JDK9
     switch (unit) {
       case NANOSECONDS:
-        return Duration.ofNanos(val);
+        return ChronoUnit.NANOS;
       case MICROSECONDS:
-        return Duration.ofNanos(val / 1000L);
+        return ChronoUnit.MICROS;
       case MILLISECONDS:
-        return Duration.ofMillis(val);
+        return ChronoUnit.MILLIS;
       case SECONDS:
-        return Duration.ofMillis(val / 1000L);
+        return ChronoUnit.SECONDS;
       case MINUTES:
-        return Duration.ofMinutes(val);
+        return ChronoUnit.MINUTES;
       case HOURS:
-        return Duration.ofHours(val);
+        return ChronoUnit.HOURS;
       case DAYS:
-        return Duration.ofDays(val);
+        return ChronoUnit.DAYS;
       default:
-        throw new IllegalArgumentException("Cannot determine value from time unit: " + unit);
+        throw new IllegalArgumentException("Cannot determine chrono unit from time unit: " + unit);
     }
   }
 }

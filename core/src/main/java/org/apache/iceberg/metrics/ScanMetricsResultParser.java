@@ -21,9 +21,7 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import org.apache.iceberg.metrics.ScanReport.CounterResult;
 import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
-import org.apache.iceberg.metrics.ScanReport.TimerResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -90,31 +88,17 @@ class ScanMetricsResultParser {
   static ScanMetricsResult fromJson(JsonNode json) {
     Preconditions.checkArgument(null != json, "Cannot parse scan metrics from null object");
     Preconditions.checkArgument(
-        json.isObject(), "Cannot parse scan metrics from non-object: '%s'", json);
+        json.isObject(), "Cannot parse scan metrics from non-object: %s", json);
 
-    TimerResult totalPlanningDuration = TimerResultParser.fromJson(TOTAL_PLANNING_DURATION, json);
-    CounterResult<Long> resultDataFiles = CounterResultParser.fromJson(RESULT_DATA_FILES, json);
-    CounterResult<Long> resultDeleteFiles = CounterResultParser.fromJson(RESULT_DELETE_FILES, json);
-    CounterResult<Long> totalDataManifests =
-        CounterResultParser.fromJson(TOTAL_DATA_MANIFESTS, json);
-    CounterResult<Long> totalDeleteManifests =
-        CounterResultParser.fromJson(TOTAL_DELETE_MANIFESTS, json);
-    CounterResult<Long> scannedDataManifests =
-        CounterResultParser.fromJson(SCANNED_DATA_MANIFESTS, json);
-    CounterResult<Long> skippedDataManifests =
-        CounterResultParser.fromJson(SKIPPED_DATA_MANIFESTS, json);
-    CounterResult<Long> totalFileSize = CounterResultParser.fromJson(TOTAL_FILE_SIZE_BYTES, json);
-    CounterResult<Long> totalDeleteFileSize =
-        CounterResultParser.fromJson(TOTAL_DELETE_FILE_SIZE_BYTES, json);
     return new ScanMetricsResult(
-        totalPlanningDuration,
-        resultDataFiles,
-        resultDeleteFiles,
-        totalDataManifests,
-        totalDeleteManifests,
-        scannedDataManifests,
-        skippedDataManifests,
-        totalFileSize,
-        totalDeleteFileSize);
+        TimerResultParser.fromJson(TOTAL_PLANNING_DURATION, json),
+        CounterResultParser.fromJson(RESULT_DATA_FILES, json),
+        CounterResultParser.fromJson(RESULT_DELETE_FILES, json),
+        CounterResultParser.fromJson(TOTAL_DATA_MANIFESTS, json),
+        CounterResultParser.fromJson(TOTAL_DELETE_MANIFESTS, json),
+        CounterResultParser.fromJson(SCANNED_DATA_MANIFESTS, json),
+        CounterResultParser.fromJson(SKIPPED_DATA_MANIFESTS, json),
+        CounterResultParser.fromJson(TOTAL_FILE_SIZE_BYTES, json),
+        CounterResultParser.fromJson(TOTAL_DELETE_FILE_SIZE_BYTES, json));
   }
 }

@@ -20,6 +20,7 @@ package org.apache.iceberg.metrics;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.metrics.ScanReport.TimerResult;
 import org.assertj.core.api.Assertions;
@@ -114,5 +115,45 @@ public class TestTimerResultParser {
     TimerResult timer = new TimerResult("timerExample", TimeUnit.HOURS, Duration.ofHours(23), 44);
     Assertions.assertThat(TimerResultParser.fromJson(TimerResultParser.toJson(timer)))
         .isEqualTo(timer);
+  }
+
+  @Test
+  public void toDuration() {
+    Assertions.assertThat(TimerResultParser.toDuration(5L, TimeUnit.NANOSECONDS))
+        .isEqualTo(Duration.ofNanos(5L));
+    Assertions.assertThat(TimerResultParser.toDuration(5L, TimeUnit.MICROSECONDS))
+        .isEqualTo(Duration.of(5L, ChronoUnit.MICROS));
+    Assertions.assertThat(TimerResultParser.toDuration(5L, TimeUnit.MILLISECONDS))
+        .isEqualTo(Duration.ofMillis(5L));
+    Assertions.assertThat(TimerResultParser.toDuration(5L, TimeUnit.SECONDS))
+        .isEqualTo(Duration.ofSeconds(5L));
+    Assertions.assertThat(TimerResultParser.toDuration(5L, TimeUnit.MINUTES))
+        .isEqualTo(Duration.ofMinutes(5L));
+    Assertions.assertThat(TimerResultParser.toDuration(5L, TimeUnit.HOURS))
+        .isEqualTo(Duration.ofHours(5L));
+    Assertions.assertThat(TimerResultParser.toDuration(5L, TimeUnit.DAYS))
+        .isEqualTo(Duration.ofDays(5L));
+  }
+
+  @Test
+  public void fromDuration() {
+    Assertions.assertThat(
+            TimerResultParser.fromDuration(Duration.ofNanos(5L), TimeUnit.NANOSECONDS))
+        .isEqualTo(5L);
+    Assertions.assertThat(
+            TimerResultParser.fromDuration(
+                Duration.of(5L, ChronoUnit.MICROS), TimeUnit.MICROSECONDS))
+        .isEqualTo(5L);
+    Assertions.assertThat(
+            TimerResultParser.fromDuration(Duration.ofMillis(5L), TimeUnit.MILLISECONDS))
+        .isEqualTo(5L);
+    Assertions.assertThat(TimerResultParser.fromDuration(Duration.ofSeconds(5L), TimeUnit.SECONDS))
+        .isEqualTo(5L);
+    Assertions.assertThat(TimerResultParser.fromDuration(Duration.ofMinutes(5L), TimeUnit.MINUTES))
+        .isEqualTo(5L);
+    Assertions.assertThat(TimerResultParser.fromDuration(Duration.ofHours(5L), TimeUnit.HOURS))
+        .isEqualTo(5L);
+    Assertions.assertThat(TimerResultParser.fromDuration(Duration.ofDays(5L), TimeUnit.DAYS))
+        .isEqualTo(5L);
   }
 }

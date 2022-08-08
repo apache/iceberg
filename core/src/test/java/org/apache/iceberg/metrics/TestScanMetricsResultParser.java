@@ -41,14 +41,14 @@ public class TestScanMetricsResultParser {
   public void missingFields() {
     Assertions.assertThatThrownBy(() -> ScanMetricsResultParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse timer from missing object 'total-planning-duration'");
+        .hasMessage("Cannot parse timer from missing field: total-planning-duration");
 
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from missing object 'result-data-files'");
+        .hasMessage("Cannot parse counter from missing field: result-data-files");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -56,7 +56,7 @@ public class TestScanMetricsResultParser {
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from missing object 'result-delete-files'");
+        .hasMessage("Cannot parse counter from missing field: result-delete-files");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -65,7 +65,7 @@ public class TestScanMetricsResultParser {
                         + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
                         + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from missing object 'total-data-manifests'");
+        .hasMessage("Cannot parse counter from missing field: total-data-manifests");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -75,7 +75,7 @@ public class TestScanMetricsResultParser {
                         + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
                         + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from missing object 'total-delete-manifests'");
+        .hasMessage("Cannot parse counter from missing field: total-delete-manifests");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -86,7 +86,7 @@ public class TestScanMetricsResultParser {
                         + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
                         + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from missing object 'scanned-data-manifests'");
+        .hasMessage("Cannot parse counter from missing field: scanned-data-manifests");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -98,7 +98,7 @@ public class TestScanMetricsResultParser {
                         + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0},"
                         + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from missing object 'skipped-data-manifests'");
+        .hasMessage("Cannot parse counter from missing field: skipped-data-manifests");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -111,7 +111,7 @@ public class TestScanMetricsResultParser {
                         + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
                         + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from missing object 'total-file-size-bytes'");
+        .hasMessage("Cannot parse counter from missing field: total-file-size-bytes");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -125,7 +125,7 @@ public class TestScanMetricsResultParser {
                         + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
                         + "\"total-file-size-bytes\":{\"name\":\"totalFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":1069}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from missing object 'total-delete-file-size-bytes'");
+        .hasMessage("Cannot parse counter from missing field: total-delete-file-size-bytes");
   }
 
   @Test

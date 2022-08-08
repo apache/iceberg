@@ -30,7 +30,6 @@ import org.apache.iceberg.util.JsonUtil;
 public class ScanReportParser {
   private static final String TABLE_NAME = "table-name";
   private static final String SNAPSHOT_ID = "snapshot-id";
-  private static final String FILTER = "filter";
   private static final String PROJECTION = "projection";
   private static final String METRICS = "metrics";
 
