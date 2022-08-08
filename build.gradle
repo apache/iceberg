@@ -39,7 +39,7 @@ buildscript {
 }
 
 plugins {
-  id 'nebula.dependency-recommender' version '9.0.2'
+  id 'nebula.dependency-recommender' version '11.0.0'
 }
 
 try {
