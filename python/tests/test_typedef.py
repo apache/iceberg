@@ -14,9 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 from pyiceberg.typedef import FrozenDict
+
+
+def test_setitem_frozendict():
+    d = FrozenDict(foo=1, bar=2)
+    with pytest.raises(AttributeError):
+        d["foo"] = 3
 
 
 def test_update_frozendict():
     d = FrozenDict(foo=1, bar=2)
-    d['foo'] = 3
+    with pytest.raises(AttributeError):
+        d.update({"yes": 2})

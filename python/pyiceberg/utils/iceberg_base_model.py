@@ -16,7 +16,6 @@
 # under the License.
 from functools import cached_property
 
-from frozendict import frozendict
 from pydantic import BaseModel
 
 
@@ -40,9 +39,6 @@ class IcebergBaseModel(BaseModel):
         allow_population_by_field_name = True
         copy_on_model_validation = False
         frozen = True
-        json_encoders = {
-            frozendict: dict,
-        }
 
     def dict(self, exclude_none: bool = True, **kwargs):
         return super().dict(exclude_none=exclude_none, **kwargs)

@@ -24,7 +24,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.table import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
-from pyiceberg.typedef import Identifier, Properties
+from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
 
 
 @dataclass
@@ -68,7 +68,7 @@ class Catalog(ABC):
         location: str | None = None,
         partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Properties | None = None,
+        properties: Properties = EMPTY_DICT,
     ) -> Table:
         """Create a table
 
@@ -78,7 +78,7 @@ class Catalog(ABC):
             location (str): Location for the table. Optional Argument.
             partition_spec (PartitionSpec): PartitionSpec for the table.
             sort_order (SortOrder): SortOrder for the table.
-            properties (Properties | None): Table properties that can be a string based dictionary. Optional Argument.
+            properties (Properties): Table properties that can be a string based dictionary. Optional Argument.
 
         Returns:
             Table: the created table instance
@@ -142,12 +142,12 @@ class Catalog(ABC):
         """
 
     @abstractmethod
-    def create_namespace(self, namespace: str | Identifier, properties: Properties | None = None) -> None:
+    def create_namespace(self, namespace: str | Identifier, properties: Properties = EMPTY_DICT) -> None:
         """Create a namespace in the catalog.
 
         Args:
             namespace (str | Identifier): Namespace identifier
-            properties (Properties | None): A string dictionary of properties for the given namespace
+            properties (Properties): A string dictionary of properties for the given namespace
 
         Raises:
             NamespaceAlreadyExistsError: If a namespace with the given name already exists
@@ -172,7 +172,7 @@ class Catalog(ABC):
         If namespace not provided, will list all tables in the catalog.
 
         Args:
-            namespace (str | Identifier | None): Namespace identifier to search.
+            namespace (str | Identifier): Namespace identifier to search.
 
         Returns:
             List[Identifier]: list of table identifiers.
@@ -208,14 +208,14 @@ class Catalog(ABC):
 
     @abstractmethod
     def update_namespace_properties(
-        self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties | None = None
+        self, namespace: str | Identifier, removals: set[str] | None = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
         """Removes provided property keys and updates properties for a namespace.
 
         Args:
             namespace (str | Identifier): Namespace identifier
             removals (Set[str]): Set of property keys that need to be removed. Optional Argument.
-            updates (Properties | None): Properties to be updated for the given namespace. Optional Argument.
+            updates (Properties): Properties to be updated for the given namespace. Optional Argument.
 
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist
