@@ -172,7 +172,7 @@ class RestCatalog(Catalog):
         name: str,
         properties: Properties,
         uri: str,
-        credentials: Optional[str] = None,
+        credential: Optional[str] = None,
         token: Optional[str] = None,
     ):
         """Rest Catalog
@@ -183,12 +183,12 @@ class RestCatalog(Catalog):
             name: Name to identify the catalog
             properties: Properties that are passed along to the configuration
             uri: The base-url of the REST Catalog endpoint
-            credentials: The credentials for authentication against the client
+            credential: The credentials for authentication against the client
             token: The bearer token
         """
         self.uri = uri
-        if credentials:
-            self.token = self._fetch_access_token(credentials)
+        if credential:
+            self.token = self._fetch_access_token(credential)
         elif token:
             self.token = token
         self.config = self._fetch_config(properties)
@@ -224,8 +224,8 @@ class RestCatalog(Catalog):
 
         return url + endpoint.format(**kwargs)
 
-    def _fetch_access_token(self, credentials: str) -> str:
-        client_id, client_secret = credentials.split(":")
+    def _fetch_access_token(self, credential: str) -> str:
+        client_id, client_secret = credential.split(":")
         data = {GRANT_TYPE: CLIENT_CREDENTIALS, CLIENT_ID: client_id, CLIENT_SECRET: client_secret, SCOPE: CATALOG_SCOPE}
         url = self.url(Endpoints.get_token, prefixed=False)
         # Uses application/x-www-form-urlencoded by default

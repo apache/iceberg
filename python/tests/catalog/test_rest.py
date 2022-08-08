@@ -85,7 +85,7 @@ def test_token_400(rest_mock: Mocker):
     )
 
     with pytest.raises(OAuthError) as e:
-        RestCatalog("rest", {}, TEST_URI, credentials=TEST_CREDENTIALS)
+        RestCatalog("rest", {}, TEST_URI, credential=TEST_CREDENTIALS)
     assert str(e.value) == "invalid_client: Credentials for key invalid_key do not match"
 
 
@@ -104,7 +104,7 @@ def test_token_401(rest_mock: Mocker):
     )
 
     with pytest.raises(BadCredentialsError) as e:
-        RestCatalog("rest", {}, TEST_URI, credentials=TEST_CREDENTIALS)
+        RestCatalog("rest", {}, TEST_URI, credential=TEST_CREDENTIALS)
     assert message in str(e.value)
 
 

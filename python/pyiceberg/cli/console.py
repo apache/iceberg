@@ -21,26 +21,32 @@ from rich.console import Console
 from rich.table import Table
 from rich.tree import Tree
 
+from pyiceberg.catalog.hive import HiveCatalog
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.exceptions import NamespaceNotEmptyError, NoSuchNamespaceError, NoSuchTableError
 
 
 @click.group()
-@click.option("--catalog", type=click.Choice(["rest"], case_sensitive=False), default="rest")
+@click.option("--catalog", default="catalog")
 @click.option("--uri", default=lambda: os.environ.get("PYICEBERG_URI"))
-@click.option("--credentials", default=lambda: os.environ.get("PYICEBERG_CREDENTIALS"))
+@click.option("--credential", default=lambda: os.environ.get("PYICEBERG_CREDENTIALS"))
 @click.pass_context
-def run(ctx, catalog, uri, credentials):
-    if catalog == "rest":
-        ctx.ensure_object(dict)
-        ctx.obj["catalog"] = RestCatalog(name="catalog", properties={}, uri=uri, credentials=credentials)
+def run(ctx, catalog: str, uri: str, credential: str):
+    ctx.ensure_object(dict)
+    if uri.startswith("http"):
+        ctx.obj["catalog"] = RestCatalog(name=catalog, properties={}, uri=uri, credential=credential)
+    elif uri.startswith("thrift"):
+        ctx.obj["catalog"] = HiveCatalog(name=catalog, properties={}, uri=uri)
+    else:
+        raise ValueError("Could not determine catalog type from uri. REST (http/https) and Hive (thrift) is supported")
 
 
 @run.command()
 @click.pass_context
-def list_namespace(ctx):
-    # Add parent namespaces
+@click.argument('parent')
+def list(ctx, parent: str):
     catalog: RestCatalog = ctx.obj["catalog"]
+
     identifiers = catalog.list_namespaces()
 
     table = Table(title="Namespaces")
