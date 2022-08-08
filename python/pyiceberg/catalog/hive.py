@@ -102,7 +102,7 @@ COMMENT = "comment"
 OWNER = "owner"
 TABLE_TYPE = "table_type"
 METADATA_LOCATION = "metadata_location"
-ICEBERG = "ICEBERG"
+ICEBERG = "iceberg"
 LOCATION = "location"
 
 
@@ -130,8 +130,11 @@ class _HiveClient:
 
 def _construct_hive_storage_descriptor(schema: Schema, location: Optional[str]) -> StorageDescriptor:
     ser_de_info = SerDeInfo(serializationLib="org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe")
+    yes = ""
+    for field in schema.fields:
+        yes += f"{field.name} -> {visit(field.field_type, SchemaToHiveConverter())}\n"
     return StorageDescriptor(
-        [FieldSchema(field.name, visit(field.field_type, HiveSchemaConstructor()), field.doc) for field in schema.fields],
+        [FieldSchema(field.name, visit(field.field_type, SchemaToHiveConverter()), field.doc) for field in schema.fields],
         location,
         "org.apache.hadoop.mapred.FileInputFormat",
         "org.apache.hadoop.mapred.FileOutputFormat",
@@ -166,7 +169,7 @@ def _annotate_namespace(database: HiveDatabase, properties: Properties) -> HiveD
     return database
 
 
-hive_primitive_types = {
+HIVE_PRIMITIVE_TYPES = {
     BooleanType: "boolean",
     IntegerType: "int",
     LongType: "bigint",
@@ -182,28 +185,28 @@ hive_primitive_types = {
 }
 
 
-class HiveSchemaConstructor(SchemaVisitor[str]):
+class SchemaToHiveConverter(SchemaVisitor[str]):
     def schema(self, schema: Schema, struct_result: str) -> str:
         return struct_result
 
     def struct(self, struct: StructType, field_results: List[str]) -> str:
-        return f"struct<{', '.join(field_results)}>"
+        return f"struct<{','.join(field_results)}>"
 
     def field(self, field: NestedField, field_result: str) -> str:
-        return f"{field.name}: {field_result}"
+        return f"{field.name}:{field_result}"
 
     def list(self, list_type: ListType, element_result: str) -> str:
         return f"array<{element_result}>"
 
     def map(self, map_type: MapType, key_result: str, value_result: str) -> str:
         # Key has to be primitive for Hive
-        return f"map<{key_result}, {value_result}>"
+        return f"map<{key_result},{value_result}>"
 
     def primitive(self, primitive: PrimitiveType) -> str:
         if isinstance(primitive, DecimalType):
-            return f"DECIMAL({primitive.precision}, {primitive.scale})"
+            return f"decimal({primitive.precision},{primitive.scale})"
         else:
-            return hive_primitive_types[type(primitive)]
+            return HIVE_PRIMITIVE_TYPES[type(primitive)]
 
 
 class HiveCatalog(Catalog):
@@ -236,8 +239,12 @@ class HiveCatalog(Catalog):
 
     def _convert_hive_into_iceberg(self, table: HiveTable, metadata_location: Optional[str] = None) -> Table:
         properties: Dict[str, str] = table.parameters
-        if TABLE_TYPE not in properties or properties[TABLE_TYPE] != ICEBERG:
-            raise NoSuchTableError(f"Table is not an Iceberg table: {table.dbName}.{table.tableName}")
+        if TABLE_TYPE not in properties:
+            raise NoSuchTableError(f"Property table_type missing, could not determine type: {table.dbName}.{table.tableName}")
+
+        table_type = properties[TABLE_TYPE]
+        if table_type.lower() != ICEBERG:
+            raise NoSuchTableError(f"Property table_type is {table_type}, expected {ICEBERG}: {table.dbName}.{table.tableName}")
 
         if not metadata_location:
             if prop_metadata_location := properties.get(METADATA_LOCATION):
@@ -251,7 +258,6 @@ class HiveCatalog(Catalog):
 
     def _write_metadata(self, metadata: TableMetadataV2, metadata_path: str):
         output_file = PyArrowFile(metadata_path)
-        # 😢 https://github.com/apache/iceberg/pull/5439
         os.makedirs(f"{metadata.location}metadata".lstrip("file:"), exist_ok=True)
         ToOutputFile.table_metadata(metadata, output_file)
 
@@ -305,7 +311,7 @@ class HiveCatalog(Catalog):
             default_sort_order_id=0,
             properties=properties or {},
             last_updated_ms=seconds_since_epoch,
-            last_column_id=schema.find_last_field_id(),
+            last_column_id=schema.highest_field_id,
             last_partition_id=partition_spec.spec_id,
         )
         self._write_metadata(metadata, metadata_location)

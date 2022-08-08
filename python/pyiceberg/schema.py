@@ -169,7 +169,8 @@ class Schema(IcebergBaseModel):
             raise ValueError(f"Could not find field with name or id {name_or_id}, case_sensitive={case_sensitive}")
         return field.field_type
 
-    def find_last_field_id(self):
+    @property
+    def highest_field_id(self):
         return visit(self.as_struct(), _FindLastFieldId())
 
     def find_column_name(self, column_id: int) -> Optional[str]:
