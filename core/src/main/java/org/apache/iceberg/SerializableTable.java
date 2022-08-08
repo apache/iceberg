@@ -61,6 +61,7 @@ public class SerializableTable implements Table, Serializable {
   private final FileIO io;
   private final EncryptionManager encryption;
   private final LocationProvider locationProvider;
+  private final Map<String, SnapshotRef> refs;
 
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
@@ -81,6 +82,7 @@ public class SerializableTable implements Table, Serializable {
     this.io = fileIO(table);
     this.encryption = table.encryption();
     this.locationProvider = table.locationProvider();
+    this.refs = table.refs();
   }
 
   /**
@@ -233,6 +235,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public LocationProvider locationProvider() {
     return locationProvider;
+  }
+
+  @Override
+  public Map<String, SnapshotRef> refs() {
+    return refs;
   }
 
   @Override

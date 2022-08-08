@@ -1,4 +1,3 @@
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,34 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
+from pyiceberg.typedef import FrozenDict
 
-name: "Open-API"
-on:
-  push:
-    branches:
-      - 'master'
-      - '0.**'
-    tags:
-      - 'apache-iceberg-**'
-  pull_request:
-    paths:
-      - '.github/workflows/open-api.yml'
-      - 'open-api/**'
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-jobs:
-  tox:
-    runs-on: ubuntu-20.04
-
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: 3.9
-      - name: Install
-        working-directory: ./open-api
-        run: pip install openapi-spec-validator && openapi-spec-validator rest-catalog-open-api.yaml
+def test_update_frozendict():
+    d = FrozenDict(foo=1, bar=2)
+    d['foo'] = 3

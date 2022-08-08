@@ -67,6 +67,12 @@ public interface DeleteReachableFiles
     /** Returns the number of deleted data files. */
     long deletedDataFilesCount();
 
+    /** Returns the number of deleted equality delete files. */
+    long deletedEqualityDeleteFilesCount();
+
+    /** Returns the number of deleted position delete files. */
+    long deletedPositionDeleteFilesCount();
+
     /** Returns the number of deleted manifests. */
     long deletedManifestsCount();
 

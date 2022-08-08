@@ -23,7 +23,7 @@ from pyiceberg.manifest import (
     read_manifest_entry,
     read_manifest_list,
 )
-from tests.io.test_io_base import LocalInputFile
+from tests.io.test_io import LocalInputFile
 
 
 def test_read_manifest_entry(generated_manifest_entry_file: str):

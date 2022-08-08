@@ -14,6 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from frozendict import frozendict
+
+from typing import Dict, Tuple
+
+
+class FrozenDict(Dict):
+    def __set__(self, instance, value):
+        raise AttributeError("FrozenSet does not support set")
+
 
 EMPTY_DICT = frozendict()
+
+Identifier = Tuple[str, ...]
+Properties = Dict[str, str]
