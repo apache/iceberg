@@ -42,7 +42,6 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-frozendict = "^2.3.4"
 mmh3 = "^3.0.0"
 requests = "^2.28.1"
 
@@ -131,10 +130,6 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "requests_mock.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "frozendict.*"
 ignore_missing_imports = true
 
 [tool.coverage.run]
