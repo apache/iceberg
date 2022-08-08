@@ -71,7 +71,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case ReplaceTag(IcebergCatalogAndIdentifier(catalog, ident), _, _, _) =>
       ReplaceTagExec(catalog, ident, plan.asInstanceOf[ReplaceTag]) :: Nil
 
-    case RemoveTag(IcebergCatalogAndIdentifier(catalog, ident), _) =>
+    case RemoveTag(IcebergCatalogAndIdentifier(catalog, ident), _, _) =>
       RemoveTagExec(catalog, ident, plan.asInstanceOf[RemoveTag]) :: Nil
 
     case AlterTagRefRetention(IcebergCatalogAndIdentifier(catalog, ident),_,_) =>

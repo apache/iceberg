@@ -21,7 +21,7 @@ package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
 
-case class RemoveTag(table: Seq[String], tag: String) extends LeafCommand {
+case class RemoveTag(table: Seq[String], tag: String, ifExists: Boolean) extends LeafCommand {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 

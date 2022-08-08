@@ -120,7 +120,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     val tagName = ctx.identifier().getText
     validateTag(tagName, Option.empty[Long], Option.empty[Long])
 
-    RemoveTag(typedVisit[Seq[String]](ctx.multipartIdentifier), ctx.identifier().getText)
+    RemoveTag(typedVisit[Seq[String]](ctx.multipartIdentifier), ctx.identifier().getText, ctx.EXISTS() != null)
   }
 
   /**

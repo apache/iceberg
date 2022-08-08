@@ -75,7 +75,7 @@ statement
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
     | ALTER TABLE multipartIdentifier CREATE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #createTag
     | ALTER TABLE multipartIdentifier REPLACE TAG identifier (AS OF VERSION snapshotId)?  (RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit)? #replaceTag
-    | ALTER TABLE multipartIdentifier DROP TAG identifier #removeTag
+    | ALTER TABLE multipartIdentifier DROP TAG (IF EXISTS)? identifier #removeTag
     | ALTER TABLE multipartIdentifier ALTER TAG identifier RETAIN FOR snapshotRefRetain snapshotRefRetainTimeUnit #alterTagRetention
     ;
 
@@ -174,7 +174,7 @@ fieldList
 nonReserved
     : ADD | ALTER | AS | ASC | BY | CALL | CREATE |  DESC | DROP | FIELD | FIRST | LAST | NULLS | OF | ORDERED
     | PARTITION | TABLE | WRITE | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | VERSION | WITH | IDENTIFIER_KW | FIELDS
-    | SET | TRUE | TAG | FALSE
+    | SET | TRUE | TAG | FALSE | IF | EXISTS
     | MAP
     ;
 
@@ -200,9 +200,11 @@ CREATE: 'CREATE';
 DESC: 'DESC';
 DISTRIBUTED: 'DISTRIBUTED';
 DROP: 'DROP';
+EXISTS: 'EXISTS';
 FIELD: 'FIELD';
 FIELDS: 'FIELDS';
 FIRST: 'FIRST';
+IF: 'IF';
 LAST: 'LAST';
 LOCALLY: 'LOCALLY';
 NULLS: 'NULLS';
