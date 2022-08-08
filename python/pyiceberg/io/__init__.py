@@ -26,6 +26,9 @@ from abc import ABC, abstractmethod
 from io import SEEK_SET
 from typing import Protocol, Union, runtime_checkable
 
+from pyiceberg.io.pyarrow import PyArrowFileIO
+from pyiceberg.typedef import Properties
+
 
 @runtime_checkable
 class InputStream(Protocol):
@@ -214,3 +217,12 @@ class FileIO(ABC):
             PermissionError: If the file at location cannot be accessed due to a permission error
             FileNotFoundError: When the file at the provided location does not exist
         """
+
+
+def load_file_io(props: Properties) -> FileIO:
+    # To be implemented in a different PR.
+    # - If py-file-io is present, load the right Python class
+    #   - When the property is missing, map from Java's filo-io to an appropriate FileIO
+    # - Extend the FileIO structure with a initialize that pass in properties (could also be the constructor?)
+
+    return PyArrowFileIO()

@@ -58,6 +58,7 @@ from pyiceberg.exceptions import (
     NoSuchTableError,
     TableAlreadyExistsError,
 )
+from pyiceberg.io import FileIO
 from pyiceberg.io.pyarrow import PyArrowFile
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile, ToOutputFile
@@ -241,7 +242,7 @@ class HiveCatalog(Catalog):
         super().__init__(name, properties)
         self._client = _HiveClient(uri)
 
-    def _convert_hive_into_iceberg(self, table: HiveTable, metadata_location: Optional[str] = None) -> Table:
+    def _convert_hive_into_iceberg(self, table: HiveTable, io: FileIO, metadata_location: Optional[str] = None) -> Table:
         properties: Dict[str, str] = table.parameters
         if TABLE_TYPE not in properties:
             raise NoSuchTableError(f"Property table_type missing, could not determine type: {table.dbName}.{table.tableName}")
@@ -256,7 +257,7 @@ class HiveCatalog(Catalog):
             else:
                 raise NoSuchTableError("Metadata location not found")
 
-        file = PyArrowFile(metadata_location)
+        file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(identifier=(table.dbName, table.tableName), metadata=metadata, metadata_location=metadata_location)
 
