@@ -270,23 +270,23 @@ public class ScanReport implements Serializable {
   /** A serializable version of {@link ScanMetrics} that carries its results. */
   public static class ScanMetricsResult implements Serializable {
     private final TimerResult totalPlanningDuration;
-    private final CounterResult<Integer> resultDataFiles;
-    private final CounterResult<Integer> resultDeleteFiles;
-    private final CounterResult<Integer> totalDataManifests;
-    private final CounterResult<Integer> totalDeleteManifests;
-    private final CounterResult<Integer> scannedDataManifests;
-    private final CounterResult<Integer> skippedDataManifests;
+    private final CounterResult<Long> resultDataFiles;
+    private final CounterResult<Long> resultDeleteFiles;
+    private final CounterResult<Long> totalDataManifests;
+    private final CounterResult<Long> totalDeleteManifests;
+    private final CounterResult<Long> scannedDataManifests;
+    private final CounterResult<Long> skippedDataManifests;
     private final CounterResult<Long> totalFileSizeInBytes;
     private final CounterResult<Long> totalDeleteFileSizeInBytes;
 
     public ScanMetricsResult(
         TimerResult totalPlanningDuration,
-        CounterResult<Integer> resultDataFiles,
-        CounterResult<Integer> resultDeleteFiles,
-        CounterResult<Integer> totalDataManifests,
-        CounterResult<Integer> totalDeleteManifests,
-        CounterResult<Integer> scannedDataManifests,
-        CounterResult<Integer> skippedDataManifests,
+        CounterResult<Long> resultDataFiles,
+        CounterResult<Long> resultDeleteFiles,
+        CounterResult<Long> totalDataManifests,
+        CounterResult<Long> totalDeleteManifests,
+        CounterResult<Long> scannedDataManifests,
+        CounterResult<Long> skippedDataManifests,
         CounterResult<Long> totalFileSizeInBytes,
         CounterResult<Long> totalDeleteFileSizeInBytes) {
       this.totalPlanningDuration = totalPlanningDuration;
@@ -304,27 +304,27 @@ public class ScanReport implements Serializable {
       return totalPlanningDuration;
     }
 
-    public CounterResult<Integer> resultDataFiles() {
+    public CounterResult<Long> resultDataFiles() {
       return resultDataFiles;
     }
 
-    public CounterResult<Integer> resultDeleteFiles() {
+    public CounterResult<Long> resultDeleteFiles() {
       return resultDeleteFiles;
     }
 
-    public CounterResult<Integer> totalDataManifests() {
+    public CounterResult<Long> totalDataManifests() {
       return totalDataManifests;
     }
 
-    public CounterResult<Integer> totalDeleteManifests() {
+    public CounterResult<Long> totalDeleteManifests() {
       return totalDeleteManifests;
     }
 
-    public CounterResult<Integer> scannedDataManifests() {
+    public CounterResult<Long> scannedDataManifests() {
       return scannedDataManifests;
     }
 
-    public CounterResult<Integer> skippedDataManifests() {
+    public CounterResult<Long> skippedDataManifests() {
       return skippedDataManifests;
     }
 
@@ -405,12 +405,12 @@ public class ScanReport implements Serializable {
   public static class ScanMetrics {
     public static final ScanMetrics NOOP = new ScanMetrics(MetricsContext.nullMetrics());
     private final Timer totalPlanningDuration;
-    private final Counter<Integer> resultDataFiles;
-    private final Counter<Integer> resultDeleteFiles;
-    private final Counter<Integer> totalDataManifests;
-    private final Counter<Integer> totalDeleteManifests;
-    private final Counter<Integer> scannedDataManifests;
-    private final Counter<Integer> skippedDataManifests;
+    private final Counter<Long> resultDataFiles;
+    private final Counter<Long> resultDeleteFiles;
+    private final Counter<Long> totalDataManifests;
+    private final Counter<Long> totalDeleteManifests;
+    private final Counter<Long> scannedDataManifests;
+    private final Counter<Long> skippedDataManifests;
     private final Counter<Long> totalFileSizeInBytes;
     private final Counter<Long> totalDeleteFileSizeInBytes;
 
@@ -419,45 +419,45 @@ public class ScanReport implements Serializable {
       this.totalPlanningDuration =
           metricsContext.timer("totalPlanningDuration", TimeUnit.NANOSECONDS);
       this.resultDataFiles =
-          metricsContext.counter("resultDataFiles", Integer.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter("resultDataFiles", Long.class, MetricsContext.Unit.COUNT);
       this.resultDeleteFiles =
-          metricsContext.counter("resultDeleteFiles", Integer.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter("resultDeleteFiles", Long.class, MetricsContext.Unit.COUNT);
       this.scannedDataManifests =
-          metricsContext.counter("scannedDataManifests", Integer.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter("scannedDataManifests", Long.class, MetricsContext.Unit.COUNT);
       this.totalDataManifests =
-          metricsContext.counter("totalDataManifests", Integer.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter("totalDataManifests", Long.class, MetricsContext.Unit.COUNT);
       this.totalDeleteManifests =
-          metricsContext.counter("totalDeleteManifests", Integer.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter("totalDeleteManifests", Long.class, MetricsContext.Unit.COUNT);
       this.totalFileSizeInBytes =
           metricsContext.counter("totalFileSizeInBytes", Long.class, MetricsContext.Unit.BYTES);
       this.totalDeleteFileSizeInBytes =
           metricsContext.counter(
               "totalDeleteFileSizeInBytes", Long.class, MetricsContext.Unit.BYTES);
       this.skippedDataManifests =
-          metricsContext.counter("skippedDataManifests", Integer.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter("skippedDataManifests", Long.class, MetricsContext.Unit.COUNT);
     }
 
     public Timer totalPlanningDuration() {
       return totalPlanningDuration;
     }
 
-    public Counter<Integer> resultDataFiles() {
+    public Counter<Long> resultDataFiles() {
       return resultDataFiles;
     }
 
-    public Counter<Integer> resultDeleteFiles() {
+    public Counter<Long> resultDeleteFiles() {
       return resultDeleteFiles;
     }
 
-    public Counter<Integer> scannedDataManifests() {
+    public Counter<Long> scannedDataManifests() {
       return scannedDataManifests;
     }
 
-    public Counter<Integer> totalDataManifests() {
+    public Counter<Long> totalDataManifests() {
       return totalDataManifests;
     }
 
-    public Counter<Integer> totalDeleteManifests() {
+    public Counter<Long> totalDeleteManifests() {
       return totalDeleteManifests;
     }
 
@@ -469,7 +469,7 @@ public class ScanReport implements Serializable {
       return totalDeleteFileSizeInBytes;
     }
 
-    public Counter<Integer> skippedDataManifests() {
+    public Counter<Long> skippedDataManifests() {
       return skippedDataManifests;
     }
 

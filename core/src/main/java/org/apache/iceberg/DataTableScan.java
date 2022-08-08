@@ -81,8 +81,8 @@ public class DataTableScan extends BaseTableScan {
     FileIO io = table().io();
     List<ManifestFile> dataManifests = snapshot.dataManifests(io);
     List<ManifestFile> deleteManifests = snapshot.deleteManifests(io);
-    scanMetrics().totalDataManifests().increment(dataManifests.size());
-    scanMetrics().totalDeleteManifests().increment(deleteManifests.size());
+    scanMetrics().totalDataManifests().increment((long) dataManifests.size());
+    scanMetrics().totalDeleteManifests().increment((long) deleteManifests.size());
     ManifestGroup manifestGroup =
         new ManifestGroup(io, dataManifests, deleteManifests)
             .caseSensitive(isCaseSensitive())

@@ -54,7 +54,7 @@ public class TestScanMetricsResultParser {
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
+                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'result-delete-files'");
 
@@ -62,8 +62,8 @@ public class TestScanMetricsResultParser {
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
+                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'total-data-manifests'");
 
@@ -71,9 +71,9 @@ public class TestScanMetricsResultParser {
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
+                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'total-delete-manifests'");
 
@@ -81,10 +81,10 @@ public class TestScanMetricsResultParser {
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0,\"type\":\"java.lang.Integer\"}}"))
+                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'scanned-data-manifests'");
 
@@ -92,11 +92,11 @@ public class TestScanMetricsResultParser {
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0,\"type\":\"java.lang.Integer\"},"
-                        + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
+                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0},"
+                        + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'skipped-data-manifests'");
 
@@ -104,12 +104,12 @@ public class TestScanMetricsResultParser {
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0,\"type\":\"java.lang.Integer\"},"
-                        + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
+                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0},"
+                        + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'total-file-size-bytes'");
 
@@ -117,13 +117,13 @@ public class TestScanMetricsResultParser {
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0,\"type\":\"java.lang.Integer\"},"
-                        + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                        + "\"total-file-size-bytes\":{\"name\":\"totalFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":1069,\"type\":\"java.lang.Long\"}}"))
+                        + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0},"
+                        + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                        + "\"total-file-size-bytes\":{\"name\":\"totalFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":1069}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from missing object 'total-delete-file-size-bytes'");
   }
@@ -132,12 +132,12 @@ public class TestScanMetricsResultParser {
   public void extraFields() {
     ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
-    scanMetrics.resultDataFiles().increment(5);
-    scanMetrics.resultDeleteFiles().increment(5);
-    scanMetrics.scannedDataManifests().increment(5);
-    scanMetrics.skippedDataManifests().increment(5);
+    scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics.resultDeleteFiles().increment(5L);
+    scanMetrics.scannedDataManifests().increment(5L);
+    scanMetrics.skippedDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(1024L);
-    scanMetrics.totalDataManifests().increment(5);
+    scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
 
@@ -145,14 +145,14 @@ public class TestScanMetricsResultParser {
     Assertions.assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                    + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0,\"type\":\"java.lang.Integer\"},"
-                    + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"total-file-size-bytes\":{\"name\":\"totalFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":1069,\"type\":\"java.lang.Long\"},"
-                    + "\"total-delete-file-size-bytes\":{\"name\":\"totalDeleteFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":23,\"type\":\"java.lang.Long\"},"
+                    + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0},"
+                    + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"total-file-size-bytes\":{\"name\":\"totalFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":1069},"
+                    + "\"total-delete-file-size-bytes\":{\"name\":\"totalDeleteFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":23},"
                     + "\"extra\": \"value\",\"extra2\":23}"))
         .isEqualTo(scanMetricsResult);
   }
@@ -162,7 +162,7 @@ public class TestScanMetricsResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
-                    "{\"total-planning-duration\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"}}"))
+                    "{\"total-planning-duration\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse timer from 'total-planning-duration': Missing field 'count'");
   }
@@ -175,19 +175,19 @@ public class TestScanMetricsResultParser {
                     "{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
                         + "\"result-data-files\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000}}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse counter from 'result-data-files': Missing field 'type'");
+        .hasMessage("Cannot parse counter from 'result-data-files': Missing field 'unit'");
   }
 
   @Test
   public void roundTripSerde() {
     ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.DAYS);
-    scanMetrics.resultDataFiles().increment(5);
-    scanMetrics.resultDeleteFiles().increment(5);
-    scanMetrics.scannedDataManifests().increment(5);
-    scanMetrics.skippedDataManifests().increment(5);
+    scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics.resultDeleteFiles().increment(5L);
+    scanMetrics.scannedDataManifests().increment(5L);
+    scanMetrics.skippedDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(1024L);
-    scanMetrics.totalDataManifests().increment(5);
+    scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
 

@@ -69,12 +69,12 @@ public class TestScanReportParser {
   public void extraFields() {
     ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
-    scanMetrics.resultDataFiles().increment(5);
-    scanMetrics.resultDeleteFiles().increment(5);
-    scanMetrics.scannedDataManifests().increment(5);
-    scanMetrics.skippedDataManifests().increment(5);
+    scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics.resultDeleteFiles().increment(5L);
+    scanMetrics.scannedDataManifests().increment(5L);
+    scanMetrics.skippedDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(1024L);
-    scanMetrics.totalDataManifests().increment(5);
+    scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
 
@@ -94,14 +94,15 @@ public class TestScanReportParser {
                 "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,"
                     + "\"filter\":\"true\",\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]},"
                     + "\"metrics\":{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                    + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0,\"type\":\"java.lang.Integer\"},"
-                    + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5,\"type\":\"java.lang.Integer\"},"
-                    + "\"total-file-size-bytes\":{\"name\":\"totalFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":1069,\"type\":\"java.lang.Long\"},"
-                    + "\"total-delete-file-size-bytes\":{\"name\":\"totalDeleteFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":23,\"type\":\"java.lang.Long\"}},"
+                    + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0},"
+                    + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
+                    + "\"total-file-size-bytes\":{\"name\":\"totalFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":1069},"
+                    + "\"total-delete-file-size-bytes\":{\"name\":\"totalDeleteFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":23},"
+                    + "\"extra-metric\":\"extra-val\"},"
                     + "\"extra\":\"extraVal\"}"))
         .usingRecursiveComparison()
         .ignoringFields("projection")
@@ -139,12 +140,12 @@ public class TestScanReportParser {
   public void roundTripSerde() {
     ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
-    scanMetrics.resultDataFiles().increment(5);
-    scanMetrics.resultDeleteFiles().increment(5);
-    scanMetrics.scannedDataManifests().increment(5);
-    scanMetrics.skippedDataManifests().increment(5);
+    scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics.resultDeleteFiles().increment(5L);
+    scanMetrics.scannedDataManifests().increment(5L);
+    scanMetrics.skippedDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(1024L);
-    scanMetrics.totalDataManifests().increment(5);
+    scanMetrics.totalDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(45L);
     scanMetrics.totalDeleteFileSizeInBytes().increment(23L);
 

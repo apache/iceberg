@@ -41,45 +41,24 @@ public class TestCounterResultParser {
   public void missingFields() {
     Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string type");
-
-    Assertions.assertThatThrownBy(
-            () -> CounterResultParser.fromJson("{\"type\":\"java.lang.Integer\"}"))
-        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string name");
 
-    Assertions.assertThatThrownBy(
-            () ->
-                CounterResultParser.fromJson(
-                    "{\"type\":\"java.lang.Integer\", \"name\": \"some-name\"}"))
+    Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{\"name\": \"some-name\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string unit");
 
     Assertions.assertThatThrownBy(
-            () ->
-                CounterResultParser.fromJson(
-                    "{\"type\":\"java.lang.Integer\", \"name\": \"some-name\", \"unit\":\"BYTES\"}"))
+            () -> CounterResultParser.fromJson("{\"name\": \"some-name\", \"unit\":\"BYTES\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing int value");
+        .hasMessage("Cannot parse missing long value");
   }
 
   @Test
   public void extraFields() {
     Assertions.assertThat(
             CounterResultParser.fromJson(
-                "{\"name\":\"example\",\"unit\":\"BYTES\",\"value\":23,\"type\":\"java.lang.Integer\",\"extra\": \"value\"}"))
-        .isEqualTo(new CounterResult<Integer>("example", Unit.BYTES, 23));
-  }
-
-  @Test
-  public void unsupportedType() {
-    Assertions.assertThatThrownBy(
-            () ->
-                CounterResultParser.fromJson(
-                    "{\"name\":\"example\",\"unit\":\"BYTES\",\"value\":23,\"type\":\"java.lang.Double\"}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot parse to long counter: {\"name\":\"example\",\"unit\":\"BYTES\",\"value\":23,\"type\":\"java.lang.Double\"}");
+                "{\"name\":\"example\",\"unit\":\"BYTES\",\"value\":23,\"extra\": \"value\"}"))
+        .isEqualTo(new CounterResult<>("example", Unit.BYTES, 23L));
   }
 
   @Test
@@ -87,7 +66,7 @@ public class TestCounterResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 CounterResultParser.fromJson(
-                    "{\"name\":\"example\",\"unit\":\"UNKNOWN\",\"value\":23,\"type\":\"java.lang.Long\"}"))
+                    "{\"name\":\"example\",\"unit\":\"UNKNOWN\",\"value\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot determine unit from display name: UNKNOWN");
   }
@@ -97,7 +76,7 @@ public class TestCounterResultParser {
     Assertions.assertThatThrownBy(
             () ->
                 CounterResultParser.fromJson(
-                    "{\"name\":\"example\",\"unit\":\"COUNT\",\"value\":\"illegal\",\"type\":\"java.lang.Long\"}"))
+                    "{\"name\":\"example\",\"unit\":\"COUNT\",\"value\":\"illegal\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse value to a long value: \"illegal\"");
   }
@@ -105,21 +84,15 @@ public class TestCounterResultParser {
   @Test
   public void invalidName() {
     Assertions.assertThatThrownBy(
-            () ->
-                CounterResultParser.fromJson(
-                    "{\"name\":23,\"unit\":\"COUNT\",\"value\":45,\"type\":\"java.lang.Long\"}"))
+            () -> CounterResultParser.fromJson("{\"name\":23,\"unit\":\"COUNT\",\"value\":45}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse name to a string value: 23");
   }
 
   @Test
   public void roundTripSerde() {
-    CounterResult<Integer> counter = new CounterResult<>("intExample", Unit.BYTES, 23);
+    CounterResult<Long> counter = new CounterResult<>("counterExample", Unit.BYTES, Long.MAX_VALUE);
     Assertions.assertThat(CounterResultParser.fromJson(CounterResultParser.toJson(counter)))
         .isEqualTo(counter);
-
-    CounterResult<Long> longCounter = new CounterResult<>("longExample", Unit.COUNT, 23L);
-    Assertions.assertThat(CounterResultParser.fromJson(CounterResultParser.toJson(longCounter)))
-        .isEqualTo(longCounter);
   }
 }

@@ -35,7 +35,6 @@ class CounterResultParser {
   private static final String NAME = "name";
   private static final String UNIT = "unit";
   private static final String VALUE = "value";
-  private static final String TYPE = "type";
 
   private CounterResultParser() {}
 
@@ -54,59 +53,20 @@ class CounterResultParser {
     gen.writeStringField(NAME, counter.name());
     gen.writeStringField(UNIT, counter.unit().displayName());
     gen.writeNumberField(VALUE, counter.value().longValue());
-    if (counter.value() instanceof Integer) {
-      gen.writeStringField(TYPE, Integer.class.getName());
-    } else {
-      gen.writeStringField(TYPE, Long.class.getName());
-    }
     gen.writeEndObject();
   }
 
-  static CounterResult<?> fromJson(String json) {
+  static CounterResult<Long> fromJson(String json) {
     return JsonUtil.parse(json, CounterResultParser::fromJson);
   }
 
-  static CounterResult<?> fromJson(JsonNode json) {
+  static CounterResult<Long> fromJson(String property, JsonNode json) {
+    return fromJson(get(property, json));
+  }
+
+  static CounterResult<Long> fromJson(JsonNode json) {
     Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
     Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
-
-    String type = JsonUtil.getString(TYPE, json);
-    if (Integer.class.getName().equals(type)) {
-      return intCounterFromJson(json);
-    }
-    return longCounterFromJson(json);
-  }
-
-  static CounterResult<Integer> intCounterFromJson(String property, JsonNode json) {
-    return intCounterFromJson(get(property, json));
-  }
-
-  static CounterResult<Integer> intCounterFromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
-    Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
-
-    String type = JsonUtil.getString(TYPE, json);
-    Preconditions.checkArgument(
-        Integer.class.getName().equals(type), "Cannot parse to int counter: %s", json);
-
-    String name = JsonUtil.getString(NAME, json);
-    String unit = JsonUtil.getString(UNIT, json);
-    int value = JsonUtil.getInt(VALUE, json);
-    return new CounterResult<>(name, Unit.fromDisplayName(unit), value);
-  }
-
-  static CounterResult<Long> longCounterFromJson(String property, JsonNode json) {
-    Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
-    return longCounterFromJson(get(property, json));
-  }
-
-  static CounterResult<Long> longCounterFromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, NULL_ERROR_MSG);
-    Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
-
-    String type = JsonUtil.getString(TYPE, json);
-    Preconditions.checkArgument(
-        Long.class.getName().equals(type), "Cannot parse to long counter: %s", json);
 
     String name = JsonUtil.getString(NAME, json);
     String unit = JsonUtil.getString(UNIT, json);
@@ -120,7 +80,6 @@ class CounterResultParser {
 
     JsonNode counter = node.get(property);
     Preconditions.checkArgument(counter.has(NAME), MISSING_FIELD_ERROR_MSG, property, NAME);
-    Preconditions.checkArgument(counter.has(TYPE), MISSING_FIELD_ERROR_MSG, property, TYPE);
     Preconditions.checkArgument(counter.has(UNIT), MISSING_FIELD_ERROR_MSG, property, UNIT);
     Preconditions.checkArgument(counter.has(VALUE), MISSING_FIELD_ERROR_MSG, property, VALUE);
     return counter;

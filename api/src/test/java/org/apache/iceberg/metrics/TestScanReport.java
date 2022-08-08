@@ -35,10 +35,6 @@ public class TestScanReport {
 
     Assertions.assertThatThrownBy(() -> ScanReport.builder().withTableName("x").build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid expression filter: null");
-
-    Assertions.assertThatThrownBy(() -> ScanReport.builder().withTableName("x").build())
-        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid schema projection: null");
 
     Assertions.assertThatThrownBy(
@@ -80,11 +76,11 @@ public class TestScanReport {
   public void fromScanMetrics() {
     ScanReport.ScanMetrics scanMetrics = new ScanReport.ScanMetrics(new DefaultMetricsContext());
     scanMetrics.totalPlanningDuration().record(10, TimeUnit.MINUTES);
-    scanMetrics.resultDataFiles().increment(5);
-    scanMetrics.resultDeleteFiles().increment(5);
-    scanMetrics.scannedDataManifests().increment(5);
+    scanMetrics.resultDataFiles().increment(5L);
+    scanMetrics.resultDeleteFiles().increment(5L);
+    scanMetrics.scannedDataManifests().increment(5L);
     scanMetrics.totalFileSizeInBytes().increment(1024L);
-    scanMetrics.totalDataManifests().increment(5);
+    scanMetrics.totalDataManifests().increment(5L);
 
     String tableName = "x";
     Schema projection =
