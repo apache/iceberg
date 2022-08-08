@@ -56,6 +56,7 @@ def check_schemas(values: Dict[str, Any]) -> Dict[str, Any]:
 def check_partition_specs(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validator to check if the default-spec-id is present in partition-specs"""
     default_spec_id = values["default_spec_id"]
+
     partition_specs: List[PartitionSpec] = values["partition_specs"]
     for spec in partition_specs:
         if spec.spec_id == default_spec_id:

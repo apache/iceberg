@@ -134,12 +134,17 @@ def hive_table(tmp_path_factory, example_table_metadata_v2: Dict[str, Any]) -> H
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def hive_database(tmp_path_factory) -> HiveDatabase:
+    # Pre-create the directory, this has to be done because
+    # of a local FS. Not needed with an actual object store.
+    database_path = tmp_path_factory.mktemp("database")
+    manifest_path = database_path / "database" / "table" / "metadata"
+    manifest_path.mkdir(parents=True)
     return HiveDatabase(
         name="default",
         description=None,
-        locationUri=str(tmp_path_factory.mktemp("database") / "database"),
+        locationUri=str(database_path / "database"),
         parameters={"test": "property"},
         privileges=None,
         ownerName=None,
@@ -193,7 +198,7 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
                     FieldSchema(name="bar", type="int", comment=None),
                     FieldSchema(name="baz", type="boolean", comment=None),
                 ],
-                location=f"{hive_database.locationUri}/table/",
+                location=f"{hive_database.locationUri}/table",
                 inputFormat="org.apache.hadoop.mapred.FileInputFormat",
                 outputFormat="org.apache.hadoop.mapred.FileOutputFormat",
                 compressed=None,
@@ -239,11 +244,12 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
     assert table.metadata_location and table.metadata_location.endswith(".metadata.json")
 
     assert table.identifier == ("default", "new_tabl2e")
-    assert table.metadata.location.endswith("database/table/")
+    assert table.metadata
+    assert table.metadata.location.endswith("database/table")
     assert table.metadata == TableMetadataV2(
         location=table.metadata.location,
         table_uuid=table.metadata.table_uuid,
-        last_updated_ms=12345,
+        last_updated_ms=12345000,
         last_column_id=3,
         schemas=[
             Schema(
@@ -257,7 +263,7 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
         current_schema_id=1,
         partition_specs=[PartitionSpec(spec_id=0, fields=())],
         default_spec_id=0,
-        last_partition_id=0,
+        last_partition_id=1000,
         properties={"owner": "javaberg"},
         current_snapshot_id=None,
         snapshots=[],
@@ -630,9 +636,9 @@ def test_construct_hive_storage_descriptor_nested(table_schema_nested: Schema):
             FieldSchema(name="bar", type="int", comment=None),
             FieldSchema(name="baz", type="boolean", comment=None),
             FieldSchema(name="qux", type="array<string>", comment=None),
-            FieldSchema(name="quux", type="map<string, map<string, int>>", comment=None),
-            FieldSchema(name="location", type="array<struct<latitude: float, longitude: float>>", comment=None),
-            FieldSchema(name="person", type="struct<name: string, age: int>", comment=None),
+            FieldSchema(name="quux", type="map<string,map<string,int>>", comment=None),
+            FieldSchema(name="location", type="array<struct<latitude:float,longitude:float>>", comment=None),
+            FieldSchema(name="person", type="struct<name:string,age:int>", comment=None),
         ],
         location="s3://",
         inputFormat="org.apache.hadoop.mapred.FileInputFormat",
