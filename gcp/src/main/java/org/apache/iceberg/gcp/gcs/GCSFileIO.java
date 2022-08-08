@@ -123,7 +123,7 @@ public class GCSFileIO implements FileIO {
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props).immutableMap();
-    this.gcpProperties = new GCPProperties(props);
+    this.gcpProperties = new GCPProperties(properties);
 
     this.storageSupplier =
         () -> {
@@ -140,7 +140,7 @@ public class GCSFileIO implements FileIO {
                     .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
                     .buildChecked();
             MetricsContext context = ctor.newInstance("gcs");
-            context.initialize(props);
+            context.initialize(properties);
             this.metrics = context;
           } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
             LOG.warn(

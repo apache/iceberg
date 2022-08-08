@@ -87,6 +87,14 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(':iceberg-aws')
+    testImplementation 'software.amazon.awssdk:s3'
+    testImplementation 'software.amazon.awssdk:dynamodb'
+    testImplementation 'software.amazon.awssdk:kms'
+    testImplementation 'software.amazon.awssdk:glue'
+    testImplementation project(':iceberg-gcp')
+    testImplementation platform('com.google.cloud:libraries-bom')
+    testImplementation 'com.google.cloud:google-cloud-storage'
     testImplementation "org.xerial:sqlite-jdbc"
   }
 

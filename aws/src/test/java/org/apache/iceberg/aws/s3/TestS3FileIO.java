@@ -267,7 +267,7 @@ public class TestS3FileIO {
   }
 
   @Test
-  public void testS3FileIOSerialization() throws IOException {
+  public void testS3FileIOKryoSerialization() throws IOException {
     FileIO testS3FileIO = new S3FileIO();
 
     // s3 fileIO should be serializable when properties are passed as immutable map

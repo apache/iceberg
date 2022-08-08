@@ -351,8 +351,8 @@ public class S3FileIO
 
   @Override
   public void initialize(Map<String, String> props) {
-    this.awsProperties = new AwsProperties(props);
     this.properties = SerializableMap.copyOf(props).immutableMap();
+    this.awsProperties = new AwsProperties(properties);
 
     // Do not override s3 client if it was provided
     if (s3 == null) {
@@ -374,7 +374,7 @@ public class S3FileIO
               .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
               .buildChecked();
       MetricsContext context = ctor.newInstance("s3");
-      context.initialize(props);
+      context.initialize(properties);
       this.metrics = context;
     } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
       LOG.warn(
