@@ -37,13 +37,11 @@ This document specifies details of a simple file format extension that adds encr
 * Avro data encryption: enable encryption of data files in tables that use the Avro format.
 * Tamper proofing of Iceberg data and metadata files.
 
-## Technical approach
+## Overview
 
-AGS leverages the Iceberg EncryptionManager interface that converts OutputFile objects (produced by Iceberg Avro and other writers) into EncryptedOutputFile objects. The PositionOutputStream, produced by the AGS EncryptedOutputFile, splits the output bytes into equal-size blocks (plus residue), and encrypts/signs the blocks with a given encryption key. 
-On the reader side, the Iceberg EncryptionManager converts EncryptedInputFile objects into InputFile objects consumable by Iceberg Avro and other readers. The AGS SeekableInputStream decrypts the stream blocks and verifies their integrity, using the encryption key.
-The encryption, decryption and tamper proofing operations are transparent to Iceberg Avro, JSON and Puffin libraries.
+The output stream, produced by a metadata or data writer, is split into equal-size blocks (plus residue). Each block is enciphered (encrypted/signed) with a given encryption key, and stored in a file in the AGS format. Upon reading, the stored cipherblocks are verified for integrity; then decrypted and passed to metadata or data readers.
 
-### Encryption algorithm
+## Encryption algorithm
 
 AGS uses the standard AEG GCM cipher, and supports all AES key sizes: 128, 192 and 256 bits.
 
@@ -65,7 +63,7 @@ where
 
 - `Magic` is four bytes 0x41, 0x47, 0x53, 0x31 ("AGS1", short for: AES GCM Stream, version 1)
 - `BlockLength` is four bytes (little endian) integer keeping the length of the equal-size split blocks before encryption. The length is specified in bytes.
-- `CipherBlockᵢ` is the i-th encrypted block in the file, with the structure defined below.
+- `CipherBlockᵢ` is the i-th enciphered block in the file, with the structure defined below.
 
 ### Cipher Block structure
 
