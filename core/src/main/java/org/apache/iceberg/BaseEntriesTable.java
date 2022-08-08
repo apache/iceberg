@@ -50,7 +50,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     if (partitionType.fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition
       // field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
+      return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     } else {
       return schema;
     }
@@ -89,11 +89,6 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         manifest ->
             new ManifestReadTask(
                 table, manifest, projectedSchema, schemaString, specString, residuals));
-  }
-
-  @Override
-  MetadataTableType metadataTableType() {
-    return MetadataTableType.ALL_ENTRIES;
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
