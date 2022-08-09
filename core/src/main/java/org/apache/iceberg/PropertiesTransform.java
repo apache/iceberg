@@ -25,10 +25,10 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-class RewriteProperties {
-  private RewriteProperties() {}
+class PropertiesTransform {
+  private PropertiesTransform() {}
 
-  static Map<String, String> rewrite(
+  static Map<String, String> applySchemaChanges(
       Map<String, String> props, List<String> deletedColumns, Map<String, String> renamedColumns) {
     if (props.keySet().stream()
         .noneMatch(
