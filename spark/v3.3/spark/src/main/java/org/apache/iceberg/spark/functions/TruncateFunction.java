@@ -87,9 +87,7 @@ public class TruncateFunction implements UnboundFunction {
       return new TruncateDecimal(
           ((DecimalType) toTruncateDataType).precision(),
           ((DecimalType) toTruncateDataType).scale());
-    } else if (toTruncateDataType instanceof StringType
-        || toTruncateDataType instanceof VarcharType
-        || toTruncateDataType instanceof CharType) {
+    } else if (toTruncateDataType instanceof StringType) {
       return new TruncateString();
     } else if (toTruncateDataType instanceof BinaryType) {
       return new TruncateBinary();
@@ -97,7 +95,7 @@ public class TruncateFunction implements UnboundFunction {
       throw new UnsupportedOperationException(
           String.format(
               "Invalid input type to truncate. Expected one of [ByteType, ShortType, IntegerType, LongType, "
-                  + "DecimalType, StringType, VarcharType, CharType, BinaryType], but found %s",
+                  + "DecimalType, StringType, BinaryType], but found %s",
               toTruncateDataType));
     }
   }
