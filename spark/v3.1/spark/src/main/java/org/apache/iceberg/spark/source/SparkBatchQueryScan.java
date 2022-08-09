@@ -30,11 +30,9 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 class SparkBatchQueryScan extends SparkBatchScan {
 
@@ -52,12 +50,10 @@ class SparkBatchQueryScan extends SparkBatchScan {
       SparkSession spark,
       Table table,
       SparkReadConf readConf,
-      boolean caseSensitive,
       Schema expectedSchema,
-      List<Expression> filters,
-      CaseInsensitiveStringMap options) {
+      List<Expression> filters) {
 
-    super(spark, table, readConf, caseSensitive, expectedSchema, filters, options);
+    super(spark, table, readConf, expectedSchema, filters);
 
     this.snapshotId = readConf.snapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
@@ -83,11 +79,9 @@ class SparkBatchQueryScan extends SparkBatchScan {
           "Cannot only specify option end-snapshot-id to do incremental scan");
     }
 
-    // look for split behavior overrides in options
-    this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null);
-    this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, null);
-    this.splitOpenFileCost =
-        Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null);
+    this.splitSize = readConf.splitSizeOption();
+    this.splitLookback = readConf.splitLookbackOption();
+    this.splitOpenFileCost = readConf.splitOpenFileCostOption();
   }
 
   @Override
