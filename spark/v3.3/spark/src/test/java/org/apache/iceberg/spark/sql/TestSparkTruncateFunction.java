@@ -182,22 +182,29 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         "Should system.truncate strings longer than length",
         "abcde",
         scalarSql("SELECT system.truncate(5, 'abcdefg')"));
+
     Assert.assertEquals(
         "Should not pad strings shorter than length",
         "abc",
         scalarSql("SELECT system.truncate(5, 'abc')"));
+
     Assert.assertEquals(
         "Should not alter strings equal to length",
         "abcde",
         scalarSql("SELECT system.truncate(5, 'abcde')"));
+
     Assert.assertEquals(
         "Should handle three-byte UTF-8 characters appropriately",
         "测",
         scalarSql("SELECT system.truncate(1, '测试')"));
+
     Assert.assertEquals(
         "Should handle three-byte UTF-8 characters mixed with two byte utf-8 characters",
         "测试ra",
         scalarSql("SELECT system.truncate(4, '测试raul试测')"));
+
+    Assert.assertEquals(
+        "Should not fail on the empty string", "", scalarSql("SELECT system.truncate(10, '')"));
 
     Assert.assertEquals(
         "Null input should return null as output",
