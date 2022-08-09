@@ -25,6 +25,7 @@ from pyiceberg.table import Table
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.typedef import EMPTY_DICT, Identifier, Properties
+from pyiceberg.utils.config import Config, merge_config
 
 
 @dataclass
@@ -53,7 +54,15 @@ class Catalog(ABC):
 
     def __init__(self, name: str | None, **properties: str):
         self.name = name
-        self.properties = properties
+
+        if name is not None:
+            configuration = Config().get_catalog_config(name)
+            if configuration:
+                self.properties = merge_config(configuration, properties)
+            else:
+                self.properties = properties
+        else:
+            self.properties = properties
 
     @abstractmethod
     def create_table(
