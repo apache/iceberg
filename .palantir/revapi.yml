@@ -148,6 +148,12 @@ acceptedBreaks:
       new: "method org.apache.iceberg.ReplacePartitions org.apache.iceberg.ReplacePartitions::validateNoConflictingDeletes()"
       justification: "Accept all changes prior to introducing API compatibility checks"
     - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.UpdateStatistics org.apache.iceberg.Table::updateStatistics()"
+      justification: "new API method"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.UpdateStatistics org.apache.iceberg.Transaction::updateStatistics()"
+      justification: "new API method"
+    - code: "java.method.addedToInterface"
       new: "method org.apache.iceberg.expressions.Expression org.apache.iceberg.Scan<ThisT,\
         \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
         \ extends org.apache.iceberg.ScanTask>>::filter()"

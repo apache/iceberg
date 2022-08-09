@@ -712,6 +712,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public UpdateStatistics updateStatistics() {
+      return BaseTransaction.this.updateStatistics();
+    }
+
+    @Override
     public ExpireSnapshots expireSnapshots() {
       return BaseTransaction.this.expireSnapshots();
     }
