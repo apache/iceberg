@@ -472,7 +472,8 @@ class SchemaUpdate implements UpdateSchema {
               .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
       if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
         Map<String, String> updatedProperties =
-            PropertiesTransform.applySchemaChanges(newMetadata.properties(), deletedColumns, renamedColumns);
+            PropertiesTransform.applySchemaChanges(
+                newMetadata.properties(), deletedColumns, renamedColumns);
         newMetadata = newMetadata.replaceProperties(updatedProperties);
       }
     }
