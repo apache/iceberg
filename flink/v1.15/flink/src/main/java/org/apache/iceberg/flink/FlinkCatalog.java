@@ -100,7 +100,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final Closeable closeable;
   private final boolean cacheEnabled;
   private final Map<ObjectPath, CatalogFunction> functions;
-  private final String SYSTEM_DATABASE_NAME = "system";
+  public static final String SYSTEM_DATABASE_NAME = "system";
 
   public FlinkCatalog(
       String catalogName,
