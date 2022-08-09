@@ -241,7 +241,7 @@ public class TestLakeFormationMetadataOperations
       AssertHelpers.assertThrows("attempt to alter a table without ALTER permission should fail",
           ForbiddenException.class,
           "Glue cannot access the requested resources",
-          () -> updateProperties.commit());
+          updateProperties::commit);
     } finally {
       lfRegisterPathRoleDeleteTable(testDbName, testTableName);
       lfRegisterPathRoleDeleteDb(testDbName);
