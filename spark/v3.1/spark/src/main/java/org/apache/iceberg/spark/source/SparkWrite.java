@@ -98,6 +98,7 @@ class SparkWrite {
   private final String queryId;
   private final FileFormat format;
   private final String applicationId;
+  private final boolean wapEnabled;
   private final String wapId;
   private final long targetFileSize;
   private final Schema writeSchema;
@@ -120,6 +121,7 @@ class SparkWrite {
     this.queryId = writeInfo.queryId();
     this.format = writeConf.dataFileFormat();
     this.applicationId = applicationId;
+    this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
@@ -156,15 +158,6 @@ class SparkWrite {
     return new StreamingOverwrite();
   }
 
-  private boolean isWapTable() {
-    return Boolean.parseBoolean(
-        table
-            .properties()
-            .getOrDefault(
-                TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
-                TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
-  }
-
   // the writer factory works for both batch and streaming
   private WriterFactory createWriterFactory() {
     // broadcast the table metadata as the writer factory will be sent to executors
@@ -188,7 +181,7 @@ class SparkWrite {
       CommitMetadata.commitProperties().forEach(operation::set);
     }
 
-    if (isWapTable() && wapId != null) {
+    if (wapEnabled && wapId != null) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
       operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);

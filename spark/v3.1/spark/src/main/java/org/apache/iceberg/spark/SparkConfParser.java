@@ -67,6 +67,11 @@ class SparkConfParser {
       return self();
     }
 
+    public BooleanConfParser defaultValue(String value) {
+      this.defaultValue = Boolean.parseBoolean(value);
+      return self();
+    }
+
     public boolean parse() {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Boolean::parseBoolean, defaultValue);
