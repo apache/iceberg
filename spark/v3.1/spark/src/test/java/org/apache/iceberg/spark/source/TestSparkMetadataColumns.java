@@ -28,6 +28,7 @@ import java.util.List;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -170,6 +171,42 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         ValidationException.class,
         "Cannot build table partition type, unknown transforms",
         () -> sql("SELECT _partition FROM `%s$_partition`", TABLE_NAME));
+  }
+
+  @Test
+  public void testConflictingColumns() {
+    table
+        .updateSchema()
+        .addColumn(MetadataColumns.SPEC_ID.name(), Types.IntegerType.get())
+        .addColumn(MetadataColumns.FILE_PATH.name(), Types.StringType.get())
+        .commit();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1', -1, 'path/to/file')", TABLE_NAME);
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(row(1L, "a1")),
+        sql("SELECT id, category FROM %s", TABLE_NAME));
+
+    AssertHelpers.assertThrows(
+        "Should fail to query conflicting columns",
+        ValidationException.class,
+        "column names conflict",
+        () -> sql("SELECT * FROM %s", TABLE_NAME));
+
+    table.refresh();
+
+    table
+        .updateSchema()
+        .renameColumn(MetadataColumns.SPEC_ID.name(), "_renamed" + MetadataColumns.SPEC_ID.name())
+        .renameColumn(
+            MetadataColumns.FILE_PATH.name(), "_renamed" + MetadataColumns.FILE_PATH.name())
+        .commit();
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(row(0, null, -1)),
+        sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
   }
 
   private void createAndInitTable() throws IOException {
