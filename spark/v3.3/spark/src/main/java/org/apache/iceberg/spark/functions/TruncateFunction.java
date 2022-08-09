@@ -29,7 +29,6 @@ import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.ByteType;
-import org.apache.spark.sql.types.CharType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Decimal;
@@ -40,7 +39,6 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.types.VarcharType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /**
@@ -137,7 +135,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.truncate[width](tinyint)";
+      return "iceberg.truncate(tinyint)";
     }
 
     @Override
@@ -165,7 +163,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.truncate[width](smallint)";
+      return "iceberg.truncate(smallint)";
     }
 
     @Override
@@ -193,7 +191,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.truncate[width](int)";
+      return "iceberg.truncate(int)";
     }
 
     @Override
@@ -221,7 +219,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.truncate[width](bigint)";
+      return "iceberg.truncate(bigint)";
     }
 
     @Override
@@ -253,7 +251,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.truncate[width](string)";
+      return "iceberg.truncate(string)";
     }
 
     @Override
@@ -286,7 +284,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.truncate[width](binary)";
+      return "iceberg.truncate(binary)";
     }
 
     @Override
@@ -327,7 +325,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public String canonicalName() {
-      return String.format("iceberg.truncate[width](decimal(%d,%d))", precision, scale);
+      return String.format("iceberg.truncate(decimal(%d,%d))", precision, scale);
     }
 
     @Override
