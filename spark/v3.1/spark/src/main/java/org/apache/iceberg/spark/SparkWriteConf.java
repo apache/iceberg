@@ -103,6 +103,14 @@ public class SparkWriteConf {
     return overwriteMode != null ? overwriteMode.toLowerCase(Locale.ROOT) : null;
   }
 
+  public boolean wapEnabled() {
+    return confParser
+        .booleanConf()
+        .tableProperty(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED)
+        .defaultValue(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT)
+        .parse();
+  }
+
   public String wapId() {
     return sessionConf.get("spark.wap.id", null);
   }
