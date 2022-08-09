@@ -50,8 +50,8 @@ public interface TableScan extends Scan<TableScan, FileScanTask, CombinedScanTas
   TableScan asOfTime(long timestampMillis);
 
   /**
-   * Create a new {@link TableScan} from this scan's configuration that will use the
-   * snapshot referenced by a tag.
+   * Create a new {@link TableScan} from this scan's configuration that will use the snapshot
+   * referenced by a tag.
    *
    * @param tag a snapshot ref of type tag.
    * @return a new scan based on this with the given snapshot ref tag
