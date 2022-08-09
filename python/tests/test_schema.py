@@ -16,7 +16,7 @@
 # under the License.
 
 from textwrap import dedent
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import pytest
 
@@ -24,6 +24,7 @@ from pyiceberg import schema
 from pyiceberg.expressions.base import Accessor
 from pyiceberg.files import StructProtocol
 from pyiceberg.schema import Schema, build_position_accessors
+from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.types import (
     BooleanType,
     FloatType,
@@ -388,8 +389,8 @@ def test_build_position_accessors(table_schema_nested):
 
 def test_build_position_accessors_with_struct(table_schema_nested: Schema):
     class TestStruct(StructProtocol):
-        def __init__(self, pos: Optional[Dict[int, Any]] = None):
-            self._pos: Dict[int, Any] = pos or {}
+        def __init__(self, pos: Dict[int, Any] = EMPTY_DICT):
+            self._pos: Dict[int, Any] = pos
 
         def set(self, pos: int, value) -> None:
             pass

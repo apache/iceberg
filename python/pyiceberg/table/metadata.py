@@ -143,7 +143,7 @@ class TableMetadataCommonFields(IcebergBaseModel):
     are always assigned an unused ID when evolving specs."""
 
     properties: Dict[str, str] = Field(default_factory=dict)
-    """	A string to string map of table properties. This is used to
+    """A string to string map of table properties. This is used to
     control settings that affect reading and writing and is not intended
     to be used for arbitrary metadata. For example, commit.retry.num-retries
     is used to control the number of commit retries."""

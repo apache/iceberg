@@ -14,19 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 
-from typing import Any, Dict, Tuple
-
-
-class FrozenDict(Dict):
-    def __setitem__(self, instance, value):
-        raise AttributeError("FrozenDict does not support assignment")
-
-    def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore
-        raise AttributeError("FrozenDict does not support .update()")
+from pyiceberg.typedef import FrozenDict
 
 
-EMPTY_DICT = FrozenDict()
+def test_setitem_frozendict():
+    d = FrozenDict(foo=1, bar=2)
+    with pytest.raises(AttributeError):
+        d["foo"] = 3
 
-Identifier = Tuple[str, ...]
-Properties = Dict[str, str]
+
+def test_update_frozendict():
+    d = FrozenDict(foo=1, bar=2)
+    with pytest.raises(AttributeError):
+        d.update({"yes": 2})
