@@ -220,8 +220,13 @@ public class TestSparkParquetReadMetadataColumns {
     }
 
     @Override
-    public boolean deleted(long position) {
+    public boolean isDeleted(long position) {
       return deleteIndex.contains(position);
+    }
+
+    @Override
+    public boolean isEmpty() {
+      return deleteIndex.isEmpty();
     }
   }
 

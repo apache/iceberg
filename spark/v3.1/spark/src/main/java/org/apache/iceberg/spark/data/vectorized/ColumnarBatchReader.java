@@ -163,7 +163,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       int originalRowId = 0;
       int currentRowId = 0;
       while (originalRowId < numRowsToRead) {
-        if (!deletedRowPositions.deleted(originalRowId + rowStartPosInBatch)) {
+        if (!deletedRowPositions.isDeleted(originalRowId + rowStartPosInBatch)) {
           posDelRowIdMapping[currentRowId] = originalRowId;
           currentRowId++;
         }
