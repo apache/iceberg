@@ -41,6 +41,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   private final ByteBuffer keyMetadata;
   private final int[] equalityFieldIds;
   private final SortOrder sortOrder;
+  private final int schemaId;
   private DeleteFile deleteFile = null;
 
   public EqualityDeleteWriter(
@@ -52,6 +53,19 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
       EncryptionKeyMetadata keyMetadata,
       SortOrder sortOrder,
       int... equalityFieldIds) {
+    this(appender, format, location, spec, partition, keyMetadata, sortOrder, -1, equalityFieldIds);
+  }
+
+  public EqualityDeleteWriter(
+      FileAppender<T> appender,
+      FileFormat format,
+      String location,
+      PartitionSpec spec,
+      StructLike partition,
+      EncryptionKeyMetadata keyMetadata,
+      SortOrder sortOrder,
+      int schemaId,
+      int... equalityFieldIds) {
     this.appender = appender;
     this.format = format;
     this.location = location;
@@ -59,6 +73,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
     this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
     this.sortOrder = sortOrder;
+    this.schemaId = schemaId;
     this.equalityFieldIds = equalityFieldIds;
   }
 
@@ -87,6 +102,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
               .withMetrics(appender.metrics())
               .withSplitOffsets(appender.splitOffsets())
               .withSortOrder(sortOrder)
+              .withSchemaId(schemaId)
               .build();
     }
   }

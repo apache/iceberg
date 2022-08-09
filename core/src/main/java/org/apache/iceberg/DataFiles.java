@@ -156,6 +156,7 @@ public class DataFiles {
     private List<Long> splitOffsets = null;
     private List<Integer> equalityFieldIds = null;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
+    private Integer schemaId = null;
 
     public Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -180,6 +181,7 @@ public class DataFiles {
       this.upperBounds = null;
       this.splitOffsets = null;
       this.sortOrderId = SortOrder.unsorted().orderId();
+      this.schemaId = null;
     }
 
     public Builder copy(DataFile toCopy) {
@@ -203,6 +205,7 @@ public class DataFiles {
       this.splitOffsets =
           toCopy.splitOffsets() == null ? null : ImmutableList.copyOf(toCopy.splitOffsets());
       this.sortOrderId = toCopy.sortOrderId();
+      this.schemaId = toCopy.schemaId();
       return this;
     }
 
@@ -325,6 +328,11 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withSchemaId(Integer newSchemaId) {
+      this.schemaId = newSchemaId;
+      return this;
+    }
+
     public DataFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -335,6 +343,7 @@ public class DataFiles {
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
       return new GenericDataFile(
+          schemaId,
           specId,
           filePath,
           format,

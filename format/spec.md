@@ -443,6 +443,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`            | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
 |            | _optional_ | **`135  equality_ids`**           | `list<136: int>`             | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
 | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                        | ID representing sort order for this file [3]. |
+| _optional_ | _optional_ | **`142  schema_id`**              | `int`                        | ID representing Schema for this file |
 
 Notes:
 

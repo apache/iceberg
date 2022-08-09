@@ -78,6 +78,7 @@ abstract class BaseFile<F>
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
   private Integer sortOrderId;
+  private Integer schemaId;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -123,6 +124,7 @@ abstract class BaseFile<F>
   }
 
   BaseFile(
+      Integer schemaId,
       int specId,
       FileContent content,
       String filePath,
@@ -140,6 +142,7 @@ abstract class BaseFile<F>
       int[] equalityFieldIds,
       Integer sortOrderId,
       ByteBuffer keyMetadata) {
+    this.schemaId = schemaId;
     this.partitionSpecId = specId;
     this.content = content;
     this.filePath = filePath;
@@ -177,6 +180,7 @@ abstract class BaseFile<F>
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
     this.fileOrdinal = toCopy.fileOrdinal;
+    this.schemaId = toCopy.schemaId;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
     this.filePath = toCopy.filePath;
@@ -278,48 +282,51 @@ abstract class BaseFile<F>
         this.format = FileFormat.fromString(value.toString());
         return;
       case 3:
-        this.partitionSpecId = (value != null) ? (Integer) value : -1;
+        this.schemaId = (Integer) value;
         return;
       case 4:
-        this.partitionData = (PartitionData) value;
+        this.partitionSpecId = (value != null) ? (Integer) value : -1;
         return;
       case 5:
-        this.recordCount = (Long) value;
+        this.partitionData = (PartitionData) value;
         return;
       case 6:
-        this.fileSizeInBytes = (Long) value;
+        this.recordCount = (Long) value;
         return;
       case 7:
-        this.columnSizes = (Map<Integer, Long>) value;
+        this.fileSizeInBytes = (Long) value;
         return;
       case 8:
-        this.valueCounts = (Map<Integer, Long>) value;
+        this.columnSizes = (Map<Integer, Long>) value;
         return;
       case 9:
-        this.nullValueCounts = (Map<Integer, Long>) value;
+        this.valueCounts = (Map<Integer, Long>) value;
         return;
       case 10:
-        this.nanValueCounts = (Map<Integer, Long>) value;
+        this.nullValueCounts = (Map<Integer, Long>) value;
         return;
       case 11:
-        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.nanValueCounts = (Map<Integer, Long>) value;
         return;
       case 12:
-        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 13:
-        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 14:
-        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       case 15:
-        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
         return;
       case 16:
-        this.sortOrderId = (Integer) value;
+        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
       case 17:
+        this.sortOrderId = (Integer) value;
+        return;
+      case 18:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -347,34 +354,36 @@ abstract class BaseFile<F>
       case 2:
         return format != null ? format.toString() : null;
       case 3:
-        return partitionSpecId;
+        return schemaId;
       case 4:
-        return partitionData;
+        return partitionSpecId;
       case 5:
-        return recordCount;
+        return partitionData;
       case 6:
-        return fileSizeInBytes;
+        return recordCount;
       case 7:
-        return columnSizes;
+        return fileSizeInBytes;
       case 8:
-        return valueCounts;
+        return columnSizes;
       case 9:
-        return nullValueCounts;
+        return valueCounts;
       case 10:
-        return nanValueCounts;
+        return nullValueCounts;
       case 11:
-        return lowerBounds;
+        return nanValueCounts;
       case 12:
-        return upperBounds;
+        return lowerBounds;
       case 13:
-        return keyMetadata();
+        return upperBounds;
       case 14:
-        return splitOffsets();
+        return keyMetadata();
       case 15:
-        return equalityFieldIds();
+        return splitOffsets();
       case 16:
-        return sortOrderId;
+        return equalityFieldIds();
       case 17:
+        return sortOrderId;
+      case 18:
         return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -394,6 +403,11 @@ abstract class BaseFile<F>
   @Override
   public Long pos() {
     return fileOrdinal;
+  }
+
+  @Override
+  public Integer schemaId() {
+    return schemaId;
   }
 
   @Override
@@ -526,6 +540,7 @@ abstract class BaseFile<F>
         .add("sort_order_id", sortOrderId)
         .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
+        .add("schema_id", schemaId)
         .toString();
   }
 }

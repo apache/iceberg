@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 class ContentFileParser {
+  private static final String SCHEMA_ID = "schema-id";
   private static final String SPEC_ID = "spec-id";
   private static final String CONTENT = "content";
   private static final String FILE_PATH = "file-path";
@@ -78,6 +79,10 @@ class ContentFileParser {
     // ignore the ordinal position (ContentFile#pos) of the file in a manifest,
     // as it isn't used and BaseFile constructor doesn't support it.
 
+    if (contentFile.schemaId() != null) {
+      generator.writeNumberField(SCHEMA_ID, contentFile.schemaId());
+    }
+
     generator.writeNumberField(SPEC_ID, contentFile.specId());
     generator.writeStringField(CONTENT, contentFile.content().name());
     generator.writeStringField(FILE_PATH, contentFile.path().toString());
@@ -118,6 +123,7 @@ class ContentFileParser {
         jsonNode.isObject(), "Invalid JSON node for content file: non-object (%s)", jsonNode);
     Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
 
+    Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, jsonNode);
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
     FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
     String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
@@ -148,6 +154,7 @@ class ContentFileParser {
 
     if (fileContent == FileContent.DATA) {
       return new GenericDataFile(
+          schemaId,
           specId,
           filePath,
           fileFormat,
@@ -160,6 +167,7 @@ class ContentFileParser {
           sortOrderId);
     } else {
       return new GenericDeleteFile(
+          schemaId,
           specId,
           fileContent,
           filePath,

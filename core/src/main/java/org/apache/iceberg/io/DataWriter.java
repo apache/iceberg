@@ -37,6 +37,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   private final StructLike partition;
   private final ByteBuffer keyMetadata;
   private final SortOrder sortOrder;
+  private final Integer schemaId;
   private DataFile dataFile = null;
 
   public DataWriter(
@@ -57,6 +58,18 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
       StructLike partition,
       EncryptionKeyMetadata keyMetadata,
       SortOrder sortOrder) {
+    this(appender, format, location, spec, partition, keyMetadata, sortOrder, -1);
+  }
+
+  public DataWriter(
+      FileAppender<T> appender,
+      FileFormat format,
+      String location,
+      PartitionSpec spec,
+      StructLike partition,
+      EncryptionKeyMetadata keyMetadata,
+      SortOrder sortOrder,
+      Integer schemaId) {
     this.appender = appender;
     this.format = format;
     this.location = location;
@@ -64,6 +77,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
     this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
     this.sortOrder = sortOrder;
+    this.schemaId = schemaId;
   }
 
   @Override
@@ -90,6 +104,7 @@ public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
               .withMetrics(appender.metrics())
               .withSplitOffsets(appender.splitOffsets())
               .withSortOrder(sortOrder)
+              .withSchemaId(schemaId)
               .build();
     }
   }

@@ -800,14 +800,14 @@ public class TestFlinkMetaDataTable extends FlinkCatalogTestBase {
   // Populate certain fields derived in the metadata tables
   private void asMetadataRecord(GenericData.Record file, FileContent content) {
     file.put(0, content.id());
-    file.put(3, 0); // specId
+    file.put(4, 0); // specId
   }
 
   private boolean partitionMatch(GenericData.Record file, String partValue) {
     if (partValue == null) {
       return true;
     }
-    GenericData.Record partition = (GenericData.Record) file.get(4);
+    GenericData.Record partition = (GenericData.Record) file.get(5);
     return partValue.equals(partition.get(0).toString());
   }
 
