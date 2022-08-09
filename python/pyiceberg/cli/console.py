@@ -18,9 +18,6 @@ import os
 from typing import Literal, Optional, Tuple
 
 import click
-from rich.console import Console
-from rich.table import Table
-from rich.tree import Tree
 
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.hive import HiveCatalog
@@ -36,22 +33,25 @@ from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 @click.option("--credential", default=lambda: os.environ.get("PYICEBERG_CREDENTIAL"))
 @click.pass_context
 def run(ctx, catalog: str, output: str, uri: str, credential: str):
-    console = Console()
-    console.print("Welcome to PyIceberg 🐧")
     ctx.ensure_object(dict)
-    if uri.startswith("http"):
-        ctx.obj["catalog"] = RestCatalog(name=catalog, properties={}, uri=uri, credential=credential)
-    elif uri.startswith("thrift"):
-        ctx.obj["catalog"] = HiveCatalog(name=catalog, properties={}, uri=uri)
-    else:
-        raise ValueError("Could not determine catalog type from uri. REST (http/https) and Hive (thrift) is supported")
-
     if output == "text":
         ctx.obj["output"] = ConsoleOutput()
     elif output == "json":
         ctx.obj["output"] = JsonOutput()
     else:
         raise ValueError(f"Unknown output: {output}")
+
+    if not uri:
+        ctx.obj["output"].exception(
+            f"Missing uri, cannot connect to catalog. Please provide using --uri or by setting the environment variable PYICEBERG_URI"
+        )
+
+    if uri.startswith("http"):
+        ctx.obj["catalog"] = RestCatalog(name=catalog, properties={}, uri=uri, credential=credential)
+    elif uri.startswith("thrift"):
+        ctx.obj["catalog"] = HiveCatalog(name=catalog, properties={}, uri=uri)
+    else:
+        raise ValueError("Could not determine catalog type from uri. REST (http/https) and Hive (thrift) is supported")
 
 
 def _get_catalog_and_output(ctx) -> Tuple[Catalog, Output]:
@@ -84,42 +84,49 @@ def list(ctx, parent: Optional[str]):
 def describe(ctx, identifier: str):
     """Describes a table"""
     catalog, output = _get_catalog_and_output(ctx)
+    identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
-    try:
-        table = catalog.load_table(identifier)
-        output.describe_table(table)
-    except NoSuchNamespaceError as exc:
-        output.exception(exc)
+    if len(identifier_tuple) > 1:
+        try:
+            table = catalog.load_table(identifier)
+            output.describe_table(table)
+        except NoSuchNamespaceError as exc:
+            output.exception(exc)
+    else:
+        output.exception(NoSuchTableError(f"Expected a namespace, got: {identifier}"))
 
 
 @run.command()
-@click.option("--type", type=click.Choice(["all", "namespace", "table"]), default="all")
+@click.option("--type", type=click.Choice(["any", "namespace", "table"]), default="any")
 @click.argument("identifier")
 @click.pass_context
 def properties(ctx, type: Literal["name", "namespace", "table"], identifier: str):
     """Fetches the properties from the namespace/table"""
     catalog, output = _get_catalog_and_output(ctx)
+    identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
     found_namespace = False
     try:
-        namespace_properties = catalog.load_namespace_properties(identifier)
+        namespace_properties = catalog.load_namespace_properties(identifier_tuple)
         output.describe_properties(namespace_properties)
         found_namespace = True
     except NoSuchNamespaceError as exc:
-        if type != "all":
+        if type != "any":
             output.exception(exc)
 
     found_table = False
-    try:
-        table = catalog.load_table(identifier)
-        assert table.metadata
-        output.describe_properties(table.metadata.properties)
-        found_table = True
-    except NoSuchTableError as exc:
-        if type != "all":
-            output.exception(exc)
+    # We expect a namespace
+    if len(identifier_tuple) > 1:
+        try:
+            table = catalog.load_table(identifier_tuple)
+            assert table.metadata
+            output.describe_properties(table.metadata.properties)
+            found_table = True
+        except NoSuchTableError as exc:
+            if type != "any":
+                output.exception(exc)
 
-    if type == "all" and not found_namespace and not found_table:
+    if type == "any" and not found_namespace and not found_table:
         output.exception(NoSuchNamespaceError(f"Could not find table/namespace with identifier {identifier}"))
 
 
@@ -193,60 +200,17 @@ def namespace(ctx, namespace: str):
 
 
 @run.command()
-@click.argument("table")
-@click.pass_context
-def load_table(ctx, table: str):
-    catalog: RestCatalog = ctx.obj["catalog"]
-    console = Console()
-
-    try:
-        tbl = catalog.load_table(table)
-        metadata = tbl.metadata
-        table_properties = Table(show_header=False)
-        for key, value in metadata.properties.items():
-            table_properties.add_row(key, value)
-
-        schema_tree = Tree("Schema")
-        for field in metadata.current_schema().fields:
-            schema_tree.add(str(field))
-
-        snapshot_tree = Tree("Snapshots")
-        for snapshot in metadata.snapshots:
-            snapshot_tree.add(f"Snapshot {snapshot.schema_id}: {snapshot.manifest_list}")
-            # Add the manifest entries
-
-        output_table = Table(title=table, show_header=False)
-        output_table.add_row("Table format version", str(metadata.format_version))
-        output_table.add_row("Metadata location", tbl.metadata_location)
-        output_table.add_row("Table UUID", str(tbl.metadata.table_uuid))
-        output_table.add_row("Last Updated", str(metadata.last_updated_ms))
-        output_table.add_row("Partition spec", str(metadata.current_partition_spec()))
-        output_table.add_row("Sort order", str(metadata.current_sort_order()))
-        output_table.add_row("Schema", schema_tree)
-        output_table.add_row("Snapshots", snapshot_tree)
-        output_table.add_row("Properties", table_properties)
-        console.print(output_table)
-    except NoSuchNamespaceError:
-        console.print(f"Namespace does not exists: {table}")
-    except NoSuchTableError:
-        console.print(f"Table does not exists: {table}")
-
-
-@run.command()
 @click.argument("from_table")
 @click.argument("to_table")
 @click.pass_context
 def rename_table(ctx, from_table: str, to_table: str):
-    catalog: RestCatalog = ctx.obj["catalog"]
-    console = Console()
+    catalog, output = _get_catalog_and_output(ctx)
 
     try:
         catalog.rename_table(from_table, to_table)
-        console.print(f"Table {from_table} has been renamed to {to_table}")
-    except NoSuchTableError:
-        console.print(f"Source table does not exists: {from_table}")
-    except NoSuchNamespaceError:
-        console.print(f"Destination namespace does not exists: {to_table}")
+        output.text(f"Table {from_table} has been renamed to {to_table}")
+    except Exception as exc:
+        output.exception(exc)
 
 
 @run.command()

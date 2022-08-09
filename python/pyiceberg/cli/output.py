@@ -66,11 +66,15 @@ class Output(ABC):
 
 
 class ConsoleOutput(Output):
+    @property
+    def _table(self) -> RichTable:
+        return RichTable.grid(padding=(0, 2))
+
     def exception(self, ex: Exception):
         Console(stderr=True).print(ex)
 
     def identifiers(self, identifiers: List[Identifier]):
-        table = RichTable.grid()
+        table = self._table
         for identifier in identifiers:
             table.add_row(".".join(identifier))
 
@@ -79,7 +83,7 @@ class ConsoleOutput(Output):
     def describe_table(self, table: Table):
         assert table.metadata
         metadata = table.metadata
-        table_properties = RichTable.grid()
+        table_properties = self._table
 
         for key, value in metadata.properties.items():
             table_properties.add_row(key, value)
@@ -92,7 +96,7 @@ class ConsoleOutput(Output):
         for snapshot in metadata.snapshots:
             snapshot_tree.add(f"Snapshot {snapshot.schema_id}: {snapshot.manifest_list}")
 
-        output_table = RichTable.grid()
+        output_table = self._table
         output_table.add_row("Table format version", str(metadata.format_version))
         output_table.add_row("Metadata location", table.metadata_location)
         output_table.add_row("Table UUID", str(table.metadata.table_uuid))
@@ -105,7 +109,7 @@ class ConsoleOutput(Output):
         Console().print(output_table)
 
     def describe_properties(self, properties: Properties):
-        output_table = RichTable.grid()
+        output_table = self._table
         for k, v in properties.items():
             output_table.add_row(k, v)
         Console().print(output_table)
