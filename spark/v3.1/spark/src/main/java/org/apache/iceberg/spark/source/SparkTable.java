@@ -27,6 +27,8 @@ import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -46,6 +48,8 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.MetadataColumn;
+import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
@@ -57,6 +61,8 @@ import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
@@ -67,7 +73,8 @@ public class SparkTable
         SupportsRead,
         SupportsWrite,
         ExtendedSupportsDelete,
-        SupportsMerge {
+        SupportsMerge,
+        SupportsMetadataColumns {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -165,6 +172,17 @@ public class SparkTable
   @Override
   public Set<TableCapability> capabilities() {
     return CAPABILITIES;
+  }
+
+  @Override
+  public MetadataColumn[] metadataColumns() {
+    DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
+    return new MetadataColumn[] {
+      new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
+      new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
+      new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
+      new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false)
+    };
   }
 
   @Override
