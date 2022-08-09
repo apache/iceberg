@@ -177,7 +177,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
 
     ClusteredPositionDeleteWriter<InternalRow> writer =
         new ClusteredPositionDeleteWriter<>(
-            writerFactory, fileFactory, table().io(), fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
+            writerFactory, fileFactory, table().io(), TARGET_FILE_SIZE_IN_BYTES);
 
     PartitionSpec unpartitionedSpec = table().specs().get(0);
 
