@@ -47,6 +47,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -72,8 +74,10 @@ abstract class BaseSparkAction<ThisT> {
   protected static final String OTHERS = "Others";
 
   protected static final String FILE_PATH = "file_path";
-  protected static final String FILE_TYPE = "file_type";
   protected static final String LAST_MODIFIED = "last_modified";
+
+  protected static final Splitter COMMA_SPLITTER = Splitter.on(",");
+  protected static final Joiner COMMA_JOINER = Joiner.on(',');
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseSparkAction.class);
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
