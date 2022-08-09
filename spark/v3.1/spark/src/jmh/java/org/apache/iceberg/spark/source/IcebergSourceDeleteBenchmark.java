@@ -39,15 +39,18 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.ClusteredEqualityDeleteWriter;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
@@ -194,6 +197,57 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
     }
 
     RowDelta rowDelta = table().newRowDelta();
+    writer.result().deleteFiles().forEach(rowDelta::addDeletes);
+    rowDelta.validateDeletedFiles().commit();
+  }
+
+  protected void writeEqDeletes(long numRows, double percentage) throws IOException {
+    Set<Long> deletedValues = Sets.newHashSet();
+    while (deletedValues.size() < numRows * percentage) {
+      deletedValues.add(ThreadLocalRandom.current().nextLong(numRows));
+    }
+
+    List<InternalRow> rows = Lists.newArrayList();
+    for (Long value : deletedValues) {
+      GenericInternalRow genericInternalRow = new GenericInternalRow(7);
+      genericInternalRow.setLong(0, value);
+      genericInternalRow.setInt(1, (int) (value % Integer.MAX_VALUE));
+      genericInternalRow.setFloat(2, (float) value);
+      genericInternalRow.setNullAt(3);
+      genericInternalRow.setNullAt(4);
+      genericInternalRow.setNullAt(5);
+      genericInternalRow.setNullAt(6);
+      rows.add(genericInternalRow);
+    }
+    LOG.info("Num of equality deleted rows: {}", rows.size());
+
+    writeEqDeletes(rows);
+  }
+
+  private void writeEqDeletes(List<InternalRow> rows) throws IOException {
+    int equalityFieldId = table().schema().findField("longCol").fieldId();
+
+    OutputFileFactory fileFactory = newFileFactory();
+    SparkFileWriterFactory writerFactory =
+        SparkFileWriterFactory.builderFor(table())
+            .dataFileFormat(fileFormat())
+            .equalityDeleteRowSchema(table().schema())
+            .equalityFieldIds(new int[] {equalityFieldId})
+            .build();
+
+    ClusteredEqualityDeleteWriter<InternalRow> writer =
+        new ClusteredEqualityDeleteWriter<>(
+            writerFactory, fileFactory, table().io(), TARGET_FILE_SIZE_IN_BYTES);
+
+    PartitionSpec unpartitionedSpec = table().specs().get(0);
+    try (ClusteredEqualityDeleteWriter<InternalRow> closeableWriter = writer) {
+      for (InternalRow row : rows) {
+        closeableWriter.write(row, unpartitionedSpec, null);
+      }
+    }
+
+    RowDelta rowDelta = table().newRowDelta();
+    LOG.info("Num of Delete File: {}", writer.result().deleteFiles().size());
     writer.result().deleteFiles().forEach(rowDelta::addDeletes);
     rowDelta.validateDeletedFiles().commit();
   }

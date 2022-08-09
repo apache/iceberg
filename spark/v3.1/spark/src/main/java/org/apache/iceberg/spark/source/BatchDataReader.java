@@ -76,15 +76,19 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
     if (task.file().format() == FileFormat.PARQUET) {
       SparkDeleteFilter deleteFilter = deleteFilter(task);
+      // get required schema for filtering out equality-delete rows in case equality-delete uses
+      // columns are
+      // not selected.
+      Schema requiredSchema = requiredSchema(deleteFilter);
 
       Parquet.ReadBuilder builder =
           Parquet.read(location)
-              .project(expectedSchema)
+              .project(requiredSchema)
               .split(task.start(), task.length())
               .createBatchedReaderFunc(
                   fileSchema ->
                       VectorizedSparkParquetReaders.buildReader(
-                          expectedSchema,
+                          requiredSchema,
                           fileSchema, /* setArrowValidityVector */
                           NullCheckingForGet.NULL_CHECKING_ENABLED,
                           idToConstant,
@@ -139,6 +143,14 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     return task.deletes().isEmpty()
         ? null
         : new SparkDeleteFilter(task, table().schema(), expectedSchema);
+  }
+
+  private Schema requiredSchema(DeleteFilter deleteFilter) {
+    if (deleteFilter != null && deleteFilter.hasEqDeletes()) {
+      return deleteFilter.requiredSchema();
+    } else {
+      return expectedSchema;
+    }
   }
 
   private class SparkDeleteFilter extends DeleteFilter<InternalRow> {
