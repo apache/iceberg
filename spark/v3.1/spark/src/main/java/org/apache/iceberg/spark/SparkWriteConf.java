@@ -104,7 +104,8 @@ public class SparkWriteConf {
   }
 
   public boolean wapEnabled() {
-    return confParser.booleanConf()
+    return confParser
+        .booleanConf()
         .tableProperty(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED)
         .defaultValue(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT)
         .parse();

@@ -19,22 +19,21 @@
 package org.apache.iceberg.spark.source.parquet;
 
 import java.io.IOException;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.spark.source.IcebergSourceDeleteBenchmark;
 import org.openjdk.jmh.annotations.Param;
 
 /**
- * A benchmark that evaluates the non-vectorized read and vectorized read with pos-delete in the
- * Spark data source for Iceberg.
+ * A benchmark that evaluates the non-vectorized read and vectorized read with equality delete in
+ * the Spark data source for Iceberg.
  *
  * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-3.2: <code>
  * ./gradlew :iceberg-spark:iceberg-spark-3.2:jmh
- *   -PjmhIncludeRegex=IcebergSourceParquetDeleteBenchmark
- *   -PjmhOutputPath=benchmark/iceberg-source-parquet-delete-benchmark-result.txt
+ *   -PjmhIncludeRegex=IcebergSourceParquetEqDeleteBenchmark
+ *   -PjmhOutputPath=benchmark/iceberg-source-parquet-eq-delete-benchmark-result.txt
  * </code>
  */
-public class IcebergSourceParquetDeleteBenchmark extends IcebergSourceDeleteBenchmark {
+public class IcebergSourceParquetEqDeleteBenchmark extends IcebergSourceDeleteBenchmark {
   @Param({"0", "0.000001", "0.05", "0.25", "0.5", "1"})
   private double percentDeleteRow;
 
@@ -44,11 +43,9 @@ public class IcebergSourceParquetDeleteBenchmark extends IcebergSourceDeleteBenc
       writeData(fileNum);
 
       if (percentDeleteRow > 0) {
-        // add pos-deletes
+        // add equality deletes
         table().refresh();
-        for (DataFile file : table().currentSnapshot().addedFiles()) {
-          writePosDeletes(file.path(), NUM_ROWS, percentDeleteRow);
-        }
+        writeEqDeletes(NUM_ROWS, percentDeleteRow);
       }
     }
   }
