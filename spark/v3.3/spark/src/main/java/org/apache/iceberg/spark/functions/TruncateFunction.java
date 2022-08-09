@@ -20,12 +20,9 @@ package org.apache.iceberg.spark.functions;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.TruncateUtil;
-import org.apache.iceberg.util.UnicodeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
@@ -238,17 +235,12 @@ public class TruncateFunction implements UnboundFunction {
 
   public static class TruncateString extends TruncateBase<UTF8String> {
     // magic function for usage with codegen
-    // TODO - This can likely be made more efficient, but using existing definition for now.
     public static UTF8String invoke(int width, UTF8String value) {
       if (value == null) {
         return null;
       }
 
-      ByteBuffer bb = value.getByteBuffer();
-      CharSequence charSequence = StandardCharsets.UTF_8.decode(bb);
-      CharSequence truncated = UnicodeUtil.truncateStringUnsafe(width, charSequence);
-      ByteBuffer truncatedBytes = StandardCharsets.UTF_8.encode(CharBuffer.wrap(truncated));
-      return UTF8String.fromBytes(ByteBuffers.toByteArray(truncatedBytes));
+      return value.substring(0, width);
     }
 
     @Override
