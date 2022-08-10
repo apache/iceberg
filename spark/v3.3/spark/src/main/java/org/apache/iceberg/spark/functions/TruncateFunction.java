@@ -136,8 +136,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Byte produceResult(InternalRow input) {
-      int width = width(input);
-      return input.isNullAt(1) ? null : invoke(width, input.getByte(1));
+      return input.isNullAt(0) || input.isNullAt(1)
+          ? null
+          : invoke(input.getInt(0), input.getByte(1));
     }
   }
 
@@ -164,8 +165,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Short produceResult(InternalRow input) {
-      int width = width(input);
-      return input.isNullAt(1) ? null : invoke(width, input.getShort(1));
+      return input.isNullAt(0) || input.isNullAt(1)
+          ? null
+          : invoke(input.getInt(0), input.getShort(1));
     }
   }
 
@@ -192,8 +194,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      int width = width(input);
-      return input.isNullAt(1) ? null : invoke(width, input.getInt(1));
+      return input.isNullAt(0) || input.isNullAt(1)
+          ? null
+          : invoke(input.getInt(0), input.getInt(1));
     }
   }
 
@@ -220,8 +223,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Long produceResult(InternalRow input) {
-      int width = width(input);
-      return input.isNullAt(1) ? null : invoke(width, input.getLong(1));
+      return input.isNullAt(0) || input.isNullAt(1)
+          ? null
+          : invoke(input.getInt(0), input.getLong(1));
     }
   }
 
@@ -252,8 +256,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public UTF8String produceResult(InternalRow input) {
-      int width = width(input);
-      return input.isNullAt(1) ? null : invoke(width, input.getUTF8String(1));
+      return input.isNullAt(0) || input.isNullAt(1)
+          ? null
+          : invoke(input.getInt(0), input.getUTF8String(1));
     }
   }
 
@@ -285,8 +290,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public byte[] produceResult(InternalRow input) {
-      int width = width(input);
-      return input.isNullAt(1) ? null : invoke(width, input.getBinary(1));
+      return input.isNullAt(0) || input.isNullAt(1)
+          ? null
+          : invoke(input.getInt(0), input.getBinary(1));
     }
   }
 
@@ -326,19 +332,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Decimal produceResult(InternalRow input) {
-      int width = width(input);
-      return input.isNullAt(1) ? null : invoke(width, input.getDecimal(1, precision, scale));
+      return input.isNullAt(0) || input.isNullAt(1)
+          ? null
+          : invoke(input.getInt(0), input.getDecimal(1, precision, scale));
     }
-  }
-
-  // Not identical behavior to magic methods used in codegen,
-  // This function throws on a `null` width, to avoid boxing.
-  // The magic method in Spark's codegen will return `null` for a `null` width.
-  private static int width(InternalRow input) {
-    if (input.isNullAt(0)) {
-      throw new IllegalArgumentException("Invalid truncation width: null");
-    }
-
-    return input.getInt(0);
   }
 }
