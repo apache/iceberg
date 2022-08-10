@@ -334,6 +334,7 @@ public class TestS3FileIOIntegration {
     testDeleteFiles(5, s3FileIO);
   }
 
+  @SuppressWarnings("DangerousParallelStreamUsage")
   @Test
   public void testPrefixList() {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
@@ -350,6 +351,7 @@ public class TestS3FileIOIntegration {
     Assertions.assertEquals(totalFiles, Streams.stream(s3FileIO.listPrefix(listPrefix)).count());
   }
 
+  @SuppressWarnings("DangerousParallelStreamUsage")
   @Test
   public void testPrefixDelete() {
     AwsProperties properties = new AwsProperties();
