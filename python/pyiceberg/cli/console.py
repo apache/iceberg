@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=broad-except
 import os
 from typing import Literal, Optional, Tuple
 
 import click
+from click import Context
 
 from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.hive import HiveCatalog
@@ -32,29 +34,33 @@ from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 @click.option("--uri", default=lambda: os.environ.get("PYICEBERG_URI"))
 @click.option("--credential", default=lambda: os.environ.get("PYICEBERG_CREDENTIAL"))
 @click.pass_context
-def run(ctx, catalog: str, output: str, uri: str, credential: str):
+def run(ctx: Context, catalog: str, output: str, uri: str, credential: str):
     ctx.ensure_object(dict)
     if output == "text":
         ctx.obj["output"] = ConsoleOutput()
-    elif output == "json":
-        ctx.obj["output"] = JsonOutput()
     else:
-        raise ValueError(f"Unknown output: {output}")
+        ctx.obj["output"] = JsonOutput()
 
     if not uri:
         ctx.obj["output"].exception(
-            f"Missing uri, cannot connect to catalog. Please provide using --uri or by setting the environment variable PYICEBERG_URI"
+            ValueError(
+                f"Missing uri. Please provide using --uri or using environment variable PYICEBERG__CATALOG_{catalog.upper()}_URI"
+            )
         )
+        ctx.exit(1)
 
     if uri.startswith("http"):
         ctx.obj["catalog"] = RestCatalog(name=catalog, properties={}, uri=uri, credential=credential)
     elif uri.startswith("thrift"):
         ctx.obj["catalog"] = HiveCatalog(name=catalog, properties={}, uri=uri)
     else:
-        raise ValueError("Could not determine catalog type from uri. REST (http/https) and Hive (thrift) is supported")
+        ctx.obj["output"].exception(
+            ValueError("Could not determine catalog type from uri. REST (http/https) and Hive (thrift) is supported")
+        )
+        ctx.exit(1)
 
 
-def _get_catalog_and_output(ctx) -> Tuple[Catalog, Output]:
+def _get_catalog_and_output(ctx: Context) -> Tuple[Catalog, Output]:
     """
     Small helper to set the types
     """
@@ -64,139 +70,167 @@ def _get_catalog_and_output(ctx) -> Tuple[Catalog, Output]:
 @run.command()
 @click.pass_context
 @click.argument("parent", required=False)
-def list(ctx, parent: Optional[str]):
+def list(ctx: Context, parent: Optional[str]):  # pylint: disable=redefined-builtin
     catalog, output = _get_catalog_and_output(ctx)
 
     # still wip, will become more beautiful
     # https://github.com/apache/iceberg/pull/5467/
     # has been merged
-    if parent:
-        identifiers = catalog.list_tables(parent)
-    else:
-        identifiers = catalog.list_namespaces()
-
-    output.identifiers(identifiers)
+    try:
+        if parent:
+            identifiers = catalog.list_tables(parent)
+        else:
+            identifiers = catalog.list_namespaces()
+        output.identifiers(identifiers)
+    except Exception as exc:
+        output.exception(exc)
+        ctx.exit(1)
 
 
 @run.command()
 @click.argument("identifier")
 @click.pass_context
-def describe(ctx, identifier: str):
+def describe(ctx: Context, identifier: str):
     """Describes a table"""
     catalog, output = _get_catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
     if len(identifier_tuple) > 1:
         try:
-            table = catalog.load_table(identifier)
-            output.describe_table(table)
+            catalog_table = catalog.load_table(identifier)
+            output.describe_table(catalog_table)
         except NoSuchNamespaceError as exc:
             output.exception(exc)
+            ctx.exit(1)
     else:
         output.exception(NoSuchTableError(f"Expected a namespace, got: {identifier}"))
+        ctx.exit(1)
 
 
 @run.command()
-@click.option("--type", type=click.Choice(["any", "namespace", "table"]), default="any")
+@click.option("--entity", type=click.Choice(["any", "namespace", "table"]), default="any")
 @click.argument("identifier")
 @click.pass_context
-def properties(ctx, type: Literal["name", "namespace", "table"], identifier: str):
+def properties(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str):
     """Fetches the properties from the namespace/table"""
     catalog, output = _get_catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
 
-    found_namespace = False
     try:
         namespace_properties = catalog.load_namespace_properties(identifier_tuple)
         output.describe_properties(namespace_properties)
-        found_namespace = True
+        ctx.exit(0)
     except NoSuchNamespaceError as exc:
-        if type != "any":
+        if entity != "any":
             output.exception(exc)
+            ctx.exit(1)
 
-    found_table = False
     # We expect a namespace
     if len(identifier_tuple) > 1:
         try:
-            table = catalog.load_table(identifier_tuple)
-            assert table.metadata
-            output.describe_properties(table.metadata.properties)
-            found_table = True
+            metadata = catalog.load_table(identifier_tuple).metadata
+            assert metadata
+            output.describe_properties(metadata.properties)
+            ctx.exit(0)
         except NoSuchTableError as exc:
-            if type != "any":
+            if entity != "any":
                 output.exception(exc)
+                ctx.exit(1)
 
-    if type == "any" and not found_namespace and not found_table:
-        output.exception(NoSuchNamespaceError(f"Could not find table/namespace with identifier {identifier}"))
-
-
-@run.command()
-@click.argument("identifier")
-@click.pass_context
-def schema(ctx, identifier: str):
-    catalog, output = _get_catalog_and_output(ctx)
-    metadata = catalog.load_table(identifier).metadata
-    output.schema(metadata.current_schema())
+    output.exception(NoSuchNamespaceError(f"Could not find table/namespace with identifier: {identifier}"))
+    ctx.exit(1)
 
 
 @run.command()
 @click.argument("identifier")
 @click.pass_context
-def spec(ctx, identifier: str):
+def schema(ctx: Context, identifier: str):
     catalog, output = _get_catalog_and_output(ctx)
-    metadata = catalog.load_table(identifier).metadata
-    output.spec(metadata.current_partition_spec())
+
+    try:
+        metadata = catalog.load_table(identifier).metadata
+        assert metadata
+        output.schema(metadata.current_schema())
+    except Exception as exc:
+        output.exception(exc)
+        ctx.exit(1)
 
 
 @run.command()
 @click.argument("identifier")
 @click.pass_context
-def uuid(ctx, identifier: str):
+def spec(ctx: Context, identifier: str):
     catalog, output = _get_catalog_and_output(ctx)
-    metadata = catalog.load_table(identifier).metadata
-    output.uuid(metadata.table_uuid)
+    try:
+        metadata = catalog.load_table(identifier).metadata
+        assert metadata
+        output.spec(metadata.current_partition_spec())
+    except Exception as exc:
+        output.exception(exc)
+        ctx.exit(1)
 
 
 @run.command()
 @click.argument("identifier")
 @click.pass_context
-def location(ctx, identifier: str):
+def uuid(ctx: Context, identifier: str):
     catalog, output = _get_catalog_and_output(ctx)
-    metadata = catalog.load_table(identifier).metadata
-    output.text(metadata.location)
+    try:
+        metadata = catalog.load_table(identifier).metadata
+        assert metadata
+        output.uuid(metadata.table_uuid)
+    except Exception as exc:
+        output.exception(exc)
+        ctx.exit(1)
+
+
+@run.command()
+@click.argument("identifier")
+@click.pass_context
+def location(ctx: Context, identifier: str):
+    catalog, output = _get_catalog_and_output(ctx)
+    try:
+        metadata = catalog.load_table(identifier).metadata
+        assert metadata
+        output.text(metadata.location)
+    except Exception as exc:
+        output.exception(exc)
+        ctx.exit(1)
 
 
 @run.group()
-def drop(ctx):
+def drop(_: Context):
     pass
 
 
 @drop.command()
-@click.argument("table")
+@click.argument("identifier")
 @click.pass_context
-def table(ctx, table: str):
+def table(ctx: Context, identifier: str):
     """Drop table"""
     catalog, output = _get_catalog_and_output(ctx)
 
     try:
-        catalog.drop_namespace(table)
-        output.text(f"Dropped table: {table}")
+        catalog.drop_namespace(identifier)
+        output.text(f"Dropped table: {identifier}")
     except Exception as exc:
         output.exception(exc)
+        ctx.exit(1)
 
 
 @drop.command()
-@click.argument("namespace")
+@click.argument("identifier")
 @click.pass_context
-def namespace(ctx, namespace: str):
+def namespace(ctx, identifier: str):
     """Drop namespace"""
     catalog, output = _get_catalog_and_output(ctx)
 
     try:
-        catalog.drop_namespace(namespace)
-        output.text(f"Dropped namespace: {namespace}")
+        catalog.drop_namespace(identifier)
+        output.text(f"Dropped namespace: {identifier}")
     except Exception as exc:
         output.exception(exc)
+        ctx.exit(1)
 
 
 @run.command()
@@ -211,13 +245,14 @@ def rename_table(ctx, from_table: str, to_table: str):
         output.text(f"Table {from_table} has been renamed to {to_table}")
     except Exception as exc:
         output.exception(exc)
+        ctx.exit(1)
 
 
 @run.command()
 @click.argument("from_identifier")
 @click.argument("to_identifier")
 @click.pass_context
-def table(ctx, from_identifier: str, to_identifier: str):
+def rename(ctx, from_identifier: str, to_identifier: str):
     """Rename table"""
     catalog, output = _get_catalog_and_output(ctx)
 

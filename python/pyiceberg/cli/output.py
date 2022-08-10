@@ -16,7 +16,7 @@
 # under the License.
 import json
 from abc import ABC, abstractmethod
-from typing import Any, List
+from typing import Any, List, Optional
 from uuid import UUID
 
 from rich.console import Console
@@ -61,11 +61,13 @@ class Output(ABC):
         ...
 
     @abstractmethod
-    def uuid(self, uuid: UUID):
+    def uuid(self, uuid: Optional[UUID]):
         ...
 
 
 class ConsoleOutput(Output):
+    """Writes to the console"""
+
     @property
     def _table(self) -> RichTable:
         return RichTable.grid(padding=(0, 2))
@@ -124,13 +126,15 @@ class ConsoleOutput(Output):
         Console().print(schema_tree)
 
     def spec(self, spec: PartitionSpec):
-        pass
+        Console().print(str(spec))
 
-    def uuid(self, uuid: UUID):
-        pass
+    def uuid(self, uuid: Optional[UUID]):
+        Console().print(str(uuid) if uuid else "missing")
 
 
 class JsonOutput(Output):
+    """Writes json to stdout"""
+
     def _out(self, d: Any) -> None:
         print(json.dumps(d))
 
@@ -155,5 +159,5 @@ class JsonOutput(Output):
     def spec(self, spec: PartitionSpec):
         print(spec.json())
 
-    def uuid(self, uuid: UUID):
-        self._out({"uuid": uuid})
+    def uuid(self, uuid: Optional[UUID]):
+        self._out({"uuid": str(uuid) if uuid else "missing"})
