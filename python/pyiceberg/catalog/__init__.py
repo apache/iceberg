@@ -75,10 +75,10 @@ class Catalog(ABC):
         Args:
             identifier (str | Identifier): Table identifier.
             schema (Schema): Table's schema.
-            location (str): Location for the table. Optional Argument.
+            location (str | None): Location for the table. Optional Argument.
             partition_spec (PartitionSpec): PartitionSpec for the table.
             sort_order (SortOrder): SortOrder for the table.
-            properties (Properties): Table properties that can be a string based dictionary. Optional Argument.
+            properties (Properties): Table properties that can be a string based dictionary.
 
         Returns:
             Table: the created table instance
@@ -215,7 +215,7 @@ class Catalog(ABC):
         Args:
             namespace (str | Identifier): Namespace identifier
             removals (Set[str]): Set of property keys that need to be removed. Optional Argument.
-            updates (Properties): Properties to be updated for the given namespace. Optional Argument.
+            updates (Properties): Properties to be updated for the given namespace.
 
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist
