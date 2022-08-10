@@ -23,21 +23,18 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.BaseDeleteReachableFilesActionResult;
 import org.apache.iceberg.actions.DeleteReachableFiles;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -126,64 +123,22 @@ public class DeleteReachableFilesSparkAction
 
   private Dataset<Row> buildReachableFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, io);
-    return withFileType(buildValidContentFileDF(staticTable), CONTENT_FILE)
+    return buildValidContentFileWithTypeDF(staticTable)
         .union(withFileType(buildManifestFileDF(staticTable), MANIFEST))
         .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST))
         .union(withFileType(buildAllReachableOtherMetadataFileDF(staticTable), OTHERS));
   }
 
-  /**
-   * Deletes files passed to it.
-   *
-   * @param deleted an Iterator of Spark Rows of the structure (path: String, type: String)
-   * @return Statistics on which files were deleted
-   */
-  private BaseDeleteReachableFilesActionResult deleteFiles(Iterator<Row> deleted) {
-    AtomicLong dataFileCount = new AtomicLong(0L);
-    AtomicLong manifestCount = new AtomicLong(0L);
-    AtomicLong manifestListCount = new AtomicLong(0L);
-    AtomicLong otherFilesCount = new AtomicLong(0L);
+  private DeleteReachableFiles.Result deleteFiles(Iterator<Row> files) {
+    DeleteSummary summary = deleteFiles(deleteExecutorService, deleteFunc, files);
+    LOG.info("Deleted {} total files", summary.totalFilesCount());
 
-    Tasks.foreach(deleted)
-        .retry(3)
-        .stopRetryOn(NotFoundException.class)
-        .suppressFailureWhenFinished()
-        .executeWith(deleteExecutorService)
-        .onFailure(
-            (fileInfo, exc) -> {
-              String file = fileInfo.getString(0);
-              String type = fileInfo.getString(1);
-              LOG.warn("Delete failed for {}: {}", type, file, exc);
-            })
-        .run(
-            fileInfo -> {
-              String file = fileInfo.getString(0);
-              String type = fileInfo.getString(1);
-              deleteFunc.accept(file);
-              switch (type) {
-                case CONTENT_FILE:
-                  dataFileCount.incrementAndGet();
-                  LOG.trace("Deleted Content File: {}", file);
-                  break;
-                case MANIFEST:
-                  manifestCount.incrementAndGet();
-                  LOG.debug("Deleted Manifest: {}", file);
-                  break;
-                case MANIFEST_LIST:
-                  manifestListCount.incrementAndGet();
-                  LOG.debug("Deleted Manifest List: {}", file);
-                  break;
-                case OTHERS:
-                  otherFilesCount.incrementAndGet();
-                  LOG.debug("Others: {}", file);
-                  break;
-              }
-            });
-
-    long filesCount =
-        dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
-    LOG.info("Total files removed: {}", filesCount);
     return new BaseDeleteReachableFilesActionResult(
-        dataFileCount.get(), manifestCount.get(), manifestListCount.get(), otherFilesCount.get());
+        summary.dataFilesCount(),
+        summary.positionDeleteFilesCount(),
+        summary.equalityDeleteFilesCount(),
+        summary.manifestsCount(),
+        summary.manifestListsCount(),
+        summary.otherFilesCount());
   }
 }
