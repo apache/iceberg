@@ -252,7 +252,7 @@ abstract class Truncate<T> implements Transform<T, T> {
         return null;
       }
 
-      return UnicodeUtil.truncateString(value, length);
+      return UnicodeUtil.truncateStringUnsafe(value, length);
     }
 
     @Override

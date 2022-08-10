@@ -40,6 +40,18 @@ public class UnicodeUtil {
    */
   public static CharSequence truncateString(CharSequence input, int length) {
     Preconditions.checkArgument(length > 0, "Truncate length should be positive");
+    return truncateStringUnsafe(input, length);
+  }
+
+  /**
+   * Truncates the input charSequence such that the truncated charSequence is a valid unicode string
+   * and the number of unicode characters in the truncated charSequence is lesser than or equal to
+   * length.
+   *
+   * <p>This function provides the same behavior as {@link #truncateString(CharSequence, int)}, but
+   * skips validating the truncation length for situations where it is already validated.
+   */
+  public static CharSequence truncateStringUnsafe(CharSequence input, int length) {
     StringBuilder sb = new StringBuilder(input);
     // Get the number of unicode characters in the input
     int numUniCodeCharacters = sb.codePointCount(0, sb.length());
