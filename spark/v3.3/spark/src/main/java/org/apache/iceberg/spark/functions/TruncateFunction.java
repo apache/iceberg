@@ -56,8 +56,7 @@ public class TruncateFunction implements UnboundFunction {
         && !DataTypes.ShortType.sameType(widthType)
         && !DataTypes.ByteType.sameType(widthType)) {
       throw new UnsupportedOperationException(
-          "Expected truncation width to be one of [ByteType, ShortType, IntegerType], but found "
-              + widthType);
+          "Expected truncation width to be tinyint, shortint or int");
     }
   }
 
