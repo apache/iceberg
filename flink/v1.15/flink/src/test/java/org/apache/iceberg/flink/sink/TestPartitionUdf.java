@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableEnvironment;
@@ -83,22 +82,27 @@ public class TestPartitionUdf {
   @Test
   public void testFunctionWithDefaultCatalog() {
 
-    functionWithDefaultCatalog("buckets", PartitionTransformUdf.Bucket.class, this::bucketCase);
+    functionWithDefaultCatalog(
+        PartitionTransformUdf.Bucket.FUNCTION_NAME,
+        PartitionTransformUdf.Bucket.class,
+        this::bucketCase);
 
     functionWithDefaultCatalog(
-        "truncates", PartitionTransformUdf.Truncate.class, this::truncateCase);
+        PartitionTransformUdf.Truncate.FUNCTION_NAME,
+        PartitionTransformUdf.Truncate.class,
+        this::truncateCase);
   }
 
   @Test
   public void testFunctionWithIcebergCatalog() {
-    bucketCase("`iceberg_catalog`.`system`.`buckets`");
-    truncateCase("`iceberg_catalog`.`system`.`truncates`");
+
+    functionWithIcebergCatalog(PartitionTransformUdf.Bucket.FUNCTION_NAME, this::bucketCase);
+
+    functionWithIcebergCatalog(PartitionTransformUdf.Truncate.FUNCTION_NAME, this::truncateCase);
   }
 
   public void functionWithDefaultCatalog(
-      String funcName,
-      Class<? extends UserDefinedFunction> funcClass,
-      Consumer<String> functionCase) {
+      String funcName, Class<? extends UserDefinedFunction> funcClass, Runnable functionCase) {
 
     tEnv.executeSql("use default_catalog.default_database");
 
@@ -112,7 +116,7 @@ public class TestPartitionUdf {
     Assert.assertEquals(functions.size() + 1, functions2.size());
     Assert.assertTrue(functions2.contains(funcName));
 
-    functionCase.accept(funcName);
+    functionCase.run();
 
     // delete bucket function
     tEnv.dropTemporarySystemFunction(funcName);
@@ -122,94 +126,102 @@ public class TestPartitionUdf {
     Assert.assertFalse(functions3.contains(funcName));
   }
 
-  public void bucketCase(String funcName) {
+  public void functionWithIcebergCatalog(String funcName, Runnable functionCase) {
+
+    tEnv.executeSql("use iceberg_catalog.`system`");
+
+    List<String> functions = getFunctionList();
+    // function will be registered by default
+    Assert.assertTrue(functions.contains(funcName));
+
+    functionCase.run();
+  }
+
+  public void bucketCase() {
     // int type
-    Assert.assertEquals(428, getSqlResult("SELECT %s(1000, 10)", funcName));
+    Assert.assertEquals(428, getSqlResult("SELECT buckets(1000, 10)"));
 
     // long type
-    Assert.assertEquals(525, getSqlResult("SELECT %s(1000, 456294967296)", funcName));
+    Assert.assertEquals(525, getSqlResult("SELECT buckets(1000, 456294967296)"));
 
     // date type
-    Assert.assertEquals(51, getSqlResult("SELECT %s(1000, DATE '2022-05-20')", funcName));
+    Assert.assertEquals(51, getSqlResult("SELECT buckets(1000, DATE '2022-05-20')"));
 
     // timestamp_ltz type
     Assert.assertEquals(
         483,
         getSqlResult(
-            "select %s(1000, ts) from "
-                + "(select cast(TIMESTAMP '2022-05-20 10:12:55.038194' as timestamp_ltz(6)) as ts)",
-            funcName));
+            "select buckets(1000, ts) from "
+                + "(select cast(TIMESTAMP '2022-05-20 10:12:55.038194' as timestamp_ltz(6)) as ts)"));
 
     // timestamp type
     Assert.assertEquals(
         441,
         getSqlResult(
-            "select %s(1000, ts) from "
-                + "(select cast(TIMESTAMP '2022-05-20 10:12:55.038194' as timestamp(6)) as ts)",
-            funcName));
+            "select buckets(1000, ts) from "
+                + "(select cast(TIMESTAMP '2022-05-20 10:12:55.038194' as timestamp(6)) as ts)"));
 
     // time type
-    Assert.assertEquals(440, getSqlResult("SELECT %s(1000, TIME '14:08:59')", funcName));
+    Assert.assertEquals(440, getSqlResult("SELECT buckets(1000, TIME '14:08:59')"));
 
     // string type
-    Assert.assertEquals(489, getSqlResult("SELECT %s(1000, 'this is a string')", funcName));
+    Assert.assertEquals(489, getSqlResult("SELECT buckets(1000, 'this is a string')"));
 
     // decimal type
-    Assert.assertEquals(
-        825, getSqlResult("select %s(1000, cast(6.12345 as decimal(6,5)))", funcName));
+    Assert.assertEquals(825, getSqlResult("select buckets(1000, cast(6.12345 as decimal(6,5)))"));
 
     // binary type
-    Assert.assertEquals(798, getSqlResult("SELECT %s(1000, x'010203040506')", funcName));
+    Assert.assertEquals(798, getSqlResult("SELECT buckets(1000, x'010203040506')"));
 
     // boolean type, unsupported
     AssertHelpers.assertThrows(
         "unsupported boolean type",
         ValidationException.class,
-        () -> sql("SELECT %s(1000, true)", funcName));
+        () -> sql("SELECT buckets(1000, true)"));
   }
 
-  public void truncateCase(String funcName) {
+  public void truncateCase() {
     // int type
-    Assert.assertEquals(10, getSqlResult("SELECT %s(10, 15)", funcName));
+    Assert.assertEquals(10, getSqlResult("SELECT truncates(10, 15)"));
 
     // long type
-    Assert.assertEquals(456294967000L, getSqlResult("SELECT %s(1000, 456294967296)", funcName));
+    Assert.assertEquals(456294967000L, getSqlResult("SELECT truncates(1000, 456294967296)"));
 
     // string type
-    Assert.assertEquals("this is a ", getSqlResult("SELECT %s(10, 'this is a string')", funcName));
+    Assert.assertEquals("this is a ", getSqlResult("SELECT truncates(10, 'this is a string')"));
 
     // decimal type
     Assert.assertEquals(
         BigDecimal.valueOf(612000, 5),
-        getSqlResult("select %s(1000, cast(6.12345 as decimal(6, 5)) )", funcName));
+        getSqlResult("select truncates(1000, cast(6.12345 as decimal(6, 5)) )"));
 
     // binary type
     Assert.assertArrayEquals(
         new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-        (byte[]) getSqlResult("SELECT %s(10, x'0102030405060708090a0b0c0d0e0f')", funcName));
+        (byte[]) getSqlResult("SELECT truncates(10, x'0102030405060708090a0b0c0d0e0f')"));
 
     // timestamp type, unsupported
     AssertHelpers.assertThrows(
         "unsupported timestamp type",
         ValidationException.class,
-        () -> sql("SELECT %s(10, TIMESTAMP '2022-05-20 10:12:55.038194')", funcName));
+        () -> sql("SELECT truncates(10, TIMESTAMP '2022-05-20 10:12:55.038194')"));
 
     // date type, unsupported
     AssertHelpers.assertThrows(
         "unsupported date type",
         ValidationException.class,
-        () -> sql("SELECT %s(10, DATE '2022-05-20')", funcName));
+        () -> sql("SELECT truncates(10, DATE '%s')", "2022-05-20"));
 
     // time type, unsupported
     AssertHelpers.assertThrows(
         "unsupported time type",
         ValidationException.class,
-        () -> sql("SELECT %s(10, TIME '14:08:59')", funcName));
+        () -> sql("SELECT truncates(10, TIME '%s')", "14:08:59"));
 
     // boolean type, unsupported
     AssertHelpers.assertThrows(
         "unsupported boolean type",
         ValidationException.class,
-        () -> sql("SELECT %s(10, true)", funcName));
+        () -> sql("SELECT truncates(10, true)"));
   }
 }
