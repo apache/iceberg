@@ -36,7 +36,7 @@ import java.nio.ByteBuffer;
  * <p>Thus, <b>none</b> of these utility functions validate their input. <i>It is the responsibility
  * of the calling code to validate input.</i>
  *
- * <p>See also {@linkplain UnicodeUtil#truncateStringUnsafe(int, CharSequence)} and {@link
+ * <p>See also {@linkplain UnicodeUtil#truncateString(CharSequence, int)} and {@link
  * BinaryUtil#truncateBinaryUnsafe(ByteBuffer, int)} for similar methods for Strings and
  * ByteBuffers.
  */
