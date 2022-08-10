@@ -100,7 +100,9 @@ public class TestStreamingReaderOperator extends TableTestBase {
         harness.processElement(splits.get(i), -1);
 
         // Run the mail-box once to read all records from the given split.
-        Assert.assertTrue("Should processed 1 split", processor.runMailboxStep());
+        for (int l = 0; l < expectedRecords.get(i).size(); l++) {
+          Assert.assertTrue("Should processed 1 split", processor.runMailboxStep());
+        }
 
         // Assert the output has expected elements.
         expected.addAll(expectedRecords.get(i));
@@ -130,20 +132,27 @@ public class TestStreamingReaderOperator extends TableTestBase {
       harness.processElement(splits.get(1), ++timestamp);
       harness.processElement(splits.get(2), ++timestamp);
 
-      // Trigger snapshot state, it will start to work once all records from split0 are read.
+      // Trigger snapshot state, it will start to work once one record from split0 are read.
       processor.getMainMailboxExecutor().execute(() -> harness.snapshot(1, 3), "Trigger snapshot");
 
       Assert.assertTrue("Should have processed the split0", processor.runMailboxStep());
-      Assert.assertTrue(
-          "Should have processed the snapshot state action", processor.runMailboxStep());
+
+      for (int i = 0; i < expectedRecords.get(0).size(); i++) {
+        Assert.assertTrue(
+            "Should have processed the snapshot state action", processor.runMailboxStep());
+      }
 
       TestHelpers.assertRecords(readOutputValues(harness), expectedRecords.get(0), SCHEMA);
 
       // Read records from split1.
-      Assert.assertTrue("Should have processed the split1", processor.runMailboxStep());
+      for (int i = 0; i < expectedRecords.get(1).size(); i++) {
+        Assert.assertTrue("Should have processed the split1", processor.runMailboxStep());
+      }
 
       // Read records from split2.
-      Assert.assertTrue("Should have processed the split2", processor.runMailboxStep());
+      for (int i = 0; i < expectedRecords.get(2).size(); i++) {
+        Assert.assertTrue("Should have processed the split2", processor.runMailboxStep());
+      }
 
       TestHelpers.assertRecords(
           readOutputValues(harness), Lists.newArrayList(Iterables.concat(expectedRecords)), SCHEMA);
@@ -172,7 +181,9 @@ public class TestStreamingReaderOperator extends TableTestBase {
       SteppingMailboxProcessor localMailbox = createLocalMailbox(harness);
       for (int i = 0; i < 5; i++) {
         expected.addAll(expectedRecords.get(i));
-        Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
+        for (int l = 0; l < expectedRecords.get(i).size(); l++) {
+          Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
+        }
 
         TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
@@ -192,7 +203,9 @@ public class TestStreamingReaderOperator extends TableTestBase {
 
       for (int i = 5; i < 10; i++) {
         expected.addAll(expectedRecords.get(i));
-        Assert.assertTrue("Should have processed one split#" + i, localMailbox.runMailboxStep());
+        for (int l = 0; l < expectedRecords.get(i).size(); l++) {
+          Assert.assertTrue("Should have processed one split#" + i, localMailbox.runMailboxStep());
+        }
 
         TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
@@ -201,8 +214,10 @@ public class TestStreamingReaderOperator extends TableTestBase {
       for (int i = 10; i < 15; i++) {
         expected.addAll(expectedRecords.get(i));
         harness.processElement(splits.get(i), 1);
+        for (int l = 0; l < expectedRecords.get(i).size(); l++) {
+          Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
+        }
 
-        Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
         TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
     }
