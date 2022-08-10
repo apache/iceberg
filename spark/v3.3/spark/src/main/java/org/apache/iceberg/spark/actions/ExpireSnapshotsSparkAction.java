@@ -150,7 +150,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   @Deprecated
   public Dataset<Row> expire() {
     // rely on the same query execution to reuse shuffles
-    QueryExecution queryExecution = expiredFileDS().queryExecution();
+    QueryExecution queryExecution = expireFiles().queryExecution();
     return new Dataset<>(queryExecution, RowEncoder.apply(queryExecution.analyzed().schema()));
   }
 
@@ -164,10 +164,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
    * @return a Dataset of files that are no longer referenced by the table
    */
   public Dataset<FileInfo> expireFiles() {
-    return expiredFileDS();
-  }
-
-  private Dataset<FileInfo> expiredFileDS() {
     if (expiredFileDS == null) {
       // fetch metadata before expiration
       Dataset<FileInfo> originalFileDS = validFileDS(ops.current());
@@ -232,9 +228,9 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private ExpireSnapshots.Result doExecute() {
     if (streamResults()) {
-      return deleteFiles(expiredFileDS().toLocalIterator());
+      return deleteFiles(expireFiles().toLocalIterator());
     } else {
-      return deleteFiles(expiredFileDS().collectAsList().iterator());
+      return deleteFiles(expireFiles().collectAsList().iterator());
     }
   }
 
