@@ -256,9 +256,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public UTF8String produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
-          ? null
-          : invoke(input.getInt(0), input.getUTF8String(1));
+      return input.isNullAt(0) ? null : invoke(input.getInt(0), input.getUTF8String(1));
     }
   }
 
@@ -290,9 +288,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public byte[] produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
-          ? null
-          : invoke(input.getInt(0), input.getBinary(1));
+      return input.isNullAt(0) ? null : invoke(input.getInt(0), input.getBinary(1));
     }
   }
 
@@ -332,7 +328,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Decimal produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
+      return input.isNullAt(0)
           ? null
           : invoke(input.getInt(0), input.getDecimal(1, precision, scale));
     }
