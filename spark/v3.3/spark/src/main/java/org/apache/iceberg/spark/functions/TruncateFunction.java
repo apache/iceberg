@@ -269,7 +269,7 @@ public class TruncateFunction implements UnboundFunction {
       }
 
       return ByteBuffers.toByteArray(
-          BinaryUtil.truncateBinaryUnsafe(width, ByteBuffer.wrap(value)));
+          BinaryUtil.truncateBinaryUnsafe(ByteBuffer.wrap(value), width));
     }
 
     @Override

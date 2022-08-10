@@ -37,7 +37,7 @@ import java.nio.ByteBuffer;
  * of the calling code to validate input.</i>
  *
  * <p>See also {@linkplain UnicodeUtil#truncateStringUnsafe(int, CharSequence)} and {@link
- * BinaryUtil#truncateBinaryUnsafe(int, ByteBuffer)} for similar methods for Strings and
+ * BinaryUtil#truncateBinaryUnsafe(ByteBuffer, int)} for similar methods for Strings and
  * ByteBuffers.
  */
 public class TruncateUtil {

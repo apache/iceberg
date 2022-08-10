@@ -393,7 +393,7 @@ abstract class Truncate<T> implements Transform<T, T> {
         return null;
       }
 
-      return BinaryUtil.truncateBinaryUnsafe(length, value);
+      return BinaryUtil.truncateBinaryUnsafe(value, length);
     }
 
     @Override
