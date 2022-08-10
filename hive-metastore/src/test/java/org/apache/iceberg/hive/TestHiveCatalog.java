@@ -32,9 +32,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
@@ -65,8 +68,10 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -771,5 +776,59 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Database database = catalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     Assert.assertEquals("s3://bucket/database.db", database.getLocationUri());
+  }
+
+  @Test
+  public void testMigrateTablesFromHadoopCatalogToHiveCatalog() throws IOException {
+    Map<String, String> hadoopCatalogProperties =
+        ImmutableMap.of(
+            "type", "hadoop",
+            "catalogImpl", "org.apache.iceberg.hadoop.HadoopCatalog",
+            "warehouse", temp.newFolder().getAbsolutePath());
+    HadoopCatalog hadoopCatalog =
+        (HadoopCatalog)
+            CatalogUtil.buildIcebergCatalog("hadoop", hadoopCatalogProperties, new Configuration());
+
+    List<TableIdentifier> identifiers = createTables(hadoopCatalog, 10);
+
+    // migrate specific tables based on identifiers
+    migrateAndValidate(hadoopCatalog, identifiers.subList(5, 9), identifiers.subList(5, 9));
+
+    // migrate all the tables by without specifying the identifiers
+    migrateAndValidate(hadoopCatalog, identifiers, null);
+  }
+
+  private void migrateAndValidate(
+      HadoopCatalog hadoopCatalog,
+      List<TableIdentifier> expectedIdentifiers,
+      List<TableIdentifier> sourceIdentifiers) {
+    Collection<TableIdentifier> migratedIdentifiers =
+        CatalogUtil.migrateTables(sourceIdentifiers, hadoopCatalog, catalog, 3);
+
+    org.assertj.core.api.Assertions.assertThat(expectedIdentifiers)
+        .containsExactlyInAnyOrderElementsOf(migratedIdentifiers);
+    migratedIdentifiers.forEach(
+        tableIdentifier -> {
+          // test by accessing the migrated tables from target catalog
+          Assert.assertNotNull(catalog.loadTable(tableIdentifier));
+          // drop table from target catalog after validation
+          Assert.assertTrue(catalog.dropTable(tableIdentifier, false));
+        });
+  }
+
+  private static List<TableIdentifier> createTables(Catalog catalog, int numOfTables) {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get(), "unique ID"),
+            required(2, "data", Types.StringType.get()));
+    List<TableIdentifier> identifiers = Lists.newArrayList();
+    IntStream.range(0, numOfTables)
+        .forEach(
+            index -> {
+              TableIdentifier identifier = TableIdentifier.of(DB_NAME, "tbl" + index);
+              catalog.createTable(identifier, schema);
+              identifiers.add(identifier);
+            });
+    return identifiers;
   }
 }

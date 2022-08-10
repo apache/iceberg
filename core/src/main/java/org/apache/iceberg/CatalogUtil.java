@@ -22,21 +22,33 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
@@ -399,5 +411,95 @@ public class CatalogUtil {
     }
 
     setConf.invoke(conf);
+  }
+
+  /**
+   * Migrates tables from one catalog(source catalog) to another catalog(target catalog).
+   *
+   * <p>Supports bulk migrations with a multi-thread execution. Once the migration is success, table
+   * would be dropped from the source catalog.
+   *
+   * @param tableIdentifiers a list of {@link TableIdentifier} for the tables required to be
+   *     migrated. If not specified, all the tables would be migrated.
+   * @param sourceCatalog Source {@link Catalog} from which the tables are chosen
+   * @param targetCatalog Target {@link Catalog} to which the tables need to be migrated
+   * @param maxConcurrentMigrates Size of the thread pool used for migrate tables (If set to 0, no
+   *     thread pool is used)
+   * @return Collection of table identifiers for successfully migrated tables
+   */
+  public static Collection<TableIdentifier> migrateTables(
+      List<TableIdentifier> tableIdentifiers,
+      Catalog sourceCatalog,
+      Catalog targetCatalog,
+      int maxConcurrentMigrates) {
+    validate(sourceCatalog, targetCatalog, maxConcurrentMigrates);
+
+    List<TableIdentifier> identifiers;
+    if (tableIdentifiers == null || tableIdentifiers.isEmpty()) {
+      // fetch all the table identifiers from all the namespaces.
+      List<Namespace> namespaces =
+          (sourceCatalog instanceof SupportsNamespaces)
+              ? ((SupportsNamespaces) sourceCatalog).listNamespaces()
+              : ImmutableList.of(Namespace.empty());
+      identifiers =
+          namespaces.stream()
+              .flatMap(namespace -> sourceCatalog.listTables(namespace).stream())
+              .collect(Collectors.toList());
+    } else {
+      identifiers = tableIdentifiers;
+    }
+
+    ExecutorService executorService = null;
+    if (maxConcurrentMigrates > 0) {
+      executorService = ThreadPools.newWorkerPool("migrate-tables", maxConcurrentMigrates);
+    }
+
+    try {
+      Collection<TableIdentifier> migratedTableIdentifiers = new ConcurrentLinkedQueue<>();
+      Tasks.foreach(identifiers.stream().filter(Objects::nonNull))
+          .retry(3)
+          .stopRetryOn(NoSuchTableException.class, NoSuchNamespaceException.class)
+          .suppressFailureWhenFinished()
+          .executeWith(executorService)
+          .onFailure(
+              (tableIdentifier, exc) ->
+                  LOG.warn("Unable to migrate table {}", tableIdentifier, exc))
+          .run(
+              tableIdentifier -> {
+                migrate(sourceCatalog, targetCatalog, tableIdentifier);
+                migratedTableIdentifiers.add(tableIdentifier);
+              });
+      return migratedTableIdentifiers;
+    } finally {
+      if (executorService != null) {
+        executorService.shutdown();
+      }
+    }
+  }
+
+  private static void validate(
+      Catalog sourceCatalog, Catalog targetCatalog, int maxConcurrentMigrates) {
+    Preconditions.checkArgument(
+        maxConcurrentMigrates >= 0,
+        "maxConcurrentMigrates should have value >= 0,  value: " + maxConcurrentMigrates);
+    Preconditions.checkArgument(sourceCatalog != null, "source catalog should not be null");
+    Preconditions.checkArgument(targetCatalog != null, "target catalog should not be null");
+    Preconditions.checkArgument(
+        !targetCatalog.equals(sourceCatalog), "target catalog is same as source catalog");
+  }
+
+  private static void migrate(
+      Catalog sourceCatalog, Catalog targetCatalog, TableIdentifier tableIdentifier) {
+    // register the table to the target catalog
+    TableOperations ops =
+        ((HasTableOperations) sourceCatalog.loadTable(tableIdentifier)).operations();
+    targetCatalog.registerTable(tableIdentifier, ops.current().metadataFileLocation());
+
+    // drop the table from source catalog
+    if (!(sourceCatalog instanceof HadoopCatalog)) {
+      // HadoopCatalog dropTable will delete the table files completely even when purge is false.
+      // So, skip dropTable for HadoopCatalog.
+      sourceCatalog.dropTable(tableIdentifier, false);
+    }
   }
 }
