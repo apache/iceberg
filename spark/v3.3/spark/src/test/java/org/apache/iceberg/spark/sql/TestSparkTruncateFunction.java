@@ -297,7 +297,7 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         () -> scalarSql("SELECT system.truncate('5', 10)"));
 
     AssertHelpers.assertThrows(
-        "Interval year to month  type should not be coercible to the width field",
+        "Interval year to month type should not be coercible to the width field",
         AnalysisException.class,
         "Expected truncation width to be one of [ByteType, ShortType, IntegerType]",
         () -> scalarSql("SELECT system.truncate(INTERVAL '100-00' YEAR TO MONTH, 10)"));
@@ -307,6 +307,15 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         AnalysisException.class,
         "Expected truncation width to be one of [ByteType, ShortType, IntegerType]",
         () -> scalarSql("SELECT system.truncate(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"));
+  }
+
+  @Test
+  public void testInvalidTypesForTruncationColumn() {
+    AssertHelpers.assertThrows(
+        "Interval day-time type should not be usable for truncation column",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int, interval day to second): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
+        () -> scalarSql("SELECT system.truncate(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"));
   }
 
   @Test

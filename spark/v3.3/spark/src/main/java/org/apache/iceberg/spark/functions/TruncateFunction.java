@@ -91,10 +91,7 @@ public class TruncateFunction implements UnboundFunction {
       return new TruncateBinary();
     } else {
       throw new UnsupportedOperationException(
-          String.format(
-              "Invalid input type to truncate. Expected one of [ByteType, ShortType, IntegerType, LongType, "
-                  + "DecimalType, StringType, BinaryType], but found %s",
-              toTruncateDataType));
+          "Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
     }
   }
 
