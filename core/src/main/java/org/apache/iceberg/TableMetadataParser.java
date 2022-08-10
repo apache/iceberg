@@ -362,7 +362,7 @@ public class TableMetadataParser {
       Preconditions.checkArgument(
           formatVersion == 1, "%s must exist in format v%s", SCHEMAS, formatVersion);
 
-      schema = SchemaParser.fromJson(node.get(SCHEMA));
+      schema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, node));
       currentSchemaId = schema.schemaId();
       schemas = ImmutableList.of(schema);
     }
@@ -393,7 +393,7 @@ public class TableMetadataParser {
       specs =
           ImmutableList.of(
               PartitionSpecParser.fromJsonFields(
-                  schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
+                  schema, TableMetadata.INITIAL_SPEC_ID, JsonUtil.get(PARTITION_SPEC, node)));
     }
 
     Integer lastAssignedPartitionId = JsonUtil.getIntOrNull(LAST_PARTITION_ID, node);
@@ -443,7 +443,7 @@ public class TableMetadataParser {
       refs = ImmutableMap.of();
     }
 
-    JsonNode snapshotArray = node.get(SNAPSHOTS);
+    JsonNode snapshotArray = JsonUtil.get(SNAPSHOTS, node);
     Preconditions.checkArgument(
         snapshotArray.isArray(), "Cannot parse snapshots from non-array: %s", snapshotArray);
 
@@ -508,7 +508,7 @@ public class TableMetadataParser {
     Iterator<String> refNames = refMap.fieldNames();
     while (refNames.hasNext()) {
       String refName = refNames.next();
-      JsonNode refNode = refMap.get(refName);
+      JsonNode refNode = JsonUtil.get(refName, refMap);
       Preconditions.checkArgument(
           refNode.isObject(), "Cannot parse ref %s from non-object: %s", refName, refMap);
       SnapshotRef ref = SnapshotRefParser.fromJson(refNode);

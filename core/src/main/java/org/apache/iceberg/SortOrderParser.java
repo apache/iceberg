@@ -125,7 +125,7 @@ public class SortOrderParser {
         json.isObject(), "Cannot parse sort order from non-object: %s", json);
     int orderId = JsonUtil.getInt(ORDER_ID, json);
     UnboundSortOrder.Builder builder = UnboundSortOrder.builder().withOrderId(orderId);
-    buildFromJsonFields(builder, json.get(FIELDS));
+    buildFromJsonFields(builder, JsonUtil.get(FIELDS, json));
     return builder.build();
   }
 

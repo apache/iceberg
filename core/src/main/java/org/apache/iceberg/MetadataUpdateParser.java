@@ -382,8 +382,7 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readAddSchema(JsonNode node) {
-    Preconditions.checkArgument(node.hasNonNull(SCHEMA), "Cannot parse missing field: schema");
-    JsonNode schemaNode = node.get(SCHEMA);
+    JsonNode schemaNode = JsonUtil.get(SCHEMA, node);
     Schema schema = SchemaParser.fromJson(schemaNode);
     int lastColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     return new MetadataUpdate.AddSchema(schema, lastColumnId);
@@ -395,8 +394,7 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readAddPartitionSpec(JsonNode node) {
-    Preconditions.checkArgument(node.hasNonNull(SPEC), "Missing required field: spec");
-    JsonNode specNode = node.get(SPEC);
+    JsonNode specNode = JsonUtil.get(SPEC, node);
     UnboundPartitionSpec spec = PartitionSpecParser.fromJson(specNode);
     return new MetadataUpdate.AddPartitionSpec(spec);
   }
@@ -407,9 +405,7 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readAddSortOrder(JsonNode node) {
-    Preconditions.checkArgument(
-        node.hasNonNull(SORT_ORDER), "Cannot parse missing field: sort-order");
-    JsonNode sortOrderNode = node.get(SORT_ORDER);
+    JsonNode sortOrderNode = JsonUtil.get(SORT_ORDER, node);
     UnboundSortOrder sortOrder = SortOrderParser.fromJson(sortOrderNode);
     return new MetadataUpdate.AddSortOrder(sortOrder);
   }
@@ -420,8 +416,7 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readAddSnapshot(JsonNode node) {
-    Preconditions.checkArgument(node.has(SNAPSHOT), "Cannot parse missing field: snapshot");
-    Snapshot snapshot = SnapshotParser.fromJson(null, node.get(SNAPSHOT));
+    Snapshot snapshot = SnapshotParser.fromJson(null, JsonUtil.get(SNAPSHOT, node));
     return new MetadataUpdate.AddSnapshot(snapshot);
   }
 
