@@ -36,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,26 +109,29 @@ public class DeleteReachableFilesSparkAction
         PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot delete files: GC is disabled (deleting files may corrupt other tables)");
 
-    Dataset<Row> reachableFileDF = buildReachableFileDF(metadata).distinct();
+    Dataset<FileInfo> reachableFileDS = reachableFileDS(metadata);
 
-    boolean streamResults =
-        PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
-    if (streamResults) {
-      return deleteFiles(reachableFileDF.toLocalIterator());
+    if (streamResults()) {
+      return deleteFiles(reachableFileDS.toLocalIterator());
     } else {
-      return deleteFiles(reachableFileDF.collectAsList().iterator());
+      return deleteFiles(reachableFileDS.collectAsList().iterator());
     }
   }
 
-  private Dataset<Row> buildReachableFileDF(TableMetadata metadata) {
-    Table staticTable = newStaticTable(metadata, io);
-    return buildValidContentFileWithTypeDF(staticTable)
-        .union(withFileType(buildManifestFileDF(staticTable), MANIFEST))
-        .union(withFileType(buildManifestListDF(staticTable), MANIFEST_LIST))
-        .union(withFileType(buildAllReachableOtherMetadataFileDF(staticTable), OTHERS));
+  private boolean streamResults() {
+    return PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
   }
 
-  private DeleteReachableFiles.Result deleteFiles(Iterator<Row> files) {
+  private Dataset<FileInfo> reachableFileDS(TableMetadata metadata) {
+    Table staticTable = newStaticTable(metadata, io);
+    return contentFileDS(staticTable)
+        .union(manifestDS(staticTable))
+        .union(manifestListDS(staticTable))
+        .union(allReachableOtherMetadataFileDS(staticTable))
+        .distinct();
+  }
+
+  private DeleteReachableFiles.Result deleteFiles(Iterator<FileInfo> files) {
     DeleteSummary summary = deleteFiles(deleteExecutorService, deleteFunc, files);
     LOG.info("Deleted {} total files", summary.totalFilesCount());
 
