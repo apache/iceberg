@@ -288,7 +288,7 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         "Decimal type should not be coercible to the width field",
         AnalysisException.class,
         "Expected truncation width to be one of [ByteType, ShortType, IntegerType]",
-        () -> scalarSql("SELECT system.truncate(CAST(12.34 as DECIMAL(9, 2)), 10)", 12.34));
+        () -> scalarSql("SELECT system.truncate(CAST('12.34' as DECIMAL(9, 2)), 10)"));
 
     AssertHelpers.assertThrows(
         "String type should not be coercible to the width field",

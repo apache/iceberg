@@ -140,7 +140,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Byte produceResult(InternalRow input) {
-      int width = readWidth(input);
+      int width = width(input);
       return input.isNullAt(1) ? null : invoke(width, input.getByte(1));
     }
   }
@@ -168,7 +168,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Short produceResult(InternalRow input) {
-      int width = readWidth(input);
+      int width = width(input);
       return input.isNullAt(1) ? null : invoke(width, input.getShort(1));
     }
   }
@@ -196,7 +196,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      int width = readWidth(input);
+      int width = width(input);
       return input.isNullAt(1) ? null : invoke(width, input.getInt(1));
     }
   }
@@ -224,7 +224,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Long produceResult(InternalRow input) {
-      int width = readWidth(input);
+      int width = width(input);
       return input.isNullAt(1) ? null : invoke(width, input.getLong(1));
     }
   }
@@ -256,7 +256,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public UTF8String produceResult(InternalRow input) {
-      int width = readWidth(input);
+      int width = width(input);
       return input.isNullAt(1) ? null : invoke(width, input.getUTF8String(1));
     }
   }
@@ -289,7 +289,7 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public byte[] produceResult(InternalRow input) {
-      int width = readWidth(input);
+      int width = width(input);
       return input.isNullAt(1) ? null : invoke(width, input.getBinary(1));
     }
   }
@@ -330,15 +330,15 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Decimal produceResult(InternalRow input) {
-      int width = readWidth(input);
+      int width = width(input);
       return input.isNullAt(1) ? null : invoke(width, input.getDecimal(1, precision, scale));
     }
   }
 
-  // Does not validate that the width is positive, but throws on a `null` width.
-  // This matches the behavior of the magic method `invoke`, except the magic method will return
-  // `null` if a `null` width is used.
-  private static int readWidth(InternalRow input) {
+  // Not identical behavior to magic methods used in codegen,
+  // This function throws on a `null` width, to avoid boxing.
+  // The magic method in Spark's codegen will return `null` for a `null` width.
+  private static int width(InternalRow input) {
     if (input.isNullAt(0)) {
       throw new IllegalArgumentException("Invalid truncation width: null");
     }
