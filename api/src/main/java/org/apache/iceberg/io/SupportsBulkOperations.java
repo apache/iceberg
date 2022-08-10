@@ -23,7 +23,7 @@ public interface SupportsBulkOperations {
    * Delete the files at the given paths.
    *
    * @param pathsToDelete The paths to delete
-   * @throws BulkDeletionFailureException in
+   * @throws BulkDeletionFailureException in case of failure to delete at least 1 file
    */
   void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException;
 }
