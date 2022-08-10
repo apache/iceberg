@@ -98,6 +98,12 @@ public class JsonUtil {
     }
   }
 
+  public static JsonNode get(String property, JsonNode node) {
+    Preconditions.checkArgument(
+        node.hasNonNull(property), "Cannot parse missing field: %s", property);
+    return node.get(property);
+  }
+
   public static int getInt(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing int %s", property);
     JsonNode pNode = node.get(property);
