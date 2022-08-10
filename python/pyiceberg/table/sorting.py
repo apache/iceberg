@@ -36,10 +36,16 @@ class SortDirection(Enum):
     ASC = "asc"
     DESC = "desc"
 
+    def __str__(self):
+        return str(self.name)
+
 
 class NullOrder(Enum):
     NULLS_FIRST = "nulls-first"
     NULLS_LAST = "nulls-last"
+
+    def __str__(self):
+        return str(self.name)
 
 
 class SortField(IcebergBaseModel):
@@ -83,6 +89,9 @@ class SortField(IcebergBaseModel):
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
 
+    def __str__(self):
+        return f"{self.transform}({self.source_id}) {self.direction} {self.null_order}"
+
 
 class SortOrder(IcebergBaseModel):
     """Describes how the data is sorted within the table
@@ -105,6 +114,13 @@ class SortOrder(IcebergBaseModel):
 
     order_id: Optional[int] = Field(alias="order-id")
     fields: List[SortField] = Field(default_factory=list)
+
+    def __str__(self) -> str:
+        result_str = "["
+        if self.fields:
+            result_str += "\n  " + "\n  ".join([str(field) for field in self.fields]) + "\n"
+        result_str += "]"
+        return result_str
 
 
 UNSORTED_SORT_ORDER_ID = 0
