@@ -113,7 +113,7 @@ class S3fsInputFile(InputFile):
     def __len__(self) -> int:
         """Returns the total length of the file, in bytes"""
         object_info = self._s3.info(self.location)
-        if object_info.get("Size"):  # s3fs versions seem inconsistent on the case used for size
+        if size := object_info.get("Size"):  # s3fs versions seem inconsistent on the case used for size
             return object_info["Size"]
         elif object_info.get("size"):
             return object_info["size"]
