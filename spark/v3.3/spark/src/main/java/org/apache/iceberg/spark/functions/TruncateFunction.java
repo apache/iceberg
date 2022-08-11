@@ -54,7 +54,7 @@ public class TruncateFunction implements UnboundFunction {
   private static final int WIDTH_ORDINAL = 0;
   private static final int VALUE_ORDINAL = 1;
 
-  private static void validateTruncationWidthType(DataType widthType) {
+  private static void validateWidthType(DataType widthType) {
     if (!DataTypes.IntegerType.sameType(widthType)
         && !DataTypes.ShortType.sameType(widthType)
         && !DataTypes.ByteType.sameType(widthType)) {
@@ -72,7 +72,8 @@ public class TruncateFunction implements UnboundFunction {
 
     StructField widthField = inputType.fields()[WIDTH_ORDINAL];
     StructField toTruncateField = inputType.fields()[VALUE_ORDINAL];
-    validateTruncationWidthType(widthField.dataType());
+
+    validateWidthType(widthField.dataType());
 
     DataType toTruncateDataType = toTruncateField.dataType();
     if (toTruncateDataType instanceof ByteType) {
