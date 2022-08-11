@@ -61,7 +61,7 @@ from pyiceberg.io import FileIO, load_file_io
 from pyiceberg.schema import Schema, SchemaVisitor, visit
 from pyiceberg.serializers import FromInputFile, ToOutputFile
 from pyiceberg.table import Table
-from pyiceberg.table.metadata import DEFAULT_LAST_PARTITION_ID, TableMetadataV2
+from pyiceberg.table.metadata import DEFAULT_LAST_PARTITION_ID, TableMetadataV1, TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.types import (
@@ -238,7 +238,7 @@ class HiveCatalog(Catalog):
         super().__init__(name, properties)
         self._client = _HiveClient(uri)
 
-    def _convert_hive_into_iceberg(self, table: HiveTable, io: FileIO, metadata_location: Optional[str] = None) -> Table:
+    def _convert_hive_into_iceberg(self, table: HiveTable, io: FileIO) -> Table:
         properties: Dict[str, str] = table.parameters
         if TABLE_TYPE not in properties:
             raise NoSuchTableError(f"Property table_type missing, could not determine type: {table.dbName}.{table.tableName}")
@@ -247,29 +247,28 @@ class HiveCatalog(Catalog):
         if table_type.lower() != ICEBERG:
             raise NoSuchTableError(f"Property table_type is {table_type}, expected {ICEBERG}: {table.dbName}.{table.tableName}")
 
-        if not metadata_location:
-            if prop_metadata_location := properties.get(METADATA_LOCATION):
-                metadata_location = prop_metadata_location
-            else:
-                raise NoSuchTableError("Metadata location not found")
+        if prop_metadata_location := properties.get(METADATA_LOCATION):
+            metadata_location = prop_metadata_location
+        else:
+            raise NoSuchTableError(f"Table property {METADATA_LOCATION} is missing")
 
         file = io.new_input(metadata_location)
         metadata = FromInputFile.table_metadata(file)
         return Table(identifier=(table.dbName, table.tableName), metadata=metadata, metadata_location=metadata_location)
 
-    def _write_metadata(self, metadata: TableMetadataV2, io: FileIO, metadata_path: str):
+    def _write_metadata(self, metadata: Union[TableMetadataV1, TableMetadataV2], io: FileIO, metadata_path: str):
         ToOutputFile.table_metadata(metadata, io.new_output(metadata_path))
 
     def _resolve_table_location(self, location: Optional[str], database_name: str, table_name: str):
         if not location:
-            if warehouse_location := self.properties.get(WAREHOUSE):
-                warehouse_location = warehouse_location.rstrip("/")
-                return f"{warehouse_location}/{database_name}/{table_name}"
-
             database_properties = self.load_namespace_properties(database_name)
             if database_location := database_properties.get(LOCATION):
                 database_location = database_location.rstrip("/")
                 return f"{database_location}/{table_name}"
+
+            if warehouse_location := self.properties.get(WAREHOUSE):
+                warehouse_location = warehouse_location.rstrip("/")
+                return f"{warehouse_location}/{database_name}/{table_name}"
         raise ValueError("Cannot determine location from warehouse, please provide an explicit location")
 
     def create_table(
@@ -299,7 +298,7 @@ class HiveCatalog(Catalog):
             ValueError: If the identifier is invalid
         """
         database_name, table_name = self.identifier_to_database_and_table(identifier)
-        seconds_since_epoch = int(time.time() * 1000)
+        current_time_millis = int(time.time() * 1000)
 
         location = self._resolve_table_location(location, database_name, table_name)
 
@@ -313,21 +312,21 @@ class HiveCatalog(Catalog):
             sort_orders=[sort_order],
             default_sort_order_id=sort_order.order_id,
             properties=properties or {},
-            last_updated_ms=seconds_since_epoch,
+            last_updated_ms=current_time_millis,
             last_column_id=schema.highest_field_id,
             last_partition_id=max(field.field_id for field in partition_spec.fields)
             if partition_spec.fields
             else DEFAULT_LAST_PARTITION_ID,
         )
-        io = load_file_io({**self.properties})
+        io = load_file_io({**self.properties, **properties})
         self._write_metadata(metadata, io, metadata_location)
 
         tbl = HiveTable(
             dbName=database_name,
             tableName=table_name,
             owner=properties[OWNER] if properties and OWNER in properties else getpass.getuser(),
-            createTime=seconds_since_epoch // 1000,
-            lastAccessTime=seconds_since_epoch // 1000,
+            createTime=current_time_millis // 1000,
+            lastAccessTime=current_time_millis // 1000,
             sd=_construct_hive_storage_descriptor(schema, location),
             tableType="EXTERNAL_TABLE",
             parameters=_construct_parameters(metadata_location),
@@ -339,7 +338,7 @@ class HiveCatalog(Catalog):
         except AlreadyExistsException as e:
             raise TableAlreadyExistsError(f"Table {database_name}.{table_name} already exists") from e
 
-        return self._convert_hive_into_iceberg(hive_table, io, metadata_location)
+        return self._convert_hive_into_iceberg(hive_table, io)
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
         """Loads the table's metadata and returns the table instance.
