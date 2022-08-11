@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 public class DefaultMetricsContext implements MetricsContext {
 
   @Override
+  @Deprecated
   public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
     if (Integer.class.equals(type)) {
       return (Counter<T>) new IntCounter(name, unit);
@@ -39,5 +40,10 @@ public class DefaultMetricsContext implements MetricsContext {
   @Override
   public Timer timer(String name, TimeUnit unit) {
     return new DefaultTimer(name, unit);
+  }
+
+  @Override
+  public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
+    return new DefaultCounter(name, unit);
   }
 }

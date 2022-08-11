@@ -25,7 +25,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * A default {@link org.apache.iceberg.metrics.MetricsContext.Counter} implementation that uses a
  * {@link Long} to count events.
+ *
+ * @deprecated Use {@link DefaultCounter} instead.
  */
+@Deprecated
 class LongCounter implements MetricsContext.Counter<Long> {
   static final LongCounter NOOP =
       new LongCounter("NOOP", MetricsContext.Unit.UNDEFINED) {
