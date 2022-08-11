@@ -168,7 +168,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   @Override
-  public List<ManifestFile> apply(TableMetadata base) {
+  public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
     List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests(ops.io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 

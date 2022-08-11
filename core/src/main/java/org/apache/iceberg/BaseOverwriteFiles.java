@@ -105,7 +105,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   }
 
   @Override
-  protected void validate(TableMetadata base) {
+  protected void validate(TableMetadata base, Snapshot snapshot) {
     if (validateAddedFilesMatchOverwriteFilter) {
       PartitionSpec spec = dataSpec();
       Expression rowFilter = rowFilter();

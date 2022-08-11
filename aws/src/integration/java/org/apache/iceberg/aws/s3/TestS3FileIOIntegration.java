@@ -378,8 +378,8 @@ public class TestS3FileIOIntegration {
     List<String> paths = Lists.newArrayList();
     for (int i = 1; i <= numObjects; i++) {
       String deletionKey = objectKey + "-deletion-" + i;
-      write(s3FileIO, String.format("s3://%s/%s", bucketName, deletionKey));
-      paths.add(String.format("s3://%s/%s", bucketName, deletionKey));
+      write(s3FileIO, String.format("s3://%s/%s/%s", bucketName, prefix, deletionKey));
+      paths.add(String.format("s3://%s/%s/%s", bucketName, prefix, deletionKey));
     }
     s3FileIO.deleteFiles(paths);
     for (String path : paths) {

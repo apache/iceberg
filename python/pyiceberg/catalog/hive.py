@@ -224,7 +224,7 @@ class HiveCatalog(Catalog):
             location: Location for the table. Optional Argument.
             partition_spec: PartitionSpec for the table.
             sort_order: SortOrder for the table.
-            properties: Table properties that can be a string based dictionary. Optional Argument.
+            properties: Table properties that can be a string based dictionary.
 
         Returns:
             Table: the created table instance
@@ -425,7 +425,7 @@ class HiveCatalog(Catalog):
         Args:
             namespace: Namespace identifier
             removals: Set of property keys that need to be removed. Optional Argument.
-            updates: Properties to be updated for the given namespace. Optional Argument.
+            updates: Properties to be updated for the given namespace.
 
         Raises:
             NoSuchNamespaceError: If a namespace with the given name does not exist
