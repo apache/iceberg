@@ -127,23 +127,6 @@ public class TestTimerResultParser {
   }
 
   @Test
-  public void roundTripSerdeNoopTimer() {
-    TimerResult timer =
-        TimerResult.fromTimer(MetricsContext.nullMetrics().timer("name", TimeUnit.HOURS));
-    String expectedJson =
-        "{\n"
-            + "  \"name\" : \"undefined\",\n"
-            + "  \"count\" : 0,\n"
-            + "  \"time-unit\" : \"nanoseconds\",\n"
-            + "  \"total-duration\" : 0\n"
-            + "}";
-
-    String json = TimerResultParser.toJson(timer, true);
-    Assertions.assertThat(TimerResultParser.fromJson(json)).isEqualTo(timer);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
-  }
-
-  @Test
   public void toDuration() {
     Assertions.assertThat(TimerResultParser.toDuration(5L, TimeUnit.NANOSECONDS))
         .isEqualTo(Duration.ofNanos(5L));

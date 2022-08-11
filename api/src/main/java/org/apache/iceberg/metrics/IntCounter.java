@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 class IntCounter implements MetricsContext.Counter<Integer> {
   static final IntCounter NOOP =
-      new IntCounter("undefined", MetricsContext.Unit.UNDEFINED) {
+      new IntCounter("NOOP", MetricsContext.Unit.UNDEFINED) {
         @Override
         public void increment() {}
 

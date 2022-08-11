@@ -145,6 +145,9 @@ public class ScanReport {
 
     static TimerResult fromTimer(Timer timer) {
       Preconditions.checkArgument(null != timer, "Invalid timer: null");
+      if (Timer.NOOP.equals(timer)) {
+        return null;
+      }
       return new TimerResult(timer.name(), timer.unit(), timer.totalDuration(), timer.count());
     }
 
@@ -214,6 +217,9 @@ public class ScanReport {
 
     static CounterResult fromCounter(Counter<Long> counter) {
       Preconditions.checkArgument(null != counter, "Invalid counter: null");
+      if (LongCounter.NOOP.equals(counter)) {
+        return null;
+      }
       return new CounterResult(counter.name(), counter.unit(), counter.value());
     }
 

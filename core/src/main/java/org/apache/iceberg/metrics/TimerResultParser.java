@@ -94,11 +94,10 @@ class TimerResultParser {
   static TimerResult fromJson(String timerName, JsonNode json) {
     Preconditions.checkArgument(null != json, "Cannot parse timer from null object");
     Preconditions.checkArgument(json.isObject(), "Cannot parse timer from non-object: %s", json);
+
     if (!json.has(timerName)) {
-      return TimerResult.fromTimer(Timer.NOOP);
+      return null;
     }
-    Preconditions.checkArgument(
-        json.has(timerName), "Cannot parse timer from missing field: %s", timerName);
 
     JsonNode timer = json.get(timerName);
     Preconditions.checkArgument(timer.has(COUNT), MISSING_FIELD_ERROR_MSG, timerName, COUNT);

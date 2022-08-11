@@ -49,14 +49,14 @@ class CounterResultParser {
     toJson(counter, gen, true);
   }
 
-  static void toJson(CounterResult counter, JsonGenerator gen, boolean includeCounterName)
+  static void toJson(CounterResult counter, JsonGenerator gen, boolean includeName)
       throws IOException {
     Preconditions.checkArgument(null != counter, "Invalid counter: null");
 
     gen.writeStartObject();
     // ScanMetricsResultParser mainly uses this with includeName=false, since it includes the name
     // in a parent structure
-    if (includeCounterName) {
+    if (includeName) {
       gen.writeStringField(NAME, counter.name());
     }
     gen.writeStringField(UNIT, counter.unit().displayName());
@@ -89,11 +89,10 @@ class CounterResultParser {
   static CounterResult fromJson(String counterName, JsonNode json) {
     Preconditions.checkArgument(null != json, "Cannot parse counter from null object");
     Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
+
     if (!json.has(counterName)) {
-      return CounterResult.fromCounter(LongCounter.NOOP);
+      return null;
     }
-    Preconditions.checkArgument(
-        json.has(counterName), "Cannot parse counter from missing field: %s", counterName);
 
     JsonNode counter = json.get(counterName);
     Preconditions.checkArgument(counter.has(UNIT), MISSING_FIELD_ERROR_MSG, counterName, UNIT);

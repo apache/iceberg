@@ -64,12 +64,15 @@ public class TestScanReport {
     Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
     Assertions.assertThat(scanReport.projection()).isEqualTo(projection);
     Assertions.assertThat(scanReport.snapshotId()).isEqualTo(-1);
-    Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
-        .isEqualTo(Duration.ZERO);
-    Assertions.assertThat(scanReport.scanMetrics().resultDataFiles().value()).isEqualTo(0);
-    Assertions.assertThat(scanReport.scanMetrics().totalDataManifests().value()).isEqualTo(0);
-    Assertions.assertThat(scanReport.scanMetrics().scannedDataManifests().value()).isEqualTo(0);
-    Assertions.assertThat(scanReport.scanMetrics().totalFileSizeInBytes().value()).isEqualTo(0L);
+    Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration()).isNull();
+    Assertions.assertThat(scanReport.scanMetrics().resultDataFiles()).isNull();
+    Assertions.assertThat(scanReport.scanMetrics().resultDeleteFiles()).isNull();
+    Assertions.assertThat(scanReport.scanMetrics().totalDataManifests()).isNull();
+    Assertions.assertThat(scanReport.scanMetrics().totalDeleteManifests()).isNull();
+    Assertions.assertThat(scanReport.scanMetrics().scannedDataManifests()).isNull();
+    Assertions.assertThat(scanReport.scanMetrics().skippedDataManifests()).isNull();
+    Assertions.assertThat(scanReport.scanMetrics().totalFileSizeInBytes()).isNull();
+    Assertions.assertThat(scanReport.scanMetrics().totalDeleteFileSizeInBytes()).isNull();
   }
 
   @Test
