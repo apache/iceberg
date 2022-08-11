@@ -77,10 +77,6 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     Assert.assertNull(
         "Null input should return null",
         scalarSql("SELECT system.truncate(2, CAST(null AS smallint))"));
-
-    Assert.assertNull(
-        "A null width should return null, as that's the behavior of Spark's code generation",
-        scalarSql("SELECT system.truncate(cast(null as int), 1S)"));
   }
 
   @Test
@@ -278,7 +274,7 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         spark
             .range(rumRows)
             .toDF("value")
-            .selectExpr("CAST(value +1 AS INT) AS width", "value")
+            .selectExpr("CAST(value + 1 AS INT) AS width", "value")
             .selectExpr("system.truncate(width, value) as truncated_value")
             .filter("truncated_value == 0")
             .count();
@@ -286,6 +282,14 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         "A truncate function with variable widths should be usable on dataframe columns",
         rumRows,
         numNonZero);
+  }
+
+  @Test
+  public void testWidthFieldFailsWithNullableType() {
+    AssertHelpers.assertThrows("The width field should reject using a nullable int type",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int, int): Truncation width field cannot be nullable",
+        () -> scalarSql("SELECT system.truncate(cast(null as int), 1)"));
   }
 
   @Test
