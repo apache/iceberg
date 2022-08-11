@@ -270,7 +270,8 @@ class HiveCatalog(Catalog):
             if warehouse_location := self.properties.get(WAREHOUSE):
                 warehouse_location = warehouse_location.rstrip("/")
                 return f"{warehouse_location}/{database_name}/{table_name}"
-        raise ValueError("Cannot determine location from warehouse, please provide an explicit location")
+            raise ValueError("Cannot determine location from warehouse, please provide an explicit location")
+        return location
 
     def create_table(
         self,
@@ -303,7 +304,7 @@ class HiveCatalog(Catalog):
 
         location = self._resolve_table_location(location, database_name, table_name)
 
-        metadata_location = f"{location}/metadata/{uuid.uuid4()}.metadata.json"
+        metadata_location = f"{location}/metadata/00000-{uuid.uuid4()}.metadata.json"
         metadata = TableMetadataV2(
             location=location,
             schemas=[schema],
