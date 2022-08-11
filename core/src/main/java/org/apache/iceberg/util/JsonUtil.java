@@ -190,11 +190,6 @@ public class JsonUtil {
     return pNode.asText();
   }
 
-  public static JsonNode get(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing field: %s", property);
-    return node.get(property);
-  }
-
   public static Map<String, String> getStringMap(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing map %s", property);
     JsonNode pNode = node.get(property);

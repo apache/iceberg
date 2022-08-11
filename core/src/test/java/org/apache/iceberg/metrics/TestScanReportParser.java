@@ -93,15 +93,15 @@ public class TestScanReportParser {
             ScanReportParser.fromJson(
                 "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,"
                     + "\"filter\":\"true\",\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{\"id\":1,\"name\":\"c1\",\"required\":true,\"type\":\"string\",\"doc\":\"c1\"}]},"
-                    + "\"metrics\":{\"total-planning-duration\":{\"name\":\"totalPlanningDuration\",\"count\":1,\"time-unit\":\"NANOSECONDS\",\"total-duration\":600000000000},"
-                    + "\"result-data-files\":{\"name\":\"resultDataFiles\",\"unit\":\"COUNT\",\"value\":5},"
-                    + "\"result-delete-files\":{\"name\":\"resultDeleteFiles\",\"unit\":\"COUNT\",\"value\":5},"
-                    + "\"total-data-manifests\":{\"name\":\"totalDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
-                    + "\"total-delete-manifests\":{\"name\":\"totalDeleteManifests\",\"unit\":\"COUNT\",\"value\":0},"
-                    + "\"scanned-data-manifests\":{\"name\":\"scannedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
-                    + "\"skipped-data-manifests\":{\"name\":\"skippedDataManifests\",\"unit\":\"COUNT\",\"value\":5},"
-                    + "\"total-file-size-bytes\":{\"name\":\"totalFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":1069},"
-                    + "\"total-delete-file-size-bytes\":{\"name\":\"totalDeleteFileSizeInBytes\",\"unit\":\"BYTES\",\"value\":23},"
+                    + "\"metrics\":{\"total-planning-duration\":{\"count\":1,\"time-unit\":\"nanoseconds\",\"total-duration\":600000000000},"
+                    + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"result-delete-files\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-delete-manifests\":{\"unit\":\"count\",\"value\":0},"
+                    + "\"scanned-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"skipped-data-manifests\":{\"unit\":\"count\",\"value\":5},"
+                    + "\"total-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":1069},"
+                    + "\"total-delete-file-size-in-bytes\":{\"unit\":\"bytes\",\"value\":23},"
                     + "\"extra-metric\":\"extra-val\"},"
                     + "\"extra\":\"extraVal\"}"))
         .usingRecursiveComparison()
@@ -160,9 +160,67 @@ public class TestScanReportParser {
             .fromScanMetrics(scanMetrics)
             .build();
 
-    Assertions.assertThat(ScanReportParser.fromJson(ScanReportParser.toJson(scanReport)))
+    String expectedJson =
+        "{\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"projection\" : {\n"
+            + "    \"type\" : \"struct\",\n"
+            + "    \"schema-id\" : 0,\n"
+            + "    \"fields\" : [ {\n"
+            + "      \"id\" : 1,\n"
+            + "      \"name\" : \"c1\",\n"
+            + "      \"required\" : true,\n"
+            + "      \"type\" : \"string\",\n"
+            + "      \"doc\" : \"c1\"\n"
+            + "    } ]\n"
+            + "  },\n"
+            + "  \"metrics\" : {\n"
+            + "    \"total-planning-duration\" : {\n"
+            + "      \"count\" : 1,\n"
+            + "      \"time-unit\" : \"nanoseconds\",\n"
+            + "      \"total-duration\" : 600000000000\n"
+            + "    },\n"
+            + "    \"result-data-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 5\n"
+            + "    },\n"
+            + "    \"result-delete-files\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 5\n"
+            + "    },\n"
+            + "    \"total-data-manifests\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 5\n"
+            + "    },\n"
+            + "    \"total-delete-manifests\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 0\n"
+            + "    },\n"
+            + "    \"scanned-data-manifests\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 5\n"
+            + "    },\n"
+            + "    \"skipped-data-manifests\" : {\n"
+            + "      \"unit\" : \"count\",\n"
+            + "      \"value\" : 5\n"
+            + "    },\n"
+            + "    \"total-file-size-in-bytes\" : {\n"
+            + "      \"unit\" : \"bytes\",\n"
+            + "      \"value\" : 1069\n"
+            + "    },\n"
+            + "    \"total-delete-file-size-in-bytes\" : {\n"
+            + "      \"unit\" : \"bytes\",\n"
+            + "      \"value\" : 23\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+    String json = ScanReportParser.toJson(scanReport, true);
+    Assertions.assertThat(ScanReportParser.fromJson(json))
         .usingRecursiveComparison()
         .ignoringFields("projection")
         .isEqualTo(scanReport);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
   }
 }

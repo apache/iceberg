@@ -19,6 +19,7 @@
 package org.apache.iceberg.metrics;
 
 import java.io.Serializable;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -44,17 +45,7 @@ public interface MetricsContext extends Serializable {
     }
 
     public static Unit fromDisplayName(String displayName) {
-      if ("undefined".equalsIgnoreCase(displayName)) {
-        return UNDEFINED;
-      }
-      if ("bytes".equalsIgnoreCase(displayName)) {
-        return BYTES;
-      }
-      if ("count".equalsIgnoreCase(displayName)) {
-        return COUNT;
-      }
-
-      throw new IllegalArgumentException("Cannot determine unit from display name: " + displayName);
+      return Unit.valueOf(displayName.toUpperCase(Locale.ROOT));
     }
   }
 

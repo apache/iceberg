@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.metrics;
 
-import java.io.Serializable;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
@@ -29,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** A Table Scan report that contains all relevant information from a Table Scan. */
-public class ScanReport implements Serializable {
+public class ScanReport {
 
   private final String tableName;
   private final long snapshotId;
@@ -79,6 +78,7 @@ public class ScanReport implements Serializable {
     if (this == o) {
       return true;
     }
+
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
@@ -137,13 +137,18 @@ public class ScanReport implements Serializable {
   }
 
   /** A serializable version of a {@link Timer} that carries its result. */
-  public static class TimerResult implements Serializable {
+  public static class TimerResult {
     private final String name;
     private final TimeUnit timeUnit;
     private final Duration totalDuration;
     private final long count;
 
-    public TimerResult(String name, TimeUnit timeUnit, Duration totalDuration, long count) {
+    static TimerResult fromTimer(Timer timer) {
+      Preconditions.checkArgument(null != timer, "Invalid timer: null");
+      return new TimerResult(timer.name(), timer.unit(), timer.totalDuration(), timer.count());
+    }
+
+    TimerResult(String name, TimeUnit timeUnit, Duration totalDuration, long count) {
       Preconditions.checkArgument(null != name, "Invalid timer name: null");
       Preconditions.checkArgument(null != timeUnit, "Invalid time unit: null");
       Preconditions.checkArgument(null != totalDuration, "Invalid duration: null");
@@ -178,16 +183,12 @@ public class ScanReport implements Serializable {
           .toString();
     }
 
-    public static TimerResult fromTimer(Timer timer) {
-      Preconditions.checkArgument(null != timer, "Invalid timer: null");
-      return new TimerResult(timer.name(), timer.unit(), timer.totalDuration(), timer.count());
-    }
-
     @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
       }
+
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
@@ -205,20 +206,20 @@ public class ScanReport implements Serializable {
     }
   }
 
-  /**
-   * A serializable version of a {@link Counter} that carries its result.
-   *
-   * @param <T> The type of the {@link CounterResult}.
-   */
-  public static class CounterResult<T extends Number> implements Serializable {
+  /** A serializable version of a {@link Counter} that carries its result. */
+  public static class CounterResult {
     private final String name;
     private final MetricsContext.Unit unit;
-    private final T value;
+    private final long value;
 
-    public CounterResult(String name, Unit unit, T value) {
+    static CounterResult fromCounter(Counter<Long> counter) {
+      Preconditions.checkArgument(null != counter, "Invalid counter: null");
+      return new CounterResult(counter.name(), counter.unit(), counter.value());
+    }
+
+    CounterResult(String name, Unit unit, long value) {
       Preconditions.checkArgument(null != name, "Invalid counter name: null");
       Preconditions.checkArgument(null != unit, "Invalid counter unit: null");
-      Preconditions.checkArgument(null != value, "Invalid counter value: null");
       this.name = name;
       this.unit = unit;
       this.value = value;
@@ -232,7 +233,7 @@ public class ScanReport implements Serializable {
       return unit;
     }
 
-    public T value() {
+    public long value() {
       return value;
     }
 
@@ -241,21 +242,17 @@ public class ScanReport implements Serializable {
       return String.format("%s{%s=%s}", name(), unit().displayName(), value());
     }
 
-    public static <T extends Number> CounterResult<T> fromCounter(Counter<T> counter) {
-      Preconditions.checkArgument(null != counter, "Invalid counter: null");
-      return new CounterResult<>(counter.name(), counter.unit(), counter.value());
-    }
-
     @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
       }
+
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
 
-      CounterResult<?> that = (CounterResult<?>) o;
+      CounterResult that = (CounterResult) o;
       return Objects.equal(name, that.name)
           && unit == that.unit
           && Objects.equal(value, that.value);
@@ -268,27 +265,41 @@ public class ScanReport implements Serializable {
   }
 
   /** A serializable version of {@link ScanMetrics} that carries its results. */
-  public static class ScanMetricsResult implements Serializable {
+  public static class ScanMetricsResult {
     private final TimerResult totalPlanningDuration;
-    private final CounterResult<Long> resultDataFiles;
-    private final CounterResult<Long> resultDeleteFiles;
-    private final CounterResult<Long> totalDataManifests;
-    private final CounterResult<Long> totalDeleteManifests;
-    private final CounterResult<Long> scannedDataManifests;
-    private final CounterResult<Long> skippedDataManifests;
-    private final CounterResult<Long> totalFileSizeInBytes;
-    private final CounterResult<Long> totalDeleteFileSizeInBytes;
+    private final CounterResult resultDataFiles;
+    private final CounterResult resultDeleteFiles;
+    private final CounterResult totalDataManifests;
+    private final CounterResult totalDeleteManifests;
+    private final CounterResult scannedDataManifests;
+    private final CounterResult skippedDataManifests;
+    private final CounterResult totalFileSizeInBytes;
+    private final CounterResult totalDeleteFileSizeInBytes;
 
-    public ScanMetricsResult(
+    static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
+      Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
+      return new ScanMetricsResult(
+          TimerResult.fromTimer(scanMetrics.totalPlanningDuration),
+          CounterResult.fromCounter(scanMetrics.resultDataFiles),
+          CounterResult.fromCounter(scanMetrics.resultDeleteFiles),
+          CounterResult.fromCounter(scanMetrics.totalDataManifests),
+          CounterResult.fromCounter(scanMetrics.totalDeleteManifests),
+          CounterResult.fromCounter(scanMetrics.scannedDataManifests),
+          CounterResult.fromCounter(scanMetrics.skippedDataManifests),
+          CounterResult.fromCounter(scanMetrics.totalFileSizeInBytes),
+          CounterResult.fromCounter(scanMetrics.totalDeleteFileSizeInBytes));
+    }
+
+    ScanMetricsResult(
         TimerResult totalPlanningDuration,
-        CounterResult<Long> resultDataFiles,
-        CounterResult<Long> resultDeleteFiles,
-        CounterResult<Long> totalDataManifests,
-        CounterResult<Long> totalDeleteManifests,
-        CounterResult<Long> scannedDataManifests,
-        CounterResult<Long> skippedDataManifests,
-        CounterResult<Long> totalFileSizeInBytes,
-        CounterResult<Long> totalDeleteFileSizeInBytes) {
+        CounterResult resultDataFiles,
+        CounterResult resultDeleteFiles,
+        CounterResult totalDataManifests,
+        CounterResult totalDeleteManifests,
+        CounterResult scannedDataManifests,
+        CounterResult skippedDataManifests,
+        CounterResult totalFileSizeInBytes,
+        CounterResult totalDeleteFileSizeInBytes) {
       this.totalPlanningDuration = totalPlanningDuration;
       this.resultDataFiles = resultDataFiles;
       this.resultDeleteFiles = resultDeleteFiles;
@@ -304,50 +315,36 @@ public class ScanReport implements Serializable {
       return totalPlanningDuration;
     }
 
-    public CounterResult<Long> resultDataFiles() {
+    public CounterResult resultDataFiles() {
       return resultDataFiles;
     }
 
-    public CounterResult<Long> resultDeleteFiles() {
+    public CounterResult resultDeleteFiles() {
       return resultDeleteFiles;
     }
 
-    public CounterResult<Long> totalDataManifests() {
+    public CounterResult totalDataManifests() {
       return totalDataManifests;
     }
 
-    public CounterResult<Long> totalDeleteManifests() {
+    public CounterResult totalDeleteManifests() {
       return totalDeleteManifests;
     }
 
-    public CounterResult<Long> scannedDataManifests() {
+    public CounterResult scannedDataManifests() {
       return scannedDataManifests;
     }
 
-    public CounterResult<Long> skippedDataManifests() {
+    public CounterResult skippedDataManifests() {
       return skippedDataManifests;
     }
 
-    public CounterResult<Long> totalFileSizeInBytes() {
+    public CounterResult totalFileSizeInBytes() {
       return totalFileSizeInBytes;
     }
 
-    public CounterResult<Long> totalDeleteFileSizeInBytes() {
+    public CounterResult totalDeleteFileSizeInBytes() {
       return totalDeleteFileSizeInBytes;
-    }
-
-    public static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
-      Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
-      return new ScanMetricsResult(
-          TimerResult.fromTimer(scanMetrics.totalPlanningDuration),
-          CounterResult.fromCounter(scanMetrics.resultDataFiles),
-          CounterResult.fromCounter(scanMetrics.resultDeleteFiles),
-          CounterResult.fromCounter(scanMetrics.totalDataManifests),
-          CounterResult.fromCounter(scanMetrics.totalDeleteManifests),
-          CounterResult.fromCounter(scanMetrics.scannedDataManifests),
-          CounterResult.fromCounter(scanMetrics.skippedDataManifests),
-          CounterResult.fromCounter(scanMetrics.totalFileSizeInBytes),
-          CounterResult.fromCounter(scanMetrics.totalDeleteFileSizeInBytes));
     }
 
     @Override
@@ -370,6 +367,7 @@ public class ScanReport implements Serializable {
       if (this == o) {
         return true;
       }
+
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
@@ -404,6 +402,15 @@ public class ScanReport implements Serializable {
   /** Carries all metrics for a particular scan */
   public static class ScanMetrics {
     public static final ScanMetrics NOOP = new ScanMetrics(MetricsContext.nullMetrics());
+    public static final String TOTAL_PLANNING_DURATION = "total-planning-duration";
+    public static final String RESULT_DATA_FILES = "result-data-files";
+    public static final String RESULT_DELETE_FILES = "result-delete-files";
+    public static final String SCANNED_DATA_MANIFESTS = "scanned-data-manifests";
+    public static final String TOTAL_DATA_MANIFESTS = "total-data-manifests";
+    public static final String TOTAL_DELETE_MANIFESTS = "total-delete-manifests";
+    public static final String TOTAL_FILE_SIZE_IN_BYTES = "total-file-size-in-bytes";
+    public static final String TOTAL_DELETE_FILE_SIZE_IN_BYTES = "total-delete-file-size-in-bytes";
+    public static final String SKIPPED_DATA_MANIFESTS = "skipped-data-manifests";
     private final Timer totalPlanningDuration;
     private final Counter<Long> resultDataFiles;
     private final Counter<Long> resultDeleteFiles;
@@ -417,24 +424,24 @@ public class ScanReport implements Serializable {
     public ScanMetrics(MetricsContext metricsContext) {
       Preconditions.checkArgument(null != metricsContext, "Invalid metrics context: null");
       this.totalPlanningDuration =
-          metricsContext.timer("totalPlanningDuration", TimeUnit.NANOSECONDS);
+          metricsContext.timer(TOTAL_PLANNING_DURATION, TimeUnit.NANOSECONDS);
       this.resultDataFiles =
-          metricsContext.counter("resultDataFiles", Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(RESULT_DATA_FILES, Long.class, MetricsContext.Unit.COUNT);
       this.resultDeleteFiles =
-          metricsContext.counter("resultDeleteFiles", Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(RESULT_DELETE_FILES, Long.class, MetricsContext.Unit.COUNT);
       this.scannedDataManifests =
-          metricsContext.counter("scannedDataManifests", Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(SCANNED_DATA_MANIFESTS, Long.class, MetricsContext.Unit.COUNT);
       this.totalDataManifests =
-          metricsContext.counter("totalDataManifests", Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(TOTAL_DATA_MANIFESTS, Long.class, MetricsContext.Unit.COUNT);
       this.totalDeleteManifests =
-          metricsContext.counter("totalDeleteManifests", Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(TOTAL_DELETE_MANIFESTS, Long.class, MetricsContext.Unit.COUNT);
       this.totalFileSizeInBytes =
-          metricsContext.counter("totalFileSizeInBytes", Long.class, MetricsContext.Unit.BYTES);
+          metricsContext.counter(TOTAL_FILE_SIZE_IN_BYTES, Long.class, MetricsContext.Unit.BYTES);
       this.totalDeleteFileSizeInBytes =
           metricsContext.counter(
-              "totalDeleteFileSizeInBytes", Long.class, MetricsContext.Unit.BYTES);
+              TOTAL_DELETE_FILE_SIZE_IN_BYTES, Long.class, MetricsContext.Unit.BYTES);
       this.skippedDataManifests =
-          metricsContext.counter("skippedDataManifests", Long.class, MetricsContext.Unit.COUNT);
+          metricsContext.counter(SKIPPED_DATA_MANIFESTS, Long.class, MetricsContext.Unit.COUNT);
     }
 
     public Timer totalPlanningDuration() {

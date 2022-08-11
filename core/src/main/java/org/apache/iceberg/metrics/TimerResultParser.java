@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.metrics.ScanReport.TimerResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -40,21 +41,29 @@ class TimerResultParser {
 
   private TimerResultParser() {}
 
-  static String toJson(TimerResult timerResult) {
-    return toJson(timerResult, false);
+  static String toJson(TimerResult timer) {
+    return toJson(timer, false);
   }
 
-  static String toJson(TimerResult timerResult, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(timerResult, gen), pretty);
+  static String toJson(TimerResult timer, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(timer, gen), pretty);
   }
 
   static void toJson(TimerResult timer, JsonGenerator gen) throws IOException {
+    toJson(timer, gen, true);
+  }
+
+  static void toJson(TimerResult timer, JsonGenerator gen, boolean includeName) throws IOException {
     Preconditions.checkArgument(null != timer, "Invalid timer: null");
 
     gen.writeStartObject();
-    gen.writeStringField(NAME, timer.name());
+    // ScanMetricsResultParser mainly uses this with includeName=false, since it includes the name
+    // in a parent structure
+    if (includeName) {
+      gen.writeStringField(NAME, timer.name());
+    }
     gen.writeNumberField(COUNT, timer.count());
-    gen.writeStringField(TIME_UNIT, timer.timeUnit().name());
+    gen.writeStringField(TIME_UNIT, timer.timeUnit().name().toLowerCase(Locale.ROOT));
     gen.writeNumberField(TOTAL_DURATION, fromDuration(timer.totalDuration(), timer.timeUnit()));
     gen.writeEndObject();
   }
@@ -63,32 +72,42 @@ class TimerResultParser {
     return JsonUtil.parse(json, TimerResultParser::fromJson);
   }
 
-  static TimerResult fromJson(String property, JsonNode json) {
-    return fromJson(get(property, json));
-  }
-
   static TimerResult fromJson(JsonNode json) {
     Preconditions.checkArgument(null != json, "Cannot parse timer from null object");
     Preconditions.checkArgument(json.isObject(), "Cannot parse timer from non-object: %s", json);
 
     String name = JsonUtil.getString(NAME, json);
     long count = JsonUtil.getLong(COUNT, json);
-    TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, json));
+    TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, json).toUpperCase(Locale.ROOT));
     long duration = JsonUtil.getLong(TOTAL_DURATION, json);
     return new TimerResult(name, unit, toDuration(duration, unit), count);
   }
 
-  private static JsonNode get(String property, JsonNode node) {
+  /**
+   * This is mainly used from {@link ScanMetricsResultParser} where the timer name is already part
+   * of the parent {@link JsonNode}, so we omit checking and reading the timer name here.
+   *
+   * @param timerName The timer name
+   * @param json The {@link JsonNode} containing all other timer information
+   * @return A {@link TimerResult} instance
+   */
+  static TimerResult fromJson(String timerName, JsonNode json) {
+    Preconditions.checkArgument(null != json, "Cannot parse timer from null object");
+    Preconditions.checkArgument(json.isObject(), "Cannot parse timer from non-object: %s", json);
     Preconditions.checkArgument(
-        node.has(property), "Cannot parse timer from missing field: %s", property);
+        json.has(timerName), "Cannot parse timer from missing field: %s", timerName);
 
-    JsonNode timer = node.get(property);
-    Preconditions.checkArgument(timer.has(NAME), MISSING_FIELD_ERROR_MSG, property, NAME);
-    Preconditions.checkArgument(timer.has(COUNT), MISSING_FIELD_ERROR_MSG, property, COUNT);
-    Preconditions.checkArgument(timer.has(TIME_UNIT), MISSING_FIELD_ERROR_MSG, property, TIME_UNIT);
+    JsonNode timer = json.get(timerName);
+    Preconditions.checkArgument(timer.has(COUNT), MISSING_FIELD_ERROR_MSG, timerName, COUNT);
     Preconditions.checkArgument(
-        timer.has(TOTAL_DURATION), MISSING_FIELD_ERROR_MSG, property, TOTAL_DURATION);
-    return timer;
+        timer.has(TIME_UNIT), MISSING_FIELD_ERROR_MSG, timerName, TIME_UNIT);
+    Preconditions.checkArgument(
+        timer.has(TOTAL_DURATION), MISSING_FIELD_ERROR_MSG, timerName, TOTAL_DURATION);
+
+    long count = JsonUtil.getLong(COUNT, timer);
+    TimeUnit unit = TimeUnit.valueOf(JsonUtil.getString(TIME_UNIT, timer).toUpperCase(Locale.ROOT));
+    long duration = JsonUtil.getLong(TOTAL_DURATION, timer);
+    return new TimerResult(timerName, unit, toDuration(duration, unit), count);
   }
 
   @VisibleForTesting
@@ -102,7 +121,6 @@ class TimerResultParser {
   }
 
   private static ChronoUnit toChronoUnit(TimeUnit unit) {
-    // copied from JDK9
     switch (unit) {
       case NANOSECONDS:
         return ChronoUnit.NANOS;

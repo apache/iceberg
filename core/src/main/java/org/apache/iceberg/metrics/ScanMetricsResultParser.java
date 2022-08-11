@@ -21,21 +21,12 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
 import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 class ScanMetricsResultParser {
-  private static final String TOTAL_PLANNING_DURATION = "total-planning-duration";
-  private static final String RESULT_DATA_FILES = "result-data-files";
-  private static final String RESULT_DELETE_FILES = "result-delete-files";
-  private static final String TOTAL_DATA_MANIFESTS = "total-data-manifests";
-  private static final String TOTAL_DELETE_MANIFESTS = "total-delete-manifests";
-  private static final String SCANNED_DATA_MANIFESTS = "scanned-data-manifests";
-  private static final String SKIPPED_DATA_MANIFESTS = "skipped-data-manifests";
-  private static final String TOTAL_FILE_SIZE_BYTES = "total-file-size-bytes";
-  private static final String TOTAL_DELETE_FILE_SIZE_BYTES = "total-delete-file-size-bytes";
-
   private ScanMetricsResultParser() {}
 
   static String toJson(ScanMetricsResult metrics) {
@@ -48,35 +39,36 @@ class ScanMetricsResultParser {
 
   static void toJson(ScanMetricsResult metrics, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != metrics, "Invalid scan metrics: null");
+    boolean includeMetricName = false;
 
     gen.writeStartObject();
 
-    gen.writeFieldName(TOTAL_PLANNING_DURATION);
-    TimerResultParser.toJson(metrics.totalPlanningDuration(), gen);
+    gen.writeFieldName(ScanMetrics.TOTAL_PLANNING_DURATION);
+    TimerResultParser.toJson(metrics.totalPlanningDuration(), gen, includeMetricName);
 
-    gen.writeFieldName(RESULT_DATA_FILES);
-    CounterResultParser.toJson(metrics.resultDataFiles(), gen);
+    gen.writeFieldName(ScanMetrics.RESULT_DATA_FILES);
+    CounterResultParser.toJson(metrics.resultDataFiles(), gen, includeMetricName);
 
-    gen.writeFieldName(RESULT_DELETE_FILES);
-    CounterResultParser.toJson(metrics.resultDeleteFiles(), gen);
+    gen.writeFieldName(ScanMetrics.RESULT_DELETE_FILES);
+    CounterResultParser.toJson(metrics.resultDeleteFiles(), gen, includeMetricName);
 
-    gen.writeFieldName(TOTAL_DATA_MANIFESTS);
-    CounterResultParser.toJson(metrics.totalDataManifests(), gen);
+    gen.writeFieldName(ScanMetrics.TOTAL_DATA_MANIFESTS);
+    CounterResultParser.toJson(metrics.totalDataManifests(), gen, includeMetricName);
 
-    gen.writeFieldName(TOTAL_DELETE_MANIFESTS);
-    CounterResultParser.toJson(metrics.totalDeleteManifests(), gen);
+    gen.writeFieldName(ScanMetrics.TOTAL_DELETE_MANIFESTS);
+    CounterResultParser.toJson(metrics.totalDeleteManifests(), gen, includeMetricName);
 
-    gen.writeFieldName(SCANNED_DATA_MANIFESTS);
-    CounterResultParser.toJson(metrics.scannedDataManifests(), gen);
+    gen.writeFieldName(ScanMetrics.SCANNED_DATA_MANIFESTS);
+    CounterResultParser.toJson(metrics.scannedDataManifests(), gen, includeMetricName);
 
-    gen.writeFieldName(SKIPPED_DATA_MANIFESTS);
-    CounterResultParser.toJson(metrics.skippedDataManifests(), gen);
+    gen.writeFieldName(ScanMetrics.SKIPPED_DATA_MANIFESTS);
+    CounterResultParser.toJson(metrics.skippedDataManifests(), gen, includeMetricName);
 
-    gen.writeFieldName(TOTAL_FILE_SIZE_BYTES);
-    CounterResultParser.toJson(metrics.totalFileSizeInBytes(), gen);
+    gen.writeFieldName(ScanMetrics.TOTAL_FILE_SIZE_IN_BYTES);
+    CounterResultParser.toJson(metrics.totalFileSizeInBytes(), gen, includeMetricName);
 
-    gen.writeFieldName(TOTAL_DELETE_FILE_SIZE_BYTES);
-    CounterResultParser.toJson(metrics.totalDeleteFileSizeInBytes(), gen);
+    gen.writeFieldName(ScanMetrics.TOTAL_DELETE_FILE_SIZE_IN_BYTES);
+    CounterResultParser.toJson(metrics.totalDeleteFileSizeInBytes(), gen, includeMetricName);
 
     gen.writeEndObject();
   }
@@ -91,14 +83,14 @@ class ScanMetricsResultParser {
         json.isObject(), "Cannot parse scan metrics from non-object: %s", json);
 
     return new ScanMetricsResult(
-        TimerResultParser.fromJson(TOTAL_PLANNING_DURATION, json),
-        CounterResultParser.fromJson(RESULT_DATA_FILES, json),
-        CounterResultParser.fromJson(RESULT_DELETE_FILES, json),
-        CounterResultParser.fromJson(TOTAL_DATA_MANIFESTS, json),
-        CounterResultParser.fromJson(TOTAL_DELETE_MANIFESTS, json),
-        CounterResultParser.fromJson(SCANNED_DATA_MANIFESTS, json),
-        CounterResultParser.fromJson(SKIPPED_DATA_MANIFESTS, json),
-        CounterResultParser.fromJson(TOTAL_FILE_SIZE_BYTES, json),
-        CounterResultParser.fromJson(TOTAL_DELETE_FILE_SIZE_BYTES, json));
+        TimerResultParser.fromJson(ScanMetrics.TOTAL_PLANNING_DURATION, json),
+        CounterResultParser.fromJson(ScanMetrics.RESULT_DATA_FILES, json),
+        CounterResultParser.fromJson(ScanMetrics.RESULT_DELETE_FILES, json),
+        CounterResultParser.fromJson(ScanMetrics.TOTAL_DATA_MANIFESTS, json),
+        CounterResultParser.fromJson(ScanMetrics.TOTAL_DELETE_MANIFESTS, json),
+        CounterResultParser.fromJson(ScanMetrics.SCANNED_DATA_MANIFESTS, json),
+        CounterResultParser.fromJson(ScanMetrics.SKIPPED_DATA_MANIFESTS, json),
+        CounterResultParser.fromJson(ScanMetrics.TOTAL_FILE_SIZE_IN_BYTES, json),
+        CounterResultParser.fromJson(ScanMetrics.TOTAL_DELETE_FILE_SIZE_IN_BYTES, json));
   }
 }
