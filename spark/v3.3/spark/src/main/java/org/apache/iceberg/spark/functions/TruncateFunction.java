@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.functions;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.TruncateUtil;
@@ -54,14 +56,8 @@ public class TruncateFunction implements UnboundFunction {
   private static final int WIDTH_ORDINAL = 0;
   private static final int VALUE_ORDINAL = 1;
 
-  private static void validateWidthType(DataType widthType) {
-    if (!DataTypes.IntegerType.sameType(widthType)
-        && !DataTypes.ShortType.sameType(widthType)
-        && !DataTypes.ByteType.sameType(widthType)) {
-      throw new UnsupportedOperationException(
-          "Expected truncation width to be tinyint, shortint or int");
-    }
-  }
+  private static final Set<DataType> SUPPORTED_WIDTH_TYPES =
+      ImmutableSet.of(DataTypes.ByteType, DataTypes.ShortType, DataTypes.IntegerType);
 
   @Override
   public BoundFunction bind(StructType inputType) {
@@ -73,7 +69,10 @@ public class TruncateFunction implements UnboundFunction {
     StructField widthField = inputType.fields()[WIDTH_ORDINAL];
     StructField toTruncateField = inputType.fields()[VALUE_ORDINAL];
 
-    validateWidthType(widthField.dataType());
+    if (!SUPPORTED_WIDTH_TYPES.contains(widthField.dataType())) {
+      throw new UnsupportedOperationException(
+          "Expected truncation width to be tinyint, shortint or int");
+    }
 
     DataType toTruncateDataType = toTruncateField.dataType();
     if (toTruncateDataType instanceof ByteType) {
