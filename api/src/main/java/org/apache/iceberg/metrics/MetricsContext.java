@@ -149,13 +149,16 @@ public interface MetricsContext extends Serializable {
       }
 
       @Override
+      @SuppressWarnings("unchecked")
       public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
         if (Integer.class.equals(type)) {
-          return (Counter<T>) IntCounter.NOOP;
+          return (Counter<T>)
+              ((DefaultCounter) org.apache.iceberg.metrics.DefaultCounter.NOOP).asIntCounter();
         }
 
         if (Long.class.equals(type)) {
-          return (Counter<T>) LongCounter.NOOP;
+          return (Counter<T>)
+              ((DefaultCounter) org.apache.iceberg.metrics.DefaultCounter.NOOP).asLongCounter();
         }
 
         throw new IllegalArgumentException(
@@ -164,7 +167,7 @@ public interface MetricsContext extends Serializable {
 
       @Override
       public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
-        return org.apache.iceberg.metrics.Counter.NOOP;
+        return org.apache.iceberg.metrics.DefaultCounter.NOOP;
       }
     };
   }

@@ -36,10 +36,10 @@ public class TestDefaultCounter {
 
   @Test
   public void noop() {
-    Assertions.assertThat(Counter.NOOP.name()).isEqualTo("undefined");
-    Assertions.assertThat(Counter.NOOP.unit()).isEqualTo(Unit.UNDEFINED);
-    Assertions.assertThat(Counter.NOOP.isNoop()).isTrue();
-    Assertions.assertThatThrownBy(Counter.NOOP::value)
+    Assertions.assertThat(DefaultCounter.NOOP.name()).isEqualTo("undefined");
+    Assertions.assertThat(DefaultCounter.NOOP.unit()).isEqualTo(Unit.UNDEFINED);
+    Assertions.assertThat(DefaultCounter.NOOP.isNoop()).isTrue();
+    Assertions.assertThatThrownBy(DefaultCounter.NOOP::value)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("NOOP counter has no value");
   }

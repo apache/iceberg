@@ -71,30 +71,6 @@ public interface Counter {
    * @return Whether this counter is a NOOP counter.
    */
   default boolean isNoop() {
-    return NOOP.equals(this);
+    return DefaultCounter.NOOP.equals(this);
   }
-
-  Counter NOOP =
-      new Counter() {
-        @Override
-        public void increment() {}
-
-        @Override
-        public void increment(long amount) {}
-
-        @Override
-        public long value() {
-          throw new UnsupportedOperationException("NOOP counter has no value");
-        }
-
-        @Override
-        public String name() {
-          return "undefined";
-        }
-
-        @Override
-        public Unit unit() {
-          return Unit.UNDEFINED;
-        }
-      };
 }

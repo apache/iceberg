@@ -25,13 +25,14 @@ public class DefaultMetricsContext implements MetricsContext {
 
   @Override
   @Deprecated
+  @SuppressWarnings("unchecked")
   public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
     if (Integer.class.equals(type)) {
-      return (Counter<T>) new IntCounter(name, unit);
+      return (Counter<T>) new DefaultCounter(name, unit).asIntCounter();
     }
 
     if (Long.class.equals(type)) {
-      return (Counter<T>) new LongCounter(name, unit);
+      return (Counter<T>) new DefaultCounter(name, unit).asLongCounter();
     }
     throw new IllegalArgumentException(
         String.format("Counter for type %s is not supported", type.getName()));
