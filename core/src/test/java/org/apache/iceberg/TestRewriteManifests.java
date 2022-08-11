@@ -1088,6 +1088,20 @@ public class TestRewriteManifests extends TableTestBase {
     Assert.assertTrue("New manifest should not be deleted", new File(newManifest.path()).exists());
   }
 
+  @Test
+  public void testRewriteManifestsOnBranchUnsupported() {
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
+
+    AssertHelpers.assertThrows(
+        "Should reject committing rewrite manifests to branch",
+        UnsupportedOperationException.class,
+        "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits",
+        () -> table.rewriteManifests().toBranch("someBranch").commit());
+  }
+
   private void validateSummary(
       Snapshot snapshot, int replaced, int kept, int created, int entryCount) {
     Map<String, String> summary = snapshot.summary();

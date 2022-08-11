@@ -16,14 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.spark.actions;
 
-public interface SupportsBulkOperations {
-  /**
-   * Delete the files at the given paths.
-   *
-   * @param pathsToDelete The paths to delete
-   * @throws BulkDeletionFailureException in case of failure to delete at least 1 file
-   */
-  void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException;
+import org.apache.spark.sql.Encoder;
+import org.apache.spark.sql.Encoders;
+
+public class FileInfo {
+  public static final Encoder<FileInfo> ENCODER = Encoders.bean(FileInfo.class);
+
+  private String path;
+  private String type;
+
+  public FileInfo(String path, String type) {
+    this.path = path;
+    this.type = type;
+  }
+
+  public FileInfo() {}
+
+  public String getPath() {
+    return path;
+  }
+
+  public void setPath(String path) {
+    this.path = path;
+  }
+
+  public String getType() {
+    return type;
+  }
+
+  public void setType(String type) {
+    this.type = type;
+  }
 }

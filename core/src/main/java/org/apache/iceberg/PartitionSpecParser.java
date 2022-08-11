@@ -89,7 +89,7 @@ public class PartitionSpecParser {
     Preconditions.checkArgument(json.isObject(), "Cannot parse spec from non-object: %s", json);
     int specId = JsonUtil.getInt(SPEC_ID, json);
     UnboundPartitionSpec.Builder builder = UnboundPartitionSpec.builder().withSpecId(specId);
-    buildFromJsonFields(builder, json.get(FIELDS));
+    buildFromJsonFields(builder, JsonUtil.get(FIELDS, json));
     return builder.build();
   }
 

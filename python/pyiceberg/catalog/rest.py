@@ -56,6 +56,7 @@ from pyiceberg.table import Table
 from pyiceberg.table.metadata import TableMetadataV1, TableMetadataV2
 from pyiceberg.table.partitioning import UNPARTITIONED_PARTITION_SPEC, PartitionSpec
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
+from pyiceberg.typedef import EMPTY_DICT
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
 
@@ -194,6 +195,13 @@ class RestCatalog(Catalog):
         self.config = self._fetch_config(properties)
         super().__init__(name, properties)
 
+    def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
+        """The identifier should have at least one element"""
+        identifier_tuple = Catalog.identifier_to_tuple(identifier)
+        if len(identifier_tuple) < 1:
+            raise NoSuchNamespaceError(f"Empty namespace identifier: {identifier}")
+        return identifier_tuple
+
     @property
     def headers(self) -> Properties:
         headers = {
@@ -247,12 +255,16 @@ class RestCatalog(Catalog):
         return config
 
     def _split_identifier_for_path(self, identifier: Union[str, Identifier]) -> Properties:
-        identifier = self.identifier_to_tuple(identifier)
-        return {"namespace": NAMESPACE_SEPARATOR.join(identifier[:-1]), "table": identifier[-1]}
+        identifier_tuple = self.identifier_to_tuple(identifier)
+        if len(identifier_tuple) <= 1:
+            raise NoSuchTableError(f"Missing namespace or invalid identifier: {'.'.join(identifier_tuple)}")
+        return {"namespace": NAMESPACE_SEPARATOR.join(identifier_tuple[:-1]), "table": identifier_tuple[-1]}
 
     def _split_identifier_for_json(self, identifier: Union[str, Identifier]) -> Dict[str, Union[Identifier, str]]:
-        identifier = self.identifier_to_tuple(identifier)
-        return {"namespace": identifier[:-1], "name": identifier[-1]}
+        identifier_tuple = self.identifier_to_tuple(identifier)
+        if len(identifier_tuple) <= 1:
+            raise NoSuchTableError(f"Missing namespace or invalid identifier: {identifier_tuple}")
+        return {"namespace": identifier_tuple[:-1], "name": identifier_tuple[-1]}
 
     def _handle_non_200_response(self, exc: HTTPError, error_handler: Dict[int, Type[Exception]]):
         exception: Type[Exception]
@@ -303,10 +315,9 @@ class RestCatalog(Catalog):
         location: Optional[str] = None,
         partition_spec: PartitionSpec = UNPARTITIONED_PARTITION_SPEC,
         sort_order: SortOrder = UNSORTED_SORT_ORDER,
-        properties: Optional[Properties] = None,
+        properties: Properties = EMPTY_DICT,
     ) -> Table:
         namespace_and_table = self._split_identifier_for_path(identifier)
-        properties = properties or {}
         request = CreateTableRequest(
             name=namespace_and_table["table"],
             location=location,
@@ -335,7 +346,8 @@ class RestCatalog(Catalog):
         )
 
     def list_tables(self, namespace: Union[str, Identifier]) -> List[Identifier]:
-        namespace_concat = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
+        namespace_tuple = self._check_valid_namespace_identifier(namespace)
+        namespace_concat = NAMESPACE_SEPARATOR.join(namespace_tuple)
         response = requests.get(
             self.url(Endpoints.list_tables, namespace=namespace_concat),
             headers=self.headers,
@@ -347,6 +359,11 @@ class RestCatalog(Catalog):
         return [(*table.namespace, table.name) for table in ListTablesResponse(**response.json()).identifiers]
 
     def load_table(self, identifier: Union[str, Identifier]) -> Table:
+        identifier_tuple = self.identifier_to_tuple(identifier)
+
+        if len(identifier_tuple) <= 1:
+            raise NoSuchTableError(f"Missing namespace or invalid identifier: {identifier}")
+
         response = requests.get(
             self.url(Endpoints.load_table, prefixed=True, **self._split_identifier_for_path(identifier)), headers=self.headers
         )
@@ -358,7 +375,7 @@ class RestCatalog(Catalog):
         table_response = TableResponse(**response.json())
 
         return Table(
-            identifier=(self.name,) + self.identifier_to_tuple(identifier),
+            identifier=(self.name,) + identifier_tuple,
             metadata_location=table_response.metadata_location,
             metadata=table_response.metadata,
         )
@@ -387,8 +404,9 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchTableError, 409: TableAlreadyExistsError})
 
-    def create_namespace(self, namespace: Union[str, Identifier], properties: Optional[Properties] = None) -> None:
-        payload = {"namespace": self.identifier_to_tuple(namespace), "properties": properties or {}}
+    def create_namespace(self, namespace: Union[str, Identifier], properties: Properties = EMPTY_DICT) -> None:
+        namespace_tuple = self._check_valid_namespace_identifier(namespace)
+        payload = {"namespace": namespace_tuple, "properties": properties}
         response = requests.post(self.url(Endpoints.create_namespace), json=payload, headers=self.headers)
         try:
             response.raise_for_status()
@@ -396,7 +414,8 @@ class RestCatalog(Catalog):
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError, 409: NamespaceAlreadyExistsError})
 
     def drop_namespace(self, namespace: Union[str, Identifier]) -> None:
-        namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
+        namespace_tuple = self._check_valid_namespace_identifier(namespace)
+        namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
         response = requests.delete(self.url(Endpoints.drop_namespace, namespace=namespace), headers=self.headers)
         try:
             response.raise_for_status()
@@ -414,7 +433,8 @@ class RestCatalog(Catalog):
         return namespaces.namespaces
 
     def load_namespace_properties(self, namespace: Union[str, Identifier]) -> Properties:
-        namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
+        namespace_tuple = self._check_valid_namespace_identifier(namespace)
+        namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
         response = requests.get(self.url(Endpoints.load_namespace_metadata, namespace=namespace), headers=self.headers)
         try:
             response.raise_for_status()
@@ -424,9 +444,10 @@ class RestCatalog(Catalog):
         return NamespaceResponse(**response.json()).properties
 
     def update_namespace_properties(
-        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Optional[Properties] = None
+        self, namespace: Union[str, Identifier], removals: Optional[Set[str]] = None, updates: Properties = EMPTY_DICT
     ) -> PropertiesUpdateSummary:
-        namespace = NAMESPACE_SEPARATOR.join(self.identifier_to_tuple(namespace))
+        namespace_tuple = self._check_valid_namespace_identifier(namespace)
+        namespace = NAMESPACE_SEPARATOR.join(namespace_tuple)
         payload = {"removals": list(removals or []), "updates": updates}
         response = requests.post(self.url(Endpoints.update_properties, namespace=namespace), json=payload, headers=self.headers)
         try:
