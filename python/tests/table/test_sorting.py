@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint:disable=redefined-outer-name
+# pylint:disable=redefined-outer-name,eval-used
 
 import pytest
 
@@ -74,8 +74,18 @@ def test_sorting_schema():
 
 def test_sorting_to_string(sort_order: SortOrder):
     expected = """[
-  identity(19) ASC NULLS_FIRST
-  bucket[4](25) DESC NULLS_LAST
-  void(22) ASC NULLS_FIRST
+  19 ASC NULLS FIRST
+  bucket[4](25) DESC NULLS LAST
+  void(22) ASC NULLS FIRST
 ]"""
     assert str(sort_order) == expected
+
+
+def test_sorting_to_repr(sort_order: SortOrder):
+    expected = """SortOrder(order_id=22, fields=[SortField(source_id=19, transform=IdentityTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST), SortField(source_id=25, transform=BucketTransform(num_buckets=4), direction=SortDirection.DESC, null_order=NullOrder.NULLS_LAST), SortField(source_id=22, transform=VoidTransform(), direction=SortDirection.ASC, null_order=NullOrder.NULLS_FIRST)])"""
+    assert repr(sort_order) == expected
+
+
+def test_sorting_repr(sort_order: SortOrder):
+    """To make sure that the repr converts back to the original object"""
+    assert sort_order == eval(repr(sort_order))
