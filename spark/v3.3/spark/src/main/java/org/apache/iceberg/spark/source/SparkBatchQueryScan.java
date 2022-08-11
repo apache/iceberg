@@ -67,6 +67,8 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
+  private final String branch;
+  private final String tag;
   private final List<Expression> runtimeFilterExpressions;
 
   private Set<Integer> specIds = null; // lazy cache of scanned spec IDs
@@ -88,6 +90,8 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
+    this.branch = readConf.branch();
+    this.tag = readConf.tag();
     this.runtimeFilterExpressions = Lists.newArrayList();
 
     if (scan == null) {
@@ -244,6 +248,13 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       Snapshot snapshot = table().snapshot(snapshotIdAsOfTime);
       return estimateStatistics(snapshot);
 
+    } else if (branch != null) {
+      Snapshot snapshot = table().snapshot(branch);
+      return estimateStatistics(snapshot);
+
+    } else if (tag != null) {
+      Snapshot snapshot = table().snapshot(tag);
+      return estimateStatistics(snapshot);
     } else {
       Snapshot snapshot = table().currentSnapshot();
       return estimateStatistics(snapshot);
@@ -269,7 +280,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
-        && Objects.equals(asOfTimestamp, that.asOfTimestamp);
+        && Objects.equals(asOfTimestamp, that.asOfTimestamp)
+        && Objects.equals(branch, that.branch)
+        && Objects.equals(branch, that.tag);
   }
 
   @Override
@@ -282,7 +295,9 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
         snapshotId,
         startSnapshotId,
         endSnapshotId,
-        asOfTimestamp);
+        asOfTimestamp,
+        branch,
+        tag);
   }
 
   @Override

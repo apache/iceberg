@@ -133,9 +133,6 @@ class SparkConfParser {
       return parse(Function.identity(), defaultValue);
     }
 
-    public String parseOptional() {
-      return parse(Function.identity(), null);
-    }
   }
 
   abstract class ConfParser<ThisT, T> {

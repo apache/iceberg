@@ -94,6 +94,14 @@ public class SparkReadConf {
     return confParser.longConf().option(SparkReadOptions.END_SNAPSHOT_ID).parseOptional();
   }
 
+  public String branch() {
+    return confParser.stringConf().option(SparkReadOptions.BRANCH).parseOptional();
+  }
+
+  public String tag() {
+    return confParser.stringConf().option(SparkReadOptions.TAG).parseOptional();
+  }
+
   public String fileScanTaskSetId() {
     return confParser.stringConf().option(SparkReadOptions.FILE_SCAN_TASK_SET_ID).parseOptional();
   }

@@ -41,7 +41,6 @@ class SparkBatchQueryScan extends SparkBatchScan {
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
-  private final String snapshotRef;
   private final Long asOfTimestamp;
   private final Long splitSize;
   private final Integer splitLookback;
@@ -62,23 +61,15 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
     this.snapshotId = readConf.snapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
-    this.snapshotRef = readConf.snapshotRef();
-
 
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
-    } else if (snapshotId != null && snapshotRef != null) {
-      throw new IllegalArgumentException(
-          "Cannot scan using both snapshot-id and snapshot-ref to select the table snapshot");
-    } else if(asOfTimestamp!= null && snapshotRef != null) {
-      throw new IllegalArgumentException(
-          "Cannot scan using both as-of-timestamp and snapshot-ref to select the table snapshot");
     }
 
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
-    if (snapshotId != null || asOfTimestamp != null || snapshotRef != null) {
+    if (snapshotId != null || asOfTimestamp != null) {
       if (startSnapshotId != null || endSnapshotId != null) {
         throw new IllegalArgumentException(
             "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either "
@@ -112,10 +103,6 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
       if (asOfTimestamp != null) {
         scan = scan.asOfTime(asOfTimestamp);
-      }
-
-      if (snapshotRef != null) {
-        scan = scan.useSnapshotRef(snapshotRef);
       }
 
       if (startSnapshotId != null) {

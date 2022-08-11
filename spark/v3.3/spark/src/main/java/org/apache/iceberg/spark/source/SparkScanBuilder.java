@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -182,12 +183,27 @@ public class SparkScanBuilder
   public Scan build() {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
+    String branch = readConf.branch();
+    String tag = readConf.branch();
+
+    Preconditions.checkArgument(
+        branch == null || tag == null,
+        "Cannot set both %s and %s to select which table snapshot to scan",
+        SparkReadOptions.BRANCH,
+        SparkReadOptions.TAG);
 
     Preconditions.checkArgument(
         snapshotId == null || asOfTimestamp == null,
         "Cannot set both %s and %s to select which table snapshot to scan",
         SparkReadOptions.SNAPSHOT_ID,
         SparkReadOptions.AS_OF_TIMESTAMP);
+
+    String snapshotRef = branch != null ? branch : tag;
+    Preconditions.checkArgument(
+        snapshotId == null || snapshotRef == null,
+        "Cannot set both %s and %s to select which table snapshot to scan",
+        SparkReadOptions.SNAPSHOT_ID,
+        "branch/tag");
 
     Long startSnapshotId = readConf.startSnapshotId();
     Long endSnapshotId = readConf.endSnapshotId();
@@ -225,6 +241,12 @@ public class SparkScanBuilder
       scan = scan.asOfTime(asOfTimestamp);
     }
 
+    if (branch != null) {
+      scan.useSnapshotRef(branch);
+    } else if (tag != null) {
+      scan.useSnapshotRef(tag);
+    }
+
     if (startSnapshotId != null) {
       if (endSnapshotId != null) {
         scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
@@ -240,7 +262,10 @@ public class SparkScanBuilder
 
   public Scan buildMergeOnReadScan() {
     Preconditions.checkArgument(
-        readConf.snapshotId() == null && readConf.asOfTimestamp() == null,
+        readConf.snapshotId() == null
+            && readConf.asOfTimestamp() == null
+            && readConf.branch() == null
+            && readConf.tag() == null,
         "Cannot set time travel options %s and %s for row-level command scans",
         SparkReadOptions.SNAPSHOT_ID,
         SparkReadOptions.AS_OF_TIMESTAMP);

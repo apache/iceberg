@@ -88,8 +88,6 @@ public class SparkReadConf {
     return confParser.longConf().option(SparkReadOptions.END_SNAPSHOT_ID).parseOptional();
   }
 
-  public String snapshotRef() {return confParser.stringConf().option(SparkReadOptions.SNAPSHOT_REF).parseOptional();}
-
   public boolean streamingSkipDeleteSnapshots() {
     return confParser
         .booleanConf()
