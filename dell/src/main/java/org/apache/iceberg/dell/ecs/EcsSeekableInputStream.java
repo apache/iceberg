@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.apache.iceberg.metrics.MetricsContext.Counter;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 
 /**
@@ -51,15 +51,14 @@ class EcsSeekableInputStream extends SeekableInputStream {
 
   private InputStream internalStream;
 
-  private final Counter<Long> readBytes;
-  private final Counter<Integer> readOperations;
+  private final Counter readBytes;
+  private final Counter readOperations;
 
   EcsSeekableInputStream(S3Client client, EcsURI uri, MetricsContext metrics) {
     this.client = client;
     this.uri = uri;
-    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
-    this.readOperations =
-        metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+    this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
+    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Unit.COUNT);
   }
 
   @Override
@@ -90,7 +89,7 @@ class EcsSeekableInputStream extends SeekableInputStream {
     checkAndUseNewPos();
     int delta = internalStream.read(b, off, len);
     pos += delta;
-    readBytes.increment((long) delta);
+    readBytes.increment(delta);
     readOperations.increment();
     return delta;
   }

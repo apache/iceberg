@@ -26,7 +26,7 @@ import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
@@ -117,17 +117,17 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
   /**
    * Filters the given {@link CloseableIterable} and counts the number of elements that do not match
-   * the predicate by incrementing the {@link MetricsContext.Counter}.
+   * the predicate by incrementing the {@link Counter}.
    *
-   * @param skipCounter The {@link MetricsContext.Counter} instance to increment on each skipped
-   *     item during filtering.
+   * @param skipCounter The {@link Counter} instance to increment on each skipped item during
+   *     filtering.
    * @param iterable The underlying {@link CloseableIterable} to filter.
    * @param <E> The underlying type to be iterated.
    * @return A filtered {@link CloseableIterable} where the given skipCounter is incremented
    *     whenever the predicate does not match.
    */
   static <E> CloseableIterable<E> filter(
-      MetricsContext.Counter<?> skipCounter, CloseableIterable<E> iterable, Predicate<E> pred) {
+      Counter skipCounter, CloseableIterable<E> iterable, Predicate<E> pred) {
     Preconditions.checkArgument(null != skipCounter, "Invalid counter: null");
     Preconditions.checkArgument(null != iterable, "Invalid iterable: null");
     Preconditions.checkArgument(null != pred, "Invalid predicate: null");
@@ -148,17 +148,15 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
   /**
    * Counts the number of elements in the given {@link CloseableIterable} by incrementing the {@link
-   * MetricsContext.Counter} instance for each {@link Iterator#next()} call.
+   * Counter} instance for each {@link Iterator#next()} call.
    *
-   * @param counter The {@link MetricsContext.Counter} instance to increment on each {@link
-   *     Iterator#next()} call.
+   * @param counter The {@link Counter} instance to increment on each {@link Iterator#next()} call.
    * @param iterable The underlying {@link CloseableIterable} to count
    * @param <T> The underlying type to be iterated.
    * @return A {@link CloseableIterable} that increments the given counter on each {@link
    *     Iterator#next()} call.
    */
-  static <T> CloseableIterable<T> count(
-      MetricsContext.Counter<?> counter, CloseableIterable<T> iterable) {
+  static <T> CloseableIterable<T> count(Counter counter, CloseableIterable<T> iterable) {
     Preconditions.checkArgument(null != counter, "Invalid counter: null");
     Preconditions.checkArgument(null != iterable, "Invalid iterable: null");
     return new CloseableIterable<T>() {

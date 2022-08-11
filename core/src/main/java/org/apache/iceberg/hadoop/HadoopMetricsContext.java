@@ -20,6 +20,8 @@ package org.apache.iceberg.hadoop;
 
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIOMetricsContext;
@@ -107,6 +109,56 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
       @Override
       public void increment(Integer amount) {
         consumer.accept(amount);
+      }
+    };
+  }
+
+  /**
+   * The Hadoop implementation delegates to the FileSystem.Statistics implementation and therefore
+   * does not require support for operations like unit() as the counter values are not directly
+   * consumed.
+   *
+   * @param name name of the metric
+   * @param unit ignored
+   * @return counter
+   */
+  @Override
+  public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
+    switch (name) {
+      case READ_BYTES:
+        return counter(statistics()::incrementBytesRead, statistics()::getBytesRead);
+      case READ_OPERATIONS:
+        return counter((long x) -> statistics.incrementReadOps((int) x), statistics()::getReadOps);
+      case WRITE_BYTES:
+        return counter(statistics()::incrementBytesWritten, statistics()::getBytesWritten);
+      case WRITE_OPERATIONS:
+        return counter(
+            (long x) -> statistics.incrementWriteOps((int) x), statistics()::getWriteOps);
+      default:
+        throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
+    }
+  }
+
+  private org.apache.iceberg.metrics.Counter counter(LongConsumer consumer, LongSupplier supplier) {
+    return new org.apache.iceberg.metrics.Counter() {
+      @Override
+      public void increment() {
+        increment(1L);
+      }
+
+      @Override
+      public void increment(long amount) {
+        consumer.accept(amount);
+      }
+
+      @Override
+      public long value() {
+        return supplier.getAsLong();
+      }
+
+      @Override
+      public String name() {
+        return "ignored";
       }
     };
   }
