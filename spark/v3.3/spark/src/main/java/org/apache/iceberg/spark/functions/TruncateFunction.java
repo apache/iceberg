@@ -66,29 +66,28 @@ public class TruncateFunction implements UnboundFunction {
     }
 
     StructField widthField = inputType.fields()[WIDTH_ORDINAL];
-    StructField toTruncateField = inputType.fields()[VALUE_ORDINAL];
+    StructField valueField = inputType.fields()[VALUE_ORDINAL];
 
     if (!SUPPORTED_WIDTH_TYPES.contains(widthField.dataType())) {
       throw new UnsupportedOperationException(
           "Expected truncation width to be tinyint, shortint or int");
     }
 
-    DataType toTruncateDataType = toTruncateField.dataType();
-    if (toTruncateDataType instanceof ByteType) {
+    DataType valueType = valueField.dataType();
+    if (valueType instanceof ByteType) {
       return new TruncateTinyInt();
-    } else if (toTruncateDataType instanceof ShortType) {
+    } else if (valueType instanceof ShortType) {
       return new TruncateSmallInt();
-    } else if (toTruncateDataType instanceof IntegerType) {
+    } else if (valueType instanceof IntegerType) {
       return new TruncateInt();
-    } else if (toTruncateDataType instanceof LongType) {
+    } else if (valueType instanceof LongType) {
       return new TruncateBigInt();
-    } else if (toTruncateDataType instanceof DecimalType) {
+    } else if (valueType instanceof DecimalType) {
       return new TruncateDecimal(
-          ((DecimalType) toTruncateDataType).precision(),
-          ((DecimalType) toTruncateDataType).scale());
-    } else if (toTruncateDataType instanceof StringType) {
+          ((DecimalType) valueType).precision(), ((DecimalType) valueType).scale());
+    } else if (valueType instanceof StringType) {
       return new TruncateString();
-    } else if (toTruncateDataType instanceof BinaryType) {
+    } else if (valueType instanceof BinaryType) {
       return new TruncateBinary();
     } else {
       throw new UnsupportedOperationException(
