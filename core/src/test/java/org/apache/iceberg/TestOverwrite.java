@@ -300,4 +300,17 @@ public class TestOverwrite extends TableTestBase {
     Assert.assertEquals(
         "Should not create a new snapshot", baseId, table.currentSnapshot().snapshotId());
   }
+
+  @Test
+  public void testOverwriteToBranchUnsupported() {
+    AssertHelpers.assertThrows(
+        "Cannot commit to branch someBranch: org.apache.iceberg.BaseOverwriteFiles does not support branch commits",
+        UnsupportedOperationException.class,
+        () ->
+            table
+                .newOverwrite()
+                .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 20)))
+                .addFile(FILE_10_TO_14)
+                .toBranch("someBranch"));
+  }
 }

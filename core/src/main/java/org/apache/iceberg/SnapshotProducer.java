@@ -84,6 +84,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private Consumer<String> deleteFunc = defaultDelete;
 
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
+  private String targetBranch = SnapshotRef.MAIN_BRANCH;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
@@ -111,6 +112,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
     return self();
+  }
+
+  /**
+   * * A setter for the target branch on which snapshot producer operation should be performed
+   *
+   * @param branch to set as target branch
+   */
+  protected void targetBranch(String branch) {
+    Preconditions.checkArgument(branch != null, "Invalid branch name: null");
+    boolean refExists = base.ref(branch) != null;
+    Preconditions.checkArgument(
+        !refExists || base.ref(branch).isBranch(),
+        "%s is a tag, not a branch. Tags cannot be targets for producing snapshots");
+    this.targetBranch = branch;
   }
 
   protected ExecutorService workerPool() {
@@ -150,28 +165,37 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * <p>Child operations can override this to add custom validation.
    *
    * @param currentMetadata current table metadata to validate
+   * @param snapshot ending snapshot on the lineage which is being validated
    */
-  protected void validate(TableMetadata currentMetadata) {}
+  protected void validate(TableMetadata currentMetadata, Snapshot snapshot) {}
 
   /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
+   * Apply the update's changes to the given metadata and snapshot. Return the new manifest list.
    *
    * @param metadataToUpdate the base table metadata to apply changes to
+   * @param snapshot snapshot to apply the changes to
    * @return a manifest list for the new snapshot.
    */
-  protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate);
+  protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate, Snapshot snapshot);
 
   @Override
   public Snapshot apply() {
     refresh();
-    Long parentSnapshotId =
-        base.currentSnapshot() != null ? base.currentSnapshot().snapshotId() : null;
+    Snapshot parentSnapshot = base.currentSnapshot();
+    if (targetBranch != null) {
+      SnapshotRef branch = base.ref(targetBranch);
+      if (branch != null) {
+        parentSnapshot = base.snapshot(branch.snapshotId());
+      } else if (base.currentSnapshot() != null) {
+        parentSnapshot = base.currentSnapshot();
+      }
+    }
+
     long sequenceNumber = base.nextSequenceNumber();
+    Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
 
-    // run validations from the child operation
-    validate(base);
-
-    List<ManifestFile> manifests = apply(base);
+    validate(base, parentSnapshot);
+    List<ManifestFile> manifests = apply(base, parentSnapshot);
 
     if (base.formatVersion() > 1
         || base.propertyAsBoolean(MANIFEST_LISTS_ENABLED, MANIFEST_LISTS_ENABLED_DEFAULT)) {
@@ -337,11 +361,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                 TableMetadata.Builder update = TableMetadata.buildFrom(base);
                 if (base.snapshot(newSnapshot.snapshotId()) != null) {
                   // this is a rollback operation
-                  update.setBranchSnapshot(newSnapshot.snapshotId(), SnapshotRef.MAIN_BRANCH);
+                  update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
                 } else if (stageOnly) {
                   update.addSnapshot(newSnapshot);
                 } else {
-                  update.setBranchSnapshot(newSnapshot, SnapshotRef.MAIN_BRANCH);
+                  update.setBranchSnapshot(newSnapshot, targetBranch);
                 }
 
                 TableMetadata updated = update.build();
