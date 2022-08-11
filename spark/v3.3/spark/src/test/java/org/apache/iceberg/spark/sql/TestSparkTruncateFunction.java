@@ -101,8 +101,7 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     Assert.assertEquals(0, scalarSql("SELECT system.truncate(300, 1)"));
 
     Assert.assertNull(
-        "Null input should return null",
-        scalarSql("SELECT system.truncate(2, CAST(null AS int))"));
+        "Null input should return null", scalarSql("SELECT system.truncate(2, CAST(null AS int))"));
   }
 
   @Test
@@ -300,6 +299,27 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         "Byte types should be allowed for the width field",
         0,
         scalarSql("SELECT system.truncate(5Y, 1)"));
+  }
+
+  @Test
+  public void testWrongNumberOfArguments() {
+    AssertHelpers.assertThrows(
+        "Function resolution should not work with zero arguments",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (): Wrong number of inputs (expected width and value)",
+        () -> scalarSql("SELECT system.truncate()"));
+
+    AssertHelpers.assertThrows(
+        "Function resolution should not work with only one argument",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int): Wrong number of inputs (expected width and value)",
+        () -> scalarSql("SELECT system.truncate(1)"));
+
+    AssertHelpers.assertThrows(
+        "Function resolution should not work with more than two arguments",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int, bigint, int): Wrong number of inputs (expected width and value)",
+        () -> scalarSql("SELECT system.truncate(1, 1L, 1)"));
   }
 
   @Test
