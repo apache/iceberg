@@ -312,13 +312,43 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
   @Test
   public void testInvalidTypesForTruncationColumn() {
     AssertHelpers.assertThrows(
-        "Interval year to month type should not be usable for truncation column",
+        "FLoat type should not be truncatable",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int, float): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
+        () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as float))"));
+
+    AssertHelpers.assertThrows(
+        "Double type should not be truncatable",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int, double): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
+        () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as double))"));
+
+    AssertHelpers.assertThrows(
+        "Boolean type should not be truncatable",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int, boolean): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
+        () -> scalarSql("SELECT system.truncate(10, true)"));
+
+    AssertHelpers.assertThrows(
+        "Map types should not be truncatable",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int, map<int,int>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
+        () -> scalarSql("SELECT system.truncate(10, map(1, 1))"));
+
+    AssertHelpers.assertThrows(
+        "Array types should not be truncatable",
+        AnalysisException.class,
+        "Function 'truncate' cannot process input: (int, array<bigint>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
+        () -> scalarSql("SELECT system.truncate(10, array(1L))"));
+
+    AssertHelpers.assertThrows(
+        "Interval year-to-month type should not be truncatable",
         AnalysisException.class,
         "Function 'truncate' cannot process input: (int, interval year to month): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
         () -> scalarSql("SELECT system.truncate(10, INTERVAL '100-00' YEAR TO MONTH)"));
 
     AssertHelpers.assertThrows(
-        "Interval day-time type should not be usable for truncation column",
+        "Interval day-time type should not be truncatable",
         AnalysisException.class,
         "Function 'truncate' cannot process input: (int, interval day to second): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
         () -> scalarSql("SELECT system.truncate(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"));
