@@ -21,6 +21,7 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -212,6 +213,83 @@ public class TestScanReportParser {
             + "    \"total-delete-file-size-in-bytes\" : {\n"
             + "      \"unit\" : \"bytes\",\n"
             + "      \"value\" : 23\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+    String json = ScanReportParser.toJson(scanReport, true);
+    Assertions.assertThat(ScanReportParser.fromJson(json))
+        .usingRecursiveComparison()
+        .ignoringFields("projection")
+        .isEqualTo(scanReport);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithNoopMetrics() {
+    String tableName = "roundTripTableName";
+    Schema projection =
+        new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
+    ScanReport scanReport =
+        ScanReport.builder()
+            .withTableName(tableName)
+            .withProjection(projection)
+            .withSnapshotId(23L)
+            .fromScanMetrics(ScanMetrics.NOOP)
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"projection\" : {\n"
+            + "    \"type\" : \"struct\",\n"
+            + "    \"schema-id\" : 0,\n"
+            + "    \"fields\" : [ {\n"
+            + "      \"id\" : 1,\n"
+            + "      \"name\" : \"c1\",\n"
+            + "      \"required\" : true,\n"
+            + "      \"type\" : \"string\",\n"
+            + "      \"doc\" : \"c1\"\n"
+            + "    } ]\n"
+            + "  },\n"
+            + "  \"metrics\" : {\n"
+            + "    \"undefined\" : {\n"
+            + "      \"count\" : 0,\n"
+            + "      \"time-unit\" : \"nanoseconds\",\n"
+            + "      \"total-duration\" : 0\n"
+            + "    },\n"
+            + "    \"undefined\" : {\n"
+            + "      \"unit\" : \"undefined\",\n"
+            + "      \"value\" : 0\n"
+            + "    },\n"
+            + "    \"undefined\" : {\n"
+            + "      \"unit\" : \"undefined\",\n"
+            + "      \"value\" : 0\n"
+            + "    },\n"
+            + "    \"undefined\" : {\n"
+            + "      \"unit\" : \"undefined\",\n"
+            + "      \"value\" : 0\n"
+            + "    },\n"
+            + "    \"undefined\" : {\n"
+            + "      \"unit\" : \"undefined\",\n"
+            + "      \"value\" : 0\n"
+            + "    },\n"
+            + "    \"undefined\" : {\n"
+            + "      \"unit\" : \"undefined\",\n"
+            + "      \"value\" : 0\n"
+            + "    },\n"
+            + "    \"undefined\" : {\n"
+            + "      \"unit\" : \"undefined\",\n"
+            + "      \"value\" : 0\n"
+            + "    },\n"
+            + "    \"undefined\" : {\n"
+            + "      \"unit\" : \"undefined\",\n"
+            + "      \"value\" : 0\n"
+            + "    },\n"
+            + "    \"undefined\" : {\n"
+            + "      \"unit\" : \"undefined\",\n"
+            + "      \"value\" : 0\n"
             + "    }\n"
             + "  }\n"
             + "}";

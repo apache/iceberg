@@ -20,6 +20,7 @@ package org.apache.iceberg.metrics;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.metrics.ScanReport.ScanMetrics;
 import org.apache.iceberg.metrics.ScanReport.ScanMetricsResult;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
@@ -237,5 +238,54 @@ public class TestScanMetricsResultParser {
     String json = ScanMetricsResultParser.toJson(scanMetricsResult, true);
     Assertions.assertThat(ScanMetricsResultParser.fromJson(json)).isEqualTo(scanMetricsResult);
     Assertions.assertThat(json).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeNoopScanMetrics() {
+    ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(ScanMetrics.NOOP);
+    String expectedJson =
+        "{\n"
+            + "  \"undefined\" : {\n"
+            + "    \"count\" : 0,\n"
+            + "    \"time-unit\" : \"nanoseconds\",\n"
+            + "    \"total-duration\" : 0\n"
+            + "  },\n"
+            + "  \"undefined\" : {\n"
+            + "    \"unit\" : \"undefined\",\n"
+            + "    \"value\" : 0\n"
+            + "  },\n"
+            + "  \"undefined\" : {\n"
+            + "    \"unit\" : \"undefined\",\n"
+            + "    \"value\" : 0\n"
+            + "  },\n"
+            + "  \"undefined\" : {\n"
+            + "    \"unit\" : \"undefined\",\n"
+            + "    \"value\" : 0\n"
+            + "  },\n"
+            + "  \"undefined\" : {\n"
+            + "    \"unit\" : \"undefined\",\n"
+            + "    \"value\" : 0\n"
+            + "  },\n"
+            + "  \"undefined\" : {\n"
+            + "    \"unit\" : \"undefined\",\n"
+            + "    \"value\" : 0\n"
+            + "  },\n"
+            + "  \"undefined\" : {\n"
+            + "    \"unit\" : \"undefined\",\n"
+            + "    \"value\" : 0\n"
+            + "  },\n"
+            + "  \"undefined\" : {\n"
+            + "    \"unit\" : \"undefined\",\n"
+            + "    \"value\" : 0\n"
+            + "  },\n"
+            + "  \"undefined\" : {\n"
+            + "    \"unit\" : \"undefined\",\n"
+            + "    \"value\" : 0\n"
+            + "  }\n"
+            + "}";
+
+    String json = ScanMetricsResultParser.toJson(scanMetricsResult, true);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
+    Assertions.assertThat(ScanMetricsResultParser.fromJson(json)).isEqualTo(scanMetricsResult);
   }
 }

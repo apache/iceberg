@@ -43,31 +43,31 @@ class ScanMetricsResultParser {
 
     gen.writeStartObject();
 
-    gen.writeFieldName(ScanMetrics.TOTAL_PLANNING_DURATION);
+    gen.writeFieldName(metrics.totalPlanningDuration().name());
     TimerResultParser.toJson(metrics.totalPlanningDuration(), gen, includeMetricName);
 
-    gen.writeFieldName(ScanMetrics.RESULT_DATA_FILES);
+    gen.writeFieldName(metrics.resultDataFiles().name());
     CounterResultParser.toJson(metrics.resultDataFiles(), gen, includeMetricName);
 
-    gen.writeFieldName(ScanMetrics.RESULT_DELETE_FILES);
+    gen.writeFieldName(metrics.resultDeleteFiles().name());
     CounterResultParser.toJson(metrics.resultDeleteFiles(), gen, includeMetricName);
 
-    gen.writeFieldName(ScanMetrics.TOTAL_DATA_MANIFESTS);
+    gen.writeFieldName(metrics.totalDataManifests().name());
     CounterResultParser.toJson(metrics.totalDataManifests(), gen, includeMetricName);
 
-    gen.writeFieldName(ScanMetrics.TOTAL_DELETE_MANIFESTS);
+    gen.writeFieldName(metrics.totalDeleteManifests().name());
     CounterResultParser.toJson(metrics.totalDeleteManifests(), gen, includeMetricName);
 
-    gen.writeFieldName(ScanMetrics.SCANNED_DATA_MANIFESTS);
+    gen.writeFieldName(metrics.scannedDataManifests().name());
     CounterResultParser.toJson(metrics.scannedDataManifests(), gen, includeMetricName);
 
-    gen.writeFieldName(ScanMetrics.SKIPPED_DATA_MANIFESTS);
+    gen.writeFieldName(metrics.skippedDataManifests().name());
     CounterResultParser.toJson(metrics.skippedDataManifests(), gen, includeMetricName);
 
-    gen.writeFieldName(ScanMetrics.TOTAL_FILE_SIZE_IN_BYTES);
+    gen.writeFieldName(metrics.totalFileSizeInBytes().name());
     CounterResultParser.toJson(metrics.totalFileSizeInBytes(), gen, includeMetricName);
 
-    gen.writeFieldName(ScanMetrics.TOTAL_DELETE_FILE_SIZE_IN_BYTES);
+    gen.writeFieldName(metrics.totalDeleteFileSizeInBytes().name());
     CounterResultParser.toJson(metrics.totalDeleteFileSizeInBytes(), gen, includeMetricName);
 
     gen.writeEndObject();

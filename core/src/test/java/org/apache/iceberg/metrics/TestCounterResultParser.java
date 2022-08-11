@@ -104,4 +104,22 @@ public class TestCounterResultParser {
     Assertions.assertThat(CounterResultParser.fromJson(json)).isEqualTo(counter);
     Assertions.assertThat(json).isEqualTo(expectedJson);
   }
+
+  @Test
+  public void roundTripSerdeNoopCounter() {
+    CounterResult counter =
+        CounterResult.fromCounter(
+            MetricsContext.nullMetrics().counter("name", Long.class, Unit.COUNT));
+
+    String expectedJson =
+        "{\n"
+            + "  \"name\" : \"undefined\",\n"
+            + "  \"unit\" : \"undefined\",\n"
+            + "  \"value\" : 0\n"
+            + "}";
+
+    String json = CounterResultParser.toJson(counter, true);
+    Assertions.assertThat(CounterResultParser.fromJson(json)).isEqualTo(counter);
+    Assertions.assertThat(json).isEqualTo(expectedJson);
+  }
 }

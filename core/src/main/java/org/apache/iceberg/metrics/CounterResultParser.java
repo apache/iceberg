@@ -89,6 +89,9 @@ class CounterResultParser {
   static CounterResult fromJson(String counterName, JsonNode json) {
     Preconditions.checkArgument(null != json, "Cannot parse counter from null object");
     Preconditions.checkArgument(json.isObject(), "Cannot parse counter from non-object: %s", json);
+    if (!json.has(counterName)) {
+      return CounterResult.fromCounter(LongCounter.NOOP);
+    }
     Preconditions.checkArgument(
         json.has(counterName), "Cannot parse counter from missing field: %s", counterName);
 

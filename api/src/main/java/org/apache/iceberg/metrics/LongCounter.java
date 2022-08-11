@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 class LongCounter implements MetricsContext.Counter<Long> {
   static final LongCounter NOOP =
-      new LongCounter("NOOP", MetricsContext.Unit.UNDEFINED) {
+      new LongCounter("undefined", MetricsContext.Unit.UNDEFINED) {
         @Override
         public void increment() {}
 
