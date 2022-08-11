@@ -53,9 +53,8 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     // Check that different widths can be used
     Assert.assertEquals((byte) -2, scalarSql("SELECT system.truncate(2, -1Y)"));
 
-    Assert.assertEquals(
+    Assert.assertNull(
         "Null input should return null",
-        null,
         scalarSql("SELECT system.truncate(2, CAST(null AS tinyint))"));
   }
 
@@ -75,10 +74,13 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     // Check that different widths can be used
     Assert.assertEquals((short) -2, scalarSql("SELECT system.truncate(2, -1S)"));
 
-    Assert.assertEquals(
+    Assert.assertNull(
         "Null input should return null",
-        null,
         scalarSql("SELECT system.truncate(2, CAST(null AS smallint))"));
+
+    Assert.assertNull(
+        "A null width should return null, as that's the behavior of Spark's code generation",
+        scalarSql("SELECT system.truncate(cast(null as int), 1S)"));
   }
 
   @Test
@@ -98,9 +100,8 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     Assert.assertEquals(-2, scalarSql("SELECT system.truncate(2, -1)"));
     Assert.assertEquals(0, scalarSql("SELECT system.truncate(300, 1)"));
 
-    Assert.assertEquals(
+    Assert.assertNull(
         "Null input should return null",
-        null,
         scalarSql("SELECT system.truncate(2, CAST(null AS int))"));
   }
 
@@ -120,9 +121,8 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     // Check that different widths can be used
     Assert.assertEquals(-2L, scalarSql("SELECT system.truncate(2, -1L)"));
 
-    Assert.assertEquals(
+    Assert.assertNull(
         "Null input should return null",
-        null,
         scalarSql("SELECT system.truncate(2, CAST(null AS bigint))"));
   }
 
@@ -170,9 +170,8 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         BigDecimal.valueOf(-500, 4),
         truncatedDecimal);
 
-    Assert.assertEquals(
+    Assert.assertNull(
         "Null input should return null",
-        null,
         scalarSql("SELECT system.truncate(2, CAST(null AS decimal))"));
   }
 
