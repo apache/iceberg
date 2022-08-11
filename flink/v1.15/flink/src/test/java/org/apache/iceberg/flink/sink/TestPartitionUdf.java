@@ -52,12 +52,13 @@ public class TestPartitionUdf {
     tEnv.getConfig().getConfiguration().set(TableConfigOptions.LOCAL_TIME_ZONE, "Asia/Shanghai");
     tEnv.executeSql(
         String.format(
-            "CREATE CATALOG %s "
+            "CREATE CATALOG iceberg_catalog "
                 + "WITH "
                 + "('type'='iceberg', "
                 + "'catalog-type'='hadoop', "
                 + "'warehouse'='file://%s')",
-            "iceberg_catalog", TEMPORARY_FOLDER.newFolder()));
+            TEMPORARY_FOLDER.newFolder()));
+    tEnv.executeSql("CREATE DATABASE iceberg_catalog.`system`");
   }
 
   protected List<Row> sql(String query, Object... args) {

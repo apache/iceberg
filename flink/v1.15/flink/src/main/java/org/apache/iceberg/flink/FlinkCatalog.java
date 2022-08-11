@@ -126,7 +126,6 @@ public class FlinkCatalog extends AbstractCatalog {
     // Create the default database if it does not exist.
     try {
       createDatabase(getDefaultDatabase(), ImmutableMap.of(), true);
-      createDatabase(SYSTEM_DATABASE_NAME, ImmutableMap.of(), true);
       functions.put(
           new ObjectPath(SYSTEM_DATABASE_NAME, PartitionTransformUdf.Bucket.FUNCTION_NAME),
           new CatalogFunctionImpl(
