@@ -29,12 +29,20 @@ from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
 
 
 @click.group()
-@click.option("--catalog", default="catalog")
+@click.option("--catalog", default="default")
 @click.option("--output", type=click.Choice(["text", "json"]), default="text")
-@click.option("--uri", default=lambda: os.environ.get("PYICEBERG_URI"))
-@click.option("--credential", default=lambda: os.environ.get("PYICEBERG_CREDENTIAL"))
+@click.option("--uri")
+@click.option("--credential")
 @click.pass_context
-def run(ctx: Context, catalog: str, output: str, uri: str, credential: str):
+def run(ctx: Context, catalog: str, output: str, uri: Optional[str], credential: Optional[str]):
+    uri_env_var = f"PYICEBERG__CATALOG_{catalog.upper()}_URI"
+    credential_env_var = f"PYICEBERG__CATALOG_{catalog.upper()}_CREDENTIAL"
+
+    if not uri:
+        uri = os.environ.get(uri_env_var)
+    if not credential:
+        credential = os.environ.get(credential_env_var)
+
     ctx.ensure_object(dict)
     if output == "text":
         ctx.obj["output"] = ConsoleOutput()
@@ -48,6 +56,8 @@ def run(ctx: Context, catalog: str, output: str, uri: str, credential: str):
             )
         )
         ctx.exit(1)
+
+    assert uri  # for mypy
 
     if uri.startswith("http"):
         ctx.obj["catalog"] = RestCatalog(name=catalog, properties={}, uri=uri, credential=credential)
@@ -88,23 +98,35 @@ def list(ctx: Context, parent: Optional[str]):  # pylint: disable=redefined-buil
 
 
 @run.command()
+@click.option("--entity", type=click.Choice(["any", "namespace", "table"]), default="any")
 @click.argument("identifier")
 @click.pass_context
-def describe(ctx: Context, identifier: str):
+def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str):
     """Describes a table"""
     catalog, output = _get_catalog_and_output(ctx)
     identifier_tuple = Catalog.identifier_to_tuple(identifier)
+
+    if len(identifier_tuple) > 0:
+        try:
+            namespace_properties = catalog.load_namespace_properties(identifier_tuple)
+            output.describe_properties(namespace_properties)
+            ctx.exit(0)
+        except NoSuchNamespaceError as exc:
+            if entity != "any":
+                output.exception(exc)
+                ctx.exit(1)
 
     if len(identifier_tuple) > 1:
         try:
             catalog_table = catalog.load_table(identifier)
             output.describe_table(catalog_table)
+            ctx.exit(0)
         except NoSuchNamespaceError as exc:
             output.exception(exc)
             ctx.exit(1)
-    else:
-        output.exception(NoSuchTableError(f"Expected a namespace, got: {identifier}"))
-        ctx.exit(1)
+
+    output.exception(NoSuchTableError(f"Expected a namespace or table, got: {identifier}"))
+    ctx.exit(1)
 
 
 @run.command()
