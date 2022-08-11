@@ -51,6 +51,9 @@ import org.apache.spark.unsafe.types.UTF8String;
  */
 public class TruncateFunction implements UnboundFunction {
 
+  private static final int WIDTH_ORDINAL = 0;
+  private static final int VALUE_ORDINAL = 1;
+
   private static void validateTruncationWidthType(DataType widthType) {
     if (!DataTypes.IntegerType.sameType(widthType)
         && !DataTypes.ShortType.sameType(widthType)
@@ -67,8 +70,8 @@ public class TruncateFunction implements UnboundFunction {
           "Cannot bind truncate: wrong number of inputs (expected width and value)");
     }
 
-    StructField widthField = inputType.fields()[0];
-    StructField toTruncateField = inputType.fields()[1];
+    StructField widthField = inputType.fields()[WIDTH_ORDINAL];
+    StructField toTruncateField = inputType.fields()[VALUE_ORDINAL];
     validateTruncationWidthType(widthField.dataType());
 
     DataType toTruncateDataType = toTruncateField.dataType();
@@ -136,9 +139,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Byte produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
+      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
-          : invoke(input.getInt(0), input.getByte(1));
+          : invoke(input.getInt(WIDTH_ORDINAL), input.getByte(VALUE_ORDINAL));
     }
   }
 
@@ -165,9 +168,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Short produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
+      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
-          : invoke(input.getInt(0), input.getShort(1));
+          : invoke(input.getInt(WIDTH_ORDINAL), input.getShort(VALUE_ORDINAL));
     }
   }
 
@@ -194,9 +197,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
+      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
-          : invoke(input.getInt(0), input.getInt(1));
+          : invoke(input.getInt(WIDTH_ORDINAL), input.getInt(VALUE_ORDINAL));
     }
   }
 
@@ -223,9 +226,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Long produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
+      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
-          : invoke(input.getInt(0), input.getLong(1));
+          : invoke(input.getInt(WIDTH_ORDINAL), input.getLong(VALUE_ORDINAL));
     }
   }
 
@@ -256,9 +259,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public UTF8String produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
+      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
-          : invoke(input.getInt(0), input.getUTF8String(1));
+          : invoke(input.getInt(WIDTH_ORDINAL), input.getUTF8String(VALUE_ORDINAL));
     }
   }
 
@@ -290,9 +293,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public byte[] produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
+      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
-          : invoke(input.getInt(0), input.getBinary(1));
+          : invoke(input.getInt(WIDTH_ORDINAL), input.getBinary(VALUE_ORDINAL));
     }
   }
 
@@ -332,9 +335,9 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Decimal produceResult(InternalRow input) {
-      return input.isNullAt(0) || input.isNullAt(1)
+      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
-          : invoke(input.getInt(0), input.getDecimal(1, precision, scale));
+          : invoke(input.getInt(WIDTH_ORDINAL), input.getDecimal(VALUE_ORDINAL, precision, scale));
     }
   }
 }
