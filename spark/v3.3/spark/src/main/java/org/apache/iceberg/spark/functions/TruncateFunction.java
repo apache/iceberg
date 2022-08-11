@@ -61,7 +61,7 @@ public class TruncateFunction implements UnboundFunction {
 
   @Override
   public BoundFunction bind(StructType inputType) {
-    if (inputType.fields().length != 2) {
+    if (inputType.size() != 2) {
       throw new UnsupportedOperationException(
           "Cannot bind truncate: wrong number of inputs (expected width and value)");
     }
