@@ -176,6 +176,7 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         scalarSql("SELECT system.truncate(2, CAST(null AS decimal))"));
   }
 
+  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
   @Test
   public void testTruncateString() {
     Assert.assertEquals(
@@ -194,6 +195,27 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         scalarSql("SELECT system.truncate(5, 'abcde')"));
 
     Assert.assertEquals(
+        "Strings with multibyte unicode characters should should truncate along codepoint boundaries",
+        "イロ",
+        scalarSql("SELECT system.truncate(2, 'イロハニホヘト')"));
+
+    Assert.assertEquals(
+        "Strings with multibyte unicode characters should truncate along codepoint boundaries",
+        "イロハ",
+        scalarSql("SELECT system.truncate(3, 'イロハニホヘト')"));
+
+    Assert.assertEquals(
+        "Strings with multibyte unicode characters should not alter input with fewer codepoints than width",
+        "イロハニホヘト",
+        scalarSql("SELECT system.truncate(7, 'イロハニホヘト')"));
+
+    String stringWithTwoCodePointsEachFourBytes = "\uD800\uDC00\uD800\uDC00";
+    Assert.assertEquals(
+        "String truncation on four byte codepoints should work as expected",
+        "\uD800\uDC00",
+        scalarSql("SELECT system.truncate(1, '%s')", stringWithTwoCodePointsEachFourBytes));
+
+    Assert.assertEquals(
         "Should handle three-byte UTF-8 characters appropriately",
         "测",
         scalarSql("SELECT system.truncate(1, '测试')"));
@@ -206,9 +228,8 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     Assert.assertEquals(
         "Should not fail on the empty string", "", scalarSql("SELECT system.truncate(10, '')"));
 
-    Assert.assertEquals(
+    Assert.assertNull(
         "Null input should return null as output",
-        null,
         scalarSql("SELECT system.truncate(3, CAST(null AS string))"));
 
     Assert.assertEquals(
