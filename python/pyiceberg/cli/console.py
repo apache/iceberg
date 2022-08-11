@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=broad-except
+# pylint: disable=broad-except,redefined-builtin,redefined-outer-name
 import os
 from typing import Literal, Optional, Tuple
 
@@ -25,7 +25,7 @@ from pyiceberg.catalog import Catalog
 from pyiceberg.catalog.hive import HiveCatalog
 from pyiceberg.catalog.rest import RestCatalog
 from pyiceberg.cli.output import ConsoleOutput, JsonOutput, Output
-from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchTableError
+from pyiceberg.exceptions import NoSuchNamespaceError, NoSuchPropertyException, NoSuchTableError
 
 
 @click.group()
@@ -81,6 +81,7 @@ def _get_catalog_and_output(ctx: Context) -> Tuple[Catalog, Output]:
 @click.pass_context
 @click.argument("parent", required=False)
 def list(ctx: Context, parent: Optional[str]):  # pylint: disable=redefined-builtin
+    """Lists tables or namespaces"""
     catalog, output = _get_catalog_and_output(ctx)
 
     # still wip, will become more beautiful
@@ -130,43 +131,10 @@ def describe(ctx: Context, entity: Literal["name", "namespace", "table"], identi
 
 
 @run.command()
-@click.option("--entity", type=click.Choice(["any", "namespace", "table"]), default="any")
-@click.argument("identifier")
-@click.pass_context
-def properties(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str):
-    """Fetches the properties from the namespace/table"""
-    catalog, output = _get_catalog_and_output(ctx)
-    identifier_tuple = Catalog.identifier_to_tuple(identifier)
-
-    try:
-        namespace_properties = catalog.load_namespace_properties(identifier_tuple)
-        output.describe_properties(namespace_properties)
-        ctx.exit(0)
-    except NoSuchNamespaceError as exc:
-        if entity != "any":
-            output.exception(exc)
-            ctx.exit(1)
-
-    # We expect a namespace
-    if len(identifier_tuple) > 1:
-        try:
-            metadata = catalog.load_table(identifier_tuple).metadata
-            assert metadata
-            output.describe_properties(metadata.properties)
-            ctx.exit(0)
-        except NoSuchTableError as exc:
-            if entity != "any":
-                output.exception(exc)
-                ctx.exit(1)
-
-    output.exception(NoSuchNamespaceError(f"Could not find table/namespace with identifier: {identifier}"))
-    ctx.exit(1)
-
-
-@run.command()
 @click.argument("identifier")
 @click.pass_context
 def schema(ctx: Context, identifier: str):
+    """Gets the schema of the table"""
     catalog, output = _get_catalog_and_output(ctx)
 
     try:
@@ -182,6 +150,7 @@ def schema(ctx: Context, identifier: str):
 @click.argument("identifier")
 @click.pass_context
 def spec(ctx: Context, identifier: str):
+    """Returns the partition spec of the table"""
     catalog, output = _get_catalog_and_output(ctx)
     try:
         metadata = catalog.load_table(identifier).metadata
@@ -196,6 +165,7 @@ def spec(ctx: Context, identifier: str):
 @click.argument("identifier")
 @click.pass_context
 def uuid(ctx: Context, identifier: str):
+    """Returns the UUID of the table"""
     catalog, output = _get_catalog_and_output(ctx)
     try:
         metadata = catalog.load_table(identifier).metadata
@@ -210,6 +180,7 @@ def uuid(ctx: Context, identifier: str):
 @click.argument("identifier")
 @click.pass_context
 def location(ctx: Context, identifier: str):
+    """Returns the location of the table"""
     catalog, output = _get_catalog_and_output(ctx)
     try:
         metadata = catalog.load_table(identifier).metadata
@@ -222,13 +193,13 @@ def location(ctx: Context, identifier: str):
 
 @run.group()
 def drop(_: Context):
-    pass
+    """Operations to drop a namespace or table"""
 
 
 @drop.command()
 @click.argument("identifier")
 @click.pass_context
-def table(ctx: Context, identifier: str):
+def table(ctx: Context, identifier: str):  # noqa: F811
     """Drop table"""
     catalog, output = _get_catalog_and_output(ctx)
 
@@ -256,26 +227,11 @@ def namespace(ctx, identifier: str):
 
 
 @run.command()
-@click.argument("from_table")
-@click.argument("to_table")
-@click.pass_context
-def rename_table(ctx, from_table: str, to_table: str):
-    catalog, output = _get_catalog_and_output(ctx)
-
-    try:
-        catalog.rename_table(from_table, to_table)
-        output.text(f"Table {from_table} has been renamed to {to_table}")
-    except Exception as exc:
-        output.exception(exc)
-        ctx.exit(1)
-
-
-@run.command()
 @click.argument("from_identifier")
 @click.argument("to_identifier")
 @click.pass_context
 def rename(ctx, from_identifier: str, to_identifier: str):
-    """Rename table"""
+    """Renames a table"""
     catalog, output = _get_catalog_and_output(ctx)
 
     try:
@@ -283,3 +239,158 @@ def rename(ctx, from_identifier: str, to_identifier: str):
         output.text(f"Renamed table: {table}")
     except Exception as exc:
         output.exception(exc)
+
+
+@run.group()
+def properties():
+    """Properties on tables/namespaces"""
+
+
+@properties.command()
+@click.option("--entity", type=click.Choice(["any", "namespace", "table"]), default="any")
+@click.argument("identifier")
+@click.argument("property_name", required=False)
+@click.pass_context
+def get(ctx: Context, entity: Literal["name", "namespace", "table"], identifier: str, property_name: str):
+    """Fetches a property of a namespace or table"""
+    catalog, output = _get_catalog_and_output(ctx)
+    identifier_tuple = Catalog.identifier_to_tuple(identifier)
+
+    try:
+        namespace_properties = catalog.load_namespace_properties(identifier_tuple)
+
+        if property_name:
+            if property_value := namespace_properties.get(property_name):
+                output.text(property_value)
+                ctx.exit(0)
+            elif entity != "any":
+                output.exception(NoSuchPropertyException(f"Could not find property {property_name} on {entity} {identifier}"))
+                ctx.exit(1)
+        else:
+            output.describe_properties(namespace_properties)
+            ctx.exit(0)
+    except NoSuchNamespaceError as exc:
+        if entity != "any":
+            output.exception(exc)
+            ctx.exit(1)
+
+    # We expect a namespace
+    if len(identifier_tuple) > 1:
+        try:
+            metadata = catalog.load_table(identifier_tuple).metadata
+            assert metadata
+
+            if property_name:
+                if property_value := metadata.properties.get(property_name):
+                    output.text(property_value)
+                    ctx.exit(0)
+                elif entity != "any":
+                    output.exception(NoSuchPropertyException(f"Could not find property {property_name} on {entity} {identifier}"))
+                    ctx.exit(1)
+            else:
+                output.describe_properties(metadata.properties)
+                ctx.exit(0)
+        except NoSuchTableError as exc:
+            if entity != "any":
+                output.exception(exc)
+                ctx.exit(1)
+
+    output.exception(
+        NoSuchNamespaceError(f"Could not find table/namespace {identifier} that has a property called {property_name}")
+    )
+    ctx.exit(1)
+
+
+@properties.group()
+def set():
+    """Removes properties on tables/namespaces"""
+
+
+@set.command()  # type: ignore
+@click.argument("identifier")
+@click.argument("property_name")
+@click.argument("property_value")
+@click.pass_context
+def namespace(ctx: Context, identifier: str, property_name: str, property_value: str):  # noqa: F811
+    """Sets a property of a namespace or table"""
+    catalog, output = _get_catalog_and_output(ctx)
+    try:
+        catalog.update_namespace_properties(identifier, updates={property_name: property_value})
+        output.text(f"Updated {property_name} on {identifier}")
+    except NoSuchNamespaceError as exc:
+        output.exception(exc)
+        ctx.exit(1)
+
+
+@set.command()  # type: ignore
+@click.argument("identifier")
+@click.argument("property_name")
+@click.argument("property_value")
+@click.pass_context
+def table(ctx: Context, identifier: str, property_name: str, property_value: str):  # noqa: F811
+    """Sets a property on a table"""
+    catalog, output = _get_catalog_and_output(ctx)
+    identifier_tuple = Catalog.identifier_to_tuple(identifier)
+
+    try:
+        output.text(f"Setting {property_name}={property_value} on {identifier}")
+        _ = catalog.load_table(identifier_tuple)
+        raise NotImplementedError("Writing is WIP")
+
+    except NoSuchTableError as exc:
+        output.exception(exc)
+        ctx.exit(1)
+
+    output.exception(NoSuchNamespaceError(f"Could not find table/namespace {identifier} that has a property called {property}"))
+    ctx.exit(1)
+
+
+@properties.group()
+def remove():
+    """Removes properties on tables/namespaces"""
+
+
+@remove.command()  # type: ignore
+@click.argument("identifier")
+@click.argument("property_name")
+@click.pass_context
+def namespace(ctx: Context, identifier: str, property_name: str):  # noqa: F811
+    """Removes a property from a namespace"""
+    catalog, output = _get_catalog_and_output(ctx)
+    try:
+        result = catalog.update_namespace_properties(identifier, removals={property_name})
+        output.text(str(result))
+
+        if result.removed == {property_name}:
+            output.text("Done")
+        else:
+            raise NoSuchPropertyException(f"Property {property_name} does not exists on {identifier}")
+    except Exception as exc:
+        output.exception(exc)
+        ctx.exit(1)
+
+
+@remove.command()  # type: ignore
+@click.argument("identifier")
+@click.argument("property_name")
+@click.pass_context
+def table(ctx: Context, identifier: str, property_name: str):  # noqa: F811
+    """Removes a property from a table"""
+    catalog, output = _get_catalog_and_output(ctx)
+    try:
+        table = catalog.load_table(identifier)
+        assert table.metadata
+        if property_name in table.metadata.properties:
+            # We should think of the process here
+            # Do we want something similar as in Java:
+            # https://github.com/apache/iceberg/blob/master/api/src/main/java/org/apache/iceberg/Table.java#L178
+            del table.metadata.properties
+            raise NotImplementedError("Writing is WIP")
+    except Exception as exc:
+        output.exception(exc)
+        ctx.exit(1)
+
+
+@run.group()  # type: ignore
+def remove():
+    """Removes properties on tables/namespaces"""
