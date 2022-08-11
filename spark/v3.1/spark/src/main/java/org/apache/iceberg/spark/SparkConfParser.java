@@ -132,7 +132,6 @@ class SparkConfParser {
       Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
       return parse(Function.identity(), defaultValue);
     }
-
   }
 
   abstract class ConfParser<ThisT, T> {

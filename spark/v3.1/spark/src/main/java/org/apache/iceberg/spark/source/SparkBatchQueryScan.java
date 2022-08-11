@@ -76,9 +76,7 @@ class SparkBatchQueryScan extends SparkBatchScan {
                 + SparkReadOptions.SNAPSHOT_ID
                 + " or "
                 + SparkReadOptions.AS_OF_TIMESTAMP
-                + " or "
-                + SparkReadOptions.SNAPSHOT_REF
-                + " is specified ");
+                + " is specified");
       }
     } else if (startSnapshotId == null && endSnapshotId != null) {
       throw new IllegalArgumentException(
