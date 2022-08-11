@@ -139,7 +139,7 @@ def test_list_tables_404(rest_mock: Mocker):
 
 def test_list_namespaces_200(rest_mock: Mocker):
     rest_mock.get(
-        f"{TEST_URI}v1/namespaces?parent=",
+        f"{TEST_URI}v1/namespaces",
         json={"namespaces": [["default"], ["examples"], ["fokko"], ["system"]]},
         status_code=200,
     )
