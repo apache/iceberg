@@ -111,29 +111,7 @@ class Reader
     this.baseScan = configureBaseScan(caseSensitive, options);
     this.schema = baseScan.schema();
 
-    if (table.io() instanceof HadoopFileIO) {
-      String fsscheme = "no_exist";
-      try {
-        Configuration conf = SparkSession.active().sessionState().newHadoopConf();
-        // merge hadoop config set on table
-        mergeIcebergHadoopConfs(conf, table.properties());
-        // merge hadoop config passed as options and overwrite the one on table
-        mergeIcebergHadoopConfs(conf, options.asMap());
-        FileSystem fs = new Path(table.location()).getFileSystem(conf);
-        fsscheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
-      } catch (IOException ioe) {
-        LOG.warn("Failed to get Hadoop Filesystem", ioe);
-      }
-      String scheme = fsscheme; // Makes an effectively final version of scheme
-      this.localityPreferred =
-          options
-              .get("locality")
-              .map(Boolean::parseBoolean)
-              .orElseGet(() -> LOCALITY_WHITELIST_FS.contains(scheme));
-    } else {
-      this.localityPreferred = false;
-    }
-
+    this.localityPreferred = readConf.localityEnabled();
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
   }
 
