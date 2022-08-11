@@ -27,7 +27,7 @@ from typing import (
 
 from pydantic import Field, root_validator
 
-from pyiceberg.transforms import Transform, IdentityTransform
+from pyiceberg.transforms import IdentityTransform, Transform
 from pyiceberg.types import IcebergType
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
