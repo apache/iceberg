@@ -139,9 +139,11 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Byte produceResult(InternalRow input) {
-      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(WIDTH_ORDINAL), input.getByte(VALUE_ORDINAL));
+      if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(WIDTH_ORDINAL), input.getByte(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -168,9 +170,11 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Short produceResult(InternalRow input) {
-      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(WIDTH_ORDINAL), input.getShort(VALUE_ORDINAL));
+      if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(WIDTH_ORDINAL), input.getShort(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -197,9 +201,11 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(WIDTH_ORDINAL), input.getInt(VALUE_ORDINAL));
+      if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(WIDTH_ORDINAL), input.getInt(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -226,9 +232,11 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Long produceResult(InternalRow input) {
-      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(WIDTH_ORDINAL), input.getLong(VALUE_ORDINAL));
+      if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(WIDTH_ORDINAL), input.getLong(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -259,9 +267,11 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public UTF8String produceResult(InternalRow input) {
-      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(WIDTH_ORDINAL), input.getUTF8String(VALUE_ORDINAL));
+      if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(WIDTH_ORDINAL), input.getUTF8String(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -293,9 +303,11 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public byte[] produceResult(InternalRow input) {
-      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(WIDTH_ORDINAL), input.getBinary(VALUE_ORDINAL));
+      if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(input.getInt(WIDTH_ORDINAL), input.getBinary(VALUE_ORDINAL));
+      }
     }
   }
 
@@ -335,9 +347,12 @@ public class TruncateFunction implements UnboundFunction {
 
     @Override
     public Decimal produceResult(InternalRow input) {
-      return input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(WIDTH_ORDINAL), input.getDecimal(VALUE_ORDINAL, precision, scale));
+      if (input.isNullAt(WIDTH_ORDINAL) || input.isNullAt(VALUE_ORDINAL)) {
+        return null;
+      } else {
+        return invoke(
+            input.getInt(WIDTH_ORDINAL), input.getDecimal(VALUE_ORDINAL, precision, scale));
+      }
     }
   }
 }
