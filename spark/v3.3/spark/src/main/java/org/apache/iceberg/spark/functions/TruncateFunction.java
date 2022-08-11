@@ -73,10 +73,6 @@ public class TruncateFunction implements UnboundFunction {
           "Expected truncation width to be tinyint, shortint or int");
     }
 
-    if (widthField.nullable()) {
-      throw new UnsupportedOperationException("Truncation width field cannot be nullable");
-    }
-
     DataType valueType = valueField.dataType();
     if (valueType instanceof ByteType) {
       return new TruncateTinyInt();

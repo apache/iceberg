@@ -20,19 +20,10 @@ package org.apache.iceberg.spark.sql;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.Metadata;
-import org.apache.spark.sql.types.StructField;
-import org.apache.spark.sql.types.StructType;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
@@ -268,9 +259,8 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         "测试".getBytes(StandardCharsets.UTF_8),
         (byte[]) scalarSql("SELECT system.truncate(6, %s)", asBytesLiteral("测试_")));
 
-    Assert.assertEquals(
+    Assert.assertNull(
         "Null input should return null as output",
-        null,
         scalarSql("SELECT system.truncate(3, CAST(null AS binary))"));
   }
 
@@ -291,39 +281,6 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
         "A truncate function with variable widths should be usable on dataframe columns",
         rumRows,
         numNonZero);
-  }
-
-  @Test
-  public void testWidthFieldFailsWithNullableType() {
-    AssertHelpers.assertThrows(
-        "The width field should reject using a nullable int type",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, int): Truncation width field cannot be nullable",
-        () -> scalarSql("SELECT system.truncate(cast(null as int), 1)"));
-  }
-
-  @Test
-  public void testWidthFieldFailsWithNullableDataframeType() {
-    List<Integer> data = ImmutableList.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
-
-    Dataset<Row> df =
-        spark
-            .createDataset(data, Encoders.INT())
-            .toDF("value")
-            .selectExpr("cast(value as int) as width", "value");
-
-    StructType schemaWithNullableWidth =
-        new StructType()
-            .add(new StructField("width", DataTypes.IntegerType, true, Metadata.empty()))
-            .add(new StructField("value", DataTypes.IntegerType, true, Metadata.empty()));
-
-    Dataset<Row> dfWithNullableWidth = spark.createDataFrame(df.javaRDD(), schemaWithNullableWidth);
-
-    AssertHelpers.assertThrows(
-        "Using a nullable integer type for the width field should throw",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, int): Truncation width field cannot be nullable;",
-        () -> dfWithNullableWidth.selectExpr("system.truncate(width, value) as truncated").count());
   }
 
   @Test
