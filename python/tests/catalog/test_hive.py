@@ -15,6 +15,7 @@
 #  specific language governing permissions and limitations
 #  under the License.
 # pylint: disable=protected-access,redefined-outer-name
+import json
 import uuid
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
@@ -43,7 +44,7 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.schema import Schema
 from pyiceberg.serializers import ToOutputFile
-from pyiceberg.table.metadata import TableMetadataV2
+from pyiceberg.table.metadata import TableMetadata, TableMetadataV2
 from pyiceberg.table.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.refs import SnapshotRef, SnapshotRefType
 from pyiceberg.table.snapshots import Operation, Snapshot, Summary
@@ -69,7 +70,7 @@ HIVE_METASTORE_FAKE_URL = "thrift://unknown:9083"
 
 @pytest.fixture
 def hive_table(tmp_path_factory, example_table_metadata_v2: Dict[str, Any]) -> HiveTable:
-    metadata_path = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}-metadata.json")
+    metadata_path = str(tmp_path_factory.mktemp("metadata") / f"{uuid.uuid4()}.metadata.json")
     ToOutputFile.table_metadata(TableMetadataV2(**example_table_metadata_v2), LocalFileIO().new_output(str(metadata_path)), True)
 
     return HiveTable(
@@ -175,6 +176,7 @@ def test_check_number_of_namespaces(table_schema_simple: Schema):
 
 
 @patch("time.time", MagicMock(return_value=12345))
+@patch("uuid.uuid4", MagicMock(return_value="01234567-0123-0123-0123-0123456789ab"))
 def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, hive_table: HiveTable):
     catalog = HiveCatalog(HIVE_CATALOG_NAME, {}, uri=HIVE_METASTORE_FAKE_URL)
 
@@ -182,8 +184,14 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
     catalog._client.__enter__().create_table.return_value = None
     catalog._client.__enter__().get_table.return_value = hive_table
     catalog._client.__enter__().get_database.return_value = hive_database
-    table = catalog.create_table(("default", "table"), schema=table_schema_simple, properties={"owner": "javaberg"})
+    catalog.create_table(("default", "table"), schema=table_schema_simple, properties={"owner": "javaberg"})
 
+    called_hive_table: HiveTable = catalog._client.__enter__().create_table.call_args[0][0]
+    # This one is generated within the function itself, so we need to extract
+    # it to construct the assert_called_with
+    metadata_location: str = called_hive_table.parameters["metadata_location"]
+    assert metadata_location.endswith(".metadata.json")
+    assert "/database/table/metadata/" in metadata_location
     catalog._client.__enter__().create_table.assert_called_with(
         HiveTable(
             tableName="table",
@@ -219,7 +227,7 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
                 storedAsSubDirectories=None,
             ),
             partitionKeys=None,
-            parameters={"EXTERNAL": "TRUE", "table_type": "ICEBERG", "metadata_location": table.metadata_location},
+            parameters={"EXTERNAL": "TRUE", "table_type": "ICEBERG", "metadata_location": metadata_location},
             viewOriginalText=None,
             viewExpandedText=None,
             tableType="EXTERNAL_TABLE",
@@ -241,14 +249,19 @@ def test_create_table(table_schema_simple: Schema, hive_database: HiveDatabase, 
             txnId=None,
         )
     )
-    assert table.metadata_location and table.metadata_location.endswith(".metadata.json")
 
-    assert table.identifier == ("default", "new_tabl2e")
-    assert table.metadata
-    assert table.metadata.location.endswith("database/table")
-    assert table.metadata == TableMetadataV2(
-        location=table.metadata.location,
-        table_uuid=table.metadata.table_uuid,
+    with open(metadata_location, encoding="utf-8") as f:
+        payload = json.load(f)
+
+    metadata = TableMetadata.parse_obj(payload)
+
+    assert "database/table" in metadata.location
+
+    assert metadata
+    assert metadata == TableMetadataV2(
+        # The following two ones are dynamic
+        location=metadata.location,
+        table_uuid=metadata.table_uuid,
         last_updated_ms=12345000,
         last_column_id=3,
         schemas=[
@@ -662,7 +675,14 @@ def test_construct_hive_storage_descriptor_nested(table_schema_nested: Schema):
     )
 
 
-def test_resolve_table_location_warehouse():
+def test_resolve_table_location_warehouse(hive_database: HiveDatabase):
     catalog = HiveCatalog(HIVE_CATALOG_NAME, {WAREHOUSE: "/tmp/warehouse/"}, uri=HIVE_METASTORE_FAKE_URL)
+
+    # Set this one to None, so we'll fall back to the properties
+    hive_database.locationUri = None
+
+    catalog._client = MagicMock()
+    catalog._client.__enter__().get_database.return_value = hive_database
+
     location = catalog._resolve_table_location(None, "database", "table")
     assert location == "/tmp/warehouse/database/table"
