@@ -72,6 +72,7 @@ public class BucketFunction implements UnboundFunction {
           "Expected number of buckets to be tinyint, shortint or int");
     }
 
+    // TODO - Support UUID type.
     DataType type = valueField.dataType();
     if (type instanceof DateType) {
       return new BucketInt(DataTypes.DateType);
