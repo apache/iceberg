@@ -27,7 +27,7 @@ from typing import (
 
 from pydantic import Field, root_validator
 
-from pyiceberg.transforms import Transform
+from pyiceberg.transforms import IdentityTransform, Transform
 from pyiceberg.types import IcebergType
 from pyiceberg.utils.iceberg_base_model import IcebergBaseModel
 
@@ -36,10 +36,22 @@ class SortDirection(Enum):
     ASC = "asc"
     DESC = "desc"
 
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"SortDirection.{self.name}"
+
 
 class NullOrder(Enum):
     NULLS_FIRST = "nulls-first"
     NULLS_LAST = "nulls-last"
+
+    def __str__(self) -> str:
+        return self.name.replace("_", " ")
+
+    def __repr__(self) -> str:
+        return f"NullOrder.{self.name}"
 
 
 class SortField(IcebergBaseModel):
@@ -83,6 +95,13 @@ class SortField(IcebergBaseModel):
     direction: SortDirection = Field()
     null_order: NullOrder = Field(alias="null-order")
 
+    def __str__(self):
+        if type(self.transform) == IdentityTransform:
+            # In the case of an identity transform, we can omit the transform
+            return f"{self.source_id} {self.direction} {self.null_order}"
+        else:
+            return f"{self.transform}({self.source_id}) {self.direction} {self.null_order}"
+
 
 class SortOrder(IcebergBaseModel):
     """Describes how the data is sorted within the table
@@ -105,6 +124,13 @@ class SortOrder(IcebergBaseModel):
 
     order_id: Optional[int] = Field(alias="order-id")
     fields: List[SortField] = Field(default_factory=list)
+
+    def __str__(self) -> str:
+        result_str = "["
+        if self.fields:
+            result_str += "\n  " + "\n  ".join([str(field) for field in self.fields]) + "\n"
+        result_str += "]"
+        return result_str
 
 
 UNSORTED_SORT_ORDER_ID = 0
