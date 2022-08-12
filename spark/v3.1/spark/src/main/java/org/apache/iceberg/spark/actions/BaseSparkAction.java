@@ -110,7 +110,8 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return new BaseTable(ops, metadataFileLocation);
   }
 
-  protected Dataset<Row> buildValidDataFileDF(Table table) {
+  // builds a DF of delete and data file locations by reading all manifests
+  protected Dataset<Row> buildValidContentFileDF(Table table) {
     JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
 

@@ -60,7 +60,7 @@ public class BaseDeleteReachableFilesSparkAction
   private static final Logger LOG =
       LoggerFactory.getLogger(BaseDeleteReachableFilesSparkAction.class);
 
-  private static final String DATA_FILE = "Data File";
+  private static final String CONTENT_FILE = "Content File";
   private static final String MANIFEST = "Manifest";
   private static final String MANIFEST_LIST = "Manifest List";
   private static final String OTHERS = "Others";
@@ -140,7 +140,7 @@ public class BaseDeleteReachableFilesSparkAction
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, io);
-    return projectFilePathWithType(buildValidDataFileDF(staticTable), DATA_FILE)
+    return projectFilePathWithType(buildValidContentFileDF(staticTable), CONTENT_FILE)
         .union(projectFilePathWithType(buildManifestFileDF(staticTable), MANIFEST))
         .union(projectFilePathWithType(buildManifestListDF(staticTable), MANIFEST_LIST))
         .union(projectFilePathWithType(buildOtherMetadataFileDF(staticTable), OTHERS));
@@ -183,9 +183,9 @@ public class BaseDeleteReachableFilesSparkAction
               String type = fileInfo.getString(1);
               removeFunc.accept(file);
               switch (type) {
-                case DATA_FILE:
+                case CONTENT_FILE:
                   dataFileCount.incrementAndGet();
-                  LOG.trace("Deleted Data File: {}", file);
+                  LOG.trace("Deleted Content File: {}", file);
                   break;
                 case MANIFEST:
                   manifestCount.incrementAndGet();
