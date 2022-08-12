@@ -53,6 +53,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateSchema;
@@ -62,6 +63,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -443,6 +445,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         () -> {
           catalog.dropNamespace(namespace);
         });
+    final String s = catalog.newTableOps(identifier).current().metadataFileLocation();
     Assert.assertTrue(catalog.dropTable(identifier, true));
     Assert.assertTrue(
         "Should fail to drop namespace if it is not empty", catalog.dropNamespace(namespace));
@@ -456,6 +459,38 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         () -> {
           catalog.loadNamespaceMetadata(namespace);
         });
+  }
+
+  @Test
+  public void testDropTable() throws TException {
+    Namespace namespace = Namespace.of("dbname_drop");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    Schema tableSchema =
+        new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
+    catalog.createNamespace(namespace, meta);
+    catalog.createTable(identifier, tableSchema);
+    TableOperations ops = catalog.newTableOps(identifier);
+
+    Assert.assertTrue(catalog.dropTable(identifier, true));
+    AssertHelpers.assertThrows(
+        "Should fail to load table after dropping it",
+        NoSuchTableException.class,
+        () -> catalog.loadTable(identifier)
+    );
+
+    // delete corrupted table
+    catalog.createTable(identifier, tableSchema);
+    String metadataFileLocation = catalog.newTableOps(identifier).current().metadataFileLocation();
+    ops.io().deleteFile(metadataFileLocation);
+    Assert.assertTrue(catalog.dropTable(identifier, true));
+    AssertHelpers.assertThrows(
+        "Should fail to load table after dropping it",
+        NoSuchTableException.class,
+        () -> catalog.loadTable(identifier)
+    );
+
+    // delete table that does not exist
+    Assert.assertFalse(catalog.dropTable(identifier, true));
   }
 
   @Test

@@ -45,6 +45,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -169,10 +170,19 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     TableOperations ops = newTableOps(identifier);
     TableMetadata lastMetadata;
-    if (purge && ops.current() != null) {
-      lastMetadata = ops.current();
-    } else {
-      lastMetadata = null;
+    try {
+      if (purge && ops.current() != null) {
+        lastMetadata = ops.current();
+      } else {
+        lastMetadata = null;
+      }
+    } catch (Exception e) {
+      if (e instanceof NotFoundException) {
+        LOG.warn("The metadata file doesn't exist any more. Continue to drop the table.", e);
+        lastMetadata = null;
+      } else {
+        throw e;
+      }
     }
 
     try {
