@@ -37,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.BucketHashUtil;
+import org.apache.iceberg.util.BucketUtil;
 
 abstract class Bucket<T> implements Transform<T, Integer> {
   private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
@@ -166,7 +166,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Integer value) {
-      return BucketHashUtil.forInteger(value);
+      return BucketUtil.hashInteger(value);
     }
 
     @Override
@@ -182,7 +182,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Long value) {
-      return BucketHashUtil.forLong(value);
+      return BucketUtil.hashLong(value);
     }
 
     @Override
@@ -202,7 +202,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Float value) {
-      return BucketHashUtil.forFloat(value);
+      return BucketUtil.hashFloat(value);
     }
 
     @Override
@@ -220,7 +220,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(Double value) {
-      return BucketHashUtil.forDouble(value);
+      return BucketUtil.hashDouble(value);
     }
 
     @Override
@@ -236,7 +236,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(CharSequence value) {
-      return BucketHashUtil.forCharSequence(value);
+      return BucketUtil.hashCharSequence(value);
     }
 
     @Override
@@ -254,7 +254,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(ByteBuffer value) {
-      return BucketHashUtil.forByteBuffer(value);
+      return BucketUtil.hashByteBuffer(value);
     }
 
     @Override
@@ -270,7 +270,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(UUID value) {
-      return BucketHashUtil.forUUID(value);
+      return BucketUtil.hashUUID(value);
     }
 
     @Override
@@ -286,7 +286,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
 
     @Override
     public int hash(BigDecimal value) {
-      return BucketHashUtil.forDecimal(value);
+      return BucketUtil.hashDecimal(value);
     }
 
     @Override

@@ -29,33 +29,33 @@ import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
  * Contains the logic for hashing various types for use with the {@code bucket} partition
  * transformations
  */
-public class BucketHashUtil {
+public class BucketUtil {
 
   private static final HashFunction MURMUR3 = Hashing.murmur3_32_fixed();
 
-  private BucketHashUtil() {}
+  private BucketUtil() {}
 
-  public static int forInteger(Integer value) {
+  public static int hashInteger(Integer value) {
     return MURMUR3.hashLong(value.longValue()).asInt();
   }
 
-  public static int forLong(Long value) {
+  public static int hashLong(Long value) {
     return MURMUR3.hashLong(value).asInt();
   }
 
-  public static int forFloat(Float value) {
+  public static int hashFloat(Float value) {
     return MURMUR3.hashLong(Double.doubleToLongBits((double) value)).asInt();
   }
 
-  public static int forDouble(Double value) {
+  public static int hashDouble(Double value) {
     return MURMUR3.hashLong(Double.doubleToLongBits(value)).asInt();
   }
 
-  public static int forCharSequence(CharSequence value) {
+  public static int hashCharSequence(CharSequence value) {
     return MURMUR3.hashString(value, StandardCharsets.UTF_8).asInt();
   }
 
-  public static int forByteBuffer(ByteBuffer value) {
+  public static int hashByteBuffer(ByteBuffer value) {
     if (value.hasArray()) {
       return MURMUR3
           .hashBytes(
@@ -76,7 +76,7 @@ public class BucketHashUtil {
     }
   }
 
-  public static int forUUID(UUID value) {
+  public static int hashUUID(UUID value) {
     return MURMUR3
         .newHasher(16)
         .putLong(Long.reverseBytes(value.getMostSignificantBits()))
@@ -85,7 +85,7 @@ public class BucketHashUtil {
         .asInt();
   }
 
-  public static int forDecimal(BigDecimal value) {
+  public static int hashDecimal(BigDecimal value) {
     return MURMUR3.hashBytes(value.unscaledValue().toByteArray()).asInt();
   }
 }

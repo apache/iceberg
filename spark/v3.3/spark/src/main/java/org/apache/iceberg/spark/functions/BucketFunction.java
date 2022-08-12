@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.functions;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.util.BucketHashUtil;
+import org.apache.iceberg.util.BucketUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
 import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
@@ -126,7 +126,7 @@ public class BucketFunction implements UnboundFunction {
 
     // magic method used in codegen
     public static int invoke(int numBuckets, int value) {
-      return (BucketHashUtil.forInteger(value) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hashInteger(value) & Integer.MAX_VALUE) % numBuckets;
     }
 
     public BucketInt(DataType sqlType) {
@@ -158,7 +158,7 @@ public class BucketFunction implements UnboundFunction {
 
     // magic function for usage with codegen - needs to be static
     public static int invoke(int numBuckets, long value) {
-      return (BucketHashUtil.forLong(value) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hashLong(value) & Integer.MAX_VALUE) % numBuckets;
     }
 
     public BucketLong(DataType sqlType) {
@@ -188,7 +188,7 @@ public class BucketFunction implements UnboundFunction {
   public static class BucketFloat extends BucketBase {
 
     public static int invoke(int numBuckets, float value) {
-      return (BucketHashUtil.forFloat(value) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hashFloat(value) & Integer.MAX_VALUE) % numBuckets;
     }
 
     @Override
@@ -217,7 +217,7 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketHashUtil.forCharSequence(value.toString()) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hashCharSequence(value.toString()) & Integer.MAX_VALUE) % numBuckets;
     }
 
     @Override
@@ -245,8 +245,7 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketHashUtil.forByteBuffer(ByteBuffer.wrap(value)) & Integer.MAX_VALUE)
-          % numBuckets;
+      return (BucketUtil.hashByteBuffer(ByteBuffer.wrap(value)) & Integer.MAX_VALUE) % numBuckets;
     }
 
     @Override
@@ -283,7 +282,7 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      return (BucketHashUtil.forDecimal(value.toJavaBigDecimal()) & Integer.MAX_VALUE) % numBuckets;
+      return (BucketUtil.hashDecimal(value.toJavaBigDecimal()) & Integer.MAX_VALUE) % numBuckets;
     }
 
     @Override
