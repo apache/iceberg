@@ -134,14 +134,6 @@ public class BucketFunction implements UnboundFunction {
     }
 
     @Override
-    public Integer produceResult(InternalRow input) {
-      // return null for null input to match what Spark does in the code-generated versions.
-      return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
-          ? null
-          : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getInt(VALUE_ORDINAL));
-    }
-
-    @Override
     public DataType[] inputTypes() {
       return new DataType[] {DataTypes.IntegerType, sqlType};
     }
@@ -149,6 +141,14 @@ public class BucketFunction implements UnboundFunction {
     @Override
     public String canonicalName() {
       return String.format("iceberg.bucket(%s)", sqlType.catalogString());
+    }
+
+    @Override
+    public Integer produceResult(InternalRow input) {
+      // return null for null input to match what Spark does in the code-generated versions.
+      return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
+          ? null
+          : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getInt(VALUE_ORDINAL));
     }
   }
 
@@ -171,16 +171,16 @@ public class BucketFunction implements UnboundFunction {
     }
 
     @Override
+    public String canonicalName() {
+      return String.format("iceberg.bucket(%s)", sqlType.catalogString());
+    }
+
+    @Override
     public Integer produceResult(InternalRow input) {
       // return null for null input to match what Spark does in the code-generated versions.
       return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
           : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getLong(VALUE_ORDINAL));
-    }
-
-    @Override
-    public String canonicalName() {
-      return String.format("iceberg.bucket(%s)", sqlType.catalogString());
     }
   }
 
@@ -271,11 +271,6 @@ public class BucketFunction implements UnboundFunction {
     private final int precision;
     private final int scale;
 
-    public BucketDecimal(int precision, int scale) {
-      this.precision = precision;
-      this.scale = scale;
-    }
-
     // magic method used in codegen
     public static Integer invoke(int numBuckets, Decimal value) {
       if (value == null) {
@@ -283,6 +278,11 @@ public class BucketFunction implements UnboundFunction {
       }
 
       return (BucketUtil.hashDecimal(value.toJavaBigDecimal()) & Integer.MAX_VALUE) % numBuckets;
+    }
+
+    public BucketDecimal(int precision, int scale) {
+      this.precision = precision;
+      this.scale = scale;
     }
 
     @Override
