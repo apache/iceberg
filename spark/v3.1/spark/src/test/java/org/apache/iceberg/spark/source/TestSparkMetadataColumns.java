@@ -120,8 +120,6 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     TestTables.clearTables();
   }
 
-  // TODO: remove testing workarounds once we compile against Spark 3.2
-
   @Test
   public void testSpecAndPartitionMetadataColumns() {
     // TODO: support metadata structs in vectorized ORC reads
@@ -153,9 +151,7 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     assertEquals(
         "Rows must match",
         expected,
-        sql(
-            "SELECT _spec_id, _partition FROM `%s$_spec_id,_partition` ORDER BY _spec_id",
-            TABLE_NAME));
+        sql("SELECT _spec_id, _partition FROM %s ORDER BY _spec_id", TABLE_NAME));
   }
 
   @Test
@@ -169,7 +165,7 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         "Should fail to query the partition metadata column",
         ValidationException.class,
         "Cannot build table partition type, unknown transforms",
-        () -> sql("SELECT _partition FROM `%s$_partition`", TABLE_NAME));
+        () -> sql("SELECT _partition FROM %s", TABLE_NAME));
   }
 
   private void createAndInitTable() throws IOException {
