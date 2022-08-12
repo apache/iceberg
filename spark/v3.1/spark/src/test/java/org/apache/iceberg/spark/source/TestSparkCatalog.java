@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -30,14 +33,14 @@ public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces>
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    String[] parts = ident.name().split("\\$", 2);
-    if (parts.length == 2) {
-      TestTables.TestTable table = TestTables.load(parts[0]);
-      String[] metadataColumns = parts[1].split(",");
-      return new SparkTestTable(table, metadataColumns, false);
-    } else {
-      TestTables.TestTable table = TestTables.load(ident.name());
-      return new SparkTestTable(table, null, false);
+    TableIdentifier tableIdentifier = Spark3Util.identifierToTableIdentifier(ident);
+    Namespace namespace = tableIdentifier.namespace();
+
+    TestTables.TestTable table = TestTables.load(tableIdentifier.toString());
+    if (table == null && namespace.equals(Namespace.of("default"))) {
+      table = TestTables.load(tableIdentifier.name());
     }
+
+    return new SparkTable(table, false);
   }
 }
