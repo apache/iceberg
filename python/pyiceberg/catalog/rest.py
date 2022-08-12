@@ -403,8 +403,8 @@ class RestCatalog(Catalog):
         except HTTPError as exc:
             self._handle_non_200_response(exc, {404: NoSuchNamespaceError})
 
-    def list_namespaces(self, namespace: Optional[Union[str, Identifier]] = None) -> List[Identifier]:
-        namespace_tuple = self.identifier_to_tuple(namespace or ())
+    def list_namespaces(self, namespace: Union[str, Identifier] = ()) -> List[Identifier]:
+        namespace_tuple = self.identifier_to_tuple(namespace)
         response = requests.get(
             self.url(
                 f"{Endpoints.list_namespaces}?parent={NAMESPACE_SEPARATOR.join(namespace_tuple)}"
