@@ -178,7 +178,6 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      // return null for null input to match what Spark does in the code-generated versions.
       return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
           : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getLong(VALUE_ORDINAL));
@@ -204,7 +203,6 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      // return null for null input to match what Spark does in the code-generated versions.
       return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
           : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getFloat(VALUE_ORDINAL));
@@ -233,7 +231,6 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      // return null for null input to match what Spark does in the code-generated versions.
       return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
           : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getUTF8String(VALUE_ORDINAL));
@@ -256,7 +253,6 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      // return null for null input to match what Spark does in the code-generated versions.
       return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
           : invoke(input.getInt(NUM_BUCKETS_ORDINAL), input.getBinary(VALUE_ORDINAL));
@@ -293,7 +289,6 @@ public class BucketFunction implements UnboundFunction {
 
     @Override
     public Integer produceResult(InternalRow input) {
-      // return null for null input to match what Spark does in the code-generated versions.
       return input.isNullAt(NUM_BUCKETS_ORDINAL) || input.isNullAt(VALUE_ORDINAL)
           ? null
           : invoke(

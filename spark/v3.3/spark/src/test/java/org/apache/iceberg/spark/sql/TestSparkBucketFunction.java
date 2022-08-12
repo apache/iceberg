@@ -84,7 +84,8 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testBucketTimestamp() {
-    Assert.assertEquals(83, scalarSql("SELECT system.bucket(100, TIMESTAMP '1997-01')"));
+    Assert.assertEquals(
+        99, scalarSql("SELECT system.bucket(100, TIMESTAMP '1997-01-01 00:00:00 UTC+00:00')"));
     Assert.assertEquals(
         85, scalarSql("SELECT system.bucket(100, TIMESTAMP '1997-01-31 09:26:56 UTC+00:00')"));
     Assert.assertEquals(
