@@ -45,7 +45,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 /**
  * A Spark function implementation for the Iceberg bucket transform.
  *
- * <p>Example usage: {@code SELECT system.bucket(1, 'abc')}, which returns the bucket.
+ * <p>Example usage: {@code SELECT system.bucket(128, 'abc')}, which returns the bucket 122.
  *
  * <p>Note that for performance reasons, the given input number of buckets is not validated in the
  * implementations used in code-gen. The number of buckets must be positive to give meaningful
