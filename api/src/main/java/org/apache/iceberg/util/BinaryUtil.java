@@ -51,6 +51,20 @@ public class BinaryUtil {
   }
 
   /**
+   * Truncates the input byte buffer to the given length.
+   *
+   * <p>Unlike {@linkplain #truncateBinary(ByteBuffer, int)}, this skips copying the input data.
+   *
+   * @param value The ByteBuffer to be truncated
+   * @param width The non-negative length to truncate input to
+   */
+  public static ByteBuffer truncateBinaryUnsafe(ByteBuffer value, int width) {
+    ByteBuffer ret = value.duplicate();
+    ret.limit(Math.min(value.limit(), value.position() + width));
+    return ret;
+  }
+
+  /**
    * Returns a byte buffer whose length is lesser than or equal to truncateLength and is lower than
    * the given input
    */
