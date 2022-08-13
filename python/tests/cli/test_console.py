@@ -176,14 +176,10 @@ Last Updated          1602638573590
 Partition spec        [
                         1000: x: identity(1)
                       ]
-Sort order            order_id=3 fields=[SortField(source_id=2,
-                      transform=IdentityTransform(),
-                      direction=<SortDirection.ASC: 'asc'>,
-                      null_order=<NullOrder.NULLS_FIRST: 'nulls-first'>),
-                      SortField(source_id=3,
-                      transform=BucketTransform(num_buckets=4),
-                      direction=<SortDirection.DESC: 'desc'>,
-                      null_order=<NullOrder.NULLS_LAST: 'nulls-last'>)]
+Sort order            [
+                        2 ASC NULLS FIRST
+                        bucket[4](3) DESC NULLS LAST
+                      ]
 Schema                Schema
                       ├── 1: x: required long
                       ├── 2: y: required long (comment)
