@@ -2,7 +2,7 @@
 title: "Configuration"
 url: configuration
 menu: main
-weight: 1201
+weight: 1002
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -23,74 +23,77 @@ weight: 1201
 
 # Configuration
 
-## Spark
+## Spark Catalog Properties
 
-### Spark Catalog Configurations
-
-Catalog properties can be set in spark using either `--conf` when launching the shell, or in the `spark-defaults.conf` file.
+In Spark, catalog properties can be set either through the `--conf` argument when using the cli or in the `spark-defaults.conf` file.
 
 {{% codetabs "SparkCatalogProperties" %}}
-{{% addtab "CLI" "spark-init" "cli" %}}
+{{% addtab "Spark-Shell" "spark-init" "cli" %}}
 {{% addtab "spark-defaults.conf" "spark-init" "spark-defaults" %}}
-{{% tabcontent "cli"  %}}
+{{% tabcontent "cli" %}}
 ```sh
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:{{% icebergVersion %}}\
-    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
-    --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
-    --conf spark.sql.catalog.spark_catalog.type=hive \
-    --conf spark.sql.catalog.demo=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.demo.type=hadoop \
-    --conf spark.sql.catalog.demo.warehouse=$PWD/warehouse \
-    --conf spark.sql.defaultCatalog=demo
+spark-submit --conf spark.sql.catalog.<catalogName>.<property>=<value>
 ```
 {{% /tabcontent %}}
 {{% tabcontent "spark-defaults" %}}
 ```sh
-spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.2_2.12:{{% icebergVersion %}}
-spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
-spark.sql.catalog.spark_catalog.type                 hive
-spark.sql.catalog.demo                               org.apache.iceberg.spark.SparkCatalog
-spark.sql.catalog.demo.type                          hadoop
-spark.sql.catalog.demo.warehouse                     $PWD/warehouse
-spark.sql.defaultCatalog                             demo
+spark.sql.catalog.<catalogName>.<property>=<value>
 ```
 {{% /tabcontent %}}
 {{% /codetabs %}}
 
-| Property                                           | Values                        | Description                                                          |
-| -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-| spark.sql.catalog.spark_catalog                    | org.apache.iceberg.spark.SparkSessionCatalog | Adds support for Iceberg tables to Spark’s built-in catalog |
-| spark.sql.catalog._catalog-name_.type              | `hive` or `hadoop`            | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog` or left unset if using a custom catalog. |
-| spark.sql.catalog._catalog-name_.catalog-impl      |                               | The underlying Iceberg catalog implementation.|
-| spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog |
-| spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Metastore connect URI; default from `hive-site.xml` |
-| spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
-| spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
-| spark.sql.catalog._catalog-name_.cache.expiration-interval-ms | `30000` (30 seconds) | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) |                                                   |
-|  spark.sql.catalog._catalog-name_.s3.delete-enabled     | `true` or `false` | When set to `false`, the objects are not hard-deleted from S3 |
-|  spark.sql.catalog._catalog-name_.s3.delete.tags._tag_name_    | null | Objects are tagged with the configured key-value pairs before deletion.
-Users can configure tag-based object lifecycle policy at bucket level to transition objects to different tiers. |
-|  spark.sql.catalog._catalog-name_.s3.delete.num-threads    | null | Number of threads to be used for adding delete tags to the S3 objects |
+| Property                                                          | Values                                       | Description                                                                                                                                                                                                                              |
+|-------------------------------------------------------------------|----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| spark.sql.catalog.spark_catalog                                   | org.apache.iceberg.spark.SparkSessionCatalog | Adds support for Iceberg tables to Spark’s built-in catalog                                                                                                                                                                              |
+| spark.sql.catalog._catalog-name_.**type**                         | `hive` or `hadoop`                           | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog` or left unset if using a custom catalog.                                                                                                                   |
+| spark.sql.catalog._catalog-name_.**catalog-impl**                 |                                              | The underlying Iceberg catalog implementation.                                                                                                                                                                                           |
+| spark.sql.catalog._catalog-name_.**default-namespace**            | default                                      | The default current namespace for the catalog                                                                                                                                                                                            |
+| spark.sql.catalog._catalog-name_.**uri**                          | thrift://host:port                           | Metastore connect URI; default from `hive-site.xml`                                                                                                                                                                                      |
+| spark.sql.catalog._catalog-name_.**warehouse**                    | hdfs://nn:8020/warehouse/path                | Base path for the warehouse directory                                                                                                                                                                                                    |
+| spark.sql.catalog._catalog-name_.**cache-enabled**                | `true` or `false`                            | Whether to enable catalog cache, default value is `true`                                                                                                                                                                                 |
+| spark.sql.catalog._catalog-name_.**cache.expiration-interval-ms** | `30000` (30 seconds)                         | Duration after which cached catalog entries are expired; Only effective if `cache-enabled` is `true`. `-1` disables cache expiration and `0` disables caching entirely, irrespective of `cache-enabled`. Default is `30000` (30 seconds) |
+| spark.sql.catalog._catalog-name_.**s3.delete-enabled**            | `true` or `false`                            | When set to `false`, the objects are not hard-deleted from S3                                                                                                                                                                            |
+| spark.sql.catalog._catalog-name_.**s3.delete.tags**._tag_name_    | null                                         | Objects are tagged with the configured key-value pairs before deletion. Users can configure tag-based object lifecycle policy at bucket level to transition objects to different tiers.                                                  |
+| spark.sql.catalog._catalog-name_.**s3.delete.num-threads**        | null                                         | Number of threads to be used for adding delete tags to the S3 objects                                                                                                                                                                    |
+
+## Spark Table Properties
+
+In Spark, table properties can be set through `ALTER TABLE` SQL commands.
+
+{{% codetabs "SparkTableProperties" %}}
+{{% addtab "Spark-SQL" "spark-queries" "spark-sql" %}}
+{{% tabcontent "spark-sql" %}}
+```sql
+ALTER TABLE <catalog>.<database>.<table> SET TBLPROPERTIES (
+    '<property>'='<value>'
+)
+```
+{{% /tabcontent %}}
+{{% /codetabs %}}
+
+See the [Table Properties](#table-properties) section to see a list of all available table properties.
 
 {{< hint info >}}To enable Iceberg's Spark SQL extensions, set `spark.sql.extensions` to `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`
 in your Spark conf.{{< /hint >}}
 
-### Spark Runtime Read Options
+## Spark DataFrame Read Options
 
-Read options can be set in spark when using the DataFrame API.
+Read options can be set at runtime when using the Spark DataFrame API.
 
-{{% codetabs "SparkReadOptions" %}}
-{{% addtab "Spark-Shell" "spark-queries" "spark-shell" %}}
+{{% codetabs "SparkDataframeRead" %}}
+{{% addtab "Scala" "spark-queries" "spark-sql" %}}
 {{% addtab "PySpark" "spark-queries" "pyspark" %}}
-{{% tabcontent "spark-shell" %}}
+{{% tabcontent "spark-sql" %}}
 ```scala
-val df = spark.read.option("snapshot-id", 5636037920220996438L).table("nyc.taxis_sample")
+val df = spark.read
+    .option("<property>", "<value>")
+    .format("iceberg")
+    .load("catalog.database.table")
 ```
 {{% /tabcontent %}}
 {{% tabcontent "pyspark" %}}
-```py
-df = spark.read.option("snapshot-id", 5636037920220996438).table("nyc.taxis_sample")
+```python
+df = spark.read.option("<property>", "<value>").format("iceberg").load("catalog.database.table")
 ```
 {{% /tabcontent %}}
 {{% /codetabs %}}
@@ -106,21 +109,25 @@ df = spark.read.option("snapshot-id", 5636037920220996438).table("nyc.taxis_samp
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
 
-### Spark Runtime Write Options
+## Spark DataFrame Write Options
 
-Write options can be set in spark when using the DataFrame API.
+Write options can be set at runtime when using the Spark DataFrame API.
 
-{{% codetabs "SparkWriteOptions" %}}
-{{% addtab "Spark-Shell" "spark-queries" "spark-shell" %}}
+{{% codetabs "SparkDataframeWrite" %}}
+{{% addtab "Scala" "spark-queries" "spark-sql" %}}
 {{% addtab "PySpark" "spark-queries" "pyspark" %}}
-{{% tabcontent "spark-shell" %}}
+{{% tabcontent "spark-sql" %}}
 ```scala
-df.write.option("target-file-size-bytes", 268435456).saveAsTable("nyc.taxis_sample")
+df.write
+    .option("<property>", "<value>")
+    .format("iceberg")
+    .mode("append")
+    .save("catalog.database.table")
 ```
 {{% /tabcontent %}}
 {{% tabcontent "pyspark" %}}
-```py
-df.write.option("target-file-size-bytes", 268435456).saveAsTable("nyc.taxis_sample")
+```python
+df.write.option("<property>", "<value>").format("iceberg").mode("append").save("catalog.database.table")
 ```
 {{% /tabcontent %}}
 {{% /codetabs %}}
@@ -136,26 +143,120 @@ df.write.option("target-file-size-bytes", 268435456).saveAsTable("nyc.taxis_samp
 | isolation-level | null | Desired isolation level for Dataframe overwrite operations.  `null` => no checks (for idempotent writes), `serializable` => check for concurrent inserts or deletes in destination partitions, `snapshot` => checks for concurrent deletes in destination partitions. |
 | validate-from-snapshot-id | null | If isolation level is set, id of base snapshot from which to check concurrent write conflicts into a table. Should be the snapshot before any reads from the table. Can be obtained via [Table API](../../api#table-metadata) or [Snapshots table](../spark-queries#snapshots). If null, the table's oldest known snapshot is used. |
 
-### Spark Table Properties
+## Flink Catalog Properties
 
-Table properties can be set when creating a table using SparkSQL.
+In Flink, catalog properties can be set either in the `WITH` clause in Flink-SQL or by passing a property map to a catalog loader.
 
+{{% codetabs "FlinkCatalogProperties" %}}
+{{% addtab "SQL" "general-languages" "sql" %}}
+{{% addtab "Java" "general-languages" "java" %}}
+{{% tabcontent "sql" %}}
 ```sql
-CREATE TABLE demo.nyc.taxis (
-  `vendor_id` BIGINT,
-  `tpep_pickup_datetime` TIMESTAMP,
-  `tpep_dropoff_datetime` TIMESTAMP,
-  `passenger_count` DOUBLE,
-  `trip_distance` DOUBLE
-)
-TBLPROPERTIES(
-  'read.split.target-size'='268435456',
-  'write.target-file-size-bytes'='268435456',
-  'history.expire.max-snapshot-age-ms'='604800000'
+CREATE CATALOG <catalogName> WITH (
+  'type'='iceberg',
+  '<property>'='<value>'
+);
+```
+{{% /tabcontent %}}
+{{% tabcontent "java" %}}
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.flink.CatalogLoader;
+
+Configuration conf = new Configuration();
+
+Map<String, String> catalogProperties = new HashMap<>();
+catalogProperties.put("<property>", "<value>");
+
+CatalogLoader catalogLoader =
+    CatalogLoader.custom(
+        "<catalogName>",
+        catalogProperties,
+        conf,
+        "<catalog-impl>");
+Catalog catalog = catalogLoader.loadCatalog();
+```
+{{% /tabcontent %}}
+{{% /codetabs %}}
+
+| Property         | Default | Description                                                                                                                                                                                                                                               |
+|------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| type             | iceberg | This is required and must be set to `iceberg`                                                                                                                                                                                                             |
+| catalog-type     | null    | This can be set to `hive` or `hadoop` and should be left unset for custom catalog implementations (use `catalog-impl` instead)                                                                                                                            |
+| catalog-impl     | null    | The fully-qualified class name custom catalog implementation, must be set if catalog-type is unset.                                                                                                                                                       |
+| property-version | null    | Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is 1.                                                                            |
+| cache-enabled    | true    | Whether to enable catalog cache.                                                                                                                                                                                                                          |
+| uri              | null    | The Hive metastore's thrift URI. Required if using a hive catalog.                                                                                                                                                                                        |
+| clients          | null    | The Hive metastore client pool size, default value is 2.                                                                                                                                                                                                  |
+| warehouse        | true    | The Hive warehouse location. This should be specified if the `hive-conf-dir` is not set to a location containing a `hive-site.xml` or a `hive-site.xml` has not been added to the classpath.                                                              |
+| hive-conf-dir    | null    | Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. This value takes precedence over the value of `hive.metastore.warehouse.dir` in a `hive-site.xml` configuration file. |
+
+
+## Flink Table Properties
+
+In Flink, table properties can be set through `ALTER TABLE` SQL commands.
+
+{{% codetabs "FlinkTableProperties" %}}
+{{% addtab "SQL" "general-languages" "sql" %}}
+{{% tabcontent "sql" %}}
+```sql
+ALTER TABLE <catalog>.<database>.<table> SET (
+    '<property>'='<value>'
 )
 ```
+{{% /tabcontent %}}
+{{% /codetabs %}}
 
-#### Spark Table Read Properties
+See the [Table Properties](#table-properties) section to see a list of all available table properties.
+
+## Hive Catalog Properties
+
+In Hive, catalog properties can be set using the `SET` keyword.
+
+{{% codetabs "HiveCatalogProperties" %}}
+{{% addtab "SQL" "general-languages" "sql" %}}
+{{% tabcontent "sql" %}}
+```sql
+SET iceberg.catalog.<catalogName>.<property>=<value>;
+```
+{{% /tabcontent %}}
+{{% /codetabs %}}
+
+## Hive Table Properties
+
+In Hive, table properties can be set through `ALTER TABLE` SQL commands.
+
+{{% codetabs "HiveTableProperties" %}}
+{{% addtab "SQL" "general-languages" "sql" %}}
+{{% tabcontent "sql" %}}
+```sql
+ALTER TABLE tbl SET TBLPROPERTIES('<property>'='<value>');
+```
+{{% /tabcontent %}}
+{{% /codetabs %}}
+
+| Property                              | Default          | Description                                                                        |
+| ------------------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| external.table.purge        | true                       | If all data and metadata should be purged in a table by default when the table is dropped |
+| gc.enabled                  | true                       | if all data and metadata should be purged in the table by default |
+
+{{< hint info >}}
+Changing `gc.enabled` on the Iceberg table via UpdateProperties, updates
+`external.table.purge` on the HMS table accordingly. Setting `external.table.purge` as a table
+prop during Hive `CREATE TABLE` pushes `gc.enabled` down to the Iceberg table properties.
+This ensures these properties are always consistent at table level between Hive and
+Iceberg.
+{{< /hint >}}
+
+{{< hint info >}}
+HMS table properties and Iceberg table properties are kept in sync for HiveCatalog tables in Hive 4.0.0+
+{{< /hint >}}
+
+See the [Table Properties](#table-properties) section to see a list of all available table properties.
+
+## Table Properties
+
+### Read Properties
 
 | Property                          | Default            | Description                                            |
 | --------------------------------- | ------------------ | ------------------------------------------------------ |
@@ -168,7 +269,7 @@ TBLPROPERTIES(
 | read.orc.vectorization.enabled    | false              | Enables orc vectorized reads                           |
 | read.orc.vectorization.batch-size | 5000               | The batch size for orc vectorized reads                |
 
-#### Spark Table Write Properties
+### Write Properties
 
 | Property                           | Default            | Description                                        |
 | ---------------------------------- | ------------------ | -------------------------------------------------- |
@@ -208,7 +309,7 @@ TBLPROPERTIES(
 | write.merge.mode                   | copy-on-write      | Mode used for merge commands: copy-on-write or merge-on-read (v2 only) |
 | write.merge.isolation-level        | serializable       | Isolation level for merge commands: serializable or snapshot |
 
-#### Spark Table Behavior Properties
+### Behavior Properties
 
 | Property                           | Default          | Description                                                   |
 | ---------------------------------- | ---------------- | ------------------------------------------------------------- |
@@ -227,7 +328,7 @@ TBLPROPERTIES(
 | history.expire.min-snapshots-to-keep | 1                | Default min number of snapshots to keep while expiring snapshots |
 | history.expire.max-ref-age-ms      | `Long.MAX_VALUE` (forever) | For snapshot references except the `main` branch, default max age of snapshot references to keep while expiring snapshots. The `main` branch never expires. |
 
-#### Reserved Table Properties
+### Reserved Table Properties
 
 | Property       | Default  | Description                                                   |
 | -------------- | -------- | ------------------------------------------------------------- |
@@ -238,87 +339,13 @@ Reserved table properties are only used to control behaviors when creating or up
 The value of these properties are not persisted as a part of the table metadata.
 {{< /hint >}}
 
-#### Compatibility Flags
+### Table Compatibility Flags
 
 | Property                                      | Default  | Description                                                                               |
 | --------------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
 | compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs; Not required for v2 tables    |
 
-## Java Client
-
-When using the Java client, catalog properties can be set during catalog initialization.
-
-```java
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.jdbc.JdbcCatalog;
-
-Map<String, String> properties = new HashMap<>();
-properties.put("catalog-impl", "org.apache.iceberg.jdbc.JdbcCatalog");
-properties.put("io-impl", "org.apache.iceberg.aws.s3.S3FileIO");
-properties.put("warehouse", "s3://...");
-properties.put("uri", "jdbc:postgresql://postgres:5432/demo_catalog");
-properties.put("jdbc.user", "admin");
-properties.put("jdbc.password", "password");
-
-JdbcCatalog catalog = new JdbcCatalog();
-Configuration conf = new Configuration();
-catalog.setConf(conf);
-catalog.initialize("demo", properties);
-```
-
-### Java Client Catalog Properties
-
-| Property                          | Default            | Description                                            |
-| --------------------------------- | ------------------ | ------------------------------------------------------ |
-| catalog-impl                      | null               | a custom `Catalog` implementation to use by an engine  |
-| io-impl                           | null               | a custom `FileIO` implementation to use in a catalog   |
-| warehouse                         | null               | the root path of the data warehouse                    |
-| uri                               | null               | a URI string, such as Hive metastore URI               |
-| clients                           | 2                  | client pool size                                       |
-| cache-enabled                     | true               | Whether to cache catalog entries |
-| cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
-| lock-impl                         | null               | a custom implementation of the lock manager, the actual interface depends on the catalog used  |
-| lock.table                        | null               | an auxiliary table for locking, such as in [AWS DynamoDB lock manager](../aws/#dynamodb-for-commit-locking)  |
-| lock.acquire-interval-ms          | 5 seconds          | the interval to wait between each attempt to acquire a lock  |
-| lock.acquire-timeout-ms           | 3 minutes          | the maximum time to try acquiring a lock               |
-| lock.heartbeat-interval-ms        | 3 seconds          | the interval to wait between each heartbeat after acquiring a lock  |
-| lock.heartbeat-timeout-ms         | 15 seconds         | the maximum time without a heartbeat to consider a lock expired  |
-
-{{< hint info >}}
-`HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
-Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.
-The properties can be manually constructed or passed in from a compute engine like Spark or Flink.
-Spark uses its session properties as catalog properties, see more details in the [Spark configuration](../spark-configuration#catalog-configuration) section.
-Flink passes in catalog properties through `CREATE CATALOG` statement, see more details in the [Flink](../flink/#creating-catalogs-and-using-catalogs) section.
-{{< /hint >}}
-
-### JDBC Catalog Properties
-
-| Property          | Default            | Description                              |
-| ----------------- | ------------------ | ---------------------------------------- |
-| uri               | null               | A JDBC URI                               |
-| jdbc.user         | null               | The username for the JDBC connection     |
-| jdbc.password     | null               | The password for the JDBC connection     |
-
-### DynamoDB Catalog Properties
-
-| Property                   | Default            | Description                                         |
-| -------------------------- | ------------------ | --------------------------------------------------- |
-| dynamodb.table-name        | iceberg            | name of the DynamoDB table used by DynamoDbCatalog  |
-
-## Hive
-
-Hive configuration can be set in the `hive-site.xml` file or inherited from the hadoop configuration defined in the `core-default.xml` or `core-site.xml` files.
-
-```xml
-  <property>
-    <name>iceberg.hive.lock-timeout-ms</name>
-    <value>600000</value>
-  </property>
-```
-
-### Hadoop Configurations
+## Hadoop Configurations
 
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 
@@ -340,45 +367,3 @@ of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newe
 Hive Metastore before the lock is retried from Iceberg.
 {{< /hint >}}
 
-### Hive Table Level Configurations
-
-| Property                              | Default          | Description                                                                        |
-| ------------------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
-| external.table.purge        | true                       | If all data and metadata should be purged in a table by default when the table is dropped |
-| gc.enabled                  | true                       | if all data and metadata should be purged in the table by default |
-
-{{< hint info >}}
-Changing `gc.enabled` on the Iceberg table via UpdateProperties, updates
-`external.table.purge` on the HMS table accordingly. Setting `external.table.purge` as a table
-prop during Hive `CREATE TABLE` pushes `gc.enabled` down to the Iceberg table properties.
-This ensures these properties are always consistent at table level between Hive and
-Iceberg.
-{{< /hint >}}
-
-{{< hint info >}}
-HMS table properties and Iceberg table properties are kept in sync for HiveCatalog tables in Hive 4.0.0+
-{{< /hint >}}
-
-## FileIO
-
-### S3FileIO
-
-| Property                          | Default                                            | Description                                            |
-| --------------------------------- | -------------------------------------------------- | ------------------------------------------------------ |
-| s3.multipart.num-threads          | the available number of processors in the system   | number of threads to use for uploading parts to S3 (shared across all output streams)  |
-| s3.multipart.part-size-bytes      | 32MB                                               | the size of a single part for multipart upload requests  |
-| s3.multipart.threshold            | 1.5                                                | the threshold expressed as a factor times the multipart size at which to switch from uploading using a single put object request to uploading using multipart upload  |
-| s3.staging-dir                    | `java.io.tmpdir` property value                    | the directory to hold temporary files  |
-| s3.sse.type                       | `none`                                             | `none`, `s3`, `kms` or `custom`                        |
-| s3.sse.key                        | `aws/s3` for `kms` type, null otherwise            | A KMS Key ID or ARN for `kms` type, or a custom base-64 AES256 symmetric key for `custom` type.  |
-| s3.sse.md5                        | null                                               | If SSE type is `custom`, this value must be set as the base-64 MD5 digest of the symmetric key to ensure integrity. |
-| s3.write.tags.<key>               | null                                               | Custom tags to add to S3 objects while writing and deleting. |
-| s3.delete-enabled                 | true                                               | Whether to hard-delete files from S3. Commonly used in conjunction with `s3.delete.tags.<key>` |
-| s3.delete.tags.<key>              | null                                               | Key-value pair to tag S3 objects for deletion |
-| s3.delete.num-threads             | null                                               | The number of threads to use for adding delete tags to the S3 objects. |
-| s3.use-arn-region-enabled         | true                                               | Enable S3FileIO to make cross-region calls; Not required for same-region or multi-region access points |
-| s3.access-points.<bucket>         | null                                               | Access point to use for all S3 operations against <bucket>   |
-| client.assume-role.arn            | null, requires user input                          | ARN of the role to assume, e.g. arn:aws:iam::123456789:role/myRoleToAssume  |
-| client.assume-role.region         | null, requires user input                          | All AWS clients except the STS client will use the given region instead of the default region chain  |
-| client.assume-role.external-id    | null                                               | An optional [external ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)  |
-| client.assume-role.timeout-sec    | 1 hour                                             | Timeout of each assume role session. At the end of the timeout, a new set of role session credentials will be fetched through a STS client.  |
