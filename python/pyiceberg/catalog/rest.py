@@ -171,10 +171,10 @@ class RestCatalog(Catalog):
     def __init__(
         self,
         name: str,
-        properties: Properties,
         uri: str,
         credential: Optional[str] = None,
         token: Optional[str] = None,
+        **properties: str,
     ):
         """Rest Catalog
 
@@ -182,10 +182,10 @@ class RestCatalog(Catalog):
 
         Args:
             name: Name to identify the catalog
-            properties: Properties that are passed along to the configuration
             uri: The base-url of the REST Catalog endpoint
             credential: The credentials for authentication against the client
             token: The bearer token
+            properties: Properties that are passed along to the configuration
         """
         self.uri = uri
         if credential:
@@ -193,7 +193,7 @@ class RestCatalog(Catalog):
         elif token:
             self.token = token
         self.config = self._fetch_config(properties)
-        super().__init__(name, properties)
+        super().__init__(name, **properties)
 
     def _check_valid_namespace_identifier(self, identifier: Union[str, Identifier]) -> Identifier:
         """The identifier should have at least one element"""

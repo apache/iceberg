@@ -74,7 +74,7 @@ def test_token_200(rest_mock: Mocker):
         },
         status_code=200,
     )
-    assert RestCatalog("rest", {}, TEST_URI, TEST_CREDENTIALS).token == TEST_TOKEN
+    assert RestCatalog("rest", TEST_URI, TEST_CREDENTIALS).token == TEST_TOKEN
 
 
 def test_token_400(rest_mock: Mocker):
@@ -85,7 +85,7 @@ def test_token_400(rest_mock: Mocker):
     )
 
     with pytest.raises(OAuthError) as e:
-        RestCatalog("rest", {}, TEST_URI, credential=TEST_CREDENTIALS)
+        RestCatalog("rest", TEST_URI, credential=TEST_CREDENTIALS)
     assert str(e.value) == "invalid_client: Credentials for key invalid_key do not match"
 
 
@@ -104,7 +104,7 @@ def test_token_401(rest_mock: Mocker):
     )
 
     with pytest.raises(BadCredentialsError) as e:
-        RestCatalog("rest", {}, TEST_URI, credential=TEST_CREDENTIALS)
+        RestCatalog("rest", TEST_URI, credential=TEST_CREDENTIALS)
     assert message in str(e.value)
 
 
@@ -116,7 +116,7 @@ def test_list_tables_200(rest_mock: Mocker):
         status_code=200,
     )
 
-    assert RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).list_tables(namespace) == [("examples", "fooshare")]
+    assert RestCatalog("rest", TEST_URI, token=TEST_TOKEN).list_tables(namespace) == [("examples", "fooshare")]
 
 
 def test_list_tables_404(rest_mock: Mocker):
@@ -133,7 +133,7 @@ def test_list_tables_404(rest_mock: Mocker):
         status_code=404,
     )
     with pytest.raises(NoSuchNamespaceError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).list_tables(namespace)
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).list_tables(namespace)
     assert "Namespace does not exist" in str(e.value)
 
 
@@ -143,7 +143,7 @@ def test_list_namespaces_200(rest_mock: Mocker):
         json={"namespaces": [["default"], ["examples"], ["fokko"], ["system"]]},
         status_code=200,
     )
-    assert RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).list_namespaces() == [
+    assert RestCatalog("rest", TEST_URI, token=TEST_TOKEN).list_namespaces() == [
         ("default",),
         ("examples",),
         ("fokko",),
@@ -158,7 +158,7 @@ def test_create_namespace_200(rest_mock: Mocker):
         json={"namespace": [namespace], "properties": {}},
         status_code=200,
     )
-    RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_namespace(namespace)
+    RestCatalog("rest", TEST_URI, token=TEST_TOKEN).create_namespace(namespace)
 
 
 def test_create_namespace_409(rest_mock: Mocker):
@@ -175,7 +175,7 @@ def test_create_namespace_409(rest_mock: Mocker):
         status_code=409,
     )
     with pytest.raises(NamespaceAlreadyExistsError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_namespace(namespace)
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).create_namespace(namespace)
     assert "Namespace already exists" in str(e.value)
 
 
@@ -193,7 +193,7 @@ def test_drop_namespace_404(rest_mock: Mocker):
         status_code=404,
     )
     with pytest.raises(NoSuchNamespaceError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_namespace(namespace)
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).drop_namespace(namespace)
     assert "Namespace does not exist" in str(e.value)
 
 
@@ -204,7 +204,7 @@ def test_load_namespace_properties_200(rest_mock: Mocker):
         json={"namespace": ["fokko"], "properties": {"prop": "yes"}},
         status_code=204,
     )
-    assert RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_namespace_properties(namespace) == {"prop": "yes"}
+    assert RestCatalog("rest", TEST_URI, token=TEST_TOKEN).load_namespace_properties(namespace) == {"prop": "yes"}
 
 
 def test_load_namespace_properties_404(rest_mock: Mocker):
@@ -221,7 +221,7 @@ def test_load_namespace_properties_404(rest_mock: Mocker):
         status_code=404,
     )
     with pytest.raises(NoSuchNamespaceError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_namespace_properties(namespace)
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).load_namespace_properties(namespace)
     assert "Namespace does not exist" in str(e.value)
 
 
@@ -231,9 +231,7 @@ def test_update_namespace_properties_200(rest_mock: Mocker):
         json={"removed": [], "updated": ["prop"], "missing": ["abc"]},
         status_code=200,
     )
-    response = RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).update_namespace_properties(
-        ("fokko",), {"abc"}, {"prop": "yes"}
-    )
+    response = RestCatalog("rest", TEST_URI, token=TEST_TOKEN).update_namespace_properties(("fokko",), {"abc"}, {"prop": "yes"})
 
     assert response == PropertiesUpdateSummary(removed=[], updated=["prop"], missing=["abc"])
 
@@ -251,7 +249,7 @@ def test_update_namespace_properties_404(rest_mock: Mocker):
         status_code=404,
     )
     with pytest.raises(NoSuchNamespaceError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).update_namespace_properties(("fokko",), {"abc"}, {"prop": "yes"})
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).update_namespace_properties(("fokko",), {"abc"}, {"prop": "yes"})
     assert "Namespace does not exist" in str(e.value)
 
 
@@ -328,7 +326,7 @@ def test_load_table_200(rest_mock: Mocker):
         },
         status_code=200,
     )
-    table = RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_table(("fokko", "table"))
+    table = RestCatalog("rest", TEST_URI, token=TEST_TOKEN).load_table(("fokko", "table"))
     assert table == Table(
         identifier=("rest", "fokko", "table"),
         metadata_location=None,
@@ -422,7 +420,7 @@ def test_load_table_404(rest_mock: Mocker):
     )
 
     with pytest.raises(NoSuchTableError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_table(("fokko", "does_not_exists"))
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).load_table(("fokko", "does_not_exists"))
     assert "Table does not exist" in str(e.value)
 
 
@@ -440,7 +438,7 @@ def test_drop_table_404(rest_mock: Mocker):
     )
 
     with pytest.raises(NoSuchTableError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_table(("fokko", "does_not_exists"))
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).drop_table(("fokko", "does_not_exists"))
     assert "Table does not exist" in str(e.value)
 
 
@@ -503,7 +501,7 @@ def test_create_table_200(rest_mock: Mocker, table_schema_simple: Schema):
         },
         status_code=200,
     )
-    table = RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_table(
+    table = RestCatalog("rest", TEST_URI, token=TEST_TOKEN).create_table(
         identifier=("fokko", "fokko2"),
         schema=table_schema_simple,
         location=None,
@@ -574,7 +572,7 @@ def test_create_table_409(rest_mock, table_schema_simple: Schema):
     )
 
     with pytest.raises(TableAlreadyExistsError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_table(
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).create_table(
             identifier=("fokko", "fokko2"),
             schema=table_schema_simple,
             location=None,
@@ -595,7 +593,7 @@ def test_delete_namespace_204(rest_mock: Mocker):
         json={},
         status_code=204,
     )
-    RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_namespace(namespace)
+    RestCatalog("rest", TEST_URI, token=TEST_TOKEN).drop_namespace(namespace)
 
 
 def test_delete_table_204(rest_mock: Mocker):
@@ -604,7 +602,7 @@ def test_delete_table_204(rest_mock: Mocker):
         json={},
         status_code=204,
     )
-    RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_table(("example", "fokko"))
+    RestCatalog("rest", TEST_URI, token=TEST_TOKEN).drop_table(("example", "fokko"))
 
 
 def test_delete_table_404(rest_mock: Mocker):
@@ -620,7 +618,7 @@ def test_delete_table_404(rest_mock: Mocker):
         status_code=404,
     )
     with pytest.raises(NoSuchTableError) as e:
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_table(("example", "fokko"))
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).drop_table(("example", "fokko"))
     assert "Table does not exist" in str(e.value)
 
 
@@ -628,7 +626,7 @@ def test_create_table_missing_namespace(rest_mock: Mocker, table_schema_simple: 
     table = "table"
     with pytest.raises(NoSuchTableError) as e:
         # Missing namespace
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_table(table, table_schema_simple)
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).create_table(table, table_schema_simple)
     assert f"Missing namespace or invalid identifier: {table}" in str(e.value)
 
 
@@ -636,7 +634,7 @@ def test_load_table_invalid_namespace(rest_mock: Mocker):
     table = "table"
     with pytest.raises(NoSuchTableError) as e:
         # Missing namespace
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_table(table)
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).load_table(table)
     assert f"Missing namespace or invalid identifier: {table}" in str(e.value)
 
 
@@ -644,7 +642,7 @@ def test_drop_table_invalid_namespace(rest_mock: Mocker):
     table = "table"
     with pytest.raises(NoSuchTableError) as e:
         # Missing namespace
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_table(table)
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).drop_table(table)
     assert f"Missing namespace or invalid identifier: {table}" in str(e.value)
 
 
@@ -652,33 +650,33 @@ def test_purge_table_invalid_namespace(rest_mock: Mocker):
     table = "table"
     with pytest.raises(NoSuchTableError) as e:
         # Missing namespace
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).purge_table(table)
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).purge_table(table)
     assert f"Missing namespace or invalid identifier: {table}" in str(e.value)
 
 
 def test_create_namespace_invalid_namespace(rest_mock: Mocker):
     with pytest.raises(NoSuchNamespaceError) as e:
         # Missing namespace
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).create_namespace(())
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).create_namespace(())
     assert "Empty namespace identifier" in str(e.value)
 
 
 def test_drop_namespace_invalid_namespace(rest_mock: Mocker):
     with pytest.raises(NoSuchNamespaceError) as e:
         # Missing namespace
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).drop_namespace(())
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).drop_namespace(())
     assert "Empty namespace identifier" in str(e.value)
 
 
 def test_load_namespace_properties_invalid_namespace(rest_mock: Mocker):
     with pytest.raises(NoSuchNamespaceError) as e:
         # Missing namespace
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).load_namespace_properties(())
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).load_namespace_properties(())
     assert "Empty namespace identifier" in str(e.value)
 
 
 def test_update_namespace_properties_invalid_namespace(rest_mock: Mocker):
     with pytest.raises(NoSuchNamespaceError) as e:
         # Missing namespace
-        RestCatalog("rest", {}, TEST_URI, token=TEST_TOKEN).update_namespace_properties(())
+        RestCatalog("rest", TEST_URI, token=TEST_TOKEN).update_namespace_properties(())
     assert "Empty namespace identifier" in str(e.value)

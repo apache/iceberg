@@ -48,7 +48,7 @@ class Catalog(ABC):
         properties (Properties): Catalog properties
     """
 
-    def __init__(self, name: str, properties: Properties):
+    def __init__(self, name: str, **properties: str):
         self._name = name
         self._properties = properties
 

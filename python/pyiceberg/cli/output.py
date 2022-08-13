@@ -120,10 +120,10 @@ class ConsoleOutput(Output):
         Console().print(response)
 
     def schema(self, schema: Schema):
-        schema_tree = Tree("Schema")
+        output_table = self._table
         for field in schema.fields:
-            schema_tree.add(str(field))
-        Console().print(schema_tree)
+            output_table.add_row(field.name, str(field.field_type))
+        Console().print(output_table)
 
     def spec(self, spec: PartitionSpec):
         Console().print(str(spec))
@@ -139,7 +139,7 @@ class JsonOutput(Output):
         print(json.dumps(d))
 
     def exception(self, ex: Exception):
-        self._out({"type": ValueError("vo").__class__.__name__, "message": str(ex)})
+        self._out({"type": ex.__class__.__name__, "message": str(ex)})
 
     def identifiers(self, identifiers: List[Identifier]):
         self._out([".".join(identifier) for identifier in identifiers])
@@ -151,7 +151,7 @@ class JsonOutput(Output):
         self._out(properties)
 
     def text(self, response: str):
-        print({"response": response})
+        print(json.dumps(response))
 
     def schema(self, schema: Schema):
         print(schema.json())
