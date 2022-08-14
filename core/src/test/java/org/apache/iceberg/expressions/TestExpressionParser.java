@@ -69,9 +69,11 @@ public class TestExpressionParser {
 
     for (Expression expr : expressions) {
       Expression bound = Binder.bind(SUPPORTED_PRIMITIVES, expr);
-      String asJson = ExpressionParser.toJson(bound, true);
-      System.err.println("As JSON: " + asJson);
-      Expression parsed = ExpressionParser.fromJson(asJson, SCHEMA);
+      String boundJson = ExpressionParser.toJson(bound, true);
+      System.err.println("Bound JSON: " + boundJson);
+      String unboundJson = ExpressionParser.toJson(expr, true);
+      Assert.assertEquals("Bound and unbound should produce identical json", boundJson, unboundJson);
+      Expression parsed = ExpressionParser.fromJson(boundJson, SCHEMA);
       Assert.assertTrue(
           "Round-trip value should be equivalent", ExpressionUtil.equivalent(expr, parsed, SUPPORTED_PRIMITIVES, true));
     }

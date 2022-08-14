@@ -23,7 +23,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.DefaultValueParser;
@@ -33,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ExpressionParser {
@@ -159,27 +163,85 @@ public class ExpressionParser {
       });
     }
 
+    @Override
+    public <T> Void predicate(UnboundPredicate<T> pred) {
+      return generate(() -> {
+        gen.writeStartObject();
+
+        gen.writeStringField(TYPE, operationType(pred.op()));
+        gen.writeFieldName(TERM);
+        term(pred.term());
+
+        if (pred.literals() != null) {
+          if (pred.op() == Expression.Operation.IN || pred.op() == Expression.Operation.NOT_IN) {
+            gen.writeArrayFieldStart(VALUES);
+            for (Literal<T> lit : pred.literals()) {
+              unboundLiteral(lit.value());
+            }
+            gen.writeEndArray();
+
+          } else {
+            gen.writeFieldName(VALUE);
+            unboundLiteral(pred.literal().value());
+          }
+        }
+
+        gen.writeEndObject();
+      });
+    }
+
+    private void unboundLiteral(Object object) throws IOException {
+      // this handles each type supported in Literals.from
+      if (object instanceof Integer) {
+        DefaultValueParser.toJson(Types.IntegerType.get(), object, gen);
+      } else if (object instanceof Long) {
+        DefaultValueParser.toJson(Types.LongType.get(), object, gen);
+      } else if (object instanceof String) {
+        DefaultValueParser.toJson(Types.StringType.get(), object, gen);
+      } else if (object instanceof Float) {
+        DefaultValueParser.toJson(Types.FloatType.get(), object, gen);
+      } else if (object instanceof Double) {
+        DefaultValueParser.toJson(Types.DoubleType.get(), object, gen);
+      } else if (object instanceof Boolean) {
+        DefaultValueParser.toJson(Types.BooleanType.get(), object, gen);
+      } else if (object instanceof ByteBuffer) {
+        DefaultValueParser.toJson(Types.BinaryType.get(), object, gen);
+      } else if (object instanceof byte[]) {
+        DefaultValueParser.toJson(Types.BinaryType.get(), ByteBuffer.wrap((byte[]) object), gen);
+      } else if (object instanceof UUID) {
+        DefaultValueParser.toJson(Types.UUIDType.get(), object, gen);
+      } else if (object instanceof BigDecimal) {
+        BigDecimal decimal = (BigDecimal) object;
+        DefaultValueParser.toJson(Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
+      }
+    }
+
     private String operationType(Expression.Operation op) {
       return op.toString().replaceAll("_", "-").toLowerCase(Locale.ROOT);
     }
 
-    private <T> void term(BoundTerm<T> term) throws IOException {
-      if (term instanceof BoundTransform) {
-        transform((BoundTransform<?, ?>) term);
+    private void term(Term term) throws IOException {
+      if (term instanceof UnboundTransform) {
+        UnboundTransform<?, ?> transform = (UnboundTransform<?, ?>) term;
+        transform(transform.transform().toString(), transform.ref().name());
         return;
-      } else if (term instanceof BoundReference) {
-        gen.writeString(((BoundReference<?>) term).name());
+      } else if (term instanceof BoundTransform) {
+        BoundTransform<?, ?> transform = (BoundTransform<?, ?>) term;
+        transform(transform.transform().toString(), transform.ref().name());
+        return;
+      } else if (term instanceof Reference) {
+        gen.writeString(((Reference<?>) term).name());
         return;
       }
 
       throw new UnsupportedOperationException("Cannot write unsupported term: " + term);
     }
 
-    private void transform(BoundTransform<?, ?> term) throws IOException {
+    private void transform(String transform, String name) throws IOException {
       gen.writeStartObject();
       gen.writeStringField(TYPE, TRANSFORM);
-      gen.writeStringField(TRANSFORM, term.transform().toString());
-      gen.writeStringField(TERM, term.ref().name());
+      gen.writeStringField(TRANSFORM, transform);
+      gen.writeStringField(TERM, name);
       gen.writeEndObject();
     }
   }
