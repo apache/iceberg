@@ -274,6 +274,11 @@ public class Expressions {
     return new UnboundPredicate<>(op, expr, values);
   }
 
+  public static <T> UnboundPredicate<T> predicate(
+      Operation op, UnboundTerm<T> expr) {
+    return new UnboundPredicate<>(op, expr);
+  }
+
   public static True alwaysTrue() {
     return True.INSTANCE;
   }

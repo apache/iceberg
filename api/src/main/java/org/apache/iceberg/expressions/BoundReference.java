@@ -26,10 +26,12 @@ import org.apache.iceberg.types.Types;
 public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
   private final Types.NestedField field;
   private final Accessor<StructLike> accessor;
+  private final String name;
 
-  BoundReference(Types.NestedField field, Accessor<StructLike> accessor) {
+  BoundReference(Types.NestedField field, Accessor<StructLike> accessor, String name) {
     this.field = field;
     this.accessor = accessor;
+    this.name = name;
   }
 
   @Override
@@ -50,6 +52,11 @@ public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
   @Override
   public Type type() {
     return field.type();
+  }
+
+  @Override
+  public String name() {
+    return name;
   }
 
   @Override
