@@ -16,18 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 /**
  * API for replacing table sort order with a newly created order.
- * <p>
- * The table sort order is used to sort incoming records in engines that can request an ordering.
- * <p>
- * Apply returns the new sort order for validation.
- * <p>
- * When committing, these changes will be applied to the current table metadata. Commit conflicts
+ *
+ * <p>The table sort order is used to sort incoming records in engines that can request an ordering.
+ *
+ * <p>Apply returns the new sort order for validation.
+ *
+ * <p>When committing, these changes will be applied to the current table metadata. Commit conflicts
  * will be resolved by applying the pending changes to the new table metadata.
  */
-public interface ReplaceSortOrder extends PendingUpdate<SortOrder>, SortOrderBuilder<ReplaceSortOrder> {
-}
+public interface ReplaceSortOrder
+    extends PendingUpdate<SortOrder>, SortOrderBuilder<ReplaceSortOrder> {}

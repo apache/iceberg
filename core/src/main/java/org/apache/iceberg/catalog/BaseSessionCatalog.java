@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.catalog;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -33,9 +32,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public abstract class BaseSessionCatalog implements SessionCatalog {
-  private final Cache<String, Catalog> catalogs = Caffeine.newBuilder()
-      .expireAfterAccess(10, TimeUnit.MINUTES)
-      .build();
+  private final Cache<String, Catalog> catalogs =
+      Caffeine.newBuilder().expireAfterAccess(10, TimeUnit.MINUTES).build();
 
   private String name = null;
   private Map<String, String> properties = null;
@@ -147,12 +145,14 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
 
     @Override
     public boolean setProperties(Namespace namespace, Map<String, String> updates) {
-      return BaseSessionCatalog.this.updateNamespaceMetadata(context, namespace, updates, ImmutableSet.of());
+      return BaseSessionCatalog.this.updateNamespaceMetadata(
+          context, namespace, updates, ImmutableSet.of());
     }
 
     @Override
     public boolean removeProperties(Namespace namespace, Set<String> removals) {
-      return BaseSessionCatalog.this.updateNamespaceMetadata(context, namespace, ImmutableMap.of(), removals);
+      return BaseSessionCatalog.this.updateNamespaceMetadata(
+          context, namespace, ImmutableMap.of(), removals);
     }
 
     @Override

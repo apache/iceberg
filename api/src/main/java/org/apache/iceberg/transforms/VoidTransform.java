@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
@@ -32,8 +31,7 @@ class VoidTransform<S> implements Transform<S, Void> {
     return (VoidTransform<T>) INSTANCE;
   }
 
-  private VoidTransform() {
-  }
+  private VoidTransform() {}
 
   @Override
   public Void apply(Object value) {

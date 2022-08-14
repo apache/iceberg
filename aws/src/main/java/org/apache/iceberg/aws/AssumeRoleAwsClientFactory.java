@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws;
 
 import java.util.Map;
@@ -79,32 +78,41 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   @Override
   public void initialize(Map<String, String> properties) {
     this.roleArn = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_ARN);
-    Preconditions.checkNotNull(roleArn,
-        "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
-    this.timeout = PropertyUtil.propertyAsInt(properties,
-        AwsProperties.CLIENT_ASSUME_ROLE_TIMEOUT_SEC, AwsProperties.CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
+    Preconditions.checkNotNull(
+        roleArn, "Cannot initialize AssumeRoleClientConfigFactory with null role ARN");
+    this.timeout =
+        PropertyUtil.propertyAsInt(
+            properties,
+            AwsProperties.CLIENT_ASSUME_ROLE_TIMEOUT_SEC,
+            AwsProperties.CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT);
     this.externalId = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_EXTERNAL_ID);
 
     this.region = properties.get(AwsProperties.CLIENT_ASSUME_ROLE_REGION);
-    Preconditions.checkNotNull(region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
+    Preconditions.checkNotNull(
+        region, "Cannot initialize AssumeRoleClientConfigFactory with null region");
 
     this.s3Endpoint = properties.get(AwsProperties.S3FILEIO_ENDPOINT);
     this.tags = toTags(properties);
-    this.s3UseArnRegionEnabled = PropertyUtil.propertyAsBoolean(properties, AwsProperties.S3_ACCESS_POINTS_PREFIX,
-        AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
+    this.s3UseArnRegionEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            AwsProperties.S3_ACCESS_POINTS_PREFIX,
+            AwsProperties.S3_USE_ARN_REGION_ENABLED_DEFAULT);
     this.dynamoDbEndpoint = properties.get(AwsProperties.DYNAMODB_ENDPOINT);
-    this.httpClientType = PropertyUtil.propertyAsString(properties,
-        AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
+    this.httpClientType =
+        PropertyUtil.propertyAsString(
+            properties, AwsProperties.HTTP_CLIENT_TYPE, AwsProperties.HTTP_CLIENT_TYPE_DEFAULT);
   }
 
   protected <T extends AwsClientBuilder & AwsSyncClientBuilder> T configure(T clientBuilder) {
-    AssumeRoleRequest request = AssumeRoleRequest.builder()
-        .roleArn(roleArn)
-        .roleSessionName(genSessionName())
-        .durationSeconds(timeout)
-        .externalId(externalId)
-        .tags(tags)
-        .build();
+    AssumeRoleRequest request =
+        AssumeRoleRequest.builder()
+            .roleArn(roleArn)
+            .roleSessionName(genSessionName())
+            .durationSeconds(timeout)
+            .externalId(externalId)
+            .tags(tags)
+            .build();
 
     clientBuilder.credentialsProvider(
         StsAssumeRoleCredentialsProvider.builder()
@@ -149,7 +157,8 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   }
 
   private static Set<Tag> toTags(Map<String, String> properties) {
-    return PropertyUtil.propertiesWithPrefix(properties, AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX)
+    return PropertyUtil.propertiesWithPrefix(
+            properties, AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX)
         .entrySet().stream()
         .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
         .collect(Collectors.toSet());

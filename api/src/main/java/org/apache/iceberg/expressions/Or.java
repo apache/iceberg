@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 public class Or implements Expression {
@@ -45,8 +44,8 @@ public class Or implements Expression {
   public boolean isEquivalentTo(Expression expr) {
     if (expr.op() == Operation.OR) {
       Or other = (Or) expr;
-      return (left.isEquivalentTo(other.left()) && right.isEquivalentTo(other.right())) ||
-          (left.isEquivalentTo(other.right()) && right.isEquivalentTo(other.left()));
+      return (left.isEquivalentTo(other.left()) && right.isEquivalentTo(other.right()))
+          || (left.isEquivalentTo(other.right()) && right.isEquivalentTo(other.left()));
     }
 
     return false;

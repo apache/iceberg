@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.responses;
 
 import java.io.PrintWriter;
@@ -26,9 +25,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
 
-/**
- * Standard response body for all API errors
- */
+/** Standard response body for all API errors */
 public class ErrorResponse implements RESTResponse {
 
   private String message;
@@ -96,8 +93,7 @@ public class ErrorResponse implements RESTResponse {
     private Integer code;
     private List<String> stack;
 
-    private Builder() {
-    }
+    private Builder() {}
 
     public Builder withMessage(String errorMessage) {
       this.message = errorMessage;

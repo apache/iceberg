@@ -16,22 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-/**
- * A minimum client interface to connect to a key management service (KMS).
- */
+/** A minimum client interface to connect to a key management service (KMS). */
 public interface KmsClient extends Serializable {
 
   /**
    * Wrap a secret key, using a wrapping/master key which is stored in KMS and referenced by an ID.
-   * Wrapping means encryption of the secret key with the master key, and adding optional KMS-specific metadata
-   * that allows the KMS to decrypt the secret key in an unwrapping call.
+   * Wrapping means encryption of the secret key with the master key, and adding optional
+   * KMS-specific metadata that allows the KMS to decrypt the secret key in an unwrapping call.
    *
    * @param key a secret key being wrapped
    * @param wrappingKeyId a key ID that represents a wrapping key stored in KMS
@@ -42,19 +39,19 @@ public interface KmsClient extends Serializable {
   /**
    * Some KMS systems support generation of secret keys inside the KMS server.
    *
-   * @return true if KMS server supports key generation and KmsClient implementation
-   * is interested to leverage this capability. Otherwise, return false - Iceberg will
-   * then generate secret keys locally (using the SecureRandom mechanism) and call
-   * {@link #wrapKey(ByteBuffer, String)} to wrap them in KMS.
+   * @return true if KMS server supports key generation and KmsClient implementation is interested
+   *     to leverage this capability. Otherwise, return false - Iceberg will then generate secret
+   *     keys locally (using the SecureRandom mechanism) and call {@link #wrapKey(ByteBuffer,
+   *     String)} to wrap them in KMS.
    */
   default boolean supportsKeyGeneration() {
     return false;
   }
 
   /**
-   * Generate a new secret key in the KMS server, and wrap it using a wrapping/master key
-   * which is stored in KMS and referenced by an ID. This method will be called only if
-   * supportsKeyGeneration returns true.
+   * Generate a new secret key in the KMS server, and wrap it using a wrapping/master key which is
+   * stored in KMS and referenced by an ID. This method will be called only if supportsKeyGeneration
+   * returns true.
    *
    * @param wrappingKeyId a key ID that represents a wrapping key stored in KMS
    * @return key in two forms: raw, and wrapped with the given wrappingKeyId
@@ -64,9 +61,11 @@ public interface KmsClient extends Serializable {
   }
 
   /**
-   * Unwrap a secret key, using a wrapping/master key which is stored in KMS and referenced by an ID.
+   * Unwrap a secret key, using a wrapping/master key which is stored in KMS and referenced by an
+   * ID.
    *
-   * @param wrappedKey wrapped key material (encrypted key and optional KMS metadata, returned by the wrapKey method)
+   * @param wrappedKey wrapped key material (encrypted key and optional KMS metadata, returned by
+   *     the wrapKey method)
    * @param wrappingKeyId a key ID that represents a wrapping key stored in KMS
    * @return raw key bytes
    */
@@ -80,8 +79,8 @@ public interface KmsClient extends Serializable {
   void initialize(Map<String, String> properties);
 
   /**
-   * For KMS systems that support key generation, this class keeps the key generation result -
-   * the raw secret key, and its wrap.
+   * For KMS systems that support key generation, this class keeps the key generation result - the
+   * raw secret key, and its wrap.
    */
   class KeyGenerationResult {
     private final ByteBuffer key;

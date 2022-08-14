@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.gcp.gcs;
 
 import com.google.api.client.util.Lists;
@@ -41,8 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The GCSInputStream leverages native streaming channels from the GCS API
- * for streaming uploads. See <a href="https://cloud.google.com/storage/docs/streaming">Streaming Transfers</a>
+ * The GCSInputStream leverages native streaming channels from the GCS API for streaming uploads.
+ * See <a href="https://cloud.google.com/storage/docs/streaming">Streaming Transfers</a>
  */
 class GCSInputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(GCSInputStream.class);
@@ -61,13 +60,15 @@ class GCSInputStream extends SeekableInputStream {
   private final Counter<Long> readBytes;
   private final Counter<Integer> readOperations;
 
-  GCSInputStream(Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
+  GCSInputStream(
+      Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
     this.storage = storage;
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
 
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Long.class, Unit.BYTES);
-    this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
+    this.readOperations =
+        metrics.counter(FileIOMetricsContext.READ_OPERATIONS, Integer.class, Unit.COUNT);
 
     createStack = Thread.currentThread().getStackTrace();
 
@@ -77,10 +78,12 @@ class GCSInputStream extends SeekableInputStream {
   private void openStream() {
     List<BlobSourceOption> sourceOptions = Lists.newArrayList();
 
-    gcpProperties.decryptionKey().ifPresent(
-        key -> sourceOptions.add(BlobSourceOption.decryptionKey(key)));
-    gcpProperties.userProject().ifPresent(
-        userProject -> sourceOptions.add(BlobSourceOption.userProject(userProject)));
+    gcpProperties
+        .decryptionKey()
+        .ifPresent(key -> sourceOptions.add(BlobSourceOption.decryptionKey(key)));
+    gcpProperties
+        .userProject()
+        .ifPresent(userProject -> sourceOptions.add(BlobSourceOption.userProject(userProject)));
 
     channel = storage.reader(blobId, sourceOptions.toArray(new BlobSourceOption[0]));
 
@@ -149,8 +152,7 @@ class GCSInputStream extends SeekableInputStream {
     super.finalize();
     if (!closed) {
       close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(
-          Arrays.copyOfRange(createStack, 1, createStack.length));
+      String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed input stream created by:\n\t{}", trace);
     }
   }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.Map;
@@ -30,27 +29,29 @@ import java.util.Map;
 public interface Action<ThisT, R> {
   /**
    * Configures this action with an extra option.
-   * <p>
-   * Certain actions allow users to control internal details of their execution via options.
+   *
+   * <p>Certain actions allow users to control internal details of their execution via options.
    *
    * @param name an option name
    * @param value an option value
    * @return this for method chaining
    */
   default ThisT option(String name, String value) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement option");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement option");
   }
 
   /**
    * Configures this action with extra options.
-   * <p>
-   * Certain actions allow users to control internal details of their execution via options.
+   *
+   * <p>Certain actions allow users to control internal details of their execution via options.
    *
    * @param options a map of extra options
    * @return this for method chaining
    */
   default ThisT options(Map<String, String> options) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement options");
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement options");
   }
 
   /**

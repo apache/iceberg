@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.data;
 
 import java.math.BigDecimal;
@@ -50,8 +49,7 @@ import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 
 class FlinkOrcReaders {
-  private FlinkOrcReaders() {
-  }
+  private FlinkOrcReaders() {}
 
   static OrcValueReader<StringData> strings() {
     return StringReader.INSTANCE;
@@ -87,13 +85,13 @@ class FlinkOrcReaders {
     return new ArrayReader<>(elementReader);
   }
 
-  public static <K, V> OrcValueReader<MapData> map(OrcValueReader<K> keyReader, OrcValueReader<V> valueReader) {
+  public static <K, V> OrcValueReader<MapData> map(
+      OrcValueReader<K> keyReader, OrcValueReader<V> valueReader) {
     return new MapReader<>(keyReader, valueReader);
   }
 
-  public static OrcValueReader<RowData> struct(List<OrcValueReader<?>> readers,
-                                               Types.StructType struct,
-                                               Map<Integer, ?> idToConstant) {
+  public static OrcValueReader<RowData> struct(
+      List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
     return new StructReader(readers, struct, idToConstant);
   }
 
@@ -103,7 +101,8 @@ class FlinkOrcReaders {
     @Override
     public StringData nonNullRead(ColumnVector vector, int row) {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
-      return StringData.fromBytes(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+      return StringData.fromBytes(
+          bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
     }
   }
 
@@ -130,8 +129,12 @@ class FlinkOrcReaders {
       HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[row];
 
       // The hive ORC writer may will adjust the scale of decimal data.
-      Preconditions.checkArgument(value.precision() <= precision,
-          "Cannot read value as decimal(%s,%s), too large: %s", precision, scale, value);
+      Preconditions.checkArgument(
+          value.precision() <= precision,
+          "Cannot read value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          value);
 
       return DecimalData.fromUnscaledLong(value.serialize64(scale), precision, scale);
     }
@@ -148,10 +151,15 @@ class FlinkOrcReaders {
 
     @Override
     public DecimalData nonNullRead(ColumnVector vector, int row) {
-      BigDecimal value = ((DecimalColumnVector) vector).vector[row].getHiveDecimal().bigDecimalValue();
+      BigDecimal value =
+          ((DecimalColumnVector) vector).vector[row].getHiveDecimal().bigDecimalValue();
 
-      Preconditions.checkArgument(value.precision() <= precision,
-          "Cannot read value as decimal(%s,%s), too large: %s", precision, scale, value);
+      Preconditions.checkArgument(
+          value.precision() <= precision,
+          "Cannot read value as decimal(%s,%s), too large: %s",
+          precision,
+          scale,
+          value);
 
       return DecimalData.fromBigDecimal(value, precision, scale);
     }
@@ -174,9 +182,10 @@ class FlinkOrcReaders {
     @Override
     public TimestampData nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
-      LocalDateTime localDate = Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
-          .atOffset(ZoneOffset.UTC)
-          .toLocalDateTime();
+      LocalDateTime localDate =
+          Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
+              .atOffset(ZoneOffset.UTC)
+              .toLocalDateTime();
       return TimestampData.fromLocalDateTime(localDate);
     }
   }
@@ -187,9 +196,10 @@ class FlinkOrcReaders {
     @Override
     public TimestampData nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
-      Instant instant = Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
-          .atOffset(ZoneOffset.UTC)
-          .toInstant();
+      Instant instant =
+          Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
+              .atOffset(ZoneOffset.UTC)
+              .toInstant();
       return TimestampData.fromInstant(instant);
     }
   }
@@ -254,7 +264,8 @@ class FlinkOrcReaders {
   private static class StructReader extends OrcValueReaders.StructReader<RowData> {
     private final int numFields;
 
-    StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+    StructReader(
+        List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       super(readers, struct, idToConstant);
       this.numFields = struct.fields().size();
     }

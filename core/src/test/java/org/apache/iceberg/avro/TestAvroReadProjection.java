@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.avro;
 
 import java.io.File;
@@ -36,46 +35,50 @@ import org.junit.Test;
 
 public class TestAvroReadProjection extends TestReadProjection {
   @Override
-  protected GenericData.Record writeAndRead(String desc,
-                                            Schema writeSchema,
-                                            Schema readSchema,
-                                            GenericData.Record record)
+  protected GenericData.Record writeAndRead(
+      String desc, Schema writeSchema, Schema readSchema, GenericData.Record record)
       throws IOException {
     File file = temp.newFile(desc + ".avro");
     file.delete();
 
-    try (FileAppender<GenericData.Record> appender = Avro.write(Files.localOutput(file))
-        .schema(writeSchema)
-        .build()) {
+    try (FileAppender<GenericData.Record> appender =
+        Avro.write(Files.localOutput(file)).schema(writeSchema).build()) {
       appender.add(record);
     }
 
-    Iterable<GenericData.Record> records = Avro.read(Files.localInput(file))
-        .project(readSchema)
-        .build();
+    Iterable<GenericData.Record> records =
+        Avro.read(Files.localInput(file)).project(readSchema).build();
 
     return Iterables.getOnlyElement(records);
   }
 
   @Test
   public void testAvroArrayAsLogicalMap() throws IOException {
-    Schema writeSchema = new Schema(
-        Types.NestedField.optional(0, "map", Types.MapType.ofOptional(2, 3,
-            Types.LongType.get(),
-            Types.ListType.ofRequired(1, Types.LongType.get())
-        ))
-    );
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.optional(
+                0,
+                "map",
+                Types.MapType.ofOptional(
+                    2,
+                    3,
+                    Types.LongType.get(),
+                    Types.ListType.ofRequired(1, Types.LongType.get()))));
 
     List<Long> values1 = ImmutableList.of(101L, 102L);
     List<Long> values2 = ImmutableList.of(201L, 202L, 203L);
-    GenericData.Record record = new GenericData.Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    GenericData.Record record =
+        new GenericData.Record(AvroSchemaUtil.convert(writeSchema, "table"));
     record.put("map", ImmutableMap.of(100L, values1, 200L, values2));
 
-    GenericData.Record projected = writeAndRead("full_projection", writeSchema, writeSchema, record);
-    Assert.assertEquals("Should contain correct value list",
+    GenericData.Record projected =
+        writeAndRead("full_projection", writeSchema, writeSchema, record);
+    Assert.assertEquals(
+        "Should contain correct value list",
         values1,
         ((Map<Long, List<Long>>) projected.get("map")).get(100L));
-    Assert.assertEquals("Should contain correct value list",
+    Assert.assertEquals(
+        "Should contain correct value list",
         values2,
         ((Map<Long, List<Long>>) projected.get("map")).get(200L));
   }

@@ -16,26 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
-/**
- * A changelog scan task.
- */
+/** A changelog scan task. */
 public interface ChangelogScanTask extends ScanTask {
-  /**
-   * Returns the type of changes produced by this task (i.e. insert/delete).
-   */
+  /** Returns the type of changes produced by this task (i.e. insert/delete). */
   ChangelogOperation operation();
 
   /**
    * Returns the ordinal of changes produced by this task. This number indicates the order in which
-   * changes produced by this scan must be applied. Operations with a lower ordinal must be applied first.
+   * changes produced by this scan must be applied. Operations with a lower ordinal must be applied
+   * first.
    */
   int changeOrdinal();
 
-  /**
-   * Returns the snapshot ID in which the changes were committed.
-   */
+  /** Returns the snapshot ID in which the changes were committed. */
   long commitSnapshotId();
 }

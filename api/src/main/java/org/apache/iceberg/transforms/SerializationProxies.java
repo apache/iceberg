@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
@@ -24,12 +23,11 @@ import java.io.Serializable;
 
 /**
  * Stand-in classes for expression classes in Java Serialization.
- * <p>
- * These are used so that transform classes can be singletons and use identical equality.
+ *
+ * <p>These are used so that transform classes can be singletons and use identical equality.
  */
 class SerializationProxies {
-  private SerializationProxies() {
-  }
+  private SerializationProxies() {}
 
   static class VoidTransformProxy implements Serializable {
     private static final VoidTransformProxy INSTANCE = new VoidTransformProxy();
@@ -38,11 +36,8 @@ class SerializationProxies {
       return INSTANCE;
     }
 
-    /**
-     * Constructor for Java serialization.
-     */
-    VoidTransformProxy() {
-    }
+    /** Constructor for Java serialization. */
+    VoidTransformProxy() {}
 
     Object readResolve() throws ObjectStreamException {
       return VoidTransform.get();

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
@@ -34,8 +33,7 @@ import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
 class FlinkSplitGenerator {
-  private FlinkSplitGenerator() {
-  }
+  private FlinkSplitGenerator() {}
 
   static FlinkInputSplit[] createInputSplits(Table table, ScanContext context) {
     List<CombinedScanTask> tasks = tasks(table, context);
@@ -45,22 +43,21 @@ class FlinkSplitGenerator {
     Tasks.range(tasks.size())
         .stopOnFailure()
         .executeWith(exposeLocality ? ThreadPools.getWorkerPool() : null)
-        .run(index -> {
-          CombinedScanTask task = tasks.get(index);
-          String[] hostnames = null;
-          if (exposeLocality) {
-            hostnames = Util.blockLocations(table.io(), task);
-          }
-          splits[index] = new FlinkInputSplit(index, task, hostnames);
-        });
+        .run(
+            index -> {
+              CombinedScanTask task = tasks.get(index);
+              String[] hostnames = null;
+              if (exposeLocality) {
+                hostnames = Util.blockLocations(table.io(), task);
+              }
+              splits[index] = new FlinkInputSplit(index, task, hostnames);
+            });
     return splits;
   }
 
   private static List<CombinedScanTask> tasks(Table table, ScanContext context) {
-    TableScan scan = table
-        .newScan()
-        .caseSensitive(context.caseSensitive())
-        .project(context.project());
+    TableScan scan =
+        table.newScan().caseSensitive(context.caseSensitive()).project(context.project());
 
     if (context.snapshotId() != null) {
       scan = scan.useSnapshot(context.snapshotId());
@@ -87,7 +84,8 @@ class FlinkSplitGenerator {
     }
 
     if (context.splitOpenFileCost() != null) {
-      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
+      scan =
+          scan.option(TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
     }
 
     if (context.filters() != null) {

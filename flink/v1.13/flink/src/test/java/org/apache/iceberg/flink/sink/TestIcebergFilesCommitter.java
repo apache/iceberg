@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.sink;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.flink.sink.IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
+import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,10 +67,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.flink.sink.IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
-import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
-
 @RunWith(Parameterized.class)
 public class TestIcebergFilesCommitter extends TableTestBase {
   private static final Configuration CONF = new Configuration();
@@ -80,12 +79,12 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   @Parameterized.Parameters(name = "FileFormat = {0}, FormatVersion={1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro", 1},
-        new Object[] {"avro", 2},
-        new Object[] {"parquet", 1},
-        new Object[] {"parquet", 2},
-        new Object[] {"orc", 1},
-        new Object[] {"orc", 2}
+      new Object[] {"avro", 1},
+      new Object[] {"avro", 2},
+      new Object[] {"parquet", 1},
+      new Object[] {"parquet", 2},
+      new Object[] {"orc", 1},
+      new Object[] {"orc", 2}
     };
   }
 
@@ -108,7 +107,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     // Construct the iceberg table.
     table = create(SimpleDataUtil.SCHEMA, PartitionSpec.unpartitioned());
 
-    table.updateProperties()
+    table
+        .updateProperties()
         .set(DEFAULT_FILE_FORMAT, format.name())
         .set(FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath())
         .set(MAX_CONTINUOUS_EMPTY_COMMITS, "1")
@@ -128,7 +128,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       assertSnapshotSize(0);
       assertMaxCommittedCheckpointId(jobId, -1L);
 
-      // It's better to advance the max-committed-checkpoint-id in iceberg snapshot, so that the future flink job
+      // It's better to advance the max-committed-checkpoint-id in iceberg snapshot, so that the
+      // future flink job
       // failover won't fail.
       for (int i = 1; i <= 3; i++) {
         harness.snapshot(++checkpointId, ++timestamp);
@@ -145,9 +146,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   @Test
   public void testMaxContinuousEmptyCommits() throws Exception {
-    table.updateProperties()
-        .set(MAX_CONTINUOUS_EMPTY_COMMITS, "3")
-        .commit();
+    table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
 
     JobID jobId = new JobID();
     long checkpointId = 0;
@@ -370,7 +369,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   @Test
   public void testRecoveryFromSnapshotWithoutCompletedNotification() throws Exception {
-    // We've two steps in checkpoint: 1. snapshotState(ckp); 2. notifyCheckpointComplete(ckp). It's possible that we
+    // We've two steps in checkpoint: 1. snapshotState(ckp); 2. notifyCheckpointComplete(ckp). It's
+    // possible that we
     // flink job will restore from a checkpoint with only step#1 finished.
     long checkpointId = 0;
     long timestamp = 0;
@@ -400,7 +400,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.initializeState(snapshot);
       harness.open();
 
-      // All flink manifests should be cleaned because it has committed the unfinished iceberg transaction.
+      // All flink manifests should be cleaned because it has committed the unfinished iceberg
+      // transaction.
       assertFlinkManifests(0);
 
       SimpleDataUtil.assertTableRows(table, expectedRows);
@@ -428,12 +429,14 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
     // Redeploying flink job from external checkpoint.
     JobID newJobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(newJobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness =
+        createStreamSink(newJobId)) {
       harness.setup();
       harness.initializeState(snapshot);
       harness.open();
 
-      // All flink manifests should be cleaned because it has committed the unfinished iceberg transaction.
+      // All flink manifests should be cleaned because it has committed the unfinished iceberg
+      // transaction.
       assertFlinkManifests(0);
 
       assertMaxCommittedCheckpointId(newJobId, -1);
@@ -466,7 +469,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     List<RowData> tableRows = Lists.newArrayList();
 
     JobID oldJobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(oldJobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness =
+        createStreamSink(oldJobId)) {
       harness.setup();
       harness.open();
 
@@ -495,7 +499,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     checkpointId = 0;
     timestamp = 0;
     JobID newJobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(newJobId)) {
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness =
+        createStreamSink(newJobId)) {
       harness.setup();
       harness.open();
 
@@ -599,11 +604,14 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.snapshot(checkpoint, ++timestamp);
       List<Path> manifestPaths = assertFlinkManifests(1);
       Path manifestPath = manifestPaths.get(0);
-      Assert.assertEquals("File name should have the expected pattern.",
-          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
+      Assert.assertEquals(
+          "File name should have the expected pattern.",
+          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1),
+          manifestPath.getFileName().toString());
 
       // 2. Read the data files from manifests and assert.
-      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
+      List<DataFile> dataFiles =
+          FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
       Assert.assertEquals(1, dataFiles.size());
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -640,11 +648,14 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       harness.snapshot(checkpoint, ++timestamp);
       List<Path> manifestPaths = assertFlinkManifests(1);
       Path manifestPath = manifestPaths.get(0);
-      Assert.assertEquals("File name should have the expected pattern.",
-          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
+      Assert.assertEquals(
+          "File name should have the expected pattern.",
+          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1),
+          manifestPath.getFileName().toString());
 
       // 2. Read the data files from manifests and assert.
-      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
+      List<DataFile> dataFiles =
+          FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
       Assert.assertEquals(1, dataFiles.size());
       TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
@@ -659,11 +670,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(row2));
 
       RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
-      DeleteFile deleteFile1 = writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete1));
-      harness.processElement(WriteResult.builder()
-              .addDataFiles(dataFile2)
-              .addDeleteFiles(deleteFile1)
-              .build(),
+      DeleteFile deleteFile1 =
+          writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete1));
+      harness.processElement(
+          WriteResult.builder().addDataFiles(dataFile2).addDeleteFiles(deleteFile1).build(),
           ++timestamp);
       assertMaxCommittedCheckpointId(jobId, checkpoint);
 
@@ -699,11 +709,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       RowData insert2 = SimpleDataUtil.createInsert(2, "bbb");
       RowData delete3 = SimpleDataUtil.createDelete(3, "ccc");
       DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(insert1, insert2));
-      DeleteFile deleteFile1 = writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete3));
-      harness.processElement(WriteResult.builder()
-              .addDataFiles(dataFile1)
-              .addDeleteFiles(deleteFile1)
-              .build(),
+      DeleteFile deleteFile1 =
+          writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete3));
+      harness.processElement(
+          WriteResult.builder().addDataFiles(dataFile1).addDeleteFiles(deleteFile1).build(),
           ++timestamp);
 
       // The 1th snapshotState.
@@ -712,11 +721,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       RowData insert4 = SimpleDataUtil.createInsert(4, "ddd");
       RowData delete2 = SimpleDataUtil.createDelete(2, "bbb");
       DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(insert4));
-      DeleteFile deleteFile2 = writeEqDeleteFile(appenderFactory, "delete-file-2", ImmutableList.of(delete2));
-      harness.processElement(WriteResult.builder()
-              .addDataFiles(dataFile2)
-              .addDeleteFiles(deleteFile2)
-              .build(),
+      DeleteFile deleteFile2 =
+          writeEqDeleteFile(appenderFactory, "delete-file-2", ImmutableList.of(delete2));
+      harness.processElement(
+          WriteResult.builder().addDataFiles(dataFile2).addDeleteFiles(deleteFile2).build(),
           ++timestamp);
 
       // The 2nd snapshotState.
@@ -727,48 +735,76 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       SimpleDataUtil.assertTableRows(table, ImmutableList.of(insert1, insert4));
       assertMaxCommittedCheckpointId(jobId, checkpoint);
       assertFlinkManifests(0);
-      Assert.assertEquals("Should have committed 2 txn.", 2, ImmutableList.copyOf(table.snapshots()).size());
+      Assert.assertEquals(
+          "Should have committed 2 txn.", 2, ImmutableList.copyOf(table.snapshots()).size());
     }
   }
 
-  private DeleteFile writeEqDeleteFile(FileAppenderFactory<RowData> appenderFactory,
-                                       String filename, List<RowData> deletes) throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
+  private DeleteFile writeEqDeleteFile(
+      FileAppenderFactory<RowData> appenderFactory, String filename, List<RowData> deletes)
+      throws IOException {
+    return SimpleDataUtil.writeEqDeleteFile(
+        table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
   }
 
-  private DeleteFile writePosDeleteFile(FileAppenderFactory<RowData> appenderFactory,
-                                        String filename,
-                                        List<Pair<CharSequence, Long>> positions) throws IOException {
-    return SimpleDataUtil.writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory,
-        positions);
+  private DeleteFile writePosDeleteFile(
+      FileAppenderFactory<RowData> appenderFactory,
+      String filename,
+      List<Pair<CharSequence, Long>> positions)
+      throws IOException {
+    return SimpleDataUtil.writePosDeleteFile(
+        table, FileFormat.PARQUET, tablePath, filename, appenderFactory, positions);
   }
 
   private FileAppenderFactory<RowData> createDeletableAppenderFactory() {
-    int[] equalityFieldIds = new int[] {
-        table.schema().findField("id").fieldId(),
-        table.schema().findField("data").fieldId()
-    };
-    return new FlinkAppenderFactory(table.schema(),
-        FlinkSchemaUtil.convert(table.schema()), table.properties(), table.spec(), equalityFieldIds,
-        table.schema(), null);
+    int[] equalityFieldIds =
+        new int[] {
+          table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()
+        };
+    return new FlinkAppenderFactory(
+        table.schema(),
+        FlinkSchemaUtil.convert(table.schema()),
+        table.properties(),
+        table.spec(),
+        equalityFieldIds,
+        table.schema(),
+        null);
   }
 
   private ManifestFile createTestingManifestFile(Path manifestPath) {
-    return new GenericManifestFile(manifestPath.toAbsolutePath().toString(), manifestPath.toFile().length(), 0,
-        ManifestContent.DATA, 0, 0, 0L, 0, 0, 0, 0, 0, 0, null, null);
+    return new GenericManifestFile(
+        manifestPath.toAbsolutePath().toString(),
+        manifestPath.toFile().length(),
+        0,
+        ManifestContent.DATA,
+        0,
+        0,
+        0L,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        null,
+        null);
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {
-    List<Path> manifests = Files.list(flinkManifestFolder.toPath())
-        .filter(p -> !p.toString().endsWith(".crc"))
-        .collect(Collectors.toList());
-    Assert.assertEquals(String.format("Expected %s flink manifests, but the list is: %s", expectedCount, manifests),
-        expectedCount, manifests.size());
+    List<Path> manifests =
+        Files.list(flinkManifestFolder.toPath())
+            .filter(p -> !p.toString().endsWith(".crc"))
+            .collect(Collectors.toList());
+    Assert.assertEquals(
+        String.format("Expected %s flink manifests, but the list is: %s", expectedCount, manifests),
+        expectedCount,
+        manifests.size());
     return manifests;
   }
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
-    return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF, tablePath, format.addExtension(filename), rows);
+    return SimpleDataUtil.writeFile(
+        table.schema(), table.spec(), CONF, tablePath, format.addExtension(filename), rows);
   }
 
   private void assertMaxCommittedCheckpointId(JobID jobID, long expectedId) {
@@ -815,8 +851,10 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false);
+    public <T extends StreamOperator<Void>> T createStreamOperator(
+        StreamOperatorParameters<Void> param) {
+      IcebergFilesCommitter committer =
+          new IcebergFilesCommitter(new TestTableLoader(tablePath), false);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

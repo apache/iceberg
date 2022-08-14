@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.extensions;
 
 import java.io.IOException;
@@ -37,12 +36,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   private static final String sourceName = "spark_catalog.default.source";
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
-  public TestSnapshotTableProcedure(String catalogName, String implementation, Map<String, String> config) {
+  public TestSnapshotTableProcedure(
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   @After
   public void removeTables() {
@@ -53,9 +52,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @Test
   public void testSnapshot() throws IOException {
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
-    Object result = scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
+    Object result =
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
 
     Assert.assertEquals("Should have added one file", 1L, result);
 
@@ -65,7 +67,8 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -73,11 +76,14 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @Test
   public void testSnapshotWithProperties() throws IOException {
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
-    Object result = scalarSql(
-        "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('foo','bar'))",
-        catalogName, sourceName, tableName);
+    Object result =
+        scalarSql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('foo','bar'))",
+            catalogName, sourceName, tableName);
 
     Assert.assertEquals("Should have added one file", 1L, result);
 
@@ -91,30 +97,39 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
   public void testSnapshotWithAlternateLocation() throws IOException {
-    Assume.assumeTrue("No Snapshoting with Alternate locations with Hadoop Catalogs", !catalogName.contains("hadoop"));
+    Assume.assumeTrue(
+        "No Snapshoting with Alternate locations with Hadoop Catalogs",
+        !catalogName.contains("hadoop"));
     String location = temp.newFolder().toString();
     String snapshotLocation = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
-    Object[] result = sql(
-        "CALL %s.system.snapshot(source_table => '%s', table => '%s', location => '%s')",
-        catalogName, sourceName, tableName, snapshotLocation).get(0);
+    Object[] result =
+        sql(
+                "CALL %s.system.snapshot(source_table => '%s', table => '%s', location => '%s')",
+                catalogName, sourceName, tableName, snapshotLocation)
+            .get(0);
 
     Assert.assertEquals("Should have added one file", 1L, result[0]);
 
     String storageLocation = validationCatalog.loadTable(tableIdent).location();
-    Assert.assertEquals("Snapshot should be made at specified location", snapshotLocation, storageLocation);
+    Assert.assertEquals(
+        "Snapshot should be made at specified location", snapshotLocation, storageLocation);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
@@ -122,19 +137,24 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @Test
   public void testDropTable() throws IOException {
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
 
-    Object result = scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
+    Object result =
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
     Assert.assertEquals("Should have added one file", 1L, result);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", tableName));
 
     sql("DROP TABLE %s", tableName);
 
-    assertEquals("Source table should be intact",
+    assertEquals(
+        "Source table should be intact",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", sourceName));
   }
@@ -142,50 +162,70 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @Test
   public void testSnapshotWithConflictingProps() throws IOException {
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
 
-    Object result = scalarSql(
-        "CALL %s.system.snapshot(" +
-            "source_table => '%s'," +
-            "table => '%s'," +
-            "properties => map('%s', 'true', 'snapshot', 'false'))",
-        catalogName, sourceName, tableName, TableProperties.GC_ENABLED);
+    Object result =
+        scalarSql(
+            "CALL %s.system.snapshot("
+                + "source_table => '%s',"
+                + "table => '%s',"
+                + "properties => map('%s', 'true', 'snapshot', 'false'))",
+            catalogName, sourceName, tableName, TableProperties.GC_ENABLED);
     Assert.assertEquals("Should have added one file", 1L, result);
 
-    assertEquals("Should have expected rows",
+    assertEquals(
+        "Should have expected rows",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
     Map<String, String> props = table.properties();
     Assert.assertEquals("Should override user value", "true", props.get("snapshot"));
-    Assert.assertEquals("Should override user value", "false", props.get(TableProperties.GC_ENABLED));
+    Assert.assertEquals(
+        "Should override user value", "false", props.get(TableProperties.GC_ENABLED));
   }
 
   @Test
   public void testInvalidSnapshotsCases() throws IOException {
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
 
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
+    AssertHelpers.assertThrows(
+        "Should reject calls without all required args",
+        AnalysisException.class,
+        "Missing required parameters",
         () -> sql("CALL %s.system.snapshot('foo')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type",
+    AssertHelpers.assertThrows(
+        "Should reject calls with invalid arg types",
+        AnalysisException.class,
+        "Wrong arg type",
         () -> sql("CALL %s.system.snapshot('n', 't', map('foo', 'bar'))", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with invalid map args",
-        AnalysisException.class, "cannot resolve 'map",
-        () -> sql("CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))", catalogName, sourceName));
+    AssertHelpers.assertThrows(
+        "Should reject calls with invalid map args",
+        AnalysisException.class,
+        "cannot resolve 'map",
+        () ->
+            sql(
+                "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",
+                catalogName, sourceName));
 
-    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
-        IllegalArgumentException.class, "Cannot handle an empty identifier",
+    AssertHelpers.assertThrows(
+        "Should reject calls with empty table identifier",
+        IllegalArgumentException.class,
+        "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.snapshot('', 'dest')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
-        IllegalArgumentException.class, "Cannot handle an empty identifier",
+    AssertHelpers.assertThrows(
+        "Should reject calls with empty table identifier",
+        IllegalArgumentException.class,
+        "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.snapshot('src', '')", catalogName));
   }
 }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.io;
 
 import java.io.IOException;
@@ -61,24 +60,31 @@ public class TestCloseableIterable {
 
   @Test
   public void testConcateWithEmptyIterables() {
-    CloseableIterable<Integer> iter = CloseableIterable.combine(Lists.newArrayList(1, 2, 3), () -> { });
+    CloseableIterable<Integer> iter =
+        CloseableIterable.combine(Lists.newArrayList(1, 2, 3), () -> {});
     CloseableIterable<Integer> empty = CloseableIterable.empty();
 
-    CloseableIterable<Integer> concat1 = CloseableIterable.concat(Lists.newArrayList(iter, empty, empty));
+    CloseableIterable<Integer> concat1 =
+        CloseableIterable.concat(Lists.newArrayList(iter, empty, empty));
     Assert.assertEquals(Iterables.getLast(concat1).intValue(), 3);
 
-    CloseableIterable<Integer> concat2 = CloseableIterable.concat(Lists.newArrayList(empty, empty, iter));
+    CloseableIterable<Integer> concat2 =
+        CloseableIterable.concat(Lists.newArrayList(empty, empty, iter));
     Assert.assertEquals(Iterables.getLast(concat2).intValue(), 3);
 
-    CloseableIterable<Integer> concat3 = CloseableIterable.concat(Lists.newArrayList(empty, iter, empty));
+    CloseableIterable<Integer> concat3 =
+        CloseableIterable.concat(Lists.newArrayList(empty, iter, empty));
     Assert.assertEquals(Iterables.getLast(concat3).intValue(), 3);
 
-    CloseableIterable<Integer> concat4 = CloseableIterable.concat(Lists.newArrayList(empty, iter, empty, empty, iter));
+    CloseableIterable<Integer> concat4 =
+        CloseableIterable.concat(Lists.newArrayList(empty, iter, empty, empty, iter));
     Assert.assertEquals(Iterables.getLast(concat4).intValue(), 3);
 
     // This will throw a NoSuchElementException
-    CloseableIterable<Integer> concat5 = CloseableIterable.concat(Lists.newArrayList(empty, empty, empty));
-    AssertHelpers.assertThrows("should throw NoSuchElementException",
+    CloseableIterable<Integer> concat5 =
+        CloseableIterable.concat(Lists.newArrayList(empty, empty, empty));
+    AssertHelpers.assertThrows(
+        "should throw NoSuchElementException",
         NoSuchElementException.class,
         () -> Iterables.getLast(concat5));
   }

@@ -16,8 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
+
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNull;
+import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -55,54 +69,39 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 
-import static org.apache.iceberg.expressions.Expressions.and;
-import static org.apache.iceberg.expressions.Expressions.equal;
-import static org.apache.iceberg.expressions.Expressions.greaterThan;
-import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.in;
-import static org.apache.iceberg.expressions.Expressions.isNaN;
-import static org.apache.iceberg.expressions.Expressions.isNull;
-import static org.apache.iceberg.expressions.Expressions.lessThan;
-import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
-import static org.apache.iceberg.expressions.Expressions.not;
-import static org.apache.iceberg.expressions.Expressions.notIn;
-import static org.apache.iceberg.expressions.Expressions.notNull;
-import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.startsWith;
-
 public class SparkFilters {
 
   private static final Pattern BACKTICKS_PATTERN = Pattern.compile("([`])(.|$)");
 
-  private SparkFilters() {
-  }
+  private SparkFilters() {}
 
-  private static final Map<Class<? extends Filter>, Operation> FILTERS = ImmutableMap
-      .<Class<? extends Filter>, Operation>builder()
-      .put(AlwaysTrue.class, Operation.TRUE)
-      .put(AlwaysTrue$.class, Operation.TRUE)
-      .put(AlwaysFalse$.class, Operation.FALSE)
-      .put(AlwaysFalse.class, Operation.FALSE)
-      .put(EqualTo.class, Operation.EQ)
-      .put(EqualNullSafe.class, Operation.EQ)
-      .put(GreaterThan.class, Operation.GT)
-      .put(GreaterThanOrEqual.class, Operation.GT_EQ)
-      .put(LessThan.class, Operation.LT)
-      .put(LessThanOrEqual.class, Operation.LT_EQ)
-      .put(In.class, Operation.IN)
-      .put(IsNull.class, Operation.IS_NULL)
-      .put(IsNotNull.class, Operation.NOT_NULL)
-      .put(And.class, Operation.AND)
-      .put(Or.class, Operation.OR)
-      .put(Not.class, Operation.NOT)
-      .put(StringStartsWith.class, Operation.STARTS_WITH)
-      .build();
+  private static final Map<Class<? extends Filter>, Operation> FILTERS =
+      ImmutableMap.<Class<? extends Filter>, Operation>builder()
+          .put(AlwaysTrue.class, Operation.TRUE)
+          .put(AlwaysTrue$.class, Operation.TRUE)
+          .put(AlwaysFalse$.class, Operation.FALSE)
+          .put(AlwaysFalse.class, Operation.FALSE)
+          .put(EqualTo.class, Operation.EQ)
+          .put(EqualNullSafe.class, Operation.EQ)
+          .put(GreaterThan.class, Operation.GT)
+          .put(GreaterThanOrEqual.class, Operation.GT_EQ)
+          .put(LessThan.class, Operation.LT)
+          .put(LessThanOrEqual.class, Operation.LT_EQ)
+          .put(In.class, Operation.IN)
+          .put(IsNull.class, Operation.IS_NULL)
+          .put(IsNotNull.class, Operation.NOT_NULL)
+          .put(And.class, Operation.AND)
+          .put(Or.class, Operation.OR)
+          .put(Not.class, Operation.NOT)
+          .put(StringStartsWith.class, Operation.STARTS_WITH)
+          .build();
 
   public static Expression convert(Filter[] filters) {
     Expression expression = Expressions.alwaysTrue();
     for (Filter filter : filters) {
       Expression converted = convert(filter);
-      Preconditions.checkArgument(converted != null, "Cannot convert filter to Iceberg: %s", filter);
+      Preconditions.checkArgument(
+          converted != null, "Cannot convert filter to Iceberg: %s", filter);
       expression = Expressions.and(expression, converted);
     }
     return expression;
@@ -147,8 +146,8 @@ public class SparkFilters {
           if (filter instanceof EqualTo) {
             EqualTo eq = (EqualTo) filter;
             // comparison with null in normal equality is always null. this is probably a mistake.
-            Preconditions.checkNotNull(eq.value(),
-                "Expression is always false (eq is not null-safe): %s", filter);
+            Preconditions.checkNotNull(
+                eq.value(), "Expression is always false (eq is not null-safe): %s", filter);
             return handleEqual(unquote(eq.attribute()), eq.value());
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
@@ -161,7 +160,8 @@ public class SparkFilters {
 
         case IN:
           In inFilter = (In) filter;
-          return in(unquote(inFilter.attribute()),
+          return in(
+              unquote(inFilter.attribute()),
               Stream.of(inFilter.values())
                   .filter(Objects::nonNull)
                   .map(SparkFilters::convertLiteral)
@@ -174,12 +174,15 @@ public class SparkFilters {
           if (childOp == Operation.IN) {
             // infer an extra notNull predicate for Spark NOT IN filters
             // as Iceberg expressions don't follow the 3-value SQL boolean logic
-            // col NOT IN (1, 2) in Spark is equivalent to notNull(col) && notIn(col, 1, 2) in Iceberg
+            // col NOT IN (1, 2) in Spark is equivalent to notNull(col) && notIn(col, 1, 2) in
+            // Iceberg
             In childInFilter = (In) childFilter;
-            Expression notIn = notIn(unquote(childInFilter.attribute()),
-                Stream.of(childInFilter.values())
-                    .map(SparkFilters::convertLiteral)
-                    .collect(Collectors.toList()));
+            Expression notIn =
+                notIn(
+                    unquote(childInFilter.attribute()),
+                    Stream.of(childInFilter.values())
+                        .map(SparkFilters::convertLiteral)
+                        .collect(Collectors.toList()));
             return and(notNull(childInFilter.attribute()), notIn);
           } else if (hasNoInFilter(childFilter)) {
             Expression child = convert(childFilter);
@@ -189,30 +192,33 @@ public class SparkFilters {
           }
           return null;
 
-        case AND: {
-          And andFilter = (And) filter;
-          Expression left = convert(andFilter.left());
-          Expression right = convert(andFilter.right());
-          if (left != null && right != null) {
-            return and(left, right);
+        case AND:
+          {
+            And andFilter = (And) filter;
+            Expression left = convert(andFilter.left());
+            Expression right = convert(andFilter.right());
+            if (left != null && right != null) {
+              return and(left, right);
+            }
+            return null;
           }
-          return null;
-        }
 
-        case OR: {
-          Or orFilter = (Or) filter;
-          Expression left = convert(orFilter.left());
-          Expression right = convert(orFilter.right());
-          if (left != null && right != null) {
-            return or(left, right);
+        case OR:
+          {
+            Or orFilter = (Or) filter;
+            Expression left = convert(orFilter.left());
+            Expression right = convert(orFilter.right());
+            if (left != null && right != null) {
+              return or(left, right);
+            }
+            return null;
           }
-          return null;
-        }
 
-        case STARTS_WITH: {
-          StringStartsWith stringStartsWith = (StringStartsWith) filter;
-          return startsWith(unquote(stringStartsWith.attribute()), stringStartsWith.value());
-        }
+        case STARTS_WITH:
+          {
+            StringStartsWith stringStartsWith = (StringStartsWith) filter;
+            return startsWith(unquote(stringStartsWith.attribute()), stringStartsWith.value());
+          }
       }
     }
 

@@ -16,16 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.io.Serializable;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.JavaHashes;
 
-/**
- * Wrapper class to adapt CharSequence for use in maps and sets.
- */
+/** Wrapper class to adapt CharSequence for use in maps and sets. */
 public class CharSequenceWrapper implements CharSequence, Serializable {
   public static CharSequenceWrapper wrap(CharSequence seq) {
     return new CharSequenceWrapper(seq);

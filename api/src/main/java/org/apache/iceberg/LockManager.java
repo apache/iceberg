@@ -16,18 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Map;
 
-/**
- * An interface for locking, used to ensure commit isolation.
- */
+/** An interface for locking, used to ensure commit isolation. */
 public interface LockManager extends AutoCloseable {
 
   /**
    * Try to acquire a lock
+   *
    * @param entityId ID of the entity to lock
    * @param ownerId ID of the owner if the lock
    * @return if the lock for the entity is acquired by the owner
@@ -37,7 +35,7 @@ public interface LockManager extends AutoCloseable {
   /**
    * Release a lock
    *
-   * exception must not be thrown for this method.
+   * <p>exception must not be thrown for this method.
    *
    * @param entityId ID of the entity to lock
    * @param ownerId ID of the owner if the lock
@@ -47,6 +45,7 @@ public interface LockManager extends AutoCloseable {
 
   /**
    * Initialize lock manager from catalog properties.
+   *
    * @param properties catalog properties
    */
   void initialize(Map<String, String> properties);

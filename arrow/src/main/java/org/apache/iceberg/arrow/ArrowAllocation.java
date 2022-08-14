@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.arrow;
 
 import org.apache.arrow.memory.RootAllocator;
@@ -28,8 +27,7 @@ public class ArrowAllocation {
 
   private static final RootAllocator ROOT_ALLOCATOR;
 
-  private ArrowAllocation() {
-  }
+  private ArrowAllocation() {}
 
   public static RootAllocator rootAllocator() {
     return ROOT_ALLOCATOR;

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
@@ -38,12 +37,9 @@ import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 
-/**
- * Methods in this class translate from the IO API to Parquet's IO API.
- */
+/** Methods in this class translate from the IO API to Parquet's IO API. */
 class ParquetIO {
-  private ParquetIO() {
-  }
+  private ParquetIO() {}
 
   static InputFile file(org.apache.iceberg.io.InputFile file) {
     // TODO: use reflection to avoid depending on classes from iceberg-hadoop
@@ -51,7 +47,8 @@ class ParquetIO {
     if (file instanceof HadoopInputFile) {
       HadoopInputFile hfile = (HadoopInputFile) file;
       try {
-        return org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus(hfile.getStat(), hfile.getConf());
+        return org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus(
+            hfile.getStat(), hfile.getConf());
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create Parquet input file for %s", file);
       }
@@ -63,7 +60,8 @@ class ParquetIO {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
-        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), hfile.getConf());
+        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(
+            hfile.getPath(), hfile.getConf());
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
       }

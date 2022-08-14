@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
-
 
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
@@ -27,8 +25,9 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.iceberg.util.ThreadPools;
 
 /**
- * When constructing Flink Iceberg source via Java API,
- * configs can be set in {@link Configuration} passed to source builder. E.g.
+ * When constructing Flink Iceberg source via Java API, configs can be set in {@link Configuration}
+ * passed to source builder. E.g.
+ *
  * <pre>
  *   configuration.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
  *   FlinkSource.forRowData()
@@ -36,9 +35,9 @@ import org.apache.iceberg.util.ThreadPools;
  *       ...
  * </pre>
  *
- * <p></p>
+ * <p>When using Flink SQL/table API, connector options can be set in Flink's {@link
+ * TableEnvironment}.
  *
- * When using Flink SQL/table API, connector options can be set in Flink's {@link TableEnvironment}.
  * <pre>
  *   TableEnvironment tEnv = createTableEnv();
  *   tEnv.getConfig()
@@ -48,15 +47,15 @@ import org.apache.iceberg.util.ThreadPools;
  */
 public class FlinkConfigOptions {
 
-  private FlinkConfigOptions() {
-  }
+  private FlinkConfigOptions() {}
 
   public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM =
       ConfigOptions.key("table.exec.iceberg.infer-source-parallelism")
           .booleanType()
           .defaultValue(true)
-          .withDescription("If is false, parallelism of source are set by config.\n" +
-              "If is true, source parallelism is inferred according to splits number.\n");
+          .withDescription(
+              "If is false, parallelism of source are set by config.\n"
+                  + "If is true, source parallelism is inferred according to splits number.\n");
 
   public static final ConfigOption<Integer> TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX =
       ConfigOptions.key("table.exec.iceberg.infer-source-parallelism.max")
@@ -68,13 +67,14 @@ public class FlinkConfigOptions {
       ConfigOptions.key("table.exec.iceberg.expose-split-locality-info")
           .booleanType()
           .noDefaultValue()
-          .withDescription("Expose split host information to use Flink's locality aware split assigner.");
+          .withDescription(
+              "Expose split host information to use Flink's locality aware split assigner.");
 
-  public static final ConfigOption<Integer> SOURCE_READER_FETCH_BATCH_RECORD_COUNT = ConfigOptions
-      .key("table.exec.iceberg.fetch-batch-record-count")
-      .intType()
-      .defaultValue(2048)
-      .withDescription("The target number of records for Iceberg reader fetch batch.");
+  public static final ConfigOption<Integer> SOURCE_READER_FETCH_BATCH_RECORD_COUNT =
+      ConfigOptions.key("table.exec.iceberg.fetch-batch-record-count")
+          .intType()
+          .defaultValue(2048)
+          .withDescription("The target number of records for Iceberg reader fetch batch.");
 
   public static final ConfigOption<Integer> TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE =
       ConfigOptions.key("table.exec.iceberg.worker-pool-size")

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.parquet;
 
 import java.math.BigDecimal;
@@ -53,15 +52,14 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class ParquetAvroValueReaders {
-  private ParquetAvroValueReaders() {
-  }
+  private ParquetAvroValueReaders() {}
 
   @SuppressWarnings("unchecked")
-  public static ParquetValueReader<Record> buildReader(org.apache.iceberg.Schema expectedSchema,
-                                                       MessageType fileSchema) {
+  public static ParquetValueReader<Record> buildReader(
+      org.apache.iceberg.Schema expectedSchema, MessageType fileSchema) {
     return (ParquetValueReader<Record>)
-        TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-            new ReadBuilder(expectedSchema, fileSchema));
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(), fileSchema, new ReadBuilder(expectedSchema, fileSchema));
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
@@ -76,14 +74,14 @@ public class ParquetAvroValueReaders {
     }
 
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
-                                         List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> message(
+        Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType expected, GroupType struct,
-                                        List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> struct(
+        Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       Schema avroSchema = avroSchemas.get(expected);
 
       // match the expected struct's order
@@ -98,10 +96,10 @@ public class ParquetAvroValueReaders {
         typesById.put(id, fieldType);
       }
 
-      List<Types.NestedField> expectedFields = expected != null ?
-          expected.fields() : ImmutableList.of();
-      List<ParquetValueReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
-          expectedFields.size());
+      List<Types.NestedField> expectedFields =
+          expected != null ? expected.fields() : ImmutableList.of();
+      List<ParquetValueReader<?>> reorderedFields =
+          Lists.newArrayListWithExpectedSize(expectedFields.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
@@ -119,8 +117,8 @@ public class ParquetAvroValueReaders {
     }
 
     @Override
-    public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
-                                      ParquetValueReader<?> elementReader) {
+    public ParquetValueReader<?> list(
+        Types.ListType expectedList, GroupType array, ParquetValueReader<?> elementReader) {
       String[] repeatedPath = currentPath();
 
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
@@ -129,13 +127,16 @@ public class ParquetAvroValueReaders {
       Type elementType = ParquetSchemaUtil.determineListElementType(array);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
-      return new ListReader<>(repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
+      return new ListReader<>(
+          repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
     }
 
     @Override
-    public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map,
-                                     ParquetValueReader<?> keyReader,
-                                     ParquetValueReader<?> valueReader) {
+    public ParquetValueReader<?> map(
+        Types.MapType expectedMap,
+        GroupType map,
+        ParquetValueReader<?> keyReader,
+        ParquetValueReader<?> valueReader) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -147,14 +148,16 @@ public class ParquetAvroValueReaders {
       Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName())) - 1;
 
-      return new MapReader<>(repeatedD, repeatedR,
+      return new MapReader<>(
+          repeatedD,
+          repeatedR,
           ParquetValueReaders.option(keyType, keyD, keyReader),
           ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
     @Override
-    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
-                                           PrimitiveType primitive) {
+    public ParquetValueReader<?> primitive(
+        org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
       boolean isMapKey = fieldNames.contains("key");
@@ -342,9 +345,7 @@ public class ParquetAvroValueReaders {
   static class RecordReader extends StructReader<Record, Record> {
     private final Schema schema;
 
-    RecordReader(List<Type> types,
-                 List<ParquetValueReader<?>> readers,
-                 Schema schema) {
+    RecordReader(List<Type> types, List<ParquetValueReader<?>> readers, Schema schema) {
       super(types, readers);
       this.schema = schema;
     }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption.kms;
 
 import java.io.FileInputStream;
@@ -35,12 +34,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
- * KMS client demo class, based on the Java KeyStore API that reads keys from standard PKCS12 keystore files.
- * Not for use in production.
+ * KMS client demo class, based on the Java KeyStore API that reads keys from standard PKCS12
+ * keystore files. Not for use in production.
  */
 public class KeyStoreKmsClient extends MemoryMockKMS {
 
-  // Path to keystore file. Preferably kept in volatile storage, such as ramdisk. Don't store with data.
+  // Path to keystore file. Preferably kept in volatile storage, such as ramdisk. Don't store with
+  // data.
   public static final String KEYSTORE_FILE_PATH_PROP = "keystore.kms.client.file.path";
 
   // Credentials (such as keystore password) must never be kept in a persistent storage.
@@ -62,12 +62,12 @@ public class KeyStoreKmsClient extends MemoryMockKMS {
   @Override
   public void initialize(Map<String, String> properties) {
     String keystorePath = properties.get(KEYSTORE_FILE_PATH_PROP);
-    Preconditions.checkNotNull(keystorePath, KEYSTORE_FILE_PATH_PROP + " must be set in hadoop or table " +
-        "properties");
+    Preconditions.checkNotNull(
+        keystorePath, KEYSTORE_FILE_PATH_PROP + " must be set in hadoop or table " + "properties");
 
     String keystorePassword = System.getenv(KEYSTORE_PASSWORD_ENV_VAR);
-    Preconditions.checkNotNull(keystorePassword, KEYSTORE_PASSWORD_ENV_VAR + " environment variable " +
-        "must be set");
+    Preconditions.checkNotNull(
+        keystorePassword, KEYSTORE_PASSWORD_ENV_VAR + " environment variable " + "must be set");
 
     KeyStore keyStore;
     try {
@@ -93,7 +93,7 @@ public class KeyStoreKmsClient extends MemoryMockKMS {
 
     Enumeration<String> keyAliases;
     try {
-      keyAliases =  keyStore.aliases();
+      keyAliases = keyStore.aliases();
     } catch (KeyStoreException e) {
       throw new RuntimeException("Failed to get key aliases in keystore file " + keystorePath, e);
     }

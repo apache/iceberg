@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.examples;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,11 +47,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-
 /**
- * This class tests how you can evolve your table schema with Iceberg.
- * This includes things like adding, deleting, renaming columns and type promotions.
+ * This class tests how you can evolve your table schema with Iceberg. This includes things like
+ * adding, deleting, renaming columns and type promotions.
  */
 public class SchemaEvolutionTest {
 
@@ -61,7 +60,6 @@ public class SchemaEvolutionTest {
   private File tableLocation;
   private final String dataLocation = "src/test/resources/data/";
 
-
   @BeforeClass
   public static void beforeAll() {
     spark = SparkSession.builder().master("local[2]").getOrCreate();
@@ -70,25 +68,27 @@ public class SchemaEvolutionTest {
   @Before
   public void before() throws IOException {
     tableLocation = Files.createTempDirectory("temp").toFile();
-    Schema schema = new Schema(
-        optional(1, "title", Types.StringType.get()),
-        optional(2, "price", Types.IntegerType.get()),
-        optional(3, "author", Types.StringType.get()),
-        optional(4, "published", Types.TimestampType.withZone()),
-        optional(5, "genre", Types.StringType.get())
-    );
-    PartitionSpec spec = PartitionSpec.builderFor(schema)
-        .year("published")
-        .build();
+    Schema schema =
+        new Schema(
+            optional(1, "title", Types.StringType.get()),
+            optional(2, "price", Types.IntegerType.get()),
+            optional(3, "author", Types.StringType.get()),
+            optional(4, "published", Types.TimestampType.withZone()),
+            optional(5, "genre", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).year("published").build();
 
     HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     table = tables.create(schema, spec, tableLocation.toString());
 
     Dataset<Row> df = spark.read().json(dataLocation + "/books.json");
 
-    df.select(df.col("title"), df.col("price").cast(DataTypes.IntegerType),
-        df.col("author"), df.col("published").cast(DataTypes.TimestampType),
-        df.col("genre")).write()
+    df.select(
+            df.col("title"),
+            df.col("price").cast(DataTypes.IntegerType),
+            df.col("author"),
+            df.col("published").cast(DataTypes.TimestampType),
+            df.col("genre"))
+        .write()
         .format("iceberg")
         .mode("append")
         .save(tableLocation.toString());
@@ -105,9 +105,14 @@ public class SchemaEvolutionTest {
     table.updateSchema().addColumn(fieldName, Types.StringType.get()).commit();
     Dataset<Row> df2 = spark.read().json(dataLocation + "new-books.json");
 
-    df2.select(df2.col("title"), df2.col("price").cast(DataTypes.IntegerType),
-        df2.col("author"), df2.col("published").cast(DataTypes.TimestampType),
-        df2.col("genre"), df2.col("publisher")).write()
+    df2.select(
+            df2.col("title"),
+            df2.col("price").cast(DataTypes.IntegerType),
+            df2.col("author"),
+            df2.col("published").cast(DataTypes.TimestampType),
+            df2.col("genre"),
+            df2.col("publisher"))
+        .write()
         .format("iceberg")
         .mode("append")
         .save(tableLocation.toString());
@@ -118,9 +123,7 @@ public class SchemaEvolutionTest {
     table.updateSchema().deleteColumn("genre").commit();
 
     table.refresh();
-    Dataset<Row> results = spark.read()
-        .format("iceberg")
-        .load(tableLocation.toString());
+    Dataset<Row> results = spark.read().format("iceberg").load(tableLocation.toString());
 
     results.createOrReplaceTempView("table");
     spark.sql("select * from table").show();
@@ -132,31 +135,28 @@ public class SchemaEvolutionTest {
     table.updateSchema().renameColumn("author", "writer").commit();
 
     table.refresh();
-    Dataset<Row> results = spark.read()
-        .format("iceberg")
-        .load(tableLocation.toString());
+    Dataset<Row> results = spark.read().format("iceberg").load(tableLocation.toString());
 
     results.createOrReplaceTempView("table");
     spark.sql("select * from table").show();
     List<String> fields = Arrays.asList(spark.sql("select * from table").schema().names());
     Assert.assertTrue(fields.contains("writer"));
     Assert.assertFalse(fields.contains("author"));
-
   }
 
   @Test
   public void updateColumnTypeIntToLong() {
     table.updateSchema().updateColumn("price", Types.LongType.get()).commit();
 
-    Dataset<Row> results = spark.read()
-        .format("iceberg")
-        .load(tableLocation.toString());
+    Dataset<Row> results = spark.read().format("iceberg").load(tableLocation.toString());
 
-    Stream<StructField> structFieldStream = Arrays.stream(results.schema().fields())
-        .filter(field -> field.name().equalsIgnoreCase("price"));
+    Stream<StructField> structFieldStream =
+        Arrays.stream(results.schema().fields())
+            .filter(field -> field.name().equalsIgnoreCase("price"));
     Optional<StructField> first = structFieldStream.findFirst();
-    Assert.assertTrue("Unable to change datatype from Long to Int", first.isPresent() &&
-        first.get().dataType() == LongType$.MODULE$);
+    Assert.assertTrue(
+        "Unable to change datatype from Long to Int",
+        first.isPresent() && first.get().dataType() == LongType$.MODULE$);
   }
 
   @Test(expected = IllegalArgumentException.class)

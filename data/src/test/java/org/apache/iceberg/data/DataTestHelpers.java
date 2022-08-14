@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data;
 
 import java.util.List;
@@ -27,8 +26,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
 public class DataTestHelpers {
-  private DataTestHelpers() {
-  }
+  private DataTestHelpers() {}
 
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
     List<Types.NestedField> fields = struct.fields();
@@ -86,16 +84,21 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-        Assert.assertEquals("Primitive value should be equal to expected for type " + type, expected, actual);
+        Assert.assertEquals(
+            "Primitive value should be equal to expected for type " + type, expected, actual);
         break;
       case FIXED:
-        Assertions.assertThat(expected).as("Expected should be a byte[]").isInstanceOf(byte[].class);
+        Assertions.assertThat(expected)
+            .as("Expected should be a byte[]")
+            .isInstanceOf(byte[].class);
         Assertions.assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals("Array contents should be equal",
-            (byte[]) expected, (byte[]) actual);
+        Assert.assertArrayEquals(
+            "Array contents should be equal", (byte[]) expected, (byte[]) actual);
         break;
       case STRUCT:
-        Assertions.assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
+        Assertions.assertThat(expected)
+            .as("Expected should be a Record")
+            .isInstanceOf(Record.class);
         Assertions.assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
         assertEquals(type.asStructType(), (Record) expected, (Record) actual);
         break;

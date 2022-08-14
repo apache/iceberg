@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.io.File;
@@ -46,30 +45,41 @@ import org.apache.iceberg.io.FileAppenderFactory;
 
 public class ReaderUtil {
 
-  private ReaderUtil() {
-  }
+  private ReaderUtil() {}
 
-  public static FileScanTask createFileTask(List<Record> records, File file, FileFormat fileFormat,
-                                            FileAppenderFactory<Record>  appenderFactory) throws IOException {
-    try (FileAppender<Record> appender = appenderFactory.newAppender(Files.localOutput(file), fileFormat)) {
+  public static FileScanTask createFileTask(
+      List<Record> records,
+      File file,
+      FileFormat fileFormat,
+      FileAppenderFactory<Record> appenderFactory)
+      throws IOException {
+    try (FileAppender<Record> appender =
+        appenderFactory.newAppender(Files.localOutput(file), fileFormat)) {
       appender.addAll(records);
     }
 
-    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withRecordCount(records.size())
-        .withFileSizeInBytes(file.length())
-        .withPath(file.toString())
-        .withFormat(fileFormat)
-        .build();
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withRecordCount(records.size())
+            .withFileSizeInBytes(file.length())
+            .withPath(file.toString())
+            .withFormat(fileFormat)
+            .build();
 
     ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());
-    return new BaseFileScanTask(dataFile, null, SchemaParser.toJson(TestFixtures.SCHEMA),
-        PartitionSpecParser.toJson(PartitionSpec.unpartitioned()), residuals);
+    return new BaseFileScanTask(
+        dataFile,
+        null,
+        SchemaParser.toJson(TestFixtures.SCHEMA),
+        PartitionSpecParser.toJson(PartitionSpec.unpartitioned()),
+        residuals);
   }
 
   public static DataIterator<RowData> createDataIterator(CombinedScanTask combinedTask) {
     return new DataIterator<>(
         new RowDataFileScanTaskReader(TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true),
-        combinedTask, new HadoopFileIO(new org.apache.hadoop.conf.Configuration()), new PlaintextEncryptionManager());
+        combinedTask,
+        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
+        new PlaintextEncryptionManager());
   }
 }

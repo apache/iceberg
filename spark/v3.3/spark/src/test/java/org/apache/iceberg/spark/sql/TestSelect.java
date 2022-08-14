@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.sql;
 
 import java.text.SimpleDateFormat;
@@ -49,10 +48,12 @@ public class TestSelect extends SparkCatalogTestBase {
     super(catalogName, implementation, config);
 
     // register a scan event listener to validate pushdown
-    Listeners.register(event -> {
-      scanEventCount += 1;
-      lastScanEvent = event;
-    }, ScanEvent.class);
+    Listeners.register(
+        event -> {
+          scanEventCount += 1;
+          lastScanEvent = event;
+        },
+        ScanEvent.class);
   }
 
   @Before
@@ -72,8 +73,8 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testSelect() {
-    List<Object[]> expected = ImmutableList.of(
-        row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
+    List<Object[]> expected =
+        ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
@@ -82,11 +83,14 @@ public class TestSelect extends SparkCatalogTestBase {
   public void testSelectRewrite() {
     List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN));
 
-    assertEquals("Should return all expected rows", expected,
+    assertEquals(
+        "Should return all expected rows",
+        expected,
         sql("SELECT * FROM %s where float = float('NaN')", tableName));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter",
+    Assert.assertEquals(
+        "Should push down expected filter",
         "(float IS NOT NULL AND is_nan(float))",
         Spark3Util.describe(lastScanEvent.filter()));
   }
@@ -98,8 +102,10 @@ public class TestSelect extends SparkCatalogTestBase {
     assertEquals("Should return all expected rows", expected, sql("SELECT id FROM %s", tableName));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
-    Assert.assertEquals("Should project only the id column",
+    Assert.assertEquals(
+        "Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
+    Assert.assertEquals(
+        "Should project only the id column",
         validationCatalog.loadTable(tableIdent).schema().select("id").asStruct(),
         lastScanEvent.projection().asStruct());
   }
@@ -108,13 +114,18 @@ public class TestSelect extends SparkCatalogTestBase {
   public void testExpressionPushdown() {
     List<Object[]> expected = ImmutableList.of(row("b"));
 
-    assertEquals("Should return all expected rows", expected, sql("SELECT data FROM %s WHERE id = 2", tableName));
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT data FROM %s WHERE id = 2", tableName));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter",
+    Assert.assertEquals(
+        "Should push down expected filter",
         "(id IS NOT NULL AND id = 2)",
         Spark3Util.describe(lastScanEvent.filter()));
-    Assert.assertEquals("Should project only id and data columns",
+    Assert.assertEquals(
+        "Should project only id and data columns",
         validationCatalog.loadTable(tableIdent).schema().select("id", "data").asStruct(),
         lastScanEvent.projection().asStruct());
   }
@@ -125,7 +136,8 @@ public class TestSelect extends SparkCatalogTestBase {
         "Spark session catalog does not support metadata tables",
         "spark_catalog".equals(catalogName));
 
-    assertEquals("Snapshot metadata table",
+    assertEquals(
+        "Snapshot metadata table",
         ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY)),
         sql("SELECT * FROM %s.snapshots", tableName));
   }
@@ -149,10 +161,12 @@ public class TestSelect extends SparkCatalogTestBase {
     assertEquals("Snapshot at specific ID, prefix " + prefix, expected, actual);
 
     // read the table using DataFrameReader option
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
-        .load(tableName);
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+            .load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
   }
@@ -177,10 +191,12 @@ public class TestSelect extends SparkCatalogTestBase {
     assertEquals("Snapshot at timestamp, prefix " + prefix, expected, actual);
 
     // read the table using DataFrameReader option
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
-        .load(tableName);
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+            .load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
   }
@@ -200,14 +216,13 @@ public class TestSelect extends SparkCatalogTestBase {
 
     // read the table at the snapshot
     // HIVE time travel syntax
-    List<Object[]> actual2 = sql("SELECT * FROM %s FOR SYSTEM_VERSION AS OF %s", tableName, snapshotId);
+    List<Object[]> actual2 =
+        sql("SELECT * FROM %s FOR SYSTEM_VERSION AS OF %s", tableName, snapshotId);
     assertEquals("Snapshot at specific ID", expected, actual2);
 
     // read the table using DataFrameReader option: versionAsOf
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option("versionAsOf", snapshotId)
-        .load(tableName);
+    Dataset<Row> df =
+        spark.read().format("iceberg").option("versionAsOf", snapshotId).load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
   }
@@ -228,29 +243,29 @@ public class TestSelect extends SparkCatalogTestBase {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
     // read the table at the timestamp in long format i.e 1656507980463.
-    List<Object[]> actualWithLongFormat = sql("SELECT * FROM %s TIMESTAMP AS OF %s", tableName, timestampInSeconds);
+    List<Object[]> actualWithLongFormat =
+        sql("SELECT * FROM %s TIMESTAMP AS OF %s", tableName, timestampInSeconds);
     assertEquals("Snapshot at timestamp", expected, actualWithLongFormat);
 
     // read the table at the timestamp in date format i.e 2022-06-29 18:40:37
-    List<Object[]> actualWithDateFormat = sql("SELECT * FROM %s TIMESTAMP AS OF '%s'", tableName, formattedDate);
+    List<Object[]> actualWithDateFormat =
+        sql("SELECT * FROM %s TIMESTAMP AS OF '%s'", tableName, formattedDate);
     assertEquals("Snapshot at timestamp", expected, actualWithDateFormat);
 
     // HIVE time travel syntax
     // read the table at the timestamp in long format i.e 1656507980463.
-    List<Object[]> actualWithLongFormatInHiveSyntax = sql("SELECT * FROM %s FOR SYSTEM_TIME AS OF %s", tableName,
-        timestampInSeconds);
+    List<Object[]> actualWithLongFormatInHiveSyntax =
+        sql("SELECT * FROM %s FOR SYSTEM_TIME AS OF %s", tableName, timestampInSeconds);
     assertEquals("Snapshot at specific ID", expected, actualWithLongFormatInHiveSyntax);
 
     // read the table at the timestamp in date format i.e 2022-06-29 18:40:37
-    List<Object[]> actualWithDateFormatInHiveSyntax = sql("SELECT * FROM %s FOR SYSTEM_TIME AS OF '%s'", tableName,
-        formattedDate);
+    List<Object[]> actualWithDateFormatInHiveSyntax =
+        sql("SELECT * FROM %s FOR SYSTEM_TIME AS OF '%s'", tableName, formattedDate);
     assertEquals("Snapshot at specific ID", expected, actualWithDateFormatInHiveSyntax);
 
     // read the table using DataFrameReader option
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .option("timestampAsOf", formattedDate)
-        .load(tableName);
+    Dataset<Row> df =
+        spark.read().format("iceberg").option("timestampAsOf", formattedDate).load(tableName);
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
   }
@@ -260,7 +275,8 @@ public class TestSelect extends SparkCatalogTestBase {
     // get the snapshot ID of the last write
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     // get a timestamp just after the last write
-    long timestamp = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+    long timestamp =
+        validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
 
     String timestampPrefix = "at_timestamp_";
     String snapshotPrefix = "snapshot_id_";
@@ -269,35 +285,47 @@ public class TestSelect extends SparkCatalogTestBase {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
     // using snapshot in table identifier and VERSION AS OF
-    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+    AssertHelpers.assertThrows(
+        "Cannot do time-travel based on both table identifier and AS OF",
         IllegalArgumentException.class,
         "Cannot do time-travel based on both table identifier and AS OF",
         () -> {
-          sql("SELECT * FROM %s.%s VERSION AS OF %s", tableName, snapshotPrefix + snapshotId, snapshotId);
+          sql(
+              "SELECT * FROM %s.%s VERSION AS OF %s",
+              tableName, snapshotPrefix + snapshotId, snapshotId);
         });
 
     // using snapshot in table identifier and TIMESTAMP AS OF
-    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+    AssertHelpers.assertThrows(
+        "Cannot do time-travel based on both table identifier and AS OF",
         IllegalArgumentException.class,
         "Cannot do time-travel based on both table identifier and AS OF",
         () -> {
-          sql("SELECT * FROM %s.%s VERSION AS OF %s", tableName, timestampPrefix + timestamp, snapshotId);
+          sql(
+              "SELECT * FROM %s.%s VERSION AS OF %s",
+              tableName, timestampPrefix + timestamp, snapshotId);
         });
 
     // using timestamp in table identifier and VERSION AS OF
-    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+    AssertHelpers.assertThrows(
+        "Cannot do time-travel based on both table identifier and AS OF",
         IllegalArgumentException.class,
         "Cannot do time-travel based on both table identifier and AS OF",
         () -> {
-          sql("SELECT * FROM %s.%s TIMESTAMP AS OF %s", tableName, snapshotPrefix + snapshotId, timestamp);
+          sql(
+              "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
+              tableName, snapshotPrefix + snapshotId, timestamp);
         });
 
     // using timestamp in table identifier and TIMESTAMP AS OF
-    AssertHelpers.assertThrows("Cannot do time-travel based on both table identifier and AS OF",
+    AssertHelpers.assertThrows(
+        "Cannot do time-travel based on both table identifier and AS OF",
         IllegalArgumentException.class,
         "Cannot do time-travel based on both table identifier and AS OF",
         () -> {
-          sql("SELECT * FROM %s.%s TIMESTAMP AS OF %s", tableName, timestampPrefix + timestamp, timestamp);
+          sql(
+              "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
+              tableName, timestampPrefix + timestamp, timestamp);
         });
   }
 
@@ -306,22 +334,25 @@ public class TestSelect extends SparkCatalogTestBase {
     // get the snapshot ID of the last write
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     // get a timestamp just after the last write
-    long timestamp = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
+    long timestamp =
+        validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis() + 2;
 
     // create a second snapshot
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
-    AssertHelpers.assertThrows("Should not be able to specify both snapshot id and timestamp",
+    AssertHelpers.assertThrows(
+        "Should not be able to specify both snapshot id and timestamp",
         IllegalArgumentException.class,
-        String.format("Cannot specify both snapshot-id (%s) and as-of-timestamp (%s)",
-          snapshotId, timestamp),
+        String.format(
+            "Cannot specify both snapshot-id (%s) and as-of-timestamp (%s)", snapshotId, timestamp),
         () -> {
-          spark.read()
-            .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
-            .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
-            .load(tableName)
-            .collectAsList();
+          spark
+              .read()
+              .format("iceberg")
+              .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+              .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+              .load(tableName)
+              .collectAsList();
         });
   }
 
@@ -329,21 +360,31 @@ public class TestSelect extends SparkCatalogTestBase {
   public void testBinaryInFilter() {
     sql("CREATE TABLE %s (id bigint, binary binary) USING iceberg", binaryTableName);
     sql("INSERT INTO %s VALUES (1, X''), (2, X'1111'), (3, X'11')", binaryTableName);
-    List<Object[]> expected = ImmutableList.of(row(2L, new byte[]{0x11, 0x11}));
+    List<Object[]> expected = ImmutableList.of(row(2L, new byte[] {0x11, 0x11}));
 
-    assertEquals("Should return all expected rows", expected,
+    assertEquals(
+        "Should return all expected rows",
+        expected,
         sql("SELECT id, binary FROM %s where binary > X'11'", binaryTableName));
   }
 
   @Test
   public void testComplexTypeFilter() {
     String complexTypeTableName = tableName("complex_table");
-    sql("CREATE TABLE %s (id INT, complex STRUCT<c1:INT,c2:STRING>) USING iceberg", complexTypeTableName);
-    sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\"))", complexTypeTableName);
-    sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))", complexTypeTableName);
-
-    List<Object[]> result = sql("SELECT id FROM %s WHERE complex = named_struct(\"c1\", 3, \"c2\", \"v1\")",
+    sql(
+        "CREATE TABLE %s (id INT, complex STRUCT<c1:INT,c2:STRING>) USING iceberg",
         complexTypeTableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\"))",
+        complexTypeTableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))",
+        complexTypeTableName);
+
+    List<Object[]> result =
+        sql(
+            "SELECT id FROM %s WHERE complex = named_struct(\"c1\", 3, \"c2\", \"v1\")",
+            complexTypeTableName);
 
     assertEquals("Should return all expected rows", ImmutableList.of(row(1)), result);
     sql("DROP TABLE IF EXISTS %s", complexTypeTableName);

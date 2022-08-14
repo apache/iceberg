@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.action;
+
+import static org.apache.spark.sql.functions.udf;
 
 import java.io.Serializable;
 import java.util.Random;
@@ -25,8 +26,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.types.DataTypes;
-
-import static org.apache.spark.sql.functions.udf;
 
 class RandomGeneratingUDF implements Serializable {
   private final long uniqueValues;
@@ -37,11 +36,16 @@ class RandomGeneratingUDF implements Serializable {
   }
 
   UserDefinedFunction randomLongUDF() {
-    return udf(() -> rand.nextLong() % (uniqueValues / 2), DataTypes.LongType).asNondeterministic().asNonNullable();
+    return udf(() -> rand.nextLong() % (uniqueValues / 2), DataTypes.LongType)
+        .asNondeterministic()
+        .asNonNullable();
   }
 
   UserDefinedFunction randomString() {
-    return udf(() ->  (String) RandomUtil.generatePrimitive(Types.StringType.get(), rand), DataTypes.StringType)
-        .asNondeterministic().asNonNullable();
+    return udf(
+            () -> (String) RandomUtil.generatePrimitive(Types.StringType.get(), rand),
+            DataTypes.StringType)
+        .asNondeterministic()
+        .asNonNullable();
   }
 }

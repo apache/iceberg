@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
@@ -28,15 +27,18 @@ import org.apache.iceberg.metrics.MetricsContext;
 class EcsInputFile extends BaseEcsFile implements InputFile {
 
   public static EcsInputFile fromLocation(String location, S3Client client) {
-    return new EcsInputFile(client, new EcsURI(location), new DellProperties(), MetricsContext.nullMetrics());
+    return new EcsInputFile(
+        client, new EcsURI(location), new DellProperties(), MetricsContext.nullMetrics());
   }
 
-  public static EcsInputFile fromLocation(String location, S3Client client, DellProperties dellProperties) {
-    return new EcsInputFile(client, new EcsURI(location), dellProperties, MetricsContext.nullMetrics());
+  public static EcsInputFile fromLocation(
+      String location, S3Client client, DellProperties dellProperties) {
+    return new EcsInputFile(
+        client, new EcsURI(location), dellProperties, MetricsContext.nullMetrics());
   }
 
-  static EcsInputFile fromLocation(String location, S3Client client, DellProperties dellProperties,
-      MetricsContext metrics) {
+  static EcsInputFile fromLocation(
+      String location, S3Client client, DellProperties dellProperties, MetricsContext metrics) {
     return new EcsInputFile(client, new EcsURI(location), dellProperties, metrics);
   }
 

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.connector.iceberg.distributions;
 
 import org.apache.spark.annotation.Experimental;
@@ -27,6 +26,4 @@ import org.apache.spark.annotation.Experimental;
  * @since 3.2.0
  */
 @Experimental
-public interface Distribution {
-}
-
+public interface Distribution {}

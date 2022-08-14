@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.Files.localOutput;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,13 +47,10 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.Files.localOutput;
-
 public class TestAvroScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
 
@@ -75,8 +73,8 @@ public class TestAvroScan extends AvroDataTest {
     File dataFolder = new File(location, "data");
     dataFolder.mkdirs();
 
-    File avroFile = new File(dataFolder,
-        FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
+    File avroFile =
+        new File(dataFolder, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
 
     HadoopTables tables = new HadoopTables(CONF);
     Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
@@ -87,23 +85,21 @@ public class TestAvroScan extends AvroDataTest {
 
     List<Record> expected = RandomData.generateList(tableSchema, 100, 1L);
 
-    try (FileAppender<Record> writer = Avro.write(localOutput(avroFile))
-        .schema(tableSchema)
-        .build()) {
+    try (FileAppender<Record> writer =
+        Avro.write(localOutput(avroFile)).schema(tableSchema).build()) {
       writer.addAll(expected);
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withRecordCount(100)
-        .withFileSizeInBytes(avroFile.length())
-        .withPath(avroFile.toString())
-        .build();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withRecordCount(100)
+            .withFileSizeInBytes(avroFile.length())
+            .withPath(avroFile.toString())
+            .build();
 
     table.newAppend().appendFile(file).commit();
 
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> df = spark.read().format("iceberg").load(location.toString());
 
     List<Row> rows = df.collectAsList();
     Assert.assertEquals("Should contain 100 rows", 100, rows.size());

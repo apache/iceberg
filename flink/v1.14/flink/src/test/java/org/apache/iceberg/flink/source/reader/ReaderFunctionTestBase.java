@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.reader;
 
 import java.io.IOException;
@@ -46,15 +45,14 @@ public abstract class ReaderFunctionTestBase<T> {
 
   @Parameterized.Parameters(name = "fileFormat={0}")
   public static Object[][] parameters() {
-    return new Object[][]{
-        new Object[]{FileFormat.AVRO},
-        new Object[]{FileFormat.ORC},
-        new Object[]{FileFormat.PARQUET}
+    return new Object[][] {
+      new Object[] {FileFormat.AVRO},
+      new Object[] {FileFormat.ORC},
+      new Object[] {FileFormat.PARQUET}
     };
   }
 
-  @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   protected abstract ReaderFunction<T> readerFunction();
 
@@ -78,11 +76,13 @@ public abstract class ReaderFunctionTestBase<T> {
     return recordBatchList;
   }
 
-  private CombinedScanTask createCombinedScanTask(List<List<Record>> recordBatchList) throws IOException {
+  private CombinedScanTask createCombinedScanTask(List<List<Record>> recordBatchList)
+      throws IOException {
     List<FileScanTask> fileTasks = Lists.newArrayListWithCapacity(recordBatchList.size());
     for (int i = 0; i < recordBatchList.size(); ++i) {
-      FileScanTask fileTask = ReaderUtil.createFileTask(
-          recordBatchList.get(i), TEMPORARY_FOLDER.newFile(), fileFormat, appenderFactory);
+      FileScanTask fileTask =
+          ReaderUtil.createFileTask(
+              recordBatchList.get(i), TEMPORARY_FOLDER.newFile(), fileFormat, appenderFactory);
       fileTasks.add(fileTask);
     }
 
@@ -90,7 +90,9 @@ public abstract class ReaderFunctionTestBase<T> {
   }
 
   private void assertRecordsAndPosition(
-      List<Record> expectedRecords, int expectedFileOffset, long startRecordOffset,
+      List<Record> expectedRecords,
+      int expectedFileOffset,
+      long startRecordOffset,
       RecordsWithSplitIds<RecordAndPosition<T>> batch) {
     batch.nextSplit();
     List<T> actualRecords = Lists.newArrayList();
@@ -98,8 +100,10 @@ public abstract class ReaderFunctionTestBase<T> {
     RecordAndPosition<T> recordAndPosition;
     while ((recordAndPosition = batch.nextRecordFromSplit()) != null) {
       actualRecords.add(recordAndPosition.record());
-      Assert.assertEquals("expected file offset", expectedFileOffset, recordAndPosition.fileOffset());
-      Assert.assertEquals("expected record offset", recordOffset, recordAndPosition.recordOffset() - 1);
+      Assert.assertEquals(
+          "expected file offset", expectedFileOffset, recordAndPosition.fileOffset());
+      Assert.assertEquals(
+          "expected record offset", recordOffset, recordAndPosition.recordOffset() - 1);
       recordOffset++;
     }
 
@@ -112,7 +116,8 @@ public abstract class ReaderFunctionTestBase<T> {
     List<List<Record>> recordBatchList = createRecordBatchList(3);
     CombinedScanTask combinedScanTask = createCombinedScanTask(recordBatchList);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask);
-    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
+    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
+        readerFunction().apply(split);
 
     RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
     assertRecordsAndPosition(recordBatchList.get(0), 0, 0L, batch0);
@@ -132,7 +137,8 @@ public abstract class ReaderFunctionTestBase<T> {
     List<List<Record>> recordBatchList = createRecordBatchList(3);
     CombinedScanTask combinedScanTask = createCombinedScanTask(recordBatchList);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 0L);
-    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
+    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
+        readerFunction().apply(split);
 
     RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
     assertRecordsAndPosition(recordBatchList.get(0), 0, 0L, batch0);
@@ -152,7 +158,8 @@ public abstract class ReaderFunctionTestBase<T> {
     List<List<Record>> recordBatchList = createRecordBatchList(3);
     CombinedScanTask combinedScanTask = createCombinedScanTask(recordBatchList);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 1L);
-    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
+    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
+        readerFunction().apply(split);
 
     RecordsWithSplitIds<RecordAndPosition<T>> batch0 = reader.next();
     assertRecordsAndPosition(recordBatchList.get(0).subList(1, 2), 0, 1L, batch0);
@@ -172,7 +179,8 @@ public abstract class ReaderFunctionTestBase<T> {
     List<List<Record>> recordBatchList = createRecordBatchList(3);
     CombinedScanTask combinedScanTask = createCombinedScanTask(recordBatchList);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 2L);
-    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
+    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
+        readerFunction().apply(split);
 
     RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
     assertRecordsAndPosition(recordBatchList.get(1), 1, 0L, batch1);
@@ -188,7 +196,8 @@ public abstract class ReaderFunctionTestBase<T> {
     List<List<Record>> recordBatchList = createRecordBatchList(3);
     CombinedScanTask combinedScanTask = createCombinedScanTask(recordBatchList);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 1, 0L);
-    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
+    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
+        readerFunction().apply(split);
 
     RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
     assertRecordsAndPosition(recordBatchList.get(1), 1, 0L, batch1);
@@ -204,7 +213,8 @@ public abstract class ReaderFunctionTestBase<T> {
     List<List<Record>> recordBatchList = createRecordBatchList(3);
     CombinedScanTask combinedScanTask = createCombinedScanTask(recordBatchList);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 1, 1L);
-    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader = readerFunction().apply(split);
+    CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
+        readerFunction().apply(split);
 
     RecordsWithSplitIds<RecordAndPosition<T>> batch1 = reader.next();
     assertRecordsAndPosition(recordBatchList.get(1).subList(1, 2), 1, 1L, batch1);
@@ -214,5 +224,4 @@ public abstract class ReaderFunctionTestBase<T> {
     assertRecordsAndPosition(recordBatchList.get(2), 2, 0L, batch2);
     batch2.recycle();
   }
-
 }

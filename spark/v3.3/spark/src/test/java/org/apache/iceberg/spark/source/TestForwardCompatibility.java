@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.Files.localOutput;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,25 +65,26 @@ import org.junit.rules.TemporaryFolder;
 import scala.Option;
 import scala.collection.JavaConverters;
 
-import static org.apache.iceberg.Files.localInput;
-import static org.apache.iceberg.Files.localOutput;
-
 public class TestForwardCompatibility {
   private static final Configuration CONF = new Configuration();
 
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.optional(1, "id", Types.LongType.get()),
-      Types.NestedField.optional(2, "data", Types.StringType.get()));
+  private static final Schema SCHEMA =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.LongType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()));
 
   // create a spec for the schema that uses a "zero" transform that produces all 0s
-  private static final PartitionSpec UNKNOWN_SPEC = PartitionSpecParser.fromJson(SCHEMA,
-      "{ \"spec-id\": 0, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+  private static final PartitionSpec UNKNOWN_SPEC =
+      PartitionSpecParser.fromJson(
+          SCHEMA,
+          "{ \"spec-id\": 0, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
   // create a fake spec to use to write table metadata
-  private static final PartitionSpec FAKE_SPEC = PartitionSpecParser.fromJson(SCHEMA,
-      "{ \"spec-id\": 0, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"identity\", \"source-id\": 1 } ] }");
+  private static final PartitionSpec FAKE_SPEC =
+      PartitionSpecParser.fromJson(
+          SCHEMA,
+          "{ \"spec-id\": 0, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"identity\", \"source-id\": 1 } ] }");
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
 
@@ -107,20 +110,22 @@ public class TestForwardCompatibility {
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    AssertHelpers.assertThrows("Should reject write with unsupported transform",
-        UnsupportedOperationException.class, "Cannot write using unsupported transforms: zero",
-        () -> df.select("id", "data").write()
-            .format("iceberg")
-            .mode("append")
-            .save(location.toString()));
+    AssertHelpers.assertThrows(
+        "Should reject write with unsupported transform",
+        UnsupportedOperationException.class,
+        "Cannot write using unsupported transforms: zero",
+        () ->
+            df.select("id", "data")
+                .write()
+                .format("iceberg")
+                .mode("append")
+                .save(location.toString()));
   }
 
   @Test
@@ -136,20 +141,24 @@ public class TestForwardCompatibility {
     tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
 
     MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
-    StreamingQuery query = inputStream.toDF()
-        .selectExpr("value AS id", "CAST (value AS STRING) AS data")
-        .writeStream()
-        .outputMode("append")
-        .format("iceberg")
-        .option("checkpointLocation", checkpoint.toString())
-        .option("path", location.toString())
-        .start();
+    StreamingQuery query =
+        inputStream
+            .toDF()
+            .selectExpr("value AS id", "CAST (value AS STRING) AS data")
+            .writeStream()
+            .outputMode("append")
+            .format("iceberg")
+            .option("checkpointLocation", checkpoint.toString())
+            .option("path", location.toString())
+            .start();
 
     List<Integer> batch1 = Lists.newArrayList(1, 2);
     send(batch1, inputStream);
 
-    AssertHelpers.assertThrows("Should reject streaming write with unsupported transform",
-        StreamingQueryException.class, "Cannot write using unsupported transforms: zero",
+    AssertHelpers.assertThrows(
+        "Should reject streaming write with unsupported transform",
+        StreamingQueryException.class,
+        "Cannot write using unsupported transforms: zero",
         query::processAllAvailable);
   }
 
@@ -168,22 +177,22 @@ public class TestForwardCompatibility {
 
     List<GenericData.Record> expected = RandomData.generateList(table.schema(), 100, 1L);
 
-    File parquetFile = new File(dataFolder,
-        FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
-    FileAppender<GenericData.Record> writer = Parquet.write(localOutput(parquetFile))
-        .schema(table.schema())
-        .build();
+    File parquetFile =
+        new File(dataFolder, FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
+    FileAppender<GenericData.Record> writer =
+        Parquet.write(localOutput(parquetFile)).schema(table.schema()).build();
     try {
       writer.addAll(expected);
     } finally {
       writer.close();
     }
 
-    DataFile file = DataFiles.builder(FAKE_SPEC)
-        .withInputFile(localInput(parquetFile))
-        .withMetrics(writer.metrics())
-        .withPartitionPath("id_zero=0")
-        .build();
+    DataFile file =
+        DataFiles.builder(FAKE_SPEC)
+            .withInputFile(localInput(parquetFile))
+            .withMetrics(writer.metrics())
+            .withPartitionPath("id_zero=0")
+            .build();
 
     OutputFile manifestFile = localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter manifestWriter = ManifestFiles.write(FAKE_SPEC, manifestFile);
@@ -195,9 +204,7 @@ public class TestForwardCompatibility {
 
     table.newFastAppend().appendManifest(manifestWriter.toManifestFile()).commit();
 
-    Dataset<Row> df = spark.read()
-        .format("iceberg")
-        .load(location.toString());
+    Dataset<Row> df = spark.read().format("iceberg").load(location.toString());
 
     List<Row> rows = df.collectAsList();
     Assert.assertEquals("Should contain 100 rows", 100, rows.size());

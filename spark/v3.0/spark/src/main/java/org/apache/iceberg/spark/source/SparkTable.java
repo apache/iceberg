@@ -16,8 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
+
+import static org.apache.iceberg.TableProperties.DELETE_MODE;
+import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.MERGE_MODE;
+import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 import java.util.Map;
 import java.util.Set;
@@ -56,27 +62,25 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.DELETE_MODE;
-import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.MERGE_MODE;
-import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
-import static org.apache.iceberg.TableProperties.UPDATE_MODE;
-import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
-
-public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, ExtendedSupportsDelete, SupportsMerge {
+public class SparkTable
+    implements org.apache.spark.sql.connector.catalog.Table,
+        SupportsRead,
+        SupportsWrite,
+        ExtendedSupportsDelete,
+        SupportsMerge {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
   private static final Set<String> RESERVED_PROPERTIES =
       ImmutableSet.of("provider", "format", "current-snapshot-id", "location", "sort-order");
-  private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
-      TableCapability.BATCH_READ,
-      TableCapability.BATCH_WRITE,
-      TableCapability.MICRO_BATCH_READ,
-      TableCapability.STREAMING_WRITE,
-      TableCapability.OVERWRITE_BY_FILTER,
-      TableCapability.OVERWRITE_DYNAMIC);
+  private static final Set<TableCapability> CAPABILITIES =
+      ImmutableSet.of(
+          TableCapability.BATCH_READ,
+          TableCapability.BATCH_WRITE,
+          TableCapability.MICRO_BATCH_READ,
+          TableCapability.STREAMING_WRITE,
+          TableCapability.OVERWRITE_BY_FILTER,
+          TableCapability.OVERWRITE_DYNAMIC);
 
   private final Table icebergTable;
   private final Long snapshotId;
@@ -133,12 +137,17 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public Map<String, String> properties() {
     ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
 
-    String fileFormat = icebergTable.properties()
-        .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    String fileFormat =
+        icebergTable
+            .properties()
+            .getOrDefault(
+                TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     propsBuilder.put("format", "iceberg/" + fileFormat);
     propsBuilder.put("provider", "iceberg");
-    String currentSnapshotId = icebergTable.currentSnapshot() != null ?
-        String.valueOf(icebergTable.currentSnapshot().snapshotId()) : "none";
+    String currentSnapshotId =
+        icebergTable.currentSnapshot() != null
+            ? String.valueOf(icebergTable.currentSnapshot().snapshotId())
+            : "none";
     propsBuilder.put("current-snapshot-id", currentSnapshotId);
     propsBuilder.put("location", icebergTable.location());
 
@@ -176,8 +185,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
-        snapshotId == null,
-        "Cannot write to table at a specific snapshot: %s", snapshotId);
+        snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
 
     if (info.options().containsKey(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID)) {
       // replace data files in the given file scan task set with new files
@@ -190,7 +198,8 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public MergeBuilder newMergeBuilder(String operation, LogicalWriteInfo info) {
     String mode = getRowLevelOperationMode(operation);
-    ValidationException.check(mode.equals("copy-on-write"), "Unsupported mode for %s: %s", operation, mode);
+    ValidationException.check(
+        mode.equals("copy-on-write"), "Unsupported mode for %s: %s", operation, mode);
     return new SparkMergeBuilder(sparkSession(), icebergTable, operation, info);
   }
 
@@ -210,8 +219,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public boolean canDeleteWhere(Filter[] filters) {
     Preconditions.checkArgument(
-        snapshotId == null,
-        "Cannot delete from table at a specific snapshot: %s", snapshotId);
+        snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
 
     if (table().specs().size() > 1) {
       // cannot guarantee a metadata delete will be successful if we have multiple specs
@@ -223,7 +231,8 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
     for (Filter filter : filters) {
       // return false if the filter requires rewrite or if we cannot translate the filter
-      if (requiresRewrite(filter, schema, identitySourceIds) || SparkFilters.convert(filter) == null) {
+      if (requiresRewrite(filter, schema, identitySourceIds)
+          || SparkFilters.convert(filter) == null) {
         return false;
       }
     }
@@ -235,18 +244,19 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     // TODO: handle dots correctly via v2references
     // TODO: detect more cases that don't require rewrites
     Set<String> filterRefs = Sets.newHashSet(filter.references());
-    return filterRefs.stream().anyMatch(ref -> {
-      Types.NestedField field = schema.findField(ref);
-      ValidationException.check(field != null, "Cannot find field %s in schema", ref);
-      return !identitySourceIds.contains(field.fieldId());
-    });
+    return filterRefs.stream()
+        .anyMatch(
+            ref -> {
+              Types.NestedField field = schema.findField(ref);
+              ValidationException.check(field != null, "Cannot find field %s in schema", ref);
+              return !identitySourceIds.contains(field.fieldId());
+            });
   }
 
   @Override
   public void deleteWhere(Filter[] filters) {
     Preconditions.checkArgument(
-        snapshotId == null,
-        "Cannot delete from table at a specific snapshot: %s", snapshotId);
+        snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
 
     Expression deleteExpr = SparkFilters.convert(filters);
 
@@ -255,7 +265,8 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       return;
     }
 
-    icebergTable.newDelete()
+    icebergTable
+        .newDelete()
         .set("spark.app.id", sparkSession().sparkContext().applicationId())
         .deleteFromRowFilter(deleteExpr)
         .commit();
@@ -285,12 +296,15 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return icebergTable.name().hashCode();
   }
 
-  private static CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options, Long snapshotId) {
+  private static CaseInsensitiveStringMap addSnapshotId(
+      CaseInsensitiveStringMap options, Long snapshotId) {
     if (snapshotId != null) {
       String snapshotIdFromOptions = options.get(SparkReadOptions.SNAPSHOT_ID);
       String value = snapshotId.toString();
-      Preconditions.checkArgument(snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
-          "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
+      Preconditions.checkArgument(
+          snapshotIdFromOptions == null || snapshotIdFromOptions.equals(value),
+          "Cannot override snapshot ID more than once: %s",
+          snapshotIdFromOptions);
 
       Map<String, String> scanOptions = Maps.newHashMap();
       scanOptions.putAll(options.asCaseSensitiveMap());

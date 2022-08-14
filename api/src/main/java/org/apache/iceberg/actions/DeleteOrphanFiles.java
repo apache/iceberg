@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.actions;
 
 import java.util.concurrent.ExecutorService;
@@ -24,17 +23,16 @@ import java.util.function.Consumer;
 
 /**
  * An action that deletes orphan metadata, data and delete files in a table.
- * <p>
- * A file is considered orphan if it is not reachable by any valid snapshot.
- * The set of actual files is built by listing the underlying storage which makes this operation
- * expensive.
+ *
+ * <p>A file is considered orphan if it is not reachable by any valid snapshot. The set of actual
+ * files is built by listing the underlying storage which makes this operation expensive.
  */
 public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrphanFiles.Result> {
   /**
    * Passes a location which should be scanned for orphan files.
-   * <p>
-   * If not set, the root table location will be scanned potentially removing both orphan data and
-   * metadata files.
+   *
+   * <p>If not set, the root table location will be scanned potentially removing both orphan data
+   * and metadata files.
    *
    * @param location the location where to look for orphan files
    * @return this for method chaining
@@ -43,12 +41,12 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
 
   /**
    * Removes orphan files only if they are older than the given timestamp.
-   * <p>
-   * This is a safety measure to avoid removing files that are being added to the table.
-   * For example, there may be a concurrent operation adding new files while this action searches
-   * for orphan files. New files may not be referenced by the metadata yet but they are not orphan.
-   * <p>
-   * If not set, defaults to a timestamp 3 days ago.
+   *
+   * <p>This is a safety measure to avoid removing files that are being added to the table. For
+   * example, there may be a concurrent operation adding new files while this action searches for
+   * orphan files. New files may not be referenced by the metadata yet but they are not orphan.
+   *
+   * <p>If not set, defaults to a timestamp 3 days ago.
    *
    * @param olderThanTimestamp a long timestamp, as returned by {@link System#currentTimeMillis()}
    * @return this for method chaining
@@ -57,11 +55,12 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
 
   /**
    * Passes an alternative delete implementation that will be used for orphan files.
-   * <p>
-   * This method allows users to customize the delete func. For example, one may set a custom delete
-   * func and collect all orphan files into a set instead of physically removing them.
-   * <p>
-   * If not set, defaults to using the table's {@link org.apache.iceberg.io.FileIO io} implementation.
+   *
+   * <p>This method allows users to customize the delete func. For example, one may set a custom
+   * delete func and collect all orphan files into a set instead of physically removing them.
+   *
+   * <p>If not set, defaults to using the table's {@link org.apache.iceberg.io.FileIO io}
+   * implementation.
    *
    * @param deleteFunc a function that will be called to delete files
    * @return this for method chaining
@@ -70,9 +69,10 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
 
   /**
    * Passes an alternative executor service that will be used for removing orphaned files.
-   * <p>
-   * If this method is not called, orphaned manifests and data files will still be deleted in
-   * the current thread.
+   *
+   * <p>If this method is not called, orphaned manifests and data files will still be deleted in the
+   * current thread.
+   *
    * <p>
    *
    * @param executorService the service to use
@@ -80,13 +80,9 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
    */
   DeleteOrphanFiles executeDeleteWith(ExecutorService executorService);
 
-  /**
-   * The action result that contains a summary of the execution.
-   */
+  /** The action result that contains a summary of the execution. */
   interface Result {
-    /**
-     * Returns locations of orphan files.
-     */
+    /** Returns locations of orphan files. */
     Iterable<String> orphanFileLocations();
   }
 }

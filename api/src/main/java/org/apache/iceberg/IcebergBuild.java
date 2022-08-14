@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.IOException;
@@ -29,12 +28,9 @@ import org.apache.iceberg.relocated.com.google.common.io.Resources;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Loads iceberg-version.properties with build information.
- */
+/** Loads iceberg-version.properties with build information. */
 public class IcebergBuild {
-  private IcebergBuild() {
-  }
+  private IcebergBuild() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergBuild.class);
   private static final String VERSION_PROPERTIES_FILE = "/iceberg-build.properties";
@@ -42,16 +38,14 @@ public class IcebergBuild {
 
   private static volatile boolean isLoaded = false;
 
-  private static String shortId;  // 10 character short git hash of the build
-  private static String commitId;  // 40 character full git hash of the build
+  private static String shortId; // 10 character short git hash of the build
+  private static String commitId; // 40 character full git hash of the build
   private static String branch;
   private static List<String> tags;
   private static String version;
   private static String fullVersion;
 
-  /**
-   * Loads the version.properties file for this module.
-   */
+  /** Loads the version.properties file for this module. */
   public static void loadBuildInfo() {
     Properties buildProperties = new Properties();
     try (InputStream is = readResource(VERSION_PROPERTIES_FILE)) {
@@ -115,6 +109,7 @@ public class IcebergBuild {
   }
 
   private static InputStream readResource(String resourceName) throws IOException {
-    return Resources.asByteSource(Resources.getResource(IcebergBuild.class, resourceName)).openStream();
+    return Resources.asByteSource(Resources.getResource(IcebergBuild.class, resourceName))
+        .openStream();
   }
 }

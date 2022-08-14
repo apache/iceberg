@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -33,8 +32,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class UpdateRequirementParser {
 
-  private UpdateRequirementParser() {
-  }
+  private UpdateRequirementParser() {}
 
   private static final String TYPE = "type";
 
@@ -70,17 +68,19 @@ public class UpdateRequirementParser {
   // AssertDefaultSortOrderID
   private static final String SORT_ORDER_ID = "default-sort-order-id";
 
-  private static final Map<Class<? extends UpdateTableRequest.UpdateRequirement>, String> TYPES = ImmutableMap
-      .<Class<? extends UpdateTableRequest.UpdateRequirement>, String>builder()
-      .put(UpdateRequirement.AssertTableUUID.class, ASSERT_TABLE_UUID)
-      .put(UpdateRequirement.AssertTableDoesNotExist.class, ASSERT_TABLE_DOES_NOT_EXIST)
-      .put(UpdateRequirement.AssertRefSnapshotID.class, ASSERT_REF_SNAPSHOT_ID)
-      .put(UpdateRequirement.AssertLastAssignedFieldId.class, ASSERT_LAST_ASSIGNED_FIELD_ID)
-      .put(UpdateRequirement.AssertCurrentSchemaID.class, ASSERT_CURRENT_SCHEMA_ID)
-      .put(UpdateRequirement.AssertLastAssignedPartitionId.class, ASSERT_LAST_ASSIGNED_PARTITION_ID)
-      .put(UpdateRequirement.AssertDefaultSpecID.class, ASSERT_DEFAULT_SPEC_ID)
-      .put(UpdateRequirement.AssertDefaultSortOrderID.class, ASSERT_DEFAULT_SORT_ORDER_ID)
-      .build();
+  private static final Map<Class<? extends UpdateTableRequest.UpdateRequirement>, String> TYPES =
+      ImmutableMap.<Class<? extends UpdateTableRequest.UpdateRequirement>, String>builder()
+          .put(UpdateRequirement.AssertTableUUID.class, ASSERT_TABLE_UUID)
+          .put(UpdateRequirement.AssertTableDoesNotExist.class, ASSERT_TABLE_DOES_NOT_EXIST)
+          .put(UpdateRequirement.AssertRefSnapshotID.class, ASSERT_REF_SNAPSHOT_ID)
+          .put(UpdateRequirement.AssertLastAssignedFieldId.class, ASSERT_LAST_ASSIGNED_FIELD_ID)
+          .put(UpdateRequirement.AssertCurrentSchemaID.class, ASSERT_CURRENT_SCHEMA_ID)
+          .put(
+              UpdateRequirement.AssertLastAssignedPartitionId.class,
+              ASSERT_LAST_ASSIGNED_PARTITION_ID)
+          .put(UpdateRequirement.AssertDefaultSpecID.class, ASSERT_DEFAULT_SPEC_ID)
+          .put(UpdateRequirement.AssertDefaultSortOrderID.class, ASSERT_DEFAULT_SORT_ORDER_ID)
+          .build();
 
   public static String toJson(UpdateRequirement updateRequirement) {
     return toJson(updateRequirement, false);
@@ -102,7 +102,8 @@ public class UpdateRequirementParser {
     }
   }
 
-  public static void toJson(UpdateRequirement updateRequirement, JsonGenerator generator) throws IOException {
+  public static void toJson(UpdateRequirement updateRequirement, JsonGenerator generator)
+      throws IOException {
     String requirementType = TYPES.get(updateRequirement.getClass());
 
     generator.writeStartObject();
@@ -116,27 +117,34 @@ public class UpdateRequirementParser {
         writeAssertTableUUID((UpdateRequirement.AssertTableUUID) updateRequirement, generator);
         break;
       case ASSERT_REF_SNAPSHOT_ID:
-        writeAssertRefSnapshotId((UpdateRequirement.AssertRefSnapshotID) updateRequirement, generator);
+        writeAssertRefSnapshotId(
+            (UpdateRequirement.AssertRefSnapshotID) updateRequirement, generator);
         break;
       case ASSERT_LAST_ASSIGNED_FIELD_ID:
-        writeAssertLastAssignedFieldId((UpdateRequirement.AssertLastAssignedFieldId) updateRequirement, generator);
+        writeAssertLastAssignedFieldId(
+            (UpdateRequirement.AssertLastAssignedFieldId) updateRequirement, generator);
         break;
       case ASSERT_LAST_ASSIGNED_PARTITION_ID:
         writeAssertLastAssignedPartitionId(
             (UpdateRequirement.AssertLastAssignedPartitionId) updateRequirement, generator);
         break;
       case ASSERT_CURRENT_SCHEMA_ID:
-        writeAssertCurrentSchemaId((UpdateRequirement.AssertCurrentSchemaID) updateRequirement, generator);
+        writeAssertCurrentSchemaId(
+            (UpdateRequirement.AssertCurrentSchemaID) updateRequirement, generator);
         break;
       case ASSERT_DEFAULT_SPEC_ID:
-        writeAssertDefaultSpecId((UpdateRequirement.AssertDefaultSpecID) updateRequirement, generator);
+        writeAssertDefaultSpecId(
+            (UpdateRequirement.AssertDefaultSpecID) updateRequirement, generator);
         break;
       case ASSERT_DEFAULT_SORT_ORDER_ID:
-        writeAssertDefaultSortOrderId((UpdateRequirement.AssertDefaultSortOrderID) updateRequirement, generator);
+        writeAssertDefaultSortOrderId(
+            (UpdateRequirement.AssertDefaultSortOrderID) updateRequirement, generator);
         break;
       default:
         throw new IllegalArgumentException(
-            String.format("Cannot convert update requirement to json. Unrecognized type: %s", requirementType));
+            String.format(
+                "Cannot convert update requirement to json. Unrecognized type: %s",
+                requirementType));
     }
 
     generator.writeEndObject();
@@ -157,9 +165,12 @@ public class UpdateRequirementParser {
   }
 
   public static UpdateRequirement fromJson(JsonNode jsonNode) {
-    Preconditions.checkArgument(jsonNode != null && jsonNode.isObject(),
-        "Cannot parse update requirement from non-object value: %s", jsonNode);
-    Preconditions.checkArgument(jsonNode.hasNonNull(TYPE), "Cannot parse update requirement. Missing field: type");
+    Preconditions.checkArgument(
+        jsonNode != null && jsonNode.isObject(),
+        "Cannot parse update requirement from non-object value: %s",
+        jsonNode);
+    Preconditions.checkArgument(
+        jsonNode.hasNonNull(TYPE), "Cannot parse update requirement. Missing field: type");
     String type = JsonUtil.getString(TYPE, jsonNode).toLowerCase(Locale.ROOT);
 
     switch (type) {
@@ -185,13 +196,13 @@ public class UpdateRequirementParser {
     }
   }
 
-  private static void writeAssertTableUUID(UpdateRequirement.AssertTableUUID requirement, JsonGenerator gen)
-      throws IOException {
+  private static void writeAssertTableUUID(
+      UpdateRequirement.AssertTableUUID requirement, JsonGenerator gen) throws IOException {
     gen.writeStringField(UUID, requirement.uuid());
   }
 
-  private static void writeAssertRefSnapshotId(UpdateRequirement.AssertRefSnapshotID requirement, JsonGenerator gen)
-      throws IOException {
+  private static void writeAssertRefSnapshotId(
+      UpdateRequirement.AssertRefSnapshotID requirement, JsonGenerator gen) throws IOException {
     gen.writeStringField(NAME, requirement.refName());
     if (requirement.snapshotId() != null) {
       gen.writeNumberField(SNAPSHOT_ID, requirement.snapshotId());
@@ -200,32 +211,36 @@ public class UpdateRequirementParser {
     }
   }
 
-  private static void writeAssertLastAssignedFieldId(UpdateRequirement.AssertLastAssignedFieldId requirement,
-      JsonGenerator gen) throws IOException {
+  private static void writeAssertLastAssignedFieldId(
+      UpdateRequirement.AssertLastAssignedFieldId requirement, JsonGenerator gen)
+      throws IOException {
     gen.writeNumberField(LAST_ASSIGNED_FIELD_ID, requirement.lastAssignedFieldId());
   }
 
-  private static void writeAssertLastAssignedPartitionId(UpdateRequirement.AssertLastAssignedPartitionId requirement,
-      JsonGenerator gen) throws IOException {
+  private static void writeAssertLastAssignedPartitionId(
+      UpdateRequirement.AssertLastAssignedPartitionId requirement, JsonGenerator gen)
+      throws IOException {
     gen.writeNumberField(LAST_ASSIGNED_PARTITION_ID, requirement.lastAssignedPartitionId());
   }
 
-  private static void writeAssertCurrentSchemaId(UpdateRequirement.AssertCurrentSchemaID requirement,
-      JsonGenerator gen) throws IOException {
+  private static void writeAssertCurrentSchemaId(
+      UpdateRequirement.AssertCurrentSchemaID requirement, JsonGenerator gen) throws IOException {
     gen.writeNumberField(SCHEMA_ID, requirement.schemaId());
   }
 
-  private static void writeAssertDefaultSpecId(UpdateRequirement.AssertDefaultSpecID requirement, JsonGenerator gen)
-      throws IOException {
+  private static void writeAssertDefaultSpecId(
+      UpdateRequirement.AssertDefaultSpecID requirement, JsonGenerator gen) throws IOException {
     gen.writeNumberField(SPEC_ID, requirement.specId());
   }
 
-  private static void writeAssertDefaultSortOrderId(UpdateRequirement.AssertDefaultSortOrderID requirement,
-      JsonGenerator gen) throws IOException {
+  private static void writeAssertDefaultSortOrderId(
+      UpdateRequirement.AssertDefaultSortOrderID requirement, JsonGenerator gen)
+      throws IOException {
     gen.writeNumberField(SORT_ORDER_ID, requirement.sortOrderId());
   }
 
-  @SuppressWarnings("unused")  // Keep same signature in case this requirement class evolves and gets fields
+  @SuppressWarnings(
+      "unused") // Keep same signature in case this requirement class evolves and gets fields
   private static UpdateRequirement readAssertTableDoesNotExist(JsonNode node) {
     return new UpdateRequirement.AssertTableDoesNotExist();
   }

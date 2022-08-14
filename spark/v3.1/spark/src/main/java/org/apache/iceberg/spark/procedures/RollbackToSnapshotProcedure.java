@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
@@ -32,22 +31,26 @@ import org.apache.spark.sql.types.StructType;
 
 /**
  * A procedure that rollbacks a table to a specific snapshot id.
- * <p>
- * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
+ *
+ * <p><em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected
+ * table.
  *
  * @see org.apache.iceberg.ManageSnapshots#rollbackTo(long)
  */
 class RollbackToSnapshotProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.required("snapshot_id", DataTypes.LongType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.required("snapshot_id", DataTypes.LongType)
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("previous_snapshot_id", DataTypes.LongType, false, Metadata.empty()),
-      new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("previous_snapshot_id", DataTypes.LongType, false, Metadata.empty()),
+            new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
+          });
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<RollbackToSnapshotProcedure>() {
@@ -77,16 +80,16 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     long snapshotId = args.getLong(1);
 
-    return modifyIcebergTable(tableIdent, table -> {
-      Snapshot previousSnapshot = table.currentSnapshot();
+    return modifyIcebergTable(
+        tableIdent,
+        table -> {
+          Snapshot previousSnapshot = table.currentSnapshot();
 
-      table.manageSnapshots()
-          .rollbackTo(snapshotId)
-          .commit();
+          table.manageSnapshots().rollbackTo(snapshotId).commit();
 
-      InternalRow outputRow = newInternalRow(previousSnapshot.snapshotId(), snapshotId);
-      return new InternalRow[]{outputRow};
-    });
+          InternalRow outputRow = newInternalRow(previousSnapshot.snapshotId(), snapshotId);
+          return new InternalRow[] {outputRow};
+        });
   }
 
   @Override

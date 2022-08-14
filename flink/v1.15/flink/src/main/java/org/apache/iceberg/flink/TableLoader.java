@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.io.Closeable;
@@ -31,9 +30,9 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
- * Serializable loader to load an Iceberg {@link Table}.
- * Flink needs to get {@link Table} objects in the cluster (for example, to get splits), not just on the client side.
- * So we need an Iceberg table loader to get the {@link Table} object.
+ * Serializable loader to load an Iceberg {@link Table}. Flink needs to get {@link Table} objects in
+ * the cluster (for example, to get splits), not just on the client side. So we need an Iceberg
+ * table loader to get the {@link Table} object.
  */
 public interface TableLoader extends Closeable, Serializable {
 
@@ -78,14 +77,11 @@ public interface TableLoader extends Closeable, Serializable {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     @Override
     public String toString() {
-      return MoreObjects.toStringHelper(this)
-          .add("location", location)
-          .toString();
+      return MoreObjects.toStringHelper(this).add("location", location).toString();
     }
   }
 

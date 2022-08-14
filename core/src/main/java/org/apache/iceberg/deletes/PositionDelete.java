@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.deletes;
 
 import org.apache.iceberg.StructLike;
@@ -30,8 +29,7 @@ public class PositionDelete<R> implements StructLike {
   private long pos;
   private R row;
 
-  private PositionDelete() {
-  }
+  private PositionDelete() {}
 
   public PositionDelete<R> set(CharSequence newPath, long newPos, R newRow) {
     this.path = newPath;

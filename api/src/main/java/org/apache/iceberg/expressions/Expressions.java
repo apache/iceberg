@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.expressions;
 
 import java.util.stream.Stream;
@@ -27,12 +26,9 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 
-/**
- * Factory methods for creating {@link Expression expressions}.
- */
+/** Factory methods for creating {@link Expression expressions}. */
 public class Expressions {
-  private Expressions() {
-  }
+  private Expressions() {}
 
   public static Expression and(Expression left, Expression right) {
     Preconditions.checkNotNull(left, "Left expression cannot be null.");
@@ -48,8 +44,7 @@ public class Expressions {
   }
 
   public static Expression and(Expression left, Expression right, Expression... expressions) {
-    return Stream.of(expressions)
-      .reduce(and(left, right), Expressions::and);
+    return Stream.of(expressions).reduce(and(left, right), Expressions::and);
   }
 
   public static Expression or(Expression left, Expression right) {
@@ -79,28 +74,33 @@ public class Expressions {
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> bucket(String name, int numBuckets) {
-    Transform<?, T> transform = (Transform<?, T>) Transforms.bucket(Types.StringType.get(), numBuckets);
+    Transform<?, T> transform =
+        (Transform<?, T>) Transforms.bucket(Types.StringType.get(), numBuckets);
     return new UnboundTransform<>(ref(name), transform);
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> year(String name) {
-    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.year(Types.TimestampType.withZone()));
+    return new UnboundTransform<>(
+        ref(name), (Transform<?, T>) Transforms.year(Types.TimestampType.withZone()));
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> month(String name) {
-    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.month(Types.TimestampType.withZone()));
+    return new UnboundTransform<>(
+        ref(name), (Transform<?, T>) Transforms.month(Types.TimestampType.withZone()));
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> day(String name) {
-    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.day(Types.TimestampType.withZone()));
+    return new UnboundTransform<>(
+        ref(name), (Transform<?, T>) Transforms.day(Types.TimestampType.withZone()));
   }
 
   @SuppressWarnings("unchecked")
   public static <T> UnboundTerm<T> hour(String name) {
-    return new UnboundTransform<>(ref(name), (Transform<?, T>) Transforms.hour(Types.TimestampType.withZone()));
+    return new UnboundTransform<>(
+        ref(name), (Transform<?, T>) Transforms.hour(Types.TimestampType.withZone()));
   }
 
   public static <T> UnboundTerm<T> truncate(String name, int width) {
@@ -245,8 +245,12 @@ public class Expressions {
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
     Preconditions.checkArgument(
-        op != Operation.IS_NULL && op != Operation.NOT_NULL && op != Operation.IS_NAN && op != Operation.NOT_NAN,
-        "Cannot create %s predicate inclusive a value", op);
+        op != Operation.IS_NULL
+            && op != Operation.NOT_NULL
+            && op != Operation.IS_NAN
+            && op != Operation.NOT_NAN,
+        "Cannot create %s predicate inclusive a value",
+        op);
     return new UnboundPredicate<T>(op, ref(name), lit);
   }
 
@@ -256,12 +260,17 @@ public class Expressions {
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {
     Preconditions.checkArgument(
-        op == Operation.IS_NULL || op == Operation.NOT_NULL || op == Operation.IS_NAN || op == Operation.NOT_NAN,
-        "Cannot create %s predicate without a value", op);
+        op == Operation.IS_NULL
+            || op == Operation.NOT_NULL
+            || op == Operation.IS_NAN
+            || op == Operation.NOT_NAN,
+        "Cannot create %s predicate without a value",
+        op);
     return new UnboundPredicate<>(op, ref(name));
   }
 
-  public static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr, Iterable<T> values) {
+  public static <T> UnboundPredicate<T> predicate(
+      Operation op, UnboundTerm<T> expr, Iterable<T> values) {
     return new UnboundPredicate<>(op, expr, values);
   }
 
@@ -279,8 +288,8 @@ public class Expressions {
 
   /**
    * Constructs a reference for a given column.
-   * <p>
-   * The following are equivalent: equals("a", 5) and equals(ref("a"), 5).
+   *
+   * <p>The following are equivalent: equals("a", 5) and equals(ref("a"), 5).
    *
    * @param name a column name
    * @param <T> the Java type of this reference

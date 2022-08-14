@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.Comparator;
@@ -25,9 +24,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.JavaHash;
 import org.apache.iceberg.types.Types;
 
-/**
- * Wrapper to adapt StructLike for use in maps and sets by implementing equals and hashCode.
- */
+/** Wrapper to adapt StructLike for use in maps and sets by implementing equals and hashCode. */
 public class StructLikeWrapper {
 
   public static StructLikeWrapper forType(Types.StructType struct) {
@@ -51,9 +48,9 @@ public class StructLikeWrapper {
 
   /**
    * Creates a copy of this wrapper that wraps a struct.
-   * <p>
-   * This is equivalent to {@code new StructLikeWrapper(type).set(newStruct)} but is cheaper because no analysis of the
-   * type is necessary.
+   *
+   * <p>This is equivalent to {@code new StructLikeWrapper(type).set(newStruct)} but is cheaper
+   * because no analysis of the type is necessary.
    *
    * @param newStruct a {@link StructLike} row
    * @return a copy of this wrapper wrapping the give struct

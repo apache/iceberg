@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.data;
+
+import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,45 +40,44 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class TestSparkOrcReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    final Iterable<InternalRow> expected = RandomData
-        .generateSpark(schema, 100, 0L);
+    final Iterable<InternalRow> expected = RandomData.generateSpark(schema, 100, 0L);
 
     writeAndValidateRecords(schema, expected);
   }
 
   @Test
   public void writeAndValidateRepeatingRecords() throws IOException {
-    Schema structSchema = new Schema(
-        required(100, "id", Types.LongType.get()),
-        required(101, "data", Types.StringType.get())
-    );
-    List<InternalRow> expectedRepeating = Collections.nCopies(100,
-        RandomData.generateSpark(structSchema, 1, 0L).iterator().next());
+    Schema structSchema =
+        new Schema(
+            required(100, "id", Types.LongType.get()),
+            required(101, "data", Types.StringType.get()));
+    List<InternalRow> expectedRepeating =
+        Collections.nCopies(100, RandomData.generateSpark(structSchema, 1, 0L).iterator().next());
 
     writeAndValidateRecords(structSchema, expectedRepeating);
   }
 
-  private void writeAndValidateRecords(Schema schema, Iterable<InternalRow> expected) throws IOException {
+  private void writeAndValidateRecords(Schema schema, Iterable<InternalRow> expected)
+      throws IOException {
     final File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<InternalRow> writer = ORC.write(Files.localOutput(testFile))
-        .createWriterFunc(SparkOrcWriter::new)
-        .schema(schema)
-        .build()) {
+    try (FileAppender<InternalRow> writer =
+        ORC.write(Files.localOutput(testFile))
+            .createWriterFunc(SparkOrcWriter::new)
+            .schema(schema)
+            .build()) {
       writer.addAll(expected);
     }
 
-    try (CloseableIterable<InternalRow> reader = ORC.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(readOrcSchema -> new SparkOrcReader(schema, readOrcSchema))
-        .build()) {
+    try (CloseableIterable<InternalRow> reader =
+        ORC.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(readOrcSchema -> new SparkOrcReader(schema, readOrcSchema))
+            .build()) {
       final Iterator<InternalRow> actualRows = reader.iterator();
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {
@@ -86,11 +87,13 @@ public class TestSparkOrcReader extends AvroDataTest {
       Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
     }
 
-    try (CloseableIterable<ColumnarBatch> reader = ORC.read(Files.localInput(testFile))
-        .project(schema)
-        .createBatchedReaderFunc(readOrcSchema ->
-            VectorizedSparkOrcReaders.buildReader(schema, readOrcSchema, ImmutableMap.of()))
-        .build()) {
+    try (CloseableIterable<ColumnarBatch> reader =
+        ORC.read(Files.localInput(testFile))
+            .project(schema)
+            .createBatchedReaderFunc(
+                readOrcSchema ->
+                    VectorizedSparkOrcReaders.buildReader(schema, readOrcSchema, ImmutableMap.of()))
+            .build()) {
       final Iterator<InternalRow> actualRows = batchesToRows(reader.iterator());
       final Iterator<InternalRow> expectedRows = expected.iterator();
       while (expectedRows.hasNext()) {

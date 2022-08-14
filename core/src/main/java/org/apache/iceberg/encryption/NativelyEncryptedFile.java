@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.encryption;
 
 /**
- * This interface is applied to OutputFile and InputFile implementations, in order to enable delivery of crypto
- * parameters (such as encryption keys etc) from the Iceberg key management module to the writers/readers of file
- * formats that support encryption natively (Parquet and ORC).
+ * This interface is applied to OutputFile and InputFile implementations, in order to enable
+ * delivery of crypto parameters (such as encryption keys etc) from the Iceberg key management
+ * module to the writers/readers of file formats that support encryption natively (Parquet and ORC).
  */
 public interface NativelyEncryptedFile {
   NativeFileCryptoParameters nativeCryptoParameters();

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.util;
 
 import java.util.AbstractSet;
@@ -125,8 +124,8 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
   @Override
   public boolean addAll(Collection<? extends StructLike> structs) {
     if (structs != null) {
-      return Iterables.addAll(wrapperSet,
-          Iterables.transform(structs, struct -> wrappers.get().copyFor(struct)));
+      return Iterables.addAll(
+          wrapperSet, Iterables.transform(structs, struct -> wrappers.get().copyFor(struct)));
     }
     return false;
   }

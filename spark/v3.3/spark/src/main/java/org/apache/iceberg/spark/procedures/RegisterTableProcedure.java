@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
@@ -37,16 +36,19 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 class RegisterTableProcedure extends BaseProcedure {
-  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.required("metadata_file", DataTypes.StringType)
-  };
+  private static final ProcedureParameter[] PARAMETERS =
+      new ProcedureParameter[] {
+        ProcedureParameter.required("table", DataTypes.StringType),
+        ProcedureParameter.required("metadata_file", DataTypes.StringType)
+      };
 
-  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("current_snapshot_id", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("total_records_count", DataTypes.LongType, true, Metadata.empty()),
-      new StructField("total_data_files_count", DataTypes.LongType, true, Metadata.empty())
-  });
+  private static final StructType OUTPUT_TYPE =
+      new StructType(
+          new StructField[] {
+            new StructField("current_snapshot_id", DataTypes.LongType, true, Metadata.empty()),
+            new StructField("total_records_count", DataTypes.LongType, true, Metadata.empty()),
+            new StructField("total_data_files_count", DataTypes.LongType, true, Metadata.empty())
+          });
 
   private RegisterTableProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
@@ -73,11 +75,14 @@ class RegisterTableProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    TableIdentifier tableName = Spark3Util.identifierToTableIdentifier(toIdentifier(args.getString(0), "table"));
+    TableIdentifier tableName =
+        Spark3Util.identifierToTableIdentifier(toIdentifier(args.getString(0), "table"));
     String metadataFile = args.getString(1);
-    Preconditions.checkArgument(tableCatalog() instanceof HasIcebergCatalog,
+    Preconditions.checkArgument(
+        tableCatalog() instanceof HasIcebergCatalog,
         "Cannot use Register Table in a non-Iceberg catalog");
-    Preconditions.checkArgument(metadataFile != null && !metadataFile.isEmpty(),
+    Preconditions.checkArgument(
+        metadataFile != null && !metadataFile.isEmpty(),
         "Cannot handle an empty argument metadata_file");
 
     Catalog icebergCatalog = ((HasIcebergCatalog) tableCatalog()).icebergCatalog();
@@ -89,8 +94,10 @@ class RegisterTableProcedure extends BaseProcedure {
     Snapshot currentSnapshot = table.currentSnapshot();
     if (currentSnapshot != null) {
       currentSnapshotId = currentSnapshot.snapshotId();
-      totalDataFiles = Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-      totalRecords = Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_RECORDS_PROP));
+      totalDataFiles =
+          Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+      totalRecords =
+          Long.parseLong(currentSnapshot.summary().get(SnapshotSummary.TOTAL_RECORDS_PROP));
     }
 
     return new InternalRow[] {newInternalRow(currentSnapshotId, totalRecords, totalDataFiles)};
@@ -101,4 +108,3 @@ class RegisterTableProcedure extends BaseProcedure {
     return "RegisterTableProcedure";
   }
 }
-

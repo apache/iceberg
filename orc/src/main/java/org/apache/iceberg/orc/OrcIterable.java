@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
@@ -39,9 +38,7 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.orc.storage.ql.io.sarg.SearchArgument;
 
-/**
- * Iterable used to read rows from ORC.
- */
+/** Iterable used to read rows from ORC. */
 class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Configuration config;
   private final Schema schema;
@@ -55,10 +52,18 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final int recordsPerBatch;
   private NameMapping nameMapping;
 
-  OrcIterable(InputFile file, Configuration config, Schema schema,
-              NameMapping nameMapping, Long start, Long length,
-              Function<TypeDescription, OrcRowReader<?>> readerFunction, boolean caseSensitive, Expression filter,
-              Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction, int recordsPerBatch) {
+  OrcIterable(
+      InputFile file,
+      Configuration config,
+      Schema schema,
+      NameMapping nameMapping,
+      Long start,
+      Long length,
+      Function<TypeDescription, OrcRowReader<?>> readerFunction,
+      boolean caseSensitive,
+      Expression filter,
+      Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction,
+      int recordsPerBatch) {
     this.schema = schema;
     this.readerFunction = readerFunction;
     this.file = file;
@@ -96,34 +101,40 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       sarg = ExpressionToSearchArgument.convert(boundFilter, readOrcSchema);
     }
 
-    VectorizedRowBatchIterator rowBatchIterator = newOrcIterator(file, readOrcSchema, start, length, orcFileReader,
-        sarg, recordsPerBatch);
+    VectorizedRowBatchIterator rowBatchIterator =
+        newOrcIterator(file, readOrcSchema, start, length, orcFileReader, sarg, recordsPerBatch);
     if (batchReaderFunction != null) {
       OrcBatchReader<T> batchReader = (OrcBatchReader<T>) batchReaderFunction.apply(readOrcSchema);
-      return CloseableIterator.transform(rowBatchIterator, pair -> {
-        batchReader.setBatchContext(pair.second());
-        return batchReader.read(pair.first());
-      });
+      return CloseableIterator.transform(
+          rowBatchIterator,
+          pair -> {
+            batchReader.setBatchContext(pair.second());
+            return batchReader.read(pair.first());
+          });
     } else {
-      return new OrcRowIterator<>(rowBatchIterator, (OrcRowReader<T>) readerFunction.apply(readOrcSchema));
+      return new OrcRowIterator<>(
+          rowBatchIterator, (OrcRowReader<T>) readerFunction.apply(readOrcSchema));
     }
   }
 
-  private static VectorizedRowBatchIterator newOrcIterator(InputFile file,
-                                                           TypeDescription readerSchema,
-                                                           Long start, Long length,
-                                                           Reader orcFileReader, SearchArgument sarg,
-                                                           int recordsPerBatch) {
+  private static VectorizedRowBatchIterator newOrcIterator(
+      InputFile file,
+      TypeDescription readerSchema,
+      Long start,
+      Long length,
+      Reader orcFileReader,
+      SearchArgument sarg,
+      int recordsPerBatch) {
     final Reader.Options options = orcFileReader.options();
     if (start != null) {
       options.range(start, length);
     }
     options.schema(readerSchema);
-    options.searchArgument(sarg, new String[]{});
+    options.searchArgument(sarg, new String[] {});
 
     try {
-      return new VectorizedRowBatchIterator(file.location(), readerSchema, orcFileReader.rows(options),
-          recordsPerBatch);
+      return new VectorizedRowBatchIterator(
+          file.location(), readerSchema, orcFileReader.rows(options), recordsPerBatch);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get ORC rows for file: %s", file);
     }

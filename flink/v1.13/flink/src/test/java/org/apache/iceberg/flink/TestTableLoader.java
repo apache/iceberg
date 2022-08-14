@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink;
 
 import java.io.File;
@@ -35,9 +34,7 @@ public class TestTableLoader implements TableLoader {
   }
 
   @Override
-  public void open() {
-
-  }
+  public void open() {}
 
   @Override
   public Table loadTable() {
@@ -45,7 +42,5 @@ public class TestTableLoader implements TableLoader {
   }
 
   @Override
-  public void close() {
-
-  }
+  public void close() {}
 }

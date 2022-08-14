@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.actions;
 
 import java.util.concurrent.ExecutorService;
@@ -27,8 +26,8 @@ import org.apache.spark.sql.SparkSession;
 /**
  * An action to expire snapshots.
  *
- * @deprecated since 0.14.0, will be removed in 1.0.0;
- *             use {@link SparkActions} and {@link ExpireSnapshotsSparkAction} instead.
+ * @deprecated since 0.14.0, will be removed in 1.0.0; use {@link SparkActions} and {@link
+ *     ExpireSnapshotsSparkAction} instead.
  */
 @Deprecated
 public class BaseExpireSnapshotsSparkAction extends ExpireSnapshotsSparkAction {

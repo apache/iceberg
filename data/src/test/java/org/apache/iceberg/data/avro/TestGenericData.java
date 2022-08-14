@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.data.avro;
 
 import java.io.File;
@@ -42,21 +41,23 @@ public class TestGenericData extends DataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = Avro.write(Files.localOutput(testFile))
-        .schema(schema)
-        .createWriterFunc(DataWriter::create)
-        .named("test")
-        .build()) {
+    try (FileAppender<Record> writer =
+        Avro.write(Files.localOutput(testFile))
+            .schema(schema)
+            .createWriterFunc(DataWriter::create)
+            .named("test")
+            .build()) {
       for (Record rec : expected) {
         writer.add(rec);
       }
     }
 
     List<Record> rows;
-    try (AvroIterable<Record> reader = Avro.read(Files.localInput(testFile))
-        .project(schema)
-        .createReaderFunc(DataReader::create)
-        .build()) {
+    try (AvroIterable<Record> reader =
+        Avro.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(DataReader::create)
+            .build()) {
       rows = Lists.newArrayList(reader);
     }
 

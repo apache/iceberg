@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark;
 
 import java.util.List;
@@ -45,8 +44,7 @@ import org.apache.spark.sql.types.StructType$;
 import org.apache.spark.sql.types.TimestampType$;
 
 class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
-  TypeToSparkType() {
-  }
+  TypeToSparkType() {}
 
   public static final String METADATA_COL_ATTR_KEY = "__metadata_col";
 
@@ -105,8 +103,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case DATE:
         return DateType$.MODULE$;
       case TIME:
-        throw new UnsupportedOperationException(
-            "Spark does not support time fields");
+        throw new UnsupportedOperationException("Spark does not support time fields");
       case TIMESTAMP:
         return TimestampType$.MODULE$;
       case STRING:
@@ -129,9 +126,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
 
   private Metadata fieldMetadata(int fieldId) {
     if (MetadataColumns.metadataFieldIds().contains(fieldId)) {
-      return new MetadataBuilder()
-          .putBoolean(METADATA_COL_ATTR_KEY, true)
-          .build();
+      return new MetadataBuilder().putBoolean(METADATA_COL_ATTR_KEY, true).build();
     }
 
     return Metadata.empty();

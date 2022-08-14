@@ -16,16 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.io.Serializable;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.transforms.Transform;
 
-/**
- * Represents a single field in a {@link PartitionSpec}.
- */
+/** Represents a single field in a {@link PartitionSpec}. */
 public class PartitionField implements Serializable {
   private final int sourceId;
   private final int fieldId;
@@ -39,30 +36,22 @@ public class PartitionField implements Serializable {
     this.transform = transform;
   }
 
-  /**
-   * Returns the field id of the source field in the {@link PartitionSpec spec's} table schema.
-   */
+  /** Returns the field id of the source field in the {@link PartitionSpec spec's} table schema. */
   public int sourceId() {
     return sourceId;
   }
 
-  /**
-   * Returns the partition field id across all the table metadata's partition specs.
-   */
+  /** Returns the partition field id across all the table metadata's partition specs. */
   public int fieldId() {
     return fieldId;
   }
 
-  /**
-   * Returns the name of this partition field.
-   */
+  /** Returns the name of this partition field. */
   public String name() {
     return name;
   }
 
-  /**
-   * Returns the transform used to produce partition values from source values.
-   */
+  /** Returns the transform used to produce partition values from source values. */
   public Transform<?, ?> transform() {
     return transform;
   }
@@ -81,10 +70,10 @@ public class PartitionField implements Serializable {
     }
 
     PartitionField that = (PartitionField) other;
-    return sourceId == that.sourceId &&
-        fieldId == that.fieldId &&
-        name.equals(that.name) &&
-        transform.equals(that.transform);
+    return sourceId == that.sourceId
+        && fieldId == that.fieldId
+        && name.equals(that.name)
+        && transform.equals(that.transform);
   }
 
   @Override

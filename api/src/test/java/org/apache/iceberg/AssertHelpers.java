@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.concurrent.Callable;
@@ -27,24 +26,23 @@ import org.assertj.core.api.Assertions;
 
 public class AssertHelpers {
 
-  private AssertHelpers() {
-  }
+  private AssertHelpers() {}
 
   /**
    * A convenience method to avoid a large number of @Test(expected=...) tests
+   *
    * @param message A String message to describe this assertion
    * @param expected An Exception class that the Runnable should throw
-   * @param containedInMessage A String that should be contained by the thrown
-   *                           exception's message
+   * @param containedInMessage A String that should be contained by the thrown exception's message
    * @param callable A Callable that is expected to throw the exception
    */
-  public static void assertThrows(String message,
-                                  Class<? extends Exception> expected,
-                                  String containedInMessage,
-                                  Callable callable) {
-    AbstractThrowableAssert<?, ? extends Throwable> check = Assertions.assertThatThrownBy(callable::call)
-        .as(message)
-        .isInstanceOf(expected);
+  public static void assertThrows(
+      String message,
+      Class<? extends Exception> expected,
+      String containedInMessage,
+      Callable callable) {
+    AbstractThrowableAssert<?, ? extends Throwable> check =
+        Assertions.assertThatThrownBy(callable::call).as(message).isInstanceOf(expected);
     if (null != containedInMessage) {
       check.hasMessageContaining(containedInMessage);
     }
@@ -52,19 +50,19 @@ public class AssertHelpers {
 
   /**
    * A convenience method to avoid a large number of @Test(expected=...) tests
+   *
    * @param message A String message to describe this assertion
    * @param expected An Exception class that the Runnable should throw
-   * @param containedInMessage A String that should be contained by the thrown
-   *                           exception's message
+   * @param containedInMessage A String that should be contained by the thrown exception's message
    * @param runnable A Runnable that is expected to throw the runtime exception
    */
-  public static void assertThrows(String message,
-                                  Class<? extends Exception> expected,
-                                  String containedInMessage,
-                                  Runnable runnable) {
-    AbstractThrowableAssert<?, ? extends Throwable> check = Assertions.assertThatThrownBy(runnable::run)
-        .as(message)
-        .isInstanceOf(expected);
+  public static void assertThrows(
+      String message,
+      Class<? extends Exception> expected,
+      String containedInMessage,
+      Runnable runnable) {
+    AbstractThrowableAssert<?, ? extends Throwable> check =
+        Assertions.assertThatThrownBy(runnable::run).as(message).isInstanceOf(expected);
     if (null != containedInMessage) {
       check.hasMessageContaining(containedInMessage);
     }
@@ -72,40 +70,42 @@ public class AssertHelpers {
 
   /**
    * A convenience method to avoid a large number of @Test(expected=...) tests
+   *
    * @param message A String message to describe this assertion
    * @param expected An Exception class that the Runnable should throw
    * @param callable A Callable that is expected to throw the exception
    */
-  public static void assertThrows(String message,
-                                  Class<? extends Exception> expected,
-                                  Callable callable) {
+  public static void assertThrows(
+      String message, Class<? extends Exception> expected, Callable callable) {
     assertThrows(message, expected, null, callable);
   }
 
   /**
    * A convenience method to avoid a large number of @Test(expected=...) tests
+   *
    * @param message A String message to describe this assertion
    * @param expected An Exception class that the Runnable should throw
    * @param runnable A Runnable that is expected to throw the runtime exception
    */
-  public static void assertThrows(String message,
-                                  Class<? extends Exception> expected,
-                                  Runnable runnable) {
+  public static void assertThrows(
+      String message, Class<? extends Exception> expected, Runnable runnable) {
     assertThrows(message, expected, null, runnable);
   }
 
   /**
    * A convenience method to assert the cause of thrown exception.
+   *
    * @param message A String message to describe this assertion
    * @param expected An Exception class that the cause of the Runnable should throw
    * @param containedInMessage A String that should be contained by the cause of the thrown
-   *                           exception's message
+   *     exception's message
    * @param runnable A Runnable that is expected to throw the runtime exception
    */
-  public static void assertThrowsCause(String message,
-                                       Class<? extends Exception> expected,
-                                       String containedInMessage,
-                                       Runnable runnable) {
+  public static void assertThrowsCause(
+      String message,
+      Class<? extends Exception> expected,
+      String containedInMessage,
+      Runnable runnable) {
     Assertions.assertThatThrownBy(runnable::run)
         .as(message)
         .getCause()
@@ -115,24 +115,25 @@ public class AssertHelpers {
 
   /**
    * A convenience method to assert both the thrown exception and the cause of thrown exception.
+   *
    * @param message A String message to describe this assertion
-   * @param expected  An Exception class that the Runnable should throw
-   * @param expectedContainedInMessage A String that should be contained by the thrown exception's message,
-   *                                   will be skipped if null.
+   * @param expected An Exception class that the Runnable should throw
+   * @param expectedContainedInMessage A String that should be contained by the thrown exception's
+   *     message, will be skipped if null.
    * @param cause An Exception class that the cause of the Runnable should throw
-   * @param causeContainedInMessage A String that should be contained by the cause of the thrown exception's message,
-   *                                will be skipped if null.
+   * @param causeContainedInMessage A String that should be contained by the cause of the thrown
+   *     exception's message, will be skipped if null.
    * @param runnable A Runnable that is expected to throw the runtime exception
    */
-  public static void assertThrowsWithCause(String message,
-                                           Class<? extends Exception> expected,
-                                           String expectedContainedInMessage,
-                                           Class<? extends Exception> cause,
-                                           String causeContainedInMessage,
-                                           Runnable runnable) {
-    AbstractThrowableAssert<?, ?> chain = Assertions.assertThatThrownBy(runnable::run)
-        .as(message)
-        .isInstanceOf(expected);
+  public static void assertThrowsWithCause(
+      String message,
+      Class<? extends Exception> expected,
+      String expectedContainedInMessage,
+      Class<? extends Exception> cause,
+      String causeContainedInMessage,
+      Runnable runnable) {
+    AbstractThrowableAssert<?, ?> chain =
+        Assertions.assertThatThrownBy(runnable::run).as(message).isInstanceOf(expected);
 
     if (expectedContainedInMessage != null) {
       chain = chain.hasMessageContaining(expectedContainedInMessage);
@@ -146,23 +147,21 @@ public class AssertHelpers {
 
   /**
    * A convenience method to check if an Avro field is empty.
+   *
    * @param record The record to read from
    * @param field The name of the field
    */
   public static void assertEmptyAvroField(GenericRecord record, String field) {
     AssertHelpers.assertThrows(
-        "Not a valid schema field: " + field,
-        AvroRuntimeException.class,
-        () -> record.get(field));
+        "Not a valid schema field: " + field, AvroRuntimeException.class, () -> record.get(field));
   }
 
-  /**
-   * Same as {@link AssertHelpers#assertThrowsCause}, but this method compares root cause.
-   */
-  public static void assertThrowsRootCause(String message,
-                                           Class<? extends Exception> expected,
-                                           String containedInMessage,
-                                           Runnable runnable) {
+  /** Same as {@link AssertHelpers#assertThrowsCause}, but this method compares root cause. */
+  public static void assertThrowsRootCause(
+      String message,
+      Class<? extends Exception> expected,
+      String containedInMessage,
+      Runnable runnable) {
     Assertions.assertThatThrownBy(runnable::run)
         .as(message)
         .getRootCause()

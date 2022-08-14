@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -54,7 +53,8 @@ import com.google.common.primitives.Bytes;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-// inspired in part by https://github.com/apache/avro/blob/release-1.8.2/lang/java/guava/src/main/java/org/apache/avro/GuavaClasses.java
+// inspired in part by
+// https://github.com/apache/avro/blob/release-1.8.2/lang/java/guava/src/main/java/org/apache/avro/GuavaClasses.java
 public class GuavaClasses {
 
   /*
@@ -97,6 +97,4 @@ public class GuavaClasses {
     CountingOutputStream.class.getName();
     Suppliers.class.getName();
   }
-
 }
-

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.BaseMetadataTable;
@@ -25,9 +24,9 @@ import org.apache.iceberg.Table;
 import org.apache.spark.util.KnownSizeEstimation;
 
 /**
- * This class provides a serializable table with a known size estimate. Spark calls
- * its SizeEstimator class when broadcasting variables and this can be an expensive
- * operation, so providing a known size estimate allows that operation to be skipped.
+ * This class provides a serializable table with a known size estimate. Spark calls its
+ * SizeEstimator class when broadcasting variables and this can be an expensive operation, so
+ * providing a known size estimate allows that operation to be skipped.
  */
 public class SerializableTableWithSize extends SerializableTable implements KnownSizeEstimation {
 

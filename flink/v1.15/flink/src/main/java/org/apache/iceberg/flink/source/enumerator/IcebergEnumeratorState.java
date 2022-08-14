@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.Serializable;
@@ -24,12 +23,9 @@ import java.util.Collection;
 import javax.annotation.Nullable;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 
-/**
- * Enumerator state for checkpointing
- */
+/** Enumerator state for checkpointing */
 public class IcebergEnumeratorState implements Serializable {
-  @Nullable
-  private final IcebergEnumeratorPosition lastEnumeratedPosition;
+  @Nullable private final IcebergEnumeratorPosition lastEnumeratedPosition;
   private final Collection<IcebergSourceSplitState> pendingSplits;
 
   public IcebergEnumeratorState(Collection<IcebergSourceSplitState> pendingSplits) {

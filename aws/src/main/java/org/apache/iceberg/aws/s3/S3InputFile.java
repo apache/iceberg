@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.aws.AwsProperties;
@@ -31,19 +30,36 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
   private NativeFileCryptoParameters nativeDecryptionParameters;
   private Long length;
 
-  public static S3InputFile fromLocation(String location, S3Client client, AwsProperties awsProperties,
+  public static S3InputFile fromLocation(
+      String location, S3Client client, AwsProperties awsProperties, MetricsContext metrics) {
+    return new S3InputFile(
+        client,
+        new S3URI(location, awsProperties.s3BucketToAccessPointMapping()),
+        null,
+        awsProperties,
+        metrics);
+  }
+
+  public static S3InputFile fromLocation(
+      String location,
+      long length,
+      S3Client client,
+      AwsProperties awsProperties,
       MetricsContext metrics) {
-    return new S3InputFile(client, new S3URI(location, awsProperties.s3BucketToAccessPointMapping()), null,
-        awsProperties, metrics);
+    return new S3InputFile(
+        client,
+        new S3URI(location, awsProperties.s3BucketToAccessPointMapping()),
+        length > 0 ? length : null,
+        awsProperties,
+        metrics);
   }
 
-  public static S3InputFile fromLocation(String location, long length, S3Client client, AwsProperties awsProperties,
-                                         MetricsContext metrics) {
-    return new S3InputFile(client, new S3URI(location, awsProperties.s3BucketToAccessPointMapping()),
-        length > 0 ? length : null, awsProperties, metrics);
-  }
-
-  S3InputFile(S3Client client, S3URI uri, Long length, AwsProperties awsProperties, MetricsContext metrics) {
+  S3InputFile(
+      S3Client client,
+      S3URI uri,
+      Long length,
+      AwsProperties awsProperties,
+      MetricsContext metrics) {
     super(client, uri, awsProperties, metrics);
     this.length = length;
   }

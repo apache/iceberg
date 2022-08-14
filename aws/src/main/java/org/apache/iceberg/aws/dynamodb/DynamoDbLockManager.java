@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.aws.dynamodb;
 
 import java.util.List;
@@ -59,9 +58,7 @@ import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 import software.amazon.awssdk.services.dynamodb.model.TableStatus;
 import software.amazon.awssdk.services.dynamodb.model.TransactionConflictException;
 
-/**
- * DynamoDB implementation for the lock manager.
- */
+/** DynamoDB implementation for the lock manager. */
 public class DynamoDbLockManager extends LockManagers.BaseLockManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbLockManager.class);
@@ -71,44 +68,43 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
   private static final String COL_VERSION = "version";
   private static final String COL_LOCK_OWNER_ID = "ownerId";
 
-  private static final String CONDITION_LOCK_ID_MATCH = String.format(
-      "%s = :eid AND %s = :oid",
-      COL_LOCK_ENTITY_ID, COL_LOCK_OWNER_ID);
-  private static final String CONDITION_LOCK_ENTITY_NOT_EXIST = String.format(
-      "attribute_not_exists(%s)",
-      COL_LOCK_ENTITY_ID);
-  private static final String CONDITION_LOCK_ENTITY_NOT_EXIST_OR_VERSION_MATCH = String.format(
-      "attribute_not_exists(%s) OR (%s = :eid AND %s = :vid)",
-      COL_LOCK_ENTITY_ID, COL_LOCK_ENTITY_ID, COL_VERSION);
+  private static final String CONDITION_LOCK_ID_MATCH =
+      String.format("%s = :eid AND %s = :oid", COL_LOCK_ENTITY_ID, COL_LOCK_OWNER_ID);
+  private static final String CONDITION_LOCK_ENTITY_NOT_EXIST =
+      String.format("attribute_not_exists(%s)", COL_LOCK_ENTITY_ID);
+  private static final String CONDITION_LOCK_ENTITY_NOT_EXIST_OR_VERSION_MATCH =
+      String.format(
+          "attribute_not_exists(%s) OR (%s = :eid AND %s = :vid)",
+          COL_LOCK_ENTITY_ID, COL_LOCK_ENTITY_ID, COL_VERSION);
 
   private static final int LOCK_TABLE_CREATION_WAIT_ATTEMPTS_MAX = 5;
   private static final int RELEASE_RETRY_ATTEMPTS_MAX = 5;
 
-  private static final List<KeySchemaElement> LOCK_TABLE_SCHEMA = Lists.newArrayList(
-      KeySchemaElement.builder()
-          .attributeName(COL_LOCK_ENTITY_ID)
-          .keyType(KeyType.HASH)
-          .build());
+  private static final List<KeySchemaElement> LOCK_TABLE_SCHEMA =
+      Lists.newArrayList(
+          KeySchemaElement.builder()
+              .attributeName(COL_LOCK_ENTITY_ID)
+              .keyType(KeyType.HASH)
+              .build());
 
-  private static final List<AttributeDefinition> LOCK_TABLE_COL_DEFINITIONS = Lists.newArrayList(
-      AttributeDefinition.builder()
-          .attributeName(COL_LOCK_ENTITY_ID)
-          .attributeType(ScalarAttributeType.S)
-          .build());
+  private static final List<AttributeDefinition> LOCK_TABLE_COL_DEFINITIONS =
+      Lists.newArrayList(
+          AttributeDefinition.builder()
+              .attributeName(COL_LOCK_ENTITY_ID)
+              .attributeType(ScalarAttributeType.S)
+              .build());
 
   private final Map<String, DynamoDbHeartbeat> heartbeats = Maps.newHashMap();
 
   private DynamoDbClient dynamo;
   private String lockTableName;
 
-  /**
-   * constructor for dynamic initialization, {@link #initialize(Map)} must be called later.
-   */
-  public DynamoDbLockManager() {
-  }
+  /** constructor for dynamic initialization, {@link #initialize(Map)} must be called later. */
+  public DynamoDbLockManager() {}
 
   /**
    * constructor used for testing purpose
+   *
    * @param dynamo dynamo client
    * @param lockTableName lock table name
    */
@@ -126,12 +122,13 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
     }
 
     LOG.info("Dynamo lock table {} not found, trying to create", lockTableName);
-    dynamo.createTable(CreateTableRequest.builder()
-        .tableName(lockTableName)
-        .keySchema(lockTableSchema())
-        .attributeDefinitions(lockTableColDefinitions())
-        .billingMode(BillingMode.PAY_PER_REQUEST)
-        .build());
+    dynamo.createTable(
+        CreateTableRequest.builder()
+            .tableName(lockTableName)
+            .keySchema(lockTableSchema())
+            .attributeDefinitions(lockTableColDefinitions())
+            .billingMode(BillingMode.PAY_PER_REQUEST)
+            .build());
 
     Tasks.foreach(lockTableName)
         .retry(LOCK_TABLE_CREATION_WAIT_ATTEMPTS_MAX)
@@ -143,9 +140,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
   @VisibleForTesting
   boolean tableExists(String tableName) {
     try {
-      dynamo.describeTable(DescribeTableRequest.builder()
-          .tableName(tableName)
-          .build());
+      dynamo.describeTable(DescribeTableRequest.builder().tableName(tableName).build());
       return true;
     } catch (ResourceNotFoundException e) {
       return false;
@@ -154,13 +149,13 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
 
   private void checkTableActive(String tableName) {
     try {
-      DescribeTableResponse response = dynamo.describeTable(DescribeTableRequest.builder()
-          .tableName(tableName)
-          .build());
+      DescribeTableResponse response =
+          dynamo.describeTable(DescribeTableRequest.builder().tableName(tableName).build());
       TableStatus currentStatus = response.table().tableStatus();
       if (!currentStatus.equals(TableStatus.ACTIVE)) {
-        throw new IllegalStateException(String.format("Dynamo table %s is not active, current status: %s",
-            tableName, currentStatus));
+        throw new IllegalStateException(
+            String.format(
+                "Dynamo table %s is not active, current status: %s", tableName, currentStatus));
       }
     } catch (ResourceNotFoundException e) {
       throw new IllegalStateException(String.format("Cannot find Dynamo table %s", tableName));
@@ -198,18 +193,21 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
 
   @VisibleForTesting
   void acquireOnce(String entityId, String ownerId) {
-    GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
-        .tableName(lockTableName)
-        .consistentRead(true)
-        .key(toKey(entityId))
-        .build());
+    GetItemResponse response =
+        dynamo.getItem(
+            GetItemRequest.builder()
+                .tableName(lockTableName)
+                .consistentRead(true)
+                .key(toKey(entityId))
+                .build());
 
     if (!response.hasItem()) {
-      dynamo.putItem(PutItemRequest.builder()
-          .tableName(lockTableName)
-          .item(toNewItem(entityId, ownerId, heartbeatTimeoutMs()))
-          .conditionExpression(CONDITION_LOCK_ENTITY_NOT_EXIST)
-          .build());
+      dynamo.putItem(
+          PutItemRequest.builder()
+              .tableName(lockTableName)
+              .item(toNewItem(entityId, ownerId, heartbeatTimeoutMs()))
+              .conditionExpression(CONDITION_LOCK_ENTITY_NOT_EXIST)
+              .build());
     } else {
       Map<String, AttributeValue> currentItem = response.item();
 
@@ -217,17 +215,21 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
         Thread.sleep(Long.parseLong(currentItem.get(COL_LEASE_DURATION_MS).n()));
       } catch (InterruptedException e) {
         throw new IllegalStateException(
-            String.format("Fail to acquire lock %s by %s, interrupted during sleep", entityId, ownerId), e);
+            String.format(
+                "Fail to acquire lock %s by %s, interrupted during sleep", entityId, ownerId),
+            e);
       }
 
-      dynamo.putItem(PutItemRequest.builder()
-          .tableName(lockTableName)
-          .item(toNewItem(entityId, ownerId, heartbeatTimeoutMs()))
-          .conditionExpression(CONDITION_LOCK_ENTITY_NOT_EXIST_OR_VERSION_MATCH)
-          .expressionAttributeValues(ImmutableMap.of(
-              ":eid", AttributeValue.builder().s(entityId).build(),
-              ":vid", AttributeValue.builder().s(currentItem.get(COL_VERSION).s()).build()))
-          .build());
+      dynamo.putItem(
+          PutItemRequest.builder()
+              .tableName(lockTableName)
+              .item(toNewItem(entityId, ownerId, heartbeatTimeoutMs()))
+              .conditionExpression(CONDITION_LOCK_ENTITY_NOT_EXIST_OR_VERSION_MATCH)
+              .expressionAttributeValues(
+                  ImmutableMap.of(
+                      ":eid", AttributeValue.builder().s(entityId).build(),
+                      ":vid", AttributeValue.builder().s(currentItem.get(COL_VERSION).s()).build()))
+              .build());
     }
 
     startNewHeartbeat(entityId, ownerId);
@@ -238,8 +240,9 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
       heartbeats.remove(entityId).cancel();
     }
 
-    DynamoDbHeartbeat heartbeat = new DynamoDbHeartbeat(dynamo, lockTableName,
-        heartbeatIntervalMs(), heartbeatTimeoutMs(), entityId, ownerId);
+    DynamoDbHeartbeat heartbeat =
+        new DynamoDbHeartbeat(
+            dynamo, lockTableName, heartbeatIntervalMs(), heartbeatTimeoutMs(), entityId, ownerId);
     heartbeat.schedule(scheduler());
     heartbeats.put(entityId, heartbeat);
   }
@@ -257,19 +260,28 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
               TransactionConflictException.class,
               RequestLimitExceededException.class,
               InternalServerErrorException.class)
-          .run(id -> dynamo.deleteItem(DeleteItemRequest.builder()
-              .tableName(lockTableName)
-              .key(toKey(id))
-              .conditionExpression(CONDITION_LOCK_ID_MATCH)
-              .expressionAttributeValues(toLockIdValues(id, ownerId))
-              .build()));
+          .run(
+              id ->
+                  dynamo.deleteItem(
+                      DeleteItemRequest.builder()
+                          .tableName(lockTableName)
+                          .key(toKey(id))
+                          .conditionExpression(CONDITION_LOCK_ID_MATCH)
+                          .expressionAttributeValues(toLockIdValues(id, ownerId))
+                          .build()));
       succeeded = true;
     } catch (ConditionalCheckFailedException e) {
-      LOG.error("Failed to release lock for entity: {}, owner: {}, lock entity does not exist or owner not match",
-          entityId, ownerId, e);
+      LOG.error(
+          "Failed to release lock for entity: {}, owner: {}, lock entity does not exist or owner not match",
+          entityId,
+          ownerId,
+          e);
     } catch (DynamoDbException e) {
-      LOG.error("Failed to release lock {} by for entity: {}, owner: {}, encountered unexpected DynamoDB exception",
-          entityId, ownerId, e);
+      LOG.error(
+          "Failed to release lock {} by for entity: {}, owner: {}, encountered unexpected DynamoDB exception",
+          entityId,
+          ownerId,
+          e);
     } finally {
       if (heartbeat != null && heartbeat.ownerId().equals(ownerId)) {
         heartbeat.cancel();
@@ -283,12 +295,14 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
     return ImmutableMap.of(COL_LOCK_ENTITY_ID, AttributeValue.builder().s(entityId).build());
   }
 
-  private static Map<String, AttributeValue> toNewItem(String entityId, String ownerId, long heartbeatTimeoutMs) {
+  private static Map<String, AttributeValue> toNewItem(
+      String entityId, String ownerId, long heartbeatTimeoutMs) {
     return ImmutableMap.of(
         COL_LOCK_ENTITY_ID, AttributeValue.builder().s(entityId).build(),
         COL_LOCK_OWNER_ID, AttributeValue.builder().s(ownerId).build(),
         COL_VERSION, AttributeValue.builder().s(UUID.randomUUID().toString()).build(),
-        COL_LEASE_DURATION_MS, AttributeValue.builder().n(Long.toString(heartbeatTimeoutMs)).build());
+        COL_LEASE_DURATION_MS,
+            AttributeValue.builder().n(Long.toString(heartbeatTimeoutMs)).build());
   }
 
   private static Map<String, AttributeValue> toLockIdValues(String entityId, String ownerId) {
@@ -306,6 +320,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
 
   /**
    * The lock table schema, for users who would like to create the table separately
+   *
    * @return lock table schema
    */
   public static List<KeySchemaElement> lockTableSchema() {
@@ -314,6 +329,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
 
   /**
    * The lock table column definition, for users who whould like to create the table separately
+   *
    * @return lock table column definition
    */
   public static List<AttributeDefinition> lockTableColDefinitions() {
@@ -330,8 +346,13 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
     private final String ownerId;
     private ScheduledFuture<?> future;
 
-    DynamoDbHeartbeat(DynamoDbClient dynamo, String lockTableName, long intervalMs, long timeoutMs,
-                      String entityId, String ownerId) {
+    DynamoDbHeartbeat(
+        DynamoDbClient dynamo,
+        String lockTableName,
+        long intervalMs,
+        long timeoutMs,
+        String entityId,
+        String ownerId) {
       this.dynamo = dynamo;
       this.lockTableName = lockTableName;
       this.intervalMs = intervalMs;
@@ -344,15 +365,20 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
     @Override
     public void run() {
       try {
-        dynamo.putItem(PutItemRequest.builder()
-            .tableName(lockTableName)
-            .item(toNewItem(entityId, ownerId, timeoutMs))
-            .conditionExpression(CONDITION_LOCK_ID_MATCH)
-            .expressionAttributeValues(toLockIdValues(entityId, ownerId))
-            .build());
+        dynamo.putItem(
+            PutItemRequest.builder()
+                .tableName(lockTableName)
+                .item(toNewItem(entityId, ownerId, timeoutMs))
+                .conditionExpression(CONDITION_LOCK_ID_MATCH)
+                .expressionAttributeValues(toLockIdValues(entityId, ownerId))
+                .build());
       } catch (ConditionalCheckFailedException e) {
-        LOG.error("Fail to heartbeat for entity: {}, owner: {} due to conditional check failure, " +
-                "unsafe concurrent commits might be going on", entityId, ownerId, e);
+        LOG.error(
+            "Fail to heartbeat for entity: {}, owner: {} due to conditional check failure, "
+                + "unsafe concurrent commits might be going on",
+            entityId,
+            ownerId,
+            e);
       } catch (RuntimeException e) {
         LOG.error("Failed to heartbeat for entity: {}, owner: {}", entityId, ownerId, e);
       }

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.common;
 
 import java.lang.reflect.InvocationTargetException;
@@ -28,20 +27,16 @@ import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Throwables;
 
-
-/**
- * Copied from parquet-common
- */
+/** Copied from parquet-common */
 public class DynMethods {
 
-  private DynMethods() {
-  }
+  private DynMethods() {}
 
   /**
    * Convenience wrapper class around {@link java.lang.reflect.Method}.
    *
-   * Allows callers to invoke the wrapped method with all Exceptions wrapped by
-   * RuntimeException, or with a single Exception catch block.
+   * <p>Allows callers to invoke the wrapped method with all Exceptions wrapped by RuntimeException,
+   * or with a single Exception catch block.
    */
   public static class UnboundMethod {
 
@@ -52,8 +47,8 @@ public class DynMethods {
     UnboundMethod(Method method, String name) {
       this.method = method;
       this.name = name;
-      this.argLength = (method == null || method.isVarArgs()) ? -1 :
-          method.getParameterTypes().length;
+      this.argLength =
+          (method == null || method.isVarArgs()) ? -1 : method.getParameterTypes().length;
     }
 
     @SuppressWarnings("unchecked")
@@ -90,27 +85,23 @@ public class DynMethods {
      * @throws IllegalArgumentException if the receiver's class is incompatible
      */
     public BoundMethod bind(Object receiver) {
-      Preconditions.checkState(!isStatic(),
-          "Cannot bind static method %s",  method.toGenericString());
+      Preconditions.checkState(
+          !isStatic(), "Cannot bind static method %s", method.toGenericString());
       Preconditions.checkArgument(
           method.getDeclaringClass().isAssignableFrom(receiver.getClass()),
           "Cannot bind %s to instance of %s",
-              method.toGenericString(),
-              receiver.getClass());
+          method.toGenericString(),
+          receiver.getClass());
 
       return new BoundMethod(this, receiver);
     }
 
-    /**
-     * Returns whether the method is a static method.
-     */
+    /** Returns whether the method is a static method. */
     public boolean isStatic() {
       return Modifier.isStatic(method.getModifiers());
     }
 
-    /**
-     * Returns whether the method is a noop.
-     */
+    /** Returns whether the method is a noop. */
     public boolean isNoop() {
       return this == NOOP;
     }
@@ -128,39 +119,37 @@ public class DynMethods {
 
     @Override
     public String toString() {
-      return "DynMethods.UnboundMethod(name=" + name + " method=" +
-          method.toGenericString() + ")";
+      return "DynMethods.UnboundMethod(name=" + name + " method=" + method.toGenericString() + ")";
     }
 
-    /**
-     * Singleton {@link UnboundMethod}, performs no operation and returns null.
-     */
-    private static final UnboundMethod NOOP = new UnboundMethod(null, "NOOP") {
-      @Override
-      public <R> R invokeChecked(Object target, Object... args) throws Exception {
-        return null;
-      }
+    /** Singleton {@link UnboundMethod}, performs no operation and returns null. */
+    private static final UnboundMethod NOOP =
+        new UnboundMethod(null, "NOOP") {
+          @Override
+          public <R> R invokeChecked(Object target, Object... args) throws Exception {
+            return null;
+          }
 
-      @Override
-      public BoundMethod bind(Object receiver) {
-        return new BoundMethod(this, receiver);
-      }
+          @Override
+          public BoundMethod bind(Object receiver) {
+            return new BoundMethod(this, receiver);
+          }
 
-      @Override
-      public StaticMethod asStatic() {
-        return new StaticMethod(this);
-      }
+          @Override
+          public StaticMethod asStatic() {
+            return new StaticMethod(this);
+          }
 
-      @Override
-      public boolean isStatic() {
-        return true;
-      }
+          @Override
+          public boolean isStatic() {
+            return true;
+          }
 
-      @Override
-      public String toString() {
-        return "DynMethods.UnboundMethod(NOOP)";
-      }
-    };
+          @Override
+          public String toString() {
+            return "DynMethods.UnboundMethod(NOOP)";
+          }
+        };
   }
 
   public static class BoundMethod {
@@ -218,8 +207,8 @@ public class DynMethods {
 
     /**
      * Set the {@link ClassLoader} used to lookup classes by name.
-     * <p>
-     * If not set, the current thread's ClassLoader is used.
+     *
+     * <p>If not set, the current thread's ClassLoader is used.
      *
      * @param newLoader a ClassLoader
      * @return this Builder for method chaining
@@ -232,7 +221,7 @@ public class DynMethods {
     /**
      * If no implementation has been found, adds a NOOP method.
      *
-     * Note: calls to impl will not match after this method is called!
+     * <p>Note: calls to impl will not match after this method is called!
      *
      * @return this Builder for method chaining
      */
@@ -271,7 +260,7 @@ public class DynMethods {
     /**
      * Checks for an implementation, first finding the given class by name.
      *
-     * The name passed to the constructor is the method name used.
+     * <p>The name passed to the constructor is the method name used.
      *
      * @param className name of a class
      * @param argClasses argument classes for the method
@@ -301,8 +290,7 @@ public class DynMethods {
       }
 
       try {
-        this.method = new UnboundMethod(
-            targetClass.getMethod(methodName, argClasses), name);
+        this.method = new UnboundMethod(targetClass.getMethod(methodName, argClasses), name);
       } catch (NoSuchMethodException e) {
         // not the right implementation
       }
@@ -312,7 +300,7 @@ public class DynMethods {
     /**
      * Checks for a method implementation.
      *
-     * The name passed to the constructor is the method name used.
+     * <p>The name passed to the constructor is the method name used.
      *
      * @param targetClass a class instance
      * @param argClasses argument classes for the method
@@ -332,9 +320,7 @@ public class DynMethods {
       }
 
       try {
-        this.method = new DynConstructors.Builder()
-            .impl(targetClass, argClasses)
-            .buildChecked();
+        this.method = new DynConstructors.Builder().impl(targetClass, argClasses).buildChecked();
       } catch (NoSuchMethodException e) {
         // not the right implementation
       }
@@ -348,9 +334,7 @@ public class DynMethods {
       }
 
       try {
-        this.method = new DynConstructors.Builder()
-            .impl(className, argClasses)
-            .buildChecked();
+        this.method = new DynConstructors.Builder().impl(className, argClasses).buildChecked();
       } catch (NoSuchMethodException e) {
         // not the right implementation
       }
@@ -385,7 +369,7 @@ public class DynMethods {
     /**
      * Checks for an implementation, first finding the given class by name.
      *
-     * The name passed to the constructor is the method name used.
+     * <p>The name passed to the constructor is the method name used.
      *
      * @param className name of a class
      * @param argClasses argument classes for the method
@@ -427,7 +411,7 @@ public class DynMethods {
     /**
      * Checks for a method implementation.
      *
-     * The name passed to the constructor is the method name used.
+     * <p>The name passed to the constructor is the method name used.
      *
      * @param targetClass a class instance
      * @param argClasses argument classes for the method
@@ -441,8 +425,8 @@ public class DynMethods {
     }
 
     /**
-     * Returns the first valid implementation as a UnboundMethod or throws a
-     * RuntimeError if there is none.
+     * Returns the first valid implementation as a UnboundMethod or throws a RuntimeError if there
+     * is none.
      *
      * @return a {@link UnboundMethod} with a valid implementation
      * @throws RuntimeException if no implementation was found
@@ -456,8 +440,8 @@ public class DynMethods {
     }
 
     /**
-     * Returns the first valid implementation as a BoundMethod or throws a
-     * RuntimeError if there is none.
+     * Returns the first valid implementation as a BoundMethod or throws a RuntimeError if there is
+     * none.
      *
      * @param receiver an Object to receive the method invocation
      * @return a {@link BoundMethod} with a valid implementation and receiver
@@ -470,8 +454,8 @@ public class DynMethods {
     }
 
     /**
-     * Returns the first valid implementation as a UnboundMethod or throws a
-     * NoSuchMethodException if there is none.
+     * Returns the first valid implementation as a UnboundMethod or throws a NoSuchMethodException
+     * if there is none.
      *
      * @return a {@link UnboundMethod} with a valid implementation
      * @throws NoSuchMethodException if no implementation was found
@@ -485,8 +469,8 @@ public class DynMethods {
     }
 
     /**
-     * Returns the first valid implementation as a BoundMethod or throws a
-     * NoSuchMethodException if there is none.
+     * Returns the first valid implementation as a BoundMethod or throws a NoSuchMethodException if
+     * there is none.
      *
      * @param receiver an Object to receive the method invocation
      * @return a {@link BoundMethod} with a valid implementation and receiver
@@ -499,8 +483,8 @@ public class DynMethods {
     }
 
     /**
-     * Returns the first valid implementation as a StaticMethod or throws a
-     * NoSuchMethodException if there is none.
+     * Returns the first valid implementation as a StaticMethod or throws a NoSuchMethodException if
+     * there is none.
      *
      * @return a {@link StaticMethod} with a valid implementation
      * @throws IllegalStateException if the method is not static
@@ -511,8 +495,8 @@ public class DynMethods {
     }
 
     /**
-     * Returns the first valid implementation as a StaticMethod or throws a
-     * RuntimeException if there is none.
+     * Returns the first valid implementation as a StaticMethod or throws a RuntimeException if
+     * there is none.
      *
      * @return a {@link StaticMethod} with a valid implementation
      * @throws IllegalStateException if the method is not static
@@ -521,7 +505,6 @@ public class DynMethods {
     public StaticMethod buildStatic() {
       return build().asStatic();
     }
-
   }
 
   private static class MakeAccessible implements PrivilegedAction<Void> {
