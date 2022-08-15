@@ -360,6 +360,9 @@ public class S3FileIO
         this.credential = ((CredentialSupplier) clientFactory).getCredential();
       }
       this.s3 = clientFactory::s3;
+      if (awsProperties.s3PreloadClientEnabled()) {
+        client();
+      }
     }
 
     // Report Hadoop metrics if Hadoop is available

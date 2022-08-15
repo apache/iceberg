@@ -16,6 +16,8 @@
 # under the License.
 # pylint:disable=redefined-outer-name,eval-used
 
+from typing import Any, Dict
+
 import pytest
 
 from pyiceberg.table.metadata import TableMetadata
@@ -27,7 +29,6 @@ from pyiceberg.table.sorting import (
     SortOrder,
 )
 from pyiceberg.transforms import BucketTransform, IdentityTransform, VoidTransform
-from tests.table.test_metadata import EXAMPLE_TABLE_METADATA_V2
 
 
 @pytest.fixture
@@ -55,8 +56,8 @@ def test_deserialize_sort_order(sort_order: SortOrder):
     assert SortOrder.parse_raw(payload) == sort_order
 
 
-def test_sorting_schema():
-    table_metadata = TableMetadata.parse_obj(EXAMPLE_TABLE_METADATA_V2)
+def test_sorting_schema(example_table_metadata_v2: Dict[str, Any]):
+    table_metadata = TableMetadata.parse_obj(example_table_metadata_v2)
 
     assert table_metadata.sort_orders == [
         SortOrder(
